@@ -1422,8 +1422,8 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	application["domain"] = app.Domain
-
 	application["password"] = app.Password
+	
 	if len(application["password"].(string)) == 0 {
 		application["password"] = app.Id
 	}

@@ -175,45 +175,45 @@ export class EventHub {
   }
 
   reinitRemoteListeners() {
-    setTimeout(() => {
-      let subscriptions = []
-      for (const name in this.subscribers) {
-        for (var uuid in this.subscribers[name]) {
-          let subscription = this.subscribers[name][uuid]
-          if (!subscription.local) {
-            if (subscriptions.indexOf(name) == -1) {
-              subscriptions.push(name)
-            }
+
+    let subscriptions = []
+    for (const name in this.subscribers) {
+      for (var uuid in this.subscribers[name]) {
+        let subscription = this.subscribers[name][uuid]
+        if (!subscription.local) {
+          if (subscriptions.indexOf(name) == -1) {
+            subscriptions.push(name)
           }
         }
       }
+    }
 
-      let subscribe = () => {
-        let name = subscriptions.pop()
-        const rqst = new SubscribeRequest
-        rqst.setName(name)
-        rqst.setUuid(this.uuid)
-        this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
-          if (subscriptions.length > 0) {
-            subscribe();
-          }
-        }).catch(err => { console.log(err) })
-      }
+    let subscribe = () => {
+      let name = subscriptions.pop()
+      const rqst = new SubscribeRequest
+      rqst.setName(name)
+      rqst.setUuid(this.uuid)
+      this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
+        if (subscriptions.length > 0) {
+          subscribe();
+        }
+      }).catch(err => { console.log(err) })
+    }
 
-      subscribe()
-    }, 5000)
+    subscribe()
   }
 
   /** Connect to the remote server. */
   connect(callback: () => void) {
     // Open the connection with the server.
     if (this.globular.eventService !== undefined) {
-      
+
       // The first step is to subscribe to an event channel.
       const rqst = new OnEventRequest()
       rqst.setUuid(this.uuid)
 
       const stream = this.globular.eventService.onEvent(rqst, {});
+      let last_timeout = -1;
 
       // Get the stream and set event on it...
       stream.on('data', (rsp: any) => {
@@ -230,35 +230,40 @@ export class EventHub {
           // dispatch the event localy.
           this.dispatch(evt.getName(), data)
 
-        }else if(rsp.hasKa()){
-          /** Nothing to do here... */
+        } else if (rsp.hasKa()) {
+          /**  */
+          if (last_timeout > 0) {
+            clearTimeout(last_timeout)
+          }
+
+          // wait for the next timeout...
+          last_timeout = setTimeout(() => {
+
+            stream.cancel() // cancel the stream if it was active
+            this.globular.resetEventService(); // reset listeners...
+            this.connect( () => {
+              this.reinitRemoteListeners();
+            });
+
+          }, 25 * 1000) // if signal was received for 25 second I will try to reconnect...
         }
       });
 
       stream.on('status', (status: any) => {
-        if (status.code === 0) {
+        if (status.code != 0) {
           /** nothing here. */
-
-        } else if (status.details == "transport is closing") {
-          this.globular.resetEventService();
-
-          this.connect(() => {
-            this.reinitRemoteListeners()
-          });
         }
       });
 
       stream.on('end', () => {
-        // stream end signal
-        /** Nothing to do here. */
-        
+        /** Nothing here */
       });
 
       if (callback != undefined) {
         callback();
       }
 
-    } else {
+    }/* else {
       // Wait a second before try to connect agin...
       setTimeout(() => {
         this.connect(() => {
@@ -266,7 +271,7 @@ export class EventHub {
         })
 
       }, 1000)
-    }
+    }*/
   }
 
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
@@ -25,9 +26,9 @@ import (
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/reflection"
 
 	//"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
 
@@ -97,7 +98,8 @@ type server struct {
 	indexs map[string]bleve.Index
 
 	// Contain the file and title asscociation.
-	associations map[string]*storage_store.Badger_store
+	//associations map[string]*storage_store.Badger_store
+	associations *sync.Map
 }
 
 // The path of the configuration.
@@ -487,6 +489,17 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 	return title, nil
 }
 
+// Get accosiations store...
+func (srv *server) getAssociations(id string) *storage_store.Badger_store {
+	if srv.associations != nil {
+		associations, ok := srv.associations.Load(id)
+		if ok {
+			return associations.(*storage_store.Badger_store)
+		}
+	}
+	return nil
+}
+
 // Get a title by a given id.
 func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
 
@@ -498,17 +511,17 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	}
 
 	filePaths := []string{}
+
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	associations := srv.getAssociations(rqst.IndexPath)
+	if associations != nil {
+		data, err := associations.GetItem(rqst.TitleId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
 	}
@@ -785,17 +798,17 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	fmt.Println("associate file ", absolutefilePath, uuid)
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
+
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -818,7 +831,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	// Now I will set back the item in the store.
 	data, _ = json.Marshal(association)
-	err = srv.associations[rqst.IndexPath].SetItem(uuid, data)
+	err = associations.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -826,7 +839,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Now I will get the association for that title.
-	data, err = srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	data, err = associations.GetItem(rqst.TitleId)
 	association = &fileTileAssociation{ID: rqst.TitleId, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -847,7 +860,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	data, _ = json.Marshal(association)
-	err = srv.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
+	err = associations.SetItem(rqst.TitleId, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -883,17 +896,16 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		uuid = Utility.CreateFileChecksum(absoluteFilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(indexPath)
 
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	file_data, err := srv.associations[indexPath].GetItem(uuid)
+	file_data, err := associations.GetItem(uuid)
 	file_association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(file_data, file_association)
@@ -907,17 +919,17 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	file_association.Paths = Utility.RemoveString(file_association.Titles, titleId)
 
 	if len(file_association.Paths) == 0 || len(file_association.Titles) == 0 {
-		srv.associations[indexPath].RemoveItem(uuid)
+		associations.RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
 		data, _ := json.Marshal(file_association)
-		err = srv.associations[indexPath].SetItem(uuid, data)
+		err = associations.SetItem(uuid, data)
 		if err != nil {
 			return err
 		}
 	}
 
-	title_data, err := srv.associations[indexPath].GetItem(titleId)
+	title_data, err := associations.GetItem(titleId)
 	title_association := &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(title_data, title_association)
@@ -930,7 +942,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	title_association.Paths = Utility.RemoveString(title_association.Paths, filePath)
 
 	if len(title_association.Paths) == 0 {
-		srv.associations[indexPath].RemoveItem(titleId)
+		associations.RemoveItem(titleId)
 
 		// I will also delete the title itself from the search engine...
 		index, err := srv.getIndex(indexPath)
@@ -951,7 +963,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	} else {
 		// Now I will set back the item in the store.
 		data, _ := json.Marshal(title_association)
-		err = srv.associations[indexPath].SetItem(titleId, data)
+		err = associations.SetItem(titleId, data)
 		if err != nil {
 			return err
 		}
@@ -1011,17 +1023,15 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
-
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	associations := srv.getAssociations(indexPath)
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[indexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1417,16 +1427,15 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	filePaths := []string{}
 
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.VidoeId)
+	associations := srv.getAssociations(rqst.IndexPath)
+	if associations != nil {
+		data, err := associations.GetItem(rqst.VidoeId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
 	}
@@ -1518,17 +1527,16 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1558,17 +1566,16 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	}
 
 	// I will use the file checksum as file id...
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(indexPath)
 
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[indexPath].GetItem(titleId)
+	data, err := associations.GetItem(titleId)
 	if err != nil {
 		fmt.Println("no files association found for title: ", titleId, err)
 		return nil, err
@@ -1597,12 +1604,12 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		association.Paths = paths
 		// if no more file are link I will remove the association...
 		if len(association.Paths) == 0 {
-			srv.associations[indexPath].RemoveItem(titleId)
-			srv.associations[indexPath].RemoveItem(association.ID)
+			associations.RemoveItem(titleId)
+			associations.RemoveItem(association.ID)
 		} else {
 			data, _ = json.Marshal(association)
-			srv.associations[indexPath].SetItem(association.ID, data)
-			srv.associations[indexPath].SetItem(titleId, data)
+			associations.SetItem(association.ID, data)
+			associations.SetItem(titleId, data)
 		}
 	}
 
@@ -1690,10 +1697,14 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		},
 	})
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+
+	associations := srv.getAssociations(rqst.IndexPath)
+
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
 	// Now I will generate the hits informations...
@@ -1960,9 +1971,10 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 	filePaths := []string{}
 
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.AudioId)
+	associations := srv.getAssociations(rqst.IndexPath)
+
+		if associations != nil {
+			data, err := associations.GetItem(rqst.AudioId)
 			if err == nil {
 				association := new(fileTileAssociation)
 				err = json.Unmarshal(data, association)
@@ -1972,7 +1984,7 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 				}
 			}
 		}
-	}
+	
 
 	return &titlepb.GetAudioByIdResponse{
 		Audio:      audio,
@@ -2150,17 +2162,16 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -2230,7 +2241,8 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
-	s_impl.associations = make(map[string]*storage_store.Badger_store)
+	s_impl.associations = new(sync.Map)
+
 
 	// Give base info to retreive it configuration.
 	// Give base info to retreive it configuration.
@@ -2246,6 +2258,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
+
 
 	// Register the title services
 	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
