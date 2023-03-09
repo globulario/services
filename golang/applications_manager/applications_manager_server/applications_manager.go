@@ -406,6 +406,5 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		// server.IndexApplication = name
 	}
 
-	fmt.Println("--------------> 415 ", err)
 	return err
 }

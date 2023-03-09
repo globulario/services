@@ -388,7 +388,6 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 }
 
 func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
-	//fmt.Println("------------> 399")
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {

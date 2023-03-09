@@ -670,13 +670,13 @@ func (svr *server) processTorrent() {
 				}
 
 				// Now I will send info_ to connected client...
-				for index, action := range getTorrentsInfo_actions {
+				for index:=0; index < len(getTorrentsInfo_actions); index++{
+					action := getTorrentsInfo_actions[index]
 					stream := action["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
 					err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: infos_})
 					if err != nil {
 						fmt.Println("exit torrent  ", err)
 						action["exit"].(chan bool) <- true
-						// remove the stream from the array...
 						getTorrentsInfo_actions = append(getTorrentsInfo_actions[:index], getTorrentsInfo_actions[index+1:]...)
 					}
 				}

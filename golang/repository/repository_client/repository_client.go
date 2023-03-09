@@ -435,7 +435,6 @@ func GetEventClient(domain string) (*event_client.Event_Client, error) {
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
 
-	fmt.Println("------------> 438")
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	if len(token) > 0 {

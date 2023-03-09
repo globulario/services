@@ -465,6 +465,9 @@ func (event_server *server) run() {
 					go func(quit chan bool) {
 						quit <- true
 					}(quits[uuid])
+					
+					// remove the channel from the map.
+					delete(quits, uuid)
 				}
 			}
 
