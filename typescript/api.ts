@@ -266,7 +266,7 @@ export enum OwnerType {
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
-export function uploadFiles(globule: Globular, token: string, path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
+export function uploadFiles(globule: Globular, token: string, path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number, abortFct?:()=>void): XMLHttpRequest{
   var fd = new FormData();
   // add all selected files
   for (var i = 0; i < files.length; i++) {
@@ -323,6 +323,8 @@ export function uploadFiles(globule: Globular, token: string, path: string, file
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain",  globule.domain);
   xhr.send(fd);
+
+  return xhr
 }
 
 /**

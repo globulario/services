@@ -27,6 +27,7 @@ import (
 	"github.com/StalkR/imdb"
 	"github.com/barasher/go-exiftool"
 	"github.com/karmdip-mi/go-fitz"
+	"github.com/mitchellh/go-ps"
 	"golang.org/x/text/language"
 	"golang.org/x/text/language/display"
 
@@ -1907,8 +1908,10 @@ func getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
+		fmt.Println("fail to connect to event client with error: ", err)
 		return nil, err
 	}
+
 	return client.(*event_client.Event_Client), nil
 }
 
@@ -3335,6 +3338,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	}
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
+	//  also install sudo apt-get install libnvidia-encode-525 // replace by your driver version.
 	args = []string{"-i", path, "-c:v"}
 
 	if hasEnableCudaNvcc() {
@@ -3556,7 +3560,6 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	dest = strings.ReplaceAll(dest, "\\", "/")
 	streamInfos, err := getStreamInfos(src)
 	if err != nil {
-
 		return err
 	}
 
@@ -3566,7 +3569,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	// Here I will test if the encoding is valid
 	encoding := ""
 	for _, stream := range streamInfos["streams"].([]interface{}) {
-		if stream.(map[string]interface{})["codec_type"].(string) == "video" {
+		if stream.(map[string]interface{})["codec_type"].(string) == "video" && stream.(map[string]interface{})["avg_frame_rate"].(string) != "0/0" && stream.(map[string]interface{})["codec_name"].(string) != "png" {
 			encoding = stream.(map[string]interface{})["codec_long_name"].(string)
 		}
 	}
@@ -3595,7 +3598,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 			args = append(args, "libx264", "-pix_fmt", "yuv420p")
 			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
 		} else {
-			err := errors.New("no encoding command foud for " + encoding)
+			err := errors.New("no encoding command found for " + encoding)
 			fmt.Println(err.Error())
 			return err
 		}
@@ -3606,10 +3609,10 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	w, _ := getVideoResolution(src)
 
 	if w >= 426 {
-		renditions = append(renditions, map[string]interface{}{"resolution": "426x240", "bitrate": "400k", "audio-rate": "64k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "426x240", "bitrate": "1400k", "audio-rate": "128k"})
 	}
 	if w >= 640 {
-		renditions = append(renditions, map[string]interface{}{"resolution": "640x360", "bitrate": "400k", "audio-rate": "64k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "640x360", "bitrate": "1400k", "audio-rate": "128k"})
 	}
 
 	if w >= 842 {
@@ -5117,6 +5120,61 @@ func (file_server *server) getVideoInfo(url string) (map[string]interface{}, err
 
 }
 
+func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.Title_Client) func(evt *eventpb.Event) {
+
+	return func(evt *eventpb.Event) {
+		data := make(map[string]interface{})
+		err := json.Unmarshal(evt.Data, &data)
+		if err == nil {
+			pid := Utility.ToInt(data["pid"])
+			path_ := file_server.formatPath(data["path"].(string))
+
+			// So here I will the process...
+			proc, err := os.FindProcess(pid)
+			if err == nil {
+				p_, err := ps.FindProcess(pid)
+				if err != nil {
+					return
+				}
+
+				if p_ == nil {
+					return // must have process info...
+				}
+
+				if !strings.Contains(p_.Executable(), "yt-dlp"){
+					return // only yt-dlp must be kill...
+				}
+				
+				proc.Kill()
+				time.Sleep(1*time.Second) // give time to process to stop...
+				files, _ := Utility.ReadDir(path_)
+
+				// remove incomplete download...
+				for i := 0; i < len(files); i++ {
+					f := files[i]
+					if strings.Contains(f.Name(), ".temp.") || strings.HasSuffix(f.Name(), ".ytdl") || strings.HasSuffix(f.Name(), ".webp") || strings.HasSuffix(f.Name(), ".png") || strings.HasSuffix(f.Name(), ".jpg") || strings.HasSuffix(f.Name(), ".info.json") || strings.Contains(f.Name(), ".part") {
+						os.Remove(path_ + "/" + f.Name())
+					}
+
+					// remove file with no asscociation...
+					if strings.HasSuffix(f.Name(), ".mp4") {
+						videos := make(map[string][]*titlepb.Video, 0)
+						err := restoreVideoInfos(title_client_, path_+"/"+f.Name())
+						if err != nil {
+							err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+							if err != nil {
+								os.Remove(path_ + "/" + f.Name())
+							} else if len(videos) == 0 {
+								os.Remove(path_ + "/" + f.Name())
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 // Upload a video from a given url, it use youtube-dl.
 func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.FileService_UploadVideoServer) error {
 	var err error
@@ -5159,13 +5217,14 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	title_client_, err := getTitleClient()
+	if err != nil {
+		return err
+	}
+
+	// Upload channel...
 	if playlist != nil && len(playlist) > 0 {
 		files, _ := Utility.ReadDir(path_)
-
-		client, err := getTitleClient()
-		if err != nil {
-			return err
-		}
 
 		// finish processing already downloaded files...
 		for i := 0; i < len(files); i++ {
@@ -5185,8 +5244,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 		}
 
 		file_server.generatePlaylist(path, "")
-
-		title_client, err := getTitleClient()
+		authentication_client_, err := getAuticationClient(domain)
 		if err != nil {
 			return err
 		}
@@ -5201,9 +5259,9 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			// remove file with no asscociation...
 			if strings.HasSuffix(f.Name(), ".mp4") {
 				videos := make(map[string][]*titlepb.Video, 0)
-				err := restoreVideoInfos(title_client, path_+"/"+f.Name())
+				err := restoreVideoInfos(title_client_, path_+"/"+f.Name())
 				if err != nil {
-					err := file_server.getFileVideosAssociation(client, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+					err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
 					if err != nil {
 						os.Remove(path_ + "/" + f.Name())
 					} else if len(videos) == 0 {
@@ -5213,7 +5271,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			}
 		}
 
-		// Here I will remove all
 		for i := 0; i < len(playlist); i++ {
 			item := playlist[i]
 			if !Utility.Exists(path_+"/"+item["id"].(string)+"."+rqst.Format) && !Utility.Exists(path_+"/"+item["id"].(string)) {
@@ -5221,19 +5278,16 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				// here I will validate the token...
 				_, err = security.ValidateToken(token)
 				if err != nil {
-					client, err := getAuticationClient(domain)
-					if err != nil {
-						return err
-					}
 
 					// Try to refresh the token...
-					token, err = client.RefreshToken(token)
+					token, err = authentication_client_.RefreshToken(token)
 					if err != nil {
 
 						return err
 					}
 				}
 
+				// Start upload video...
 				pid, err := file_server.uploadedVideo(token, item["url"].(string), rqst.Dest+"/"+item["playlist"].(string), rqst.Format, path_+"/"+item["id"].(string)+"."+rqst.Format, stream)
 
 				// display the error...
@@ -5244,6 +5298,10 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 							Result: "fail to upload video " + item["id"].(string) + " with error " + err.Error(),
 						},
 					)
+					if strings.Contains(err.Error(), "signal: killed"){
+						return errors.New("fail to upload video " + item["id"].(string) + " with error " + err.Error())
+						
+					}
 				} else {
 					file_server.publishReloadDirEvent(path_)
 				}
@@ -5253,6 +5311,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 		}
 	} else if infos != nil {
 		pid, err := file_server.uploadedVideo(token, rqst.Url, rqst.Dest, rqst.Format, path+"/"+infos["id"].(string)+"."+rqst.Format, stream)
+
 		// display the error...
 		if err != nil {
 			stream.Send(
@@ -5261,13 +5320,15 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 					Result: "fail to upload video " + infos["id"].(string) + " with error " + err.Error(),
 				},
 			)
+
+			return errors.New("fail to upload video " + infos["id"].(string) + " with error " + err.Error())
 		} else {
 			file_server.publishReloadDirEvent(path_)
 		}
 	}
 
 	// So now I have the file uploaded...
-	return err
+	return nil
 }
 
 // That function is use to upload video...
@@ -6047,7 +6108,6 @@ func main() {
 
 			// generate preview event
 			err := event_client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
-
 				channel_0 <- string(evt.Data)
 			})
 			if err != nil {
@@ -6056,11 +6116,17 @@ func main() {
 
 			// index file event
 			err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
-
 				channel_3 <- string(evt.Data)
 			})
+
+			// subscribe to cancel_upload_event event...
+			event_client.Subscribe("cancel_upload_event", s_impl.GetId(), cancelUploadVideoHandeler(s_impl, title_client))
+
+
 			if err != nil {
 				fmt.Println("Fail to connect to event channel index_file_event")
+			} else {
+				fmt.Println("Connected to event channel index_file_event", event_client.GetAddress(), "port", event_client.GetPort())
 			}
 
 		}
