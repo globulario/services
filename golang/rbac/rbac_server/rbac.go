@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"encoding/binary"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -2449,18 +2449,18 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
 
-	hasOwner := false 
+	hasOwner := false
 	if err == nil && permissions != nil {
 		if permissions.Owners != nil {
 			if len(permissions.Owners.Accounts) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Applications) > 0 {
+			} else if len(permissions.Owners.Applications) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Organizations) > 0 {
+			} else if len(permissions.Owners.Organizations) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Groups) > 0 {
+			} else if len(permissions.Owners.Groups) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Peers) > 0 {
+			} else if len(permissions.Owners.Peers) > 0 {
 				hasOwner = true
 			}
 		}
@@ -2612,17 +2612,17 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		} else if permissions.Owners == nil {
 			// no owner so permissions are open...
 			return true, false, nil
-		}else if permissions.Owners != nil {
+		} else if permissions.Owners != nil {
 			hasOwner := false
 			if len(permissions.Owners.Accounts) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Applications) > 0 {
+			} else if len(permissions.Owners.Applications) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Organizations) > 0 {
+			} else if len(permissions.Owners.Organizations) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Groups) > 0 {
+			} else if len(permissions.Owners.Groups) > 0 {
 				hasOwner = true
-			}else if len(permissions.Owners.Peers) > 0 {
+			} else if len(permissions.Owners.Peers) > 0 {
 				hasOwner = true
 			}
 			if !hasOwner {
@@ -3060,20 +3060,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 
 }
 
-// That function will set a share or update existing share... ex. add/delete account, group
-func (rbac_server *server) ShareResource(ctx context.Context, rqst *rbacpb.ShareResourceRqst) (*rbacpb.ShareResourceRsp, error) {
-
-	err := rbac_server.shareResource(rqst.Share)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &rbacpb.ShareResourceRsp{}, nil
-}
 
 func (rbac_server *server) unshareResource(domain, path string) error {
+
 	// fmt.Println("unshareResource")
 	uuid := Utility.GenerateUUID(domain + path)
 
@@ -3134,18 +3123,6 @@ func (rbac_server *server) unshareResource(domain, path string) error {
 	return rbac_server.removeItem(uuid)
 }
 
-// Remove the share
-func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.UnshareResourceRqst) (*rbacpb.UnshareResourceRsp, error) {
-
-	err := rbac_server.unshareResource(rqst.Share.Domain, rqst.Share.Path)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &rbacpb.UnshareResourceRsp{}, nil
-}
 
 // Get the list of accessible shared resource.
 // TODO if account also get share for groups and organization that the acount is part of...
@@ -3204,7 +3181,10 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 			share := new(rbacpb.Share)
 			err := jsonpb.UnmarshalString(string(data), share)
 			if err == nil {
-				share_ = append(share_, share)
+
+				if len(share.Accounts) > 0 || len(share.Applications) > 0 || len(share.Groups) > 0 || len(share.Organizations) > 0 {
+					share_ = append(share_, share)
+				}
 			}
 		}
 	}
@@ -3308,58 +3288,30 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 		share_ := make([]*rbacpb.Share, 0)
 		for i := 0; i < len(share); i++ {
 			path := share[i].Path
-			exist, a := rbac_server.accountExist(rqst.Owner)
-			exist_, a_ := rbac_server.accountExist(rqst.Subject)
-
-			if exist {
-				if rbac_server.isOwner(a, rbacpb.SubjectType_ACCOUNT, path) {
+			
+			if Utility.Contains(share[i].Accounts, rqst.Owner) {
+				if rbac_server.isOwner(rqst.Owner, rbacpb.SubjectType_ACCOUNT, path) {
 					share_ = append(share_, share[i])
 				}
-				/*else if Utility.Contains(share[i].Accounts, a) {
-					share_ = append(share_, share[i])
-				}*/
+			} else if Utility.Contains(share[i].Groups, rqst.Owner) {
 
-			} else {
-				exist, g := rbac_server.groupExist(rqst.Owner)
-				if exist {
-					if Utility.Contains(share[i].Groups, g) {
-						if exist_ {
-							// no set file from group where I'm the owner...
-							if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
-								share_ = append(share_, share[i])
-							}
-						}else{
-							share_ = append(share_, share[i])
-						}
-					}
-				} else {
-					exist, o := rbac_server.organizationExist(rqst.Owner)
-					if exist {
-						if Utility.Contains(share[i].Organizations, o) {
-							if exist_ {
-								// no set file from group where I'm the owner...
-								if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
-									share_ = append(share_, share[i])
-								}
-							}else{
-								share_ = append(share_, share[i])
-							}
-						}
-					} else {
-						exist, a := rbac_server.applicationExist(rqst.Owner)
-						if exist {
-							if Utility.Contains(share[i].Applications, a) {
-								if exist_ {
-									// no set file from group where I'm the owner...
-									if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
-										share_ = append(share_, share[i])
-									}
-								}else{
-									share_ = append(share_, share[i])
-								}
-							}
-						}
-					}
+				// no set file from group where I'm the owner...
+				if !rbac_server.isOwner(rqst.Subject, rbacpb.SubjectType_ACCOUNT, path) {
+					share_ = append(share_, share[i])
+				}
+
+			} else if Utility.Contains(share[i].Organizations, rqst.Owner) {
+
+				// no set file from group where I'm the owner...
+				if !rbac_server.isOwner(rqst.Subject, rbacpb.SubjectType_ACCOUNT, path) {
+					share_ = append(share_, share[i])
+				}
+
+			} else if Utility.Contains(share[i].Applications, rqst.Owner) {
+
+				// no set file from group where I'm the owner...
+				if !rbac_server.isOwner(rqst.Subject, rbacpb.SubjectType_ACCOUNT, path) {
+					share_ = append(share_, share[i])
 				}
 			}
 		}
@@ -3398,11 +3350,11 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 		}
 
 		// remove the permission.
-		for i:=0; i < len(permissions.Allowed); i++ {
+		for i := 0; i < len(permissions.Allowed); i++ {
 			permissions.Allowed[i].Accounts = Utility.RemoveString(permissions.Allowed[i].Accounts, subject)
 		}
 
-		for i:=0; i < len(permissions.Denied); i++ {
+		for i := 0; i < len(permissions.Denied); i++ {
 			permissions.Denied[i].Accounts = Utility.RemoveString(permissions.Denied[i].Accounts, subject)
 		}
 
@@ -3413,11 +3365,11 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 			share.Applications = Utility.RemoveString(share.Applications, a)
 		}
 
-		for i:=0; i < len(permissions.Allowed); i++ {
+		for i := 0; i < len(permissions.Allowed); i++ {
 			permissions.Allowed[i].Applications = Utility.RemoveString(permissions.Allowed[i].Applications, subject)
 		}
 
-		for i:=0; i < len(permissions.Denied); i++ {
+		for i := 0; i < len(permissions.Denied); i++ {
 			permissions.Denied[i].Applications = Utility.RemoveString(permissions.Denied[i].Applications, subject)
 		}
 
@@ -3429,21 +3381,21 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 			share.Groups = Utility.RemoveString(share.Groups, g)
 		}
 
-		for i:=0; i < len(permissions.Allowed); i++ {
+		for i := 0; i < len(permissions.Allowed); i++ {
 			permissions.Allowed[i].Groups = Utility.RemoveString(permissions.Allowed[i].Groups, subject)
 		}
 
-		for i:=0; i < len(permissions.Denied); i++ {
+		for i := 0; i < len(permissions.Denied); i++ {
 			permissions.Denied[i].Groups = Utility.RemoveString(permissions.Denied[i].Groups, subject)
 		}
 
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		share.Peers = Utility.RemoveString(share.Peers, subject)
-		for i:=0; i < len(permissions.Allowed); i++ {
+		for i := 0; i < len(permissions.Allowed); i++ {
 			permissions.Allowed[i].Peers = Utility.RemoveString(permissions.Allowed[i].Peers, subject)
 		}
 
-		for i:=0; i < len(permissions.Denied); i++ {
+		for i := 0; i < len(permissions.Denied); i++ {
 			permissions.Denied[i].Peers = Utility.RemoveString(permissions.Denied[i].Peers, subject)
 		}
 
@@ -3454,11 +3406,11 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 			share.Organizations = Utility.RemoveString(share.Organizations, o)
 		}
 
-		for i:=0; i < len(permissions.Allowed); i++ {
+		for i := 0; i < len(permissions.Allowed); i++ {
 			permissions.Allowed[i].Organizations = Utility.RemoveString(permissions.Allowed[i].Organizations, subject)
 		}
 
-		for i:=0; i < len(permissions.Denied); i++ {
+		for i := 0; i < len(permissions.Denied); i++ {
 			permissions.Denied[i].Organizations = Utility.RemoveString(permissions.Denied[i].Organizations, subject)
 		}
 	}

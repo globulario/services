@@ -60,10 +60,6 @@ type RbacServiceClient interface {
 	GetSubjectAllocatedSpace(ctx context.Context, in *GetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*GetSubjectAllocatedSpaceRsp, error)
 	// * Set the user allocated space *
 	SetSubjectAllocatedSpace(ctx context.Context, in *SetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*SetSubjectAllocatedSpaceRsp, error)
-	// That function will set a share or update existing share... ex. add/delete account, group
-	ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error)
-	// Remove the share
-	UshareResource(ctx context.Context, in *UnshareResourceRqst, opts ...grpc.CallOption) (*UnshareResourceRsp, error)
 	// Get the list of accessible shared resources.
 	GetSharedResource(ctx context.Context, in *GetSharedResourceRqst, opts ...grpc.CallOption) (*GetSharedResourceRsp, error)
 	// Remove a subject from a share.
@@ -297,24 +293,6 @@ func (c *rbacServiceClient) SetSubjectAllocatedSpace(ctx context.Context, in *Se
 	return out, nil
 }
 
-func (c *rbacServiceClient) ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error) {
-	out := new(ShareResourceRsp)
-	err := c.cc.Invoke(ctx, "/rbac.RbacService/ShareResource", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *rbacServiceClient) UshareResource(ctx context.Context, in *UnshareResourceRqst, opts ...grpc.CallOption) (*UnshareResourceRsp, error) {
-	out := new(UnshareResourceRsp)
-	err := c.cc.Invoke(ctx, "/rbac.RbacService/UshareResource", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *rbacServiceClient) GetSharedResource(ctx context.Context, in *GetSharedResourceRqst, opts ...grpc.CallOption) (*GetSharedResourceRsp, error) {
 	out := new(GetSharedResourceRsp)
 	err := c.cc.Invoke(ctx, "/rbac.RbacService/GetSharedResource", in, out, opts...)
@@ -384,10 +362,6 @@ type RbacServiceServer interface {
 	GetSubjectAllocatedSpace(context.Context, *GetSubjectAllocatedSpaceRqst) (*GetSubjectAllocatedSpaceRsp, error)
 	// * Set the user allocated space *
 	SetSubjectAllocatedSpace(context.Context, *SetSubjectAllocatedSpaceRqst) (*SetSubjectAllocatedSpaceRsp, error)
-	// That function will set a share or update existing share... ex. add/delete account, group
-	ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error)
-	// Remove the share
-	UshareResource(context.Context, *UnshareResourceRqst) (*UnshareResourceRsp, error)
 	// Get the list of accessible shared resources.
 	GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error)
 	// Remove a subject from a share.
@@ -456,12 +430,6 @@ func (UnimplementedRbacServiceServer) GetSubjectAllocatedSpace(context.Context, 
 }
 func (UnimplementedRbacServiceServer) SetSubjectAllocatedSpace(context.Context, *SetSubjectAllocatedSpaceRqst) (*SetSubjectAllocatedSpaceRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSubjectAllocatedSpace not implemented")
-}
-func (UnimplementedRbacServiceServer) ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ShareResource not implemented")
-}
-func (UnimplementedRbacServiceServer) UshareResource(context.Context, *UnshareResourceRqst) (*UnshareResourceRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UshareResource not implemented")
 }
 func (UnimplementedRbacServiceServer) GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSharedResource not implemented")
@@ -832,42 +800,6 @@ func _RbacService_SetSubjectAllocatedSpace_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RbacService_ShareResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ShareResourceRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RbacServiceServer).ShareResource(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rbac.RbacService/ShareResource",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RbacServiceServer).ShareResource(ctx, req.(*ShareResourceRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _RbacService_UshareResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UnshareResourceRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RbacServiceServer).UshareResource(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/rbac.RbacService/UshareResource",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RbacServiceServer).UshareResource(ctx, req.(*UnshareResourceRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _RbacService_GetSharedResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSharedResourceRqst)
 	if err := dec(in); err != nil {
@@ -996,14 +928,6 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetSubjectAllocatedSpace",
 			Handler:    _RbacService_SetSubjectAllocatedSpace_Handler,
-		},
-		{
-			MethodName: "ShareResource",
-			Handler:    _RbacService_ShareResource_Handler,
-		},
-		{
-			MethodName: "UshareResource",
-			Handler:    _RbacService_UshareResource_Handler,
 		},
 		{
 			MethodName: "GetSharedResource",

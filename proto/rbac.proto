@@ -211,43 +211,19 @@ message SetActionResourcesPermissionsRsp{
  */
 message Share {
 
-	// who share that resource
-	string share_by = 1;
-	
 	// The resource path must be unique on the domain.
-	string path = 2;
+	string path = 1;
 
 	// The domain from where the share is located.
-	string domain = 3;
+	string domain = 2;
 
 	// List of specific object to share with
-	repeated string applications = 4;
-	repeated string peers = 5;
-	repeated string accounts = 6;
-	repeated string groups = 7;
-	repeated string organizations = 8;
-}
+	repeated string applications = 3;
+	repeated string peers = 4;
+	repeated string accounts = 5;
+	repeated string groups = 6;
+	repeated string organizations = 7;
 
-/**
- * Set a share, that can be use to add/remove/update an 
- */
-message ShareResourceRqst {
-	Share share = 1;
-}
-
-message ShareResourceRsp {
-	
-}
-
-/**
- * Delete the share.
- */
- message UnshareResourceRqst {
-	Share share = 1;
-}
-
-message UnshareResourceRsp {
-	
 }
 
 /**
@@ -262,7 +238,6 @@ message GetSharedResourceRqst {
 message GetSharedResourceRsp {
 	repeated Share sharedResource = 1;
 }
-
 
 /**
  * Remove Subject from the list of share.
@@ -395,12 +370,6 @@ service RbacService {
 	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp);
 
 	///////////////////////// Share ////////////////////////////
-
-	// That function will set a share or update existing share... ex. add/delete account, group
-	rpc ShareResource(ShareResourceRqst) returns(ShareResourceRsp);
-
-	// Remove the share
-	rpc UshareResource(UnshareResourceRqst) returns(UnshareResourceRsp);
 
 	// Get the list of accessible shared resources.
 	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);

@@ -20,7 +20,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.resource = require('../resource/resource_pb.js');
+proto.resource = require('./resource_pb.js');
 
 /**
  * @param {string} hostname
