@@ -200,7 +200,26 @@ func validateActionRequest(token string, application string, organization string
 				// Get the path value from retreive infos.
 				param := rqst_.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
 				val := rqst_.Get(param)
-				infos[i].Path, _ = url.PathUnescape(val.String())
+				if param.IsList() {
+
+					infos_ := make([]*rbacpb.ResourceInfos, val.List().Len())
+					for j := 0; j < val.List().Len(); j++ {
+						val_ := val.List().Get(j).String()
+						infos_[j] = new(rbacpb.ResourceInfos)
+						infos_[j].Path, _ = url.PathUnescape(val_)
+						infos_[j].Index = infos[i].Index
+						infos_[j].Permission = infos[i].Permission
+					}
+					
+					hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos_)
+					if err != nil {
+						return hasAccess, accessDenied, err
+					}
+					return hasAccess, accessDenied, nil
+				} else {
+					infos[i].Path, _ = url.PathUnescape(val.String())
+				}
+
 			}
 		}
 	}

@@ -2593,6 +2593,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	path_ := rbac_server.formatPath(path)
+	
 	fmt.Println("validate file at path ", path_, "for", subject, "and permission", name)
 	if strings.HasSuffix(path_, ".ts") == true {
 		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
@@ -2643,7 +2644,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// first I will test if permissions is define
 	isAllowed := rbac_server.validateAccessAllowed(subject, subjectType, name, path)
 	if !isAllowed {
-		fmt.Println(subject, "has", name, "not acces to", path)
+		fmt.Println(subject, "has not ", name, " acces to", path)
 		return false, false, nil
 	}
 

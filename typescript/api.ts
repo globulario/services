@@ -493,15 +493,8 @@ export function downloadFileHttp(
   callback: () => void,
   token:string = getToken()
 ) {
+
   const req = new XMLHttpRequest();
-
-  // Set the values also as parameters...
-  url += "?domain=" + domain
-  url += "&application=" + application
-  if (localStorage.getItem("user_token") != undefined) {
-    url += "&token=" + localStorage.getItem("user_token")
-  }
-
   req.open("GET", url, true);
 
   // Set the token to manage downlaod access.
