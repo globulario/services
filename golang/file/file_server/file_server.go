@@ -5141,12 +5141,12 @@ func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.
 					return // must have process info...
 				}
 
-				if !strings.Contains(p_.Executable(), "yt-dlp"){
+				if !strings.Contains(p_.Executable(), "yt-dlp") {
 					return // only yt-dlp must be kill...
 				}
-				
+
 				proc.Kill()
-				time.Sleep(1*time.Second) // give time to process to stop...
+				time.Sleep(1 * time.Second) // give time to process to stop...
 				files, _ := Utility.ReadDir(path_)
 
 				// remove incomplete download...
@@ -5298,9 +5298,9 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 							Result: "fail to upload video " + item["id"].(string) + " with error " + err.Error(),
 						},
 					)
-					if strings.Contains(err.Error(), "signal: killed"){
+					if strings.Contains(err.Error(), "signal: killed") {
 						return errors.New("fail to upload video " + item["id"].(string) + " with error " + err.Error())
-						
+
 					}
 				} else {
 					file_server.publishReloadDirEvent(path_)
@@ -5942,7 +5942,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.PublisherId = "globulario"
-	s_impl.Permissions = make([]interface{}, 12)
+	s_impl.Permissions = make([]interface{}, 13)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
@@ -5977,7 +5977,8 @@ func main() {
 	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
 	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadVideo", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
 
 	// Set the root path if is pass as argument.
 	s_impl.Root = config.GetDataDir() + "/files"
@@ -6121,7 +6122,6 @@ func main() {
 
 			// subscribe to cancel_upload_event event...
 			event_client.Subscribe("cancel_upload_event", s_impl.GetId(), cancelUploadVideoHandeler(s_impl, title_client))
-
 
 			if err != nil {
 				fmt.Println("Fail to connect to event channel index_file_event")

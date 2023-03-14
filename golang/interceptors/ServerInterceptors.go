@@ -224,6 +224,7 @@ func validateActionRequest(token string, application string, organization string
 		}
 	}
 
+	fmt.Println("validate action ", method, infos)
 	// TODO keep to value in cache for keep speed.
 	hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos)
 	if err != nil {

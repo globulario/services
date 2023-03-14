@@ -2441,36 +2441,20 @@ func (rbac_server *server) validateAccessDenied(subject string, subjectType rbac
 }
 
 func (rbac_server *server) validateAccessAllowed(subject string, subjectType rbacpb.SubjectType, name string, path string) bool {
+	fmt.Println("------------> 2444")
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {
 		return false
 	}
 
+	fmt.Println("validate access allowed for ", subject, name, path)
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
-
-	hasOwner := false
-	if err == nil && permissions != nil {
-		if permissions.Owners != nil {
-			if len(permissions.Owners.Accounts) > 0 {
-				hasOwner = true
-			} else if len(permissions.Owners.Applications) > 0 {
-				hasOwner = true
-			} else if len(permissions.Owners.Organizations) > 0 {
-				hasOwner = true
-			} else if len(permissions.Owners.Groups) > 0 {
-				hasOwner = true
-			} else if len(permissions.Owners.Peers) > 0 {
-				hasOwner = true
-			}
-		}
-	}
-
-	if hasOwner {
+	if err == nil {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission
 			for i := 0; i < len(permissions.Allowed); i++ {
-				if permissions.Denied[i].Name == name {
+				if permissions.Allowed[i].Name == name {
 					allowed = permissions.Allowed[i]
 					break
 				}
@@ -2485,6 +2469,7 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 							}
 						}
 					} else {
+						// So here I will validate over it groups.
 						account, err := rbac_server.getAccount(subject)
 						if err == nil {
 							if account.Groups != nil && err == nil {
@@ -2534,39 +2519,21 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 						}
 					}
 				}
-
-				return false
-			} else if strings.LastIndex(path, "/") > 0 {
-				if isPublic(path, false) {
-					if name == "read" {
-						return true
-					}
-				}
-
-				return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
-			}
-		} else if strings.LastIndex(path, "/") > 0 {
-			if isPublic(path, false) {
-				if name == "read" {
-					return true
-				}
-			}
-
-			return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
-		}
-	} else if strings.LastIndex(path, "/") > 0 {
-		if isPublic(path, false) {
-			if name == "read" {
-				return true
 			}
 		}
-
-		return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 	}
 
 	// read only access by default if no permission are set...
-	if name == "read" {
-		return true
+	if isPublic(path, false) {
+		if name == "read" {
+			return true
+		}
+	}
+
+	// Now I will test parent directories permission and inherit the permission.
+	if strings.LastIndex(path, "/") > 0 {
+		dir :=  filepath.Dir(path)
+		return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
 	}
 
 	return false
@@ -2574,8 +2541,6 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-
-	fmt.Println("validate access for ", subject, name, path)
 
 	// validate if the subject exist
 	subject, err := rbac_server.validateSubject(subject, subjectType)
@@ -2593,7 +2558,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	path_ := rbac_server.formatPath(path)
-	
+
 	fmt.Println("validate file at path ", path_, "for", subject, "and permission", name)
 	if strings.HasSuffix(path_, ".ts") == true {
 		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
@@ -3061,7 +3026,6 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 
 }
 
-
 func (rbac_server *server) unshareResource(domain, path string) error {
 
 	// fmt.Println("unshareResource")
@@ -3123,7 +3087,6 @@ func (rbac_server *server) unshareResource(domain, path string) error {
 
 	return rbac_server.removeItem(uuid)
 }
-
 
 // Get the list of accessible shared resource.
 // TODO if account also get share for groups and organization that the acount is part of...
@@ -3289,7 +3252,7 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 		share_ := make([]*rbacpb.Share, 0)
 		for i := 0; i < len(share); i++ {
 			path := share[i].Path
-			
+
 			if Utility.Contains(share[i].Accounts, rqst.Owner) {
 				if rbac_server.isOwner(rqst.Owner, rbacpb.SubjectType_ACCOUNT, path) {
 					share_ = append(share_, share[i])

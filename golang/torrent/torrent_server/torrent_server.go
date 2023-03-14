@@ -1047,7 +1047,7 @@ func main() {
 	s_impl.actions = make(chan map[string]interface{})
 
 	// Now the permissions
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/torrent.TorrentService/DownloadTorrentRequest", "resources": []interface{}{map[string]interface{}{"index": 2, "permission": "write"}}}
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/torrent.TorrentService/DownloadTorrentRequest", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
 
 	// When the music over turn off the ligth...
 	s_impl.done = make(chan bool)
