@@ -16,9 +16,11 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -1041,8 +1043,34 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
 		return nil, errors.New("no permissions given")
 	}
 
+	// Here I will add additional validation...
+	var clientId string
+	var err error
+	var token string
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, err
+			}
+
+			clientId = claims.Id + "@" + claims.UserDomain
+		} else {
+			errors.New("no token was given")
+		}
+	}
+
+	if !strings.HasPrefix(clientId, "sa@") {
+		if !rbac_server.isOwner(clientId, rbacpb.SubjectType_ACCOUNT, rqst.Path) {
+			return nil, errors.New(clientId + " must be owner of " + rqst.Path + " to set permission")
+		}
+	}
+
 	// Now I will validate the access...
-	err := rbac_server.setResourcePermissions(rqst.Path, rqst.ResourceType, rqst.Permissions)
+	err = rbac_server.setResourcePermissions(rqst.Path, rqst.ResourceType, rqst.Permissions)
 
 	if err != nil {
 		fmt.Println("fail to set resource permission with error ", err)
@@ -2532,7 +2560,7 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 
 	// Now I will test parent directories permission and inherit the permission.
 	if strings.LastIndex(path, "/") > 0 {
-		dir :=  filepath.Dir(path)
+		dir := filepath.Dir(path)
 		return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
 	}
 

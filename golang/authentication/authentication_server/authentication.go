@@ -98,7 +98,6 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	//fmt.Println("----------> ", session.AccountId, " token was refresh!")
 	// return the token string.
 	return &authenticationpb.RefreshTokenRsp{
 		Token: tokenString,
@@ -388,6 +387,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
+		
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)

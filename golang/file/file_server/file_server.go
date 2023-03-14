@@ -1358,28 +1358,14 @@ func (file_server *server) setOwner(token, path string) error {
 		return err
 	}
 
-	var err error
-	// Now I will set it in the rbac as resource owner...
-	permissions := &rbacpb.Permissions{
-		Allowed: []*rbacpb.Permission{},
-		Denied:  []*rbacpb.Permission{},
-		Owners: &rbacpb.Permission{
-			Name:          "owner", // The name is informative in that particular case.
-			Applications:  []string{},
-			Accounts:      []string{clientId},
-			Groups:        []string{},
-			Peers:         []string{},
-			Organizations: []string{},
-		},
-	}
-
 	// Set the owner of the conversation.
-	rbac_client_, err = getRbacClient()
+	rbac_client_, err := getRbacClient()
 	if err != nil {
 		return err
 	}
 
-	err = rbac_client_.SetResourcePermissions(token, path, "file", permissions)
+	// So here I will need the local token.
+	err = rbac_client_.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	if err != nil {
 		return err
@@ -6040,32 +6026,12 @@ func main() {
 							if len(values) > 1 {
 								owner := values[2]
 
-								// Now I will set it in the rbac as resource owner...
-								permissions := &rbacpb.Permissions{
-									Allowed: []*rbacpb.Permission{},
-									Denied:  []*rbacpb.Permission{},
-									Owners: &rbacpb.Permission{
-										Name:          "owner", // The name is informative in that particular case.
-										Applications:  []string{},
-										Accounts:      []string{owner},
-										Groups:        []string{},
-										Peers:         []string{},
-										Organizations: []string{},
-									},
-								}
-
 								// Set the owner of the conversation.
 								rbac_client_, err = getRbacClient()
 								if err == nil {
-									domain, _ := config.GetDomain()
-									token, err := os.ReadFile(config.GetConfigDir() + "/tokens/" + domain + "_token")
-									if err == nil {
-										err = rbac_client_.SetResourcePermissions(string(token), path, "file", permissions)
-										if err != nil {
-											fmt.Println("fail to set file owner with error ", err)
-										}
-									} else {
-										fmt.Println("fail to get local token with error: ", err)
+									err = rbac_client_.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT)
+									if err != nil {
+										fmt.Println("fail to set file owner with error ", err)
 									}
 								}
 							}
