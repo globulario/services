@@ -440,6 +440,67 @@ proto.file.FileServicePromiseClient.prototype.createDir =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.CreateLnkRequest,
+ *   !proto.file.CreateLnkResponse>}
+ */
+const methodDescriptor_FileService_CreateLnk = new grpc.web.MethodDescriptor(
+  '/file.FileService/CreateLnk',
+  grpc.web.MethodType.UNARY,
+  proto.file.CreateLnkRequest,
+  proto.file.CreateLnkResponse,
+  /**
+   * @param {!proto.file.CreateLnkRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CreateLnkResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.CreateLnkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateLnkResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.CreateLnkResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.createLnk =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/CreateLnk',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateLnk,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.CreateLnkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.CreateLnkResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.createLnk =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/CreateLnk',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateLnk);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.DeleteDirRequest,
  *   !proto.file.DeleteDirResponse>}
  */

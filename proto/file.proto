@@ -155,6 +155,16 @@ message CreateArchiveResponse{
 	string result = 1;
 }
 
+message CreateLnkRequest{
+	string path = 1; // The directory where the link will be created.
+	string name = 2; // toto.lnk (must end's by lnk)
+	string lnk = 3; // contain the json information of the linked file.
+}
+
+message CreateLnkResponse{
+	/** Nothing here */
+}
+
 // Write the execel file on the server.
 message WriteExcelFileRequest{
 	string path = 1;
@@ -404,6 +414,9 @@ service FileService {
 
 	// Create a new directory
  	rpc CreateDir(CreateDirRequest) returns (CreateDirResponse){};
+
+	// Create a link file
+	rpc CreateLnk(CreateLnkRequest) returns (CreateLnkResponse){};
 	
 	// Delete a directories
 	rpc DeleteDir(DeleteDirRequest) returns (DeleteDirResponse){};

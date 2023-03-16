@@ -593,6 +593,8 @@ func (rbac_server *server) GetSubjectAvailableSpace(ctx context.Context, rqst *r
 
 // * Return the subject allocated disk space *
 func (rbac_server *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.GetSubjectAllocatedSpaceRqst) (*rbacpb.GetSubjectAllocatedSpaceRsp, error) {
+
+
 	allocated_space, err := rbac_server.getSubjectAllocatedSpace(rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(
@@ -604,6 +606,46 @@ func (rbac_server *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *r
 
 // * Set the user allocated space *
 func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.SetSubjectAllocatedSpaceRqst) (*rbacpb.SetSubjectAllocatedSpaceRsp, error) {
+
+		// So here only admin must be abble to set the allocated space, or members of admin role...
+	// Here I will add additional validation...
+	var clientId string
+	var err error
+	var token string
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, err
+			}
+
+			clientId = claims.Id + "@" + claims.UserDomain
+		} else {
+			errors.New("no token was given")
+		}
+	}
+
+	if !strings.HasPrefix(clientId, "sa@") {
+		
+		account, err := rbac_server.getAccount(clientId)
+		if err != nil {
+			return nil, err
+		}
+
+		admin, err := rbac_server.getRole("admin")
+		if err != nil {
+			return nil, err
+		}
+
+		if !Utility.Contains(admin.Members, account.Id + "@" + account.Domain){
+			return nil, errors.New(account.Id + "@" + account.Domain + " must be admin to set Allocated space.")
+		}
+	}
+
+
 	subject_type := rqst.Type
 	subject := rqst.Subject
 	id := "ALLOCATED_SPACE/"
@@ -652,7 +694,7 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, rqst.AllocatedSpace)
-	err := rbac_server.setItem(id, b)
+	err = rbac_server.setItem(id, b)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2469,7 +2511,6 @@ func (rbac_server *server) validateAccessDenied(subject string, subjectType rbac
 }
 
 func (rbac_server *server) validateAccessAllowed(subject string, subjectType rbacpb.SubjectType, name string, path string) bool {
-	fmt.Println("------------> 2444")
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {
 		return false

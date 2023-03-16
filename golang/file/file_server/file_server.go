@@ -2397,15 +2397,52 @@ func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stre
 	return nil
 }
 
-func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
-	path := rqst.GetPath()
+// Create a link file
+func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
+	path := file_server.formatPath(rqst.Path)
 
 	// The root will be the Root specefied by the server.
-	if strings.HasPrefix(path, "/") {
-		path = file_server.Root + path
-		// Set the path separator...
-		path = strings.Replace(path, "\\", "/", -1)
+	if !Utility.Exists(path){
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no directory found at path "+path)))
 	}
+
+	var token string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			_, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given for download torrent")))
+		}
+	}
+
+	err = os.WriteFile(path + "/" + rqst.Name, []byte(rqst.Lnk), 0644)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	file_server.setOwner(token, path + "/" + rqst.Name)
+
+	return &filepb.CreateLnkResponse{}, nil
+}
+
+
+func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
+	path := file_server.formatPath(rqst.Path)
 
 	if Utility.Exists(path) {
 		err := os.Remove(path)
@@ -4592,6 +4629,22 @@ func (file_server *server) generatePlaylist(path, token string) error {
 	for i := 0; i < len(infos); i++ {
 		filename := filepath.Join(path, infos[i].Name())
 		info, err := getFileInfo(file_server, filename, -1, -1)
+
+		// if the file is link I will get the linked file.
+		if strings.HasSuffix(infos[i].Name(), ".lnk") {
+
+			data, err := os.ReadFile(filename)
+			if err == nil {
+				info_ := make(map[string]interface{})
+				json.Unmarshal(data, &info_)
+				path := file_server.formatPath(info_["path"].(string))
+				if Utility.Exists(path) {
+					info, _ = getFileInfo(file_server, path, -1, -1)
+					filename = path
+				}
+			}
+		}
+
 		if info.IsDir {
 			if Utility.Exists(info.Path + "/playlist.m3u8") {
 				videos = append(videos, info.Path+"/playlist.m3u8")
@@ -5965,6 +6018,7 @@ func main() {
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadVideo", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/CreateLnk", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 
 	// Set the root path if is pass as argument.
 	s_impl.Root = config.GetDataDir() + "/files"
