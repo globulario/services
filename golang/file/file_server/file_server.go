@@ -2436,7 +2436,6 @@ func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnk
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("-------------------> set owner ", rqst.Path+"/"+rqst.Name)
 	file_server.setOwner(token, rqst.Path+"/"+rqst.Name)
 
 	return &filepb.CreateLnkResponse{}, nil
