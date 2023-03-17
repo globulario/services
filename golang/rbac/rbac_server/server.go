@@ -512,7 +512,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 			domain = strings.Split(accountId, "@")[1]
 		}
 		accountId = strings.Split(accountId, "@")[0]
-	}else{
+	} else {
 		domain = localDomain
 	}
 
@@ -595,7 +595,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 			domain = strings.Split(groupId, "@")[1]
 		}
 		groupId = strings.Split(groupId, "@")[0]
-	}else {
+	} else {
 		domain = localDomain
 	}
 
@@ -822,6 +822,54 @@ func (server *server) organizationExist(id string) (bool, string) {
 
 	return true, o.Id + "@" + o.Domain
 
+}
+
+func (server *server) getRoles() ([]*resourcepb.Role, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	roles, err := resource_.GetRoles(`{}`)
+	if err != nil || len(roles) == 1 {
+		return nil, err
+	}
+
+	return roles, nil
+}
+
+func (server *server) getGroups() ([]*resourcepb.Group, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	groups, err := resource_.GetGroups(`{}`)
+	if err != nil || len(groups) == 1 {
+		return nil, err
+	}
+
+	return groups, nil
+}
+
+func (server *server) getOrganizations() ([]*resourcepb.Organization, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	organizations, err := resource_.GetOrganizations(`{}`)
+	if err != nil || len(organizations) == 1 {
+		return nil, err
+	}
+
+	return organizations, nil
 }
 
 /**

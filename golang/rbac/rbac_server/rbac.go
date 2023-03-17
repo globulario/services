@@ -594,7 +594,6 @@ func (rbac_server *server) GetSubjectAvailableSpace(ctx context.Context, rqst *r
 // * Return the subject allocated disk space *
 func (rbac_server *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.GetSubjectAllocatedSpaceRqst) (*rbacpb.GetSubjectAllocatedSpaceRsp, error) {
 
-
 	allocated_space, err := rbac_server.getSubjectAllocatedSpace(rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(
@@ -607,7 +606,7 @@ func (rbac_server *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *r
 // * Set the user allocated space *
 func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.SetSubjectAllocatedSpaceRqst) (*rbacpb.SetSubjectAllocatedSpaceRsp, error) {
 
-		// So here only admin must be abble to set the allocated space, or members of admin role...
+	// So here only admin must be abble to set the allocated space, or members of admin role...
 	// Here I will add additional validation...
 	var clientId string
 	var err error
@@ -629,7 +628,7 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 	}
 
 	if !strings.HasPrefix(clientId, "sa@") {
-		
+
 		account, err := rbac_server.getAccount(clientId)
 		if err != nil {
 			return nil, err
@@ -640,11 +639,10 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 			return nil, err
 		}
 
-		if !Utility.Contains(admin.Members, account.Id + "@" + account.Domain){
+		if !Utility.Contains(admin.Members, account.Id+"@"+account.Domain) {
 			return nil, errors.New(account.Id + "@" + account.Domain + " must be admin to set Allocated space.")
 		}
 	}
-
 
 	subject_type := rqst.Type
 	subject := rqst.Subject
@@ -2561,6 +2559,36 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 									}
 								}
 							}
+
+							// Validate external account with local groups.
+							groups, err := rbac_server.getGroups()
+							if err == nil {
+								for i := 0; i < len(groups); i++ {
+									if Utility.Contains(groups[i].Members, subject) {
+										id := groups[i].Id + "@" + groups[i].Domain
+										// if the role id is local admin
+										isAllowed := rbac_server.validateAccessAllowed(id, rbacpb.SubjectType_GROUP, name, path)
+										if isAllowed {
+											return true
+										}
+									}
+								}
+							}
+
+							organizations, err := rbac_server.getOrganizations()
+							if err == nil {
+								for i := 0; i < len(organizations); i++ {
+									if Utility.Contains(organizations[i].Accounts, subject) {
+										id := organizations[i].Id + "@" + organizations[i].Domain
+										// if the role id is local admin
+										isAllowed := rbac_server.validateAccessAllowed(id, rbacpb.SubjectType_ORGANIZATION, name, path)
+										if isAllowed {
+											return true
+										}
+									}
+								}
+							}
+
 						}
 					}
 				} else if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -2883,6 +2911,23 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 					}
 				}
 
+			}
+		}
+
+		// Validate external account with local roles....
+		if !hasAccess {
+			roles, err := rbac_server.getRoles()
+			if err == nil {
+				for i := 0; i < len(roles); i++ {
+					roleId := roles[i].Id + "@" + roles[i].Domain
+					if Utility.Contains(roles[i].Members, subject) {
+						// if the role id is local admin
+						hasAccess, _, _ = rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+						if hasAccess {
+							break
+						}
+					}
+				}
 			}
 		}
 	}

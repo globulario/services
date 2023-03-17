@@ -1442,8 +1442,6 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	cache.RemoveItem(path + "/" + rqst.OldName)
 	cache.RemoveItem(path)
 
-	fmt.Println("----------> move ", path+"/"+rqst.OldName, "to", path+"/"+rqst.NewName)
-
 	err = os.Rename(path+"/"+rqst.OldName, path+"/"+rqst.NewName)
 
 	if err != nil {
@@ -2402,7 +2400,7 @@ func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnk
 	path := file_server.formatPath(rqst.Path)
 
 	// The root will be the Root specefied by the server.
-	if !Utility.Exists(path){
+	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no directory found at path "+path)))
@@ -2428,18 +2426,18 @@ func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnk
 		}
 	}
 
-	err = os.WriteFile(path + "/" + rqst.Name, []byte(rqst.Lnk), 0644)
+	err = os.WriteFile(path+"/"+rqst.Name, []byte(rqst.Lnk), 0644)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	file_server.setOwner(token, path + "/" + rqst.Name)
+	fmt.Println("-------------------> set owner ", rqst.Path+"/"+rqst.Name)
+	file_server.setOwner(token, rqst.Path+"/"+rqst.Name)
 
 	return &filepb.CreateLnkResponse{}, nil
 }
-
 
 func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
 	path := file_server.formatPath(rqst.Path)
@@ -2683,7 +2681,9 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 				tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
 				if tags["comment"] != nil {
 					comment := tags["comment"].(string)
+
 					if len(comment) > 0 {
+
 						jsonStr, err := base64.StdEncoding.DecodeString(comment)
 						if err != nil {
 							jsonStr = []byte(comment)
@@ -2765,42 +2765,40 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 							if err == nil && video != nil {
 
 								// so here I will make sure the title exist...
-								client, err := getTitleClient()
-								if err == nil {
+								v, _, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+								__v__, _ := Utility.ToMap(v)
+								__video__, _ := Utility.ToMap(video)
+								if Utility.GetChecksum(__v__) != Utility.GetChecksum(__video__) {
+									fmt.Println("try to resore info for ", video_path)
 
-									v, _, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
-									if v == nil || video.Duration == 0 {
+									if video.Poster == nil {
+										video.Poster = new(titlepb.Poster)
+										video.Poster.ID = video.ID
+									}
 
-										fmt.Println("try to resore info for ", video_path)
+									video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
+									video.Duration = int32(Utility.GetVideoDuration(video_path))
 
-										if video.Poster == nil {
-											video.Poster = new(titlepb.Poster)
-											video.Poster.ID = video.ID
-										}
+									// the title was no found...
+									err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
+									if err == nil {
 
-										video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
-										video.Duration = int32(Utility.GetVideoDuration(video_path))
-
-										// the title was no found...
-										err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
-										if err == nil {
-
-											// now I will associate the path.
-											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-											path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-											client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
-
-										}
-
-									} else {
+										// now I will associate the path.
 										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 										path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-
-										// associate the path.
-										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
 
 									}
+
+								} else {
+									path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+									path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+
+									// associate the path.
+									client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+
 								}
+
 							}
 						}
 
@@ -5214,6 +5212,134 @@ func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.
 	}
 }
 
+func (file_server *server) uploadFile(token, url, dest, name string, stream filepb.FileService_UploadFileServer) (int, error) {
+	var err error
+	pid := -1
+
+	path := file_server.formatPath(dest)
+	if !Utility.Exists(path) {
+		return -1, errors.New("no folder found with path " + path)
+	}
+
+	// Now I will set the path to the hidden folder...
+	Utility.CreateDirIfNotExist(path)
+
+	if !Utility.Exists(path) {
+		return pid, err
+	}
+
+	// Now I will set the path to the hidden folder...
+	//path += "/.hidden"
+	path = strings.ReplaceAll(path, "\\", "/")
+
+	Utility.CreateDirIfNotExist(path)
+	done := make(chan bool)
+
+	baseCmd := "curl"
+	var cmdArgs []string
+	cmdArgs = append(cmdArgs, []string{url, "--output", name}...)
+	cmd := exec.Command(baseCmd, cmdArgs...)
+	cmd.Dir = path
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return pid, err
+	}
+	output := make(chan string)
+
+	// Process message util the command is done.
+	go func() {
+		for {
+			select {
+			case <-done:
+				break
+
+			case result := <-output:
+				if cmd.Process != nil {
+					pid = cmd.Process.Pid
+				}
+
+				stream.Send(
+					&filepb.UploadFileResponse{
+						Pid:    int32(pid),
+						Result: result,
+					},
+				)
+			}
+		}
+	}()
+
+	// Start reading the output
+	go Utility.ReadOutput(output, stdout)
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("fail to run command ", err)
+		return pid, err
+	}
+
+	// Now I will set the file permission.
+	file_server.setOwner(token, dest+"/"+name)
+
+	info, err := getFileInfo(file_server, path+"/"+name, -1, -1)
+	if err == nil {
+		if strings.HasPrefix(info.Mime, "video/") {
+			// Here I will resfresh generate video related files...
+			processVideos(file_server, []string{path})
+
+		}else if strings.HasSuffix(info.Name, ".pdf"){
+			file_server.indexPdfFile(path+"/"+name, info)
+		}
+	}
+
+	// Close the output.
+	stdout.Close()
+	done <- true
+
+	return pid, err
+}
+
+// Upload a video from a given url, it use youtube-dl.
+func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.FileService_UploadFileServer) error {
+	var err error
+	
+	// Done with upload now I will porcess videos
+	ctx := stream.Context()
+	var token string
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			_, err = security.ValidateToken(token)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Start upload video...
+	pid, err := file_server.uploadFile(token, rqst.Url, rqst.Dest, rqst.Name, stream)
+
+	// display the error...
+	if err != nil {
+		stream.Send(
+			&filepb.UploadFileResponse{
+				Pid:    int32(pid),
+				Result: "fail to upload file " + rqst.Name + " with error " + err.Error(),
+			},
+		)
+		if strings.Contains(err.Error(), "signal: killed") {
+			return errors.New("fail to upload file " + rqst.Name + " with error " + err.Error())
+
+		}
+	} else {
+		// Reload the
+		file_server.publishReloadDirEvent(rqst.Dest)
+	}
+
+	return err
+}
+
 // Upload a video from a given url, it use youtube-dl.
 func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.FileService_UploadVideoServer) error {
 	var err error
@@ -6018,6 +6144,7 @@ func main() {
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadVideo", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadFile", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/CreateLnk", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 
 	// Set the root path if is pass as argument.

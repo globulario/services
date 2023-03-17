@@ -242,6 +242,18 @@ message IsProcessVideoResponse{
 	bool isProcessVideo = 1;
 }
 
+// Upload file request
+message UploadFileRequest {
+	string url = 1; // the url of the video to upload
+	string dest = 2; // the video destination
+	string name = 3; // the file name
+}
+
+message UploadFileResponse {
+	int32 pid = 1;
+	string result = 2;
+}
+
 // Upload video request
 message UploadVideoRequest {
 	string url = 1; // the url of the video to upload
@@ -451,8 +463,11 @@ service FileService {
 	// Specific files...
 	rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse){};
 
-	// Upload a video from a given url, it use .
+	// Upload a video from a given url from a stream service source like hulu, youtube, pornhub... etc
 	rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse){};
+
+	// Upload a file from a given url, it use .
+	rpc UploadFile(UploadFileRequest) returns (stream UploadFileResponse){};
 
 	// Create a viedeo Preview...
 	rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse){};
