@@ -285,14 +285,25 @@ func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thum
 /**
  * Create a new directory on the server.
  */
-func (client *File_Client) CreateDir(path interface{}, name interface{}) error {
+func (client *File_Client) CreateDir(token, path, name string) error {
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
 
 	rqst := &filepb.CreateDirRequest{
 		Path: Utility.ToString(path),
 		Name: Utility.ToString(name),
 	}
 
-	_, err := client.c.CreateDir(client.GetCtx(), rqst)
+	_, err := client.c.CreateDir(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -303,13 +314,24 @@ func (client *File_Client) CreateDir(path interface{}, name interface{}) error {
 /**
  * Read file data
  */
-func (client *File_Client) ReadFile(path interface{}) ([]byte, error) {
+func (client *File_Client) ReadFile(token string, path interface{}) ([]byte, error) {
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
 
 	rqst := &filepb.ReadFileRequest{
 		Path: Utility.ToString(path),
 	}
 
-	stream, err := client.c.ReadFile(client.GetCtx(), rqst)
+	stream, err := client.c.ReadFile(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +357,17 @@ func (client *File_Client) ReadFile(path interface{}) ([]byte, error) {
 /**
  * Rename a directory.
  */
-func (client *File_Client) RenameDir(path interface{}, oldname interface{}, newname interface{}) error {
+func (client *File_Client) RenameDir(token string, path interface{}, oldname interface{}, newname interface{}) error {
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
 
 	rqst := &filepb.RenameRequest{
 		Path:    Utility.ToString(path),
@@ -351,12 +383,22 @@ func (client *File_Client) RenameDir(path interface{}, oldname interface{}, newn
 /**
  * Delete a directory
  */
-func (client *File_Client) DeleteDir(path string) error {
+func (client *File_Client) DeleteDir(token, path string) error {
 	rqst := &filepb.DeleteDirRequest{
 		Path: Utility.ToString(path),
 	}
 
-	_, err := client.c.DeleteDir(client.GetCtx(), rqst)
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.DeleteDir(ctx, rqst)
 	return err
 }
 
@@ -441,13 +483,24 @@ func (client *File_Client) MoveFile(path interface{}, dest interface{}) error {
 /**
  * Delete a file with a given path.
  */
-func (client *File_Client) DeleteFile(path string) error {
+func (client *File_Client) DeleteFile(token, path string) error {
 
 	rqst := &filepb.DeleteFileRequest{
 		Path: Utility.ToString(path),
 	}
 
-	_, err := client.c.DeleteFile(client.GetCtx(), rqst)
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+
+	_, err := client.c.DeleteFile(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -501,4 +554,29 @@ func (client *File_Client) HtmlToPdf(html string) ([]byte, error) {
 		return nil, err
 	}
 	return rsp.Pdf, nil
+}
+
+/**
+ * Create an archive containing files listed by paths.
+ * Return the address of the created archive on the server.
+ */
+func  (client *File_Client) CreateAchive(token string, paths []string, name string) (string, error) {
+	rqst := &filepb.CreateArchiveRequest{Paths: paths, Name: name}
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := client.c.CreateAchive(ctx, rqst)
+
+	if err != nil {
+		return "", err
+	}
+
+	return rsp.Result, nil
 }

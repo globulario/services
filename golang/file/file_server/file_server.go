@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -19,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +40,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
+	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -5212,70 +5215,112 @@ func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.
 	}
 }
 
-func (file_server *server) uploadFile(token, url, dest, name string, stream filepb.FileService_UploadFileServer) (int, error) {
+func printDownloadPercent(done chan int64, path string, total int64, stream filepb.FileService_UploadFileServer) {
+
+	var stop bool = false
+
+	for {
+		select {
+		case <-done:
+			stop = true
+		default:
+
+			file, err := os.Open(path)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			fi, err := file.Stat()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			size := fi.Size()
+
+			if size == 0 {
+				size = 1
+			}
+
+			var percent float64 = float64(size) / float64(total) * 100
+			progress := fmt.Sprintf("%.2f", percent)
+
+			fmt.Println(progress)
+
+			stream.Send(
+				&filepb.UploadFileResponse{
+					Uploaded: size,
+					Total:    total,
+					Info:     progress + "%",
+				},
+			)
+		}
+
+		if stop {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+
+func (file_server *server) uploadFile(token, url, dest, name string, stream filepb.FileService_UploadFileServer) error {
 	var err error
-	pid := -1
 
 	path := file_server.formatPath(dest)
 	if !Utility.Exists(path) {
-		return -1, errors.New("no folder found with path " + path)
+		return errors.New("no folder found with path " + path)
 	}
 
 	// Now I will set the path to the hidden folder...
 	Utility.CreateDirIfNotExist(path)
 
-	if !Utility.Exists(path) {
-		return pid, err
-	}
-
-	// Now I will set the path to the hidden folder...
-	//path += "/.hidden"
-	path = strings.ReplaceAll(path, "\\", "/")
-
-	Utility.CreateDirIfNotExist(path)
-	done := make(chan bool)
-
-	baseCmd := "curl"
-	var cmdArgs []string
-	cmdArgs = append(cmdArgs, []string{url, "--output", name}...)
-	cmd := exec.Command(baseCmd, cmdArgs...)
-	cmd.Dir = path
-
-	stdout, err := cmd.StdoutPipe()
+	start := time.Now()
+	out, err := os.Create(path + "/" + name)
 	if err != nil {
-		return pid, err
+		return err
 	}
-	output := make(chan string)
 
-	// Process message util the command is done.
-	go func() {
-		for {
-			select {
-			case <-done:
-				break
+	defer out.Close()
+	headResp, err := http.Head(url)
 
-			case result := <-output:
-				if cmd.Process != nil {
-					pid = cmd.Process.Pid
-				}
-
-				stream.Send(
-					&filepb.UploadFileResponse{
-						Pid:    int32(pid),
-						Result: result,
-					},
-				)
-			}
-		}
-	}()
-
-	// Start reading the output
-	go Utility.ReadOutput(output, stdout)
-	err = cmd.Run()
 	if err != nil {
-		fmt.Println("fail to run command ", err)
-		return pid, err
+		return err
 	}
+
+	defer headResp.Body.Close()
+	size, err := strconv.Atoi(headResp.Header.Get("Content-Length"))
+
+	if err != nil {
+		return err
+	}
+
+	done := make(chan int64)
+	go printDownloadPercent(done, path+"/"+name, int64(size), stream)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	n, err := io.Copy(out, resp.Body)
+
+	if err != nil {
+		return err
+	}
+
+	done <- n
+
+	elapsed := time.Since(start)
+	log.Printf("Download completed in %s", elapsed)
+
+	stream.Send(
+		&filepb.UploadFileResponse{
+			Uploaded: 100,
+			Total:    100,
+			Info:     fmt.Sprintf("Download completed in %.2fs", elapsed.Seconds()),
+		},
+	)
 
 	// Now I will set the file permission.
 	file_server.setOwner(token, dest+"/"+name)
@@ -5284,24 +5329,55 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 	if err == nil {
 		if strings.HasPrefix(info.Mime, "video/") {
 			// Here I will resfresh generate video related files...
+			stream.Send(
+				&filepb.UploadFileResponse{
+					Uploaded: 100,
+					Total:    100,
+					Info:     fmt.Sprintf("Process video information..."),
+				},
+			)
 			processVideos(file_server, []string{path})
 
-		}else if strings.HasSuffix(info.Name, ".pdf"){
+		} else if strings.HasSuffix(info.Name, ".pdf") {
+			stream.Send(
+				&filepb.UploadFileResponse{
+					Uploaded: 100,
+					Total:    100,
+					Info:     fmt.Sprintf("Index text information..."),
+				},
+			)
 			file_server.indexPdfFile(path+"/"+name, info)
 		}
 	}
 
-	// Close the output.
-	stdout.Close()
-	done <- true
+	stream.Send(
+		&filepb.UploadFileResponse{
+			Uploaded: 100,
+			Total:    100,
+			Info:     fmt.Sprintf("Done"),
+		},
+	)
 
-	return pid, err
+	return err
+}
+
+/**
+ * Get a file client for a given domain.
+ */
+func (server *server) GetFileClient(domain string) (*file_client.File_Client, error) {
+	// validate the port has not change...
+	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
+	client, err := globular_client.GetClient(domain, "file.FileService", "NewFileService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*file_client.File_Client), nil
 }
 
 // Upload a video from a given url, it use youtube-dl.
 func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.FileService_UploadFileServer) error {
 	var err error
-	
+
 	// Done with upload now I will porcess videos
 	ctx := stream.Context()
 	var token string
@@ -5317,24 +5393,112 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 		}
 	}
 
-	// Start upload video...
-	pid, err := file_server.uploadFile(token, rqst.Url, rqst.Dest, rqst.Name, stream)
+	if rqst.IsDir {
 
-	// display the error...
-	if err != nil {
+		file_client_, err := file_server.GetFileClient(rqst.Domain)
+		if err != nil {
+			return err
+		}
+
+		u, err := url.Parse(rqst.Url)
 		stream.Send(
 			&filepb.UploadFileResponse{
-				Pid:    int32(pid),
-				Result: "fail to upload file " + rqst.Name + " with error " + err.Error(),
+				Uploaded: 100,
+				Total: 100,
+				Info: "Create archive for " + rqst.Name + " ...",
 			},
 		)
-		if strings.Contains(err.Error(), "signal: killed") {
-			return errors.New("fail to upload file " + rqst.Name + " with error " + err.Error())
 
+		// create temporary archive on the remote server.
+		__name__ := Utility.RandomUUID()
+		archive_path_ , err := file_client_.CreateAchive(token, []string{u.Path}, __name__)
+		if err != nil {
+			return err
 		}
+
+		archive_url_ := u.Scheme + "://" + u.Host + archive_path_ + "?token=" + token
+		
+		err = file_server.uploadFile(token, archive_url_, rqst.Dest, __name__ + ".tar.gz", stream)
+		if err != nil {
+			return err
+		}
+
+		// I can now remove the created archived file...
+		file_client_.DeleteFile(token, archive_path_)
+
+		path:= file_server.formatPath(rqst.Dest)
+
+		stream.Send(
+			&filepb.UploadFileResponse{
+				Uploaded: 100,
+				Total: 100,
+				Info: "Unpack archive for " + rqst.Name + " ...",
+			},
+		)
+
+		defer os.RemoveAll(path + "/" + __name__ + ".tar.gz")
+
+		// Now I will unpack the archive in it destination.
+		file, err := os.Open(path + "/" + __name__ + ".tar.gz")
+
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+
+		r := bufio.NewReader(file)
+		_extracted_path_, err := Utility.ExtractTarGz(r)
+		if err != nil {
+			return err
+		}
+
+		err = Utility.Move(_extracted_path_ , path)
+		if err != nil {
+			return err
+		}
+
+		err = os.Rename(path + "/" + filepath.Base(_extracted_path_), path + "/" +rqst.Name )
+		if err != nil {
+			return err
+		}
+		
+		if Utility.Exists(path + "/" + rqst.Name + "/playlist.m3u8"){
+			stream.Send(
+				&filepb.UploadFileResponse{
+					Uploaded: 100,
+					Total:    100,
+					Info:     fmt.Sprintf("Process video information..."),
+				},
+			)
+			processVideos(file_server, []string{path + "/" + rqst.Name})
+			
+		}
+
+		// Set the file owner.
+		file_server.setOwner(token, rqst.Dest + "/" + rqst.Name)
+
+		file_server.publishReloadDirEvent(path)
 	} else {
-		// Reload the
-		file_server.publishReloadDirEvent(rqst.Dest)
+
+		// Start upload video...
+		err = file_server.uploadFile(token, rqst.Url, rqst.Dest, rqst.Name, stream)
+
+		// display the error...
+		if err != nil {
+			stream.Send(
+				&filepb.UploadFileResponse{
+					Info: "fail to upload file " + rqst.Name + " with error " + err.Error(),
+				},
+			)
+			if strings.Contains(err.Error(), "signal: killed") {
+				return errors.New("fail to upload file " + rqst.Name + " with error " + err.Error())
+
+			}
+		} else {
+			// Reload the
+			file_server.publishReloadDirEvent(rqst.Dest)
+		}
 	}
 
 	return err
@@ -6141,7 +6305,7 @@ func main() {
 	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
 	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadVideo", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/UploadFile", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}

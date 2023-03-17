@@ -247,11 +247,14 @@ message UploadFileRequest {
 	string url = 1; // the url of the video to upload
 	string dest = 2; // the video destination
 	string name = 3; // the file name
+	string domain = 4; // the domain of the file to upload
+	bool isDir = 5; // if the file is a directory, for exemple a directory with stream's
 }
 
 message UploadFileResponse {
-	int32 pid = 1;
-	string result = 2;
+	int64 uploaded = 1;
+	int64 total = 2;
+	string info = 3; // can be error or done...
 }
 
 // Upload video request

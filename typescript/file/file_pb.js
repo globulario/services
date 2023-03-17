@@ -8918,7 +8918,9 @@ proto.file.UploadFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     url: jspb.Message.getFieldWithDefault(msg, 1, ""),
     dest: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 3, "")
+    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    isdir: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
   };
 
   if (includeInstance) {
@@ -8967,6 +8969,14 @@ proto.file.UploadFileRequest.deserializeBinaryFromReader = function(msg, reader)
       var value = /** @type {string} */ (reader.readString());
       msg.setName(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDomain(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsdir(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -9014,6 +9024,20 @@ proto.file.UploadFileRequest.serializeBinaryToWriter = function(message, writer)
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getDomain();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getIsdir();
+  if (f) {
+    writer.writeBool(
+      5,
       f
     );
   }
@@ -9074,6 +9098,42 @@ proto.file.UploadFileRequest.prototype.setName = function(value) {
 };
 
 
+/**
+ * optional string domain = 4;
+ * @return {string}
+ */
+proto.file.UploadFileRequest.prototype.getDomain = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.file.UploadFileRequest} returns this
+ */
+proto.file.UploadFileRequest.prototype.setDomain = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional bool isDir = 5;
+ * @return {boolean}
+ */
+proto.file.UploadFileRequest.prototype.getIsdir = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.file.UploadFileRequest} returns this
+ */
+proto.file.UploadFileRequest.prototype.setIsdir = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
 
 
 
@@ -9106,8 +9166,9 @@ proto.file.UploadFileResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.file.UploadFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pid: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    result: jspb.Message.getFieldWithDefault(msg, 2, "")
+    uploaded: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    info: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -9145,12 +9206,16 @@ proto.file.UploadFileResponse.deserializeBinaryFromReader = function(msg, reader
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {number} */ (reader.readInt32());
-      msg.setPid(value);
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setUploaded(value);
       break;
     case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setTotal(value);
+      break;
+    case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setResult(value);
+      msg.setInfo(value);
       break;
     default:
       reader.skipField();
@@ -9181,17 +9246,24 @@ proto.file.UploadFileResponse.prototype.serializeBinary = function() {
  */
 proto.file.UploadFileResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getPid();
+  f = message.getUploaded();
   if (f !== 0) {
-    writer.writeInt32(
+    writer.writeInt64(
       1,
       f
     );
   }
-  f = message.getResult();
+  f = message.getTotal();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+  f = message.getInfo();
   if (f.length > 0) {
     writer.writeString(
-      2,
+      3,
       f
     );
   }
@@ -9199,10 +9271,10 @@ proto.file.UploadFileResponse.serializeBinaryToWriter = function(message, writer
 
 
 /**
- * optional int32 pid = 1;
+ * optional int64 uploaded = 1;
  * @return {number}
  */
-proto.file.UploadFileResponse.prototype.getPid = function() {
+proto.file.UploadFileResponse.prototype.getUploaded = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
@@ -9211,17 +9283,35 @@ proto.file.UploadFileResponse.prototype.getPid = function() {
  * @param {number} value
  * @return {!proto.file.UploadFileResponse} returns this
  */
-proto.file.UploadFileResponse.prototype.setPid = function(value) {
+proto.file.UploadFileResponse.prototype.setUploaded = function(value) {
   return jspb.Message.setProto3IntField(this, 1, value);
 };
 
 
 /**
- * optional string result = 2;
+ * optional int64 total = 2;
+ * @return {number}
+ */
+proto.file.UploadFileResponse.prototype.getTotal = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.file.UploadFileResponse} returns this
+ */
+proto.file.UploadFileResponse.prototype.setTotal = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional string info = 3;
  * @return {string}
  */
-proto.file.UploadFileResponse.prototype.getResult = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+proto.file.UploadFileResponse.prototype.getInfo = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
@@ -9229,8 +9319,8 @@ proto.file.UploadFileResponse.prototype.getResult = function() {
  * @param {string} value
  * @return {!proto.file.UploadFileResponse} returns this
  */
-proto.file.UploadFileResponse.prototype.setResult = function(value) {
-  return jspb.Message.setProto3StringField(this, 2, value);
+proto.file.UploadFileResponse.prototype.setInfo = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
