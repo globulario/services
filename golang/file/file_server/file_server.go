@@ -1367,6 +1367,13 @@ func (file_server *server) setOwner(token, path string) error {
 		return err
 	}
 
+	// if path was absolute I will make it relative data path.
+	if strings.Contains(path, "/files/users/"){
+		path = path[strings.Index(path, "/users/"):]
+	}
+
+	fmt.Println("--------------------------> set resource owner ", path, clientId)
+	
 	// So here I will need the local token.
 	err = rbac_client_.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 

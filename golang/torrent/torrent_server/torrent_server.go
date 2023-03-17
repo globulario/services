@@ -645,7 +645,6 @@ func (svr *server) processTorrent() {
 								if err == nil {
 									if strings.Contains(dir, "/files/users/"){
 										dir = dir[strings.Index(dir, "/users/"):]
-										fmt.Println("----------------> ", dir)
 									}
 									// add owner to the directory itself.
 									svr.addResourceOwner(dir, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
