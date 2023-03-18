@@ -3656,7 +3656,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	for i := 0; i < len(notifications); i++ {
 		n_ := notifications[i].(map[string]interface{})
 		notificationType := resourcepb.NotificationType(int32(Utility.ToInt(n_["notificationtype"])))
-		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
+		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetNotificationsRsp{
