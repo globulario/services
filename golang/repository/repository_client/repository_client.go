@@ -529,6 +529,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			notification.Message = message
 			notification.Recipient = application.Id
 			notification.Date = time.Now().Unix()
+			notification.Mac, _= Utility.MyMacAddr(Utility.MyIP())
 
 			notification.Sender = `{"_id":"` + application.Id + `", "name":"` + application.Name + `","icon":"` + application.Icon + `", "alias":"` + application.Alias + `"}`
 

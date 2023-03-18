@@ -723,6 +723,7 @@ message Notification {
   string recipient = 4;
   string sender = 5;
   NotificationType notification_type = 6;
+  string mac = 7; // where the notification is store.
 }
 
 message CreateNotificationRqst { Notification notification = 1; }
