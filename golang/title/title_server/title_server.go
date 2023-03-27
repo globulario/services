@@ -796,8 +796,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	fmt.Println("associate file ", absolutefilePath, uuid)
-
 	associations := srv.getAssociations(rqst.IndexPath)
 
 	if associations == nil {
@@ -1095,6 +1093,10 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(titles) == 0 {
+		return nil, errors.New("no titles associations found for file " + rqst.FilePath)
 	}
 
 	return &titlepb.GetFileTitlesResponse{Titles: &titlepb.Titles{Titles: titles}}, nil
@@ -1451,7 +1453,6 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1473,8 +1474,8 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 	}
 
 	val, err := index.GetInternal([]byte(id))
-	if err == nil {
-		return nil, errors.New("fail to remove " + rqst.VideoId)
+	if err != nil {
+		return nil, errors.New("fail to remove " + rqst.VideoId + " with error " + err.Error())
 	}
 
 	if val != nil {
@@ -1482,6 +1483,7 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 	}
 
 	// Now I will remove the file association...
+	fmt.Println("-------->1501")
 
 	return &titlepb.DeleteVideoResponse{}, nil
 }
@@ -1550,9 +1552,18 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	videos := make([]*titlepb.Video, 0)
 	for i := 0; i < len(association.Titles); i++ {
 		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(association.Titles[i]))
-		if err == nil {
-			videos = append(videos, video)
+		if err == nil && video != nil{
+			if video.ID != ""{
+				videos = append(videos, video)
+			}else{
+				srv.associations.Delete(uuid) // remove associations
+			}
 		}
+	}
+
+	if len(videos) == 0 {
+		fmt.Println("no videos associations found for file " + rqst.FilePath)
+		return nil, errors.New("no videos associations found for file " + rqst.FilePath)
 	}
 
 	return &titlepb.GetFileVideosResponse{Videos: &titlepb.Videos{Videos: videos}}, nil
@@ -1612,6 +1623,8 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 			associations.SetItem(titleId, data)
 		}
 	}
+
+
 
 	return association.Paths, nil
 }

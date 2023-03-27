@@ -1368,12 +1368,12 @@ func (file_server *server) setOwner(token, path string) error {
 	}
 
 	// if path was absolute I will make it relative data path.
-	if strings.Contains(path, "/files/users/"){
+	if strings.Contains(path, "/files/users/") {
 		path = path[strings.Index(path, "/users/"):]
 	}
 
 	fmt.Println("--------------------------> set resource owner ", path, clientId)
-	
+
 	// So here I will need the local token.
 	err = rbac_client_.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 
@@ -5035,10 +5035,16 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				video, err = indexYoutubeVideo(token, video_id, video_url, index_path, video_path, strings.ReplaceAll(file_path, "/.hidden/", ""))
 				if info["thumbnails"] != nil {
 					if len(info["thumbnails"].([]interface{})) > 0 {
-						video.Poster.URL = info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"].(string)
+						if info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"] != nil {
+							video.Poster.URL = info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"].(string)
+						}else{
+							video.Poster.URL = ""
+
+						}
 					}
 				}
 			}
+			
 			if err == nil && video != nil {
 				// set info from the json file...
 				if info["fulltitle"] != nil {
@@ -5410,21 +5416,21 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 		stream.Send(
 			&filepb.UploadFileResponse{
 				Uploaded: 100,
-				Total: 100,
-				Info: "Create archive for " + rqst.Name + " ...",
+				Total:    100,
+				Info:     "Create archive for " + rqst.Name + " ...",
 			},
 		)
 
 		// create temporary archive on the remote server.
 		__name__ := Utility.RandomUUID()
-		archive_path_ , err := file_client_.CreateAchive(token, []string{u.Path}, __name__)
+		archive_path_, err := file_client_.CreateAchive(token, []string{u.Path}, __name__)
 		if err != nil {
 			return err
 		}
 
 		archive_url_ := u.Scheme + "://" + u.Host + archive_path_ + "?token=" + token
-		
-		err = file_server.uploadFile(token, archive_url_, rqst.Dest, __name__ + ".tar.gz", stream)
+
+		err = file_server.uploadFile(token, archive_url_, rqst.Dest, __name__+".tar.gz", stream)
 		if err != nil {
 			return err
 		}
@@ -5432,13 +5438,13 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 		// I can now remove the created archived file...
 		file_client_.DeleteFile(token, archive_path_)
 
-		path:= file_server.formatPath(rqst.Dest)
+		path := file_server.formatPath(rqst.Dest)
 
 		stream.Send(
 			&filepb.UploadFileResponse{
 				Uploaded: 100,
-				Total: 100,
-				Info: "Unpack archive for " + rqst.Name + " ...",
+				Total:    100,
+				Info:     "Unpack archive for " + rqst.Name + " ...",
 			},
 		)
 
@@ -5459,17 +5465,17 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 			return err
 		}
 
-		err = Utility.Move(_extracted_path_ , path)
+		err = Utility.Move(_extracted_path_, path)
 		if err != nil {
 			return err
 		}
 
-		err = os.Rename(path + "/" + filepath.Base(_extracted_path_), path + "/" +rqst.Name )
+		err = os.Rename(path+"/"+filepath.Base(_extracted_path_), path+"/"+rqst.Name)
 		if err != nil {
 			return err
 		}
-		
-		if Utility.Exists(path + "/" + rqst.Name + "/playlist.m3u8"){
+
+		if Utility.Exists(path + "/" + rqst.Name + "/playlist.m3u8") {
 			stream.Send(
 				&filepb.UploadFileResponse{
 					Uploaded: 100,
@@ -5478,11 +5484,11 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 				},
 			)
 			processVideos(file_server, []string{path + "/" + rqst.Name})
-			
+
 		}
 
 		// Set the file owner.
-		file_server.setOwner(token, rqst.Dest + "/" + rqst.Name)
+		file_server.setOwner(token, rqst.Dest+"/"+rqst.Name)
 
 		file_server.publishReloadDirEvent(path)
 	} else {

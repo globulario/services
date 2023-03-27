@@ -2639,6 +2639,7 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
+	fmt.Println("----> validate access for ", subject, name, path)
 	// validate if the subject exist
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {
