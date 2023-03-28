@@ -393,10 +393,12 @@ func InitService(s Service) error {
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
+		
 		// Now I will set the path where the configuation will be save in that case.
 		servicesDir := config.GetServicesDir()
 		dir, _ := osext.ExecutableFolder()
 		path := strings.ReplaceAll(dir, "\\", "/")
+
 		if !strings.HasPrefix(path, servicesDir){
 			// this will create a new configuration config.json beside the exec if no configuration file
 			// already exist. Mostly use by development environnement.
@@ -406,6 +408,11 @@ func InitService(s Service) error {
 			configPath := strings.Replace(path, servicesDir, servicesConfigDir, -1)
 			if Utility.Exists(configPath + "/config.json"){
 				s.SetConfigurationPath(configPath + "/config.json")
+			}else{
+				// so here no configuration exist at default configuration path and the 
+				// service was started without argument. In that case I will create the configuration
+				// file beside the executable file.
+				s.SetConfigurationPath(path + "/config.json")
 			}
 		}
 	}

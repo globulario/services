@@ -252,8 +252,10 @@ func (client *Echo_Client) Echo(token string, msg interface{}) (string, error) {
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	rsp, err := client.c.Echo(ctx, rqst)

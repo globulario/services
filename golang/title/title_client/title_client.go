@@ -251,8 +251,10 @@ func (client *Title_Client) CreateTitle(token, path string, title *titlepb.Title
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreateTitle(ctx, rqst)
@@ -270,8 +272,10 @@ func (client *Title_Client) CreateAudio(token, path string, track *titlepb.Audio
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreateAudio(ctx, rqst)
@@ -472,7 +476,10 @@ func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -494,8 +501,10 @@ func (client *Title_Client) CreatePerson(token, path string, p *titlepb.Person) 
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreatePerson(ctx, rqst)
@@ -513,8 +522,10 @@ func (client *Title_Client) CreatePublisher(token, path string, p *titlepb.Publi
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreatePublisher(ctx, rqst)

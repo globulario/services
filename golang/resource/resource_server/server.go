@@ -1367,6 +1367,16 @@ func main() {
 			"/resource.ResourceService/GetNotifications",
 			"/resource.ResourceService/CreateNotification",
 			"/resource.ResourceService/DeleteNotification",
+			"/title.TitleService/GetPublisherById",
+			"/title.TitleService/CreatePerson",
+			"/title.TitleService/GetPersonById",
+			"/title.TitleService/GetAudioById",
+			"/title.TitleService/GetAlbum",
+			"/title.TitleService/GetVideoById",
+			"/title.TitleService/GetFileTitles",
+			"/title.TitleService/GetFileAudios",
+			"/title.TitleService/GetTitleFiles",
+			"/title.TitleService/SearchTitles",
 		})
 
 		// Here I will create user directories if their not already exist...

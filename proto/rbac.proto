@@ -180,6 +180,7 @@ message ResourceInfos {
 	int32 index = 1; // The parameter index.
 	string permission = 2; // The permission name, read, write, ect...
 	string path = 3; // The resource path (use by ValidateActionRsp)
+	string field = 4; // if the parameter is an object that will given the field name that contain the resource path. ex: video.ID ("ID" will contain the resource)
 }
 
 message GetActionResourceInfosRsp{

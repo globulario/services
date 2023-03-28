@@ -71,7 +71,7 @@ func (rbac_server *server) getResourceTypePathIndexation(resource_type string) (
 				permissions = append(permissions, p)
 			}
 		} else {
-			fmt.Println("path not found: ", paths[i], err)
+			fmt.Println("74 path not found: ", paths[i], err)
 		}
 	}
 
@@ -151,6 +151,7 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 
 // The function return the list of permissions associtated with a given subject.
 func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type string, subject_type rbacpb.SubjectType) ([]*rbacpb.Permissions, error) {
+
 	// set the key to looking for...
 	id := "PERMISSIONS/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
@@ -215,7 +216,7 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 				permissions = append(permissions, p)
 			}
 		} else {
-			fmt.Println("path not found: ", paths[i], err)
+			fmt.Println("218 path not found: ", paths[i], err)
 		}
 	}
 
@@ -403,6 +404,17 @@ func (rbac_server *server) setSubjectUsedSpace(subject string, subject_type rbac
 			errors.New("no account exist with id " + subject)
 		}
 		id += "ACCOUNT/" + a
+
+		// So Here I will create the user directory if it not already exist.
+		// Create the user file directory.
+		dataPath := config.GetDataDir()
+		if !Utility.Exists(dataPath + "/files/users/" + a) {
+			Utility.CreateDirIfNotExist(dataPath + "/files/users/" + a)
+
+			// be sure the user is the owner of that directory...
+			rbac_server.addResourceOwner("/users/"+a, "file", a, rbacpb.SubjectType_ACCOUNT)
+		}
+
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
@@ -1944,7 +1956,6 @@ func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.Ad
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	fmt.Println("add resource owner for ", rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
 	return &rbacpb.AddResourceOwnerRsp{}, nil
 }
 
@@ -2515,6 +2526,7 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	}
 
 	fmt.Println("validate access allowed for ", subject, name, path)
+
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err == nil {
@@ -2625,6 +2637,8 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 		if name == "read" {
 			return true
 		}
+		// protected public path by default.
+		return false
 	}
 
 	// Now I will test parent directories permission and inherit the permission.
@@ -2633,7 +2647,12 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 		return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
 	}
 
-	return false
+	if permissions == nil {
+		return true;// no permissions exist so I will set it to true by default...
+	}
+
+	// Permissions exist and nothing was found for so not the subject is not allowed
+	return  false; 
 }
 
 // Return  accessAllowed, accessDenied, error
@@ -2656,8 +2675,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	path_ := rbac_server.formatPath(path)
-
-	fmt.Println("validate file at path ", path_, "for", subject, "and permission", name)
 	if strings.HasSuffix(path_, ".ts") == true {
 		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
 			return true, false, nil
@@ -2666,6 +2683,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 	// validate ownership...
 	if rbac_server.isOwner(subject, subjectType, path) {
+
 		return true, false, nil
 	} else if name == "owner" {
 		permissions, err := rbac_server.getResourcePermissions(path)
@@ -2782,7 +2800,11 @@ func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbac
 
 	for i := 0; i < len(infos); i++ {
 		info := infos[i].(map[string]interface{})
-		infos_ = append(infos_, &rbacpb.ResourceInfos{Index: int32(Utility.ToInt(info["index"])), Permission: info["permission"].(string)})
+		field := ""
+		if info["field"] != nil {
+			field = info["field"].(string)
+		}
+		infos_ = append(infos_, &rbacpb.ResourceInfos{Index: int32(Utility.ToInt(info["index"])), Permission: info["permission"].(string), Field: field})
 	}
 
 	return infos_, err
@@ -2809,7 +2831,6 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
 
-	fmt.Println("validate action ", action, " for ", subject)
 	// Exception
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") ||

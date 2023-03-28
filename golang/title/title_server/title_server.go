@@ -19,13 +19,16 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
 	"github.com/golang/protobuf/jsonpb"
-
-	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 
 	//"google.golang.org/grpc/grpclog"
@@ -416,7 +419,7 @@ func (srv *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	srv.grpcServer, err = globular.InitGrpcServer(srv /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -534,6 +537,26 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 
 // Insert a title in the database or update it if it already exist.
 func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
 	if rqst.Title == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -551,6 +574,27 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 	// Index the title and put it in the search engine.
 	rqst.Title.UUID = generateUUID(rqst.Title.ID)
+
+	_, err = index.GetInternal([]byte(rqst.Title.UUID))
+	if err != nil {
+		// so here I will set the ownership...
+		rbac_client_, err := srv.getRbacClient()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Title.ID, "title_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+	}
+
 	err = index.Index(rqst.Title.UUID, rqst.Title)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1338,6 +1382,25 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 // Insert a video in the database or update it if it already exist.
 func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
 
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
 	if rqst.Video == nil {
 		fmt.Println("no video was given")
 		return nil, status.Errorf(
@@ -1354,9 +1417,27 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("try to create video with id ", rqst.Video.ID)
-
 	rqst.Video.UUID = generateUUID(rqst.Video.ID)
+
+	_, err = index.GetInternal([]byte(rqst.Video.UUID))
+	if err != nil {
+		// so here I will set the ownership...
+		rbac_client_, err := srv.getRbacClient()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Video.ID, "video_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
 	err = index.Index(rqst.Video.UUID, rqst.Video)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1381,7 +1462,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	event_client, err := srv.getEventClient()
+	event_client_, err := srv.getEventClient()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1389,7 +1470,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	}
 
 	// send event to update the video infos
-	event_client.Publish("update_video_infos_evt", []byte(jsonStr))
+	event_client_.Publish("update_video_infos_evt", []byte(jsonStr))
 
 	return &titlepb.CreateVideoResponse{}, nil
 }
@@ -1482,9 +1563,6 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 		return nil, errors.New("expected nil, got" + string(val))
 	}
 
-	// Now I will remove the file association...
-	fmt.Println("-------->1501")
-
 	return &titlepb.DeleteVideoResponse{}, nil
 }
 
@@ -1506,7 +1584,6 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	}
 
 	if !Utility.Exists(absolutefilePath) {
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
@@ -1552,10 +1629,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	videos := make([]*titlepb.Video, 0)
 	for i := 0; i < len(association.Titles); i++ {
 		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(association.Titles[i]))
-		if err == nil && video != nil{
-			if video.ID != ""{
+		if err == nil && video != nil {
+			if video.ID != "" {
 				videos = append(videos, video)
-			}else{
+			} else {
 				srv.associations.Delete(uuid) // remove associations
 			}
 		}
@@ -1623,8 +1700,6 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 			associations.SetItem(titleId, data)
 		}
 	}
-
-
 
 	return association.Paths, nil
 }
@@ -1709,7 +1784,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			Summary: summary,
 		},
 	})
-
 
 	associations := srv.getAssociations(rqst.IndexPath)
 
@@ -1891,6 +1965,26 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
 	if rqst.Audio == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1907,6 +2001,25 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	}
 
 	rqst.Audio.UUID = generateUUID(rqst.Audio.ID)
+
+	_, err = index.GetInternal([]byte(rqst.Audio.UUID))
+	if err != nil {
+		// so here I will set the ownership...
+		rbac_client_, err := srv.getRbacClient()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Audio.ID, "audio_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
 
 	// Index the title and put it in the search engine.
 	err = index.Index(rqst.Audio.UUID, rqst.Audio)
@@ -1986,18 +2099,17 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 	// get the list of associated files if there some...
 	associations := srv.getAssociations(rqst.IndexPath)
 
-		if associations != nil {
-			data, err := associations.GetItem(rqst.AudioId)
+	if associations != nil {
+		data, err := associations.GetItem(rqst.AudioId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
-	
+	}
 
 	return &titlepb.GetAudioByIdResponse{
 		Audio:      audio,
@@ -2206,7 +2318,17 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	return &titlepb.GetFileAudiosResponse{Audios: &titlepb.Audios{Audios: audios}}, nil
 }
 
-// /////////////////// resource service functions ////////////////////////////////////
+// /////////////////// rbac service functions ////////////////////////////////////
+func (server *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "NewRbacService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*rbac_client.Rbac_Client), nil
+}
+
+// /////////////////// event service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
@@ -2248,7 +2370,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 8)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
@@ -2256,6 +2378,18 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.associations = new(sync.Map)
 
+	// Set Permissions.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/title.TitleService/DeleteVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/title.TitleService/CreateVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/title.TitleService/DeleteAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/title.TitleService/CreateAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/title.TitleService/DeleteTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/title.TitleService/CreateTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/title.TitleService/AssociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/title.TitleService/DissociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
 
 	// Give base info to retreive it configuration.
 	// Give base info to retreive it configuration.
@@ -2271,7 +2405,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
-
 
 	// Register the title services
 	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
