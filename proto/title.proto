@@ -6,6 +6,7 @@ syntax = "proto3";
 package title;
 
 option go_package="title/titlepb";
+
 ///////////////////////////////////////////
 // Movie information taken from IMDB
 //////////////////////////////////////////
@@ -31,16 +32,26 @@ message Person {
 
 	string CareerSatus = 9; // active, inactive etc.
 
-	string Gender = 10;
+	string Gender = 10; // Male or female.
 
-	string BirthPlace = 11;
+	string BirthPlace = 11; // A string containing the Place of birth
+
+	int64 BirthDate = 12; // The date of birth.
+
+	// title releated role...
+	repeated string Directing = 13; // Contain the list of directed titles
+	repeated string Writing = 14; // Contain the list of writted titles
+	repeated string Acting = 15; // Contain list of title where the person was Actor.Album
+
+	// video releated role...
+	repeated string Casting = 16; // Contain the list of video where that person appear.
 }
 
 message Poster {
-	string ID = 1;
-	string titleId = 2;
-	string URL = 3;
-	string ContentUrl = 4;
+	string ID = 1; // A unique id.
+	string titleId = 2; // The title/video/audio linked by this poster.
+	string URL = 3; // The media url, can be a a video preview or the video itself
+	string ContentUrl = 4; // The poster image url
 }
 
 message Preview {
@@ -256,6 +267,7 @@ message SearchHit {
 		Title title = 4;
 		Video video = 5;
 		Audio audio = 6;
+		Person person = 7;
 	 }
 }
 
@@ -290,6 +302,22 @@ message SearchTitlesRequest {
 }
 
 message SearchTitlesResponse {
+    oneof result  {
+        SearchSummary summary = 1;
+        SearchHit hit = 2;
+	    SearchFacets facets = 3;
+    }
+}
+
+message SearchPersonsRequest {
+	string query = 1;
+	repeated string fields = 2;
+	string indexPath = 3;
+	int32 size = 4;
+	int32 offset = 5;
+}
+
+message SearchPersonsResponse {
     oneof result  {
         SearchSummary summary = 1;
         SearchHit hit = 2;
@@ -477,7 +505,6 @@ service TitleService {
 	// Retrun a person with a given id.
 	rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse);
 
-
 	/////////////////////////////////// Title specific functions ////////////////////////////////////////
   	// Insert a title in the database or update it if it already exist.
 	rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
@@ -538,5 +565,8 @@ service TitleService {
 	
 	// Search title or videos infos...
 	rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
+
+	// Search youtuber, actor, pornstar realisator etc.
+	rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
 
 }

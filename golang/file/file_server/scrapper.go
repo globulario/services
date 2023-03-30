@@ -485,7 +485,6 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 	target := make(map[string]interface{})
 	json.NewDecoder(r.Body).Decode(&target)
 
-	// console.log()
 	currentVideo.PublisherId = new(titlepb.Publisher)
 	if  target["author_url"] != nil {
 		currentVideo.PublisherId.URL = target["author_url"].(string)
@@ -493,6 +492,13 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 			currentVideo.PublisherId.Name = target["author_name"].(string)
 			currentVideo.Description = target["title"].(string)
 		}	
+		if strings.Contains(currentVideo.PublisherId.URL, "@"){
+			currentVideo.PublisherId.ID = strings.Split(currentVideo.PublisherId.URL, "@")[1]
+		}else if len(currentVideo.PublisherId.URL) > 0 {
+			currentVideo.PublisherId.ID = currentVideo.PublisherId.URL[strings.LastIndex(currentVideo.PublisherId.URL, "/") + 1:]
+		}else{
+			currentVideo.PublisherId.ID = currentVideo.PublisherId.Name
+		}
 	}
 
 

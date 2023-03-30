@@ -575,26 +575,6 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	// Index the title and put it in the search engine.
 	rqst.Title.UUID = generateUUID(rqst.Title.ID)
 
-	_, err = index.GetInternal([]byte(rqst.Title.UUID))
-	if err != nil {
-		// so here I will set the ownership...
-		rbac_client_, err := srv.getRbacClient()
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		// set the resource path...
-		err = rbac_client_.AddResourceOwner(rqst.Title.ID, "title_infos", clientId, rbacpb.SubjectType_ACCOUNT)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-	}
-
 	err = index.Index(rqst.Title.UUID, rqst.Title)
 	if err != nil {
 		return nil, status.Errorf(
@@ -615,6 +595,25 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 				rqst.Title.Poster.ContentUrl = thumbnail
 			}
 		}
+	}
+
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Title.ID)
+	if permissions == nil {
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Title.ID, "title_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
 	}
 
 	// Associated original object here...
@@ -1264,37 +1263,39 @@ func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublis
 }
 
 // ////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
-// Create a person...
-func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
-	if rqst.Person == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
-
-	}
+func (srv *server) createPerson(indexPath string, person *titlepb.Person) error {
 
 	// So here Will create the indexation for the movie...
-	index, err := srv.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Person.ID, rqst.Person)
+	err = index.Index(person.ID, person)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Person)
+	jsonStr, err := marshaler.MarshalToString(person)
 
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Person.ID), []byte(jsonStr))
+		err = index.SetInternal([]byte(person.ID), []byte(jsonStr))
+	}
+
+	return nil
+}
+
+// Create a person...
+func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
+
+	err := srv.createPerson(rqst.IndexPath, rqst.Person)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.CreatePersonResponse{}, nil
@@ -1419,16 +1420,37 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 
 	rqst.Video.UUID = generateUUID(rqst.Video.ID)
 
-	_, err = index.GetInternal([]byte(rqst.Video.UUID))
+	err = index.Index(rqst.Video.UUID, rqst.Video)
 	if err != nil {
-		// so here I will set the ownership...
-		rbac_client_, err := srv.getRbacClient()
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will index the casting...
+	for i := 0; i < len(rqst.Video.Casting); i++ {
+		person := rqst.Video.Casting[i]
+		if person.Casting == nil {
+			person.Casting = make([]string, 0)
 		}
 
+		if !Utility.Contains(person.Casting, rqst.Video.ID) {
+			person.Casting = append(person.Casting, rqst.Video.ID)
+		}
+
+		srv.createPerson(rqst.IndexPath, person)
+	}
+
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Video.ID)
+	if permissions == nil {
 		// set the resource path...
 		err = rbac_client_.AddResourceOwner(rqst.Video.ID, "video_infos", clientId, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
@@ -1436,13 +1458,6 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-	}
-
-	err = index.Index(rqst.Video.UUID, rqst.Video)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Associated original object here...
@@ -1718,6 +1733,104 @@ func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 	// Return the store association values...
 	return &titlepb.GetTitleFilesResponse{FilePaths: paths}, nil
 
+}
+
+// Search youtuber, actor, pornstar realisator etc.
+func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titlepb.TitleService_SearchPersonsServer) error {
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	query := bleve.NewQueryStringQuery(rqst.Query)
+	request := bleve.NewSearchRequest(query)
+	request.Size = int(rqst.Size) //
+	request.From = int(rqst.Offset)
+
+	if request.Size == 0 {
+		request.Size = 50
+	}
+
+	// Now I will add the facets for type and genre.
+
+	// The acting facet.
+	acting := bleve.NewFacetRequest("Acting", int(rqst.Size))
+	request.AddFacet("Acting", acting)
+
+	// The directing facet...
+	directing := bleve.NewFacetRequest("Directing", int(rqst.Size))
+	request.AddFacet("Directing", directing)
+
+	// The writing facet...
+	writting := bleve.NewFacetRequest("Writting", int(rqst.Size))
+	request.AddFacet("Writting", writting)
+
+	// The casting facet...
+	casting := bleve.NewFacetRequest("Casting", int(rqst.Size))
+	request.AddFacet("Casting", casting)
+
+	request.Highlight = bleve.NewHighlightWithStyle("html")
+	request.Fields = rqst.Fields
+	result, err := index.Search(request)
+
+	if err != nil { // an empty query would cause this
+		return err
+	}
+
+	// The first return message will be the summary of the result...
+	summary := new(titlepb.SearchSummary)
+	summary.Query = rqst.Query // set back the input query.
+	summary.Took = result.Took.Milliseconds()
+	summary.Total = result.Total
+
+	// Here I will send the summary...
+	stream.Send(&titlepb.SearchPersonsResponse{
+		Result: &titlepb.SearchPersonsResponse_Summary{
+			Summary: summary,
+		},
+	})
+
+	// Now I will generate the hits informations...
+	for i, hit := range result.Hits {
+		id := hit.ID
+		hit_ := new(titlepb.SearchHit)
+		hit_.Score = hit.Score
+		hit_.Index = int32(i)
+		hit_.Snippets = make([]*titlepb.Snippet, 0)
+
+		// Now I will extract fragment for fields...
+		for fragmentField, fragments := range hit.Fragments {
+			snippet := new(titlepb.Snippet)
+			snippet.Field = fragmentField
+			snippet.Fragments = make([]string, 0)
+			for _, fragment := range fragments {
+				snippet.Fragments = append(snippet.Fragments, fragment)
+			}
+			// append to the results.
+			hit_.Snippets = append(hit_.Snippets, snippet)
+		}
+
+		// Here I will get the title itself.
+		raw, err := index.GetInternal([]byte(id))
+		if err == nil {
+			person := new(titlepb.Person)
+			err = jsonpb.UnmarshalString(string(raw), person)
+			if err == nil {
+				hit_.Result = &titlepb.SearchHit_Person{
+					Person: person,
+				}
+				stream.Send(&titlepb.SearchPersonsResponse{
+					Result: &titlepb.SearchPersonsResponse_Hit{
+						Hit: hit_,
+					},
+				})
+			} 
+		}
+	}
+
+	return nil
 }
 
 // Search titles infos...
@@ -2002,16 +2115,23 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 
 	rqst.Audio.UUID = generateUUID(rqst.Audio.ID)
 
-	_, err = index.GetInternal([]byte(rqst.Audio.UUID))
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Audio.UUID, rqst.Audio)
 	if err != nil {
-		// so here I will set the ownership...
-		rbac_client_, err := srv.getRbacClient()
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
+	// so here I will set the ownership of the info
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Audio.ID)
+	if permissions == nil {
 		// set the resource path...
 		err = rbac_client_.AddResourceOwner(rqst.Audio.ID, "audio_infos", clientId, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
@@ -2019,14 +2139,6 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-	}
-
-	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Audio.UUID, rqst.Audio)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Associated original object here...

@@ -1533,5 +1533,61 @@ proto.title.TitleServicePromiseClient.prototype.searchTitles =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.SearchPersonsRequest,
+ *   !proto.title.SearchPersonsResponse>}
+ */
+const methodDescriptor_TitleService_SearchPersons = new grpc.web.MethodDescriptor(
+  '/title.TitleService/SearchPersons',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.title.SearchPersonsRequest,
+  proto.title.SearchPersonsResponse,
+  /**
+   * @param {!proto.title.SearchPersonsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.SearchPersonsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.SearchPersonsRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.title.SearchPersonsResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.searchPersons =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/title.TitleService/SearchPersons',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_SearchPersons);
+};
+
+
+/**
+ * @param {!proto.title.SearchPersonsRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.title.SearchPersonsResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServicePromiseClient.prototype.searchPersons =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/title.TitleService/SearchPersons',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_SearchPersons);
+};
+
+
 module.exports = proto.title;
 

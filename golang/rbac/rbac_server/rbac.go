@@ -2648,9 +2648,11 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	}
 
 	if permissions == nil {
+		fmt.Println("----------------> no permission found for ", path)
 		return true;// no permissions exist so I will set it to true by default...
 	}
 
+	fmt.Println("----------------> permission found for ", path, permissions)
 	// Permissions exist and nothing was found for so not the subject is not allowed
 	return  false; 
 }
@@ -2683,7 +2685,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 	// validate ownership...
 	if rbac_server.isOwner(subject, subjectType, path) {
-
 		return true, false, nil
 	} else if name == "owner" {
 		permissions, err := rbac_server.getResourcePermissions(path)
