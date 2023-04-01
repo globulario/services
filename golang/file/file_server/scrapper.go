@@ -126,6 +126,8 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 		p.ID = e.Attr("data-id")
 		p.FullName = strings.TrimSpace(e.Text)
 		p.URL = "https://www.pornhub.com" + e.Attr("href")
+		indexPersonInformation(p)
+
 		if len(p.ID) > 0 {
 			currentVideo.Casting = append(currentVideo.Casting, p)
 		}
@@ -169,6 +171,89 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 	return currentVideo, nil
 }
 
+func indexPersonInformation(p *titlepb.Person) error {
+	err := _indexPersonInformation_(p, strings.ReplaceAll(p.FullName, " ", "-"))
+	if err != nil {
+		values := strings.Split(p.FullName, " ")
+		if len(values) == 1 {
+			err = _indexPersonInformation_(p, values[0])
+		} else if len(values) == 2 {
+			err = _indexPersonInformation_(p, values[1])
+		}
+	}
+
+	// try a last time with the id itself...
+	if err != nil {
+		return _indexPersonInformation_(p, p.ID)
+	}
+
+	return err
+}
+
+// That here I will try to get more information about a given person...
+func _indexPersonInformation_(p *titlepb.Person, id string) error {
+	movieCollector := colly.NewCollector(
+		colly.AllowedDomains("www.freeones.com", "freeones.com"),
+	)
+
+	// about
+
+	// So here I will define collector's...
+	biographySelector := `#description > div > div.common-text`
+	movieCollector.OnHTML(biographySelector, func(e *colly.HTMLElement) {
+		html, err := e.DOM.Html()
+		if err == nil {
+			p.Biography = html
+		}
+	})
+
+	// The profile image.
+	profilePictureSelector := `body > div.flex-footer-wrapper > div > div.right-container.flex-m-column.d-m-flex.flex-1 > main > div.px-2.px-md-3 > section > header > div.dashboard-image-container > a > img`
+	movieCollector.OnHTML(profilePictureSelector, func(e *colly.HTMLElement) {
+		p.Picture = strings.TrimSpace(e.Attr("src"))
+	})
+
+	// The birthdate
+	birthdateSelector := `#search-result > section > form > div:nth-child(4) > ul > li:nth-child(5) > span.font-size-xs > a > span`
+	movieCollector.OnHTML(birthdateSelector, func(e *colly.HTMLElement) {
+		p.BirthDate = strings.TrimSpace(e.Text)
+	})
+
+	// The birtplace.
+	birthplaceSelector := `#search-result > section > form > div:nth-child(4) > ul > li:nth-child(13) > span.font-size-xs`
+	movieCollector.OnHTML(birthplaceSelector, func(e *colly.HTMLElement) {
+		html, err := e.DOM.Html()
+		if err == nil {
+			p.BirthPlace = html
+		}
+	})
+
+	// The carrer status
+	carrerStatusSelector := `#search-result > section > form > div:nth-child(4) > ul > li:nth-child(9) > span.font-size-xs > a > span`
+	movieCollector.OnHTML(carrerStatusSelector, func(e *colly.HTMLElement) {
+		p.CareerSatus = strings.TrimSpace(e.Text)
+	})
+
+	// The aliases.
+	aliasesSelector := `#search-result > section > form > div:nth-child(4) > ul > li:nth-child(2) > span.font-size-xs`
+	p.Aliases = make([]string, 0)
+	movieCollector.OnHTML(aliasesSelector, func(e *colly.HTMLElement) {
+		e.ForEach(".text-underline-always", func(index int, child_ *colly.HTMLElement) {
+			p.Aliases = append(p.Aliases, child_.Text)
+		})
+	})
+
+	url := "https://www.freeones.com/" + id + "/bio"
+	err := movieCollector.Visit(url)
+	if err == nil {
+		p.ID = Utility.GenerateUUID(url) // so i will set the id to the url...
+		p.URL = url
+		p.Gender = "female"
+	}
+
+	return err
+}
+
 // Upload a video from porn hub and index it in the seach engine on the server side.
 func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
 
@@ -206,6 +291,8 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 			p.URL = e.Attr("href")
 			p.ID = strings.TrimSpace(e.Text)
 			p.FullName = strings.TrimSpace(e.Text)
+			indexPersonInformation(p)
+
 			if len(p.ID) > 0 {
 				currentVideo.Casting = append(currentVideo.Casting, p)
 			}
@@ -296,7 +383,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 				txt := strings.TrimSpace(values[0])
 				currentVideo.PublisherId.Name = txt[len(currentVideo.PublisherId.Name)+1:]
 			} else {
-				currentVideo.PublisherId = &titlepb.Publisher{ID:strings.TrimSpace(values[0]), Name:strings.TrimSpace(values[0]) }
+				currentVideo.PublisherId = &titlepb.Publisher{ID: strings.TrimSpace(values[0]), Name: strings.TrimSpace(values[0])}
 			}
 
 			// The number of view
@@ -325,6 +412,9 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 			p.URL = "https://www.xnxx.com" + e.Attr("href")
 			p.ID = strings.TrimSpace(e.Text)
 			p.FullName = strings.TrimSpace(e.Text)
+
+			indexPersonInformation(p)
+
 			if len(p.ID) > 0 {
 				currentVideo.Casting = append(currentVideo.Casting, p)
 			}
@@ -402,10 +492,12 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 	movieCollector.OnHTML(".label.profile", func(e *colly.HTMLElement) {
 		p := new(titlepb.Person)
 		p.URL = "https://www.xvideos.com" + e.Attr("href")
+
 		e.ForEach(".name", func(index int, child *colly.HTMLElement) {
 			// The poster
 			p.ID = child.Text
 			p.FullName = child.Text
+			indexPersonInformation(p)
 		})
 		if len(p.ID) > 0 {
 			currentVideo.Casting = append(currentVideo.Casting, p)
@@ -486,21 +578,20 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 	json.NewDecoder(r.Body).Decode(&target)
 
 	currentVideo.PublisherId = new(titlepb.Publisher)
-	if  target["author_url"] != nil {
+	if target["author_url"] != nil {
 		currentVideo.PublisherId.URL = target["author_url"].(string)
-		if  target["author_name"] != nil {
+		if target["author_name"] != nil {
 			currentVideo.PublisherId.Name = target["author_name"].(string)
 			currentVideo.Description = target["title"].(string)
-		}	
-		if strings.Contains(currentVideo.PublisherId.URL, "@"){
+		}
+		if strings.Contains(currentVideo.PublisherId.URL, "@") {
 			currentVideo.PublisherId.ID = strings.Split(currentVideo.PublisherId.URL, "@")[1]
-		}else if len(currentVideo.PublisherId.URL) > 0 {
-			currentVideo.PublisherId.ID = currentVideo.PublisherId.URL[strings.LastIndex(currentVideo.PublisherId.URL, "/") + 1:]
-		}else{
+		} else if len(currentVideo.PublisherId.URL) > 0 {
+			currentVideo.PublisherId.ID = currentVideo.PublisherId.URL[strings.LastIndex(currentVideo.PublisherId.URL, "/")+1:]
+		} else {
 			currentVideo.PublisherId.ID = currentVideo.PublisherId.Name
 		}
 	}
-
 
 	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 

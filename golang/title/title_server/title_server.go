@@ -1241,7 +1241,10 @@ func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 			return nil, err
 		}
 		publisher = new(titlepb.Publisher)
-		jsonpb.UnmarshalString(string(raw), publisher)
+		err = jsonpb.UnmarshalString(string(raw), publisher)
+		if err != nil {
+			return nil, err
+		}
 
 	}
 
@@ -1271,19 +1274,35 @@ func (srv *server) createPerson(indexPath string, person *titlepb.Person) error 
 		return err
 	}
 
+	uuid := Utility.GenerateUUID(person.ID)
+
 	// Index the title and put it in the search engine.
-	err = index.Index(person.ID, person)
+	err = index.Index(uuid, person)
 	if err != nil {
+		fmt.Println("1282 fail to index person: ", person, err)
 		return err
 	}
 
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(person)
-
-	if err == nil {
-		err = index.SetInternal([]byte(person.ID), []byte(jsonStr))
+	if err != nil {
+		fmt.Println("1290 fail to index person: ", person, err)
+		return err
 	}
+
+	err = index.SetInternal([]byte(uuid), []byte(jsonStr))
+	if err != nil {
+		fmt.Println("1296 fail to index person: ", person, err)
+		return err
+	}
+
+	test, err := srv.getPersonById(indexPath, uuid)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("-------------> 1305 ", test.ID, uuid)
 
 	return nil
 }
@@ -1303,6 +1322,7 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 
 // Delete a person...
 func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
+
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1310,26 +1330,34 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.PersonId)
+	uuid := Utility.GenerateUUID(rqst.PersonId)
+	fmt.Println("-------------> 1334 ", rqst.PersonId, uuid)
+	_, err = srv.getPersonById(rqst.IndexPath, uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.PersonId))
+	err = index.Delete(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// TODO remove asscociated videos...
+	err = index.DeleteInternal([]byte(uuid))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	return &titlepb.DeletePersonResponse{}, nil
 }
 
 func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
+
 	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
@@ -1339,28 +1367,15 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 		return nil, err
 	}
 
-	query := bleve.NewQueryStringQuery(id)
-	searchRequest := bleve.NewSearchRequest(query)
-	searchResult, err := index.Search(searchRequest)
+	raw, err := index.GetInternal([]byte(id))
 	if err != nil {
 		return nil, err
 	}
 
-	// Now from the result I will
-	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
-	}
-
-	var person *titlepb.Person
-	// Now I will return the data
-	for _, val := range searchResult.Hits {
-		id := val.ID
-		raw, err := index.GetInternal([]byte(id))
-		if err != nil {
-			return nil, err
-		}
-		person = new(titlepb.Person)
-		jsonpb.UnmarshalString(string(raw), person)
+	person := new(titlepb.Person)
+	err = jsonpb.UnmarshalString(string(raw), person)
+	if err != nil {
+		return nil, err
 	}
 
 	return person, nil
@@ -1368,7 +1383,7 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 
 // Retrun a person with a given id.
 func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByIdRequest) (*titlepb.GetPersonByIdResponse, error) {
-	person, err := srv.getPersonById(rqst.IndexPath, rqst.PersonId)
+	person, err := srv.getPersonById(rqst.IndexPath, Utility.GenerateUUID(rqst.PersonId))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1430,8 +1445,15 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	// Now I will index the casting...
 	for i := 0; i < len(rqst.Video.Casting); i++ {
 		person := rqst.Video.Casting[i]
+
 		if person.Casting == nil {
 			person.Casting = make([]string, 0)
+		}
+
+		// Get existiong movie...
+		existing, err := srv.getPersonById(rqst.IndexPath, Utility.GenerateUUID(person.ID))
+		if err == nil {
+			person.Casting = existing.Casting
 		}
 
 		if !Utility.Contains(person.Casting, rqst.Video.ID) {
@@ -1506,7 +1528,10 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	}
 
 	video := new(titlepb.Video)
-	jsonpb.UnmarshalString(string(raw), video)
+	err = jsonpb.UnmarshalString(string(raw), video)
+	if err != nil {
+		return nil, err
+	}
 
 	fmt.Println(video.Description)
 
@@ -1537,6 +1562,18 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 			}
 		}
 	}
+
+	// Here I will init the casting from to be sure I got the last version...
+	casting := make([]*titlepb.Person, len(video.Casting))
+	for i := 0; i < len(video.Casting); i++ {
+		c, err := srv.getPersonById(rqst.IndexPath, Utility.GenerateUUID(video.Casting[i].ID))
+		if err == nil {
+			casting[i] = c
+		}
+	}
+
+	// set back.
+	video.Casting = casting
 
 	return &titlepb.GetVideoByIdResponse{
 		Video:      video,
@@ -1826,7 +1863,7 @@ func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titl
 						Hit: hit_,
 					},
 				})
-			} 
+			}
 		}
 	}
 
@@ -1963,10 +2000,24 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 				}
 
 			} else {
+
 				// Here I will try with a video...
 				video := new(titlepb.Video)
 				err := jsonpb.UnmarshalString(string(raw), video)
 				if err == nil {
+
+					// Here I will init the casting from to be sure I got the last version...
+					casting := make([]*titlepb.Person, len(video.Casting))
+					for i := 0; i < len(video.Casting); i++ {
+						c, err := srv.getPersonById(rqst.IndexPath, Utility.GenerateUUID(video.Casting[i].ID))
+						if err == nil {
+							casting[i] = c
+						}
+					}
+
+					// set back.
+					video.Casting = casting
+
 					hit_.Result = &titlepb.SearchHit_Video{
 						Video: video,
 					}
@@ -2340,14 +2391,15 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.AlbumId)
+	id := generateUUID(rqst.AlbumId)
+	err = index.Delete(id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.AlbumId))
+	err = index.DeleteInternal([]byte(id))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

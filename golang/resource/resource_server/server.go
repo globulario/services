@@ -1377,6 +1377,7 @@ func main() {
 			"/title.TitleService/GetFileAudios",
 			"/title.TitleService/GetTitleFiles",
 			"/title.TitleService/SearchTitles",
+			"/title.TitleService/SearchPersons",
 		})
 
 		// Here I will create user directories if their not already exist...

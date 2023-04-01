@@ -15,36 +15,31 @@ message Person {
 	string URL = 2;
 	string FullName = 3;
 
+	repeated string Aliases = 4;
+
 	// Those information are not required...
 
 	// A lnk to the profile picture...
-	string Picture = 4;
+	string Picture = 5;
 
 	// A short text that describe the person.
-	string Biography = 5;
+	string Biography = 6;
 
-	// Can help to search 
-	string About = 6; // in few word...
+	string CareerSatus = 7; // active, inactive etc.
 
-	string RelationShipStatus = 7; // single married etc.
+	string Gender = 8; // Male or female.
 
-	string InterestIn = 8; // Sexual orientation.
+	string BirthPlace = 9; // A string containing the Place of birth
 
-	string CareerSatus = 9; // active, inactive etc.
-
-	string Gender = 10; // Male or female.
-
-	string BirthPlace = 11; // A string containing the Place of birth
-
-	int64 BirthDate = 12; // The date of birth.
+	string BirthDate = 10; // The date of birth.
 
 	// title releated role...
-	repeated string Directing = 13; // Contain the list of directed titles
-	repeated string Writing = 14; // Contain the list of writted titles
-	repeated string Acting = 15; // Contain list of title where the person was Actor.Album
+	repeated string Directing = 11; // Contain the list of directed titles
+	repeated string Writing = 12; // Contain the list of writted titles
+	repeated string Acting = 13; // Contain list of title where the person was Actor.Album
 
 	// video releated role...
-	repeated string Casting = 16; // Contain the list of video where that person appear.
+	repeated string Casting = 14; // Contain the list of video where that person appear.
 }
 
 message Poster {
