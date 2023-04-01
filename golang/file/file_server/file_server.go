@@ -8,6 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/StalkR/httpcache"
+	"github.com/StalkR/imdb"
+	"github.com/barasher/go-exiftool"
+	"github.com/karmdip-mi/go-fitz"
+	"github.com/mitchellh/go-ps"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 	"image/jpeg"
 	"io"
 	"io/ioutil"
@@ -24,13 +31,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/StalkR/httpcache"
-	"github.com/StalkR/imdb"
-	"github.com/barasher/go-exiftool"
-	"github.com/karmdip-mi/go-fitz"
-	"github.com/mitchellh/go-ps"
-	"golang.org/x/text/language"
-	"golang.org/x/text/language/display"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
@@ -1757,7 +1757,7 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
 	// return nil, errors.New("test phase...")
-
+	fmt.Println("-------------> delete file ", rqst.GetPath())
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
@@ -1803,14 +1803,6 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 		}
 	}
 
-	err = os.Remove(path)
-
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Now I will disscociate the file.
 	dissociateFileWithTitle(rqst.GetPath())
 
@@ -1827,6 +1819,14 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 		cache.RemoveItem(dir + "/video.m3u")
 		os.Remove(dir + "/video.m3u")
 		file_server.generatePlaylist(dir, token)
+	}
+
+	err = os.Remove(path)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &filepb.DeleteFileResponse{
@@ -2831,7 +2831,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
  * Process video info
  */
 func processVideoInfo(file_server *server, token, info_path string) error {
-	
+
 	media_info := make(map[string]interface{})
 	data, err := os.ReadFile(info_path)
 	if err == nil {
@@ -3415,6 +3415,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 
 // Dissociate file, if the if is deleted...
 func dissociateFileWithTitle(path string) error {
+
+	fmt.Println("-----------------------> 3419 ", path)
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	// So here I will try to retreive indexation for the file...
@@ -3432,6 +3434,7 @@ func dissociateFileWithTitle(path string) error {
 	}
 
 	// Look for videos
+	fmt.Println("--------------> 3435 ", path)
 	videos, err := getFileVideos(path)
 	if err == nil {
 		// Here I will asscociate the path
@@ -3440,6 +3443,7 @@ func dissociateFileWithTitle(path string) error {
 		}
 	}
 
+	fmt.Println("-------------> 3448 ", path)
 	return nil
 }
 
@@ -4637,31 +4641,34 @@ func (file_server *server) generatePlaylist(path, token string) error {
 		filename := filepath.Join(path, infos[i].Name())
 		info, err := getFileInfo(file_server, filename, -1, -1)
 
-		// if the file is link I will get the linked file.
-		if strings.HasSuffix(infos[i].Name(), ".lnk") {
+		if err == nil {
+			
+			// if the file is link I will get the linked file.
+			if strings.HasSuffix(infos[i].Name(), ".lnk") {
 
-			data, err := os.ReadFile(filename)
-			if err == nil {
-				info_ := make(map[string]interface{})
-				json.Unmarshal(data, &info_)
-				path := file_server.formatPath(info_["path"].(string))
-				if Utility.Exists(path) {
-					info, _ = getFileInfo(file_server, path, -1, -1)
-					filename = path
+				data, err := os.ReadFile(filename)
+				if err == nil {
+					info_ := make(map[string]interface{})
+					json.Unmarshal(data, &info_)
+					path := file_server.formatPath(info_["path"].(string))
+					if Utility.Exists(path) {
+						info, _ = getFileInfo(file_server, path, -1, -1)
+						filename = path
+					}
 				}
 			}
-		}
 
-		if info.IsDir {
-			if Utility.Exists(info.Path + "/playlist.m3u8") {
-				videos = append(videos, info.Path+"/playlist.m3u8")
-			}
-		} else if !strings.HasSuffix(filename, ".m3u") {
-			if err == nil {
-				if strings.HasPrefix(info.Mime, "audio/") {
-					audios = append(audios, filename)
-				} else if strings.HasPrefix(info.Mime, "video/") && !strings.HasSuffix(info.Name, ".temp.mp4") {
-					videos = append(videos, filename)
+			if info.IsDir {
+				if Utility.Exists(info.Path + "/playlist.m3u8") {
+					videos = append(videos, info.Path+"/playlist.m3u8")
+				}
+			} else if !strings.HasSuffix(filename, ".m3u") {
+				if err == nil {
+					if strings.HasPrefix(info.Mime, "audio/") {
+						audios = append(audios, filename)
+					} else if strings.HasPrefix(info.Mime, "video/") && !strings.HasSuffix(info.Name, ".temp.mp4") {
+						videos = append(videos, filename)
+					}
 				}
 			}
 		}
@@ -5037,14 +5044,14 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 					if len(info["thumbnails"].([]interface{})) > 0 {
 						if info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"] != nil {
 							video.Poster.URL = info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"].(string)
-						}else{
+						} else {
 							video.Poster.URL = ""
 
 						}
 					}
 				}
 			}
-			
+
 			if err == nil && video != nil {
 				// set info from the json file...
 				if info["fulltitle"] != nil {
@@ -5086,7 +5093,6 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				if err != nil {
 					return err
 				}
-
 
 				err = title_client_.CreateVideo(token, index_path, video)
 				if err == nil {

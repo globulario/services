@@ -82,18 +82,18 @@ func (client *Title_Client) Reconnect() error {
 
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = titlepb.NewTitleServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
-	
+
 	return err
 }
 
@@ -464,9 +464,46 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 }
 
 /**
+ * Return a person with a given id.
+ */
+func (client *Title_Client) GetPersonById(indexPath, id string) (*titlepb.Person, error) {
+	rqst := &titlepb.GetPersonByIdRequest{
+		IndexPath: indexPath,
+		PersonId: id,
+	}
+
+	rsp, err := client.c.GetPersonById(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Person, nil
+}
+
+/**
  * Create video
  */
 func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video) error {
+
+	// I will create casting and adjust the existing one...
+	for i := 0; i < len(video.Casting); i++ {
+		// retreive existion person info...
+		person := video.Casting[i]
+
+		p, err := client.GetPersonById(path, person.ID)
+		if err == nil {
+			for j := 0; j < len(p.Casting); j++ {
+				if !Utility.Contains(person.Casting, p.Casting[j]) {
+					person.Casting = append(person.Casting, p.Casting[j])
+				}
+			}
+		}
+
+		err = client.CreatePerson(token, path, person)
+		if err != nil {
+			return err
+		}
+	}
 
 	rqst := &titlepb.CreateVideoRequest{
 		Video:     video,
