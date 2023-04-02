@@ -1326,8 +1326,6 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	Utility.CompressDir(tmp, &buf)
 	dest := "/users/" + user + "@" + domain + "/" + rqst.GetName() + ".tar.gz"
 
-	fmt.Println("save file archive ", dest)
-
 	// Set user as owner.
 	file_server.setOwner(token, dest)
 
@@ -1757,7 +1755,6 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
 	// return nil, errors.New("test phase...")
-	fmt.Println("-------------> delete file ", rqst.GetPath())
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
@@ -2705,8 +2702,6 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 							t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
 							if err != nil {
 								// the title was no found...
-								fmt.Println("try to resore info for ", video_path)
-
 								if t == nil {
 									client_ := getHttpClient()
 									title__, err := imdb.NewTitle(client_, title.ID)
@@ -2780,7 +2775,6 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 								__v__, _ := Utility.ToMap(v)
 								__video__, _ := Utility.ToMap(video)
 								if Utility.GetChecksum(__v__) != Utility.GetChecksum(__video__) {
-									fmt.Println("try to resore info for ", video_path)
 
 									if video.Poster == nil {
 										video.Poster = new(titlepb.Poster)
@@ -3416,7 +3410,6 @@ func createVideoMpeg4H264(path string) (string, error) {
 // Dissociate file, if the if is deleted...
 func dissociateFileWithTitle(path string) error {
 
-	fmt.Println("-----------------------> 3419 ", path)
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	// So here I will try to retreive indexation for the file...
@@ -3434,7 +3427,6 @@ func dissociateFileWithTitle(path string) error {
 	}
 
 	// Look for videos
-	fmt.Println("--------------> 3435 ", path)
 	videos, err := getFileVideos(path)
 	if err == nil {
 		// Here I will asscociate the path
@@ -3442,8 +3434,7 @@ func dissociateFileWithTitle(path string) error {
 			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
 		}
 	}
-
-	fmt.Println("-------------> 3448 ", path)
+	
 	return nil
 }
 
@@ -3936,7 +3927,7 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 	if strings.Contains(path, ".hidden") || strings.Contains(path, ".temp") {
 		return nil
 	}
-	fmt.Println("3676 generate preview for ", path)
+
 	duration_total := Utility.GetVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -4088,7 +4079,7 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 	}
 
 	Utility.CreateDirIfNotExist(output)
-	fmt.Println("3676 generate timeline for ", path)
+	
 	duration := Utility.GetVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec for video at path " + path)
@@ -4153,7 +4144,6 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 	cache.RemoveItem(path)
 	cache.RemoveItem(output)
 
-	fmt.Println("3887 generate video preview ", path)
 	// wait for the file to be accessible...
 	duration := Utility.GetVideoDuration(path)
 	for nbTry := 60 * 5; duration == 0 && nbTry > 0; nbTry-- {
@@ -4572,8 +4562,6 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 
 		file_server.getFileVideosAssociation(client, path__, videos)
 
-		fmt.Println("add file to playlist ", paths[i])
-
 		if len(videos[path__]) > 0 {
 
 			videoInfo := videos[path__][0]
@@ -4626,7 +4614,6 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 // Generate video and audio playlist for a given directory.
 func (file_server *server) generatePlaylist(path, token string) error {
 
-	fmt.Println("generate playlist for ", path)
 	// first of all I will retreive media files from the folder...
 	infos, err := Utility.ReadDir(path) // getFileInfo(file_server, path)
 
@@ -4675,13 +4662,11 @@ func (file_server *server) generatePlaylist(path, token string) error {
 	}
 
 	// here I will generate the audio playlist
-	fmt.Println("audio found ", audios)
 	if len(audios) > 0 {
 		file_server.generateAudioPlaylist(path, token, file_server.orderedPlayList(path, audios))
 	}
 
 	// Here I will generate video playlist.
-	fmt.Println("videos found ", videos)
 	if len(videos) > 0 {
 
 		file_server.generateVideoPlaylist(path, token, file_server.orderedPlayList(path, videos))
@@ -4835,7 +4820,6 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		files := Utility.GetFilePathsByExtension(path_, ".mkv")
 		files = append(files, Utility.GetFilePathsByExtension(path_, ".avi")...)
 		for i := 0; i < len(files); i++ {
-			fmt.Println("start convert ", files[i])
 			createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
 			createVideoMpeg4H264Log.LogTime = time.Now().Unix()
 			createVideoMpeg4H264Log.Msg = "Convert video to mp4"
@@ -4858,7 +4842,6 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 
 			createVideoMpeg4H264Log.Status = "done"
 			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-			fmt.Println("done convert ", files[i])
 		}
 	}
 
@@ -5006,7 +4989,6 @@ func (srv *server) publishReloadDirEvent(path string) {
 	client, err := getEventClient()
 	path = strings.ReplaceAll(path, "\\", "/")
 	path = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
-	fmt.Println("reload dir ", path)
 	if err == nil {
 		client.Publish("reload_dir_event", []byte(path))
 	}
@@ -5098,7 +5080,6 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				if err == nil {
 					err := title_client_.AssociateFileWithTitle(index_path, video.ID, video_path)
 					if err != nil {
-						fmt.Println("fail to associate file with video information ", err)
 						return err
 					}
 				} else {
@@ -5106,7 +5087,6 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				}
 
 			} else {
-				fmt.Println("fail to index video with error ", err)
 				return err
 			}
 		}
@@ -5165,12 +5145,6 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 func (file_server *server) getVideoInfo(url string) (map[string]interface{}, error) {
 	cmd := exec.Command("yt-dlp", "-j", "--dump-json", "--skip-download", url)
 	cmd.Dir = os.TempDir()
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println(string(out))
 
 	infos := make(map[string]interface{})
 
@@ -5682,8 +5656,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 func (file_server *server) uploadedVideo(token, url, dest, format, fileName string, stream filepb.FileService_UploadVideoServer) (int, error) {
 	var err error
 
-	fmt.Println("try to upload video at path ", fileName)
-
 	path := file_server.formatPath(dest)
 	pid := -1
 
@@ -5742,7 +5714,6 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 	go Utility.ReadOutput(output, stdout)
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("fail to run command ", err)
 		return pid, err
 	}
 
@@ -5766,7 +5737,6 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 
 			err = file_server.createVideoInfo(token, dest, fileName, info_path)
 			if err != nil {
-				fmt.Println("fail to create video info with error ", err)
 				stream.Send(
 					&filepb.UploadVideoResponse{
 						Pid:    int32(pid),
@@ -5784,7 +5754,6 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 				},
 			)
 			if err != nil {
-				fmt.Println("fail to create video permission with error ", err)
 				stream.Send(
 					&filepb.UploadVideoResponse{
 						Pid:    int32(pid),
@@ -5802,7 +5771,6 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			)
 			err := os.Remove(info_path)
 			if err != nil {
-				fmt.Println("fail to remove file ", info_path, err)
 				stream.Send(
 					&filepb.UploadVideoResponse{
 						Pid:    int32(pid),
@@ -6159,7 +6127,6 @@ func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo)
 	search_engine := new(search_engine.BleveSearchEngine)
 
 	err = search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
-	fmt.Println(metadata_str)
 	if err != nil {
 		log.Println(err)
 	}
@@ -6383,7 +6350,6 @@ func main() {
 					select {
 					case path := <-channel_0:
 						// Now I will create the ownership...
-						fmt.Println("generate_video_preview_event received for path ", path)
 						if strings.HasPrefix(path, "/users/") {
 							values := strings.Split(path, "/")
 							if len(values) > 1 {
@@ -6470,7 +6436,6 @@ func main() {
 	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
 	if s_impl.AutomaticVideoConversion {
 		// Start the scheduler
-		fmt.Println("start scheduler!")
 		s_impl.scheduler.Start()
 	}
 

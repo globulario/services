@@ -126,7 +126,7 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 		p.ID = e.Attr("data-id")
 		p.FullName = strings.TrimSpace(e.Text)
 		p.URL = "https://www.pornhub.com" + e.Attr("href")
-		indexPersonInformation(p)
+		IndexPersonInformation(p)
 
 		if len(p.ID) > 0 {
 			currentVideo.Casting = append(currentVideo.Casting, p)
@@ -171,7 +171,8 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 	return currentVideo, nil
 }
 
-func indexPersonInformation(p *titlepb.Person) error {
+// Index the person information...
+func IndexPersonInformation(p *titlepb.Person) error {
 	err := _indexPersonInformation_(p, strings.ReplaceAll(p.FullName, " ", "-"))
 	if err != nil {
 		values := strings.Split(p.FullName, " ")
@@ -291,7 +292,7 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 			p.URL = e.Attr("href")
 			p.ID = strings.TrimSpace(e.Text)
 			p.FullName = strings.TrimSpace(e.Text)
-			indexPersonInformation(p)
+			IndexPersonInformation(p)
 
 			if len(p.ID) > 0 {
 				currentVideo.Casting = append(currentVideo.Casting, p)
@@ -413,7 +414,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 			p.ID = strings.TrimSpace(e.Text)
 			p.FullName = strings.TrimSpace(e.Text)
 
-			indexPersonInformation(p)
+			IndexPersonInformation(p)
 
 			if len(p.ID) > 0 {
 				currentVideo.Casting = append(currentVideo.Casting, p)
@@ -497,7 +498,7 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 			// The poster
 			p.ID = child.Text
 			p.FullName = child.Text
-			indexPersonInformation(p)
+			IndexPersonInformation(p)
 		})
 		if len(p.ID) > 0 {
 			currentVideo.Casting = append(currentVideo.Casting, p)

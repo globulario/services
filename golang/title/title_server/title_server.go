@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -760,7 +759,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			}
 
 			if needSave {
-				fmt.Println("save metada for title", title.ID, title.Description, absolutefilePath)
 				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
 				if err != nil {
 					return nil, status.Errorf(
@@ -820,7 +818,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			}
 
 			if needSave {
-				fmt.Println("save metada for title", video.ID, video.Description, absolutefilePath)
 				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
 				if err != nil {
 					return nil, status.Errorf(
@@ -1014,8 +1011,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 
 // Dissociate a file and a title info, so file can be found from title informations...
 func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
-
-	fmt.Println("-----------------> DissociateFileWithTitle", rqst.FilePath, rqst.TitleId)
 
 	// so the first thing I will do is to get the file on the disc.
 	absolutefilePath := rqst.FilePath
@@ -1272,6 +1267,10 @@ func (srv *server) createPerson(indexPath string, person *titlepb.Person) error 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return err
+	}
+
+	if len(person.ID) == 0 || len(person.FullName) == 0 {
+		return errors.New("missing inforamation for create person")
 	}
 
 	uuid := generateUUID(person.ID)
@@ -1744,7 +1743,6 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	}
 
 	if len(videos) == 0 {
-		fmt.Println("no videos associations found for file " + rqst.FilePath)
 		return nil, errors.New("no videos associations found for file " + rqst.FilePath)
 	}
 
@@ -1770,7 +1768,6 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 
 	data, err := associations.GetItem(titleId)
 	if err != nil {
-		fmt.Println("no files association found for title: ", titleId, err)
 		return nil, err
 	}
 
@@ -1778,7 +1775,6 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			fmt.Println("fail to read association: ", titleId, err)
 			return nil, err
 		}
 	}

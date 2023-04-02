@@ -3,6 +3,7 @@ package title_client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -486,6 +487,7 @@ func (client *Title_Client) GetPersonById(indexPath, id string) (*titlepb.Person
 func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video) error {
 
 	// I will create casting and adjust the existing one...
+	casting := make([]*titlepb.Person, 0)
 	for i := 0; i < len(video.Casting); i++ {
 		// retreive existion person info...
 		person := video.Casting[i]
@@ -500,10 +502,15 @@ func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video
 		}
 
 		err = client.CreatePerson(token, path, person)
-		if err != nil {
-			return err
+		if err == nil {
+			casting = append(casting, person)
+		}else{
+			fmt.Println("fail to create person with error: ", err)
 		}
 	}
+
+	// set the casting with validated values.
+	video.Casting = casting
 
 	rqst := &titlepb.CreateVideoRequest{
 		Video:     video,
