@@ -607,9 +607,22 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 		path_, err := os.Getwd()
 		if err == nil {
-			path_ = strings.ReplaceAll(path_, "\\", "/")
-			path_ = path_ + "/mimetypes/unknown.png"
-			info.Thumbnail, _ = s.getMimeTypesUrl(path_)
+
+			// Here I will read the metadata and set it if it
+			// exist...
+			if !strings.Contains(path, "/.hidden/") {
+				path_ = strings.ReplaceAll(path_, "\\", "/")
+				path_ = path_ + "/mimetypes/unknown.png"
+				info.Thumbnail, _ = s.getMimeTypesUrl(path_)
+
+				metadata_, err := ExtractMetada(path)
+				if err == nil {
+					obj, err := structpb.NewStruct(metadata_)
+					if err == nil {
+						info.Metadata = obj
+					}
+				}
+			}
 
 			// If hidden folder exist for it...
 			path_ := filepath.Dir(path)
@@ -3434,7 +3447,7 @@ func dissociateFileWithTitle(path string) error {
 			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -4079,7 +4092,7 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 	}
 
 	Utility.CreateDirIfNotExist(output)
-	
+
 	duration := Utility.GetVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec for video at path " + path)
@@ -4629,7 +4642,7 @@ func (file_server *server) generatePlaylist(path, token string) error {
 		info, err := getFileInfo(file_server, filename, -1, -1)
 
 		if err == nil {
-			
+
 			// if the file is link I will get the linked file.
 			if strings.HasSuffix(infos[i].Name(), ".lnk") {
 

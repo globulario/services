@@ -24,8 +24,11 @@ message FileInfo {
 	string thumbnail = 8;
 	string checksum = 9;
 
+	// This will contain file metadata...
+	google.protobuf.Struct metadata = 10;
+
 	// Can be left empty...
-	repeated FileInfo files = 10;
+	repeated FileInfo files = 11;
 }
 
 message ReadDirRequest {

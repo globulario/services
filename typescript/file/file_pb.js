@@ -1926,7 +1926,7 @@ proto.file.Empty.serializeBinaryToWriter = function(message, writer) {
  * @private {!Array<number>}
  * @const
  */
-proto.file.FileInfo.repeatedFields_ = [10];
+proto.file.FileInfo.repeatedFields_ = [11];
 
 
 
@@ -1968,6 +1968,7 @@ proto.file.FileInfo.toObject = function(includeInstance, msg) {
     mime: jspb.Message.getFieldWithDefault(msg, 7, ""),
     thumbnail: jspb.Message.getFieldWithDefault(msg, 8, ""),
     checksum: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    metadata: (f = msg.getMetadata()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
     filesList: jspb.Message.toObjectList(msg.getFilesList(),
     proto.file.FileInfo.toObject, includeInstance)
   };
@@ -2043,6 +2044,11 @@ proto.file.FileInfo.deserializeBinaryFromReader = function(msg, reader) {
       msg.setChecksum(value);
       break;
     case 10:
+      var value = new google_protobuf_struct_pb.Struct;
+      reader.readMessage(value,google_protobuf_struct_pb.Struct.deserializeBinaryFromReader);
+      msg.setMetadata(value);
+      break;
+    case 11:
       var value = new proto.file.FileInfo;
       reader.readMessage(value,proto.file.FileInfo.deserializeBinaryFromReader);
       msg.addFiles(value);
@@ -2139,10 +2145,18 @@ proto.file.FileInfo.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getMetadata();
+  if (f != null) {
+    writer.writeMessage(
+      10,
+      f,
+      google_protobuf_struct_pb.Struct.serializeBinaryToWriter
+    );
+  }
   f = message.getFilesList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      10,
+      11,
       f,
       proto.file.FileInfo.serializeBinaryToWriter
     );
@@ -2313,12 +2327,49 @@ proto.file.FileInfo.prototype.setChecksum = function(value) {
 
 
 /**
- * repeated FileInfo files = 10;
+ * optional google.protobuf.Struct metadata = 10;
+ * @return {?proto.google.protobuf.Struct}
+ */
+proto.file.FileInfo.prototype.getMetadata = function() {
+  return /** @type{?proto.google.protobuf.Struct} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_struct_pb.Struct, 10));
+};
+
+
+/**
+ * @param {?proto.google.protobuf.Struct|undefined} value
+ * @return {!proto.file.FileInfo} returns this
+*/
+proto.file.FileInfo.prototype.setMetadata = function(value) {
+  return jspb.Message.setWrapperField(this, 10, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.file.FileInfo} returns this
+ */
+proto.file.FileInfo.prototype.clearMetadata = function() {
+  return this.setMetadata(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.file.FileInfo.prototype.hasMetadata = function() {
+  return jspb.Message.getField(this, 10) != null;
+};
+
+
+/**
+ * repeated FileInfo files = 11;
  * @return {!Array<!proto.file.FileInfo>}
  */
 proto.file.FileInfo.prototype.getFilesList = function() {
   return /** @type{!Array<!proto.file.FileInfo>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.file.FileInfo, 10));
+    jspb.Message.getRepeatedWrapperField(this, proto.file.FileInfo, 11));
 };
 
 
@@ -2327,7 +2378,7 @@ proto.file.FileInfo.prototype.getFilesList = function() {
  * @return {!proto.file.FileInfo} returns this
 */
 proto.file.FileInfo.prototype.setFilesList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 10, value);
+  return jspb.Message.setRepeatedWrapperField(this, 11, value);
 };
 
 
@@ -2337,7 +2388,7 @@ proto.file.FileInfo.prototype.setFilesList = function(value) {
  * @return {!proto.file.FileInfo}
  */
 proto.file.FileInfo.prototype.addFiles = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.file.FileInfo, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 11, opt_value, proto.file.FileInfo, opt_index);
 };
 
 
