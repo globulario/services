@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	 b64 "encoding/base64"
+	b64 "encoding/base64"
 	"io/ioutil"
 	"log"
 	"os"
@@ -544,7 +544,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 
 	for i := 0; i < len(persons); i++ {
 		person := persons[i]
-		
+
 		// Get existiong movie...
 		existing, err := srv.getPersonById(indexpath, person.ID)
 		if err == nil {
@@ -558,7 +558,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 				if !Utility.Contains(person.Casting, titleId) {
 					person.Casting = append(person.Casting, titleId)
 				}
-			}else if role == "Acting" {
+			} else if role == "Acting" {
 				for i := 0; i < len(existing.Acting); i++ {
 					if !Utility.Contains(person.Acting, existing.Acting[i]) {
 						person.Acting = append(person.Acting, existing.Acting[i])
@@ -568,7 +568,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 				if !Utility.Contains(person.Acting, titleId) {
 					person.Acting = append(person.Acting, titleId)
 				}
-			}else if role == "Directing" {
+			} else if role == "Directing" {
 				for i := 0; i < len(existing.Directing); i++ {
 					if !Utility.Contains(person.Directing, existing.Directing[i]) {
 						person.Directing = append(person.Directing, existing.Directing[i])
@@ -578,7 +578,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 				if !Utility.Contains(person.Directing, titleId) {
 					person.Directing = append(person.Directing, titleId)
 				}
-			}else if role == "Writing" {
+			} else if role == "Writing" {
 				for i := 0; i < len(existing.Writing); i++ {
 					if !Utility.Contains(person.Writing, existing.Writing[i]) {
 						person.Writing = append(person.Writing, existing.Writing[i])
@@ -596,7 +596,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 			srv.createPerson(indexpath, person)
 		}
 	}
-	
+
 	return casting
 }
 
@@ -709,11 +709,48 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 func (srv *server) deleteTitle(indexPath, titleId string) error {
 
+	title, err := srv.getTitleById(indexPath, titleId)
+	if err != nil {
+		return err
+	}
+
+	// Now I will remove reference from this video from the casting.
+	for i := 0; i < len(title.Actors); i++ {
+		p, err := srv.getPersonById(indexPath, title.Actors[i].ID)
+		if err == nil {
+			p.Acting = Utility.RemoveString(p.Acting, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	for i := 0; i < len(title.Writers); i++ {
+		p, err := srv.getPersonById(indexPath, title.Writers[i].ID)
+		if err == nil {
+			p.Writing = Utility.RemoveString(p.Writing, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	for i := 0; i < len(title.Directors); i++ {
+		p, err := srv.getPersonById(indexPath, title.Directors[i].ID)
+		if err == nil {
+			p.Directing = Utility.RemoveString(p.Directing, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	// dir to refresh...
+	dirs := make([]string, 0)
+
 	// Remove all file indexation...
 	paths, err := srv.getTitleFiles(indexPath, titleId)
 	if err == nil {
 		for i := 0; i < len(paths); i++ {
 			srv.dissociateFileWithTitle(indexPath, titleId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
 		}
 	}
 
@@ -732,6 +769,28 @@ func (srv *server) deleteTitle(indexPath, titleId string) error {
 	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return err
+	}
+
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(titleId)
+	if err != nil {
+		return err
+	}
+
+	// publish delete video event.
+	err = srv.publish("delete_title_event", []byte(titleId))
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(dirs); i++ {
+		fmt.Println("---------------> reload ", dirs[i])
+		srv.publish("reload_dir_event", []byte(dirs[i]))
 	}
 
 	return nil
@@ -982,6 +1041,9 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	dir :=filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	srv.publish("reload_dir_event", []byte(dir))
+
 	// return empty response.
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
 }
@@ -1076,6 +1138,9 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 			return err
 		}
 	}
+
+	dir :=filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	srv.publish("reload_dir_event", []byte(dir))
 
 	return nil
 
@@ -1657,6 +1722,7 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 }
 
 func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
+
 	err := srv.deleteVideo(rqst.IndexPath, rqst.VideoId)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1687,10 +1753,12 @@ func (srv *server) deleteVideo(indexPath, videoId string) error {
 		}
 	}
 
+	dirs := make([]string, 0)
 	paths, err := srv.getTitleFiles(indexPath, videoId)
 	if err == nil {
 		for i := 0; i < len(paths); i++ {
 			srv.dissociateFileWithTitle(indexPath, videoId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
 		}
 	}
 
@@ -1719,7 +1787,26 @@ func (srv *server) deleteVideo(indexPath, videoId string) error {
 		return errors.New("expected nil, got" + string(val))
 	}
 
-	return nil
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(videoId)
+	if err != nil {
+		return err
+	}
+
+	// force reload dir
+	for i := 0; i < len(dirs); i++ {
+		srv.publish("reload_dir_event", []byte(dirs[i]))
+	}
+
+	// publish delete video event.
+	return srv.publish("delete_video_event", []byte(videoId))
+
 }
 
 // Return the list of videos asscociate with a file.
@@ -1980,7 +2067,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	query := bleve.NewQueryStringQuery(rqst.Query)
 	request := bleve.NewSearchRequest(query)
 	request.Size = int(rqst.Size) //
@@ -2074,30 +2161,30 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 				// Actors
 				actors := make([]*titlepb.Person, 0)
-				for i:=0; i < len(title.Actors); i++ {
+				for i := 0; i < len(title.Actors); i++ {
 					p, err := srv.getPersonById(rqst.IndexPath, title.Actors[i].GetID())
 					if err == nil {
-						actors = append(actors, p); // set the full information...
+						actors = append(actors, p) // set the full information...
 					}
 				}
 				title.Actors = actors
 
 				// Directors
 				directors := make([]*titlepb.Person, 0)
-				for i:=0; i < len(title.Directors); i++ {
+				for i := 0; i < len(title.Directors); i++ {
 					p, err := srv.getPersonById(rqst.IndexPath, title.Directors[i].GetID())
 					if err == nil {
-						directors = append(directors, p); // set the full information...
+						directors = append(directors, p) // set the full information...
 					}
 				}
 				title.Directors = directors
 
 				// Writers
 				writers := make([]*titlepb.Person, 0)
-				for i:=0; i < len(title.Writers); i++ {
+				for i := 0; i < len(title.Writers); i++ {
 					p, err := srv.getPersonById(rqst.IndexPath, title.Writers[i].GetID())
 					if err == nil {
-						writers = append(writers, p); // set the full information...
+						writers = append(writers, p) // set the full information...
 					}
 				}
 				title.Writers = writers
@@ -2419,7 +2506,7 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 
 	query := bleve.NewQueryStringQuery(id)
 	searchRequest := bleve.NewSearchRequest(query)
-	
+
 	searchResult, err := index.Search(searchRequest)
 	if err != nil {
 		return nil, err
@@ -2502,10 +2589,12 @@ func (srv *server) deleteAudio(indexPath string, audioId string) error {
 		return err
 	}
 
+	dirs := make([]string, 0)
 	paths, err := srv.getTitleFiles(indexPath, audioId)
 	if err == nil {
 		for i := 0; i < len(paths); i++ {
 			srv.dissociateFileWithTitle(indexPath, audioId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
 		}
 	}
 
@@ -2520,8 +2609,24 @@ func (srv *server) deleteAudio(indexPath string, audioId string) error {
 		return err
 	}
 
-	// TODO remove asscociated files...
-	return nil
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(audioId)
+	if err != nil {
+		return err
+	}
+
+	// force reload dir
+	for i := 0; i < len(dirs); i++ {
+		srv.publish("reload_dir_event", []byte(dirs[i]))
+	}
+
+	// publish delete video event.
+	return srv.publish("delete_audio_event", []byte(audioId))
 }
 
 func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumRequest) (*titlepb.DeleteAlbumResponse, error) {
@@ -2643,6 +2748,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	return client.(*event_client.Event_Client), nil
 }
 
+// Publish event on the event server.
 func (svr *server) publish(event string, data []byte) error {
 	eventClient, err := svr.getEventClient()
 	if err != nil {
