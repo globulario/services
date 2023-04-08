@@ -666,6 +666,29 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		}
 	}
 
+	// update the title metadata
+	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
+
+			if !Utility.Exists(absolutefilePath) {
+				// Here I will try to get it from the users dirs...
+				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}
+		
+				if !Utility.Exists(absolutefilePath) {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
+				}
+			}
+
+			srv.saveTitleMetadata(absolutefilePath, rqst.Title)
+		}
+	}
+
 	// so here I will set the ownership...
 	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
@@ -673,6 +696,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Title.ID)
 	if permissions == nil {
 		// set the resource path...
@@ -688,7 +712,6 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
-
 	if err == nil {
 		index.SetInternal([]byte(rqst.Title.UUID), []byte(jsonStr))
 	} else {
@@ -816,6 +839,103 @@ type fileTileAssociation struct {
 	Paths  []string // list of file path's where file can be found on the local disck.
 }
 
+func (srv *server) saveTitleMetadata(absolutefilePath string, title *titlepb.Title) error {
+	fmt.Println("save title metadata ", absolutefilePath)
+	fileInfo, err := os.Stat(absolutefilePath)
+	if err != nil {
+		return err
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(title)
+	if err != nil {
+		return err
+	}
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	if fileInfo.IsDir() {
+		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Here I will save metadata only if it has change...
+		infos, err := Utility.ReadMetadata(absolutefilePath)
+		needSave := true
+		if err == nil {
+			if infos["format"] != nil {
+				if infos["format"].(map[string]interface{})["tags"] != nil {
+					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+					if tags["comment"] != nil {
+						comment := tags["comment"].(string)
+						if len(comment) > 0 {
+							needSave = comment != encoded
+						}
+					}
+				}
+			}
+		}
+
+		if needSave {
+			fmt.Println("need save title metadata ", absolutefilePath)
+			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+			if err != nil {
+				return err
+			}
+		}else{
+			fmt.Println("not need save title metadata ", absolutefilePath)
+		}
+	}
+
+	return nil
+}
+
+func (srv *server) saveVideoMetadata(absolutefilePath string, video *titlepb.Video) error {
+	fileInfo, err := os.Stat(absolutefilePath)
+	if err != nil {
+		return err
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(video)
+	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	if fileInfo.IsDir() {
+		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		if err != nil {
+			return err
+		}
+	} else {
+		infos, err := Utility.ReadMetadata(absolutefilePath)
+		needSave := true
+		if err == nil {
+			if infos["format"] != nil {
+				if infos["format"].(map[string]interface{})["tags"] != nil {
+					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+					if tags["comment"] != nil {
+						comment := tags["comment"].(string)
+						if len(comment) > 0 {
+							needSave = comment != encoded
+						}
+					}
+				}
+			}
+		}
+
+		if needSave {
+			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // Associate a file and a title info, so file can be found from title informations...
 func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
 
@@ -836,13 +956,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
-	fileInfo, err := os.Stat(absolutefilePath)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Now I will set the title url in the media file to keep track of the title
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
@@ -859,44 +972,11 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(title)
+		err = srv.saveTitleMetadata(absolutefilePath, title)
 		if err != nil {
-			return nil, err
-		}
-
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		if fileInfo.IsDir() {
-			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// Here I will save metadata only if it has change...
-			infos, err := Utility.ReadMetadata(absolutefilePath)
-			needSave := true
-			if err == nil {
-				if infos["format"] != nil {
-					if infos["format"].(map[string]interface{})["tags"] != nil {
-						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
-						if tags["comment"] != nil {
-							comment := tags["comment"].(string)
-							if len(comment) > 0 {
-								needSave = comment != encoded
-							}
-						}
-					}
-				}
-			}
-
-			if needSave {
-				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			}
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
@@ -917,51 +997,20 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(video)
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+		err = srv.saveVideoMetadata(absolutefilePath, video)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		if fileInfo.IsDir() {
-			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			infos, err := Utility.ReadMetadata(absolutefilePath)
-			needSave := true
-			if err == nil {
-				if infos["format"] != nil {
-					if infos["format"].(map[string]interface{})["tags"] != nil {
-						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
-						if tags["comment"] != nil {
-							comment := tags["comment"].(string)
-							if len(comment) > 0 {
-								needSave = comment != encoded
-							}
-						}
-					}
-				}
-			}
-
-			if needSave {
-				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			}
 		}
 	}
 
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
+
+	// get the file info.
+	fileInfo, _ := os.Stat(absolutefilePath)
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -1041,7 +1090,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	dir :=filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
 	srv.publish("reload_dir_event", []byte(dir))
 
 	// return empty response.
@@ -1139,7 +1188,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		}
 	}
 
-	dir :=filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
 	srv.publish("reload_dir_event", []byte(dir))
 
 	return nil
@@ -1414,8 +1463,10 @@ func (srv *server) createPerson(indexPath string, person *titlepb.Person) error 
 
 	uuid := generateUUID(person.ID)
 
-	// encode the Biography field to hide it from the search engine...
-	person.Biography = b64.StdEncoding.EncodeToString([]byte(person.Biography))
+	// Encode the biography field if is not already encoded.
+	if !Utility.IsStdBase64(person.Biography) {
+		person.Biography = b64.StdEncoding.EncodeToString([]byte(person.Biography))
+	}
 
 	// Index the title and put it in the search engine.
 	err = index.Index(uuid, person)
@@ -1597,6 +1648,26 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 		}
 	} else {
 		return err
+	}
+
+	// update the video metadata
+	paths, err := srv.getTitleFiles(indexpath, video.ID)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
+			if !Utility.Exists(absolutefilePath) {
+				// Here I will try to get it from the users dirs...
+				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}
+		
+				if !Utility.Exists(absolutefilePath) {
+					return err
+				}
+			}
+
+			srv.saveVideoMetadata(absolutefilePath, video)
+		}
 	}
 
 	event_client_, err := srv.getEventClient()

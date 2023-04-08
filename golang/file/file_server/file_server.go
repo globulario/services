@@ -2693,6 +2693,13 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 		return err
 	}
 
+	if client == nil {
+		client, err = getTitleClient()
+		if err != nil {
+			return err
+		}
+	}
+
 	// remove it from the cache.
 	cache.RemoveItem(video_path)
 
