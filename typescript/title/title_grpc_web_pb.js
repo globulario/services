@@ -626,6 +626,67 @@ proto.title.TitleServicePromiseClient.prototype.deleteTitle =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.UpdateTitleMetadataRequest,
+ *   !proto.title.UpdateTitleMetadataResponse>}
+ */
+const methodDescriptor_TitleService_UpdateTitleMetadata = new grpc.web.MethodDescriptor(
+  '/title.TitleService/UpdateTitleMetadata',
+  grpc.web.MethodType.UNARY,
+  proto.title.UpdateTitleMetadataRequest,
+  proto.title.UpdateTitleMetadataResponse,
+  /**
+   * @param {!proto.title.UpdateTitleMetadataRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.UpdateTitleMetadataResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.UpdateTitleMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.UpdateTitleMetadataResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.UpdateTitleMetadataResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.updateTitleMetadata =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/UpdateTitleMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_UpdateTitleMetadata,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.UpdateTitleMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.UpdateTitleMetadataResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.updateTitleMetadata =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/UpdateTitleMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_UpdateTitleMetadata);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.title.CreateAudioRequest,
  *   !proto.title.CreateAudioResponse>}
  */
@@ -1108,6 +1169,67 @@ proto.title.TitleServicePromiseClient.prototype.deleteVideo =
       request,
       metadata || {},
       methodDescriptor_TitleService_DeleteVideo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.UpdateVideoMetadataRequest,
+ *   !proto.title.UpdateVideoMetadataResponse>}
+ */
+const methodDescriptor_TitleService_UpdateVideoMetadata = new grpc.web.MethodDescriptor(
+  '/title.TitleService/UpdateVideoMetadata',
+  grpc.web.MethodType.UNARY,
+  proto.title.UpdateVideoMetadataRequest,
+  proto.title.UpdateVideoMetadataResponse,
+  /**
+   * @param {!proto.title.UpdateVideoMetadataRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.UpdateVideoMetadataResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.UpdateVideoMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.UpdateVideoMetadataResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.UpdateVideoMetadataResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.updateVideoMetadata =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/UpdateVideoMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_UpdateVideoMetadata,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.UpdateVideoMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.UpdateVideoMetadataResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.updateVideoMetadata =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/UpdateVideoMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_UpdateVideoMetadata);
 };
 
 

@@ -128,6 +128,15 @@ message DeleteVideoResponse {
 	
 }
 
+message UpdateVideoMetadataRequest{
+	Video video = 1;
+	string indexPath = 2;
+}
+
+message UpdateVideoMetadataResponse{
+	/** Nothing here */
+}
+
 ///////////////////////////////////////////
 // Movie, serie game... 
 ///////////////////////////////////////////
@@ -195,6 +204,15 @@ message DeleteTitleRequest {
 
 message DeleteTitleResponse {
 	
+}
+
+message UpdateTitleMetadataRequest{
+	Title title = 1;
+	string indexPath = 2;
+}
+
+message UpdateTitleMetadataResponse{
+	/** Nothing here */
 }
 
 message AssociateFileWithTitleRequest {
@@ -510,6 +528,9 @@ service TitleService {
 	// Delete a title from the database.
 	rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
 
+	// Save the title as metadata in each of it associated file.
+	rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse);
+
 	/////////////////////////////////// Audio specific functions ////////////////////////////////////////
 	// Insert a audio information in the database or update it if it already exist.
 	rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse);
@@ -535,6 +556,9 @@ service TitleService {
 
 	// Delete a video from the database.
 	rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse);
+
+	// Save the video as metadata in each of it associated file.
+	rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse);
 
 	////////////////////////////////////// File Tile or Video assocication ///////////////////////////////
 

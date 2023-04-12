@@ -666,29 +666,6 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		}
 	}
 
-	// update the title metadata
-	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID)
-	if err == nil {
-		for i := 0; i < len(paths); i++ {
-			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
-
-			if !Utility.Exists(absolutefilePath) {
-				// Here I will try to get it from the users dirs...
-				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
-					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-				}
-		
-				if !Utility.Exists(absolutefilePath) {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
-				}
-			}
-
-			srv.saveTitleMetadata(absolutefilePath, rqst.Title)
-		}
-	}
-
 	// so here I will set the ownership...
 	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
@@ -728,6 +705,48 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	// send event to update the audio infos
 	event_client.Publish("update_title_infos_evt", []byte(jsonStr))
 	return &titlepb.CreateTitleResponse{}, nil
+}
+
+func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.UpdateTitleMetadataRequest) (*titlepb.UpdateTitleMetadataResponse, error) {
+
+	// So here Will create the indexation for the movie...
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	_, err = index.GetInternal([]byte(generateUUID(rqst.Title.ID)))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
+
+			if !Utility.Exists(absolutefilePath) {
+				// Here I will try to get it from the users dirs...
+				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}
+
+				if !Utility.Exists(absolutefilePath) {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
+				}
+			}
+
+			srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, rqst.Title)
+		}
+	}
+
+	return &titlepb.UpdateTitleMetadataResponse{}, nil
 }
 
 func (srv *server) deleteTitle(indexPath, titleId string) error {
@@ -839,7 +858,7 @@ type fileTileAssociation struct {
 	Paths  []string // list of file path's where file can be found on the local disck.
 }
 
-func (srv *server) saveTitleMetadata(absolutefilePath string, title *titlepb.Title) error {
+func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *titlepb.Title) error {
 	fmt.Println("save title metadata ", absolutefilePath)
 	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
@@ -877,12 +896,26 @@ func (srv *server) saveTitleMetadata(absolutefilePath string, title *titlepb.Tit
 		}
 
 		if needSave {
-			fmt.Println("need save title metadata ", absolutefilePath)
-			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-			if err != nil {
-				return err
+
+			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
+
+			Utility.SetMetadata(absolutefilePath, "comment", encoded)
+
+			associations := srv.getAssociations(indexPath)
+			if associations != nil {
+				data, err := associations.GetItem(old_checksum)
+
+				if err == nil {
+					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
+					associations.SetItem(new_checksum, data)
+					associations.RemoveItem(old_checksum) // remove the previous
+				}
 			}
-		}else{
+			// reload the client file infos...
+			dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+			srv.publish("reload_dir_event", []byte(dir))
+
+		} else {
 			fmt.Println("not need save title metadata ", absolutefilePath)
 		}
 	}
@@ -890,7 +923,7 @@ func (srv *server) saveTitleMetadata(absolutefilePath string, title *titlepb.Tit
 	return nil
 }
 
-func (srv *server) saveVideoMetadata(absolutefilePath string, video *titlepb.Video) error {
+func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *titlepb.Video) error {
 	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return err
@@ -926,10 +959,23 @@ func (srv *server) saveVideoMetadata(absolutefilePath string, video *titlepb.Vid
 		}
 
 		if needSave {
-			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-			if err != nil {
-				return err
+			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
+
+			Utility.SetMetadata(absolutefilePath, "comment", encoded)
+
+			associations := srv.getAssociations(indexPath)
+			if associations != nil {
+				data, err := associations.GetItem(old_checksum)
+				if err == nil {
+					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
+					associations.SetItem(new_checksum, data)
+					associations.RemoveItem(old_checksum) // remove the previous
+				}
 			}
+
+			// reload the client file infos...
+			dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+			srv.publish("reload_dir_event", []byte(dir))
 		}
 	}
 
@@ -956,6 +1002,8 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
+	fmt.Println("-----------------------------> associate file: ", absolutefilePath, rqst.TitleId)
+
 	// Now I will set the title url in the media file to keep track of the title
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
@@ -968,11 +1016,11 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		if title.Poster != nil {
+		if title.Poster != nil && len(title.Poster.ContentUrl) == 0 {
 			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		err = srv.saveTitleMetadata(absolutefilePath, title)
+		err = srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, title)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -980,6 +1028,8 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
+		fmt.Println("-----------------------------> associate video: ", absolutefilePath, rqst.TitleId)
+
 		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
 		if err != nil {
 			return nil, status.Errorf(
@@ -993,11 +1043,12 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video with id "+rqst.TitleId+" was not found")))
 		}
 
-		if video.Poster != nil {
+		if video.Poster != nil && len(video.Poster.ContentUrl) == 0 {
 			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
+		fmt.Println("-----------------------------> set video metadata: ", absolutefilePath, rqst.TitleId)
 
-		err = srv.saveVideoMetadata(absolutefilePath, video)
+		err = srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1650,8 +1701,38 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 		return err
 	}
 
+	event_client_, err := srv.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	// send event to update the video infos
+	return event_client_.Publish("update_video_infos_evt", []byte(jsonStr))
+}
+
+/**
+ * Update the video metadata
+ */
+func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.UpdateVideoMetadataRequest) (*titlepb.UpdateVideoMetadataResponse, error) {
+
+	video := rqst.Video
+	// So here Will create the indexation for the movie...
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	_, err = index.GetInternal([]byte(generateUUID(video.ID)))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// update the video metadata
-	paths, err := srv.getTitleFiles(indexpath, video.ID)
+	paths, err := srv.getTitleFiles(rqst.IndexPath, video.ID)
 	if err == nil {
 		for i := 0; i < len(paths); i++ {
 			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
@@ -1660,23 +1741,19 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 				}
-		
+
 				if !Utility.Exists(absolutefilePath) {
-					return err
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 			}
 
-			srv.saveVideoMetadata(absolutefilePath, video)
+			srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
 		}
 	}
 
-	event_client_, err := srv.getEventClient()
-	if err != nil {
-		return err
-	}
-
-	// send event to update the video infos
-	return event_client_.Publish("update_video_infos_evt", []byte(jsonStr))
+	return &titlepb.UpdateVideoMetadataResponse{}, nil
 }
 
 // Insert a video in the database or update it if it already exist.
@@ -1900,7 +1977,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 	}
 
 	// I will use the file checksum as file id...
@@ -2466,6 +2543,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Audio.ID)
 	if permissions == nil {
 		// set the resource path...

@@ -1210,7 +1210,7 @@ func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path
 func (rbac_server *server) deleteResourcePermissions(path string, permissions *rbacpb.Permissions) error {
 
 	// simply remove it from the cache...
-	rbac_server.cache.RemoveItem(path)
+	defer rbac_server.cache.RemoveItem(path)
 
 	// Allowed resources
 	allowed := permissions.Allowed
@@ -1655,7 +1655,7 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 // Return a resource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
 
-	//fmt.Println("get resource permission for: ", path)
+	fmt.Println("get resource permission for: ", path)
 	chached, err := rbac_server.cache.GetItem(path)
 	if err == nil && chached != nil {
 		permissions := new(rbacpb.Permissions)
@@ -1667,7 +1667,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 	data, err := rbac_server.getItem(path)
 	if err != nil {
-
+		fmt.Println("fail to get: ", path, err)
 		return nil, err
 	}
 
@@ -1702,6 +1702,9 @@ func (rbac_server *server) DeleteResourcePermissions(ctx context.Context, rqst *
 
 	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
+		if strings.Contains(err.Error(), "item not found") {
+			return &rbacpb.DeleteResourcePermissionsRqst{}, nil
+		}
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2648,11 +2651,9 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	}
 
 	if permissions == nil {
-		fmt.Println("----------------> no permission found for ", path)
 		return true;// no permissions exist so I will set it to true by default...
 	}
 
-	fmt.Println("----------------> permission found for ", path, permissions)
 	// Permissions exist and nothing was found for so not the subject is not allowed
 	return  false; 
 }
@@ -2660,7 +2661,6 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
-	fmt.Println("----> validate access for ", subject, name, path)
 	// validate if the subject exist
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {

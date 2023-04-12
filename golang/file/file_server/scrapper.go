@@ -72,6 +72,10 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 		}
 	}
 
+	if len(files) == 0 {
+		return "", errors.New("no thumbernail found for url " + video_url)
+	}
+
 	thumbnail, err := Utility.CreateThumbnail(filepath.Join(thumbnail_path, files[0].Name()), 300, 180)
 	if err != nil {
 		return "", err

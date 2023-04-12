@@ -615,13 +615,13 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				path_ = path_ + "/mimetypes/unknown.png"
 				info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 
-				metadata_, err := ExtractMetada(path)
+				/*metadata_, err := ExtractMetada(path)
 				if err == nil {
 					obj, err := structpb.NewStruct(metadata_)
 					if err == nil {
 						info.Metadata = obj
 					}
-				}
+				}*/
 			}
 
 			// If hidden folder exist for it...
@@ -2686,6 +2686,7 @@ func getHttpClient() *http.Client {
 }
 
 func restoreVideoInfos(client *title_client.Title_Client, token, video_path string) error {
+
 	// get video info from metadata
 	infos, err := getVideoInfos(video_path)
 	if err != nil {
@@ -2716,6 +2717,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 						if err != nil {
 							jsonStr = []byte(comment)
 						}
+
 						title := new(titlepb.Title)
 						err = jsonpb.UnmarshalString(string(jsonStr), title)
 						if err == nil {
@@ -2788,14 +2790,12 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 
 							video := new(titlepb.Video)
 							err := jsonpb.UnmarshalString(string(jsonStr), video)
+
 							if err == nil && video != nil {
 
 								// so here I will make sure the title exist...
-								v, _, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
-								__v__, _ := Utility.ToMap(v)
-								__video__, _ := Utility.ToMap(video)
-								if Utility.GetChecksum(__v__) != Utility.GetChecksum(__video__) {
-
+								v, _, err := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+								if err != nil {
 									if video.Poster == nil {
 										video.Poster = new(titlepb.Poster)
 										video.Poster.ID = video.ID
@@ -2807,12 +2807,10 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 									// the title was no found...
 									err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
 									if err == nil {
-
 										// now I will associate the path.
 										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 										path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
-
+										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
 									}
 
 								} else {
@@ -2821,12 +2819,9 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 
 									// associate the path.
 									client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
-
 								}
-
 							}
 						}
-
 					}
 				}
 			}
@@ -4339,29 +4334,8 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 		}
 
 	} else {
-
-		// original command
-		// ffprobe -hide_banner -loglevel fatal  -show_format -print_format -show_private_data json -i 9EcjWd-O4jI.mp4
-		cmd := exec.Command(`ffprobe`, `-hide_banner`, `-loglevel`, `fatal`, `-show_format`, `-print_format`, `json`, `-i`, path)
-		cmd.Dir = os.TempDir()
-
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		err := cmd.Run()
-
-		if err != nil {
-			return nil, err
-		}
-
-		infos := make(map[string]interface{})
-		err = json.Unmarshal(out.Bytes(), &infos)
-		if err != nil {
-			return nil, err
-		}
-
-		return infos, nil
+		infos, err := Utility.ReadMetadata(path)
+		return infos, err
 	}
 
 }
