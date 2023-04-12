@@ -831,7 +831,6 @@ func (srv *server) deleteTitle(indexPath, titleId string) error {
 	}
 
 	for i := 0; i < len(dirs); i++ {
-		fmt.Println("---------------> reload ", dirs[i])
 		srv.publish("reload_dir_event", []byte(dirs[i]))
 	}
 
@@ -859,7 +858,10 @@ type fileTileAssociation struct {
 }
 
 func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *titlepb.Title) error {
-	fmt.Println("save title metadata ", absolutefilePath)
+	if len(title.Name) == 0 {
+		return errors.New("no title name was given")
+	}
+
 	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return err
@@ -877,6 +879,8 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		if err != nil {
 			return err
 		}
+		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+		srv.publish("reload_dir_event", []byte(dir))
 	} else {
 		// Here I will save metadata only if it has change...
 		infos, err := Utility.ReadMetadata(absolutefilePath)
@@ -898,17 +902,17 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		if needSave {
 
 			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
-
 			Utility.SetMetadata(absolutefilePath, "comment", encoded)
 
 			associations := srv.getAssociations(indexPath)
 			if associations != nil {
 				data, err := associations.GetItem(old_checksum)
-
 				if err == nil {
 					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
-					associations.SetItem(new_checksum, data)
-					associations.RemoveItem(old_checksum) // remove the previous
+					if old_checksum != new_checksum {
+						associations.RemoveItem(old_checksum) // remove the previous
+						associations.SetItem(new_checksum, data)
+					}
 				}
 			}
 			// reload the client file infos...
@@ -924,6 +928,11 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 }
 
 func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *titlepb.Video) error {
+
+	if len(video.Description) == 0 {
+		return errors.New("no title description was given")
+	}
+
 	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return err
@@ -941,6 +950,8 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 		if err != nil {
 			return err
 		}
+		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+		srv.publish("reload_dir_event", []byte(dir))
 	} else {
 		infos, err := Utility.ReadMetadata(absolutefilePath)
 		needSave := true
@@ -960,7 +971,6 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 
 		if needSave {
 			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
-
 			Utility.SetMetadata(absolutefilePath, "comment", encoded)
 
 			associations := srv.getAssociations(indexPath)
@@ -968,8 +978,10 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 				data, err := associations.GetItem(old_checksum)
 				if err == nil {
 					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
-					associations.SetItem(new_checksum, data)
-					associations.RemoveItem(old_checksum) // remove the previous
+					if old_checksum != new_checksum {
+						associations.RemoveItem(old_checksum) // remove the previous
+						associations.SetItem(new_checksum, data)
+					}
 				}
 			}
 
@@ -1002,7 +1014,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
-	fmt.Println("-----------------------------> associate file: ", absolutefilePath, rqst.TitleId)
 
 	// Now I will set the title url in the media file to keep track of the title
 	// information. If the title is lost it will be possible to recreate it from
@@ -1020,15 +1031,10 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		err = srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, title)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+		srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, title)
+
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
-		fmt.Println("-----------------------------> associate video: ", absolutefilePath, rqst.TitleId)
 
 		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
 		if err != nil {
@@ -1046,14 +1052,9 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if video.Poster != nil && len(video.Poster.ContentUrl) == 0 {
 			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
-		fmt.Println("-----------------------------> set video metadata: ", absolutefilePath, rqst.TitleId)
 
-		err = srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+		srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
+
 	}
 
 	var uuid string
