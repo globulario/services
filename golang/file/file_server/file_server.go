@@ -4419,9 +4419,11 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 
 }
 
+// Create an audio info if not exist and reassociate path with the title.
 func (file_server *server) createAudio(client *title_client.Title_Client, path string, duration int, metadata map[string]interface{}) error {
 	// here I will create the info in the title server...
 	audios := make(map[string][]*titlepb.Audio, 0)
+	fmt.Println("get file audio association: ", path)
 	err := file_server.getFileAudiosAssociation(client, path, audios)
 	if err != nil {
 		if err.Error() == "no audios found" {
@@ -4457,6 +4459,16 @@ func (file_server *server) createAudio(client *title_client.Title_Client, path s
 				}
 			} else {
 				fmt.Println("fail to create audio info with error: ", err)
+			}
+		}
+	} else {
+
+		// force file reassociations.
+		audios_ := audios[path]
+		for i := 0; i < len(audios_); i++ {
+			err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/audios", audios_[i].ID, path)
+			if err != nil {
+				fmt.Println("fail to asscociate file ", err)
 			}
 		}
 	}
@@ -5836,7 +5848,39 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 // Start process audio file inside a directory...
 func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
 
-	return nil, errors.New("not implemented")
+	fmt.Println("------------> 5839", rqst.Path)
+	var token string
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) > 0 {
+				_, err := security.ValidateToken(token)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				errors.New("no token was given for path " + rqst.Path)
+			}
+		}
+	} else {
+		return nil, errors.New("no valid context found")
+	}
+
+	path := file_server.formatPath(rqst.Path)
+
+	// return nil, errors.New("not implemented")
+	audios := Utility.GetFilePathsByExtension(path, ".mp3")
+	audios = append(audios, Utility.GetFilePathsByExtension(path, ".flac")...)
+
+	err := file_server.generateAudioPlaylist(path, token, audios)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.StartProcessAudioResponse{}, nil
 }
 
 // Start process video on the server.
