@@ -235,6 +235,14 @@ message StartProcessVideoResponse {
 	
 }
 
+message StartProcessAudioRequest {
+	string path = 1; // if Empty it will process all videos...
+}
+
+message StartProcessAudioResponse {
+	
+}
+
 // Return true if converstion is running.
 message IsProcessVideoRequest{
 
@@ -490,6 +498,9 @@ service FileService {
 
 	// Start process video on the server.
 	rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse) {};
+
+	// Start process audio on the server.
+	rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse) {};
 
 	// Stop process video on the server.
 	rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse) {};

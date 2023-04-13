@@ -1518,6 +1518,67 @@ proto.file.FileServicePromiseClient.prototype.startProcessVideo =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.StartProcessAudioRequest,
+ *   !proto.file.StartProcessAudioResponse>}
+ */
+const methodDescriptor_FileService_StartProcessAudio = new grpc.web.MethodDescriptor(
+  '/file.FileService/StartProcessAudio',
+  grpc.web.MethodType.UNARY,
+  proto.file.StartProcessAudioRequest,
+  proto.file.StartProcessAudioResponse,
+  /**
+   * @param {!proto.file.StartProcessAudioRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.StartProcessAudioResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.StartProcessAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.StartProcessAudioResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.StartProcessAudioResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.startProcessAudio =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/StartProcessAudio',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StartProcessAudio,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.StartProcessAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.StartProcessAudioResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.startProcessAudio =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/StartProcessAudio',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StartProcessAudio);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.StopProcessVideoRequest,
  *   !proto.file.StopProcessVideoResponse>}
  */

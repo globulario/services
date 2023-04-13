@@ -5833,6 +5833,12 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 	return pid, nil
 }
 
+// Start process audio file inside a directory...
+func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
+
+	return nil, errors.New("not implemented")
+}
+
 // Start process video on the server.
 func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.StartProcessVideoRequest) (*filepb.StartProcessVideoResponse, error) {
 
@@ -5858,7 +5864,7 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 	if file_server.isProcessing {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video conversion is already runnig")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("conversion is already runnig")))
 	}
 
 	// the dir where video can be found...
