@@ -603,6 +603,12 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 // Insert a title in the database or update it if it already exist.
 func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
 
+	if len(rqst.Title.ID) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title id was given")))
+	}
+
 	var clientId string
 	var err error
 
@@ -1664,6 +1670,10 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 		return err
 	}
 
+	if len(video.ID) == 0 {
+		return errors.New("no video id was given")
+	}
+
 	video.UUID = generateUUID(video.ID)
 
 	err = index.Index(video.UUID, video)
@@ -2492,6 +2502,12 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
+
+	if len(rqst.Audio.ID) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no audio id was given")))
+	}
 
 	var clientId string
 	var err error

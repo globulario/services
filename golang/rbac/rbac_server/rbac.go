@@ -2528,10 +2528,12 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 		return false
 	}
 
-	fmt.Println("validate access allowed for ", subject, name, path)
+	fmt.Println("----------------> validate access allowed for ", subject, name, path)
 
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
+
+	fmt.Println("---------------> permissions: ", permissions, err)
 	if err == nil {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission
@@ -2635,27 +2637,28 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 		}
 	}
 
-	// read only access by default if no permission are set...
-	if isPublic(path, false) {
-		if name == "read" {
-			return true
-		}
-		// protected public path by default.
-		return false
-	}
-
 	// Now I will test parent directories permission and inherit the permission.
-	if strings.LastIndex(path, "/") > 0 {
-		dir := filepath.Dir(path)
-		return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
-	}
-
 	if permissions == nil {
-		return true;// no permissions exist so I will set it to true by default...
+		
+		// read only access by default if no permission are set...
+		if isPublic(path, false) {
+			if name == "read" {
+				return true
+			}
+			// protected public path by default.
+			return false
+		}
+
+		if strings.LastIndex(path, "/") > 0 {
+			dir := filepath.Dir(path)
+			return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
+		}
+
+		return true // no permissions exist so I will set it to true by default...
 	}
 
 	// Permissions exist and nothing was found for so not the subject is not allowed
-	return  false; 
+	return false
 }
 
 // Return  accessAllowed, accessDenied, error

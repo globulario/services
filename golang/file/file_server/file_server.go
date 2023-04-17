@@ -2709,116 +2709,119 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 			if infos["format"].(map[string]interface{})["tags"] != nil {
 				tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
 				if tags["comment"] != nil {
-					comment := tags["comment"].(string)
+					comment := strings.TrimSpace(tags["comment"].(string))
 
 					if len(comment) > 0 {
+						if strings.Contains(comment, "{") {
 
-						jsonStr, err := base64.StdEncoding.DecodeString(comment)
-						if err != nil {
-							jsonStr = []byte(comment)
-						}
-
-						title := new(titlepb.Title)
-						err = jsonpb.UnmarshalString(string(jsonStr), title)
-						if err == nil {
-							t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
+							jsonStr, err := base64.StdEncoding.DecodeString(comment)
 							if err != nil {
-								// the title was no found...
-								if t == nil {
-									client_ := getHttpClient()
-									title__, err := imdb.NewTitle(client_, title.ID)
-
-									if err == nil {
-										title.Poster.URL = title__.Poster.ContentURL
-										title.Poster.ContentUrl = title__.Poster.ContentURL
-
-										// The hidden folder path...
-										lastIndex := -1
-										if strings.Contains(video_path, ".mp4") {
-											lastIndex = strings.LastIndex(video_path, ".")
-										}
-
-										// The hidden folder path...
-										path_ := video_path[0:strings.LastIndex(video_path, "/")]
-
-										name_ := video_path[strings.LastIndex(video_path, "/")+1:]
-										if lastIndex != -1 {
-											name_ = video_path[strings.LastIndex(video_path, "/")+1 : lastIndex]
-										}
-
-										thumbnail_path := path_ + "/.hidden/" + name_ + "/__thumbnail__"
-										Utility.CreateIfNotExists(thumbnail_path, 0644)
-
-										err = Utility.DownloadFile(title.Poster.URL, thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:])
-										if err == nil {
-											thumbnail, err := Utility.CreateThumbnail(thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:], 300, 180)
-											if err == nil {
-												os.WriteFile(thumbnail_path+"/"+"data_url.txt", []byte(thumbnail), 0664)
-												title.Poster.ContentUrl = thumbnail
-											}
-										}
-
-										title.Rating = float32(Utility.ToNumeric(title__.Rating))
-										title.RatingCount = int32(title__.RatingCount)
-									}
-
-									err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
-									if err == nil {
-
-										// now I will associate the path.
-										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-										path = strings.ReplaceAll(video_path, "/playlist.m3u8", "")
-
-										err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
-										if err != nil {
-											fmt.Println("fail to assciate file ", path, " with title ", title.ID)
-										}
-
-									} else {
-										fmt.Println("fail to create title ", title.ID, " with error ", err)
-									}
-								}
-
-							} else {
-								path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-								path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-								// associate the path.
-								client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
+								jsonStr = []byte(comment)
 							}
 
-						} else {
+							title := new(titlepb.Title)
+							err = jsonpb.UnmarshalString(string(jsonStr), title)
 
-							video := new(titlepb.Video)
-							err := jsonpb.UnmarshalString(string(jsonStr), video)
-
-							if err == nil && video != nil {
-
-								// so here I will make sure the title exist...
-								v, _, err := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+							if err == nil {
+								t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
 								if err != nil {
-									if video.Poster == nil {
-										video.Poster = new(titlepb.Poster)
-										video.Poster.ID = video.ID
-									}
-
-									video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
-									video.Duration = int32(Utility.GetVideoDuration(video_path))
-
 									// the title was no found...
-									err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
-									if err == nil {
-										// now I will associate the path.
-										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-										path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
+									if t == nil {
+										client_ := getHttpClient()
+										title__, err := imdb.NewTitle(client_, title.ID)
+
+										if err == nil {
+											title.Poster.URL = title__.Poster.ContentURL
+											title.Poster.ContentUrl = title__.Poster.ContentURL
+
+											// The hidden folder path...
+											lastIndex := -1
+											if strings.Contains(video_path, ".mp4") {
+												lastIndex = strings.LastIndex(video_path, ".")
+											}
+
+											// The hidden folder path...
+											path_ := video_path[0:strings.LastIndex(video_path, "/")]
+
+											name_ := video_path[strings.LastIndex(video_path, "/")+1:]
+											if lastIndex != -1 {
+												name_ = video_path[strings.LastIndex(video_path, "/")+1 : lastIndex]
+											}
+
+											thumbnail_path := path_ + "/.hidden/" + name_ + "/__thumbnail__"
+											Utility.CreateIfNotExists(thumbnail_path, 0644)
+
+											err = Utility.DownloadFile(title.Poster.URL, thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:])
+											if err == nil {
+												thumbnail, err := Utility.CreateThumbnail(thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:], 300, 180)
+												if err == nil {
+													os.WriteFile(thumbnail_path+"/"+"data_url.txt", []byte(thumbnail), 0664)
+													title.Poster.ContentUrl = thumbnail
+												}
+											}
+
+											title.Rating = float32(Utility.ToNumeric(title__.Rating))
+											title.RatingCount = int32(title__.RatingCount)
+										}
+
+										err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
+										if err == nil {
+
+											// now I will associate the path.
+											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+											path = strings.ReplaceAll(video_path, "/playlist.m3u8", "")
+
+											err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
+											if err != nil {
+												fmt.Println("fail to assciate file ", path, " with title ", title.ID)
+											}
+
+										} else {
+											fmt.Println("fail to create title ", title.ID, " with error ", err)
+										}
 									}
 
 								} else {
 									path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 									path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-
 									// associate the path.
-									client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+									client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
+								}
+
+							} else {
+
+								video := new(titlepb.Video)
+								err := jsonpb.UnmarshalString(string(jsonStr), video)
+
+								if err == nil && video != nil {
+
+									// so here I will make sure the title exist...
+									v, _, err := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+									if err != nil {
+										if video.Poster == nil {
+											video.Poster = new(titlepb.Poster)
+											video.Poster.ID = video.ID
+										}
+
+										video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
+										video.Duration = int32(Utility.GetVideoDuration(video_path))
+
+										// the title was no found...
+										err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
+										if err == nil {
+											// now I will associate the path.
+											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+											path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+											client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
+										}
+
+									} else {
+										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+										path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+
+										// associate the path.
+										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+									}
 								}
 							}
 						}
