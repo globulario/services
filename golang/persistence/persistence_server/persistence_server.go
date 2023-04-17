@@ -532,7 +532,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			// In that case I will save it in file.
 			err = persistence_server.Save()
 			if err != nil {
-				fmt.Println("---------> 534 ", err)
 				return err
 			}
 		} else {

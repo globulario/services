@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
-	// I will use persistence store as backend...
+	// I will use persistence store as backend...username
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/mhale/smtpd"
@@ -60,6 +60,7 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		}
 
 		for _, mx := range mxs {
+
 			c, err := smtp.Dial(mx.Host + ":25")
 			if err != nil {
 				return err
@@ -99,7 +100,6 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -134,11 +134,14 @@ func rcptHandler(remoteAddr net.Addr, from string, to string) bool {
 }
 
 func startSmtp(domain string, port int, keyFile string, certFile string) {
+	fmt.Println("start smtp service at port ", port, "for domain", domain, "credential: ", keyFile, certFile)
+
 	go func() {
 		srv := &smtpd.Server{
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
 			AuthHandler: func(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
+				fmt.Println("------------------> pwd ", string(password))
 				answer_ := make(chan map[string]interface{})
 				authenticate <- map[string]interface{}{"user": string(username), "pwd": string(password), "answer": answer_}
 				// wait for answer...
@@ -238,21 +241,27 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 				saveMessage(data["to"].(string), "INBOX", data["msg"].([]byte), []string{})
 
 			case data := <-outgoing:
+
 				sender := new(Sender)
 				sender.Hostname = domain
+
 				err := sender.Send(data["from"].(string), []string{data["to"].(string)}, bytes.NewReader(data["msg"].([]byte)))
 				if err != nil {
 					log.Println("warning/error when sending email: ", err)
 				}
+
 				saveMessage(data["from"].(string), "OUTBOX", data["msg"].([]byte), []string{})
 
 			case data := <-authenticate:
 
 				// Here I will try to connect the user on it db.
+				fmt.Println("-----------------> 258 ", data)
 				user := data["user"].(string)
 				pwd := data["pwd"].(string)
 				answer_ := data["answer"].(chan map[string]interface{})
 				connection_id := user + "_db"
+
+				fmt.Println("try to authenticate: ", "connection id:", connection_id, "backend address:", backend_address, "backend port:", backend_port, "user:", user, "password", pwd)
 
 				// I will use the datastore to authenticate the user.
 				err := Store.CreateConnection(connection_id, connection_id, backend_address, float64(backend_port), 0, user, pwd, 5000, "", false)
@@ -263,16 +272,18 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 					answer_ <- map[string]interface{}{"valid": true, "err": nil}
 				}
 
-				//case rcpt := <-validateRcpt:
-				//log.Println(rcpt)
+			case rcpt := <-validateRcpt:
+				log.Println(rcpt)
 			}
 		}
 	}()
 
 	// non tls at port 25
 	startSmtp(domain, port, "", "")
+
 	// tls at port 465
 	startSmtp(domain, tls_port, keyFile, certFile)
+
 	// Alt at port 587
-	startSmtp(domain, alt_port, "", "")
+	startSmtp(domain, alt_port, keyFile, certFile)
 }

@@ -224,12 +224,27 @@ func GetServicesConfigDir() string {
 	} else {
 		// test if service ServicesRoot is define, that will force to get services configurations
 		// from a given directory
+		
 		if len(GetServicesRoot()) > 0 {
 			return GetServicesRoot()
 		}else if Utility.Exists(GetConfigDir() + "/services"){
 			return GetConfigDir() + "/services"
 		}else{
-			return GetServicesDir()
+			
+			if len(GetServicesDir()) > 0 {
+				return GetServicesDir()
+			}
+			
+			// Test if it's in the development environnement.
+			_, filename, _, _ := runtime.Caller(0)
+			 fmt.Println("Current test filename: ", filename)
+			if strings.Index(filename, "/services/golang/config/") != -1 {
+				return filename[0:strings.Index(filename, "/config/")]
+			}
+
+
+			// No service configuration was found
+			return ""
 		}
 	}
 }

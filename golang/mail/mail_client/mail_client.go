@@ -351,7 +351,7 @@ func (client *Mail_Client) SendEmailWithAttachements(id string, from string, to 
 	// Open the stream...
 	stream, err := client.c.SendEmailWithAttachements(client.GetCtx())
 	if err != nil {
-		fmt.Println("error while TestSendEmailWithAttachements: %v", err)
+		fmt.Println("error while TestSendEmailWithAttachements:", err)
 	}
 
 	// Send file attachment as a stream, not need to be send first.

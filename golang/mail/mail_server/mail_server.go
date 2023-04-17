@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	//"crypto/tls"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -27,10 +29,11 @@ import (
 
 	"github.com/globulario/services/golang/mail/mail_server/imap"
 	"github.com/globulario/services/golang/mail/mail_server/smtp"
+	smtp_ "net/smtp"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
-	gomail "gopkg.in/gomail.v1"
+	gomail "gopkg.in/gomail.v2"
 )
 
 var (
@@ -555,17 +558,28 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 
 	msg.SetHeader("Subject", subject)
 	msg.SetBody(bodyType, body)
-
 	for i := 0; i < len(attachs); i++ {
-		f := gomail.CreateFile(attachs[i].FileName, attachs[i].FileData)
-		msg.Attach(f)
+
+		msg.Attach(attachs[i].FileName, gomail.SetCopyFunc(func(w io.Writer) error {
+			_, err := w.Write(attachs[i].FileData)
+			return err
+		}))
 	}
 
-	mailer := gomail.NewMailer(host, user, pwd, port)
+	dialer := gomail.NewDialer(host, port, user, pwd)
+	dialer.Auth = smtp_.PlainAuth("", dialer.Username, dialer.Password, dialer.Host)
 
-	if err := mailer.Send(msg); err != nil {
+	cer, err := tls.LoadX509KeyPair(svr.CertFile, svr.KeyFile)
+	if err != nil {
 		return err
 	}
+
+	dialer.TLSConfig = &tls.Config{ServerName: host, Certificates: []tls.Certificate{cer}}
+
+	if err := dialer.DialAndSend(msg); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -805,8 +819,10 @@ func main() {
 		// Open the backend main connection
 		err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
 		if err != nil {
+			fmt.Println("fail to connect to local_resource with error: ", err)
 			return
 		}
+
 		// start imap server.
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
