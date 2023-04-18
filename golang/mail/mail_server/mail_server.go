@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+
 	//"crypto/tls"
 	"errors"
 	"fmt"
@@ -27,9 +28,10 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 
+	smtp_ "net/smtp"
+
 	"github.com/globulario/services/golang/mail/mail_server/imap"
 	"github.com/globulario/services/golang/mail/mail_server/smtp"
-	smtp_ "net/smtp"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
@@ -559,7 +561,6 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 	msg.SetHeader("Subject", subject)
 	msg.SetBody(bodyType, body)
 	for i := 0; i < len(attachs); i++ {
-
 		msg.Attach(attachs[i].FileName, gomail.SetCopyFunc(func(w io.Writer) error {
 			_, err := w.Write(attachs[i].FileData)
 			return err
@@ -575,7 +576,6 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 	}
 
 	dialer.TLSConfig = &tls.Config{ServerName: host, Certificates: []tls.Certificate{cer}}
-
 	if err := dialer.DialAndSend(msg); err != nil {
 		return err
 	}

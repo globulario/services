@@ -2639,22 +2639,23 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 
 	// Now I will test parent directories permission and inherit the permission.
 	if permissions == nil {
-		
-		// read only access by default if no permission are set...
-		if isPublic(path, false) {
-			if name == "read" {
-				return true
-			}
-			// protected public path by default.
-			return false
-		}
 
+		// validate parent permission.
 		if strings.LastIndex(path, "/") > 0 {
 			dir := filepath.Dir(path)
 			return rbac_server.validateAccessAllowed(subject, subjectType, name, dir)
 		}
 
 		return true // no permissions exist so I will set it to true by default...
+	}
+
+	// read only access by default if no permission are set...
+	if isPublic(path, false) {
+		if name == "read" {
+			return true
+		}
+		// protected public path by default.
+		return false
 	}
 
 	// Permissions exist and nothing was found for so not the subject is not allowed
