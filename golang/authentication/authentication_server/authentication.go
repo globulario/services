@@ -106,6 +106,26 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 
 // * Set the account password *
 func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
+	var token string
+	var clientId string
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.UserDomain
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
+		}
+	}
 
 	// Here I will get the account info.
 	account, err := server.getAccount(rqst.AccountId)
@@ -115,21 +135,23 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will validate the password received with the one in the account
-	err = server.validatePassword(rqst.OldPassword, account.Password)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	// test if the user is the sa.
+	domain, _ := config.GetDomain()
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
+	// The user must be the one who he pretend to be.
+	if account.Id+"@"+account.Domain != clientId {
+		if clientId != "sa@"+domain {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you can't change other account password")))
+		}
+	} else {
+		// Now I will validate the password received with the one in the account
+		err = server.validatePassword(rqst.OldPassword, account.Password)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -148,7 +170,6 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 
 	// Issue the token for the actual sever.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-
 		// The application...
 		issuer = strings.Join(md["issuer"], "")
 	}
@@ -169,6 +190,34 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 
 // Set the root password, the root password will be save in the configuration file.
 func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
+	var token string
+	var clientId string
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.UserDomain
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
+		}
+	}
+
+	if clientId != "sa"{
+		if !Utility.Exists(configPath) {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only sa can change root password")))
+		}
+	}
 
 	// The root password will be
 	if !Utility.Exists(configPath) {
@@ -202,9 +251,18 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
 		}
+	} else {
 
-		// In that case I will simply hash the new given password.
-		password, err = server.hashPassword(rqst.NewPassword)
+		// Here I will get the account info.
+		account, err := server.getAccount("sa")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// Now I will validate the password received with the one in the account
+		err = server.validatePassword(rqst.OldPassword, account.Password)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -212,7 +270,15 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 		}
 	}
 
-	config["RootPassword"] = password
+	// Now I will update the account...
+	err = server.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	config["RootPassword"] = rqst.NewPassword
 	jsonStr, err := Utility.ToJson(config)
 	if err != nil {
 		return nil, status.Errorf(
@@ -329,7 +395,6 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 	// If the user is the root...
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
-		fmt.Println("autenticate sa")
 
 		// The root password will be
 		if !Utility.Exists(configPath) {
@@ -363,11 +428,16 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
 			}
+
+			// so here I will hide the adminadmin value from the file...
+
 		} else {
 			// Now I will validate the password received with the one in the account
 			err = server.validatePassword(pwd, password)
 			if err != nil {
-				return "", err
+				return "", status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 
@@ -375,7 +445,9 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		// otherwise the globule will need to be set as a peer to be able to authenticate and generate a valid token.
 		issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
 		if err != nil {
-			return "", err
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		localDomain, _ := config_.GetDomain()
@@ -387,13 +459,37 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
-		
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 			server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
 		}
 
+		// Be sure the password is correct.
+		err = server.changeAccountPassword(accountId, tokenString, pwd, pwd)
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// set back the password in the config file.
+		config["RootPassword"] = pwd
+		jsonStr, err := Utility.ToJson(config)
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// save the password...
 		return tokenString, nil
 	}
 
@@ -506,6 +602,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	if err != nil {
 		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate on other peers...")
 		uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
+		
 		// no matter what happen the token must be remove...
 		defer Utility.RemoveString(server.authentications_, uuid)
 		if Utility.Contains(server.authentications_, uuid) {
@@ -542,7 +639,6 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 								}, nil
 							}
 						}
-
 					}
 				}
 			}

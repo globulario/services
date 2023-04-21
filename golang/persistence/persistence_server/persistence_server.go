@@ -510,8 +510,12 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]
+		c.Password = password
+
 	} else if _, ok := persistence_server.Connections[id]; ok {
 		c = persistence_server.Connections[id]
+		c.Password = password
+		
 	} else {
 
 		// Set the connection info from the request.

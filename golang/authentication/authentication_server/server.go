@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -609,6 +610,11 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
+	// take the first part of the account.
+	if strings.Contains(accountId, "@"){
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
 	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err

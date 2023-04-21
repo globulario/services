@@ -48,8 +48,6 @@ func TestCreateConnection(t *testing.T) {
  */
 func TestSendEmail(t *testing.T) {
 
-	fmt.Println("---------------> test send email")
-
 	from := "dave@globular.cloud"
 	to := []string{"dave.courtois60@gmail.com"}
 	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
