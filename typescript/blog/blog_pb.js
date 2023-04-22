@@ -2406,8 +2406,9 @@ proto.blog.SaveBlogPostRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.blog.SaveBlogPostRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
+    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f),
-    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+    indexpath: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -2445,11 +2446,15 @@ proto.blog.SaveBlogPostRequest.deserializeBinaryFromReader = function(msg, reade
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUuid(value);
+      break;
+    case 2:
       var value = new proto.blog.BlogPost;
       reader.readMessage(value,proto.blog.BlogPost.deserializeBinaryFromReader);
       msg.setBlogPost(value);
       break;
-    case 2:
+    case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setIndexpath(value);
       break;
@@ -2482,10 +2487,17 @@ proto.blog.SaveBlogPostRequest.prototype.serializeBinary = function() {
  */
 proto.blog.SaveBlogPostRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getUuid();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
   f = message.getBlogPost();
   if (f != null) {
     writer.writeMessage(
-      1,
+      2,
       f,
       proto.blog.BlogPost.serializeBinaryToWriter
     );
@@ -2493,7 +2505,7 @@ proto.blog.SaveBlogPostRequest.serializeBinaryToWriter = function(message, write
   f = message.getIndexpath();
   if (f.length > 0) {
     writer.writeString(
-      2,
+      3,
       f
     );
   }
@@ -2501,12 +2513,30 @@ proto.blog.SaveBlogPostRequest.serializeBinaryToWriter = function(message, write
 
 
 /**
- * optional BlogPost blog_post = 1;
+ * optional string uuid = 1;
+ * @return {string}
+ */
+proto.blog.SaveBlogPostRequest.prototype.getUuid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.blog.SaveBlogPostRequest} returns this
+ */
+proto.blog.SaveBlogPostRequest.prototype.setUuid = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional BlogPost blog_post = 2;
  * @return {?proto.blog.BlogPost}
  */
 proto.blog.SaveBlogPostRequest.prototype.getBlogPost = function() {
   return /** @type{?proto.blog.BlogPost} */ (
-    jspb.Message.getWrapperField(this, proto.blog.BlogPost, 1));
+    jspb.Message.getWrapperField(this, proto.blog.BlogPost, 2));
 };
 
 
@@ -2515,7 +2545,7 @@ proto.blog.SaveBlogPostRequest.prototype.getBlogPost = function() {
  * @return {!proto.blog.SaveBlogPostRequest} returns this
 */
 proto.blog.SaveBlogPostRequest.prototype.setBlogPost = function(value) {
-  return jspb.Message.setWrapperField(this, 1, value);
+  return jspb.Message.setWrapperField(this, 2, value);
 };
 
 
@@ -2533,16 +2563,16 @@ proto.blog.SaveBlogPostRequest.prototype.clearBlogPost = function() {
  * @return {boolean}
  */
 proto.blog.SaveBlogPostRequest.prototype.hasBlogPost = function() {
-  return jspb.Message.getField(this, 1) != null;
+  return jspb.Message.getField(this, 2) != null;
 };
 
 
 /**
- * optional string indexPath = 2;
+ * optional string indexPath = 3;
  * @return {string}
  */
 proto.blog.SaveBlogPostRequest.prototype.getIndexpath = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
@@ -2551,7 +2581,7 @@ proto.blog.SaveBlogPostRequest.prototype.getIndexpath = function() {
  * @return {!proto.blog.SaveBlogPostRequest} returns this
  */
 proto.blog.SaveBlogPostRequest.prototype.setIndexpath = function(value) {
-  return jspb.Message.setProto3StringField(this, 2, value);
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 

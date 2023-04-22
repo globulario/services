@@ -166,7 +166,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	domain, _  := config.GetDomain()
+	domain, _ := config.GetDomain()
 	accountId := rqst.AccountId
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
@@ -195,6 +195,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
 	if err != nil {
+		fmt.Println("fail to retreive account: ", accountId)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -288,7 +289,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			clientId = claims.Id + "@" + claims.UserDomain
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("SetAccountPassword no token was given")
 		}
@@ -325,8 +326,8 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	}
 
 	// Change the password...
-	changePasswordScript := fmt.Sprintf(
-		"db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+	changePasswordScript := fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+
 	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, changePasswordScript)
 	if err != nil {
 		return nil, status.Errorf(
@@ -340,6 +341,21 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// so here the sa password has change so I need to update the backend password and reconnect to the persistence service.
+	if clientId == "sa" && (rqst.AccountId == "sa" || strings.HasPrefix(rqst.AccountId, "sa@")) {
+		resource_server.Backend_password = rqst.NewPassword
+		resource_server.Save()
+
+		// reconnect...
+		resource_server.store = nil
+		p, err = resource_server.getPersistenceStore()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// Hash the password...
@@ -692,7 +708,7 @@ func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *
 func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
 	accountId := rqst.Id
 	localDomain, _ := config.GetDomain()
-	domain, _  := config.GetDomain()
+	domain, _ := config.GetDomain()
 
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
@@ -1421,8 +1437,8 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	application["domain"] = app.Domain
-
 	application["password"] = app.Password
+
 	if len(application["password"].(string)) == 0 {
 		application["password"] = app.Id
 	}
@@ -1450,7 +1466,6 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 			return err
 		}
 
-	
 		// give time to mongodb...
 		// create ressour ce application...
 		defer resource_server.createApplicationConnection(app)
@@ -2109,6 +2124,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		if len(token) > 0 {
 			claims, err := security.ValidateToken(token)
 			if err == nil {
+
 				if claims.Id == "sa" {
 					peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 					peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
@@ -3655,7 +3671,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	for i := 0; i < len(notifications); i++ {
 		n_ := notifications[i].(map[string]interface{})
 		notificationType := resourcepb.NotificationType(int32(Utility.ToInt(n_["notificationtype"])))
-		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
+		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetNotificationsRsp{
@@ -3747,11 +3763,27 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.Delete(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{ "notificationtype":`+Utility.ToString(rqst.NotificationType)+`}`, ``)
+	notificationType := int32(rqst.NotificationType)
+
+	db := rqst.Recipient
+	if strings.Contains(db, "@") {
+		db = strings.Split(db, "@")[0]
+	}
+	db += "_db"
+
+	err = p.Delete(context.Background(), "local_resource", db, "Notifications", `{ "notificationtype":`+Utility.ToString(notificationType)+`}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Send event to all concern client.
+	domain, _ := config.GetDomain()
+	evt_client, err := GetEventClient(domain)
+	if err == nil {
+		evt := rqst.Recipient + "_clear_user_notifications_evt"
+		evt_client.Publish(evt, []byte{})
 	}
 
 	return &resourcepb.ClearNotificationsByTypeRsp{}, nil
@@ -3915,6 +3947,45 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 			descriptors[i].Repositories = make([]string, len(descriptor["repositories"].([]interface{})))
 			for j := 0; j < len(descriptor["repositories"].([]interface{})); j++ {
 				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
+			}
+		}
+
+		if descriptor["groups"] != nil {
+			descriptor["groups"] = []interface{}(descriptor["groups"].(primitive.A))
+			descriptors[i].Groups = make([]*resourcepb.Group, len(descriptor["discoveries"].([]interface{})))
+
+			for j := 0; j < len(descriptor["groups"].([]interface{})); j++ {
+				//roles[i].(map[string]interface{})
+				g_ := descriptor["groups"].([]interface{})[j].(map[string]interface{})
+				g := new(resourcepb.Group)
+				g.Id = g_["id"].(string)
+				g.Name = g_["name"].(string)
+				g.Domain, _ = config.GetDomain()
+
+				descriptors[i].Groups[j] = g
+			}
+
+		}
+
+		if descriptor["roles"] != nil {
+			descriptor["roles"] = []interface{}(descriptor["roles"].(primitive.A))
+			descriptors[i].Roles = make([]*resourcepb.Role, len(descriptor["discoveries"].([]interface{})))
+
+			roles_ := descriptor["roles"].([]interface{})
+			for j := 0; j < len(roles_); j++ {
+				//roles[i].(map[string]interface{})
+				role := roles_[i].(map[string]interface{})
+				role_ := new(resourcepb.Role)
+				role_.Id = role["id"].(string)
+				role_.Name = role["name"].(string)
+				role_.Domain, _ = config.GetDomain()
+
+				role_.Actions = make([]string, len([]interface{}(role["actions"].(primitive.A))))
+				for k := 0; k < len([]interface{}(role["actions"].(primitive.A))); k++ {
+					role_.Actions[k] = []interface{}(role["actions"].(primitive.A))[k].(string)
+				}
+				// set it back in the package descriptor.
+				descriptors[i].Roles[j] = role_
 			}
 		}
 	}

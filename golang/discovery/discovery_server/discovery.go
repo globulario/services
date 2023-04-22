@@ -116,6 +116,8 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		Icon:         rqst.Icon,
 		Alias:        rqst.Alias,
 		Actions:      rqst.Actions,
+		Roles:        rqst.Roles,
+		Groups:       rqst.Groups,
 	}
 
 	// Fist of all publish the package descriptor.

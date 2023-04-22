@@ -91,31 +91,22 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
 }
 
 func (client *Conversation_Client) Reconnect() error {
+
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
-	}
-	client.c = conversationpb.NewConversationServiceClient(client.cc)
-
-	// Open a connection with the server. In case the server is not readyz
-	// It will wait 5 second and try it again.
 	nb_try_connect := 10
-
-	go func() {
-		for nb_try_connect > 0 {
-			err := client.run()
-			if err != nil && nb_try_connect == 0 {
-				fmt.Println("Fail to create event client: ", client.GetId(), err)
-				break // exit loop.
-			}
-			time.Sleep(5 * time.Second) // wait five seconds.
-			nb_try_connect--
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = conversationpb.NewConversationServiceClient(client.cc)
+			break
 		}
-	}()
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
+	}
 
-	return nil
+	return err
 
 }
 

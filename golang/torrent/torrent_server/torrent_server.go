@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -16,8 +17,14 @@ import (
 	"github.com/anacrolix/torrent"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"
+	"google.golang.org/grpc/metadata"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
@@ -442,18 +449,20 @@ func IsUrl(str string) bool {
 
 // Keep track where to copy the torrent files when transfert is completed...
 type TorrentTransfer struct {
-	dst  string
-	lnk  string
-	seed bool
-	tor  *torrent.Torrent
+	dst   string
+	lnk   string
+	seed  bool
+	owner string
+	tor   *torrent.Torrent
 }
 
 // Keep track of torrent dowload...
 type TorrentLnk struct {
-	Name string // The name of the torrent.
-	Dir  string // The dir where to copy the torrent when the download is complete.
-	Lnk  string // Can be a file path or a Url...
-	Seed bool   // if true the link will be seed...
+	Name  string // The name of the torrent.
+	Dir   string // The dir where to copy the torrent when the download is complete.
+	Lnk   string // Can be a file path or a Url...
+	Seed  bool   // if true the link will be seed...
+	Owner string // the owner of this torrent
 }
 
 func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
@@ -495,6 +504,37 @@ func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
 	return lnks, err
 }
 
+//////////////////////// RBAC function //////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*rbac_client.Rbac_Client), nil
+}
+
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Address)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
+}
+
+func getEventClient() (*event_client.Event_Client, error) {
+	address, _ := config.GetAddress()
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
 /**
  * Manage torrents here...
  */
@@ -534,7 +574,7 @@ func (svr *server) processTorrent() {
 					}
 
 					if !exist {
-						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name()})
+						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name(), Owner: t.owner})
 						err := svr.saveTorrentLnks(lnks)
 						if err == nil {
 							fmt.Println("lnk ", lnks[len(lnks)-1], " was set")
@@ -578,7 +618,7 @@ func (svr *server) processTorrent() {
 					if err == nil {
 						for i := 0; i < len(lnks); i++ {
 							lnk := lnks[i]
-							lnks_ = append(lnks_, &torrentpb.TorrentLnk{Name: lnk.Name, Lnk: lnk.Lnk, Dest: lnk.Dir, Seed: lnk.Seed})
+							lnks_ = append(lnks_, &torrentpb.TorrentLnk{Name: lnk.Name, Lnk: lnk.Lnk, Dest: lnk.Dir, Seed: lnk.Seed, Owner: lnk.Owner})
 						}
 					}
 					// return the list of link's in the channel.
@@ -598,13 +638,33 @@ func (svr *server) processTorrent() {
 							src := svr.DownloadDir + "/" + file.Path
 							dst := pending[i].dst + "/" + file.Path
 							if Utility.Exists(src) && !Utility.Exists(dst) {
+
 								// Create the dir...
-								Utility.CreateDirIfNotExist(dst[0:strings.LastIndex(dst, "/")])
-								err := Utility.CopyFile(src, dst)
+								dir :=filepath.Dir(dst)
+								err := Utility.CreateDirIfNotExist(dir)
+								if err == nil {
+									if strings.Contains(dir, "/files/users/"){
+										dir = dir[strings.Index(dir, "/users/"):]
+									}
+									// add owner to the directory itself.
+									svr.addResourceOwner(dir, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
+									// so here the dir will be the parent of that dir
+									dir = filepath.Dir(dir) // this will be the dir to reload...
+								}
+
+								err = Utility.CopyFile(src, dst)
+
 								if err != nil {
 									fmt.Println("fail to copy torrent file with error ", err)
 								} else {
-									// Generate event...
+									svr.addResourceOwner(dst, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
+
+									// publish reload dir event.
+									// force client to reload their informations.
+									event_client, err := getEventClient()
+									if err == nil {
+										event_client.Publish("reload_dir_event", []byte(dir))
+									}
 								}
 							}
 						}
@@ -612,12 +672,13 @@ func (svr *server) processTorrent() {
 				}
 
 				// Now I will send info_ to connected client...
-				for index, action := range getTorrentsInfo_actions {
+				for index:=0; index < len(getTorrentsInfo_actions); index++{
+					action := getTorrentsInfo_actions[index]
 					stream := action["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
 					err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: infos_})
 					if err != nil {
+						fmt.Println("exit torrent  ", err)
 						action["exit"].(chan bool) <- true
-						// remove the stream from the array...
 						getTorrentsInfo_actions = append(getTorrentsInfo_actions[:index], getTorrentsInfo_actions[index+1:]...)
 					}
 				}
@@ -757,11 +818,11 @@ func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *tor
 
 // Set the torrent files... the torrent will be download in the
 // DownloadDir and moved to it destination when done.
-func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string) {
+func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string, owner string) {
 
 	a := make(map[string]interface{})
 	a["action"] = "setTorrentTransfer"
-	a["torrentTransfer"] = &TorrentTransfer{dst: dest, lnk: lnk, tor: t, seed: seed}
+	a["torrentTransfer"] = &TorrentTransfer{dst: dest, lnk: lnk, tor: t, seed: seed, owner: owner}
 
 	// Set the action.
 	svr.actions <- a
@@ -817,7 +878,7 @@ func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
 
 // NewClient creates a new torrent client based on a magnet or a torrent file.
 // If the torrent file is on http, we try downloading it.
-func (svr *server) downloadTorrent(link, dest string, seed bool) error {
+func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) error {
 	var t *torrent.Torrent
 	var err error
 
@@ -854,7 +915,7 @@ func (svr *server) downloadTorrent(link, dest string, seed bool) error {
 		// Start download...
 		t.DownloadAll()
 
-		svr.setTorrentTransfer(t, seed, link, dest)
+		svr.setTorrentTransfer(t, seed, link, dest, owner)
 
 	}()
 
@@ -881,9 +942,29 @@ func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, strea
 // * Download a torrent file
 func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
 
-	// So here I will create a new client...
-	err := svr.downloadTorrent(rqst.Link, rqst.Dest, rqst.Seed)
+	var clientId string
+	var err error
 
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given for download torrent")))
+		}
+	}
+
+	// So here I will create a new client...
+	err = svr.downloadTorrent(rqst.Link, rqst.Dest, rqst.Seed, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -929,7 +1010,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 1)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
@@ -967,6 +1048,9 @@ func main() {
 	// The actions
 	s_impl.actions = make(chan map[string]interface{})
 
+	// Now the permissions
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/torrent.TorrentService/DownloadTorrentRequest", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}}
+
 	// When the music over turn off the ligth...
 	s_impl.done = make(chan bool)
 
@@ -986,7 +1070,7 @@ func main() {
 	if err == nil {
 		for _, lnk := range lnks {
 			fmt.Println("open torrent ", lnk.Name)
-			s_impl.downloadTorrent(lnk.Lnk, lnk.Dir, lnk.Seed)
+			s_impl.downloadTorrent(lnk.Lnk, lnk.Dir, lnk.Seed, lnk.Owner)
 		}
 	}
 

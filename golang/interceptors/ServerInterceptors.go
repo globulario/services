@@ -159,11 +159,9 @@ func validateAction(token, application, address, organization, method, subject s
 		expiredAt := time.Unix(hasAccess_["expiredAt"].(int64), 0)
 		hasAccess__ := hasAccess_["hasAccess"].(bool)
 		if time.Now().Before(expiredAt) && hasAccess__ {
-			fmt.Println("permission found for method", method, subject)
 			return true, false, nil
 		}
 		// the token is expire...
-		fmt.Println("remove expired cache item")
 		cache.Delete(uuid)
 	}
 
@@ -200,13 +198,36 @@ func validateActionRequest(token string, application string, organization string
 				// Get the path value from retreive infos.
 				param := rqst_.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
 				val := rqst_.Get(param)
-				infos[i].Path, _ = url.PathUnescape(val.String())
+				if param.Kind() == protoreflect.MessageKind && len(infos[i].Field) > 0 {
+					infos[i].Path, _ = url.PathUnescape(val.Message().Get(param.Message().Fields().ByTextName(infos[i].Field)).String())
+				} else if param.IsList() {
+					infos_ := make([]*rbacpb.ResourceInfos, val.List().Len())
+					for j := 0; j < val.List().Len(); j++ {
+						val_ := val.List().Get(j).String()
+						infos_[j] = new(rbacpb.ResourceInfos)
+						infos_[j].Path, _ = url.PathUnescape(val_)
+						infos_[j].Index = infos[i].Index
+						infos_[j].Permission = infos[i].Permission
+					}
+
+					hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos_)
+
+					if err != nil {
+						return hasAccess, accessDenied, err
+					}
+
+					return hasAccess, accessDenied, nil
+				} else {
+					infos[i].Path, _ = url.PathUnescape(val.String())
+				}
+
 			}
 		}
 	}
 
 	// TODO keep to value in cache for keep speed.
 	hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+
 	if err != nil {
 		return hasAccess, accessDenied, err
 	}

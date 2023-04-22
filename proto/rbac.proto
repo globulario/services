@@ -180,6 +180,7 @@ message ResourceInfos {
 	int32 index = 1; // The parameter index.
 	string permission = 2; // The permission name, read, write, ect...
 	string path = 3; // The resource path (use by ValidateActionRsp)
+	string field = 4; // if the parameter is an object that will given the field name that contain the resource path. ex: video.ID ("ID" will contain the resource)
 }
 
 message GetActionResourceInfosRsp{
@@ -210,7 +211,7 @@ message SetActionResourcesPermissionsRsp{
  * Resource Shared. The resource can be share by the 
  */
 message Share {
-	
+
 	// The resource path must be unique on the domain.
 	string path = 1;
 
@@ -223,28 +224,7 @@ message Share {
 	repeated string accounts = 5;
 	repeated string groups = 6;
 	repeated string organizations = 7;
-}
 
-/**
- * Set a share, that can be use to add/remove/update an 
- */
-message ShareResourceRqst {
-	Share share = 1;
-}
-
-message ShareResourceRsp {
-	
-}
-
-/**
- * Delete the share.
- */
- message UnshareResourceRqst {
-	Share share = 1;
-}
-
-message UnshareResourceRsp {
-	
 }
 
 /**
@@ -259,7 +239,6 @@ message GetSharedResourceRqst {
 message GetSharedResourceRsp {
 	repeated Share sharedResource = 1;
 }
-
 
 /**
  * Remove Subject from the list of share.
@@ -392,12 +371,6 @@ service RbacService {
 	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp);
 
 	///////////////////////// Share ////////////////////////////
-
-	// That function will set a share or update existing share... ex. add/delete account, group
-	rpc ShareResource(ShareResourceRqst) returns(ShareResourceRsp);
-
-	// Remove the share
-	rpc UshareResource(UnshareResourceRqst) returns(UnshareResourceRsp);
 
 	// Get the list of accessible shared resources.
 	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);

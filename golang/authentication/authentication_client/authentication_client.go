@@ -3,6 +3,7 @@ package authentication_client
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -79,16 +80,22 @@ func NewAuthenticationService_Client(address string, id string) (*Authentication
 }
 
 func (client *Authentication_Client) Reconnect() error {
-	var err error
 
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	var err error
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = authenticationpb.NewAuthenticationServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = authenticationpb.NewAuthenticationServiceClient(client.cc)
-
-	return nil
+	return err
 
 }
 

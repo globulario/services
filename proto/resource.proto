@@ -58,16 +58,12 @@ message PackageDescriptor {
   string publisherId = 4; // Cam be Organization or Account.
   string version = 6;
   string description = 7;
-  repeated string repositories =
-      8; // The list of repositories that has the package
-  repeated string discoveries =
-      9; // The list of dicoveries that has the package
-  repeated string keywords =
-      10; // keywords that describe the application/service
+  repeated string repositories = 8; // The list of repositories that has the package
+  repeated string discoveries = 9; // The list of dicoveries that has the package
+  repeated string keywords = 10; // keywords that describe the application/service
   repeated string actions = 11; // optional, contain the list of actions
                                 // required by that application / services
-  repeated Role roles =
-      12; // The list of roles required by the application/service
+  repeated Role roles = 12; // The list of roles required by the application/service
   repeated Group groups = 13;
   string icon = 14;
   string alias = 15;
@@ -724,6 +720,7 @@ message Notification {
   string recipient = 4;
   string sender = 5;
   NotificationType notification_type = 6;
+  string mac = 7; // where the notification is store.
 }
 
 message CreateNotificationRqst { Notification notification = 1; }

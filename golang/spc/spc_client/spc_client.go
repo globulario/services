@@ -3,6 +3,7 @@ package spc_client
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
@@ -76,15 +77,20 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 
 func (client *SPC_Client) Reconnect() error {
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = spcpb.NewSpcServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
-
-	client.c = spcpb.NewSpcServiceClient(client.cc)
-
-	return nil
+	
+	return err
 }
 
 // The address where the client can connect.

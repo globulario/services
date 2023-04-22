@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -98,6 +99,42 @@ type server struct {
 	// Here I will keep files info in memory...
 	cache *storage_store.BigCache_store // todo use cache instead of memory...
 
+}
+
+// Set item value
+func (svr *server) setItem(key string, val []byte) error {
+
+	// set item in the cache...
+	svr.cache.SetItem(key, val)
+
+	return svr.permissions.SetItem(key, val)
+}
+
+// Retreive item
+func (svr *server) getItem(key string) ([]byte, error) {
+
+	// I will use the cache first
+	val, err := svr.cache.GetItem(key)
+	if err == nil {
+		return val, nil
+	}
+
+	// Try with the store...
+	val, err = svr.permissions.GetItem(key)
+	if err == nil {
+		svr.cache.SetItem(key, val)
+	}
+
+	return val, err
+}
+
+// Remove item.
+func (svr *server) removeItem(key string) error {
+
+	// remove item from the store...
+	svr.cache.RemoveItem(key)
+
+	return svr.permissions.RemoveItem(key)
 }
 
 // The path of the configuration.
@@ -457,6 +494,16 @@ func (server *server) getResourceClient(address string) (*resource_client.Resour
  * Return an application with a given id
  */
 func (server *server) getAccount(accountId string) (*resourcepb.Account, error) {
+
+	data, err := server.cache.GetItem(accountId)
+	if err == nil {
+		a := new(resourcepb.Account)
+		err = jsonpb.UnmarshalString(string(data), a)
+		if err == nil {
+			return a, nil
+		}
+	}
+
 	localDomain, _ := config.GetDomain()
 	var domain string
 
@@ -465,7 +512,8 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 			domain = strings.Split(accountId, "@")[1]
 		}
 		accountId = strings.Split(accountId, "@")[0]
-
+	} else {
+		domain = localDomain
 	}
 
 	if localDomain != domain && len(domain) > 0 {
@@ -481,6 +529,12 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 			return nil, err
 		}
 
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(account)
+		if err == nil {
+			server.cache.SetItem(accountId+"@"+domain, []byte(jsonStr))
+		}
+
 		// In that case I will
 		return account, nil
 
@@ -491,7 +545,19 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 			return nil, err
 		}
 
-		return resourceClient.GetAccount(accountId)
+		account, err := resourceClient.GetAccount(accountId)
+		if err != nil {
+			return nil, err
+		}
+
+		// here I will set save the group in the cache for further use...
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(account)
+		if err == nil {
+			server.cache.SetItem(accountId+"@"+domain, []byte(jsonStr))
+		}
+
+		return account, nil
 	}
 }
 
@@ -510,6 +576,17 @@ func (server *server) accountExist(id string) (bool, string) {
  * Return a group with a given id
  */
 func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
+
+	// I will try to get the information from the cache to save time...
+	data, err := server.cache.GetItem(groupId)
+	if err == nil {
+		g := new(resourcepb.Group)
+		err = jsonpb.UnmarshalString(string(data), g)
+		if err == nil {
+			return g, nil
+		}
+	}
+
 	localDomain, _ := config.GetDomain()
 	var domain string
 
@@ -518,6 +595,8 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 			domain = strings.Split(groupId, "@")[1]
 		}
 		groupId = strings.Split(groupId, "@")[0]
+	} else {
+		domain = localDomain
 	}
 
 	if localDomain != domain && len(domain) > 0 {
@@ -531,6 +610,13 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		groups, err := resource_.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
 		if err != nil {
 			return nil, err
+		}
+
+		// here I will set save the group in the cache for further use...
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(groups[0])
+		if err == nil {
+			server.cache.SetItem(groupId+"@"+domain, []byte(jsonStr))
 		}
 
 		// In that case I will
@@ -549,6 +635,13 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
 		if len(groups) == 0 {
 			return nil, errors.New("no group found wiht name or _id " + groupId)
+		}
+
+		// here I will set save the group in the cache for further use...
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(groups[0])
+		if err == nil {
+			server.cache.SetItem(groupId+"@"+domain, []byte(jsonStr))
 		}
 
 		return groups[0], nil
@@ -642,7 +735,7 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 		return nil, err
 	}
 
-	peers, err := resourceClient.GetPeers(`{"$or":[{"domain":"` + peerId + `"},{"mac":"` + peerId + `"} ]}`)
+	peers, err := resourceClient.GetPeers(`{"$or":[{"domain":"` + peerId + `"},{"mac":"` + peerId + `"}]}`)
 	if err != nil {
 		return nil, err
 	}
@@ -729,6 +822,54 @@ func (server *server) organizationExist(id string) (bool, string) {
 
 	return true, o.Id + "@" + o.Domain
 
+}
+
+func (server *server) getRoles() ([]*resourcepb.Role, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	roles, err := resource_.GetRoles(`{}`)
+	if err != nil || len(roles) == 1 {
+		return nil, err
+	}
+
+	return roles, nil
+}
+
+func (server *server) getGroups() ([]*resourcepb.Group, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	groups, err := resource_.GetGroups(`{}`)
+	if err != nil || len(groups) == 1 {
+		return nil, err
+	}
+
+	return groups, nil
+}
+
+func (server *server) getOrganizations() ([]*resourcepb.Organization, error) {
+	localDomain, _ := config.GetDomain()
+	// so here I will get the role from it domain resource manager.
+	resource_, err := server.getResourceClient(localDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	organizations, err := resource_.GetOrganizations(`{}`)
+	if err != nil || len(organizations) == 1 {
+		return nil, err
+	}
+
+	return organizations, nil
 }
 
 /**
@@ -882,8 +1023,12 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
+
+	// Set the cache
+	s_impl.cache = storage_store.NewBigCache_store()
+	s_impl.cache.Open("")
 
 	// The rbac storage.
 	s_impl.permissions = storage_store.NewBadger_store()
@@ -919,9 +1064,6 @@ func main() {
 			}
 		}
 	}
-
-	s_impl.cache = storage_store.NewBigCache_store()
-	s_impl.cache.Open("")
 
 	// Start the service.
 	s_impl.StartService()

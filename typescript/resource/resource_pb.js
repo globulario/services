@@ -27522,7 +27522,8 @@ proto.resource.Notification.toObject = function(includeInstance, msg) {
     message: jspb.Message.getFieldWithDefault(msg, 3, ""),
     recipient: jspb.Message.getFieldWithDefault(msg, 4, ""),
     sender: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    notificationType: jspb.Message.getFieldWithDefault(msg, 6, 0)
+    notificationType: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    mac: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -27582,6 +27583,10 @@ proto.resource.Notification.deserializeBinaryFromReader = function(msg, reader) 
     case 6:
       var value = /** @type {!proto.resource.NotificationType} */ (reader.readEnum());
       msg.setNotificationType(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
       break;
     default:
       reader.skipField();
@@ -27651,6 +27656,13 @@ proto.resource.Notification.serializeBinaryToWriter = function(message, writer) 
   if (f !== 0.0) {
     writer.writeEnum(
       6,
+      f
+    );
+  }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
       f
     );
   }
@@ -27762,6 +27774,24 @@ proto.resource.Notification.prototype.getNotificationType = function() {
  */
 proto.resource.Notification.prototype.setNotificationType = function(value) {
   return jspb.Message.setProto3EnumField(this, 6, value);
+};
+
+
+/**
+ * optional string mac = 7;
+ * @return {string}
+ */
+proto.resource.Notification.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Notification} returns this
+ */
+proto.resource.Notification.prototype.setMac = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 

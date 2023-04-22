@@ -4,26 +4,43 @@ import (
 	"fmt"
 	"log"
 	"testing"
+
+	"github.com/globulario/services/golang/mail/mailpb"
 )
 
 var (
-	client *SMTP_Client
+	client *Mail_Client
 )
+
+// smtpServer data to smtp server
+type smtpServer struct {
+	host string
+	port string
+}
+
+// Address URI to smtp server
+func (s *smtpServer) Address() string {
+	return s.host + ":" + s.port
+}
+
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
+
 	var err error
-	client, err = NewSmtp_Client("mon-iis-01", "smtp.SmtpService")
+	client, err = NewMailService_Client("globule-ryzen.globular.cloud:443", "mail.MailService")
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	fmt.Println("Connection creation test.")
-	err = client.CreateConnection("test_smtp", "username", "password", 25, "localhost")
+	err = client.CreateConnection("test_smtp", "dave", "1234", 587, "globule-ryzen.globular.cloud")
 
 	if err != nil {
 		log.Panicln(err)
 	}
+
+	fmt.Println("connection was createad!")
 }
 
 /**
@@ -31,12 +48,12 @@ func TestCreateConnection(t *testing.T) {
  */
 func TestSendEmail(t *testing.T) {
 
-	from := "dave.courtois60@localhost"
+	from := "dave@globular.cloud"
 	to := []string{"dave.courtois60@gmail.com"}
-	cc := []*smtppb.CarbonCopy{&smtppb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
+	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
-	bodyType := int32(smtppb.BodyType_HTML)
+	bodyType := int32(mailpb.BodyType_HTML)
 
 	err := client.SendEmail("test_smtp", from, to, cc, subject, body, bodyType)
 
@@ -48,14 +65,15 @@ func TestSendEmail(t *testing.T) {
 /**
  * Test send email with attachements.
  */
-/*func TestSendEmailWithAttachements(t *testing.T) {
+/*
+func TestSendEmailWithAttachements(t *testing.T) {
 
 	from := "dave.courtois@safrangroup.com"
 	to := []string{"dave.courtois@safrangroup.com"}
-	cc := []*smtppb.CarbonCopy{&smtppb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
+	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
-	bodyType := int32(smtppb.BodyType_HTML)
+	bodyType := int32(mailpb.BodyType_HTML)
 	attachments := []string{"attachements/Daft Punk - Get Lucky (Official Audio) ft. Pharrell Williams, Nile Rodgers.mp3", "attachements/NGEN3549.JPG", "attachements/NGEN3550.JPG"}
 
 	err := client.SendEmailWithAttachements("test_smtp", from, to, cc, subject, body, bodyType, attachments)

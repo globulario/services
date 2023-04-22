@@ -98,14 +98,20 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 // Try to connect...
 func (client *Event_Client) Reconnect() error {
 	var err error
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+
+	for i := 0; i < nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = eventpb.NewEventServiceClient(client.cc)
+			break
+		}
+
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = eventpb.NewEventServiceClient(client.cc)
-
-	return nil
+	return err
 }
 
 /**
@@ -117,9 +123,11 @@ func (client *Event_Client) run() error {
 
 	// Create the channel.
 	data_channel := make(chan *eventpb.Event, 0)
+	keep_alive := make(chan *eventpb.KeepAlive, 0)
+	exit := make(chan bool, 0)
 
 	// start listenting to events from the server...
-	err := client.onEvent(client.uuid, data_channel)
+	err := client.onEvent(client.uuid, data_channel, keep_alive, exit)
 	if err != nil {
 		return err
 	}
@@ -128,8 +136,54 @@ func (client *Event_Client) run() error {
 	handlers := make(map[string]map[string]func(*eventpb.Event))
 	client.isRunning = true
 
+	//
+
 	for {
 		select {
+		case <-exit:
+			
+			/** So here I will try to reconnect **/
+			err := client.Reconnect()
+			if err != nil {
+				return err
+			}
+
+			time.Sleep(5 * time.Second)
+			nb_try_connect := 10 // give service time to restart 10 * 500ms so 5 sec
+
+			for i := 0; i < nb_try_connect; i++ {
+				// Now I will reconnect the stream...
+				err = client.onEvent(client.uuid, data_channel, keep_alive, exit)
+				if err == nil {
+					// I will reconnect subscribers...
+					for name, listeners := range handlers {
+						for uuid := range listeners {
+							rqst := &eventpb.SubscribeRequest{
+								Name: name,
+								Uuid: uuid,
+							}
+							_, err := client.c.Subscribe(client.GetCtx(), rqst)
+							if err != nil {
+								return err
+							}
+						}
+					}
+
+					break
+				}
+
+				time.Sleep(500 * time.Millisecond)
+			}
+
+			if err != nil {
+				return err
+			}else{
+				fmt.Println("event client reconnect successfully!")
+			}
+
+		case <-keep_alive:
+			/** Nothing to do here...**/
+
 		case evt := <-data_channel:
 			// So here I received an event, I will dispatch it to it function.
 			handlers_ := handlers[evt.Name]
@@ -158,7 +212,6 @@ func (client *Event_Client) run() error {
 			}
 		}
 	}
-
 
 }
 
@@ -340,7 +393,7 @@ func (client *Event_Client) Publish(name string, data interface{}) error {
 	return nil
 }
 
-func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event) error {
+func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event, keep_alive chan *eventpb.KeepAlive, exit chan bool) error {
 
 	rqst := &eventpb.OnEventRequest{
 		Uuid: uuid,
@@ -361,11 +414,18 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
 				// end of stream...
 				client.Close()
 				stream.CloseSend()
+				client.isConnected = false
+				exit <- true
 				return
 			}
 
 			// Get the result...
-			data_channel <- msg.Evt
+			switch op := msg.Data.(type) {
+			case *eventpb.OnEventResponse_Evt:
+				data_channel <- op.Evt
+			case *eventpb.OnEventResponse_Ka:
+				keep_alive <- op.Ka
+			}
 		}
 
 	}()

@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	b64 "encoding/base64"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
@@ -18,16 +21,19 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
 	"github.com/golang/protobuf/jsonpb"
-
-	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection"
 
 	//"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
 
@@ -97,7 +103,8 @@ type server struct {
 	indexs map[string]bleve.Index
 
 	// Contain the file and title asscociation.
-	associations map[string]*storage_store.Badger_store
+	//associations map[string]*storage_store.Badger_store
+	associations *sync.Map
 }
 
 // The path of the configuration.
@@ -414,7 +421,7 @@ func (srv *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	srv.grpcServer, err = globular.InitGrpcServer(srv /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -473,7 +480,8 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 		return nil, err
 	}
 
-	raw, err := index.GetInternal([]byte(titleId))
+	uuid := generateUUID(titleId)
+	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
 	}
@@ -487,10 +495,21 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 	return title, nil
 }
 
+// Get accosiations store...
+func (srv *server) getAssociations(id string) *storage_store.Badger_store {
+	if srv.associations != nil {
+		associations, ok := srv.associations.Load(id)
+		if ok {
+			return associations.(*storage_store.Badger_store)
+		}
+	}
+	return nil
+}
+
 // Get a title by a given id.
 func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
 
-	title, err := srv.getTitleById(rqst.IndexPath, generateUUID(rqst.TitleId))
+	title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -498,17 +517,17 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	}
 
 	filePaths := []string{}
+
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	associations := srv.getAssociations(rqst.IndexPath)
+	if associations != nil {
+		data, err := associations.GetItem(rqst.TitleId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
 	}
@@ -519,13 +538,100 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	}, nil
 }
 
+// save the title casting.
+func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*titlepb.Person) []*titlepb.Person {
+	casting := make([]*titlepb.Person, 0)
+
+	for i := 0; i < len(persons); i++ {
+		person := persons[i]
+
+		// Get existiong movie...
+		existing, err := srv.getPersonById(indexpath, person.ID)
+		if err == nil {
+			if role == "Casting" {
+				for i := 0; i < len(existing.Casting); i++ {
+					if !Utility.Contains(person.Casting, existing.Casting[i]) {
+						person.Casting = append(person.Casting, existing.Casting[i])
+					}
+				}
+
+				if !Utility.Contains(person.Casting, titleId) {
+					person.Casting = append(person.Casting, titleId)
+				}
+			} else if role == "Acting" {
+				for i := 0; i < len(existing.Acting); i++ {
+					if !Utility.Contains(person.Acting, existing.Acting[i]) {
+						person.Acting = append(person.Acting, existing.Acting[i])
+					}
+				}
+
+				if !Utility.Contains(person.Acting, titleId) {
+					person.Acting = append(person.Acting, titleId)
+				}
+			} else if role == "Directing" {
+				for i := 0; i < len(existing.Directing); i++ {
+					if !Utility.Contains(person.Directing, existing.Directing[i]) {
+						person.Directing = append(person.Directing, existing.Directing[i])
+					}
+				}
+
+				if !Utility.Contains(person.Directing, titleId) {
+					person.Directing = append(person.Directing, titleId)
+				}
+			} else if role == "Writing" {
+				for i := 0; i < len(existing.Writing); i++ {
+					if !Utility.Contains(person.Writing, existing.Writing[i]) {
+						person.Writing = append(person.Writing, existing.Writing[i])
+					}
+				}
+
+				if !Utility.Contains(person.Writing, titleId) {
+					person.Writing = append(person.Writing, titleId)
+				}
+			}
+
+			casting = append(casting, person)
+
+			// save the existing cast...
+			srv.createPerson(indexpath, person)
+		}
+	}
+
+	return casting
+}
+
 // Insert a title in the database or update it if it already exist.
 func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
+
+	if len(rqst.Title.ID) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title id was given")))
+	}
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	if rqst.Title == nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title was given")))
-
 	}
 
 	// So here Will create the indexation for the movie...
@@ -538,6 +644,12 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 	// Index the title and put it in the search engine.
 	rqst.Title.UUID = generateUUID(rqst.Title.ID)
+
+	// save the persons information...
+	rqst.Title.Actors = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Acting", rqst.Title.Actors)
+	rqst.Title.Writers = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Writing", rqst.Title.Writers)
+	rqst.Title.Directors = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Directing", rqst.Title.Directors)
+
 	err = index.Index(rqst.Title.UUID, rqst.Title)
 	if err != nil {
 		return nil, status.Errorf(
@@ -546,24 +658,47 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Now I will get the title thumbnail...
-	thumbnail_path := os.TempDir() + "/" + rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
-	defer os.Remove(thumbnail_path)
+	if rqst.Title.Poster != nil {
+		thumbnail_path := os.TempDir() + "/" + rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
+		defer os.Remove(thumbnail_path)
 
-	// Dowload the file.
-	err = Utility.DownloadFile(rqst.Title.Poster.URL, thumbnail_path)
-	if err == nil {
-		thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
+		// Dowload the file.
+		err = Utility.DownloadFile(rqst.Title.Poster.URL, thumbnail_path)
 		if err == nil {
-			rqst.Title.Poster.ContentUrl = thumbnail
+			thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
+			if err == nil {
+				rqst.Title.Poster.ContentUrl = thumbnail
+			}
 		}
+	}
+
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Title.ID)
+	if permissions == nil {
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Title.ID, "title_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
 	}
 
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
-
 	if err == nil {
 		index.SetInternal([]byte(rqst.Title.UUID), []byte(jsonStr))
+	} else {
+		fmt.Println("fail to marshall title", rqst.Title.ID, "with error: ", err)
 	}
 
 	event_client, err := srv.getEventClient()
@@ -574,23 +709,13 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_title_infos_evt", jsonStr)
-
-
+	event_client.Publish("update_title_infos_evt", []byte(jsonStr))
 	return &titlepb.CreateTitleResponse{}, nil
 }
 
-// Delete a title from the database.
-func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
+func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.UpdateTitleMetadataRequest) (*titlepb.UpdateTitleMetadataResponse, error) {
 
-	// Remove all file indexation...
-	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.TitleId)
-	if err == nil {
-		for i := 0; i < len(paths); i++ {
-			srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, paths[i])
-		}
-	}
-
+	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
@@ -598,16 +723,130 @@ func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	id := generateUUID(rqst.TitleId)
-	err = index.Delete(id)
-
+	_, err = index.GetInternal([]byte(generateUUID(rqst.Title.ID)))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(id))
+	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
+
+			if !Utility.Exists(absolutefilePath) {
+				// Here I will try to get it from the users dirs...
+				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}
+
+				if !Utility.Exists(absolutefilePath) {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
+				}
+			}
+
+			srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, rqst.Title)
+		}
+	}
+
+	return &titlepb.UpdateTitleMetadataResponse{}, nil
+}
+
+func (srv *server) deleteTitle(indexPath, titleId string) error {
+
+	title, err := srv.getTitleById(indexPath, titleId)
+	if err != nil {
+		return err
+	}
+
+	// Now I will remove reference from this video from the casting.
+	for i := 0; i < len(title.Actors); i++ {
+		p, err := srv.getPersonById(indexPath, title.Actors[i].ID)
+		if err == nil {
+			p.Acting = Utility.RemoveString(p.Acting, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	for i := 0; i < len(title.Writers); i++ {
+		p, err := srv.getPersonById(indexPath, title.Writers[i].ID)
+		if err == nil {
+			p.Writing = Utility.RemoveString(p.Writing, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	for i := 0; i < len(title.Directors); i++ {
+		p, err := srv.getPersonById(indexPath, title.Directors[i].ID)
+		if err == nil {
+			p.Directing = Utility.RemoveString(p.Directing, titleId)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+		}
+	}
+
+	// dir to refresh...
+	dirs := make([]string, 0)
+
+	// Remove all file indexation...
+	paths, err := srv.getTitleFiles(indexPath, titleId)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			srv.dissociateFileWithTitle(indexPath, titleId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
+		}
+	}
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return err
+	}
+
+	uuid := generateUUID(titleId)
+	err = index.Delete(uuid)
+
+	if err != nil {
+		return err
+	}
+
+	err = index.DeleteInternal([]byte(uuid))
+	if err != nil {
+		return err
+	}
+
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(titleId)
+	if err != nil {
+		return err
+	}
+
+	// publish delete video event.
+	err = srv.publish("delete_title_event", []byte(titleId))
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(dirs); i++ {
+		srv.publish("reload_dir_event", []byte(dirs[i]))
+	}
+
+	return nil
+}
+
+// Delete a title from the database.
+func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
+
+	err := srv.deleteTitle(rqst.IndexPath, rqst.TitleId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -622,6 +861,143 @@ type fileTileAssociation struct {
 	ID     string
 	Titles []string // contain the titles ids
 	Paths  []string // list of file path's where file can be found on the local disck.
+}
+
+func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *titlepb.Title) error {
+	if len(title.Name) == 0 {
+		return errors.New("no title name was given")
+	}
+
+	fileInfo, err := os.Stat(absolutefilePath)
+	if err != nil {
+		return err
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(title)
+	if err != nil {
+		return err
+	}
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	if fileInfo.IsDir() {
+		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		if err != nil {
+			return err
+		}
+		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+		srv.publish("reload_dir_event", []byte(dir))
+	} else {
+		// Here I will save metadata only if it has change...
+		infos, err := Utility.ReadMetadata(absolutefilePath)
+		needSave := true
+		if err == nil {
+			if infos["format"] != nil {
+				if infos["format"].(map[string]interface{})["tags"] != nil {
+					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+					if tags["comment"] != nil {
+						comment := tags["comment"].(string)
+						if len(comment) > 0 {
+							needSave = comment != encoded
+						}
+					}
+				}
+			}
+		}
+
+		if needSave {
+
+			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
+			Utility.SetMetadata(absolutefilePath, "comment", encoded)
+
+			associations := srv.getAssociations(indexPath)
+			if associations != nil {
+				data, err := associations.GetItem(old_checksum)
+				if err == nil {
+					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
+					if old_checksum != new_checksum {
+						associations.RemoveItem(old_checksum) // remove the previous
+						associations.SetItem(new_checksum, data)
+					}
+				}
+			}
+			// reload the client file infos...
+			dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+			srv.publish("reload_dir_event", []byte(dir))
+
+		} else {
+			fmt.Println("not need save title metadata ", absolutefilePath)
+		}
+	}
+
+	return nil
+}
+
+func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *titlepb.Video) error {
+
+	if len(video.Description) == 0 {
+		return errors.New("no title description was given")
+	}
+
+	fileInfo, err := os.Stat(absolutefilePath)
+	if err != nil {
+		return err
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(video)
+	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	if fileInfo.IsDir() {
+		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		if err != nil {
+			return err
+		}
+		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+		srv.publish("reload_dir_event", []byte(dir))
+	} else {
+		infos, err := Utility.ReadMetadata(absolutefilePath)
+		needSave := true
+		if err == nil {
+			if infos["format"] != nil {
+				if infos["format"].(map[string]interface{})["tags"] != nil {
+					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+					if tags["comment"] != nil {
+						comment := tags["comment"].(string)
+						if len(comment) > 0 {
+							needSave = comment != encoded
+						}
+					}
+				}
+			}
+		}
+
+		if needSave {
+			old_checksum := Utility.CreateFileChecksum(absolutefilePath)
+			Utility.SetMetadata(absolutefilePath, "comment", encoded)
+
+			associations := srv.getAssociations(indexPath)
+			if associations != nil {
+				data, err := associations.GetItem(old_checksum)
+				if err == nil {
+					new_checksum := Utility.CreateFileChecksum(absolutefilePath)
+					if old_checksum != new_checksum {
+						associations.RemoveItem(old_checksum) // remove the previous
+						associations.SetItem(new_checksum, data)
+					}
+				}
+			}
+
+			// reload the client file infos...
+			dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+			srv.publish("reload_dir_event", []byte(dir))
+		}
+	}
+
+	return nil
 }
 
 // Associate a file and a title info, so file can be found from title informations...
@@ -644,72 +1020,29 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
-	fileInfo, err := os.Stat(absolutefilePath)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
 
 	// Now I will set the title url in the media file to keep track of the title
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
 	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
 
-		title, err := srv.getTitleById(rqst.IndexPath, generateUUID(rqst.TitleId))
+		title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		if title.Poster != nil {
+		if title.Poster != nil && len(title.Poster.ContentUrl) == 0 {
 			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(title)
-		if err != nil {
-			return nil, err
-		}
+		srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, title)
 
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		if fileInfo.IsDir() {
-			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// Here I will save metadata only if it has change...
-			infos, err := Utility.ReadMetadata(absolutefilePath)
-			needSave := true
-			if err == nil {
-				if infos["format"] != nil {
-					if infos["format"].(map[string]interface{})["tags"] != nil {
-						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
-						if tags["comment"] != nil {
-							comment := tags["comment"].(string)
-							if len(comment) > 0 {
-								needSave = comment != encoded
-							}
-						}
-					}
-				}
-			}
-
-			if needSave {
-				fmt.Println("save metada for title", title.ID, title.Description, absolutefilePath)
-				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			}
-		}
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
-		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.TitleId))
+
+		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -722,56 +1055,20 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video with id "+rqst.TitleId+" was not found")))
 		}
 
-		if video.Poster != nil {
+		if video.Poster != nil && len(video.Poster.ContentUrl) == 0 {
 			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
 
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(video)
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+		srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
 
-		if fileInfo.IsDir() {
-			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			infos, err := Utility.ReadMetadata(absolutefilePath)
-			needSave := true
-			if err == nil {
-				if infos["format"] != nil {
-					if infos["format"].(map[string]interface{})["tags"] != nil {
-						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
-						if tags["comment"] != nil {
-							comment := tags["comment"].(string)
-							if len(comment) > 0 {
-								needSave = comment != encoded
-							}
-						}
-					}
-				}
-			}
-
-			if needSave {
-				fmt.Println("save metada for title", video.ID, video.Description, absolutefilePath)
-				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			}
-		}
 	}
 
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
+
+	// get the file info.
+	fileInfo, _ := os.Stat(absolutefilePath)
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -782,19 +1079,17 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	fmt.Println("associate file ", absolutefilePath, uuid)
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -817,7 +1112,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	// Now I will set back the item in the store.
 	data, _ = json.Marshal(association)
-	err = srv.associations[rqst.IndexPath].SetItem(uuid, data)
+	err = associations.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -825,7 +1120,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Now I will get the association for that title.
-	data, err = srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	data, err = associations.GetItem(rqst.TitleId)
 	association = &fileTileAssociation{ID: rqst.TitleId, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -846,12 +1141,15 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	data, _ = json.Marshal(association)
-	err = srv.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
+	err = associations.SetItem(rqst.TitleId, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	srv.publish("reload_dir_event", []byte(dir))
 
 	// return empty response.
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
@@ -882,17 +1180,16 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		uuid = Utility.CreateFileChecksum(absoluteFilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(indexPath)
 
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	file_data, err := srv.associations[indexPath].GetItem(uuid)
+	file_data, err := associations.GetItem(uuid)
 	file_association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(file_data, file_association)
@@ -906,17 +1203,17 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	file_association.Paths = Utility.RemoveString(file_association.Titles, titleId)
 
 	if len(file_association.Paths) == 0 || len(file_association.Titles) == 0 {
-		srv.associations[indexPath].RemoveItem(uuid)
+		associations.RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
 		data, _ := json.Marshal(file_association)
-		err = srv.associations[indexPath].SetItem(uuid, data)
+		err = associations.SetItem(uuid, data)
 		if err != nil {
 			return err
 		}
 	}
 
-	title_data, err := srv.associations[indexPath].GetItem(titleId)
+	title_data, err := associations.GetItem(titleId)
 	title_association := &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(title_data, title_association)
@@ -929,32 +1226,28 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	title_association.Paths = Utility.RemoveString(title_association.Paths, filePath)
 
 	if len(title_association.Paths) == 0 {
-		srv.associations[indexPath].RemoveItem(titleId)
+		associations.RemoveItem(titleId)
 
 		// I will also delete the title itself from the search engine...
-		index, err := srv.getIndex(indexPath)
-		if err != nil {
-			return err
-		}
-
-		err = index.Delete(titleId)
-		if err != nil {
-			return err
-		}
-
-		err = index.DeleteInternal([]byte(titleId))
-		if err != nil {
-			return err
+		if strings.HasSuffix(indexPath, "/search/videos") {
+			srv.deleteVideo(indexPath, titleId)
+		} else if strings.HasSuffix(indexPath, "/search/audios") {
+			srv.deleteAudio(indexPath, titleId)
+		} else if strings.HasSuffix(indexPath, "/search/titltes") {
+			srv.deleteTitle(indexPath, titleId)
 		}
 
 	} else {
 		// Now I will set back the item in the store.
 		data, _ := json.Marshal(title_association)
-		err = srv.associations[indexPath].SetItem(titleId, data)
+		err = associations.SetItem(titleId, data)
 		if err != nil {
 			return err
 		}
 	}
+
+	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	srv.publish("reload_dir_event", []byte(dir))
 
 	return nil
 
@@ -1010,17 +1303,15 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
-
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	associations := srv.getAssociations(indexPath)
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[indexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1033,7 +1324,7 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 
 	titles := make([]*titlepb.Title, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		title, err := srv.getTitleById(indexPath, generateUUID(association.Titles[i]))
+		title, err := srv.getTitleById(indexPath, association.Titles[i])
 		if err == nil {
 			titles = append(titles, title)
 		}
@@ -1086,6 +1377,10 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	if len(titles) == 0 {
+		return nil, errors.New("no titles associations found for file " + rqst.FilePath)
+	}
+
 	return &titlepb.GetFileTitlesResponse{Titles: &titlepb.Titles{Titles: titles}}, nil
 }
 
@@ -1108,7 +1403,8 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	}
 
 	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Publisher.ID, rqst.Publisher)
+	uuid := generateUUID(rqst.Publisher.ID)
+	err = index.Index(uuid, rqst.Publisher)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1120,7 +1416,7 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	jsonStr, err := marshaler.MarshalToString(rqst.Publisher)
 
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Publisher.ID), []byte(jsonStr))
+		err = index.SetInternal([]byte(uuid), []byte(jsonStr))
 	}
 
 	return &titlepb.CreatePublisherResponse{}, nil
@@ -1135,14 +1431,15 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.PublisherId)
+	uuid := generateUUID(rqst.PublisherId)
+	err = index.Delete(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.PublisherId))
+	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1179,13 +1476,16 @@ func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 	var publisher *titlepb.Publisher
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
-		id := val.ID
-		raw, err := index.GetInternal([]byte(id))
+		uuid := generateUUID(val.ID)
+		raw, err := index.GetInternal([]byte(uuid))
 		if err != nil {
 			return nil, err
 		}
 		publisher = new(titlepb.Publisher)
-		jsonpb.UnmarshalString(string(raw), publisher)
+		err = jsonpb.UnmarshalString(string(raw), publisher)
+		if err != nil {
+			return nil, err
+		}
 
 	}
 
@@ -1207,37 +1507,54 @@ func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublis
 }
 
 // ////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
-// Create a person...
-func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
-	if rqst.Person == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
-
-	}
+func (srv *server) createPerson(indexPath string, person *titlepb.Person) error {
 
 	// So here Will create the indexation for the movie...
-	index, err := srv.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
+	}
+
+	if len(person.ID) == 0 || len(person.FullName) == 0 {
+		return errors.New("missing inforamation for create person")
+	}
+
+	uuid := generateUUID(person.ID)
+
+	// Encode the biography field if is not already encoded.
+	if !Utility.IsStdBase64(person.Biography) {
+		person.Biography = b64.StdEncoding.EncodeToString([]byte(person.Biography))
 	}
 
 	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Person.ID, rqst.Person)
+	err = index.Index(uuid, person)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Person)
+	jsonStr, err := marshaler.MarshalToString(person)
+	if err != nil {
+		return err
+	}
 
-	if err == nil {
-		err = index.SetInternal([]byte(rqst.Person.ID), []byte(jsonStr))
+	err = index.SetInternal([]byte(uuid), []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Create a person...
+func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
+
+	err := srv.createPerson(rqst.IndexPath, rqst.Person)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.CreatePersonResponse{}, nil
@@ -1245,6 +1562,25 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 
 // Delete a person...
 func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1252,26 +1588,42 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.PersonId)
+	person, err := srv.getPersonById(rqst.IndexPath, rqst.PersonId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.PersonId))
+	uuid := generateUUID(rqst.PersonId)
+	err = index.Delete(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// TODO remove asscociated videos...
+	err = index.DeleteInternal([]byte(uuid))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now the person dosent exist anymore I will save the video from it acting list
+	// so it will be remove from the video casting list.
+	for i := 0; i < len(person.Casting); i++ {
+		video, err := srv.getVideoById(rqst.IndexPath, person.Casting[i])
+		if err == nil {
+			srv.createVideo(rqst.IndexPath, clientId, video)
+		}
+	}
 
 	return &titlepb.DeletePersonResponse{}, nil
 }
 
 func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
+
 	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
@@ -1281,28 +1633,16 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 		return nil, err
 	}
 
-	query := bleve.NewQueryStringQuery(id)
-	searchRequest := bleve.NewSearchRequest(query)
-	searchResult, err := index.Search(searchRequest)
+	uuid := generateUUID(id)
+	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
 	}
 
-	// Now from the result I will
-	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
-	}
-
-	var person *titlepb.Person
-	// Now I will return the data
-	for _, val := range searchResult.Hits {
-		id := val.ID
-		raw, err := index.GetInternal([]byte(id))
-		if err != nil {
-			return nil, err
-		}
-		person = new(titlepb.Person)
-		jsonpb.UnmarshalString(string(raw), person)
+	person := new(titlepb.Person)
+	err = jsonpb.UnmarshalString(string(raw), person)
+	if err != nil {
+		return nil, err
 	}
 
 	return person, nil
@@ -1322,17 +1662,71 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 	}, nil
 }
 
-// Insert a video in the database or update it if it already exist.
-func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
+func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video) error {
 
-	if rqst.Video == nil {
-		fmt.Println("no video was given")
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no video was given")))
-
+	// So here Will create the indexation for the movie...
+	index, err := srv.getIndex(indexpath)
+	if err != nil {
+		return err
 	}
 
+	if len(video.ID) == 0 {
+		return errors.New("no video id was given")
+	}
+
+	video.UUID = generateUUID(video.ID)
+
+	err = index.Index(video.UUID, video)
+	if err != nil {
+		return err
+	}
+
+	// refresh set back the filtred casting info.
+	video.Casting = srv.saveTitleCasting(indexpath, video.ID, "Casting", video.Casting)
+
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	permissions, _ := rbac_client_.GetResourcePermissions(video.ID)
+	if permissions == nil {
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(video.ID, "video_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(video)
+
+	if err == nil {
+		err = index.SetInternal([]byte(video.UUID), []byte(jsonStr))
+		if err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+
+	event_client_, err := srv.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	// send event to update the video infos
+	return event_client_.Publish("update_video_infos_evt", []byte(jsonStr))
+}
+
+/**
+ * Update the video metadata
+ */
+func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.UpdateVideoMetadataRequest) (*titlepb.UpdateVideoMetadataResponse, error) {
+
+	video := rqst.Video
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
@@ -1341,40 +1735,67 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rqst.Video.UUID = generateUUID(rqst.Video.ID)
-	err = index.Index(rqst.Video.UUID, rqst.Video)
+	_, err = index.GetInternal([]byte(generateUUID(video.ID)))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Video)
-
+	// update the video metadata
+	paths, err := srv.getTitleFiles(rqst.IndexPath, video.ID)
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Video.UUID), []byte(jsonStr))
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		for i := 0; i < len(paths); i++ {
+			absolutefilePath := strings.ReplaceAll(paths[i], "\\", "/")
+			if !Utility.Exists(absolutefilePath) {
+				// Here I will try to get it from the users dirs...
+				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}
+
+				if !Utility.Exists(absolutefilePath) {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+			}
+
+			srv.saveVideoMetadata(absolutefilePath, rqst.IndexPath, video)
 		}
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	event_client, err := srv.getEventClient()
+	return &titlepb.UpdateVideoMetadataResponse{}, nil
+}
+
+// Insert a video in the database or update it if it already exist.
+func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
+	// So here Will create the indexation for the movie...
+	err = srv.createVideo(rqst.IndexPath, clientId, rqst.Video)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// send event to update the video infos
-	event_client.Publish("update_video_infos_evt", jsonStr)
 
 	return &titlepb.CreateVideoResponse{}, nil
 }
@@ -1389,22 +1810,36 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 		return nil, err
 	}
 
-	raw, err := index.GetInternal([]byte(id))
+	uuid := generateUUID(id)
+	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
 	}
 
 	video := new(titlepb.Video)
-	jsonpb.UnmarshalString(string(raw), video)
+	err = jsonpb.UnmarshalString(string(raw), video)
+	if err != nil {
+		return nil, err
+	}
 
-	fmt.Println(video.Description)
+	// Remove cating from the list if it no more exist.
+	casting := make([]*titlepb.Person, 0)
+	for i := 0; i < len(video.Casting); i++ {
+		c, err := srv.getPersonById(indexPath, video.Casting[i].ID)
+		if err == nil {
+			casting = append(casting, c)
+		}
+	}
+
+	// set back.
+	video.Casting = casting
 
 	return video, nil
 }
 
 // Get a video by a given id.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
-	video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.VidoeId))
+	video, err := srv.getVideoById(rqst.IndexPath, rqst.VidoeId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1414,19 +1849,30 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	filePaths := []string{}
 
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.VidoeId)
+	associations := srv.getAssociations(rqst.IndexPath)
+	if associations != nil {
+		data, err := associations.GetItem(rqst.VidoeId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
 	}
+
+	// Here I will init the casting from to be sure I got the last version...
+	casting := make([]*titlepb.Person, len(video.Casting))
+	for i := 0; i < len(video.Casting); i++ {
+		c, err := srv.getPersonById(rqst.IndexPath, video.Casting[i].ID)
+		if err == nil {
+			casting[i] = c
+		}
+	}
+
+	// set back.
+	video.Casting = casting
 
 	return &titlepb.GetVideoByIdResponse{
 		Video:      video,
@@ -1434,44 +1880,92 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	}, nil
 }
 
-// Delete a video from the database.
 func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
 
-	index, err := srv.getIndex(rqst.IndexPath)
-	if err != nil {
-
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	id := generateUUID(rqst.VideoId)
-	err = index.Delete(id)
+	err := srv.deleteVideo(rqst.IndexPath, rqst.VideoId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(id))
+	return &titlepb.DeleteVideoResponse{}, nil
+}
+
+// Delete a video from the database.
+func (srv *server) deleteVideo(indexPath, videoId string) error {
+
+	// set the video
+	video, err := srv.getVideoById(indexPath, videoId)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
-	val, err := index.GetInternal([]byte(id))
+	// Now I will remove reference from this video from the casting.
+	for i := 0; i < len(video.Casting); i++ {
+		p, err := srv.getPersonById(indexPath, video.Casting[i].ID)
+		if err == nil {
+			p.Casting = Utility.RemoveString(p.Casting, video.ID)
+			// save back the person.
+			srv.createPerson(indexPath, p)
+
+		}
+	}
+
+	dirs := make([]string, 0)
+	paths, err := srv.getTitleFiles(indexPath, videoId)
 	if err == nil {
-		return nil, errors.New("fail to remove " + rqst.VideoId)
+		for i := 0; i < len(paths); i++ {
+			srv.dissociateFileWithTitle(indexPath, videoId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
+		}
+	}
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return err
+	}
+
+	uuid := generateUUID(videoId)
+	err = index.Delete(uuid)
+	if err != nil {
+		return err
+	}
+
+	err = index.DeleteInternal([]byte(uuid))
+	if err != nil {
+		return err
+	}
+
+	val, err := index.GetInternal([]byte(uuid))
+	if err != nil {
+		return err
 	}
 
 	if val != nil {
-		return nil, errors.New("expected nil, got" + string(val))
+		return errors.New("expected nil, got" + string(val))
 	}
 
-	// Now I will remove the file association...
+	// so here I will set the ownership...
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
 
-	return &titlepb.DeleteVideoResponse{}, nil
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(videoId)
+	if err != nil {
+		return err
+	}
+
+	// force reload dir
+	for i := 0; i < len(dirs); i++ {
+		srv.publish("reload_dir_event", []byte(dirs[i]))
+	}
+
+	// publish delete video event.
+	return srv.publish("delete_video_event", []byte(videoId))
+
 }
 
 // Return the list of videos asscociate with a file.
@@ -1492,10 +1986,9 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	}
 
 	if !Utility.Exists(absolutefilePath) {
-
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 	}
 
 	// I will use the file checksum as file id...
@@ -1515,17 +2008,16 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1538,10 +2030,18 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	videos := make([]*titlepb.Video, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(association.Titles[i]))
-		if err == nil {
-			videos = append(videos, video)
+		video, err := srv.getVideoById(rqst.IndexPath, association.Titles[i])
+		if err == nil && video != nil {
+			if video.ID != "" {
+				videos = append(videos, video)
+			} else {
+				srv.associations.Delete(video.ID) // remove associations
+			}
 		}
+	}
+
+	if len(videos) == 0 {
+		return nil, errors.New("no videos associations found for file " + rqst.FilePath)
 	}
 
 	return &titlepb.GetFileVideosResponse{Videos: &titlepb.Videos{Videos: videos}}, nil
@@ -1555,19 +2055,17 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	}
 
 	// I will use the file checksum as file id...
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(indexPath)
 
-	if srv.associations[indexPath] == nil {
-		srv.associations[indexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[indexPath].GetItem(titleId)
+	data, err := associations.GetItem(titleId)
 	if err != nil {
-		fmt.Println("no files association found for title: ", titleId, err)
 		return nil, err
 	}
 
@@ -1575,7 +2073,6 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			fmt.Println("fail to read association: ", titleId, err)
 			return nil, err
 		}
 	}
@@ -1594,12 +2091,12 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		association.Paths = paths
 		// if no more file are link I will remove the association...
 		if len(association.Paths) == 0 {
-			srv.associations[indexPath].RemoveItem(titleId)
-			srv.associations[indexPath].RemoveItem(association.ID)
+			associations.RemoveItem(titleId)
+			associations.RemoveItem(association.ID)
 		} else {
 			data, _ = json.Marshal(association)
-			srv.associations[indexPath].SetItem(association.ID, data)
-			srv.associations[indexPath].SetItem(titleId, data)
+			associations.SetItem(association.ID, data)
+			associations.SetItem(titleId, data)
 		}
 	}
 
@@ -1620,6 +2117,104 @@ func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 	// Return the store association values...
 	return &titlepb.GetTitleFilesResponse{FilePaths: paths}, nil
 
+}
+
+// Search youtuber, actor, pornstar realisator etc.
+func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titlepb.TitleService_SearchPersonsServer) error {
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	query := bleve.NewQueryStringQuery(rqst.Query)
+	request := bleve.NewSearchRequest(query)
+	request.Size = int(rqst.Size) //
+	request.From = int(rqst.Offset)
+
+	if request.Size == 0 {
+		request.Size = 50
+	}
+
+	// Now I will add the facets for type and genre.
+
+	// The acting facet.
+	acting := bleve.NewFacetRequest("Acting", int(rqst.Size))
+	request.AddFacet("Acting", acting)
+
+	// The directing facet...
+	directing := bleve.NewFacetRequest("Directing", int(rqst.Size))
+	request.AddFacet("Directing", directing)
+
+	// The writing facet...
+	writting := bleve.NewFacetRequest("Writting", int(rqst.Size))
+	request.AddFacet("Writting", writting)
+
+	// The casting facet...
+	casting := bleve.NewFacetRequest("Casting", int(rqst.Size))
+	request.AddFacet("Casting", casting)
+
+	request.Highlight = bleve.NewHighlightWithStyle("html")
+	request.Fields = rqst.Fields
+	result, err := index.Search(request)
+
+	if err != nil { // an empty query would cause this
+		return err
+	}
+
+	// The first return message will be the summary of the result...
+	summary := new(titlepb.SearchSummary)
+	summary.Query = rqst.Query // set back the input query.
+	summary.Took = result.Took.Milliseconds()
+	summary.Total = result.Total
+
+	// Here I will send the summary...
+	stream.Send(&titlepb.SearchPersonsResponse{
+		Result: &titlepb.SearchPersonsResponse_Summary{
+			Summary: summary,
+		},
+	})
+
+	// Now I will generate the hits informations...
+	for i, hit := range result.Hits {
+		id := hit.ID
+		hit_ := new(titlepb.SearchHit)
+		hit_.Score = hit.Score
+		hit_.Index = int32(i)
+		hit_.Snippets = make([]*titlepb.Snippet, 0)
+
+		// Now I will extract fragment for fields...
+		for fragmentField, fragments := range hit.Fragments {
+			snippet := new(titlepb.Snippet)
+			snippet.Field = fragmentField
+			snippet.Fragments = make([]string, 0)
+			for _, fragment := range fragments {
+				snippet.Fragments = append(snippet.Fragments, fragment)
+			}
+			// append to the results.
+			hit_.Snippets = append(hit_.Snippets, snippet)
+		}
+
+		// Here I will get the title itself.
+		raw, err := index.GetInternal([]byte(id))
+		if err == nil {
+			person := new(titlepb.Person)
+			err = jsonpb.UnmarshalString(string(raw), person)
+			if err == nil {
+				hit_.Result = &titlepb.SearchHit_Person{
+					Person: person,
+				}
+				stream.Send(&titlepb.SearchPersonsResponse{
+					Result: &titlepb.SearchPersonsResponse_Hit{
+						Hit: hit_,
+					},
+				})
+			}
+		}
+	}
+
+	return nil
 }
 
 // Search titles infos...
@@ -1687,10 +2282,12 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		},
 	})
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	associations := srv.getAssociations(rqst.IndexPath)
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
 	// Now I will generate the hits informations...
@@ -1717,12 +2314,40 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		raw, err := index.GetInternal([]byte(id))
 		if err == nil {
 			// the title must contain file association...
-
-			//if err == nil {
-
 			title := new(titlepb.Title)
 			err = jsonpb.UnmarshalString(string(raw), title)
 			if err == nil {
+
+				// Actors
+				actors := make([]*titlepb.Person, 0)
+				for i := 0; i < len(title.Actors); i++ {
+					p, err := srv.getPersonById(rqst.IndexPath, title.Actors[i].GetID())
+					if err == nil {
+						actors = append(actors, p) // set the full information...
+					}
+				}
+				title.Actors = actors
+
+				// Directors
+				directors := make([]*titlepb.Person, 0)
+				for i := 0; i < len(title.Directors); i++ {
+					p, err := srv.getPersonById(rqst.IndexPath, title.Directors[i].GetID())
+					if err == nil {
+						directors = append(directors, p) // set the full information...
+					}
+				}
+				title.Directors = directors
+
+				// Writers
+				writers := make([]*titlepb.Person, 0)
+				for i := 0; i < len(title.Writers); i++ {
+					p, err := srv.getPersonById(rqst.IndexPath, title.Writers[i].GetID())
+					if err == nil {
+						writers = append(writers, p) // set the full information...
+					}
+				}
+				title.Writers = writers
+
 				hit_.Result = &titlepb.SearchHit_Title{
 					Title: title,
 				}
@@ -1743,16 +2368,29 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 						},
 					})
 				} else {
-
 					index.Delete(id)
 					index.DeleteInternal([]byte(id))
 				}
 
 			} else {
+
 				// Here I will try with a video...
 				video := new(titlepb.Video)
 				err := jsonpb.UnmarshalString(string(raw), video)
 				if err == nil {
+
+					// Here I will init the casting from to be sure I got the last version...
+					casting := make([]*titlepb.Person, 0)
+					for i := 0; i < len(video.Casting); i++ {
+						c, err := srv.getPersonById(rqst.IndexPath, video.Casting[i].ID)
+						if err == nil {
+							casting = append(casting, c)
+						}
+					}
+
+					// set back.
+					video.Casting = casting
+
 					hit_.Result = &titlepb.SearchHit_Video{
 						Video: video,
 					}
@@ -1773,12 +2411,12 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 							},
 						})
 					} else {
-
 						index.Delete(id)
 						index.DeleteInternal([]byte(id))
 					}
 
 				} else {
+
 					audio := new(titlepb.Audio)
 					err := jsonpb.UnmarshalString(string(raw), audio)
 					if err == nil {
@@ -1864,6 +2502,32 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
+
+	if len(rqst.Audio.ID) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no audio id was given")))
+	}
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id + "@" + claims.Domain
+		} else {
+			errors.New("CreateConversation no token was given")
+		}
+	}
+
 	if rqst.Audio == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1889,10 +2553,28 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// so here I will set the ownership of the info
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Audio.ID)
+	if permissions == nil {
+		// set the resource path...
+		err = rbac_client_.AddResourceOwner(rqst.Audio.ID, "audio_infos", clientId, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Audio)
-
 	if err == nil {
 		err = index.SetInternal([]byte(generateUUID(rqst.Audio.ID)), []byte(jsonStr))
 	}
@@ -1904,7 +2586,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		album := &titlepb.Album{ID: rqst.Audio.Album, Artist: rqst.Audio.AlbumArtist, Year: rqst.Audio.Year, Genres: rqst.Audio.Genres, Poster: rqst.Audio.Poster}
 		jsonStr, err := marshaler.MarshalToString(album)
 		if err == nil {
-			err = index.SetInternal([]byte(album.ID), []byte(jsonStr))
+			err = index.SetInternal([]byte(generateUUID(album.ID)), []byte(jsonStr))
 		}
 	}
 
@@ -1916,7 +2598,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_audio_infos_evt", jsonStr)
+	event_client.Publish("update_audio_infos_evt", []byte(jsonStr))
 
 	return &titlepb.CreateAudioResponse{}, nil
 }
@@ -1931,7 +2613,8 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 		return nil, err
 	}
 
-	raw, err := index.GetInternal([]byte(id))
+	uuid := generateUUID(id)
+	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
 	}
@@ -1947,7 +2630,7 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 
 // Get a audio by a given id.
 func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdRequest) (*titlepb.GetAudioByIdResponse, error) {
-	audio, err := srv.getAudioById(rqst.IndexPath, generateUUID(rqst.AudioId))
+	audio, err := srv.getAudioById(rqst.IndexPath, rqst.AudioId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1957,16 +2640,16 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 	filePaths := []string{}
 
 	// get the list of associated files if there some...
-	if srv.associations != nil {
-		if srv.associations[rqst.IndexPath] != nil {
-			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.AudioId)
+	associations := srv.getAssociations(rqst.IndexPath)
+
+	if associations != nil {
+		data, err := associations.GetItem(rqst.AudioId)
+		if err == nil {
+			association := new(fileTileAssociation)
+			err = json.Unmarshal(data, association)
 			if err == nil {
-				association := new(fileTileAssociation)
-				err = json.Unmarshal(data, association)
-				if err == nil {
-					// In that case I will get the files...
-					filePaths = association.Paths
-				}
+				// In that case I will get the files...
+				filePaths = association.Paths
 			}
 		}
 	}
@@ -1989,6 +2672,7 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 
 	query := bleve.NewQueryStringQuery(id)
 	searchRequest := bleve.NewSearchRequest(query)
+
 	searchResult, err := index.Search(searchRequest)
 	if err != nil {
 		return nil, err
@@ -2004,7 +2688,8 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
 		if val.ID == id {
-			raw, err := index.GetInternal([]byte(val.ID))
+			uuid := generateUUID(val.ID)
+			raw, err := index.GetInternal([]byte(uuid))
 			if err != nil {
 				return nil, err
 			}
@@ -2050,34 +2735,64 @@ func (srv *server) GetAlbum(ctx context.Context, rqst *titlepb.GetAlbumRequest) 
 	return &titlepb.GetAlbumResponse{Album: album}, nil
 }
 
-// Delete a audio from the database.
 func (srv *server) DeleteAudio(ctx context.Context, rqst *titlepb.DeleteAudioRequest) (*titlepb.DeleteAudioResponse, error) {
-	index, err := srv.getIndex(rqst.IndexPath)
+
+	err := srv.deleteAudio(rqst.IndexPath, rqst.AudioId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	id := generateUUID(rqst.AudioId)
-
-	err = index.Delete(id)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	err = index.DeleteInternal([]byte(id))
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// TODO remove asscociated files...
 
 	return &titlepb.DeleteAudioResponse{}, nil
+}
+
+// Delete a audio from the database.
+func (srv *server) deleteAudio(indexPath string, audioId string) error {
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return err
+	}
+
+	dirs := make([]string, 0)
+	paths, err := srv.getTitleFiles(indexPath, audioId)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			srv.dissociateFileWithTitle(indexPath, audioId, paths[i])
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(paths[i], config.GetDataDir()+"/files", "")))
+		}
+	}
+
+	uuid := generateUUID(audioId)
+	err = index.Delete(uuid)
+	if err != nil {
+		return err
+	}
+
+	err = index.DeleteInternal([]byte(uuid))
+	if err != nil {
+		return err
+	}
+
+	rbac_client_, err := srv.getRbacClient()
+	if err != nil {
+		return err
+	}
+
+	// remove the permission.
+	err = rbac_client_.DeleteResourcePermissions(audioId)
+	if err != nil {
+		return err
+	}
+
+	// force reload dir
+	for i := 0; i < len(dirs); i++ {
+		srv.publish("reload_dir_event", []byte(dirs[i]))
+	}
+
+	// publish delete video event.
+	return srv.publish("delete_audio_event", []byte(audioId))
 }
 
 func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumRequest) (*titlepb.DeleteAlbumResponse, error) {
@@ -2088,14 +2803,15 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.AlbumId)
+	uuid := generateUUID(rqst.AlbumId)
+	err = index.Delete(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.AlbumId))
+	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2147,17 +2863,16 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
+	associations := srv.getAssociations(rqst.IndexPath)
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if associations == nil {
+		associations = storage_store.NewBadger_store()
+		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	data, err := associations.GetItem(uuid)
 	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -2170,7 +2885,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 
 	audios := make([]*titlepb.Audio, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		audio, err := srv.getAudioById(rqst.IndexPath, generateUUID(association.Titles[i]))
+		audio, err := srv.getAudioById(rqst.IndexPath, association.Titles[i])
 		if err == nil {
 			audios = append(audios, audio)
 		}
@@ -2179,7 +2894,17 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	return &titlepb.GetFileAudiosResponse{Audios: &titlepb.Audios{Audios: audios}}, nil
 }
 
-// /////////////////// resource service functions ////////////////////////////////////
+// /////////////////// rbac service functions ////////////////////////////////////
+func (server *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "NewRbacService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*rbac_client.Rbac_Client), nil
+}
+
+// /////////////////// event service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
@@ -2189,6 +2914,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	return client.(*event_client.Event_Client), nil
 }
 
+// Publish event on the event server.
 func (svr *server) publish(event string, data []byte) error {
 	eventClient, err := svr.getEventClient()
 	if err != nil {
@@ -2221,13 +2947,26 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 8)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
-	s_impl.associations = make(map[string]*storage_store.Badger_store)
+	s_impl.associations = new(sync.Map)
+
+	// Set Permissions.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/title.TitleService/DeleteVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/title.TitleService/CreateVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/title.TitleService/DeleteAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/title.TitleService/CreateAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/title.TitleService/DeleteTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/title.TitleService/CreateTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/title.TitleService/AssociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/title.TitleService/DissociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
 
 	// Give base info to retreive it configuration.
 	// Give base info to retreive it configuration.

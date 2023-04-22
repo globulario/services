@@ -1,6 +1,7 @@
 package main
 
 import (
+
 	"log"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discovery_client"
-	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -534,24 +534,6 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 		return err
 	}
 	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
-
-// /////////////////// event service functions ////////////////////////////////////
-func (svr *server) getEventClient() (*event_client.Event_Client, error) {
-	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(svr.Address, "event.EventService", "NewEventService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*event_client.Event_Client), nil
-}
-
-func (svr *server) publish(event string, data []byte) error {
-	eventClient, err := svr.getEventClient()
-	if err != nil {
-		return err
-	}
-	return eventClient.Publish(event, data)
 }
 
 // ////////////////////// rbac service ///////////////////////////////////////

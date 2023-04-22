@@ -6,6 +6,7 @@ syntax = "proto3";
 package title;
 
 option go_package="title/titlepb";
+
 ///////////////////////////////////////////
 // Movie information taken from IMDB
 //////////////////////////////////////////
@@ -14,33 +15,38 @@ message Person {
 	string URL = 2;
 	string FullName = 3;
 
+	repeated string Aliases = 4;
+
 	// Those information are not required...
 
 	// A lnk to the profile picture...
-	string Picture = 4;
+	string Picture = 5;
 
 	// A short text that describe the person.
-	string Biography = 5;
+	string Biography = 6;
 
-	// Can help to search 
-	string About = 6; // in few word...
+	string CareerSatus = 7; // active, inactive etc.
 
-	string RelationShipStatus = 7; // single married etc.
+	string Gender = 8; // Male or female.
 
-	string InterestIn = 8; // Sexual orientation.
+	string BirthPlace = 9; // A string containing the Place of birth
 
-	string CareerSatus = 9; // active, inactive etc.
+	string BirthDate = 10; // The date of birth.
 
-	string Gender = 10;
+	// title releated role...
+	repeated string Directing = 11; // Contain the list of directed titles
+	repeated string Writing = 12; // Contain the list of writted titles
+	repeated string Acting = 13; // Contain list of title where the person was Actor.Album
 
-	string BirthPlace = 11;
+	// video releated role...
+	repeated string Casting = 14; // Contain the list of video where that person appear.
 }
 
 message Poster {
-	string ID = 1;
-	string titleId = 2;
-	string URL = 3;
-	string ContentUrl = 4;
+	string ID = 1; // A unique id.
+	string titleId = 2; // The title/video/audio linked by this poster.
+	string URL = 3; // The media url, can be a a video preview or the video itself
+	string ContentUrl = 4; // The poster image url
 }
 
 message Preview {
@@ -122,6 +128,15 @@ message DeleteVideoResponse {
 	
 }
 
+message UpdateVideoMetadataRequest{
+	Video video = 1;
+	string indexPath = 2;
+}
+
+message UpdateVideoMetadataResponse{
+	/** Nothing here */
+}
+
 ///////////////////////////////////////////
 // Movie, serie game... 
 ///////////////////////////////////////////
@@ -191,6 +206,15 @@ message DeleteTitleResponse {
 	
 }
 
+message UpdateTitleMetadataRequest{
+	Title title = 1;
+	string indexPath = 2;
+}
+
+message UpdateTitleMetadataResponse{
+	/** Nothing here */
+}
+
 message AssociateFileWithTitleRequest {
 	string titleId = 1;
 	string filePath = 2;
@@ -256,6 +280,7 @@ message SearchHit {
 		Title title = 4;
 		Video video = 5;
 		Audio audio = 6;
+		Person person = 7;
 	 }
 }
 
@@ -290,6 +315,22 @@ message SearchTitlesRequest {
 }
 
 message SearchTitlesResponse {
+    oneof result  {
+        SearchSummary summary = 1;
+        SearchHit hit = 2;
+	    SearchFacets facets = 3;
+    }
+}
+
+message SearchPersonsRequest {
+	string query = 1;
+	repeated string fields = 2;
+	string indexPath = 3;
+	int32 size = 4;
+	int32 offset = 5;
+}
+
+message SearchPersonsResponse {
     oneof result  {
         SearchSummary summary = 1;
         SearchHit hit = 2;
@@ -477,7 +518,6 @@ service TitleService {
 	// Retrun a person with a given id.
 	rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse);
 
-
 	/////////////////////////////////// Title specific functions ////////////////////////////////////////
   	// Insert a title in the database or update it if it already exist.
 	rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
@@ -487,6 +527,9 @@ service TitleService {
 
 	// Delete a title from the database.
 	rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
+
+	// Save the title as metadata in each of it associated file.
+	rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse);
 
 	/////////////////////////////////// Audio specific functions ////////////////////////////////////////
 	// Insert a audio information in the database or update it if it already exist.
@@ -514,6 +557,9 @@ service TitleService {
 	// Delete a video from the database.
 	rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse);
 
+	// Save the video as metadata in each of it associated file.
+	rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse);
+
 	////////////////////////////////////// File Tile or Video assocication ///////////////////////////////
 
 	// Associate a file and a title info, so file can be found from title informations...
@@ -538,5 +584,8 @@ service TitleService {
 	
 	// Search title or videos infos...
 	rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
+
+	// Search youtuber, actor, pornstar realisator etc.
+	rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
 
 }

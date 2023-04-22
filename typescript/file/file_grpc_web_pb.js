@@ -440,6 +440,67 @@ proto.file.FileServicePromiseClient.prototype.createDir =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.CreateLnkRequest,
+ *   !proto.file.CreateLnkResponse>}
+ */
+const methodDescriptor_FileService_CreateLnk = new grpc.web.MethodDescriptor(
+  '/file.FileService/CreateLnk',
+  grpc.web.MethodType.UNARY,
+  proto.file.CreateLnkRequest,
+  proto.file.CreateLnkResponse,
+  /**
+   * @param {!proto.file.CreateLnkRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CreateLnkResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.CreateLnkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateLnkResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.CreateLnkResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.createLnk =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/CreateLnk',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateLnk,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.CreateLnkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.CreateLnkResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.createLnk =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/CreateLnk',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateLnk);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.DeleteDirRequest,
  *   !proto.file.DeleteDirResponse>}
  */
@@ -1096,6 +1157,62 @@ proto.file.FileServicePromiseClient.prototype.uploadVideo =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.UploadFileRequest,
+ *   !proto.file.UploadFileResponse>}
+ */
+const methodDescriptor_FileService_UploadFile = new grpc.web.MethodDescriptor(
+  '/file.FileService/UploadFile',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.file.UploadFileRequest,
+  proto.file.UploadFileResponse,
+  /**
+   * @param {!proto.file.UploadFileRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.UploadFileResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.UploadFileRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.UploadFileResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.uploadFile =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/UploadFile',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_UploadFile);
+};
+
+
+/**
+ * @param {!proto.file.UploadFileRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.UploadFileResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServicePromiseClient.prototype.uploadFile =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/UploadFile',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_UploadFile);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.CreateVideoPreviewRequest,
  *   !proto.file.CreateVideoPreviewResponse>}
  */
@@ -1395,6 +1512,67 @@ proto.file.FileServicePromiseClient.prototype.startProcessVideo =
       request,
       metadata || {},
       methodDescriptor_FileService_StartProcessVideo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.StartProcessAudioRequest,
+ *   !proto.file.StartProcessAudioResponse>}
+ */
+const methodDescriptor_FileService_StartProcessAudio = new grpc.web.MethodDescriptor(
+  '/file.FileService/StartProcessAudio',
+  grpc.web.MethodType.UNARY,
+  proto.file.StartProcessAudioRequest,
+  proto.file.StartProcessAudioResponse,
+  /**
+   * @param {!proto.file.StartProcessAudioRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.StartProcessAudioResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.StartProcessAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.StartProcessAudioResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.StartProcessAudioResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.startProcessAudio =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/StartProcessAudio',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StartProcessAudio,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.StartProcessAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.StartProcessAudioResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.startProcessAudio =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/StartProcessAudio',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StartProcessAudio);
 };
 
 

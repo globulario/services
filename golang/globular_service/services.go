@@ -393,10 +393,28 @@ func InitService(s Service) error {
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
+		
 		// Now I will set the path where the configuation will be save in that case.
+		servicesDir := config.GetServicesDir()
 		dir, _ := osext.ExecutableFolder()
 		path := strings.ReplaceAll(dir, "\\", "/")
-		s.SetConfigurationPath(path + "/config.json")
+
+		if !strings.HasPrefix(path, servicesDir){
+			// this will create a new configuration config.json beside the exec if no configuration file
+			// already exist. Mostly use by development environnement.
+			s.SetConfigurationPath(path + "/config.json")
+		}else{
+			servicesConfigDir := config.GetServicesConfigDir()
+			configPath := strings.Replace(path, servicesDir, servicesConfigDir, -1)
+			if Utility.Exists(configPath + "/config.json"){
+				s.SetConfigurationPath(configPath + "/config.json")
+			}else{
+				// so here no configuration exist at default configuration path and the 
+				// service was started without argument. In that case I will create the configuration
+				// file beside the executable file.
+				s.SetConfigurationPath(path + "/config.json")
+			}
+		}
 	}
 
 	if len(s.GetConfigurationPath()) == 0 {
@@ -444,7 +462,7 @@ func InitService(s Service) error {
 	// Now the platform.
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
-
+	
 	return SaveService(s)
 }
 
@@ -458,6 +476,13 @@ func SaveService(s Service) error {
 	if err != nil {
 		return err
 	}
+
+	// if the program was start directly without Globular.
+	if len(os.Args) == 1 {
+		data, _ := Utility.ToJson(config_)
+		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
+	}
+	
 	return config_client.SaveServiceConfiguration(config_)
 }
 
@@ -654,8 +679,10 @@ func StartService(s Service, server *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
+	address := "0.0.0.0" //Utility.MyLocalIP() // 
 
-	lis, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
+	fmt.Println("start service ", s.GetName(), "grpc port ", s.GetPort(), " proxy port ", s.GetProxy())
+	lis, err = net.Listen("tcp", address + ":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
 		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)

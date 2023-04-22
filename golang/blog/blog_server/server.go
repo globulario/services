@@ -726,6 +726,13 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
  * Save a blog post.
  */
 func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
+
+	// Set the domain
+	blogPost.Domain, _ = config.GetDomain()
+
+	// set the mac address to...
+	blogPost.Mac, _ = Utility.MyMacAddr(Utility.MyIP())
+
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(blogPost)
 	if err != nil {
@@ -810,7 +817,6 @@ func main() {
 	// specific permissions.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[1] = map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	s_impl.Permissions[2] = map[string]interface{}{"action": "/blog.BlogService/GetBlogPosts", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

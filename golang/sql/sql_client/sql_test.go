@@ -83,7 +83,6 @@ func TestInsertValue(t *testing.T) {
 
 	data, err := client.ExecContext("employees_db", query, `[1, "Dave", "Courtois", "M"]`, nil)
 	if err != nil {
-		log.Println("------> fail to insert a new employe ", err)
 		return
 	}
 

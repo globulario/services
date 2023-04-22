@@ -428,27 +428,13 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 		}
 	}
 
-	// Now I will set it in the rbac as resource owner...
-	permissions := &rbacpb.Permissions{
-		Allowed: []*rbacpb.Permission{},
-		Denied:  []*rbacpb.Permission{},
-		Owners: &rbacpb.Permission{
-			Name:          "owner", // The name is informative in that particular case.
-			Applications:  []string{},
-			Accounts:      []string{clientId},
-			Groups:        []string{},
-			Peers:         []string{},
-			Organizations: []string{},
-		},
-	}
-
 	// Set the owner of the conversation.
 	rbac_client_, err := server.GetRbacClient()
 	if err != nil {
 		return err
 	}
 
-	err = rbac_client_.SetResourcePermissions(token, path, "domain", permissions)
+	err = rbac_client_.AddResourceOwner(path, "domain", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	if err != nil {
 		return err

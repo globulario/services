@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
-	"log"
 	"os"
 
 	"github.com/davecourtois/Utility"
@@ -426,24 +426,59 @@ func (event_server *server) run() {
 	channels := make(map[string][]string)
 	streams := make(map[string]eventpb.EventService_OnEventServer)
 	quits := make(map[string]chan bool)
+	ka := make(chan *eventpb.KeepAlive)
 
 	// Here will create the action channel.
 	event_server.actions = make(chan map[string]interface{})
+
+	// validate stream at interval of 5 second
+	// it will prevent the stream to be close by grpc...
+	// and non responding stream will be remove from the list of listener.
+	ticker := time.NewTicker(15 * time.Second)
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				ka <- &eventpb.KeepAlive{}
+			}
+		}
+	}()
 
 	for {
 		select {
 		case <-event_server.exit:
 			break
+
+		case ka_ := <-ka:
+			for uuid, stream := range streams {
+				err := stream.Send(&eventpb.OnEventResponse{
+					Data: &eventpb.OnEventResponse_Ka{
+						Ka: ka_,
+					},
+				})
+
+				if err != nil {
+					// invalidate the stream in that case.
+					go func(quit chan bool) {
+						quit <- true
+					}(quits[uuid])
+					
+					// remove the channel from the map.
+					delete(quits, uuid)
+				}
+			}
+
 		case a := <-event_server.actions:
 
 			action := a["action"].(string)
-			//fmt.Println("event server action received: ", action)
 
 			if action == "onevent" {
 				streams[a["uuid"].(string)] = a["stream"].(eventpb.EventService_OnEventServer)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
 			} else if action == "subscribe" {
-
 				if channels[a["name"].(string)] == nil {
 					channels[a["name"].(string)] = make([]string, 0)
 				}
@@ -455,16 +490,20 @@ func (event_server *server) run() {
 				// Publish event only if the channel exist. The channel will be created when
 				// the first subcriber is register and delete when the last subscriber unsubscribe.
 				if channels[a["name"].(string)] != nil {
+
 					toDelete := make([]string, 0)
 					for i := 0; i < len(channels[a["name"].(string)]); i++ {
 						uuid := channels[a["name"].(string)][i]
 						stream := streams[uuid]
 						if stream != nil {
+
 							// Here I will send data to stream.
 							err := stream.Send(&eventpb.OnEventResponse{
-								Evt: &eventpb.Event{
-									Name: a["name"].(string),
-									Data: a["data"].([]byte),
+								Data: &eventpb.OnEventResponse_Evt{
+									Evt: &eventpb.Event{
+										Name: a["name"].(string),
+										Data: a["data"].([]byte),
+									},
 								},
 							})
 
@@ -472,10 +511,12 @@ func (event_server *server) run() {
 							// from the list.
 							if err != nil {
 								// append to channle list to be close.
+								fmt.Println("fail to send message over stream ", uuid, " with error ", err)
 								toDelete = append(toDelete, uuid)
 							}
 						} else {
-							log.Println("connection stream with ", uuid, "is nil!")
+							fmt.Println("remove stream ", uuid)
+							toDelete = append(toDelete, uuid)
 						}
 					}
 
@@ -493,10 +534,14 @@ func (event_server *server) run() {
 							channels[name] = uuids
 						}
 						// return from OnEvent
-						quits[uuid] <- true
+						go func(quit chan bool) {
+							quit <- true
+						}(quits[uuid])
+
 						// remove the channel from the map.
 						delete(quits, uuid)
 					}
+
 				}
 			} else if action == "unsubscribe" {
 				uuids := make([]string, 0)
@@ -524,6 +569,7 @@ func (event_server *server) run() {
 			}
 		}
 	}
+
 }
 
 // Connect to an event channel or create it if it not already exist
@@ -554,6 +600,8 @@ func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb
 
 	// wait util unsbscribe or connection is close.
 	<-onevent["quit"].(chan bool)
+
+	fmt.Println("lister ", rqst.Uuid, "quit")
 
 	return nil
 }
@@ -587,10 +635,13 @@ func (event_server *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSub
 
 // Publish event on channel.
 func (event_server *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
+
 	publish := make(map[string]interface{})
 	publish["action"] = "publish"
 	publish["name"] = rqst.Evt.Name
 	publish["data"] = rqst.Evt.Data
+
+	fmt.Println("Publish event ", rqst.Evt.Name)
 
 	// publish the data.
 	event_server.actions <- publish
@@ -642,7 +693,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		fmt.Println("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		fmt.Printf("fail to initialyse service %s: %s\n", s_impl.Name, s_impl.Id)
 		return
 	}
 
@@ -657,7 +708,7 @@ func main() {
 	err = s_impl.StartService()
 
 	if err != nil {
-		fmt.Println("Fail to start service %s: %s", s_impl.Name, s_impl.Id)
+		fmt.Printf("Fail to start service %s: %s\n", s_impl.Name, s_impl.Id)
 		return
 	}
 

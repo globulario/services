@@ -3,7 +3,9 @@ package title_client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"time"
 
 	//"github.com/davecourtois/Utility"
 	"github.com/davecourtois/Utility"
@@ -78,15 +80,22 @@ func NewTitleService_Client(address string, id string) (*Title_Client, error) {
 }
 
 func (client *Title_Client) Reconnect() error {
-	var err error
 
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	var err error
+	nb_try_connect := 10
+
+	for i := 0; i < nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = titlepb.NewTitleServiceClient(client.cc)
+			break
+		}
+
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = titlepb.NewTitleServiceClient(client.cc)
-	return nil
+	return err
 }
 
 // The address where the client can connect.
@@ -243,8 +252,10 @@ func (client *Title_Client) CreateTitle(token, path string, title *titlepb.Title
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreateTitle(ctx, rqst)
@@ -262,8 +273,10 @@ func (client *Title_Client) CreateAudio(token, path string, track *titlepb.Audio
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreateAudio(ctx, rqst)
@@ -452,9 +465,52 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 }
 
 /**
+ * Return a person with a given id.
+ */
+func (client *Title_Client) GetPersonById(indexPath, id string) (*titlepb.Person, error) {
+	rqst := &titlepb.GetPersonByIdRequest{
+		IndexPath: indexPath,
+		PersonId: id,
+	}
+
+	rsp, err := client.c.GetPersonById(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Person, nil
+}
+
+/**
  * Create video
  */
 func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video) error {
+
+	// I will create casting and adjust the existing one...
+	casting := make([]*titlepb.Person, 0)
+	for i := 0; i < len(video.Casting); i++ {
+		// retreive existion person info...
+		person := video.Casting[i]
+
+		p, err := client.GetPersonById(path, person.ID)
+		if err == nil {
+			for j := 0; j < len(p.Casting); j++ {
+				if !Utility.Contains(person.Casting, p.Casting[j]) {
+					person.Casting = append(person.Casting, p.Casting[j])
+				}
+			}
+		}
+
+		err = client.CreatePerson(token, path, person)
+		if err == nil {
+			casting = append(casting, person)
+		}else{
+			fmt.Println("fail to create person with error: ", err)
+		}
+	}
+
+	// set the casting with validated values.
+	video.Casting = casting
 
 	rqst := &titlepb.CreateVideoRequest{
 		Video:     video,
@@ -464,7 +520,10 @@ func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -486,8 +545,10 @@ func (client *Title_Client) CreatePerson(token, path string, p *titlepb.Person) 
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreatePerson(ctx, rqst)
@@ -505,8 +566,10 @@ func (client *Title_Client) CreatePublisher(token, path string, p *titlepb.Publi
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 	}
 
 	_, err := client.c.CreatePublisher(ctx, rqst)

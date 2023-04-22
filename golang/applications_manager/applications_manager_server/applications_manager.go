@@ -23,7 +23,6 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
 
@@ -143,9 +142,37 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 
 		// roles
 		roles := make([]*resourcepb.Role, 0)
+		if descriptor["roles"] != nil {
+			roles_ := descriptor["roles"].([]interface{})
+			for i := 0; i < len(roles_); i++ {
+				role_ := roles_[i].(map[string]interface{})
+				r := new(resourcepb.Role)
+				r.Id = role_["id"].(string)
+				r.Name = role_["name"].(string)
+				r.Domain, _ = config.GetDomain()
+				actions := role_["actions"].([]interface{})
+				r.Actions = make([]string, len(actions))
+				for j:=0; j <len(actions); i++ {
+					r.Actions[j] = actions[j].(string) 
+				}
+				roles = append(roles, r)
+			}
+		}
+		
 
 		// groups
 		groups := make([]*resourcepb.Group, 0)
+		if descriptor["groups"] != nil {
+			groups_ := descriptor["groups"].([]interface{})
+			for i := 0; i < len(groups); i++ {
+				group_ := groups_[i].(map[string]interface{})
+				g := new(resourcepb.Group)
+				g.Id = group_["id"].(string)
+				g.Domain, _ = config.GetDomain()
+				g.Name = group_["name"].(string)
+				groups = append(groups, g)
+			}
+		}
 
 		// Now I will install the applicaiton.
 		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
@@ -199,6 +226,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		}, nil
 	}
 
+
 	// Connect to the dicovery services
 	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
@@ -244,6 +272,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		// Create the file.
 		r := bytes.NewReader(bundle.Binairies)
 
+
 		// Now I will install the applicaiton.
 		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
 		if err != nil {
@@ -266,6 +295,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
+
 		return err
 	}
 
@@ -377,40 +407,4 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	}
 
 	return err
-}
-
-/**
- * Send a application notification.
- * That function will send notification to all connected user of that application.
- */
-func (server *server) sendApplicationNotification(application string, message string) error {
-
-	// That service made user of persistence service.
-	notification := new(resourcepb.Notification)
-	notification.Id = Utility.RandomUUID()
-	notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
-	notification.Message = message
-	notification.Recipient = application
-	notification.Date = time.Now().Unix()
-
-	// here I will get infos from the datastore.
-	application_, err := server.getApplication(application)
-	if err != nil {
-		return err
-	}
-
-	notification.Sender = `{"_id":"` + application_.Id + `", "name":"` + application_.Name + `","icon":"` + application_.Icon + `", "alias":"` + application_.Alias + `"}`
-
-	err = server.createNotification(notification)
-	if err != nil {
-		return err
-	}
-
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(notification)
-	if err != nil {
-		return err
-	}
-
-	return server.publish(application+"_notification_event", []byte(jsonStr))
 }

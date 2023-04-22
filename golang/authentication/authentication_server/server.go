@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -489,15 +490,10 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
-		fmt.Println("--------------> fail to get rbac client at address:", err)
 		return err
 	}
 
 	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
-	if err != nil {
-		fmt.Println("----------------> fail to add resource owner: ", err)
-	}
-
 	return err
 }
 
@@ -614,6 +610,11 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
+	// take the first part of the account.
+	if strings.Contains(accountId, "@"){
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
 	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err

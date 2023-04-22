@@ -49,7 +49,7 @@ require (
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.28.1
-	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
+	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
 
 require (
@@ -71,6 +71,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc/examples v0.0.0-20221006202345-c03925db8d3c // indirect
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	nhooyr.io/websocket v1.8.6 // indirect
 )
 
@@ -138,7 +139,7 @@ require (
 	github.com/martinlindhe/base36 v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
@@ -184,11 +185,10 @@ require (
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/text v0.4.0
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00 // indirect
-	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
 	modernc.org/libc v1.11.82 // indirect
 	modernc.org/mathutil v1.4.1 // indirect
 	modernc.org/memory v1.0.5 // indirect

@@ -416,12 +416,14 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 
 // when services state change that publish
 func (server *server) publishEvent(evt string, data []byte, domain string) error {
+
 	client, err := GetEventClient(domain)
 	if err != nil {
 		return err
 	}
 
-	return client.Publish(evt, data)
+	err = client.Publish(evt, data)
+	return err
 }
 
 // Public event to a peer other than the default one...
@@ -540,7 +542,6 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
-	//fmt.Println("------------> 543")
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
@@ -1366,6 +1367,17 @@ func main() {
 			"/resource.ResourceService/GetNotifications",
 			"/resource.ResourceService/CreateNotification",
 			"/resource.ResourceService/DeleteNotification",
+			"/title.TitleService/GetPublisherById",
+			"/title.TitleService/CreatePerson",
+			"/title.TitleService/GetPersonById",
+			"/title.TitleService/GetAudioById",
+			"/title.TitleService/GetAlbum",
+			"/title.TitleService/GetVideoById",
+			"/title.TitleService/GetFileTitles",
+			"/title.TitleService/GetFileAudios",
+			"/title.TitleService/GetTitleFiles",
+			"/title.TitleService/SearchTitles",
+			"/title.TitleService/SearchPersons",
 		})
 
 		// Here I will create user directories if their not already exist...
