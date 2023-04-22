@@ -115,7 +115,7 @@ protoc --js_out=import_style=commonjs:typescript/torrent  -I ./proto/ torrent.pr
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/torrent -I ./proto/ torrent.proto
 
 # CSharp grpc files generation
-# on window use C:\Users\mm006819\Documents\exec\grpc_dist\bin\grpc_csharp_plugin.exe
+# on window use C:\Users\account_name\Documents\exec\grpc_dist\bin\grpc_csharp_plugin.exe
 # on linux use /usr/local/bin/grpc_csharp_plugin
 protoc --grpc_out=./csharp/config/GlobularConfigClient --csharp_out=./csharp/config/GlobularConfigClient --csharp_opt=file_extension=.g.cs proto/config.proto --plugin="protoc-gen-grpc=C:/msys64/mingw64/bin/grpc_csharp_plugin.exe"
 protoc --grpc_out=./csharp/event/GlobularEventClient --csharp_out=./csharp/event/GlobularEventClient --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
@@ -148,4 +148,3 @@ mkdir cpp/spc/spcpb
 protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/spc/spcpb -I proto/ spc.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/spc/spcpb -I proto/ spc.proto
 protoc --cpp_out=./cpp/spc/spcpb  -I proto/ spc.proto
-
