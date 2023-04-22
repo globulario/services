@@ -2013,185 +2013,7 @@ func (x *Share) GetOrganizations() []string {
 	return nil
 }
 
-<<<<<<< HEAD
 //*
-// Set a share, that can be use to add/remove/update an
-type ShareResourceRqst struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Share *Share `protobuf:"bytes,1,opt,name=share,proto3" json:"share,omitempty"`
-}
-
-func (x *ShareResourceRqst) Reset() {
-	*x = ShareResourceRqst{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rbac_proto_msgTypes[34]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *ShareResourceRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ShareResourceRqst) ProtoMessage() {}
-
-func (x *ShareResourceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_rbac_proto_msgTypes[34]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ShareResourceRqst.ProtoReflect.Descriptor instead.
-func (*ShareResourceRqst) Descriptor() ([]byte, []int) {
-	return file_rbac_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *ShareResourceRqst) GetShare() *Share {
-	if x != nil {
-		return x.Share
-	}
-	return nil
-}
-
-type ShareResourceRsp struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *ShareResourceRsp) Reset() {
-	*x = ShareResourceRsp{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rbac_proto_msgTypes[35]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *ShareResourceRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ShareResourceRsp) ProtoMessage() {}
-
-func (x *ShareResourceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_rbac_proto_msgTypes[35]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ShareResourceRsp.ProtoReflect.Descriptor instead.
-func (*ShareResourceRsp) Descriptor() ([]byte, []int) {
-	return file_rbac_proto_rawDescGZIP(), []int{35}
-}
-
-//*
-// Delete the share.
-type UnshareResourceRqst struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Share *Share `protobuf:"bytes,1,opt,name=share,proto3" json:"share,omitempty"`
-}
-
-func (x *UnshareResourceRqst) Reset() {
-	*x = UnshareResourceRqst{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rbac_proto_msgTypes[36]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *UnshareResourceRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UnshareResourceRqst) ProtoMessage() {}
-
-func (x *UnshareResourceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_rbac_proto_msgTypes[36]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UnshareResourceRqst.ProtoReflect.Descriptor instead.
-func (*UnshareResourceRqst) Descriptor() ([]byte, []int) {
-	return file_rbac_proto_rawDescGZIP(), []int{36}
-}
-
-func (x *UnshareResourceRqst) GetShare() *Share {
-	if x != nil {
-		return x.Share
-	}
-	return nil
-}
-
-type UnshareResourceRsp struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *UnshareResourceRsp) Reset() {
-	*x = UnshareResourceRsp{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_rbac_proto_msgTypes[37]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *UnshareResourceRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UnshareResourceRsp) ProtoMessage() {}
-
-func (x *UnshareResourceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_rbac_proto_msgTypes[37]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UnshareResourceRsp.ProtoReflect.Descriptor instead.
-func (*UnshareResourceRsp) Descriptor() ([]byte, []int) {
-	return file_rbac_proto_rawDescGZIP(), []int{37}
-}
-
-//*
-=======
-// *
->>>>>>> d9c7ce02dec36f57cb88f301f19140093f40aec1
 // Get the list of accessible resource for a given subject.
 type GetSharedResourceRqst struct {
 	state         protoimpl.MessageState
@@ -3396,27 +3218,6 @@ var file_rbac_proto_goTypes = []interface{}{
 	(*SetActionResourcesPermissionsRqst)(nil),        // 33: rbac.SetActionResourcesPermissionsRqst
 	(*SetActionResourcesPermissionsRsp)(nil),         // 34: rbac.SetActionResourcesPermissionsRsp
 	(*Share)(nil),                                    // 35: rbac.Share
-<<<<<<< HEAD
-	(*ShareResourceRqst)(nil),                        // 36: rbac.ShareResourceRqst
-	(*ShareResourceRsp)(nil),                         // 37: rbac.ShareResourceRsp
-	(*UnshareResourceRqst)(nil),                      // 38: rbac.UnshareResourceRqst
-	(*UnshareResourceRsp)(nil),                       // 39: rbac.UnshareResourceRsp
-	(*GetSharedResourceRqst)(nil),                    // 40: rbac.GetSharedResourceRqst
-	(*GetSharedResourceRsp)(nil),                     // 41: rbac.GetSharedResourceRsp
-	(*RemoveSubjectFromShareRqst)(nil),               // 42: rbac.RemoveSubjectFromShareRqst
-	(*RemoveSubjectFromShareRsp)(nil),                // 43: rbac.RemoveSubjectFromShareRsp
-	(*DeleteSubjectShareRqst)(nil),                   // 44: rbac.DeleteSubjectShareRqst
-	(*DeleteSubjectShareRsp)(nil),                    // 45: rbac.DeleteSubjectShareRsp
-	(*SetSubjectAllocatedSpaceRqst)(nil),             // 46: rbac.SetSubjectAllocatedSpaceRqst
-	(*SetSubjectAllocatedSpaceRsp)(nil),              // 47: rbac.SetSubjectAllocatedSpaceRsp
-	(*GetSubjectAllocatedSpaceRqst)(nil),             // 48: rbac.GetSubjectAllocatedSpaceRqst
-	(*GetSubjectAllocatedSpaceRsp)(nil),              // 49: rbac.GetSubjectAllocatedSpaceRsp
-	(*GetSubjectAvailableSpaceRqst)(nil),             // 50: rbac.GetSubjectAvailableSpaceRqst
-	(*GetSubjectAvailableSpaceRsp)(nil),              // 51: rbac.GetSubjectAvailableSpaceRsp
-	(*ValidateSubjectSpaceRqst)(nil),                 // 52: rbac.ValidateSubjectSpaceRqst
-	(*ValidateSubjectSpaceRsp)(nil),                  // 53: rbac.ValidateSubjectSpaceRsp
-	(*structpb.Struct)(nil),                          // 54: google.protobuf.Struct
-=======
 	(*GetSharedResourceRqst)(nil),                    // 36: rbac.GetSharedResourceRqst
 	(*GetSharedResourceRsp)(nil),                     // 37: rbac.GetSharedResourceRsp
 	(*RemoveSubjectFromShareRqst)(nil),               // 38: rbac.RemoveSubjectFromShareRqst
@@ -3431,8 +3232,7 @@ var file_rbac_proto_goTypes = []interface{}{
 	(*GetSubjectAvailableSpaceRsp)(nil),              // 47: rbac.GetSubjectAvailableSpaceRsp
 	(*ValidateSubjectSpaceRqst)(nil),                 // 48: rbac.ValidateSubjectSpaceRqst
 	(*ValidateSubjectSpaceRsp)(nil),                  // 49: rbac.ValidateSubjectSpaceRsp
-	(*_struct.Struct)(nil),                           // 50: google.protobuf.Struct
->>>>>>> d9c7ce02dec36f57cb88f301f19140093f40aec1
+	(*structpb.Struct)(nil),                          // 50: google.protobuf.Struct
 }
 var file_rbac_proto_depIdxs = []int32{
 	2,  // 0: rbac.Permissions.owners:type_name -> rbac.Permission
