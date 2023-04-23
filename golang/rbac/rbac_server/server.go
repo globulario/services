@@ -510,6 +510,16 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	if strings.Contains(accountId, "@") {
 		if len(strings.Split(accountId, "@")[1]) > 0 {
 			domain = strings.Split(accountId, "@")[1]
+
+			// that can happen when the globule domain has change after configurations...
+			// the domain was empty when first install, so the
+			hostname, _ := os.Hostname()
+			if domain == hostname {
+				if strings.HasPrefix(localDomain, domain) {
+					// in that particular case the domain has been change...
+					domain = localDomain
+				}
+			}
 		}
 		accountId = strings.Split(accountId, "@")[0]
 	} else {

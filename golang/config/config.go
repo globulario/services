@@ -71,7 +71,6 @@ func GetDomain() (string, error) {
 	if err == nil {
 
 		domain := localConfig["Name"].(string)
-
 		if len(localConfig["Domain"].(string)) > 0 {
 			if len(domain) > 0 {
 				domain += "."
@@ -115,8 +114,10 @@ func GetRootDir() string {
 func GetGlobularExecPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
-		if len(localConfig["Path"].(string)) != 0 {
-			return localConfig["Path"].(string)
+		if localConfig["Path"] != nil {
+			if len(localConfig["Path"].(string)) != 0 {
+				return localConfig["Path"].(string)
+			}
 		}
 	}
 	return ""
@@ -215,33 +216,32 @@ func GetServicesConfigDir() string {
 		// Force to take service at a given location.
 		if len(GetServicesRoot()) > 0 {
 			return GetServicesRoot()
-		}else if Utility.Exists(dir[0:strings.LastIndex(dir, "/")] + "/services") {
+		} else if Utility.Exists(dir[0:strings.LastIndex(dir, "/")] + "/services") {
 			return dir[0:strings.LastIndex(dir, "/")] + "/services"
-		}else{
+		} else {
 			return GetConfigDir() + "/services"
 		}
 
 	} else {
 		// test if service ServicesRoot is define, that will force to get services configurations
 		// from a given directory
-		
+
 		if len(GetServicesRoot()) > 0 {
 			return GetServicesRoot()
-		}else if Utility.Exists(GetConfigDir() + "/services"){
+		} else if Utility.Exists(GetConfigDir() + "/services") {
 			return GetConfigDir() + "/services"
-		}else{
-			
+		} else {
+
 			if len(GetServicesDir()) > 0 {
 				return GetServicesDir()
 			}
-			
+
 			// Test if it's in the development environnement.
 			_, filename, _, _ := runtime.Caller(0)
-			 fmt.Println("Current test filename: ", filename)
+			fmt.Println("Current test filename: ", filename)
 			if strings.Index(filename, "/services/golang/config/") != -1 {
 				return filename[0:strings.Index(filename, "/config/")]
 			}
-
 
 			// No service configuration was found
 			return ""
@@ -920,7 +920,6 @@ func initConfig() {
 		removeAllLocks()
 	}
 
-
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
@@ -928,7 +927,7 @@ func initConfig() {
 
 	if err != nil || len(files) == 0 {
 		fmt.Println("no configuration found at ", serviceConfigDir)
-		return 
+		return
 	}
 
 	// configuration was found so I will set init to true
@@ -936,7 +935,6 @@ func initConfig() {
 
 	// The service dir.
 	serviceDir := GetServicesDir()
-	
 
 	execname := filepath.Base(os.Args[0])
 

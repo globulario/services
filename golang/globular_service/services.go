@@ -218,8 +218,13 @@ func (s *WrapperedGRPCWebServer) Serve() error {
 	g.Go(func() error { return s.GRPCServer.Serve(grpcListener) })
 	g.Go(func() error { return httpServer.Serve(httpListener) })
 	g.Go(m.Serve)
-	fmt.Println("Run server: ", g.Wait())
-	return nil
+
+	err := g.Wait()
+	if err != nil {
+		fmt.Println("service error ", err)
+	}
+
+	return err
 }
 
 // The client service interface.

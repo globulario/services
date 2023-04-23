@@ -1655,7 +1655,6 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 // Return a resource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
 
-	fmt.Println("get resource permission for: ", path)
 	chached, err := rbac_server.cache.GetItem(path)
 	if err == nil && chached != nil {
 		permissions := new(rbacpb.Permissions)

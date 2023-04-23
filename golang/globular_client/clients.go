@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"runtime"
+	"runtime/debug"
 	"time"
 
 	//"log"
@@ -42,13 +44,24 @@ func GetClient(address, name, fct string) (Client, error) {
 
 	results, err := Utility.CallFunction(fct, address, name)
 	if err != nil {
+
 		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
+
+		b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
+		n := runtime.Stack(b, false)
+		s := string(b[:n])
+		fmt.Println(s)
+
 		return nil, err
 	}
 
 	if !results[1].IsNil() {
 		err := results[1].Interface().(error)
 		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
+		b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
+		n := runtime.Stack(b, false)
+		s := string(b[:n])
+		fmt.Println(s)
 		return nil, err
 	}
 
@@ -382,10 +395,11 @@ func clientInterceptor(client_ Client) func(
 				} else {
 
 					fmt.Println("fail to initialyse client ", client_.GetName()+":"+client_.GetId(), err)
+					debug.PrintStack()
+
 				}
 
 			}
-			//fmt.Println("------------> error ", err)
 		}
 		return err
 	}
