@@ -162,7 +162,7 @@ func InitClient(client Client, address string, id string) error {
 		return errors.New("no address was given for client id " + id)
 	}
 
-	if len(address) == 0 {
+	if len(id) == 0 {
 		return errors.New("no id was given for client address " + address)
 	}
 
