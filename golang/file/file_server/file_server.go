@@ -2037,6 +2037,7 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 // Move a file/directory
 func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
+	
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
@@ -2066,6 +2067,11 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 		from := file_server.formatPath(rqst.Files[i])
 		dest := file_server.formatPath(rqst.Path)
 		info, _ := os.Stat(from)
+
+		
+
+
+		fmt.Println("---------------> move file: ",from, "to", dest )
 
 		file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
 
@@ -2189,6 +2195,8 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 					output := dest + "/.hidden/" + fileName + "/__timeline__"
 					createVttFile(output, 0.2)
 				}
+			}else{
+				fmt.Println("fail to move file: ",from, "to", dest, "with error" , err)
 			}
 		}
 	}
@@ -5111,6 +5119,9 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 	// wait := make(chan error)
 	//Utility.RunCmd("yt-dlp", path, []string{"-j", "--flat-playlist", "--skip-download", url},  wait)
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
+
+	//fmt.Println("------------> run: ", "yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
+	
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
 	if err != nil {
