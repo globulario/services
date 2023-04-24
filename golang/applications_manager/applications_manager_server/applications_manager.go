@@ -99,6 +99,7 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 		if err != nil {
 			return err
 		}
+
 		defer os.RemoveAll(_extracted_path_)
 
 		// So now I will get the application descriptor
@@ -152,14 +153,13 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 				r.Domain, _ = config.GetDomain()
 				actions := role_["actions"].([]interface{})
 				r.Actions = make([]string, len(actions))
-				for j:=0; j <len(actions); i++ {
+				for j:=0; j <len(actions); j++ {
 					r.Actions[j] = actions[j].(string) 
 				}
 				roles = append(roles, r)
 			}
 		}
 		
-
 		// groups
 		groups := make([]*resourcepb.Group, 0)
 		if descriptor["groups"] != nil {
@@ -295,7 +295,6 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
-
 		return err
 	}
 
@@ -314,17 +313,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	}
 
 	// Copy the files to it final destination
-	abosolutePath := server.WebRoot
-
-	// If a domain is given.
-	if len(domain) > 0 {
-		if Utility.Exists(abosolutePath + "/" + domain) {
-			abosolutePath += "/" + domain
-		}
-	}
-
-	// set the absolute application domain.
-	abosolutePath += "/" + name
+	abosolutePath := server.WebRoot + "/" + name
 
 	// Remove the existing files.
 	if Utility.Exists(abosolutePath) {
@@ -332,8 +321,16 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	}
 
 	// Recreate the dir and move file in it.
-	Utility.CreateDirIfNotExist(abosolutePath)
-	Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
+	err = Utility.CreateDirIfNotExist(abosolutePath)
+	if err != nil {
+		return err
+	}
+
+	err = Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
+	if err != nil {
+		return err
+	}
+   
 	if len(alias) == 0 {
 		return errors.New("no application alias was given")
 	}
