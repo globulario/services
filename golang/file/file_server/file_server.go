@@ -2037,7 +2037,6 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 // Move a file/directory
 func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
-	
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
@@ -2068,10 +2067,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 		dest := file_server.formatPath(rqst.Path)
 		info, _ := os.Stat(from)
 
-		
-
-
-		fmt.Println("---------------> move file: ",from, "to", dest )
+		fmt.Println("---------------> move file: ", from, "to", dest)
 
 		file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
 
@@ -2195,8 +2191,8 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 					output := dest + "/.hidden/" + fileName + "/__timeline__"
 					createVttFile(output, 0.2)
 				}
-			}else{
-				fmt.Println("fail to move file: ",from, "to", dest, "with error" , err)
+			} else {
+				fmt.Println("fail to move file: ", from, "to", dest, "with error", err)
 			}
 		}
 	}
@@ -2695,6 +2691,8 @@ func getHttpClient() *http.Client {
 
 func restoreVideoInfos(client *title_client.Title_Client, token, video_path string) error {
 
+	fmt.Println("try to restore video info for ", video_path)
+
 	// get video info from metadata
 	infos, err := getVideoInfos(video_path)
 	if err != nil {
@@ -2713,20 +2711,20 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 	cache.RemoveItem(video_path)
 
 	if err == nil && infos != nil {
+
 		if infos["format"] != nil {
 			if infos["format"].(map[string]interface{})["tags"] != nil {
 				tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
 				if tags["comment"] != nil {
 					comment := strings.TrimSpace(tags["comment"].(string))
-
 					if len(comment) > 0 {
-						if strings.Contains(comment, "{") {
 
-							jsonStr, err := base64.StdEncoding.DecodeString(comment)
-							if err != nil {
-								jsonStr = []byte(comment)
-							}
+						jsonStr, err := base64.StdEncoding.DecodeString(comment)
+						if err != nil {
+							jsonStr = []byte(comment)
+						}
 
+						if strings.Contains(string(jsonStr), "{") {
 							title := new(titlepb.Title)
 							err = jsonpb.UnmarshalString(string(jsonStr), title)
 
@@ -2798,10 +2796,13 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 
 							} else {
 
+								fmt.Println("-------------> video : ", 2803)
 								video := new(titlepb.Video)
 								err := jsonpb.UnmarshalString(string(jsonStr), video)
 
 								if err == nil && video != nil {
+
+									fmt.Println("-------------> video : ", video)
 
 									// so here I will make sure the title exist...
 									v, _, err := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
@@ -5121,7 +5122,7 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
 
 	//fmt.Println("------------> run: ", "yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
-	
+
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
 	if err != nil {
