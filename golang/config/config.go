@@ -921,14 +921,61 @@ func initConfig() {
 			if runtime.GOOS == "darwin" {
 
 				dir := GetRootDir()
-				
+
 				// Move service configuration to /etc/globular/config/services if not already there.
 				if Utility.Exists(dir + "/etc/globular/config/services") {
 					// keep existing service configurations...
 					if !Utility.Exists("/etc/globular/config/services") {
 						Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
 					}
+
+					// remove the configurations...
 					os.RemoveAll(dir + "/etc")
+
+					// copy files from the /bin into usr local bin...
+					execs, err := Utility.ReadDir(dir + "/bin")
+					if err == nil {
+						for i:=0; i < len(execs); i++ {
+							if !execs[i].IsDir() {
+								path :=  dir + "/bin/" + execs[i].Name()
+								fmt.Println("copy ", path, "to", "/usr/local/bin/")
+								err := Utility.Move(path, "/usr/local/bin/")
+								if err == nil{
+									os.Chmod(path, 0755)
+								}else{
+									fmt.Println("fail to move file", path, "with error ", err)
+								}
+							}
+						}
+					}
+
+					// copy libraries.
+					libs, err := Utility.ReadDir(dir + "/lib")
+					if err == nil {
+						for i:=0; i < len(libs); i++ {
+							if !libs[i].IsDir() {
+								path :=  dir + "/lib/" + libs[i].Name()
+								Utility.Move(path, "/usr/local/lib")
+							}
+						}
+					}
+
+					// copy applications.
+					Utility.CreateDirIfNotExist("/var/globular")
+					Utility.CreateDirIfNotExist("/var/globular/applications")
+
+					applications, err := Utility.ReadDir(dir + "/var/globular/applications")
+					if err == nil {
+						for i:=0; i < len(applications); i++ {
+							if !libs[i].IsDir() {
+								path :=  dir + "/var/globular/applications/" + applications[i].Name()
+								err := Utility.Move(path, "/var/globular/applications")
+								if err != nil {
+									fmt.Println("-------------> ", path, err)
+								}
+							}
+						}
+					}
 				}
 
 				files, err = Utility.FindFileByName(GetServicesConfigDir(), "config.json")
