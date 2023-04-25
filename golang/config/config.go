@@ -92,19 +92,6 @@ func GetRootDir() string {
 	// Get the running exec dir as root instead of /var/local/share/globular...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	dir = strings.ReplaceAll(dir, "\\", "/")
-
-	// So here the root dir can be the client exec itself or globular.
-	if runtime.GOOS == "darwin" {
-		// Move service configuration to /etc/globular/config/services if not already there.
-		if Utility.Exists(dir + "/etc/globular/config/services") {
-			// keep existing service configurations...
-			if !Utility.Exists("/etc/globular/config/services") {
-				Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
-			}
-			os.RemoveAll(dir + "/etc")
-		}
-	}
-
 	return dir
 }
 
@@ -144,6 +131,7 @@ func GetPublicDirs() []string {
 }
 
 func GetServicesDir() string {
+
 	// if services are taken from development environnement.
 	services_dir := GetServicesRoot()
 	if len(services_dir) > 0 {
@@ -922,12 +910,40 @@ func initConfig() {
 
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
+
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
 	services := make([]map[string]interface{}, 0)
 
 	if err != nil || len(files) == 0 {
 		fmt.Println("no configuration found at ", serviceConfigDir)
-		return
+		if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") {
+			// So here the root dir can be the client exec itself or globular.
+			if runtime.GOOS == "darwin" {
+
+				dir := GetRootDir()
+				
+				// Move service configuration to /etc/globular/config/services if not already there.
+				if Utility.Exists(dir + "/etc/globular/config/services") {
+					// keep existing service configurations...
+					if !Utility.Exists("/etc/globular/config/services") {
+						Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
+					}
+					os.RemoveAll(dir + "/etc")
+				}
+
+				files, err = Utility.FindFileByName(GetServicesConfigDir(), "config.json")
+				if err != nil {
+					fmt.Println("fail to retreive service configurations file with error: ", err)
+					os.Exit(0) 
+				}
+			}
+		}
+	}
+
+	// In that case I will exit
+	if len(files) == 0 {
+		fmt.Println("no services configuration was found at path ", serviceConfigDir)
+		os.Exit(0) 
 	}
 
 	// configuration was found so I will set init to true
@@ -974,6 +990,7 @@ func initConfig() {
 		}
 	}
 
+
 	// start the loop.
 	go accesServiceConfigurationFile(services)
 
@@ -989,6 +1006,7 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 	if s["ModTime"] == nil {
 		s["ModTime"] = 0
 	}
+
 	if Utility.Exists(path) {
 		info, _ := os.Stat(path)
 		if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
