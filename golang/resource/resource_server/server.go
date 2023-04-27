@@ -1223,7 +1223,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"log.LogService"}
+	s_impl.Dependencies = []string{"log.LogService", "persistence.PersistenceService"}
 	s_impl.Permissions = make([]interface{}, 23)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

@@ -28,13 +28,13 @@ func (s *smtpServer) Address() string {
 func TestCreateConnection(t *testing.T) {
 
 	var err error
-	client, err = NewMailService_Client("globule-ryzen.globular.cloud:443", "mail.MailService")
+	client, err = NewMailService_Client("globule-aws.globular.io:443", "mail.MailService")
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	fmt.Println("Connection creation test.")
-	err = client.CreateConnection("test_smtp", "dave", "1234", 587, "globule-ryzen.globular.cloud")
+	err = client.CreateConnection("test_smtp", "dave", "1234", 587, "globule-aws.globular.io")
 
 	if err != nil {
 		log.Panicln(err)
@@ -48,9 +48,9 @@ func TestCreateConnection(t *testing.T) {
  */
 func TestSendEmail(t *testing.T) {
 
-	from := "dave@globular.cloud"
-	to := []string{"dave.courtois60@gmail.com"}
-	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
+	from := "dave@globular.io"
+	to := []string{"dave@globular.io"}
+	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave@globular.io"}}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
 	bodyType := int32(mailpb.BodyType_HTML)

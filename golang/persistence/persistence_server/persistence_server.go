@@ -507,15 +507,16 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 	var c connection
 	var err error
+
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]
-		c.Password = password
+		if c.Password != password {
+			return errors.New("a connection with id " + id + " already exist")
+		}else{
+			return nil // the connection already exist.
+		}
 
-	} else if _, ok := persistence_server.Connections[id]; ok {
-		c = persistence_server.Connections[id]
-		c.Password = password
-		
 	} else {
 
 		// Set the connection info from the request.
@@ -532,18 +533,22 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			if persistence_server.Connections == nil {
 				persistence_server.Connections = make(map[string]connection)
 			}
+
 			persistence_server.Connections[c.Id] = c
+
 			// In that case I will save it in file.
 			err = persistence_server.Save()
 			if err != nil {
 				return err
 			}
+
 		} else {
 			persistence_server.connections[c.Id] = c
 		}
 	}
 
 	if c.Store == persistencepb.StoreType_MONGO {
+
 		// here I will create a new mongo data store.
 		s := new(persistence_store.MongoStore)
 
@@ -553,6 +558,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			// codes.
 			return err
 		}
+
 		// keep the store for futur call...
 		persistence_server.stores[c.Id] = s
 	}

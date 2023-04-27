@@ -544,6 +544,8 @@ type Attachment struct {
  */
 func (svr *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 
+	fmt.Println("mail_server sendEmail ", host, user, pwd, port)
+	
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
 	msg.SetHeader("To", to...)
@@ -570,12 +572,15 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 	dialer := gomail.NewDialer(host, port, user, pwd)
 	dialer.Auth = smtp_.PlainAuth("", dialer.Username, dialer.Password, dialer.Host)
 
-	cer, err := tls.LoadX509KeyPair(svr.CertFile, svr.KeyFile)
-	if err != nil {
-		return err
+	if port != 25 {
+		cer, err := tls.LoadX509KeyPair(svr.CertFile, svr.KeyFile)
+		if err != nil {
+			return err
+		}
+
+		dialer.TLSConfig = &tls.Config{ServerName: host, Certificates: []tls.Certificate{cer}}
 	}
 
-	dialer.TLSConfig = &tls.Config{ServerName: host, Certificates: []tls.Certificate{cer}}
 	if err := dialer.DialAndSend(msg); err != nil {
 		return err
 	}
@@ -730,7 +735,6 @@ func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client
 // port number must be pass as argument.
 func main() {
 
-	log.Println("---> start mail server")
 	// Give base info to retreive it configuration.
 
 	// set the logger.
@@ -762,7 +766,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = make([]string, 0)
+	s_impl.Dependencies = []string{"log.LogService", "persistence.PersistenceService"}
 	s_impl.Connections = make(map[string]connection)
 	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
 	s_impl.Process = -1
@@ -799,11 +803,6 @@ func main() {
 		}
 
 		// The backend connection.
-		store, err := GetPersistenceClient(s_impl.Persistence_address)
-		if err != nil {
-			return
-		}
-
 		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
 		port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
 
@@ -813,14 +812,29 @@ func main() {
 		imap.Backend_port = port
 		smtp.Backend_port = port
 		imap.Backend_password = s_impl.Password
+
+		// if not connection withe the persistence service can be made...
+		store, err := GetPersistenceClient(s_impl.Persistence_address)
+		if err != nil {
+			fmt.Println("fail to connect to persistence service", s_impl.Persistence_address, "with error with error: ", err)
+			os.Exit(0)
+		}
+
 		imap.Store = store
 		smtp.Store = store
 
 		// Open the backend main connection
-		err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
-		if err != nil {
-			fmt.Println("fail to connect to local_resource with error: ", err)
-			return
+		nbTry := 10;
+		for  ;nbTry > 0; nbTry-- {
+			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 500, "", false)
+			if err == nil {
+				break
+			}
+		}
+
+		if nbTry == 0 {
+				fmt.Println("fail to create connection local_resource ", address, err)
+				os.Exit(0)
 		}
 
 		// start imap server.

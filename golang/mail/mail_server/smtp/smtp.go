@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
-	// I will use persistence store as backend...username
+	// I will use persistence store as backend...
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/mhale/smtpd"
@@ -44,7 +44,7 @@ type Sender struct {
 func (s *Sender) Send(from string, to []string, r io.Reader) error {
 	// TODO: buffer r if sending to multiple recipients
 	// TODO: group recipients with same domain
-
+	fmt.Println(from, "try to send message to ", to)
 	for _, addr := range to {
 		_, domain, err := splitAddress(addr)
 		if err != nil {
@@ -60,46 +60,73 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		}
 
 		for _, mx := range mxs {
-
 			c, err := smtp.Dial(mx.Host + ":25")
 			if err != nil {
+				if err != nil {
+					fmt.Println("66 ----------> ", err)
+				}
 				return err
 			}
 
 			if err := c.Hello(s.Hostname); err != nil {
+				if err != nil {
+					fmt.Println("73 ----------> ", err)
+				}
 				return err
 			}
 
 			if ok, _ := c.Extension("STARTTLS"); ok {
 				tlsConfig := &tls.Config{ServerName: mx.Host}
 				if err := c.StartTLS(tlsConfig); err != nil {
+					if err != nil {
+						fmt.Println("82 ----------> ", err)
+					}
 					return err
 				}
 			}
 
 			if err := c.Mail(from, &smtp.MailOptions{}); err != nil {
+				if err != nil {
+					fmt.Println("90 ----------> ", err)
+				}
 				return err
 			}
 			if err := c.Rcpt(addr); err != nil {
+				if err != nil {
+					fmt.Println("96 ----------> ", err)
+				}
 				return err
 			}
 
 			wc, err := c.Data()
 			if err != nil {
+				if err != nil {
+					fmt.Println("104 ----------> ", err)
+				}
 				return err
 			}
 			if _, err := io.Copy(wc, r); err != nil {
+				if err != nil {
+					fmt.Println("110 ----------> ", err)
+				}
 				return err
 			}
 			if err := wc.Close(); err != nil {
+				if err != nil {
+					fmt.Println("116 ----------> ", err)
+				}
 				return err
 			}
 
 			if err := c.Quit(); err != nil {
+				if err != nil {
+					fmt.Println("124 ----------> ", err)
+				}
 				return err
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -134,15 +161,17 @@ func rcptHandler(remoteAddr net.Addr, from string, to string) bool {
 }
 
 func startSmtp(domain string, port int, keyFile string, certFile string) {
-	fmt.Println("start smtp service at port ", port, "for domain", domain, "credential: ", keyFile, certFile)
-
 	go func() {
+	
 		srv := &smtpd.Server{
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
 			AuthHandler: func(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
+				fmt.Println("--------> authenticate user ", string(username), string(password))
+
 				answer_ := make(chan map[string]interface{})
 				authenticate <- map[string]interface{}{"user": string(username), "pwd": string(password), "answer": answer_}
+
 				// wait for answer...
 				answer := <-answer_
 				if answer["err"] != nil {
@@ -153,6 +182,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			AuthMechs:    map[string]bool{},
 			AuthRequired: false,
 			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error {
+		
 				// push message in to incomming...
 				for i := 0; i < len(to); i++ {
 					if hasAccount(to[i]) {
@@ -166,17 +196,19 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			HandlerRcpt: rcptHandler,
 			Hostname:    domain,
 			LogRead: func(remoteIP string, verb string, line string) {
+			
 			},
 			LogWrite: func(remoteIP string, verb string, line string) {
+			
 			},
 			MaxSize:     0,
 			Timeout:     0,
-			TLSConfig:   &tls.Config{},
+			TLSConfig:   nil,
 			TLSListener: false,
 			TLSRequired: false,
 		}
 
-		if len(certFile) > 0 {
+		if len(certFile) > 0 && len(keyFile) > 0 {
 			srv.TLSRequired = true
 			cer, err := tls.LoadX509KeyPair(certFile, keyFile)
 			if err != nil {
@@ -184,6 +216,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			}
 			srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 		}
+
 		srv.ListenAndServe()
 
 	}()
@@ -211,10 +244,13 @@ func saveMessage(email string, mailBox string, body []byte, flags []string) erro
 	}
 
 	// TODO Insert large one...
+	fmt.Println("--------------------> try to save data: ", jsonStr)
 
 	// Now I will insert the message into the inbox of the user.
 	_, err = Store.InsertOne("local_resource", info["name"].(string)+"_db", mailBox, jsonStr, "")
 	if err != nil {
+		fmt.Println("252 --------------------> try to save data: ", err)
+
 		fmt.Println(err)
 	}
 
@@ -237,13 +273,13 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 		for {
 			select {
 			case data := <-incomming:
+
 				saveMessage(data["to"].(string), "INBOX", data["msg"].([]byte), []string{})
 
 			case data := <-outgoing:
 
 				sender := new(Sender)
 				sender.Hostname = domain
-
 				err := sender.Send(data["from"].(string), []string{data["to"].(string)}, bytes.NewReader(data["msg"].([]byte)))
 				if err != nil {
 					log.Println("warning/error when sending email: ", err)
@@ -254,25 +290,19 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 			case data := <-authenticate:
 
 				// Here I will try to connect the user on it db.
-				fmt.Println("-----------------> 258 ", data)
 				user := data["user"].(string)
 				pwd := data["pwd"].(string)
 				answer_ := data["answer"].(chan map[string]interface{})
 				connection_id := user + "_db"
 
-				fmt.Println("try to authenticate: ", "connection id:", connection_id, "backend address:", backend_address, "backend port:", backend_port, "user:", user, "password", pwd)
-
 				// I will use the datastore to authenticate the user.
-				err := Store.CreateConnection(connection_id, connection_id, backend_address, float64(backend_port), 0, user, pwd, 5000, "", false)
+				err := Store.CreateConnection(connection_id, connection_id, backend_address, float64(backend_port), 0, user, pwd, 500, "", false)
 
 				if err != nil {
 					answer_ <- map[string]interface{}{"valid": false, "err": err}
 				} else {
 					answer_ <- map[string]interface{}{"valid": true, "err": nil}
 				}
-
-			case rcpt := <-validateRcpt:
-				log.Println(rcpt)
 			}
 		}
 	}()

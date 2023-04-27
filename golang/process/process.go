@@ -107,6 +107,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		// before give up I will try to retreive the exec
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
+
 	/*
 		// That command can't be run by launchd... So be sure the permissions are correctly set for
 		// all service executable in order for service to start correctly...
@@ -115,6 +116,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			return -1, err
 		}
 	*/
+	
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	p.Dir = filepath.Dir(s["Path"].(string))
 

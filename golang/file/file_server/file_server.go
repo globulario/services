@@ -11,11 +11,11 @@ import (
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
 	"github.com/barasher/go-exiftool"
-	//"github.com/karmdip-mi/go-fitz"
+	"github.com/karmdip-mi/go-fitz"
 	"github.com/mitchellh/go-ps"
 	"golang.org/x/text/language"
 	"golang.org/x/text/language/display"
-	//"image/jpeg"
+	"image/jpeg"
 	"io"
 	"io/ioutil"
 	"log"
@@ -47,7 +47,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/search/search_client"
-	//"github.com/globulario/services/golang/search/search_engine"
+	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -6149,7 +6149,7 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 
 // Index text contain in a pdf file
 func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
-/*
+
 	// The hidden folder path...
 	path_ := path[0:strings.LastIndex(path, "/")]
 	lastIndex := -1
@@ -6260,7 +6260,7 @@ func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo)
 			}
 		}
 	}
-*/
+
 	return nil
 }
 

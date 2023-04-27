@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	//"time"
 
@@ -45,17 +46,22 @@ type MongoStore struct {
  * TODO add more connection options via the option_str and options package.
  */
 func (store *MongoStore) Connect(connectionId string, host string, port int32, user string, password string, database string, timeout int32, optionsStr string) error {
+	if timeout == 0 {
+		timeout = 500 // default timeout value.
+	}
 
-	ctx := context.Background()
-	//ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	//ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
 
 	// in case the connection fail.
-	//defer cancel()
+	defer cancel()
 
 	if store.clients == nil {
 		store.clients = make(map[string]*mongo.Client)
 	} else {
 		if store.clients[connectionId] != nil {
+			fmt.Println("try to ping connection: ", connectionId)
+
 			// Ping seem's to be buggy...
 			err := store.clients[connectionId].Ping(ctx, nil)
 			if err == nil {
