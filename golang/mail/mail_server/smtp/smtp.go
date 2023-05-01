@@ -51,15 +51,22 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 			return err
 		}
 
+		fmt.Println("lookup for address ", domain)
 		mxs, err := net.LookupMX(domain)
 		if err != nil {
 			return err
 		}
+
+		for _, mx := range mxs {
+			fmt.Println("-------------> 61 ", mx.Host)
+		}
+
 		if len(mxs) == 0 {
 			mxs = []*net.MX{{Host: domain}}
 		}
 
 		for _, mx := range mxs {
+			fmt.Println("-------------> 63 dial ", mx.Host + ":25")
 			c, err := smtp.Dial(mx.Host + ":25")
 			if err != nil {
 				if err != nil {
@@ -182,14 +189,20 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			AuthMechs:    map[string]bool{},
 			AuthRequired: false,
 			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error {
-		
+				
 				// push message in to incomming...
 				for i := 0; i < len(to); i++ {
+
 					if hasAccount(to[i]) {
+						fmt.Println("------------> 190", to[i])
 						incomming <- map[string]interface{}{"msg": data, "from": from, "to": to[i]}
-					} else if hasAccount(from) {
+					}
+					
+					if hasAccount(from) {
+						fmt.Println("------------> 195", to[i])
 						outgoing <- map[string]interface{}{"msg": data, "from": from, "to": to[i]}
 					}
+
 				}
 				return nil
 			},
@@ -224,9 +237,12 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 
 func saveMessage(email string, mailBox string, body []byte, flags []string) error {
 
+	fmt.Println("try to save message from ", email, mailBox)
+
 	query := `{"email":"` + email + `"}`
 	info, err := Store.FindOne("local_resource", "local_resource", "Accounts", query, "")
 	if err != nil {
+		fmt.Println("fail to save message with error: ", err)
 		return err
 	}
 
@@ -238,19 +254,12 @@ func saveMessage(email string, mailBox string, body []byte, flags []string) erro
 	data["Body"] = body
 	data["Uid"] = now.Unix() // I will use the unix time as Uid
 
-	jsonStr, err := Utility.ToJson(data)
-	if err != nil {
-		return err
-	}
 
 	// TODO Insert large one...
-	fmt.Println("--------------------> try to save data: ", jsonStr)
 
 	// Now I will insert the message into the inbox of the user.
-	_, err = Store.InsertOne("local_resource", info["name"].(string)+"_db", mailBox, jsonStr, "")
+	_, err = Store.InsertOne("local_resource", info["name"].(string)+"_db", mailBox, data, "")
 	if err != nil {
-		fmt.Println("252 --------------------> try to save data: ", err)
-
 		fmt.Println(err)
 	}
 
@@ -280,6 +289,7 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 
 				sender := new(Sender)
 				sender.Hostname = domain
+
 				err := sender.Send(data["from"].(string), []string{data["to"].(string)}, bytes.NewReader(data["msg"].([]byte)))
 				if err != nil {
 					log.Println("warning/error when sending email: ", err)

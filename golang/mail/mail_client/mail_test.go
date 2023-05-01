@@ -10,6 +10,8 @@ import (
 
 var (
 	client *Mail_Client
+	// address string = "globule-aws.globular.io"
+	address string = "globule-ryzen.globular.cloud"
 )
 
 // smtpServer data to smtp server
@@ -28,13 +30,13 @@ func (s *smtpServer) Address() string {
 func TestCreateConnection(t *testing.T) {
 
 	var err error
-	client, err = NewMailService_Client("globule-aws.globular.io:443", "mail.MailService")
+	client, err = NewMailService_Client( address, "mail.MailService")
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	fmt.Println("Connection creation test.")
-	err = client.CreateConnection("test_smtp", "dave", "1234", 587, "globule-aws.globular.io")
+	err = client.CreateConnection("test_smtp", "sa", "adminadmin", 587, address)
 
 	if err != nil {
 		log.Panicln(err)
