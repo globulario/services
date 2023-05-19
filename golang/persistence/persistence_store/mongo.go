@@ -726,7 +726,6 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
  */
 func (store *MongoStore) Start(user, password string, port int, dataPath string) error {
 
-
 	// Set store attributes.
 	store.User = user
 	store.Password = password
@@ -772,7 +771,7 @@ func (store *MongoStore) stopMongod() error {
 	cmd := "mongosh"
 	closeCmd := exec.Command(cmd, "--host", "0.0.0.0", "--port", Utility.ToString(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
 	closeCmd.Dir = os.TempDir()
-	
+
 	err = closeCmd.Run()
 	if err != nil {
 		pids, _ := Utility.GetProcessIdsByName("mongod")
@@ -796,7 +795,7 @@ func (store *MongoStore) registerSa() error {
 
 	// Here I will create super admin if it not already exist.
 	dataPath := store.DataPath + "/mongodb-data"
-	
+
 	fmt.Println("test if path ", dataPath, "exist")
 	if !Utility.Exists(dataPath) {
 
@@ -813,7 +812,7 @@ func (store *MongoStore) registerSa() error {
 		// Here I will create the directory
 		err = os.MkdirAll(dataPath, os.ModeDir)
 		if err != nil {
-			fmt.Println("fail to create data `" + dataPath + "` dir with error: ", err)
+			fmt.Println("fail to create data `"+dataPath+"` dir with error: ", err)
 			return err
 		}
 
@@ -823,7 +822,7 @@ func (store *MongoStore) registerSa() error {
 
 		err = <-wait
 		fmt.Println("830")
-		
+
 		if err != nil {
 			fmt.Println("fail to start mongoDB with error: ", err)
 			return err
@@ -858,7 +857,7 @@ func (store *MongoStore) registerSa() error {
 	// wait until mongo was started...
 	go startMongoDB(store.Port, dataPath, true, wait)
 	err = <-wait
-	if err  != nil {
+	if err != nil {
 		fmt.Println("fail start mongoDB with error: ", err)
 		return err
 	}
@@ -919,9 +918,9 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) err
 
 				if withAuth {
 					if strings.Contains(result, "Waiting for connections") {
+						fmt.Println("wait for mongo to start...")
 						time.Sleep(time.Second * 1)
-
-						fmt.Println("909 mongoDB is running with pid: ", pid)
+						fmt.Println("mongoDB is running with pid: ", pid)
 						wait <- nil // unblock it...
 					}
 				} else {
@@ -929,8 +928,8 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) err
 						fmt.Println("wait for mongo to start...")
 						time.Sleep(time.Second * 5)
 
-						fmt.Println("914 mongoDB is running with pid: ", pid)
-					
+						fmt.Println("mongoDB is running with pid: ", pid)
+
 						wait <- nil // unblock it...
 					}
 				}
