@@ -557,7 +557,8 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
 		return err
 	}
 
-	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, 27017, 0, app.Id, app.Password, 500, "", false)
+	fmt.Println("---------------------------> create connection ", float64(server.Backend_port))
+	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, float64(server.Backend_port), 0, app.Id, app.Password, 500, "", false)
 	if err != nil {
 		return err
 	}
@@ -690,6 +691,7 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 			return nil, err
 		}
 
+
 		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
 		if err != nil {
 			fmt.Println("fail to connect MongoDB store with error ", err)
@@ -699,6 +701,8 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 		err = svr.store.Ping(context.Background(), "local_resource")
 
 		svr.isReady = true
+
+		fmt.Println("persistence store ", svr.Backend_address + ":" + Utility.ToString(svr.Backend_port), "is runing and ready to be used.")
 
 	} else if !svr.isReady {
 		nbTry := 100
@@ -1234,7 +1238,7 @@ func main() {
 
 	// Backend informations.
 	s_impl.Backend_address = "localhost"
-	s_impl.Backend_port = 27017
+	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
 	s_impl.DataPath = config.GetDataDir()

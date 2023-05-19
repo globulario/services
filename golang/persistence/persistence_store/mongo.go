@@ -3,6 +3,7 @@ package persistence_store
 import (
 	"bytes"
 	"context"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -701,6 +702,10 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 		args = append(args, user)
 		args = append(args, "-p")
 		args = append(args, password)
+		args = append(args, "--port")
+		args = append(args, Utility.ToString(store.Port))
+		args = append(args, "--host")
+		args = append(args, "0.0.0.0")
 		args = append(args, "--authenticationDatabase")
 		args = append(args, "admin")
 	}
@@ -720,6 +725,7 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
  * Start the datastore.
  */
 func (store *MongoStore) Start(user, password string, port int, dataPath string) error {
+
 
 	// Set store attributes.
 	store.User = user
@@ -751,85 +757,124 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
 
 /** Stop mongod process **/
 func (store *MongoStore) stopMongod() error {
+	fmt.Println("try to stop mongoDB instance")
 	pids, err := Utility.GetProcessIdsByName("mongod")
 	if err == nil {
 		if len(pids) == 0 {
+			fmt.Println("no mongoDB instance found")
 			return nil
 		}
 	} else {
+		fmt.Println("fail to retreive mongoDB instance with error ", err)
 		return nil
 	}
 
 	cmd := "mongosh"
-	closeCmd := exec.Command(cmd, "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+	closeCmd := exec.Command(cmd, "--host", "0.0.0.0", "--port", Utility.ToString(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
 	closeCmd.Dir = os.TempDir()
-
-	return closeCmd.Run()
+	
+	err = closeCmd.Run()
+	if err != nil {
+		pids, _ := Utility.GetProcessIdsByName("mongod")
+		if len(pids) == 0 {
+			return nil
+		}
+	}
+	return err
 }
 
 /** Create the super administrator in the db. not the sa globular account!!! **/
 func (store *MongoStore) registerSa() error {
 
 	// Here I will test if mongo db exist on the store.
-	existMongo := exec.Command("mongod", "--version")
-	existMongo.Dir = os.TempDir()
-
-	err := existMongo.Run()
+	wait := make(chan error)
+	Utility.RunCmd("mongod", os.TempDir(), []string{"--version"}, wait)
+	err := <-wait
 	if err != nil {
 		return err
 	}
 
 	// Here I will create super admin if it not already exist.
 	dataPath := store.DataPath + "/mongodb-data"
-	wait := make(chan bool)
-
+	
+	fmt.Println("test if path ", dataPath, "exist")
 	if !Utility.Exists(dataPath) {
+
 		// Kill mongo db store if the process already run...
+		fmt.Println("No mongoDB database exist, I will create one")
+
+		fmt.Println("stop existing mongoDB instance")
 		err := store.stopMongod()
 		if err != nil {
+			fmt.Println("fail to stop current mongodb server instance with error: ", err)
 			return err
 		}
 
 		// Here I will create the directory
 		err = os.MkdirAll(dataPath, os.ModeDir)
 		if err != nil {
+			fmt.Println("fail to create data `" + dataPath + "` dir with error: ", err)
 			return err
 		}
 
+		// wait until mongodb stop.
+		fmt.Println("start mongoDB without authentification")
 		go startMongoDB(store.Port, dataPath, false, wait)
-		<-wait
+
+		err = <-wait
+		fmt.Println("830")
+		
+		if err != nil {
+			fmt.Println("fail to start mongoDB with error: ", err)
+			return err
+		}
+
+		fmt.Println("create sa user and set authentication parameters")
 
 		// Now I will create a new user name sa and give it all admin write.
 		createSaScript := fmt.Sprintf(
 			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, store.User, store.Password) // must be change...
 
-		createSaCmd := exec.Command("mongosh", "--eval", createSaScript)
-		createSaCmd.Dir = os.TempDir()
+		Utility.RunCmd("mongosh", os.TempDir(), []string{"--host", "0.0.0.0", "--port", Utility.ToString(store.Port), "--eval", createSaScript}, wait)
+		err = <-wait
 
-		err = createSaCmd.Run()
 		if err != nil {
 			// remove the mongodb-data
+			fmt.Println("839 fail to run command mogosh with error: ", err)
 			os.RemoveAll(dataPath)
 			return err
 		}
 
-		store.stopMongod()
+		fmt.Println("stop mongoDB instance instance and restart it with authentication")
+		err = store.stopMongod()
+		if err != nil {
+			fmt.Println("847 fail to stop current mongodb server instance with error: ", err)
+			return err
+		}
 	}
+
+	fmt.Println("start mongoDB server with authentication")
 
 	// wait until mongo was started...
 	go startMongoDB(store.Port, dataPath, true, wait)
-	<-wait
+	err = <-wait
+	if err  != nil {
+		fmt.Println("fail start mongoDB with error: ", err)
+		return err
+	}
 
 	// Get the list of all services method.
 	return nil
 }
 
-func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) error {
+func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) error {
 
+	fmt.Println("try to start mongoDB at port:", port, "data path:", dataPath)
 	pids, _ := Utility.GetProcessIdsByName("mongod")
 	if pids != nil {
 		if len(pids) > 0 {
-			wait <- true
+			wait <- nil
+			fmt.Println("mondoDB already running with pid ", pids)
 			return nil // mongod already running
 		}
 	}
@@ -842,12 +887,13 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 	}
 
 	cmd := exec.Command(baseCmd, cmdArgs...)
-	cmd.Dir = os.TempDir()
+	cmd.Dir = filepath.Dir(dataPath)
 
 	pid := -1
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		fmt.Println("fail to connect stdout with error: ", err)
 		return err
 	}
 
@@ -863,6 +909,7 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 			select {
 			case <-done:
 				fmt.Println("mongod process terminate...")
+				wait <- nil // unblock it...
 				break
 
 			case result := <-output:
@@ -872,13 +919,19 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 
 				if withAuth {
 					if strings.Contains(result, "Waiting for connections") {
-						fmt.Println("mongoDB is running with pid: ", pid)
-						wait <- true // unblock it...
+						time.Sleep(time.Second * 1)
+
+						fmt.Println("909 mongoDB is running with pid: ", pid)
+						wait <- nil // unblock it...
 					}
 				} else {
 					if strings.Contains(result, "Operating System") {
-						fmt.Println("mongoDB is running with pid: ", pid)
-						wait <- true // unblock it...
+						fmt.Println("wait for mongo to start...")
+						time.Sleep(time.Second * 5)
+
+						fmt.Println("914 mongoDB is running with pid: ", pid)
+					
+						wait <- nil // unblock it...
 					}
 				}
 				//fmt.Println("mongod:",pid, result)
@@ -891,6 +944,7 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("fail to run mongod with error ", fmt.Sprint(err)+": "+stderr.String())
+		fmt.Println("mongod", "--port", Utility.ToString(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
 		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
 	}
 

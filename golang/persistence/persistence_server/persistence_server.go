@@ -508,6 +508,8 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	var c connection
 	var err error
 
+	fmt.Println("------------------------> create connection: ", host, port)
+
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]
@@ -586,6 +588,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
 
+	fmt.Println("--------------------------> rqst.Connection ", rqst.Connection)
 	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save)
 	if err != nil {
 		// codes.

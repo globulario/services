@@ -252,6 +252,7 @@ func (client *Persistence_Client) StopService() {
 
 // Create a new datastore connection.
 func (client *Persistence_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string, save bool) error {
+
 	rqst := &persistencepb.CreateConnectionRqst{
 		Connection: &persistencepb.Connection{
 			Id:       connectionId,

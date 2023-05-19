@@ -25,7 +25,6 @@ func (s *smtpServer) Address() string {
 	return s.host + ":" + s.port
 }
 
-
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
 

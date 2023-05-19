@@ -53,6 +53,7 @@ export interface IServiceConfig {
   CertFile: string;
   KeyFile: string;
 
+
 }
 
 /**
@@ -78,6 +79,7 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
+  BackendPort:number; // mongoDB port.
   AdminEmail: string;
   SessionTimeout: number;
   Protocol: string;

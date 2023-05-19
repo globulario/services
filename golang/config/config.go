@@ -378,10 +378,7 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 			break
 		}
 	}
-	/*
-	for i := 0; i < len(services); i++ {
-	fmt.Println("---------> ", i, ":", services[i]["Name"])
-	}*/
+
 	return services, nil
 }
 
