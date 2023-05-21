@@ -78,15 +78,6 @@ var (
 	// Client to validate and change file and directory permission.
 	rbac_client_ *rbac_client.Rbac_Client
 
-	// The event client.
-	event_client_ *event_client.Event_Client
-
-	// The title client.
-	title_client_ *title_client.Title_Client
-
-	// the authentication client
-	authentication_client_ *authentication_client.Authentication_Client
-
 	// Here I will keep files info in cache...
 	cache *storage_store.Badger_store
 )
@@ -151,6 +142,9 @@ type server struct {
 	// Maximum conversion time. Conversion will not continue over this delay.
 	MaximumVideoConversionDelay string
 
+	// If set to true the gpu will be used to convert video.
+	HasEnableGPU bool
+
 	// Public contain a list of paths reachable by the file server.
 	Public []string
 
@@ -169,9 +163,6 @@ type server struct {
 
 	// Generate playlist and titles for audio
 	isProcessingAudio bool
-
-	// Generate playlist and titles for video and movies (series and episode.)
-	isProcessingVideo bool
 }
 
 // The path of the configuration.
@@ -647,10 +638,10 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
 						// generate the preview...
 						os.RemoveAll(hiddenFolder + "/__preview__") // be sure it will
-						go createVideoPreview(s, info.Path, 20, 128, true)
+						go s.createVideoPreview(info.Path, 20, 128, true)
 
-						os.RemoveAll(hiddenFolder + "/__timeline__")        // be sure it will
-						go createVideoTimeLine(s, info.Path, 180, .2, true) // 1 frame per 5 seconds.
+						os.RemoveAll(hiddenFolder + "/__timeline__")       // be sure it will
+						go s.createVideoTimeLine(info.Path, 180, .2, true) // 1 frame per 5 seconds.
 					}
 
 					if Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
@@ -2851,7 +2842,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 /**
  * Process video info
  */
-func processVideoInfo(file_server *server, token, info_path string) error {
+func (file_server *server) processVideoInfo(token, info_path string) error {
 
 	media_info := make(map[string]interface{})
 	data, err := os.ReadFile(info_path)
@@ -2883,9 +2874,9 @@ func processVideoInfo(file_server *server, token, info_path string) error {
 
 						go func() {
 							fileName_ := strings.ReplaceAll(media_path, "/.hidden/", "/")
-							createVideoPreview(file_server, fileName_, 20, 128, false)
-							generateVideoPreview(file_server, fileName_, 10, 320, 30, true)
-							createVideoTimeLine(file_server, fileName_, 180, .2, false) // 1 frame per 5 seconds.
+							file_server.createVideoPreview(fileName_, 20, 128, false)
+							file_server.generateVideoPreview(fileName_, 10, 320, 30, true)
+							file_server.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 						}()
 
 					}
@@ -2936,7 +2927,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 	// Step 1 convert .info.json to video and audio info and move downloaded media file from hidden to the final destination...
 	for i := 0; i < len(video_infos); i++ {
 		info_path := video_infos[i]
-		err := processVideoInfo(file_server, token, info_path)
+		err := file_server.processVideoInfo(token, info_path)
 		if err != nil {
 			fmt.Println("fail to process video information with error ", err)
 		}
@@ -3009,7 +3000,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 		file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
 		file_server.publishConvertionLogEvent(createVideoPreviewLog)
 
-		err := createVideoPreview(file_server, video, 20, 128, false)
+		err := file_server.createVideoPreview(video, 20, 128, false)
 		if err != nil {
 			createVideoPreviewLog.Status = "fail"
 			file_server.publishConvertionLogEvent(createVideoPreviewLog)
@@ -3028,7 +3019,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 		file_server.videoConversionLogs.Store(generateVideoPreviewLog.LogTime, generateVideoPreviewLog)
 		file_server.publishConvertionLogEvent(generateVideoPreviewLog)
 
-		err = generateVideoPreview(file_server, video, 10, 320, 30, false)
+		err = file_server.generateVideoPreview(video, 10, 320, 30, false)
 		if err != nil {
 			generateVideoPreviewLog.Status = "fail"
 			file_server.publishConvertionLogEvent(generateVideoPreviewLog)
@@ -3047,7 +3038,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 		file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
 		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
 
-		err = createVideoTimeLine(file_server, video, 180, .2, false) // 1 frame per 5 seconds.
+		err = file_server.createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
 		if err != nil {
 			createVideoTimeLineLog.Status = "fail"
 			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
@@ -3084,7 +3075,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 						// To scketchy... wait for attoption of the audioTracks https://caniuse.com/?search=audioTracks
 						// extract the video track
 
-						video_, err := createVideoMpeg4H264(video)
+						video_, err := file_server.createVideoMpeg4H264(video)
 						if err != nil {
 							if err != nil {
 								createVideoMpeg4H264Log.Status = "fail"
@@ -3150,7 +3141,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 						createHlsStreamFromMpeg4H264Log.Status = "running"
 						file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
 						file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
-						err := createHlsStreamFromMpeg4H264(video)
+						err := file_server.createHlsStreamFromMpeg4H264(video)
 						if err != nil {
 							fmt.Println("fail with error", err.Error())
 							createHlsStreamFromMpeg4H264Log.Status = "fail"
@@ -3338,7 +3329,7 @@ func getStreamFrameRateInterval(path string) (int, error) {
 /**
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
-func createVideoMpeg4H264(path string) (string, error) {
+func (server *server)createVideoMpeg4H264(path string) (string, error) {
 
 	cache.RemoveItem(path)
 
@@ -3392,7 +3383,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	//  also install sudo apt-get install libnvidia-encode-525 // replace by your driver version.
 	args = []string{"-i", path, "-c:v"}
 
-	if hasEnableCudaNvcc() {
+	if server.hasEnableCudaNvcc() {
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
 			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
@@ -3576,16 +3567,18 @@ func reassociatePath(path, new_path string) error {
 	return nil
 }
 
-func hasEnableCudaNvcc() bool {
+func (svr *server) hasEnableCudaNvcc() bool {
+
+	// Here I will check if the server has enable cuda...
+	if !svr.HasEnableGPU {
+		return false
+	}
+
 	getVersion := exec.Command("ffmpeg", "-encoders")
 	getVersion.Dir = os.TempDir()
-
 	encoders, _ := getVersion.CombinedOutput()
 
-	if strings.Index(string(encoders), "hevc_nvenc") > -1 {
-		return true
-	}
-	return false
+	return strings.Contains(string(encoders), "hevc_nvenc")
 }
 
 func getCodec(path string) string {
@@ -3601,7 +3594,7 @@ func getCodec(path string) string {
 // segment_target_duration  	try to create a new segment every X seconds
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
-func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
+func (svr *server) createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
 
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
@@ -3616,8 +3609,10 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	}
 
 	key_frames_interval, err := getStreamFrameRateInterval(src)
+	if err != nil {
+		return err
+	}
 
-	args := make([]string, 0)
 	// Here I will test if the encoding is valid
 	encoding := ""
 	for _, stream := range streamInfos["streams"].([]interface{}) {
@@ -3626,10 +3621,10 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		}
 	}
 
-	args = []string{"-hide_banner", "-y", "-i", src, "-c:v"}
+	args := []string{"-hide_banner", "-y", "-i", src, "-c:v"}
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
-	if hasEnableCudaNvcc() {
+	if svr.hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
@@ -3691,7 +3686,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	var static_params []string
 	static_params = append(static_params, []string{"-profile:v", "main", "-sc_threshold", "0"}...)
 	static_params = append(static_params, []string{"-g", Utility.ToString(key_frames_interval), "-keyint_min", Utility.ToString(key_frames_interval), "-hls_time", Utility.ToString(segment_target_duration)}...)
-	static_params = []string{"-hls_playlist_type", "vod"}
+	static_params = append(static_params, []string{"-hls_playlist_type", "vod"}...)
 
 	// Now I will append the the renditions parameters to the list...
 	for _, rendition := range renditions {
@@ -3731,7 +3726,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 }
 
 // Create a stream from a vide file, mkv, mpeg4, avi etc...
-func createHlsStreamFromMpeg4H264(path string) error {
+func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 
 	// remove it from the cache.
 	cache.RemoveItem(path)
@@ -3766,7 +3761,7 @@ func createHlsStreamFromMpeg4H264(path string) error {
 	defer os.Remove(os.TempDir() + "/" + fileName)
 
 	// Create the stream...
-	err := createHlsStream(os.TempDir()+"/"+fileName+"."+ext, os.TempDir()+"/"+fileName, 4, 1.07, 1.5)
+	err := srv.createHlsStream(os.TempDir()+"/"+fileName+"."+ext, os.TempDir()+"/"+fileName, 4, 1.07, 1.5)
 	if err != nil {
 		fmt.Println("fail to generate stream for ", path, "output to", os.TempDir()+"/"+fileName, err)
 		return err
@@ -3939,7 +3934,7 @@ func extractSubtitleTracks(video_path string) error {
 }
 
 // Create the video preview...
-func generateVideoPreview(s *server, path string, fps, scale, duration int, force bool) error {
+func (s *server) generateVideoPreview(path string, fps, scale, duration int, force bool) error {
 
 	path = s.formatPath(path)
 	if !Utility.Exists(path) {
@@ -4002,15 +3997,25 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph5b4d49c0180fb.mp4 -ss 00:00:10 -t 30 -movflags +faststart -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
 	if !Utility.Exists(output + "/preview.mp4") {
 		wait := make(chan error)
-		if hasEnableCudaNvcc() {
+		if s.hasEnableCudaNvcc() {
 			Utility.RunCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "h264_nvenc", "preview.mp4"}, wait)
 		} else {
 			Utility.RunCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "libx264", "preview.mp4"}, wait)
 		}
+
 		err := <-wait
+
 		if err != nil {
 			os.Remove(output + "/preview.mp4")
-			return err
+			if s.hasEnableCudaNvcc() {
+				Utility.RunCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "libx264", "preview.mp4"}, wait)
+				err := <-wait
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 	}
 
@@ -4057,7 +4062,7 @@ func createVttFile(output string, fps float32) error {
 }
 
 // Here I will create the small viedeo video
-func createVideoTimeLine(s *server, path string, width int, fps float32, force bool) error {
+func (s *server) createVideoTimeLine(path string, width int, fps float32, force bool) error {
 
 	path = s.formatPath(path)
 	if !Utility.Exists(path) {
@@ -4125,7 +4130,7 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 }
 
 // Here I will create the small viedeo video
-func createVideoPreview(s *server, path string, nb int, height int, force bool) error {
+func (s *server) createVideoPreview(path string, nb int, height int, force bool) error {
 
 	path = s.formatPath(path)
 	if !Utility.Exists(path) {
@@ -4394,7 +4399,7 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 	file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
 	file_server.publishConvertionLogEvent(createVideoPreviewLog)
 
-	err := createVideoPreview(file_server, path, int(rqst.Nb), int(rqst.Height), true)
+	err := file_server.createVideoPreview(path, int(rqst.Nb), int(rqst.Height), true)
 	if err != nil {
 		createVideoPreviewLog.Status = "fail"
 		file_server.publishConvertionLogEvent(createVideoPreviewLog)
@@ -4414,7 +4419,7 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 	// Store the conversion log...
 	file_server.videoConversionLogs.Store(generateVideoGifLog.LogTime, generateVideoGifLog)
 	file_server.publishConvertionLogEvent(generateVideoGifLog)
-	err = generateVideoPreview(file_server, path, 10, 320, 30, true)
+	err = file_server.generateVideoPreview(path, 10, 320, 30, true)
 	if err != nil {
 		generateVideoGifLog.Status = "fail"
 		file_server.publishConvertionLogEvent(generateVideoGifLog)
@@ -4778,7 +4783,7 @@ func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb
 	file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
 	file_server.publishConvertionLogEvent(createVideoTimeLineLog)
 
-	err := createVideoTimeLine(file_server, rqst.Path, int(rqst.Width), rqst.Fps, true)
+	err := file_server.createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps, true)
 	if err != nil {
 		createVideoTimeLineLog.Status = "fail"
 		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
@@ -4821,7 +4826,7 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
-		_, err := createVideoMpeg4H264(path_)
+		_, err := file_server.createVideoMpeg4H264(path_)
 		if err != nil {
 			file_server.publishConvertionLogError(rqst.Path, err)
 			createVideoMpeg4H264Log.Status = "fail"
@@ -4847,7 +4852,7 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
-			_, err := createVideoMpeg4H264(files[i])
+			_, err := file_server.createVideoMpeg4H264(files[i])
 			if err != nil {
 				file_server.publishConvertionLogError(files[i], err)
 				createVideoMpeg4H264Log.Status = "fail"
@@ -4899,7 +4904,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 
 			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-			rqst.Path, err = createVideoMpeg4H264(path_)
+			rqst.Path, err = file_server.createVideoMpeg4H264(path_)
 			if err != nil {
 				file_server.publishConvertionLogError(rqst.Path, err)
 				createVideoMpeg4H264Log.Status = "fail"
@@ -4922,7 +4927,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 		file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
 		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 
-		err := createHlsStreamFromMpeg4H264(rqst.Path)
+		err := file_server.createHlsStreamFromMpeg4H264(rqst.Path)
 		if err != nil {
 			file_server.publishConvertionLogError(rqst.Path, err)
 			createHlsStreamFromMpeg4H264Log.Status = "fail"
@@ -4950,7 +4955,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 
 				file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-				rqst.Path, err = createVideoMpeg4H264(path_)
+				rqst.Path, err = file_server.createVideoMpeg4H264(path_)
 				if err != nil {
 					file_server.publishConvertionLogError(files[i], err)
 					createVideoMpeg4H264Log.Status = "fail"
@@ -4973,7 +4978,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 			file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
 			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 
-			err := createHlsStreamFromMpeg4H264(files[i])
+			err := file_server.createHlsStreamFromMpeg4H264(files[i])
 			if err != nil {
 				file_server.publishConvertionLogError(files[i], err)
 				createHlsStreamFromMpeg4H264Log.Status = "fail"
@@ -5813,9 +5818,9 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			// call videos processing and return...
 			go func() {
 				fileName_ := strings.ReplaceAll(fileName, "/.hidden/", "/")
-				createVideoPreview(file_server, fileName_, 20, 128, false)
-				generateVideoPreview(file_server, fileName_, 10, 320, 30, true)
-				createVideoTimeLine(file_server, fileName_, 180, .2, false) // 1 frame per 5 seconds.
+				file_server.createVideoPreview(fileName_, 20, 128, false)
+				file_server.generateVideoPreview(fileName_, 10, 320, 30, true)
+				file_server.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 
 			}()
 		}
@@ -6325,6 +6330,9 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
+	// set it to true in order to enable GPU acceleration.
+	s_impl.HasEnableGPU = false
+
 	// cache = storage_store.NewBigCache_store()
 	cache = storage_store.NewBadger_store()
 
@@ -6435,7 +6443,7 @@ func main() {
 						token, _ := security.GetLocalToken(mac)
 						restoreVideoInfos(title_client, token, path_)
 
-						createVideoPreview(s_impl, path_, 20, 128, false)
+						s_impl.createVideoPreview(path_, 20, 128, false)
 						dir := string(path)[0:strings.LastIndex(string(path), "/")]
 						dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
 
@@ -6450,8 +6458,8 @@ func main() {
 
 					case path := <-channel_2:
 						path_ := s_impl.formatPath(path)
-						generateVideoPreview(s_impl, path_, 10, 320, 30, false)
-						createVideoTimeLine(s_impl, path_, 180, .2, false) // 1 frame per 5 seconds.
+						s_impl.generateVideoPreview(path_, 10, 320, 30, false)
+						s_impl.createVideoTimeLine(path_, 180, .2, false) // 1 frame per 5 seconds.
 
 					case path := <-channel_3:
 						path_ := s_impl.formatPath(path)
