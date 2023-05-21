@@ -329,7 +329,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// browser client connection maximum life.
 	proxyArgs = append(proxyArgs, "--server_http_max_read_timeout=48h")
 	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
-	proxyArgs = append(proxyArgs, "--use_websockets=true")
+	proxyArgs = append(proxyArgs, "--use_websockets=false")
 
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)

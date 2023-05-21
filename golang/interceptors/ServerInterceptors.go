@@ -248,6 +248,7 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
+	
 	// The token and the application id.
 	var token string
 	var application string
@@ -270,6 +271,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// If the call come from a local client it has hasAccess
 	hasAccess := true
 	accessDenied := false
+
+	fmt.Println("ServerUnaryInterceptor", method, application, token, domain)
 
 	// Set the list of restricted method here...
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {

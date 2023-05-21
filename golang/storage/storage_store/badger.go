@@ -94,12 +94,19 @@ func (store *Badger_store) open(optionsStr string) error {
 
 // Close the store
 func (store *Badger_store) close() error {
+	if store.db == nil {
+		return errors.New("db is not open")
+	}
+
 	return store.db.Close()
 }
 
 
 // Set item
 func (store *Badger_store) setItem(key string, val []byte) error {
+	if store.db == nil {
+		return  errors.New("db is not open")
+	}
 
 	err := store.db.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(key), val)
@@ -116,6 +123,10 @@ func (store *Badger_store) setItem(key string, val []byte) error {
 
 // Get item with a given key.
 func (store *Badger_store) getItem(key string) (val []byte, err error) {
+	if store.db == nil {
+		return nil, errors.New("db is not open")
+	}
+
 	err = store.db.View(func (txn *badger.Txn) error{
 		
 		entry, err := txn.Get([]byte(key))
@@ -141,11 +152,19 @@ func (store *Badger_store) removeItem(key string) (err error) {
 
 // Clear the data store.
 func (store *Badger_store) clear() error {
+	if store.db == nil {
+		return errors.New("db is not open")
+	}
+
 	return store.db.DropAll() // same as drop
 }
 
 // Drop the data store.
 func (store *Badger_store) drop() error {
+	if store.db == nil {
+		return errors.New("db is not open")
+	}
+
 	return store.db.DropAll()
 }
 

@@ -1020,7 +1020,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
-
 	// Now I will set the title url in the media file to keep track of the title
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
@@ -1038,7 +1037,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 		srv.saveTitleMetadata(absolutefilePath, rqst.IndexPath, title)
-
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
 
@@ -1080,13 +1078,15 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	associations := srv.getAssociations(rqst.IndexPath)
-
 	if associations == nil {
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(rqst.IndexPath, associations)
 
 		// open in it own thread
-		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -1186,7 +1186,11 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		err := associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		// open in it own thread
+		if err != nil {
+			return err
+		}
 	}
 
 	file_data, err := associations.GetItem(uuid)
@@ -1307,8 +1311,11 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 	if associations == nil {
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(indexPath, associations)
-		// open in it own thread
-		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+
+		err := associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2014,7 +2021,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2061,7 +2071,10 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(indexPath, associations)
 		// open in it own thread
-		associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		err := associations.Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := associations.GetItem(titleId)
@@ -2287,7 +2300,11 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		
+		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Now I will generate the hits informations...
@@ -2869,7 +2886,10 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := associations.GetItem(uuid)
