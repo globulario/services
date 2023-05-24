@@ -272,7 +272,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	hasAccess := true
 	accessDenied := false
 
-	fmt.Println("ServerUnaryInterceptor", method, application, token, domain)
+	//fmt.Println("ServerUnaryInterceptor", method, application, token, domain)
 
 	// Set the list of restricted method here...
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {
