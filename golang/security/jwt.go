@@ -278,9 +278,6 @@ func GetLocalToken(mac string) (string, error) {
 
 	token, _ := getLocalToken(mac)
 	if len(token) == 0 {
-		fmt.Println("no token was found for mac address " + mac)
-		
-		
 		return "", errors.New("no token was found for mac address " + mac)
 	}
 
