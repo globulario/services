@@ -27,12 +27,11 @@ protoc proto/blog.proto -I proto  --go-grpc_out=require_unimplemented_servers=fa
 protoc proto/applications_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/config.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/title.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/torrent.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-
+protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang  --go_out=./golang 
+protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang  --go_out=./golang 
 
 # TypeScript grpc files generation.
 mkdir typescript/config_manager

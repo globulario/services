@@ -13,14 +13,10 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	// "golang.org/x/sys/windows/registry"
 	"os/exec"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
-
-	//"github.com/shirou/gopsutil/mem"
 	ps "github.com/shirou/gopsutil/process"
 
 	"github.com/davecourtois/Utility"

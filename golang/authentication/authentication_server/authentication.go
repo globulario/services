@@ -441,15 +441,6 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 		}
 
-		// In that particular case I will set the issuer to the current mac so the token will be valid for that globule.
-		// otherwise the globule will need to be set as a peer to be able to authenticate and generate a valid token.
-		issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
 		localDomain, _ := config_.GetDomain()
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
 		if err != nil {

@@ -1,6 +1,6 @@
 module github.com/globulario/services/golang
 
-go 1.19
+go 1.20
 
 replace github.com/davecourtois/Utility => ../../Utility
 
