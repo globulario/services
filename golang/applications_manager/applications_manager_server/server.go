@@ -1,24 +1,27 @@
 package main
 
 import (
-
+	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/discovery/discovery_client"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -448,28 +451,6 @@ func (svr *server) createApplication(token, id, domain, password, path, publishe
 
 }
 
-func (svr *server) getApplicationVersion(id string) (string, error) {
-	resourceClient, err := svr.getResourceClient()
-	if err != nil {
-		return "", err
-	}
-
-	return resourceClient.GetApplicationVersion(id)
-}
-
-func (svr *server) getApplication(id string) (*resourcepb.Application, error) {
-	resourceClient, err := svr.getResourceClient()
-	if err != nil {
-		return nil, err
-	}
-
-	applications, err := resourceClient.GetApplications(`{"_id":"` + id + `"}`)
-	if err != nil {
-		return nil, err
-	}
-	return applications[0], nil
-}
-
 func (svr *server) createRole(token, id, name string, actions []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
@@ -487,55 +468,6 @@ func (svr *server) createGroup(token, id, name, description string) error {
 	return resourceClient.CreateGroup(token, id, name, description)
 }
 
-func (svr *server) createNotification(notification *resourcepb.Notification) error {
-	resourceClient, err := svr.getResourceClient()
-	if err != nil {
-		return err
-	}
-
-	return resourceClient.CreateNotification(notification)
-}
-
-// ////////////////////// Package Repository services /////////////////////////////////
-func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, error) {
-	Utility.RegisterFunction("NewDiscoveryService_Client", discovery_client.NewDiscoveryService_Client)
-	client, err := globular_client.GetClient(svr.Address, "discovery.PackageDiscovery", "NewDiscoveryService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*discovery_client.Dicovery_Client), nil
-}
-
-///////////////////////  Log Services functions ////////////////////////////////////////////////
-
-/**
- * Get the log client.
- */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
-}
-
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
-}
-
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
-
 // ////////////////////// rbac service ///////////////////////////////////////
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
@@ -546,20 +478,105 @@ func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := server.GetRbacClient()
-	if err != nil {
-		return err
-	}
-	return rbac_client_.SetActionResourcesPermissions(permissions)
-}
-
 func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := svr.GetRbacClient()
 	if err != nil {
 		return err
 	}
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
+}
+
+// /////////////////// event service functions ////////////////////////////////////
+
+func (svr *server) getEventClient(address string) (*event_client.Event_Client, error) {
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
+	if err != nil {
+
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
+func (svr *server) publish(domain, event string, data []byte) error {
+	eventClient, err := svr.getEventClient(domain)
+	if err != nil {
+		return err
+	}
+	err = eventClient.Publish(event, data)
+	if err != nil {
+		fmt.Println("fail to publish event", event, svr.Domain, "with error", err)
+	}
+	return err
+}
+
+func (svr *server) subscribe(domain, evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := svr.getEventClient(domain)
+	if err != nil {
+		fmt.Println("fail to get event client with error: ", err)
+		return err
+	}
+
+	err = eventClient.Subscribe(evt, svr.Id, listener)
+	if err != nil {
+
+		fmt.Println("fail to subscribe to event with error: ", err)
+		return err
+	}
+
+	fmt.Println("subscribe to event", evt, "succed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
+	// register a listener...
+	return nil
+}
+
+func updateApplication(svr *server, application *resourcepb.Application) func(evt *eventpb.Event) {
+	return func(evt *eventpb.Event) {
+
+		descriptor := new(resourcepb.PackageDescriptor)
+		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+		fmt.Println("------------------------> updateApplication")
+		if err == nil {
+			ip := Utility.MyLocalIP()
+			mac, _ := Utility.MyMacAddr(ip)
+			fmt.Println("----------------------------> ip: ", ip, mac)
+
+			token, err := security.GetLocalToken(mac)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			err = svr.uninstallApplication(token, application.Id+"@"+application.Domain)
+			if err == nil {
+				// Get the new package...
+				repository := descriptor.Repositories[0]
+				package_repository, err := GetRepositoryClient(repository)
+				if err != nil {
+					fmt.Println("fail to install application with error: ", err)
+					return 
+				}
+		
+				bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
+				if err != nil {
+					fmt.Println("fail to install application with error: ", err)
+					return 
+				}
+		
+				// Create the file.
+				r := bytes.NewReader(bundle.Binairies)
+
+				domain, _ := config.GetDomain()
+		
+				// Now I will install the applicaiton.
+				err = svr.installApplication(token, domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
+				if err != nil {
+					fmt.Println("fail to install application with error: ", err)
+					return 
+				}
+		
+			}
+		}
+	}
 }
 
 // That service is use to give access to SQL.
@@ -617,6 +634,25 @@ func main() {
 
 	// The user must part of owner in order to be able to deploy an application...
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
+	// keep applications up to date...
+	go func() {
+		resource_client, err := s_impl.getResourceClient()
+		if err == nil {
+			// retreive all applications.
+			applications, err := resource_client.GetApplications("{}")
+			if err == nil {
+				for i := 0; i < len(applications); i++ {
+					application := applications[i]
+					evt := application.Publisherid + ":" + application.Name
+					values := strings.Split(application.Publisherid, "@")
+					if len(values) == 2 {
+						s_impl.subscribe(values[1], evt, updateApplication(s_impl, application))
+					}
+				}
+			}
+		}
+	}()
 
 	// Start the service.
 	s_impl.StartService()

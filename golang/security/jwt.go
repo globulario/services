@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/davecourtois/Utility"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
@@ -49,6 +48,12 @@ type Claims struct {
 // Generate a token for a ginven user.
 func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
 
+	// Declare the expiration time of the token
+	now := time.Now()
+
+	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
+
+
 	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
 		return "", err
@@ -75,10 +80,6 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		}
 	}
 
-	// Declare the expiration time of the token
-	now := time.Now()
-
-	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
 
 	domain, err := config.GetDomain()
 	if err != nil {
@@ -109,12 +110,20 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		},
 	}
 
+
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
 
 	// Create the JWT string
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
+		return "", err
+	}
+
+	_, err = ValidateToken(tokenString)
+	if err != nil {
+		fmt.Println("fail to generate token: ", err)
 		return "", err
 	}
 
@@ -132,6 +141,7 @@ func ValidateToken(token string) (*Claims, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		
 		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 		if err != nil {
 			return "", err
@@ -148,6 +158,7 @@ func ValidateToken(token string) (*Claims, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return key, nil
 	})
 
@@ -203,7 +214,8 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
+	timeout := Utility.ToInt(globular["SessionTimeout"])
+	token, err = GenerateToken(timeout, claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
 	if err != nil {
 		return "", err
 	}
@@ -229,7 +241,8 @@ func getLocalToken(mac string) (string, error) {
 	if Utility.Exists(path){
 		data, err := os.ReadFile(path)
 		if err == nil {
-			return string(data), nil
+			token := string(data)
+			return token, nil
 		}
 	}
 
@@ -264,15 +277,19 @@ func SetLocalToken(mac, domain, id, name, email string, timeout int) error{
 func GetLocalToken(mac string) (string, error) {
 
 	token, _ := getLocalToken(mac)
+	if len(token) == 0 {
+		fmt.Println("no token was found for mac address " + mac)
+		
+		
+		return "", errors.New("no token was found for mac address " + mac)
+	}
 
 	// Here I will validate the token...
 	claims, err := ValidateToken(string(token))
-
 	if err == nil {
 		return string(token), nil
 	}
 
-	// If the token is older than seven day without being refresh then I retrun an error.
 	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return "", errors.New("the token cannot be refresh after 7 day")
 	}

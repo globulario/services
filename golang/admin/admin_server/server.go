@@ -497,10 +497,6 @@ func main() {
 	adminpb.RegisterAdminServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// Set the Action resource permissions.
-	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/PublishService", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-
 	// Start the service.
 	s_impl.StartService()
 

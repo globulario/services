@@ -31,6 +31,26 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func (server *server) uninstallApplication(token, applicationId string) error {
+
+	fmt.Println("uninstall application ", applicationId)
+	if !strings.Contains(applicationId, "@") {
+		return errors.New("application id must contain the domain")
+	}
+
+
+
+	// Same as delete applicaitons.
+	err := server.deleteApplication(token, applicationId)
+	if err != nil {
+		return err
+	}
+
+	// Remove the application directory... but keep application data...
+	return os.RemoveAll(config.GetWebRootDir() + "/" + strings.Split(applicationId, "@")[0])
+
+}
+
 // Uninstall application...
 func (server *server) UninstallApplication(ctx context.Context, rqst *applications_managerpb.UninstallApplicationRequest) (*applications_managerpb.UninstallApplicationResponse, error) {
 
@@ -47,17 +67,12 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 		}
 	}
 
-	// Same as delete applicaitons.
-	err := server.deleteApplication(token, rqst.ApplicationId)
+	err := server.uninstallApplication(token, rqst.ApplicationId)
 	if err != nil {
-		return nil,
-			status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// Remove the application directory... but keep application data...
-	os.RemoveAll(config.GetWebRootDir() + "/" + strings.Split(rqst.ApplicationId, "@")[0] )
 
 	return &applications_managerpb.UninstallApplicationResponse{
 		Result: true,
@@ -153,13 +168,13 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 				r.Domain, _ = config.GetDomain()
 				actions := role_["actions"].([]interface{})
 				r.Actions = make([]string, len(actions))
-				for j:=0; j <len(actions); j++ {
-					r.Actions[j] = actions[j].(string) 
+				for j := 0; j < len(actions); j++ {
+					r.Actions[j] = actions[j].(string)
 				}
 				roles = append(roles, r)
 			}
 		}
-		
+
 		// groups
 		groups := make([]*resourcepb.Group, 0)
 		if descriptor["groups"] != nil {
@@ -183,7 +198,7 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 		return nil
 	}
 
-	err :=errors.New("no application pacakage found with path " + path)
+	err := errors.New("no application pacakage found with path " + path)
 	fmt.Println("fail to get local application package with error: ", err)
 	return err
 }
@@ -225,7 +240,6 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 			Result: true,
 		}, nil
 	}
-
 
 	// Connect to the dicovery services
 	resource_client_, err := GetResourceClient(rqst.DicorveryId)
@@ -271,7 +285,6 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 
 		// Create the file.
 		r := bytes.NewReader(bundle.Binairies)
-
 
 		// Now I will install the applicaiton.
 		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
@@ -330,7 +343,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	if err != nil {
 		return err
 	}
-   
+
 	if len(alias) == 0 {
 		return errors.New("no application alias was given")
 	}

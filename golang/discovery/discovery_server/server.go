@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discoverypb"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -18,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -463,6 +466,29 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
+func (svr *server) getEventClient(address string) (*event_client.Event_Client, error) {
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
+	if err != nil {
+
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
+func (svr *server) publish(domain, event string, data []byte) error {
+	eventClient, err := svr.getEventClient(domain)
+	if err != nil {
+		return err
+	}
+	err = eventClient.Publish(event, data)
+	if err != nil {
+		fmt.Println("fail to publish event", event, svr.Domain, "with error", err)
+	}
+	return err
+}
+
+
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
@@ -500,7 +526,16 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 		return err
 	}
 
-	return resourceClient.SetPackageDescriptor(descriptor)
+	err = resourceClient.SetPackageDescriptor(descriptor)
+	if err != nil {
+		return err
+	}
+
+	// publish event to notify client that the application was published...
+	var marshaler jsonpb.Marshaler
+	str, _ := marshaler.MarshalToString(descriptor)
+
+	return server.publish(address, descriptor.PublisherId + ":" + descriptor.Id, []byte(str))
 }
 
 /**
