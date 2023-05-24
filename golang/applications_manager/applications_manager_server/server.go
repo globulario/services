@@ -534,12 +534,9 @@ func updateApplication(svr *server, application *resourcepb.Application) func(ev
 
 		descriptor := new(resourcepb.PackageDescriptor)
 		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
-		fmt.Println("------------------------> updateApplication")
 		if err == nil {
 			ip := Utility.MyLocalIP()
 			mac, _ := Utility.MyMacAddr(ip)
-			fmt.Println("----------------------------> ip: ", ip, mac)
-
 			token, err := security.GetLocalToken(mac)
 			if err != nil {
 				fmt.Println(err)
