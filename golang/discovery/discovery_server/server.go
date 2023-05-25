@@ -488,7 +488,6 @@ func (svr *server) publish(domain, event string, data []byte) error {
 	return err
 }
 
-
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
@@ -535,7 +534,7 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 	var marshaler jsonpb.Marshaler
 	str, _ := marshaler.MarshalToString(descriptor)
 
-	return server.publish(address, descriptor.PublisherId + ":" + descriptor.Id, []byte(str))
+	return server.publish(address, descriptor.PublisherId+":"+descriptor.Id, []byte(str))
 }
 
 /**
@@ -589,7 +588,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Service discovery client"
 	s_impl.Keywords = []string{"Discovery", "Package", "Service", "Application"}
 	s_impl.Repositories = make([]string, 0)

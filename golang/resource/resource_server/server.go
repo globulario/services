@@ -691,7 +691,6 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 			return nil, err
 		}
 
-
 		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
 		if err != nil {
 			fmt.Println("fail to connect MongoDB store with error ", err)
@@ -702,7 +701,7 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		svr.isReady = true
 
-		fmt.Println("persistence store ", svr.Backend_address + ":" + Utility.ToString(svr.Backend_port), "is runing and ready to be used.")
+		fmt.Println("persistence store ", svr.Backend_address+":"+Utility.ToString(svr.Backend_port), "is runing and ready to be used.")
 
 	} else if !svr.isReady {
 		nbTry := 100
@@ -1222,7 +1221,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Resource manager service. Resources are Group, Account, Role, Organization and Peer."
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)

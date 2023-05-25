@@ -2,18 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/davecourtois/Utility"
-
-	"sync"
+	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -22,6 +23,8 @@ import (
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc"
 
@@ -88,9 +91,6 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
-
-	// The list of install services.
-	services *sync.Map
 
 	// The list of (gRpc) method's supported by this server.
 	methods []string
@@ -446,9 +446,10 @@ func (server *server) StopService() error {
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
-func (server *server) getEventClient() (*event_client.Event_Client, error) {
+
+func (server *server) getEventClient(domain string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(server.GetAddress(), "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -462,12 +463,43 @@ func (server *server) publishUpdateServiceConfigEvent(config map[string]interfac
 		return err
 	}
 
-	client, err := server.getEventClient()
+	client, err := server.getEventClient(server.Domain)
 	if err != nil {
 		return err
 	}
 
 	return client.Publish("update_globular_service_configuration_evt", data)
+}
+
+func (svr *server) publish(domain, event string, data []byte) error {
+	eventClient, err := svr.getEventClient(domain)
+	if err != nil {
+		return err
+	}
+	err = eventClient.Publish(event, data)
+	if err != nil {
+		fmt.Println("fail to publish event", event, svr.Domain, "with error", err)
+	}
+	return err
+}
+
+func (svr *server) subscribe(domain, evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := svr.getEventClient(domain)
+	if err != nil {
+		fmt.Println("fail to get event client with error: ", err)
+		return err
+	}
+
+	err = eventClient.Subscribe(evt, svr.Id, listener)
+	if err != nil {
+
+		fmt.Println("fail to subscribe to event with error: ", err)
+		return err
+	}
+
+	fmt.Println("subscribe to event", evt, "succed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
+	// register a listener...
+	return nil
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
@@ -668,6 +700,37 @@ func (server *server) registerMethods() error {
 	return nil
 }
 
+func updateService(svr *server, service map[string]interface{}) func(evt *eventpb.Event) {
+	return func(evt *eventpb.Event) {
+
+		descriptor := new(resourcepb.PackageDescriptor)
+		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+
+		if err == nil {
+			fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
+			ip := Utility.MyLocalIP()
+			mac, _ := Utility.MyMacAddr(ip)
+			token, err := security.GetLocalToken(mac)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			// uninstall the service.
+			if svr.stopService(service) == nil {
+				if svr.uninstallService(token, descriptor.PublisherId, descriptor.Id, service["Version"].(string), true) == nil {
+					err = svr.installService(token, descriptor)
+					if err != nil {
+						fmt.Println("fail to update service with error: ", err)
+					} else {
+						fmt.Println(service["Name"], "was updated")
+					}
+				}
+			}
+		}
+	}
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -686,7 +749,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Mircoservice manager service"
 	s_impl.Keywords = []string{"Manager", "Service"}
 	s_impl.Repositories = make([]string, 0)
@@ -701,7 +764,6 @@ func main() {
 	s_impl.done = make(chan bool)
 
 	// Create a new sync map.
-	s_impl.services = new(sync.Map)
 	s_impl.methods = make([]string, 0)
 	s_impl.PortsRange = "10000-10100"
 
@@ -728,9 +790,31 @@ func main() {
 	}
 	s_impl.Root = strings.ReplaceAll(s_impl.Root, "\\", "/")
 
-	// Register the echo services
+	// Register the service manager services
 	services_managerpb.RegisterServicesManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// keep applications up to date...
+	go func() {
+
+		// retreive all services configuations.
+		services, err := config.GetServicesConfigurations()
+		if err == nil {
+			for i := 0; i < len(services); i++ {
+				service := services[i]
+				evt := service["PublisherId"].(string) + ":" + service["Name"].(string)
+				values := strings.Split(service["PublisherId"].(string), "@")
+
+				if len(values) == 2 {
+					//s_impl.subscribe(values[1], evt, updateService(s_impl, service))
+					fmt.Println("subscribe to event", evt, "succed on ", values[1])
+				}
+				//fmt.Println("service ", service)
+			}
+			//fmt.Println("services ", services)
+		}
+
+	}()
 
 	// Start the service manager service.
 	s_impl.StartService()

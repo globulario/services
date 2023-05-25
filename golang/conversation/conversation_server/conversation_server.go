@@ -2117,7 +2117,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "A way to communicate with other member of an organization"
 	s_impl.Keywords = []string{"Conversation", "Chat", "Messenger"}
 	s_impl.Repositories = make([]string, 0)
@@ -2176,20 +2176,20 @@ func main() {
 
 	// Now I will start the sfu service.
 	/*
-	localConfig, err := config.GetLocalConfig(true)
-	if err == nil {
-		cert := config.GetConfigDir() + "/tls/" + localConfig["Certificate"].(string)
-		key := config.GetConfigDir() + "/tls/server.pem"
-		wait := make(chan error)
-		go func() {
-			// be sure the exec is in /usr/local/share
-			Utility.RunCmd("sfu-v2", "", []string{"-addr", ":" + Utility.ToString(s_impl.PortSFU), "-cert", cert, "-key", key }, wait)
-			err := <- wait
-			if err != nil {
-				fmt.Println("webRTC server fail with error ", err)
-			}
-		}()
-	}
+		localConfig, err := config.GetLocalConfig(true)
+		if err == nil {
+			cert := config.GetConfigDir() + "/tls/" + localConfig["Certificate"].(string)
+			key := config.GetConfigDir() + "/tls/server.pem"
+			wait := make(chan error)
+			go func() {
+				// be sure the exec is in /usr/local/share
+				Utility.RunCmd("sfu-v2", "", []string{"-addr", ":" + Utility.ToString(s_impl.PortSFU), "-cert", cert, "-key", key }, wait)
+				err := <- wait
+				if err != nil {
+					fmt.Println("webRTC server fail with error ", err)
+				}
+			}()
+		}
 	*/
 
 	// Here I will make a signal hook to interrupt to exit cleanly.

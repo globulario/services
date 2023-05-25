@@ -1940,7 +1940,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.DnsPort = 5353 // The default dns port.
 	s_impl.StorageDataPath = os.TempDir() + "/dns"
-	s_impl.PublisherId = "globulario" // value by default.
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud" // value by default.
 	s_impl.Permissions = make([]interface{}, 6)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

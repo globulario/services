@@ -2300,7 +2300,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		associations = storage_store.NewBadger_store()
 		srv.associations.Store(rqst.IndexPath, associations)
 		// open in it own thread
-		
+
 		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 		if err != nil {
 			return err
@@ -2961,7 +2961,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Functionalities to find Title information and asscociate it with file."
 	s_impl.Keywords = []string{"Search", "Movie", "Title", "Episode", "MultiMedia", "IMDB"}
 	s_impl.Repositories = make([]string, 0)

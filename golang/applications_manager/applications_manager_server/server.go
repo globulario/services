@@ -550,27 +550,27 @@ func updateApplication(svr *server, application *resourcepb.Application) func(ev
 				package_repository, err := GetRepositoryClient(repository)
 				if err != nil {
 					fmt.Println("fail to install application with error: ", err)
-					return 
+					return
 				}
-		
+
 				bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
 				if err != nil {
 					fmt.Println("fail to install application with error: ", err)
-					return 
+					return
 				}
-		
+
 				// Create the file.
 				r := bytes.NewReader(bundle.Binairies)
 
 				domain, _ := config.GetDomain()
-		
+
 				// Now I will install the applicaiton.
 				err = svr.installApplication(token, domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
 				if err != nil {
 					fmt.Println("fail to install application with error: ", err)
-					return 
+					return
 				}
-		
+
 			}
 		}
 	}
@@ -597,7 +597,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Application manager service"
 	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
 	s_impl.Repositories = make([]string, 0)
@@ -643,6 +643,7 @@ func main() {
 					application := applications[i]
 					evt := application.Publisherid + ":" + application.Name
 					values := strings.Split(application.Publisherid, "@")
+					fmt.Println("listen for application update event: ", values[1], evt)
 					if len(values) == 2 {
 						s_impl.subscribe(values[1], evt, updateApplication(s_impl, application))
 					}

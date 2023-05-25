@@ -465,7 +465,7 @@ func (event_server *server) run() {
 					go func(quit chan bool) {
 						quit <- true
 					}(quits[uuid])
-					
+
 					// remove the channel from the map.
 					delete(quits, uuid)
 				}
@@ -668,7 +668,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

@@ -464,7 +464,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "Admin service must be use with priviled"
 	s_impl.Keywords = []string{"Manager", "Administrator", "Admin"}
 	s_impl.Repositories = make([]string, 0)

@@ -545,7 +545,7 @@ type Attachment struct {
 func (svr *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 
 	fmt.Println("mail_server sendEmail ", host, user, pwd, port)
-	
+
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
 	msg.SetHeader("To", to...)
@@ -755,7 +755,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.SMTP_Port = 25      // non encrypted
 	s_impl.SMTPS_Port = 465    // encrypted
@@ -824,8 +824,8 @@ func main() {
 		smtp.Store = store
 
 		// Open the backend main connection
-		nbTry := 10;
-		for  ;nbTry > 0; nbTry-- {
+		nbTry := 10
+		for ; nbTry > 0; nbTry-- {
 			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 500, "", false)
 			if err == nil {
 				break
@@ -833,8 +833,8 @@ func main() {
 		}
 
 		if nbTry == 0 {
-				fmt.Println("fail to create connection local_resource ", address, err)
-				os.Exit(0)
+			fmt.Println("fail to create connection local_resource ", address, err)
+			os.Exit(0)
 		}
 
 		// start imap server.

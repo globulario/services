@@ -482,7 +482,7 @@ func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
  * Read previous link's
  */
 func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
-	fmt.Println("readTorrentLnks ", svr.DownloadDir + "/lnks.gob")
+	fmt.Println("readTorrentLnks ", svr.DownloadDir+"/lnks.gob")
 
 	// open data file
 	dataFile, err := os.Open(svr.DownloadDir + "/lnks.gob")
@@ -541,7 +541,7 @@ func getEventClient() (*event_client.Event_Client, error) {
 /**
  * Manage torrents here...
  */
- 
+
 func (svr *server) processTorrent() {
 
 	pending := make([]*TorrentTransfer, 0)
@@ -952,7 +952,6 @@ func (svr *server) GetTorrentLnks(ctx context.Context, rqst *torrentpb.GetTorren
 // * Return all torrent info... *
 func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, stream torrentpb.TorrentService_GetTorrentInfosServer) error {
 
-
 	// I will get all torrents from all clients...
 	<-svr.getTorrentsInfo(stream)
 
@@ -963,7 +962,6 @@ func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, strea
 
 // * Download a torrent file
 func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
-
 
 	var clientId string
 	var err error
@@ -1027,7 +1025,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Description = "The Hello world of gRPC service!"
 	s_impl.Keywords = []string{"Example", "torrent", "Test", "Service"}
 	s_impl.Repositories = make([]string, 0)

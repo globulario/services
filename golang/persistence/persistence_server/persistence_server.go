@@ -515,7 +515,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c = persistence_server.connections[id]
 		if c.Password != password {
 			return errors.New("a connection with id " + id + " already exist")
-		}else{
+		} else {
 			return nil // the connection already exist.
 		}
 
@@ -1205,7 +1205,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

@@ -8,13 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/StalkR/httpcache"
-	"github.com/StalkR/imdb"
-	"github.com/barasher/go-exiftool"
-	"github.com/karmdip-mi/go-fitz"
-	"github.com/mitchellh/go-ps"
-	"golang.org/x/text/language"
-	"golang.org/x/text/language/display"
 	"image/jpeg"
 	"io"
 	"io/ioutil"
@@ -31,6 +24,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/StalkR/httpcache"
+	"github.com/StalkR/imdb"
+	"github.com/barasher/go-exiftool"
+	"github.com/karmdip-mi/go-fitz"
+	"github.com/mitchellh/go-ps"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
@@ -3329,7 +3330,7 @@ func getStreamFrameRateInterval(path string) (int, error) {
 /**
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
-func (server *server)createVideoMpeg4H264(path string) (string, error) {
+func (server *server) createVideoMpeg4H264(path string) (string, error) {
 
 	cache.RemoveItem(path)
 
@@ -6319,7 +6320,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario"
+	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
 	s_impl.Permissions = make([]interface{}, 15)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
