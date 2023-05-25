@@ -898,7 +898,7 @@ export function registerAccount(
 /**
  * Remove an account from the server.
  * @param name  The _id of the account.
- * @param callback The callback when the action succed
+ * @param callback The callback when the action succeed
  * @param errorCallback The error callback.
  */
 export function deleteAccount(

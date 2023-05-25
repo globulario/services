@@ -524,7 +524,7 @@ func (svr *server) subscribe(domain, evt string, listener func(evt *eventpb.Even
 		return err
 	}
 
-	fmt.Println("subscribe to event", evt, "succed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
+	fmt.Println("subscribe to event", evt, "succeed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
 	// register a listener...
 	return nil
 }

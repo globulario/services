@@ -38,7 +38,7 @@ func TestCreateConnection(t *testing.T) {
 		return
 	}
 
-	log.Println("Succed to create sql connection")
+	log.Println("succeed to create sql connection")
 }
 */
 
@@ -52,7 +52,7 @@ func TestCreateConnection(t *testing.T) {
 		return
 	}
 
-	log.Println("Succed to create sql connection")
+	log.Println("succeed to create sql connection")
 }
 
 // Ping a connection,
@@ -155,5 +155,5 @@ func TestDeleteConnection(t *testing.T) {
 		log.Println("----> fail to delete connection.", err)
 		return
 	}
-	log.Println("TestDeleteConnection succed!")
+	log.Println("TestDeleteConnection succeed!")
 }

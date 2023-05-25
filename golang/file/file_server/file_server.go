@@ -4195,7 +4195,7 @@ func (s *server) createVideoPreview(path string, nb int, height int, force bool)
 	laps := 120 // 1 minutes
 	var err error
 	for nbTry := 60 * 5; nbTry > 0; nbTry-- {
-		// Create dir fail for no reason in windows so I will try repeat it until it succed... give im time...
+		// Create dir fail for no reason in windows so I will try repeat it until it succeed... give im time...
 		Utility.CreateDirIfNotExist(output)
 
 		wait := make(chan error)

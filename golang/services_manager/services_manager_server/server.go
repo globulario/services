@@ -497,7 +497,6 @@ func (svr *server) subscribe(domain, evt string, listener func(evt *eventpb.Even
 		return err
 	}
 
-	fmt.Println("subscribe to event", evt, "succed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
 	// register a listener...
 	return nil
 }
@@ -703,6 +702,8 @@ func (server *server) registerMethods() error {
 func updateService(svr *server, service map[string]interface{}) func(evt *eventpb.Event) {
 	return func(evt *eventpb.Event) {
 
+		fmt.Println("update service received", string(evt.Name))
+
 		descriptor := new(resourcepb.PackageDescriptor)
 		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
 
@@ -802,16 +803,15 @@ func main() {
 		if err == nil {
 			for i := 0; i < len(services); i++ {
 				service := services[i]
-				evt := service["PublisherId"].(string) + ":" + service["Name"].(string)
+				evt := service["PublisherId"].(string) + ":" + service["Id"].(string)
 				values := strings.Split(service["PublisherId"].(string), "@")
-
 				if len(values) == 2 {
-					//s_impl.subscribe(values[1], evt, updateService(s_impl, service))
-					fmt.Println("subscribe to event", evt, "succed on ", values[1])
+					err = s_impl.subscribe(values[1], evt, updateService(s_impl, service))
+					if err == nil {
+						fmt.Println("subscribe to event", evt, "succeed on ", values[1])
+					}
 				}
-				//fmt.Println("service ", service)
 			}
-			//fmt.Println("services ", services)
 		}
 
 	}()

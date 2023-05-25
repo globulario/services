@@ -45,7 +45,7 @@ func TestCreateGroup(t *testing.T) {
 	if err != nil {
 		log.Println("---> create group group_0 fail! ", err)
 	} else {
-		log.Println("---> create group_0 succed!")
+		log.Println("---> create group_0 succeed!")
 	}
 }
 
@@ -76,7 +76,7 @@ func TestGetGroups(t *testing.T) {
 	if err != nil {
 		log.Println("---> get group group_0 fail! ", err)
 	} else {
-		log.Println("---> get group_0 succed! ", groups)
+		log.Println("---> get group_0 succeed! ", groups)
 	}
 }
 
@@ -103,7 +103,7 @@ func TestRemoveMemberAccount(t *testing.T) {
 	if err != nil {
 		log.Println("---> remove group group_0 fail! ", err)
 	} else {
-		log.Println("---> remove group_0 succed!")
+		log.Println("---> remove group_0 succeed!")
 	}
 }
 
@@ -112,7 +112,7 @@ func TestDeleteGroup(t *testing.T) {
 	if err != nil {
 		log.Println("---> delete group group_0 fail! ", err)
 	} else {
-		log.Println("---> delete group_0 succed!")
+		log.Println("---> delete group_0 succeed!")
 	}
 }
 

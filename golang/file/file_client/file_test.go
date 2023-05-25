@@ -70,7 +70,7 @@ func TestRenameDir(t *testing.T) {
 		return
 	}
 
-	log.Println("succed TestRenameDir")
+	log.Println("succeed TestRenameDir")
 }
 
 /**
@@ -86,13 +86,13 @@ func TestDeleteDir(t *testing.T) {
 		return
 	}
 
-	log.Println("succed TestDeleteDir")
+	log.Println("succeed TestDeleteDir")
 
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // File test
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func TestGetFileInfo(t *testing.T) {
 	fmt.Println("Get File info test")
 
@@ -103,7 +103,7 @@ func TestGetFileInfo(t *testing.T) {
 		return
 	}
 
-	log.Println("succed TestGetFileInfo")
+	log.Println("succeed TestGetFileInfo")
 }
 
 // Read file test.
@@ -117,7 +117,7 @@ func TestReadFile(t *testing.T) {
 		return
 	}
 
-	log.Println("succed TestReadFile")
+	log.Println("succeed TestReadFile")
 
 }
 
@@ -134,5 +134,5 @@ func TestHtmToPdfFile(t *testing.T) {
 
 	ioutil.WriteFile("C:/temp/pdfTest.pdf", data, 0644)
 
-	log.Println("succed TestHtmToPdfFile")
+	log.Println("succeed TestHtmToPdfFile")
 }

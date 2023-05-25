@@ -138,7 +138,7 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 
 			// I will replace the path inside the config...
 			execName := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
-			s["Path"] = path + execName
+			s["Path"] = path + "/" + execName
 			s["Proto"] = protos[0]
 
 			// Here I will get previous service values...
