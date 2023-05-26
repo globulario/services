@@ -1021,6 +1021,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

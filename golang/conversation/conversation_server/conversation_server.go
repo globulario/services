@@ -2128,6 +2128,7 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.PortSFU = 5551
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

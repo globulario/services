@@ -1018,6 +1018,7 @@ func initConfig() {
 
 			// If the execname is globular I will set the services path from exec found in that path...
 			if strings.HasPrefix(execname, "Globular") {
+				
 				if !Utility.Exists(s["Path"].(string)) {
 					service_name := filepath.Base(s["Path"].(string))
 					// set the executable path
@@ -1025,6 +1026,7 @@ func initConfig() {
 					if err == nil {
 						if len(files) > 0 {
 							s["Path"] = files[0]
+
 							// I will also save the configuration.
 							jsonStr, err := Utility.ToJson(s)
 							if err == nil {

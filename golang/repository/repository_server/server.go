@@ -517,6 +517,8 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
+	
 	// The default path where the data can be found.
 	s_impl.Root = config.GetDataDir()
 

@@ -773,6 +773,7 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same server...
 
 	// Give base info to retreive it configuration.

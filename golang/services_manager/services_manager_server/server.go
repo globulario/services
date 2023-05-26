@@ -701,30 +701,31 @@ func (server *server) registerMethods() error {
 
 func updateService(svr *server, service map[string]interface{}) func(evt *eventpb.Event) {
 	return func(evt *eventpb.Event) {
-
 		fmt.Println("update service received", string(evt.Name))
+		if service["KeepUpToDate"].(bool) {
 
-		descriptor := new(resourcepb.PackageDescriptor)
-		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+			descriptor := new(resourcepb.PackageDescriptor)
+			err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
 
-		if err == nil {
-			fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
-			ip := Utility.MyLocalIP()
-			mac, _ := Utility.MyMacAddr(ip)
-			token, err := security.GetLocalToken(mac)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+			if err == nil {
+				fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
+				ip := Utility.MyLocalIP()
+				mac, _ := Utility.MyMacAddr(ip)
+				token, err := security.GetLocalToken(mac)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
 
-			// uninstall the service.
-			if svr.stopService(service) == nil {
-				if svr.uninstallService(token, descriptor.PublisherId, descriptor.Id, service["Version"].(string), true) == nil {
-					err = svr.installService(token, descriptor)
-					if err != nil {
-						fmt.Println("fail to update service with error: ", err)
-					} else {
-						fmt.Println(service["Name"], "was updated")
+				// uninstall the service.
+				if svr.stopService(service) == nil {
+					if svr.uninstallService(token, descriptor.PublisherId, descriptor.Id, service["Version"].(string), true) == nil {
+						err = svr.installService(token, descriptor)
+						if err != nil {
+							fmt.Println("fail to update service with error: ", err)
+						} else {
+							fmt.Println(service["Name"], "was updated")
+						}
 					}
 				}
 			}
@@ -760,6 +761,7 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.done = make(chan bool)

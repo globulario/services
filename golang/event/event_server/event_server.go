@@ -677,6 +677,7 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins

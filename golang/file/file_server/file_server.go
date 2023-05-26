@@ -6329,6 +6329,7 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
 	// set it to true in order to enable GPU acceleration.

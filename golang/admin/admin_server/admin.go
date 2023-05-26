@@ -141,6 +141,7 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 
 	path :=  config.GetGlobularExecPath()
 
+
 	if !Utility.Exists(path) {
 		return errors.New("fail to retreive exec at path: " + path)
 	}

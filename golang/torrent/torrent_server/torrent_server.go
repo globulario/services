@@ -1037,6 +1037,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
+	s_impl.KeepUpToDate = true
 	s_impl.DownloadDir = config.GetDataDir() + "/torrents"
 	s_impl.Seed = false
 
