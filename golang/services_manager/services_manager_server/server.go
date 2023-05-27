@@ -699,6 +699,7 @@ func (server *server) registerMethods() error {
 	return nil
 }
 
+// That function will update a service to the version receive in the event (as part of descriptor).
 func updateService(svr *server, service map[string]interface{}) func(evt *eventpb.Event) {
 	return func(evt *eventpb.Event) {
 		fmt.Println("update service received", string(evt.Name))
