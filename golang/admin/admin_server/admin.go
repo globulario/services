@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"runtime"
 	"strings"
@@ -110,7 +109,7 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	}
 
 	// exit
-	log.Println("stop globular made use systemctl to restart globular automaticaly")
+	fmt.Println("stop globular made use systemctl to restart globular automaticaly")
 
 	// TODO restart Globular exec...
 	pids, err := Utility.GetProcessIdsByName("Globular")
