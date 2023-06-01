@@ -496,11 +496,11 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 }
 
 // Get accosiations store...
-func (srv *server) getAssociations(id string) *storage_store.Badger_store {
+func (srv *server) getAssociations(id string) storage_store.Store {
 	if srv.associations != nil {
 		associations, ok := srv.associations.Load(id)
 		if ok {
-			return associations.(*storage_store.Badger_store)
+			return associations.(storage_store.Store)
 		}
 	}
 	return nil

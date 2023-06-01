@@ -80,7 +80,8 @@ var (
 	rbac_client_ *rbac_client.Rbac_Client
 
 	// Here I will keep files info in cache...
-	cache *storage_store.Badger_store
+	//cache *storage_store.Badger_store
+	cache *storage_store.LevelDB_store
 )
 
 const (
@@ -6336,8 +6337,9 @@ func main() {
 	s_impl.HasEnableGPU = false
 
 	// cache = storage_store.NewBigCache_store()
-	cache = storage_store.NewBadger_store()
-
+	//cache = storage_store.NewBadger_store()
+	cache = storage_store.NewLevelDB_store()
+	
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
 	s_impl.videoConversionErrors = new(sync.Map)
