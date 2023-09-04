@@ -81,7 +81,7 @@ var (
 
 	// Here I will keep files info in cache...
 	//cache *storage_store.Badger_store
-	cache *storage_store.LevelDB_store
+	cache *storage_store.Badger_store
 )
 
 const (
@@ -6336,9 +6336,7 @@ func main() {
 	// set it to true in order to enable GPU acceleration.
 	s_impl.HasEnableGPU = false
 
-	// cache = storage_store.NewBigCache_store()
-	//cache = storage_store.NewBadger_store()
-	cache = storage_store.NewLevelDB_store()
+	cache = storage_store.NewBadger_store()
 	
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()

@@ -81,6 +81,7 @@ type server struct {
 
 	// Contain the list of service use by the catalog server.
 	Services     map[string]interface{}
+	
 	Permissions  []interface{}
 	Dependencies []string // The list of services needed by this services.
 
@@ -330,6 +331,7 @@ func (svr *server) SetTls(hasTls bool) {
 func (svr *server) GetCertAuthorityTrust() string {
 	return svr.CertAuthorityTrust
 }
+
 func (svr *server) SetCertAuthorityTrust(ca string) {
 	svr.CertAuthorityTrust = ca
 }
@@ -752,6 +754,12 @@ func (svr *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(manufacturer)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
@@ -788,6 +796,12 @@ func (svr *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(supplier)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
@@ -833,6 +847,13 @@ func (svr *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(localisation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// set the object references...
@@ -901,6 +922,12 @@ func (svr *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(package_)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// set the object references...
@@ -967,6 +994,12 @@ func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(packageSupplier)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// set the object references...
@@ -1024,6 +1057,12 @@ func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(itemManafacturer)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// set the object references...
@@ -1064,6 +1103,12 @@ func (svr *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(category)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
@@ -1095,6 +1140,11 @@ func (svr *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Category)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1132,6 +1182,11 @@ func (svr *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Category)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -2245,6 +2300,12 @@ func (svr *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 	}
 
 	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2399,6 +2460,7 @@ func (svr *server) DeleteCategory(ctx context.Context, rqst *catalogpb.DeleteCat
 }
 
 func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, connectionId string) error {
+
 	persistence := svr.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return errors.New("no connection found with id " + connectionId)

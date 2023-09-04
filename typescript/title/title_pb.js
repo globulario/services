@@ -2835,7 +2835,7 @@ proto.title.Publisher.prototype.setName = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.title.Video.repeatedFields_ = [9,10,11];
+proto.title.Video.repeatedFields_ = [10,11,12];
 
 
 
@@ -2870,20 +2870,21 @@ proto.title.Video.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     url: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    title: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
     publisherid: (f = msg.getPublisherid()) && proto.title.Publisher.toObject(includeInstance, f),
-    count: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    rating: jspb.Message.getFloatingPointFieldWithDefault(msg, 6, 0.0),
-    likes: jspb.Message.getFieldWithDefault(msg, 7, 0),
-    date: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    genresList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    tagsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+    count: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    rating: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
+    likes: jspb.Message.getFieldWithDefault(msg, 8, 0),
+    date: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    genresList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+    tagsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
     castingList: jspb.Message.toObjectList(msg.getCastingList(),
     proto.title.Person.toObject, includeInstance),
     poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f),
     preview: (f = msg.getPreview()) && proto.title.Preview.toObject(includeInstance, f),
-    duration: jspb.Message.getFieldWithDefault(msg, 14, 0),
-    uuid: jspb.Message.getFieldWithDefault(msg, 15, "")
+    duration: jspb.Message.getFieldWithDefault(msg, 15, 0),
+    uuid: jspb.Message.getFieldWithDefault(msg, 16, "")
   };
 
   if (includeInstance) {
@@ -2930,57 +2931,61 @@ proto.title.Video.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setTitle(value);
       break;
     case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDescription(value);
+      break;
+    case 5:
       var value = new proto.title.Publisher;
       reader.readMessage(value,proto.title.Publisher.deserializeBinaryFromReader);
       msg.setPublisherid(value);
       break;
-    case 5:
+    case 6:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setCount(value);
       break;
-    case 6:
+    case 7:
       var value = /** @type {number} */ (reader.readFloat());
       msg.setRating(value);
       break;
-    case 7:
+    case 8:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setLikes(value);
       break;
-    case 8:
+    case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.setDate(value);
       break;
-    case 9:
+    case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addGenres(value);
       break;
-    case 10:
+    case 11:
       var value = /** @type {string} */ (reader.readString());
       msg.addTags(value);
       break;
-    case 11:
+    case 12:
       var value = new proto.title.Person;
       reader.readMessage(value,proto.title.Person.deserializeBinaryFromReader);
       msg.addCasting(value);
       break;
-    case 12:
+    case 13:
       var value = new proto.title.Poster;
       reader.readMessage(value,proto.title.Poster.deserializeBinaryFromReader);
       msg.setPoster(value);
       break;
-    case 13:
+    case 14:
       var value = new proto.title.Preview;
       reader.readMessage(value,proto.title.Preview.deserializeBinaryFromReader);
       msg.setPreview(value);
       break;
-    case 14:
+    case 15:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setDuration(value);
       break;
-    case 15:
+    case 16:
       var value = /** @type {string} */ (reader.readString());
       msg.setUuid(value);
       break;
@@ -3027,17 +3032,24 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getDescription();
+  f = message.getTitle();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
+  f = message.getDescription();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
   f = message.getPublisherid();
   if (f != null) {
     writer.writeMessage(
-      4,
+      5,
       f,
       proto.title.Publisher.serializeBinaryToWriter
     );
@@ -3045,49 +3057,49 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
   f = message.getCount();
   if (f !== 0) {
     writer.writeInt64(
-      5,
+      6,
       f
     );
   }
   f = message.getRating();
   if (f !== 0.0) {
     writer.writeFloat(
-      6,
+      7,
       f
     );
   }
   f = message.getLikes();
   if (f !== 0) {
     writer.writeInt64(
-      7,
+      8,
       f
     );
   }
   f = message.getDate();
   if (f.length > 0) {
     writer.writeString(
-      8,
+      9,
       f
     );
   }
   f = message.getGenresList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      9,
+      10,
       f
     );
   }
   f = message.getTagsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      10,
+      11,
       f
     );
   }
   f = message.getCastingList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      11,
+      12,
       f,
       proto.title.Person.serializeBinaryToWriter
     );
@@ -3095,7 +3107,7 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
   f = message.getPoster();
   if (f != null) {
     writer.writeMessage(
-      12,
+      13,
       f,
       proto.title.Poster.serializeBinaryToWriter
     );
@@ -3103,7 +3115,7 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
   f = message.getPreview();
   if (f != null) {
     writer.writeMessage(
-      13,
+      14,
       f,
       proto.title.Preview.serializeBinaryToWriter
     );
@@ -3111,14 +3123,14 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
   f = message.getDuration();
   if (f !== 0) {
     writer.writeInt32(
-      14,
+      15,
       f
     );
   }
   f = message.getUuid();
   if (f.length > 0) {
     writer.writeString(
-      15,
+      16,
       f
     );
   }
@@ -3162,10 +3174,10 @@ proto.title.Video.prototype.setUrl = function(value) {
 
 
 /**
- * optional string Description = 3;
+ * optional string Title = 3;
  * @return {string}
  */
-proto.title.Video.prototype.getDescription = function() {
+proto.title.Video.prototype.getTitle = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -3174,18 +3186,36 @@ proto.title.Video.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.title.Video} returns this
  */
-proto.title.Video.prototype.setDescription = function(value) {
+proto.title.Video.prototype.setTitle = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * optional Publisher PublisherId = 4;
+ * optional string Description = 4;
+ * @return {string}
+ */
+proto.title.Video.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.title.Video} returns this
+ */
+proto.title.Video.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional Publisher PublisherId = 5;
  * @return {?proto.title.Publisher}
  */
 proto.title.Video.prototype.getPublisherid = function() {
   return /** @type{?proto.title.Publisher} */ (
-    jspb.Message.getWrapperField(this, proto.title.Publisher, 4));
+    jspb.Message.getWrapperField(this, proto.title.Publisher, 5));
 };
 
 
@@ -3194,7 +3224,7 @@ proto.title.Video.prototype.getPublisherid = function() {
  * @return {!proto.title.Video} returns this
 */
 proto.title.Video.prototype.setPublisherid = function(value) {
-  return jspb.Message.setWrapperField(this, 4, value);
+  return jspb.Message.setWrapperField(this, 5, value);
 };
 
 
@@ -3212,16 +3242,16 @@ proto.title.Video.prototype.clearPublisherid = function() {
  * @return {boolean}
  */
 proto.title.Video.prototype.hasPublisherid = function() {
-  return jspb.Message.getField(this, 4) != null;
+  return jspb.Message.getField(this, 5) != null;
 };
 
 
 /**
- * optional int64 Count = 5;
+ * optional int64 Count = 6;
  * @return {number}
  */
 proto.title.Video.prototype.getCount = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
 };
 
 
@@ -3230,16 +3260,16 @@ proto.title.Video.prototype.getCount = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setCount = function(value) {
-  return jspb.Message.setProto3IntField(this, 5, value);
+  return jspb.Message.setProto3IntField(this, 6, value);
 };
 
 
 /**
- * optional float Rating = 6;
+ * optional float Rating = 7;
  * @return {number}
  */
 proto.title.Video.prototype.getRating = function() {
-  return /** @type {number} */ (jspb.Message.getFloatingPointFieldWithDefault(this, 6, 0.0));
+  return /** @type {number} */ (jspb.Message.getFloatingPointFieldWithDefault(this, 7, 0.0));
 };
 
 
@@ -3248,16 +3278,16 @@ proto.title.Video.prototype.getRating = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setRating = function(value) {
-  return jspb.Message.setProto3FloatField(this, 6, value);
+  return jspb.Message.setProto3FloatField(this, 7, value);
 };
 
 
 /**
- * optional int64 Likes = 7;
+ * optional int64 Likes = 8;
  * @return {number}
  */
 proto.title.Video.prototype.getLikes = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
 };
 
 
@@ -3266,16 +3296,16 @@ proto.title.Video.prototype.getLikes = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setLikes = function(value) {
-  return jspb.Message.setProto3IntField(this, 7, value);
+  return jspb.Message.setProto3IntField(this, 8, value);
 };
 
 
 /**
- * optional string Date = 8;
+ * optional string Date = 9;
  * @return {string}
  */
 proto.title.Video.prototype.getDate = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
 };
 
 
@@ -3284,16 +3314,16 @@ proto.title.Video.prototype.getDate = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setDate = function(value) {
-  return jspb.Message.setProto3StringField(this, 8, value);
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 
 /**
- * repeated string Genres = 9;
+ * repeated string Genres = 10;
  * @return {!Array<string>}
  */
 proto.title.Video.prototype.getGenresList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
 };
 
 
@@ -3302,7 +3332,7 @@ proto.title.Video.prototype.getGenresList = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setGenresList = function(value) {
-  return jspb.Message.setField(this, 9, value || []);
+  return jspb.Message.setField(this, 10, value || []);
 };
 
 
@@ -3312,7 +3342,7 @@ proto.title.Video.prototype.setGenresList = function(value) {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.addGenres = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
 };
 
 
@@ -3326,11 +3356,11 @@ proto.title.Video.prototype.clearGenresList = function() {
 
 
 /**
- * repeated string Tags = 10;
+ * repeated string Tags = 11;
  * @return {!Array<string>}
  */
 proto.title.Video.prototype.getTagsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 11));
 };
 
 
@@ -3339,7 +3369,7 @@ proto.title.Video.prototype.getTagsList = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setTagsList = function(value) {
-  return jspb.Message.setField(this, 10, value || []);
+  return jspb.Message.setField(this, 11, value || []);
 };
 
 
@@ -3349,7 +3379,7 @@ proto.title.Video.prototype.setTagsList = function(value) {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.addTags = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 11, value, opt_index);
 };
 
 
@@ -3363,12 +3393,12 @@ proto.title.Video.prototype.clearTagsList = function() {
 
 
 /**
- * repeated Person Casting = 11;
+ * repeated Person Casting = 12;
  * @return {!Array<!proto.title.Person>}
  */
 proto.title.Video.prototype.getCastingList = function() {
   return /** @type{!Array<!proto.title.Person>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.title.Person, 11));
+    jspb.Message.getRepeatedWrapperField(this, proto.title.Person, 12));
 };
 
 
@@ -3377,7 +3407,7 @@ proto.title.Video.prototype.getCastingList = function() {
  * @return {!proto.title.Video} returns this
 */
 proto.title.Video.prototype.setCastingList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 11, value);
+  return jspb.Message.setRepeatedWrapperField(this, 12, value);
 };
 
 
@@ -3387,7 +3417,7 @@ proto.title.Video.prototype.setCastingList = function(value) {
  * @return {!proto.title.Person}
  */
 proto.title.Video.prototype.addCasting = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 11, opt_value, proto.title.Person, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 12, opt_value, proto.title.Person, opt_index);
 };
 
 
@@ -3401,12 +3431,12 @@ proto.title.Video.prototype.clearCastingList = function() {
 
 
 /**
- * optional Poster poster = 12;
+ * optional Poster poster = 13;
  * @return {?proto.title.Poster}
  */
 proto.title.Video.prototype.getPoster = function() {
   return /** @type{?proto.title.Poster} */ (
-    jspb.Message.getWrapperField(this, proto.title.Poster, 12));
+    jspb.Message.getWrapperField(this, proto.title.Poster, 13));
 };
 
 
@@ -3415,7 +3445,7 @@ proto.title.Video.prototype.getPoster = function() {
  * @return {!proto.title.Video} returns this
 */
 proto.title.Video.prototype.setPoster = function(value) {
-  return jspb.Message.setWrapperField(this, 12, value);
+  return jspb.Message.setWrapperField(this, 13, value);
 };
 
 
@@ -3433,17 +3463,17 @@ proto.title.Video.prototype.clearPoster = function() {
  * @return {boolean}
  */
 proto.title.Video.prototype.hasPoster = function() {
-  return jspb.Message.getField(this, 12) != null;
+  return jspb.Message.getField(this, 13) != null;
 };
 
 
 /**
- * optional Preview preview = 13;
+ * optional Preview preview = 14;
  * @return {?proto.title.Preview}
  */
 proto.title.Video.prototype.getPreview = function() {
   return /** @type{?proto.title.Preview} */ (
-    jspb.Message.getWrapperField(this, proto.title.Preview, 13));
+    jspb.Message.getWrapperField(this, proto.title.Preview, 14));
 };
 
 
@@ -3452,7 +3482,7 @@ proto.title.Video.prototype.getPreview = function() {
  * @return {!proto.title.Video} returns this
 */
 proto.title.Video.prototype.setPreview = function(value) {
-  return jspb.Message.setWrapperField(this, 13, value);
+  return jspb.Message.setWrapperField(this, 14, value);
 };
 
 
@@ -3470,16 +3500,16 @@ proto.title.Video.prototype.clearPreview = function() {
  * @return {boolean}
  */
 proto.title.Video.prototype.hasPreview = function() {
-  return jspb.Message.getField(this, 13) != null;
+  return jspb.Message.getField(this, 14) != null;
 };
 
 
 /**
- * optional int32 Duration = 14;
+ * optional int32 Duration = 15;
  * @return {number}
  */
 proto.title.Video.prototype.getDuration = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 14, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 15, 0));
 };
 
 
@@ -3488,16 +3518,16 @@ proto.title.Video.prototype.getDuration = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setDuration = function(value) {
-  return jspb.Message.setProto3IntField(this, 14, value);
+  return jspb.Message.setProto3IntField(this, 15, value);
 };
 
 
 /**
- * optional string UUID = 15;
+ * optional string UUID = 16;
  * @return {string}
  */
 proto.title.Video.prototype.getUuid = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
 };
 
 
@@ -3506,7 +3536,7 @@ proto.title.Video.prototype.getUuid = function() {
  * @return {!proto.title.Video} returns this
  */
 proto.title.Video.prototype.setUuid = function(value) {
-  return jspb.Message.setProto3StringField(this, 15, value);
+  return jspb.Message.setProto3StringField(this, 16, value);
 };
 
 

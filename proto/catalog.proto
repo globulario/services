@@ -50,8 +50,9 @@ message DeleteConnectionRsp {
 	bool result = 1;
 }
 
-// Property define a range of information.
+// Property define a range of informations.
 message PropertyDefinition{
+
 	// Unique univeral identifier.
 	string id = 1;
 	string name = 2;
@@ -83,6 +84,7 @@ message PropertyDefinitions{
 
 // Item is a composition of properties.
 message ItemDefinition {
+
 	// Unique univeral identifier.
 	string id = 1;
 	string name = 2; // The oficial item name
@@ -191,6 +193,8 @@ message ItemInstancePackage{
 
 // The Package
 message Package {
+	
+	// Unique univeral identifier.
 	string id = 1;
 	string name = 2;
 	string languageCode = 3;
@@ -237,6 +241,7 @@ message Dimension{
 }
 
 message PropertyValue { 
+
 	string propertyDefinitionId = 1;
 	string languageCode = 2;
 	
@@ -262,6 +267,7 @@ message PropertyValue {
 		string text_val = 4;
 		double number_val = 5;
 		bool boolean_val = 6;
+
 		// multiple values
 		Dimensions dimension_arr = 7;
 		Strings text_arr = 8;
@@ -384,8 +390,6 @@ message SaveItemManufacturerRequest {
 message SaveItemManufacturerResponse {
 	string id = 1;
 }
-
-
 
 /////////////////////////// Getter functions ///////////////////////////////////
 message GetSupplierRequest{

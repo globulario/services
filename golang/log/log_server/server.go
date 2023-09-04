@@ -85,7 +85,7 @@ type server struct {
 	Root string
 
 	// Log store.
-	logs *storage_store.LevelDB_store
+	logs *storage_store.Badger_store
 }
 
 // The path of the configuration.
@@ -493,7 +493,7 @@ func main() {
 	}
 
 	// The logs storage.
-	s_impl.logs = storage_store.NewLevelDB_store()
+	s_impl.logs = storage_store.NewBadger_store()
 	err = s_impl.logs.Open(`{"path":"` + s_impl.Root + `", "name":"logs"}`)
 	if err != nil {
 		fmt.Println(err)

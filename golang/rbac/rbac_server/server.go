@@ -95,7 +95,7 @@ type server struct {
 
 	// RBAC store.
 	//permissions *storage_store.Badger_store
-	permissions *storage_store.LevelDB_store
+	permissions *storage_store.Badger_store
 
 	// Here I will keep files info in memory...
 	cache *storage_store.BigCache_store // todo use cache instead of memory...
@@ -1044,7 +1044,7 @@ func main() {
 
 	// The rbac storage.
 	//s_impl.permissions = storage_store.NewBadger_store()
-	s_impl.permissions = storage_store.NewLevelDB_store()
+	s_impl.permissions = storage_store.NewBadger_store()
 	
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = config.GetDataDir()

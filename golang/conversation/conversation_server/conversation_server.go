@@ -121,7 +121,7 @@ type server struct {
 	search_engine *search_engine.BleveSearchEngine
 
 	// Store global conversation information like conversation owner's participant...
-	store *storage_store.LevelDB_store
+	store *storage_store.Badger_store
 
 	// keep in map active conversation db connections.
 	conversations *sync.Map
@@ -555,7 +555,7 @@ func (svr *server) Init() error {
 	svr.search_engine = new(search_engine.BleveSearchEngine)
 
 	// Create a new local store.
-	svr.store = storage_store.NewLevelDB_store()
+	svr.store = storage_store.NewBadger_store()
 
 	return nil
 
@@ -587,22 +587,22 @@ func (svr *server) Stop(context.Context, *conversationpb.StopRequest) (*conversa
  * Databases will be created in the 'conversations' directory inside the Root path
  * Each conversation will have it own leveldb database
  */
-func (svr *server) getConversationConnection(id string) (*storage_store.LevelDB_store, error) {
+func (svr *server) getConversationConnection(id string) (*storage_store.Badger_store, error) {
 
 	dbPath := svr.Root + "/conversations/" + id
 	Utility.CreateDirIfNotExist(dbPath)
 
 	connection, ok := svr.conversations.Load(dbPath)
 	if !ok {
-		connection = storage_store.NewLevelDB_store()
-		err := connection.(*storage_store.LevelDB_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
+		connection = storage_store.NewBadger_store()
+		err := connection.(*storage_store.Badger_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
 		if err != nil {
 			return nil, err
 		}
 		svr.conversations.Store(dbPath, connection)
 	}
 
-	connection_ := connection.(*storage_store.LevelDB_store)
+	connection_ := connection.(*storage_store.Badger_store)
 
 	return connection_, nil
 }
@@ -616,7 +616,7 @@ func (svr *server) closeConversationConnection(id string) {
 	}
 
 	// Close the connection.
-	connection.(*storage_store.LevelDB_store).Close()
+	connection.(*storage_store.Badger_store).Close()
 
 	defer svr.conversations.Delete(dbPath)
 }

@@ -7,7 +7,7 @@ replace github.com/davecourtois/Utility => ../../Utility
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
 	github.com/StalkR/httpcache v1.0.0
-	github.com/StalkR/imdb v1.0.10
+	github.com/StalkR/imdb v1.0.15
 	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
 	github.com/allegro/bigcache v1.2.1
 	github.com/anacrolix/torrent v1.41.0
