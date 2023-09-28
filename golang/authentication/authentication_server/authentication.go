@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 var (
 	dataPath   = config.GetDataDir()
 	configPath = config.GetConfigDir() + "/config.json"
-	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
 // * Validate a token *
@@ -403,7 +403,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
 		}
 
-		data, err := ioutil.ReadFile(configPath)
+		data, err := os.ReadFile(configPath)
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -428,9 +428,6 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
 			}
-
-			// so here I will hide the adminadmin value from the file...
-
 		} else {
 			// Now I will validate the password received with the one in the account
 			err = server.validatePassword(pwd, password)
@@ -444,6 +441,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		localDomain, _ := config_.GetDomain()
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
 		if err != nil {
+
 			return "", status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -457,12 +455,13 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Be sure the password is correct.
+		/*
 		err = server.changeAccountPassword(accountId, tokenString, pwd, pwd)
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+		}*/
 
 		// set back the password in the config file.
 		config["RootPassword"] = pwd

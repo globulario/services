@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"os"
 	"sort"
-
-	//"reflect"
 	"strings"
 	"time"
 
@@ -41,7 +40,21 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 	}
 
 	accountId := rqst.AccountId
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -65,27 +78,35 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 	jsonStr += `"email":"` + account["email"].(string) + `",`
 	jsonStr += `"password":"` + account["password"].(string) + `",`
 	jsonStr += `"roles":[`
-	account["roles"] = []interface{}(account["roles"].(primitive.A))
-	for j := 0; j < len(account["roles"].([]interface{})); j++ {
-		db := account["roles"].([]interface{})[j].(map[string]interface{})["$db"].(string)
+
+	//account["roles"] = []interface{}(account["roles"].(primitive.A))
+	var roles []interface{}
+	switch account["roles"].(type) {
+	case primitive.A:
+		roles = []interface{}(account["roles"].(primitive.A))
+	case []interface{}:
+		roles = []interface{}(account["roles"].([]interface{}))
+	default:
+		fmt.Println("unknown type ", account["roles"])
+	}
+
+	for j := 0; j < len(roles); j++ {
+		db := roles[j].(map[string]interface{})["$db"].(string)
 		db = strings.ReplaceAll(db, "@", "_")
 		db = strings.ReplaceAll(db, ".", "_")
 		jsonStr += `{`
-		jsonStr += `"$ref":"` + account["roles"].([]interface{})[j].(map[string]interface{})["$ref"].(string) + `",`
-		jsonStr += `"$id":"` + account["roles"].([]interface{})[j].(map[string]interface{})["$id"].(string) + `",`
+		jsonStr += `"$ref":"` + roles[j].(map[string]interface{})["$ref"].(string) + `",`
+		jsonStr += `"$id":"` + roles[j].(map[string]interface{})["$id"].(string) + `",`
 		jsonStr += `"$db":"` + db + `"`
 		jsonStr += `}`
-		if j < len(account["roles"].([]interface{}))-1 {
+		if j < len(roles)-1 {
 			jsonStr += `,`
 		}
 	}
 	jsonStr += `]`
 	jsonStr += "}"
 
-	// set the new email.
-	account["email"] = rqst.NewEmail
-
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"name":"`+account["name"].(string)+`"}`, jsonStr, ``)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Accounts", q, jsonStr, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -160,16 +181,16 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	domain, _ := config.GetDomain()
 	accountId := rqst.AccountId
 	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
+		domain := strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
 
 		_domain, err := config.GetDomain()
@@ -193,7 +214,20 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		fmt.Println("fail to retreive account: ", accountId)
 		return nil, status.Errorf(
@@ -204,7 +238,16 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	account := values.(map[string]interface{})
 	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string), Domain: account["domain"].(string)}
 	if account["groups"] != nil {
-		groups := []interface{}(account["groups"].(primitive.A))
+		var groups []interface{}
+		switch account["groups"].(type) {
+		case primitive.A:
+			groups = []interface{}(account["groups"].(primitive.A))
+		case []interface{}:
+			groups = []interface{}(account["groups"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["groups"])
+		}
+
 		if groups != nil {
 			for i := 0; i < len(groups); i++ {
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
@@ -214,7 +257,17 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	if account["roles"] != nil {
-		roles := []interface{}(account["roles"].(primitive.A))
+
+		var roles []interface{}
+		switch account["roles"].(type) {
+		case primitive.A:
+			roles = []interface{}(account["roles"].(primitive.A))
+		case []interface{}:
+			roles = []interface{}(account["roles"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["roles"])
+		}
+
 		if roles != nil {
 			for i := 0; i < len(roles); i++ {
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
@@ -224,7 +277,16 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	if account["organizations"] != nil {
-		organizations := []interface{}(account["organizations"].(primitive.A))
+		var organizations []interface{}
+		switch account["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(account["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = []interface{}(account["organizations"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["organizations"])
+		}
+
 		if organizations != nil {
 			for i := 0; i < len(organizations); i++ {
 				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
@@ -240,7 +302,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
@@ -302,7 +364,20 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+rqst.AccountId+`"},{"name":"`+rqst.AccountId+`"} ]}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + rqst.AccountId + `"},{"name":"` + rqst.AccountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + rqst.AccountId + `' OR name='` + rqst.AccountId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -325,9 +400,20 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		}
 	}
 
-	// Change the password...
-	changePasswordScript := fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+	var changePasswordScript string
+	if p.GetStoreType() == "MONGODB" {
+		changePasswordScript = fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+	} else if p.GetStoreType() == "SCYLLADB" {
+		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
+	} else if p.GetStoreType() == "SQL" {
+		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
 
+	// Change the password...
 	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, changePasswordScript)
 	if err != nil {
 		return nil, status.Errorf(
@@ -358,8 +444,23 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		}
 	}
 
+	var setPassword string
+	if p.GetStoreType() == "MONGODB" {
+		setPassword = `{"$set":{"password":"` + string(pwd) + `"}}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		setPassword = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		fields := []string{"password"}
+		values := []interface{}{string(pwd)}
+		setPassword = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	// Hash the password...
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.AccountId+`"}`, `{ "$set":{"password":"`+string(pwd)+`"}}`, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setPassword, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -378,7 +479,38 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.Account.Id+`"}`, `{ "$set":{"name":"`+rqst.Account.Name+`"}, "$set":{"email":"`+rqst.Account.Email+`"}, "$set":{"domain":"`+rqst.Account.Domain+`"} }`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + rqst.Account.Id + `"},{"name":"` + rqst.Account.Id + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + rqst.Account.Id + `' OR name='` + rqst.Account.Id + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	var setAccount string
+	if p.GetStoreType() == "MONGODB" {
+		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `"}, "$set":{"email":"` + rqst.Account.Email + `"}, "$set":{"domain":"` + rqst.Account.Domain + `"} }`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		setAccount = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+
+		// Set the field and the values to update.
+		fields := []string{"name", "email", "domain"}
+		values := []interface{}{rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain}
+		setAccount = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -390,7 +522,7 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+rqst.Account.Id+`"},{"name":"`+rqst.Account.Id+`"} ]}`, ``)
+	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
@@ -419,6 +551,7 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 
 // * Return the list accounts *
 func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
+	
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -429,7 +562,40 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = ``
+		} else {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+		}
+	}else {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+			parameters := make(map[string]interface{})
+			err := json.Unmarshal([]byte(query), &parameters)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			if p.GetStoreType() == "SQL" {
+				query = `SELECT * FROM Accounts`
+
+				if len(parameters) > 0 {
+					query = query + " WHERE "
+
+					for key, value := range parameters {
+						query = query + key + "='" + value.(string) + "' AND "
+					}
+					query = query[:len(query)-4] // Remove the last AND
+				}
+			}
+		}
 	}
 
 	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
@@ -444,6 +610,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	values := make([]*resourcepb.Account, 0)
 
 	for i := 0; i < len(accounts); i++ {
+		fmt.Println("account ", i, " ", accounts[i])
 		account := accounts[i].(map[string]interface{})
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string)}
 
@@ -454,7 +621,16 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		}
 
 		if account["groups"] != nil {
-			groups := []interface{}(account["groups"].(primitive.A))
+			var groups []interface{}
+			switch account["groups"].(type) {
+			case primitive.A:
+				groups = []interface{}(account["groups"].(primitive.A))
+			case []interface{}:
+				groups = []interface{}(account["groups"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", account["groups"])
+			}
+
 			if groups != nil {
 				for i := 0; i < len(groups); i++ {
 					groupId := groups[i].(map[string]interface{})["$id"].(string)
@@ -464,7 +640,16 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		}
 
 		if account["roles"] != nil {
-			roles := []interface{}(account["roles"].(primitive.A))
+			var roles []interface{}
+			switch account["roles"].(type) {
+			case primitive.A:
+				roles = []interface{}(account["roles"].(primitive.A))
+			case []interface{}:
+				roles = []interface{}(account["roles"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", account["roles"])
+			}
+
 			if roles != nil {
 				for i := 0; i < len(roles); i++ {
 					roleId := roles[i].(map[string]interface{})["$id"].(string)
@@ -474,7 +659,16 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		}
 
 		if account["organizations"] != nil {
-			organizations := []interface{}(account["organizations"].(primitive.A))
+			var organizations []interface{}
+			switch account["organizations"].(type) {
+			case primitive.A:
+				organizations = []interface{}(account["organizations"].(primitive.A))
+			case []interface{}:
+				organizations = []interface{}(account["organizations"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", account["organizations"])
+			}
+
 			if organizations != nil {
 				for i := 0; i < len(organizations); i++ {
 					organizationId := organizations[i].(map[string]interface{})["$id"].(string)
@@ -487,8 +681,20 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		db := a.Id
 		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 		db += "_db"
+		var q string
+		if p.GetStoreType() == "MONGODB" {
+			q = `{"$or":[{"_id":"` + a.Id + `"},{"name":"` + a.Id + `"} ]}`
+		} else if p.GetStoreType() == "SCYLLADB" {
+			q = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			q = `SELECT * FROM Accounts WHERE _id='` + a.Id + `' OR name='` + a.Id + `'`
+		} else {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+		}
 
-		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+a.Id+`"},{"name":"`+a.Id+`"} ]}`, ``)
+		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 		if err == nil {
 			// set the user infos....
 			if user_data != nil {
@@ -578,9 +784,22 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + rqst.Contact.Id + `"},{"name":"` + rqst.Contact.Id + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Contacts WHERE _id='` + rqst.Contact.Id + `' OR name='` + rqst.Contact.Id + `'` // TODO sql query string here...
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone + `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
 
-	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", `{"_id":"`+rqst.Contact.Id+`"}`, sentInvitation, `[{"upsert":true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", q, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -588,20 +807,34 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	}
 
 	// send event.
-	resource_server.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, strings.Split(rqst.Contact.Id, "@")[1])
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var contact_domain string
+	if strings.Contains(rqst.Contact.Id, "@") {
+		contact_domain = strings.Split(rqst.Contact.Id, "@")[1]
+	} else {
+		contact_domain = resource_server.Domain
+	}
+
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, contact_domain)
+	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.SetAccountContactRsp{Result: true}, nil
 }
 
 func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExistRqst) (*resourcepb.AccountExistRsp, error) {
-	var exist bool
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
+
 	// Test with the _id
 	accountId := rqst.Id
 
@@ -635,27 +868,22 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 
 	}
 
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"},{"email":"` + accountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `' OR email='` + accountId + `'` // TODO scylla db query.
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
+
 	if count > 0 {
-		exist = true
-	}
-
-	// Test with the name
-	if !exist {
-		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
-		if count > 0 {
-			exist = true
-		}
-	}
-
-	// Test with the email.
-	if !exist {
-		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"email":"`+rqst.Id+`"}`, "")
-		if count > 0 {
-			exist = true
-		}
-	}
-	if exist {
 		return &resourcepb.AccountExistRsp{
 			Result: true,
 		}, nil
@@ -663,7 +891,7 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 
 	return nil, status.Errorf(
 		codes.Internal,
-		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Account with id name or email '"+rqst.Id+"' dosent exist!")))
+		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("account '"+rqst.Id+"' dosent exist!")))
 
 }
 
@@ -675,14 +903,34 @@ func (resource_server *server) isOrganizationMemeber(account string, organizatio
 		return false
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+account+`"},{"name":"`+account+`"} ]}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + account + `"},{"name":"` + account + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + account + `' OR name='` + account + `'`
+	} else {
+		return false
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		return false
 	}
 
 	account_ := values.(map[string]interface{})
 	if account_["organizations"] != nil {
-		organizations := []interface{}(account_["organizations"].(primitive.A))
+		var organizations []interface{}
+		switch account_["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(account_["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = []interface{}(account_["organizations"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account_["organizations"])
+		}
+
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			if organization == organizationId {
@@ -728,7 +976,20 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -739,37 +1000,68 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	// Remove references.
 	if account["organizations"] != nil {
-		organizations := []interface{}(account["organizations"].(primitive.A))
+		var organizations []interface{}
+		switch account["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(account["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = []interface{}(account["organizations"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["organizations"])
+		}
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
-			resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
+
 			if strings.Contains(organizationId, "@") {
 				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+			} else {
+				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
 			}
 		}
 	}
 
 	if account["groups"] != nil {
-		groups := []interface{}(account["groups"].(primitive.A))
+		var groups []interface{}
+		switch account["groups"].(type) {
+		case primitive.A:
+			groups = []interface{}(account["groups"].(primitive.A))
+		case []interface{}:
+			groups = []interface{}(account["groups"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["groups"])
+		}
+
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Groups")
-			resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, localDomain)
 			if strings.Contains(groupId, "@") {
+				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
+			} else {
 				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
 			}
 		}
 	}
 
 	if account["roles"] != nil {
-		roles := []interface{}(account["roles"].(primitive.A))
+		var roles []interface{}
+		switch account["roles"].(type) {
+		case primitive.A:
+			roles = []interface{}(account["roles"].(primitive.A))
+		case []interface{}:
+			roles = []interface{}(account["roles"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", account["roles"])
+		}
+
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
-			resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
+
 			if strings.Contains(roleId, "@") {
 				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
+			} else {
+				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
 			}
 		}
 
@@ -778,7 +1070,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	resource_server.deleteAllAccess(accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	// Try to delete the account...
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -788,17 +1080,35 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
+	var get_contacts string
+	if p.GetStoreType() == "MONGODB" {
+		get_contacts = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		get_contacts = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		get_contacts = ``
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	// so before remove database I need to remove the accout from it contacts...
-	contacts, err := p.Find(context.Background(), "local_resource", name+"_db", "Contacts", "{}", "")
+	contacts, err := p.Find(context.Background(), "local_resource", name+"_db", "Contacts", get_contacts, "")
 	if err == nil {
 		for i := 0; i < len(contacts); i++ {
+
+			// Get the contact.
 			contact := contacts[i].(map[string]interface{})
+			name := contact["name"].(string)
+			name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
 			// So here I will call delete on the db...
-			err = p.DeleteOne(context.Background(), "local_resource", contact["_id"].(string)+"_db", "Contacts", `{"_id":"`+name+`"}`, "")
+			err = p.DeleteOne(context.Background(), "local_resource", name+"_db", "Contacts", q, "")
 
 			if err == nil {
 				// Here I will send delete contact event.
+
 				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, domain)
 				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, contact["domain"].(string))
 			}
@@ -806,10 +1116,20 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		}
 	}
 
-	// Here I will drop the db user.
-	dropUserScript := fmt.Sprintf(
-		`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
-		name)
+	var dropUserScript string
+	if p.GetStoreType() == "MONGODB" {
+		dropUserScript = fmt.Sprintf(
+			`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
+			name)
+	} else if p.GetStoreType() == "SCYLLADB" {
+		dropUserScript = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `` // TODO sql query string here...
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
 
 	// I will execute the sript with the admin function.
 	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
@@ -829,6 +1149,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	// Remove the file...
 	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
+	resource_server.deleteAllAccess(name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
@@ -950,8 +1271,21 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + rqst.RoleId + `"},{"name":"` + rqst.RoleId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + rqst.RoleId + `' OR name='` + rqst.RoleId + `'` // TODO sql query string here...
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	// Get the persistence connection
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, "")
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Roles", q, "")
 	if err != nil || count == 0 {
 		if err != nil {
 			return nil, status.Errorf(
@@ -960,7 +1294,7 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 		}
 	} else {
 
-		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, rqst.Values, "")
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Roles", q, rqst.Values, "")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -968,8 +1302,14 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 		}
 	}
 
-	localDomain, err := config.GetDomain()
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	var role_domain string
+	if strings.Contains(rqst.RoleId, "@") {
+		role_domain = strings.Split(rqst.RoleId, "@")[1]
+	} else {
+		role_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.UpdateRoleRsp{
 		Result: true,
@@ -985,7 +1325,40 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Roles` // TODO sql query string here...
+		} else {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+		}
+	} else {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+			parameters := make(map[string]interface{})
+			err := json.Unmarshal([]byte(query), &parameters)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			if p.GetStoreType() == "SQL" {
+				query = `SELECT * FROM Roles`
+
+				if len(parameters) > 0 {
+					query = query + " WHERE "
+
+					for key, value := range parameters {
+						query = query + key + "='" + value.(string) + "' AND "
+					}
+					query = query[:len(query)-4] // Remove the last AND
+				}
+			}
+		}
 	}
 
 	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", query, rqst.Options)
@@ -1009,7 +1382,15 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		}
 
 		if role["actions"] != nil {
-			actions := []interface{}(role["actions"].(primitive.A))
+			var actions []interface{}
+			switch role["actions"].(type) {
+			case primitive.A:
+				actions = []interface{}(role["actions"].(primitive.A))
+			case []interface{}:
+				actions = []interface{}(role["actions"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", role["actions"])
+			}
 			if actions != nil {
 				for i := 0; i < len(actions); i++ {
 					r.Actions = append(r.Actions, actions[i].(string))
@@ -1018,7 +1399,16 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		}
 
 		if role["organizations"] != nil {
-			organizations := []interface{}(role["organizations"].(primitive.A))
+			var organizations []interface{}
+			switch role["organizations"].(type) {
+			case primitive.A:
+				organizations = []interface{}(role["organizations"].(primitive.A))
+			case []interface{}:
+				organizations = []interface{}(role["organizations"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", role["organizations"])
+			}
+
 			if organizations != nil {
 				for i := 0; i < len(organizations); i++ {
 					organizationId := organizations[i].(map[string]interface{})["$id"].(string)
@@ -1028,7 +1418,16 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		}
 
 		if role["members"] != nil {
-			members := []interface{}(role["members"].(primitive.A))
+			var members []interface{}
+			switch role["members"].(type) {
+			case primitive.A:
+				members = []interface{}(role["members"].(primitive.A))
+			case []interface{}:
+				members = []interface{}(role["members"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", role["members"])
+			}
+
 			if members != nil {
 				for i := 0; i < len(members); i++ {
 					memberId := members[i].(map[string]interface{})["$id"].(string)
@@ -1101,8 +1500,21 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + roleId + `' OR name='` + roleId + `'` // TODO sql query string here...
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	// Remove references
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		return nil, err
 	}
@@ -1111,25 +1523,50 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 
 	// Remove it from the accounts
 	if role["members"] != nil {
-		accounts := []interface{}(role["members"].(primitive.A))
+		var accounts []interface{}
+		switch role["members"].(type) {
+		case primitive.A:
+			accounts = []interface{}(role["members"].(primitive.A))
+		case []interface{}:
+			accounts = []interface{}(role["members"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["members"])
+		}
 		for i := 0; i < len(accounts); i++ {
 			accountId := accounts[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, accountId, roleId, "roles", "Accounts")
-			resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
+			if strings.Contains(accountId, "@") {
+				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
+			} else {
+				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, localDomain)
+			}
 		}
 	}
 
 	// I will remove it from organizations...
 	if role["organizations"] != nil {
-		organizations := []interface{}(role["organizations"].(primitive.A))
+		var organizations []interface{}
+		switch role["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(role["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = []interface{}(role["organizations"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["organizations"])
+		}
+
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.RoleId, organizationId, "roles", "Roles")
-			resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+			if strings.Contains(organizationId, "@") {
+				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+			} else {
+				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
+			}
 		}
 	}
 
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1138,6 +1575,8 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 
 	// TODO delete role permissions
 	resource_server.deleteResourcePermissions(rqst.RoleId)
+	resource_server.deleteAllAccess(rqst.RoleId, rbacpb.SubjectType_ROLE)
+
 	resource_server.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
 	resource_server.publishEvent("delete_role_evt", []byte(rqst.RoleId), localDomain)
 
@@ -1173,7 +1612,20 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + roleId + `' OR name='` + roleId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1187,7 +1639,16 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		role["actions"] = rqst.Actions
 		needSave = true
 	} else {
-		actions := []interface{}(role["actions"].(primitive.A))
+		var actions []interface{}
+		switch role["actions"].(type) {
+		case primitive.A:
+			actions = []interface{}(role["actions"].(primitive.A))
+		case []interface{}:
+			actions = []interface{}(role["actions"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["actions"])
+		}
+
 		for j := 0; j < len(rqst.Actions); j++ {
 			exist := false
 			for i := 0; i < len(actions); i++ {
@@ -1210,7 +1671,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		// jsonStr, _ := json.Marshal(role)
 		jsonStr := serialyseObject(role)
 
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", q, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1218,7 +1679,11 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		}
 	}
 
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	if strings.Contains(rqst.RoleId, "@") {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+	} else {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	}
 
 	return &resourcepb.AddRoleActionsRsp{Result: true}, nil
 }
@@ -1234,7 +1699,20 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", `{}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1250,17 +1728,27 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 			needSave = true
 		} else {
 			exist := false
-			actions := make([]interface{}, 0)
-			actions_ := []interface{}(role["actions"].(primitive.A))
-			for i := 0; i < len(actions_); i++ {
-				if actions_[i].(string) == rqst.Action {
+			var actions []interface{}
+			switch role["actions"].(type) {
+			case primitive.A:
+				actions = []interface{}(role["actions"].(primitive.A))
+			case []interface{}:
+				actions = []interface{}(role["actions"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", role["actions"])
+			}
+
+			var actions_ []interface{}
+			for i := 0; i < len(actions); i++ {
+				if actions[i].(string) == rqst.Action {
 					exist = true
 				} else {
-					actions = append(actions, actions_[i])
+					actions_ = append(actions_, actions[i])
 				}
 			}
+
 			if exist {
-				role["actions"] = actions
+				role["actions"] = actions_
 				needSave = true
 			}
 		}
@@ -1269,14 +1757,31 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 			// jsonStr, _ := json.Marshal(role)
 			jsonStr := serialyseObject(role)
 
-			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+role["_id"].(string)+`"}`, string(jsonStr), ``)
+			var q string
+			if p.GetStoreType() == "MONGODB" {
+				q = `{"_id":"` + role["_id"].(string) + `"}`
+			} else if p.GetStoreType() == "SCYLLADB" {
+				q = `` // TODO scylla db query.
+			} else if p.GetStoreType() == "SQL" {
+				q = `SELECT * FROM Roles WHERE _id='` + role["_id"].(string) + `'`
+			} else {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+			}
+
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", q, string(jsonStr), ``)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, localDomain)
+			if strings.Contains(role["_id"].(string), "@") {
+				resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, role["domain"].(string))
+			} else {
+				resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, localDomain)
+			}
 
 		}
 	}
@@ -1312,7 +1817,20 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + roleId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + roleId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1328,7 +1846,16 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	} else {
 		exist := false
 		actions := make([]interface{}, 0)
-		actions_ := []interface{}(role["actions"].(primitive.A))
+		var actions_ []interface{}
+		switch role["actions"].(type) {
+		case primitive.A:
+			actions_ = []interface{}(role["actions"].(primitive.A))
+		case []interface{}:
+			actions_ = []interface{}(role["actions"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["actions"])
+		}
+
 		for i := 0; i < len(actions_); i++ {
 			if actions_[i].(string) == rqst.Action {
 				exist = true
@@ -1350,7 +1877,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		// jsonStr, _ := json.Marshal(role)
 		jsonStr := serialyseObject(role)
 
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", q, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1358,13 +1885,18 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		}
 	}
 
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	if strings.Contains(rqst.RoleId, "@") {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+	} else {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	}
 
 	return &resourcepb.RemoveRoleActionRsp{Result: true}, nil
 }
 
 // * Add role to a given account *
 func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccountRoleRqst) (*resourcepb.AddAccountRoleRsp, error) {
+
 	// That service made user of persistence service.
 	err := resource_server.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
 	if err != nil {
@@ -1372,7 +1904,13 @@ func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourc
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+
+	if strings.Contains(rqst.RoleId, "@") {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+	} else {
+		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, resource_server.Domain)
+	}
+
 	return &resourcepb.AddAccountRoleRsp{Result: true}, nil
 }
 
@@ -1400,12 +1938,28 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var role_domain string
+	if strings.Contains(rqst.RoleId, "@") {
+		role_domain = strings.Split(rqst.RoleId, "@")[1]
+	} else {
+		role_domain = resource_server.Domain
+	}
+
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+
+	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
+// * save a new application *
 func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
 	p, err := resource_server.getPersistenceStore()
@@ -1417,7 +1971,18 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 		return errors.New("no application object was given in the request")
 	}
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + app.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + app.Id + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", q, "")
 
 	application := make(map[string]interface{}, 0)
 	application["_id"] = app.Id
@@ -1450,12 +2015,24 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	// Here I will set the resource to manage the applicaiton access permission.
 	if err != nil || count == 0 {
 
-		// create the application database.
-		createApplicationUserDbScript := fmt.Sprintf(
-			"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
-			app.Id, app.Id, app.Id, app.Id)
+		var createApplicationDbScript string
 
-		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationUserDbScript)
+		if p.GetStoreType() == "MONGODB" {
+			createApplicationDbScript = fmt.Sprintf(
+				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
+				app.Id, app.Id, app.Id, app.Id)
+		} else if p.GetStoreType() == "SCYLLADB" {
+			createApplicationDbScript = fmt.Sprintf(
+				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }; USE %s_db; CREATE TABLE application_data (id text PRIMARY KEY, data text);",
+				app.Id, app.Id)
+		} else if p.GetStoreType() == "SQL" {
+			q = `` // TODO sql query string here...
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
+
+		// create the application database.
+		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
 		if err != nil {
 			return err
 		}
@@ -1468,12 +2045,26 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 		// give time to mongodb...
 		// create ressour ce application...
+		// no more needed...
 		defer resource_server.createApplicationConnection(app)
 
 	} else {
 		actions_, _ := Utility.ToJson(app.Actions)
 		keywords_, _ := Utility.ToJson(app.Keywords)
-		err := p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, `{ "$set":{ "last_deployed":`+Utility.ToString(time.Now().Unix())+` }, "$set":{"keywords":`+keywords_+`}, "$set":{"actions":`+actions_+`},"$set":{"publisherid":"`+app.Publisherid+`"},"$set":{"description":"`+app.Description+`"},"$set":{"alias":"`+app.Alias+`"},"$set":{"icon":"`+app.Icon+`"}, "$set":{"version":"`+app.Version+`"}}`, "")
+		var setApplication string
+		if p.GetStoreType() == "MONGODB" {
+			setApplication = `{ "$set":{ "last_deployed":` + Utility.ToString(time.Now().Unix()) + ` }, "$set":{"keywords":` + keywords_ + `}, "$set":{"actions":` + actions_ + `},"$set":{"publisherid":"` + app.Publisherid + `"},"$set":{"description":"` + app.Description + `"},"$set":{"alias":"` + app.Alias + `"},"$set":{"icon":"` + app.Icon + `"}, "$set":{"version":"` + app.Version + `"}}`
+		} else if p.GetStoreType() == "SCYLLADB" {
+			setApplication = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			fields := []string{"last_deployed", "publisherid", "description", "alias", "icon", "version"}
+			values := []string{Utility.ToString(time.Now().Unix()), app.Publisherid, app.Description, app.Alias, app.Icon, app.Version}
+			setApplication = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
+
+		err := p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", q, setApplication, "")
 
 		if err != nil {
 			return err
@@ -1546,16 +2137,29 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, rqst.Values, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.ApplicationId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
 
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", q, rqst.Values, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, localDomain)
+	if strings.Contains(rqst.ApplicationId, "@") {
+		resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
+	} else {
+		resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, resource_server.Domain)
+	}
 
 	return &resourcepb.UpdateApplicationRsp{}, nil
 }
@@ -1579,14 +2183,27 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 }
 
 func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *resourcepb.GetApplicationVersionRqst) (*resourcepb.GetApplicationVersionRsp, error) {
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	var previousVersion string
-	previous, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.Id+`"}`, `[{"Projection":{"version":1}}]`)
+	previous, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, `[{"Projection":{"version":1}}]`)
 	if err == nil {
 		if previous != nil {
 			if previous.(map[string]interface{})["version"] != nil {
@@ -1594,11 +2211,9 @@ func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *
 			}
 		}
 	} else {
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-
 	}
 
 	return &resourcepb.GetApplicationVersionRsp{
@@ -1616,8 +2231,19 @@ func (resource_server *server) GetApplicationAlias(ctx context.Context, rqst *re
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Now I will retreive the application icon...
-	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.Id+`"}`, `[{"Projection":{"alias":1}}]`)
+	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, `[{"Projection":{"alias":1}}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1637,8 +2263,19 @@ func (resource_server *server) GetApplicationIcon(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Now I will retreive the application icon...
-	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.Id+`"}`, `[{"Projection":{"icon":1}}]`)
+	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, `[{"Projection":{"icon":1}}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1658,7 +2295,18 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.ApplicationId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -1672,26 +2320,34 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 		application["actions"] = rqst.Actions
 		needSave = true
 	} else {
-		application["actions"] = []interface{}(application["actions"].(primitive.A))
+		var actions_ []interface{}
+		switch application["actions"].(type) {
+		case primitive.A:
+			actions_ = []interface{}(application["actions"].(primitive.A))
+		case []interface{}:
+			actions_ = []interface{}(application["actions"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", application["actions"])
+		}
+
 		for j := 0; j < len(rqst.Actions); j++ {
 			exist := false
-			for i := 0; i < len(application["actions"].([]interface{})); i++ {
-				if application["actions"].([]interface{})[i].(string) == rqst.Actions[j] {
+			for i := 0; i < len(actions_); i++ {
+				if actions_[i].(string) == rqst.Actions[j] {
 					exist = true
 					break
 				}
 				if !exist {
-					application["actions"] = append(application["actions"].([]interface{}), rqst.Actions[j])
+					actions_ = append(actions_, rqst.Actions[j])
 					needSave = true
 				}
 			}
 		}
-
 	}
 
 	if needSave {
 		jsonStr := serialyseObject(application)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1713,7 +2369,18 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.ApplicationId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1729,14 +2396,25 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 	} else {
 		exist := false
 		actions := make([]interface{}, 0)
-		application["actions"] = []interface{}(application["actions"].(primitive.A))
-		for i := 0; i < len(application["actions"].([]interface{})); i++ {
-			if application["actions"].([]interface{})[i].(string) == rqst.Action {
+
+		var actions_ []interface{}
+		switch application["actions"].(type) {
+		case primitive.A:
+			actions_ = []interface{}(application["actions"].(primitive.A))
+		case []interface{}:
+			actions_ = []interface{}(application["actions"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", application["actions"])
+		}
+
+		for i := 0; i < len(actions_); i++ {
+			if actions_[i].(string) == rqst.Action {
 				exist = true
 			} else {
-				actions = append(actions, application["actions"].([]interface{})[i])
+				actions = append(actions, actions_[i])
 			}
 		}
+
 		if exist {
 			application["actions"] = actions
 			needSave = true
@@ -1749,7 +2427,7 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 
 	if needSave {
 		jsonStr := serialyseObject(application)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1771,7 +2449,18 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 		return nil, err
 	}
 
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", `{}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications` // TODO sql query string here...
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1788,12 +2477,22 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 		} else {
 			exist := false
 			actions := make([]interface{}, 0)
-			application["actions"] = []interface{}(application["actions"].(primitive.A))
-			for i := 0; i < len(application["actions"].([]interface{})); i++ {
-				if application["actions"].([]interface{})[i].(string) == rqst.Action {
+
+			var actions_ []interface{}
+			switch application["actions"].(type) {
+			case primitive.A:
+				actions_ = []interface{}(application["actions"].(primitive.A))
+			case []interface{}:
+				actions_ = []interface{}(application["actions"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", application["actions"])
+			}
+
+			for i := 0; i < len(actions_); i++ {
+				if actions_[i].(string) == rqst.Action {
 					exist = true
 				} else {
-					actions = append(actions, application["actions"].([]interface{})[i])
+					actions = append(actions, actions_[i])
 				}
 			}
 			if exist {
@@ -1804,7 +2503,17 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 
 		if needSave {
 			jsonStr := serialyseObject(application)
-			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+application["_id"].(string)+`"}`, string(jsonStr), ``)
+			var q string
+			if p.GetStoreType() == "MONGODB" {
+				q = `{"_id":"` + application["_id"].(string) + `"}`
+			} else if p.GetStoreType() == "SCYLLADB" {
+				q = `` // TODO scylla db query.
+			} else if p.GetStoreType() == "SQL" {
+				q = `SELECT * FROM Applications WHERE _id='` + application["_id"].(string) + `'`
+			} else {
+				return nil, errors.New("unknown database type " + p.GetStoreType())
+			}
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
 			resource_server.publishEvent("update_application_"+application["_id"].(string)+"_evt", []byte{}, application["domain"].(string))
 			if err != nil {
 				return nil, status.Errorf(
@@ -1817,26 +2526,56 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 	return &resourcepb.RemoveApplicationsActionRsp{Result: true}, nil
 }
 
-// /////////////////////  resource management. /////////////////
-func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
-	// That service made user of persistence service.
+/**
+ * Get application informations.
+ */
+func (resource_server *server) getApplications(query string, options string) ([]*resourcepb.Application, error) {
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	query := rqst.Query
+
 	if len(query) == 0 {
-		query = "{}" // all
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}" // all
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Applications` // TODO sql query string here...
+		} else {
+			return nil, errors.New("unknown database type " + p.GetStoreType())
+		}
+	} else {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+			parameters := make(map[string]interface{})
+			err := json.Unmarshal([]byte(query), &parameters)
+			if err != nil {
+				return nil, err
+			}
+
+			if p.GetStoreType() == "SQL" {
+				query = `SELECT * FROM Applications`
+
+				if len(parameters) > 0 {
+					query = query + " WHERE "
+
+					for key, value := range parameters {
+						query = query + key + "='" + value.(string) + "' AND "
+					}
+					query = query[:len(query)-4] // Remove the last AND
+				}
+			}
+		}
 	}
 
 	// So here I will get the list of retreived permission.
-
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, rqst.Options)
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, options)
 	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, err
 	}
+
+	applications := make([]*resourcepb.Application, 0)
 
 	// Convert to Application.
 	for i := 0; i < len(values); i++ {
@@ -1856,8 +2595,18 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 
 		// Here I will also append the list of actions.
 		actions := make([]string, 0)
+
 		if values_["actions"] != nil {
-			actions_ := []interface{}(values_["actions"].(primitive.A))
+
+			var actions_ []interface{}
+			switch values_["actions"].(type) {
+			case primitive.A:
+				actions_ = []interface{}(values_["actions"].(primitive.A))
+			case []interface{}:
+				actions_ = []interface{}(values_["actions"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", values_["actions"])
+			}
 
 			for i := 0; i < len(actions_); i++ {
 				actions = append(actions, actions_[i].(string))
@@ -1868,8 +2617,28 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 		// TODO validate token...
 		application.Password = values_["password"].(string)
 
+		if err != nil {
+			return nil, err
+		}
+
+		applications = append(applications, application)
+	}
+
+	return applications, nil
+}
+
+// /////////////////////  resource management. /////////////////
+func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
+
+	applications, err := resource_server.getApplications(rqst.Query, rqst.Options)
+
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(applications); i++ {
 		err := stream.Send(&resourcepb.GetApplicationsRsp{
-			Applications: []*resourcepb.Application{application},
+			Applications: []*resourcepb.Application{applications[i]},
 		})
 		if err != nil {
 			return err
@@ -1877,7 +2646,6 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 	}
 
 	return nil
-
 }
 
 // //////////////////////////////////////////////////////////////////////////////
@@ -1937,7 +2705,11 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	if err != nil {
 		return nil, "", err
 	}
+
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, "", err
+	}
 
 	localConfig, err := config.GetLocalConfig(true)
 	httpPort := Utility.ToInt(localConfig["PortHttp"])
@@ -1950,7 +2722,6 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	}
 
 	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
-
 }
 
 // * Connect tow peer toggether on the network.
@@ -1964,13 +2735,24 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// set the remote peer in /etc/hosts
 	resource_server.setLocalHosts(rqst.Peer)
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
-		values, _ := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
+		values, _ := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 		if values != nil {
 			p := initPeer(values)
 			pubKey, err := security.GetPeerKey(p.Mac)
@@ -2219,7 +3001,24 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, `{ "$set":{"state":1}}`, "")
+	var q string
+	var setState string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		setState = `{ "$set":{"state":1}}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = ``        // TODO scylla db query.
+		setState = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		fields := []string{"state"}
+		values := []interface{}{1}
+		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2283,7 +3082,24 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, `{ "$set":{"state":2}}`, "")
+	var q string
+	var setState string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		setState = `{ "$set":{"state":2}}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = ``        // TODO scylla db query.
+		setState = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		fields := []string{"state"}
+		values := []interface{}{2}
+		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2345,9 +3161,17 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 func initPeer(values interface{}) *resourcepb.Peer {
 	state := resourcepb.PeerApprovalState(values.(map[string]interface{})["state"].(int32))
 	p := &resourcepb.Peer{Protocol: values.(map[string]interface{})["protocol"].(string), PortHttp: int32(Utility.ToInt(values.(map[string]interface{})["portHttp"])), PortHttps: int32(Utility.ToInt(values.(map[string]interface{})["portHttps"])), Hostname: values.(map[string]interface{})["hostname"].(string), Domain: values.(map[string]interface{})["domain"].(string), ExternalIpAddress: values.(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: values.(map[string]interface{})["local_ip_address"].(string), Mac: values.(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
-	values.(map[string]interface{})["actions"] = []interface{}(values.(map[string]interface{})["actions"].(primitive.A))
-	for j := 0; j < len(values.(map[string]interface{})["actions"].([]interface{})); j++ {
-		p.Actions = append(p.Actions, values.(map[string]interface{})["actions"].([]interface{})[j].(string))
+
+	var actions_ []interface{}
+	switch values.(map[string]interface{})["actions"].(type) {
+	case primitive.A:
+		actions_ = []interface{}(values.(map[string]interface{})["actions"].(primitive.A))
+	case []interface{}:
+		actions_ = values.(map[string]interface{})["actions"].([]interface{})
+	}
+
+	for j := 0; j < len(actions_); j++ {
+		p.Actions = append(p.Actions, actions_[j].(string))
 	}
 
 	return p
@@ -2364,7 +3188,15 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Peers`
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
 	}
 
 	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
@@ -2436,7 +3268,18 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	values, err := p.FindOne(ctx, "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(ctx, "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2455,7 +3298,7 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	jsonStr, _ := Utility.ToJson(peer)
 
 	// Save the peer.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, jsonStr, "")
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, jsonStr, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2490,7 +3333,18 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2506,7 +3360,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2514,12 +3368,8 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Delete permissions
-	err = p.Delete(context.Background(), "local_resource", "local_resource", "Permissions", `{"owner":"`+rqst.Peer.Mac+`"}`, "")
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	resource_server.deleteResourcePermissions(rqst.Peer.Mac)
+	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Delete peer public key...
 	security.DeletePublicKey(rqst.Peer.Mac)
@@ -2532,9 +3382,6 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	if len(rqst.Peer.Domain) > 0 {
 		domain += "." + rqst.Peer.Domain
 	}
-
-	// remove permission associated with that peer...
-	resource_server.deleteResourcePermissions(domain)
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
@@ -2567,7 +3414,18 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 		return err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+mac+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"mac":"` + mac + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE mac='` + mac + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, ``)
 	if err != nil {
 		return err
 	}
@@ -2579,7 +3437,15 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 		peer["actions"] = actions_
 		needSave = true
 	} else {
-		actions := []interface{}(peer["actions"].(primitive.A))
+
+		var actions []interface{}
+		switch peer["actions"].(type) {
+		case primitive.A:
+			actions = []interface{}(peer["actions"].(primitive.A))
+		case []interface{}:
+			actions = peer["actions"].([]interface{})
+		}
+
 		for j := 0; j < len(actions_); j++ {
 			exist := false
 			for i := 0; i < len(peer["actions"].(primitive.A)); i++ {
@@ -2598,7 +3464,7 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 
 	if needSave {
 		jsonStr := serialyseObject(peer)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+mac+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, string(jsonStr), ``)
 		if err != nil {
 			return err
 		}
@@ -2636,7 +3502,18 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Mac+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"mac":"` + rqst.Mac + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers WHERE mac='` + rqst.Mac + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2671,7 +3548,7 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 
 	if needSave {
 		jsonStr := serialyseObject(peer)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Mac+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -2694,7 +3571,18 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", `{}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Peers`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2726,8 +3614,19 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 
 		if needSave {
 			localDomain, _ := config.GetDomain()
+			var q string
+			if p.GetStoreType() == "MONGODB" {
+				q = `{"_id":"` + peer["_id"].(string) + `"}`
+			} else if p.GetStoreType() == "SCYLLADB" {
+				q = `` // TODO scylla db query.
+			} else if p.GetStoreType() == "SQL" {
+				q = `SELECT * FROM Peers WHERE _id='` + peer["_id"].(string) + `'`
+			} else {
+				return nil, errors.New("unknown database type " + p.GetStoreType())
+			}
+
 			jsonStr := serialyseObject(peer)
-			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+peer["_id"].(string)+`"}`, string(jsonStr), ``)
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, string(jsonStr), ``)
 			resource_server.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{}, localDomain)
 			if err != nil {
 				return nil, status.Errorf(
@@ -2773,9 +3672,20 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		return nil, err
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + rqst.Organization.Id + `"},{"name":"` + rqst.Organization.Id + `"},{"name":"` + rqst.Organization.Name + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Organizations WHERE _id='` + rqst.Organization.Id + `' OR name='` + rqst.Organization.Id + `' OR name='` + rqst.Organization.Name + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", `{"$or":[{"_id":"`+rqst.Organization.Id+`"},{"name":"`+rqst.Organization.Id+`"},{"name":"`+rqst.Organization.Name+`"} ]}`, "")
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", q, "")
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2863,8 +3773,19 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.OrganizationId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Organizations WHERE _id='` + rqst.OrganizationId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Get the persistence connection
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.OrganizationId+`"}`, "")
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", q, "")
 	if err != nil || count == 0 {
 		if err != nil {
 			return nil, status.Errorf(
@@ -2873,7 +3794,7 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 		}
 	} else {
 
-		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.OrganizationId+`"}`, rqst.Values, "")
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Organizations", q, rqst.Values, "")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -2881,8 +3802,11 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 		}
 	}
 
-	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, localDomain)
+	if strings.Contains(rqst.OrganizationId, "@") {
+		resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, rqst.OrganizationId[strings.Index(rqst.OrganizationId, "@")+1:])
+	} else {
+		resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, resource_server.Domain)
+	}
 
 	return &resourcepb.UpdateOrganizationRsp{
 		Result: true,
@@ -2900,7 +3824,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Organizations`
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
 	}
 
 	organizations, err := p.Find(context.Background(), "local_resource", "local_resource", "Organizations", query, rqst.Options)
@@ -2932,7 +3864,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 		// Groups
 		if o["groups"] != nil {
-			groups := []interface{}(o["groups"].(primitive.A))
+
+			var groups []interface{}
+			switch o["groups"].(type) {
+			case primitive.A:
+				groups = []interface{}(o["groups"].(primitive.A))
+			case []interface{}:
+				groups = o["groups"].([]interface{})
+			}
+
 			if groups != nil {
 				for i := 0; i < len(groups); i++ {
 					groupId := groups[i].(map[string]interface{})["$id"].(string)
@@ -2943,7 +3883,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 		// Roles
 		if o["roles"] != nil {
-			roles := []interface{}(o["roles"].(primitive.A))
+
+			var roles []interface{}
+			switch o["roles"].(type) {
+			case primitive.A:
+				roles = []interface{}(o["roles"].(primitive.A))
+			case []interface{}:
+				roles = o["roles"].([]interface{})
+			}
+
 			if roles != nil {
 				for i := 0; i < len(roles); i++ {
 					roleId := roles[i].(map[string]interface{})["$id"].(string)
@@ -2954,7 +3902,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 		// Accounts
 		if o["accounts"] != nil {
-			accounts := []interface{}(o["accounts"].(primitive.A))
+
+			var accounts []interface{}
+			switch o["accounts"].(type) {
+			case primitive.A:
+				accounts = []interface{}(o["accounts"].(primitive.A))
+			case []interface{}:
+				accounts = o["accounts"].([]interface{})
+			}
+
 			if accounts != nil {
 				for i := 0; i < len(accounts); i++ {
 					accountId := accounts[i].(map[string]interface{})["$id"].(string)
@@ -2965,7 +3921,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 		// Applications
 		if o["applications"] != nil {
-			applications := []interface{}(o["applications"].(primitive.A))
+
+			var applications []interface{}
+			switch o["applications"].(type) {
+			case primitive.A:
+				applications = []interface{}(o["applications"].(primitive.A))
+			case []interface{}:
+				applications = o["applications"].([]interface{})
+			}
+
 			if applications != nil {
 				for i := 0; i < len(applications); i++ {
 					applicationId := applications[i].(map[string]interface{})["$id"].(string)
@@ -3015,8 +3979,22 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.AddOrganizationAccountRsp{Result: true}, nil
 }
@@ -3030,8 +4008,22 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.GroupId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var group_domain string
+	if strings.Contains(rqst.GroupId, "@") {
+		group_domain = strings.Split(rqst.GroupId, "@")[1]
+	} else {
+		group_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.AddOrganizationGroupRsp{Result: true}, nil
 }
@@ -3045,8 +4037,22 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var role_domain string
+	if strings.Contains(rqst.RoleId, "@") {
+		role_domain = strings.Split(rqst.RoleId, "@")[1]
+	} else {
+		role_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.AddOrganizationRoleRsp{Result: true}, nil
 }
@@ -3060,8 +4066,22 @@ func (resource_server *server) AddOrganizationApplication(ctx context.Context, r
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var application_domain string
+	if strings.Contains(rqst.ApplicationId, "@") {
+		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
+	} else {
+		application_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, application_domain)
 
 	return &resourcepb.AddOrganizationApplicationRsp{Result: true}, nil
 }
@@ -3083,8 +4103,22 @@ func (resource_server *server) RemoveOrganizationAccount(ctx context.Context, rq
 		return nil, err
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveOrganizationAccountRsp{Result: true}, nil
 }
@@ -3106,8 +4140,22 @@ func (resource_server *server) RemoveOrganizationGroup(ctx context.Context, rqst
 		return nil, err
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.GroupId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var group_domain string
+	if strings.Contains(rqst.GroupId, "@") {
+		group_domain = strings.Split(rqst.GroupId, "@")[1]
+	} else {
+		group_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.RemoveOrganizationGroupRsp{Result: true}, nil
 }
@@ -3129,8 +4177,22 @@ func (resource_server *server) RemoveOrganizationRole(ctx context.Context, rqst 
 		return nil, err
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var role_domain string
+	if strings.Contains(rqst.RoleId, "@") {
+		role_domain = strings.Split(rqst.RoleId, "@")[1]
+	} else {
+		role_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.RemoveOrganizationRoleRsp{Result: true}, nil
 }
@@ -3152,8 +4214,22 @@ func (resource_server *server) RemoveOrganizationApplication(ctx context.Context
 		return nil, err
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.OrganizationId, "@")[1])
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
+	var organization_domain string
+	if strings.Contains(rqst.OrganizationId, "@") {
+		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
+	} else {
+		organization_domain = resource_server.Domain
+	}
+
+	var application_domain string
+	if strings.Contains(rqst.ApplicationId, "@") {
+		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
+	} else {
+		application_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application_domain)
 
 	return &resourcepb.RemoveOrganizationApplicationRsp{Result: true}, nil
 }
@@ -3187,7 +4263,18 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+organizationId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + organizationId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Organizations WHERE _id='` + organizationId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3196,7 +4283,15 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 
 	organization := values.(map[string]interface{})
 	if organization["groups"] != nil {
-		groups := []interface{}(organization["groups"].(primitive.A))
+
+		var groups []interface{}
+		switch organization["groups"].(type) {
+		case primitive.A:
+			groups = []interface{}(organization["groups"].(primitive.A))
+		case []interface{}:
+			groups = organization["groups"].([]interface{})
+		}
+
 		if groups != nil {
 			for i := 0; i < len(groups); i++ {
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
@@ -3204,13 +4299,29 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if err != nil {
 					fmt.Println(err)
 				}
-				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
+
+				var group_domain string
+				if strings.Contains(groupId, "@") {
+					group_domain = strings.Split(groupId, "@")[1]
+				} else {
+					group_domain = resource_server.Domain
+				}
+
+				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, group_domain)
 			}
 		}
 	}
 
 	if organization["roles"].(primitive.A) != nil {
-		roles := []interface{}(organization["roles"].(primitive.A))
+
+		var roles []interface{}
+		switch organization["roles"].(type) {
+		case primitive.A:
+			roles = []interface{}(organization["roles"].(primitive.A))
+		case []interface{}:
+			roles = organization["roles"].([]interface{})
+		}
+
 		if roles != nil {
 			for i := 0; i < len(roles); i++ {
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
@@ -3218,13 +4329,29 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if err != nil {
 					fmt.Println(err)
 				}
-				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
+
+				var role_domain string
+				if strings.Contains(roleId, "@") {
+					role_domain = strings.Split(roleId, "@")[1]
+				} else {
+					role_domain = resource_server.Domain
+				}
+
+				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, role_domain)
 			}
 		}
 	}
 
 	if organization["applications"].(primitive.A) != nil {
-		applications := []interface{}(organization["applications"].(primitive.A))
+
+		var applications []interface{}
+		switch organization["applications"].(type) {
+		case primitive.A:
+			applications = []interface{}(organization["applications"].(primitive.A))
+		case []interface{}:
+			applications = organization["applications"].([]interface{})
+		}
+
 		if applications != nil {
 			for i := 0; i < len(applications); i++ {
 				applicationId := applications[i].(map[string]interface{})["$id"].(string)
@@ -3232,13 +4359,29 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if err != nil {
 					fmt.Println(err)
 				}
-				resource_server.publishEvent("update_application_"+applicationId+"_evt", []byte{}, strings.Split(applicationId, "@")[1])
+
+				var application_domain string
+				if strings.Contains(applicationId, "@") {
+					application_domain = strings.Split(applicationId, "@")[1]
+				} else {
+					application_domain = resource_server.Domain
+				}
+
+				resource_server.publishEvent("update_application_"+applicationId+"_evt", []byte{}, application_domain)
 			}
 		}
 	}
 
 	if organization["accounts"].(primitive.A) != nil {
-		accounts := []interface{}(organization["accounts"].(primitive.A))
+
+		var accounts []interface{}
+		switch organization["accounts"].(type) {
+		case primitive.A:
+			accounts = []interface{}(organization["accounts"].(primitive.A))
+		case []interface{}:
+			accounts = organization["accounts"].([]interface{})
+		}
+
 		if accounts != nil {
 			for i := 0; i < len(accounts); i++ {
 				accountId := accounts[i].(map[string]interface{})["$id"].(string)
@@ -3246,7 +4389,15 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if err != nil {
 					fmt.Println(err)
 				}
-				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
+
+				var account_domain string
+				if strings.Contains(accountId, "@") {
+					account_domain = strings.Split(accountId, "@")[1]
+				} else {
+					account_domain = resource_server.Domain
+				}
+
+				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
 			}
 		}
 	}
@@ -3256,7 +4407,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	resource_server.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
 
 	// Try to delete the account...
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+organization["_id"].(string)+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3264,6 +4415,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	}
 
 	resource_server.deleteResourcePermissions(organizationId)
+	resource_server.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
+
 	resource_server.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, localDomain)
 	resource_server.publishEvent("delete_organization_evt", []byte(organizationId), localDomain)
 
@@ -3281,8 +4434,19 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.GroupId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Groups WHERE _id='` + rqst.GroupId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Get the persistence connection
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.GroupId+`"}`, "")
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Groups", q, "")
 	if err != nil || count == 0 {
 		if err != nil {
 			return nil, status.Errorf(
@@ -3290,8 +4454,7 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
-
-		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.GroupId+`"}`, rqst.Values, "")
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Groups", q, rqst.Values, "")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -3299,33 +4462,19 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 		}
 	}
 
-	localDomain, err := config.GetDomain()
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, localDomain)
+	var group_domain string
+	if strings.Contains(rqst.GroupId, "@") {
+		group_domain = strings.Split(rqst.GroupId, "@")[1]
+	} else {
+		group_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.UpdateGroupRsp{
 		Result: true,
 	}, nil
 }
-
-/* TODO set the update part of the function.
- 		count, err := store.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+group.Id+`"}`, "")
-		if err != nil || count == 0 {
-			g := make(map[string]interface{}, 0)
-			g["_id"] = group.Id
-			g["name"] = group.Name
-			g["members"] = []string{}
-			_, err := store.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
-			if err != nil {
-				return err
-			}
-		} else {
-
-			err = store.UpdateOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+group.Id+`"}`, `{ "$set":{"name":"`+group.Name+`"}}`, "")
-			if err != nil {
-				return err
-			}
-		}
-*/
 
 // * Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
@@ -3380,7 +4529,39 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Groups`
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
+
+	} else {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+			parameters := make(map[string]interface{})
+			err := json.Unmarshal([]byte(query), &parameters)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			if p.GetStoreType() == "SQL" {
+				query = `SELECT * FROM Groups`
+
+				if len(parameters) > 0 {
+					query = query + " WHERE "
+
+					for key, value := range parameters {
+						query = query + key + "='" + value.(string) + "' AND "
+					}
+					query = query[:len(query)-4] // Remove the last AND
+				}
+			}
+		}
 	}
 
 	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", query, rqst.Options)
@@ -3404,13 +4585,29 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 		}
 
 		if groups[i].(map[string]interface{})["members"] != nil {
-			members := []interface{}(groups[i].(map[string]interface{})["members"].(primitive.A))
+
+			var members []interface{}
+			switch groups[i].(map[string]interface{})["members"].(type) {
+			case primitive.A:
+				members = []interface{}(groups[i].(map[string]interface{})["members"].(primitive.A))
+			case []interface{}:
+				members = groups[i].(map[string]interface{})["members"].([]interface{})
+			}
+
 			g.Members = make([]string, 0)
 			for j := 0; j < len(members); j++ {
 				g.Members = append(g.Members, members[j].(map[string]interface{})["$id"].(string))
 			}
 		} else if groups[i].(map[string]interface{})["organizations"] != nil {
-			organizations := []interface{}(groups[i].(map[string]interface{})["organizations"].(primitive.A))
+
+			var organizations []interface{}
+			switch groups[i].(map[string]interface{})["organizations"].(type) {
+			case primitive.A:
+				organizations = []interface{}(groups[i].(map[string]interface{})["organizations"].(primitive.A))
+			case []interface{}:
+				organizations = groups[i].(map[string]interface{})["organizations"].([]interface{})
+			}
+
 			g.Organizations = make([]string, 0)
 			for j := 0; j < len(organizations); j++ {
 				g.Organizations = append(g.Organizations, organizations[j].(map[string]interface{})["$id"].(string))
@@ -3481,7 +4678,18 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+groupId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + groupId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Groups WHERE _id='` + groupId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3493,30 +4701,55 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	// I will remove it from accounts...
 
 	if group["members"] != nil {
-		members := []interface{}(group["members"].(primitive.A))
+
+		var members []interface{}
+		switch group["members"].(type) {
+		case primitive.A:
+			members = []interface{}(group["members"].(primitive.A))
+		case []interface{}:
+			members = group["members"].([]interface{})
+		}
+
 		for j := 0; j < len(members); j++ {
 			accountId := members[j].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Group, accountId, "groups", "Accounts")
-			resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
+			var account_domain string
+			if strings.Contains(accountId, "@") {
+				account_domain = strings.Split(accountId, "@")[1]
+			} else {
+				account_domain = resource_server.Domain
+			}
+			resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
 		}
 	}
 
 	// I will remove it from organizations...
 	if group["organizations"] != nil {
-		organizations := []interface{}(group["organizations"].(primitive.A))
+
+		var organizations []interface{}
+		switch group["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(group["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = group["organizations"].([]interface{})
+		}
+
 		if organizations != nil {
 			for i := 0; i < len(organizations); i++ {
 				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 				resource_server.deleteReference(p, rqst.Group, organizationId, "groups", "Organizations")
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+				var organization_domain string
+				if strings.Contains(organizationId, "@") {
+					organization_domain = strings.Split(organizationId, "@")[1]
+				} else {
+					organization_domain = resource_server.Domain
+				}
+				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, organization_domain)
 			}
 		}
 	}
 
-	groupId = group["_id"].(string) + "@" + group["domain"].(string)
-	resource_server.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
-
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+group["_id"].(string)+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", q, "")
 	if err != nil {
 		fmt.Println("3043", err)
 		return nil, status.Errorf(
@@ -3524,7 +4757,10 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	groupId = group["_id"].(string) + "@" + group["domain"].(string)
+
 	resource_server.deleteResourcePermissions(rqst.Group)
+	resource_server.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
 
 	resource_server.publishEvent("delete_group_"+groupId+"_evt", []byte{}, localDomain)
 
@@ -3546,8 +4782,22 @@ func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, strings.Split(rqst.GroupId, "@")[1])
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var group_domain string
+	if strings.Contains(rqst.GroupId, "@") {
+		group_domain = strings.Split(rqst.GroupId, "@")[1]
+	} else {
+		group_domain = resource_server.Domain
+	}
+
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.AddGroupMemberAccountRsp{Result: true}, nil
 }
@@ -3574,8 +4824,22 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, strings.Split(rqst.GroupId, "@")[1])
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
+	var group_domain string
+	if strings.Contains(rqst.GroupId, "@") {
+		group_domain = strings.Split(rqst.GroupId, "@")[1]
+	} else {
+		group_domain = resource_server.Domain
+	}
+
+	var account_domain string
+	if strings.Contains(rqst.AccountId, "@") {
+		account_domain = strings.Split(rqst.AccountId, "@")[1]
+	} else {
+		account_domain = resource_server.Domain
+	}
+
+	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveGroupMemberAccountRsp{Result: true}, nil
 }
@@ -3592,10 +4856,22 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Notification.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Notifications WHERE _id='` + rqst.Notification.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// so the recipient here is the id of the user...
 	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
 
-	count, _ := p.Count(context.Background(), "local_resource", recipient+"_db", "Notifications", `{"_id":"`+rqst.Notification.Id+`"}`, "")
+	count, _ := p.Count(context.Background(), "local_resource", recipient+"_db", "Notifications", q, "")
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3648,6 +4924,12 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 // * Retreive notifications
 func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
 
+	if len(rqst.Recipient) == 0 {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
+	}
+
 	recipient := strings.Split(rqst.Recipient, "@")[0]
 
 	// Get the persistence connection
@@ -3656,7 +4938,17 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 		return err
 	}
 
-	query := `{}`
+	var query string
+
+	if p.GetStoreType() == "MONGODB" {
+		query = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Notifications WHERE recipient='` + recipient + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
 
 	notifications, err := p.Find(context.Background(), "local_resource", recipient+"_db", "Notifications", query, "")
 	if err != nil {
@@ -3715,7 +5007,18 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.DeleteOne(context.Background(), "local_resource", recipient+"_db", "Notifications", `{"id":"`+rqst.Id+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Notifications WHERE _id='` + rqst.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.DeleteOne(context.Background(), "local_resource", recipient+"_db", "Notifications", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3732,6 +5035,12 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 // * Remove all Notification
 func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
 
+	if len(rqst.Recipient) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
+	}
+
 	recipient := strings.Split(rqst.Recipient, "@")[0]
 
 	p, err := resource_server.getPersistenceStore()
@@ -3741,7 +5050,18 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.Delete(context.Background(), "local_resource", recipient+"_db", "Notifications", `{}`, ``)
+	var query string
+	if p.GetStoreType() == "MONGODB" {
+		query = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Notifications WHERE recipient='` + recipient + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.Delete(context.Background(), "local_resource", recipient+"_db", "Notifications", query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3771,7 +5091,18 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 	}
 	db += "_db"
 
-	err = p.Delete(context.Background(), "local_resource", db, "Notifications", `{ "notificationtype":`+Utility.ToString(notificationType)+`}`, ``)
+	var query string
+	if p.GetStoreType() == "MONGODB" {
+		query = `{ "notificationtype":` + Utility.ToString(notificationType) + `}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Notifications WHERE notificationtype=` + Utility.ToString(notificationType)
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.Delete(context.Background(), "local_resource", db, "Notifications", query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3810,8 +5141,16 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Test...
-	query := `{"keywords": { "$all" : ` + kewordsStr + `}}`
+	var query string
+	if p.GetStoreType() == "MONGODB" {
+		query = `{"keywords": { "$all" : ` + kewordsStr + `}}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Packages WHERE keywords='` + kewordsStr + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
 
 	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
 	if err != nil {
@@ -3832,32 +5171,64 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 		descriptors[i].Icon = descriptor["icon"].(string)
 		descriptors[i].Alias = descriptor["alias"].(string)
 		if descriptor["keywords"] != nil {
-			descriptor["keywords"] = []interface{}(descriptor["keywords"].(primitive.A))
-			descriptors[i].Keywords = make([]string, len(descriptor["keywords"].([]interface{})))
-			for j := 0; j < len(descriptor["keywords"].([]interface{})); j++ {
-				descriptors[i].Keywords[j] = descriptor["keywords"].([]interface{})[j].(string)
+
+			var keywords []interface{}
+			switch descriptor["keywords"].(type) {
+			case primitive.A:
+				keywords = []interface{}(descriptor["keywords"].(primitive.A))
+			case []interface{}:
+				keywords = descriptor["keywords"].([]interface{})
+			}
+
+			descriptors[i].Keywords = make([]string, len(keywords))
+			for j := 0; j < len(keywords); j++ {
+				descriptors[i].Keywords[j] = keywords[j].(string)
 			}
 		}
 		if descriptor["actions"] != nil {
-			descriptor["actions"] = []interface{}(descriptor["actions"].(primitive.A))
-			descriptors[i].Actions = make([]string, len(descriptor["actions"].([]interface{})))
-			for j := 0; j < len(descriptor["actions"].([]interface{})); j++ {
-				descriptors[i].Actions[j] = descriptor["actions"].([]interface{})[j].(string)
+
+			var actions []interface{}
+			switch descriptor["actions"].(type) {
+			case primitive.A:
+				actions = []interface{}(descriptor["actions"].(primitive.A))
+			case []interface{}:
+				actions = descriptor["actions"].([]interface{})
+			}
+
+			descriptors[i].Actions = make([]string, len(actions))
+			for j := 0; j < len(actions); j++ {
+				descriptors[i].Actions[j] = actions[j].(string)
 			}
 		}
 		if descriptor["discoveries"] != nil {
-			descriptor["discoveries"] = []interface{}(descriptor["discoveries"].(primitive.A))
-			descriptors[i].Discoveries = make([]string, len(descriptor["discoveries"].([]interface{})))
-			for j := 0; j < len(descriptor["discoveries"].([]interface{})); j++ {
-				descriptors[i].Discoveries[j] = descriptor["discoveries"].([]interface{})[j].(string)
+
+			var discoveries []interface{}
+			switch descriptor["discoveries"].(type) {
+			case primitive.A:
+				discoveries = []interface{}(descriptor["discoveries"].(primitive.A))
+			case []interface{}:
+				discoveries = descriptor["discoveries"].([]interface{})
+			}
+
+			descriptors[i].Discoveries = make([]string, len(discoveries))
+			for j := 0; j < len(discoveries); j++ {
+				descriptors[i].Discoveries[j] = discoveries[j].(string)
 			}
 		}
 
 		if descriptor["repositories"] != nil {
-			descriptor["repositories"] = []interface{}(descriptor["repositories"].(primitive.A))
-			descriptors[i].Repositories = make([]string, len(descriptor["repositories"].([]interface{})))
-			for j := 0; j < len(descriptor["repositories"].([]interface{})); j++ {
-				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
+
+			var repositories []interface{}
+			switch descriptor["repositories"].(type) {
+			case primitive.A:
+				repositories = []interface{}(descriptor["repositories"].(primitive.A))
+			case []interface{}:
+				repositories = descriptor["repositories"].([]interface{})
+			}
+
+			descriptors[i].Repositories = make([]string, len(repositories))
+			for j := 0; j < len(repositories); j++ {
+				descriptors[i].Repositories[j] = repositories[j].(string)
 			}
 		}
 	}
@@ -3877,7 +5248,16 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	query := `{"id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+	var query string
+	if p.GetStoreType() == "MONGODB" {
+		query = `{"id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Packages WHERE id='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
 
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
 	if err != nil {
@@ -3894,7 +5274,6 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	descriptors := make([]*resourcepb.PackageDescriptor, len(values))
 	for i := 0; i < len(values); i++ {
-
 		descriptor := values[i].(map[string]interface{})
 		descriptors[i] = new(resourcepb.PackageDescriptor)
 		descriptors[i].Id = descriptor["id"].(string)
@@ -3919,70 +5298,120 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 		descriptors[i].Type = resourcepb.PackageType(Utility.ToInt(descriptor["type"]))
 
 		if descriptor["keywords"] != nil {
-			descriptor["keywords"] = []interface{}(descriptor["keywords"].(primitive.A))
-			descriptors[i].Keywords = make([]string, len(descriptor["keywords"].([]interface{})))
-			for j := 0; j < len(descriptor["keywords"].([]interface{})); j++ {
-				descriptors[i].Keywords[j] = descriptor["keywords"].([]interface{})[j].(string)
+
+			var keywords []interface{}
+			switch descriptor["keywords"].(type) {
+			case primitive.A:
+				keywords = []interface{}(descriptor["keywords"].(primitive.A))
+			case []interface{}:
+				keywords = descriptor["keywords"].([]interface{})
+			}
+
+			descriptors[i].Keywords = make([]string, len(keywords))
+			for j := 0; j < len(keywords); j++ {
+				descriptors[i].Keywords[j] = keywords[j].(string)
 			}
 		}
 
 		if descriptor["actions"] != nil {
-			descriptor["actions"] = []interface{}(descriptor["actions"].(primitive.A))
-			descriptors[i].Actions = make([]string, len(descriptor["actions"].([]interface{})))
-			for j := 0; j < len(descriptor["actions"].([]interface{})); j++ {
-				descriptors[i].Actions[j] = descriptor["actions"].([]interface{})[j].(string)
+			var actions []interface{}
+			switch descriptor["actions"].(type) {
+			case primitive.A:
+				actions = []interface{}(descriptor["actions"].(primitive.A))
+			case []interface{}:
+				actions = descriptor["actions"].([]interface{})
+			}
+
+			descriptors[i].Actions = make([]string, len(actions))
+			for j := 0; j < len(actions); j++ {
+				descriptors[i].Actions[j] = actions[j].(string)
 			}
 		}
 
 		if descriptor["discoveries"] != nil {
-			descriptor["discoveries"] = []interface{}(descriptor["discoveries"].(primitive.A))
-			descriptors[i].Discoveries = make([]string, len(descriptor["discoveries"].([]interface{})))
-			for j := 0; j < len(descriptor["discoveries"].([]interface{})); j++ {
-				descriptors[i].Discoveries[j] = descriptor["discoveries"].([]interface{})[j].(string)
+
+			var discoveries []interface{}
+			switch descriptor["discoveries"].(type) {
+			case primitive.A:
+				discoveries = []interface{}(descriptor["discoveries"].(primitive.A))
+			case []interface{}:
+				discoveries = descriptor["discoveries"].([]interface{})
+			}
+
+			descriptors[i].Discoveries = make([]string, len(discoveries))
+			for j := 0; j < len(discoveries); j++ {
+				descriptors[i].Discoveries[j] = discoveries[j].(string)
 			}
 		}
 
 		if descriptor["repositories"] != nil {
-			descriptor["repositories"] = []interface{}(descriptor["repositories"].(primitive.A))
-			descriptors[i].Repositories = make([]string, len(descriptor["repositories"].([]interface{})))
-			for j := 0; j < len(descriptor["repositories"].([]interface{})); j++ {
-				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
+
+			var repositories []interface{}
+			switch descriptor["repositories"].(type) {
+			case primitive.A:
+				repositories = []interface{}(descriptor["repositories"].(primitive.A))
+			case []interface{}:
+				repositories = descriptor["repositories"].([]interface{})
+			}
+			descriptors[i].Repositories = make([]string, len(repositories))
+			for j := 0; j < len(repositories); j++ {
+				descriptors[i].Repositories[j] = repositories[j].(string)
 			}
 		}
 
 		if descriptor["groups"] != nil {
-			descriptor["groups"] = []interface{}(descriptor["groups"].(primitive.A))
-			descriptors[i].Groups = make([]*resourcepb.Group, len(descriptor["discoveries"].([]interface{})))
 
-			for j := 0; j < len(descriptor["groups"].([]interface{})); j++ {
+			var groups []interface{}
+			switch descriptor["groups"].(type) {
+			case primitive.A:
+				groups = []interface{}(descriptor["groups"].(primitive.A))
+			case []interface{}:
+				groups = descriptor["groups"].([]interface{})
+			}
+
+			descriptors[i].Groups = make([]*resourcepb.Group, len(groups))
+
+			for j := 0; j < len(groups); j++ {
 				//roles[i].(map[string]interface{})
-				g_ := descriptor["groups"].([]interface{})[j].(map[string]interface{})
+				g_ := groups[j].(map[string]interface{})
 				g := new(resourcepb.Group)
 				g.Id = g_["id"].(string)
 				g.Name = g_["name"].(string)
 				g.Domain, _ = config.GetDomain()
-
 				descriptors[i].Groups[j] = g
 			}
-
 		}
 
 		if descriptor["roles"] != nil {
-			descriptor["roles"] = []interface{}(descriptor["roles"].(primitive.A))
-			descriptors[i].Roles = make([]*resourcepb.Role, len(descriptor["discoveries"].([]interface{})))
 
-			roles_ := descriptor["roles"].([]interface{})
-			for j := 0; j < len(roles_); j++ {
-				//roles[i].(map[string]interface{})
-				role := roles_[i].(map[string]interface{})
+			var roles []interface{}
+			switch descriptor["roles"].(type) {
+			case primitive.A:
+				roles = []interface{}(descriptor["roles"].(primitive.A))
+			case []interface{}:
+				roles = descriptor["roles"].([]interface{})
+			}
+
+			descriptors[i].Roles = make([]*resourcepb.Role, len(roles))
+
+			for j := 0; j < len(roles); j++ {
+
+				role := roles[i].(map[string]interface{})
 				role_ := new(resourcepb.Role)
 				role_.Id = role["id"].(string)
 				role_.Name = role["name"].(string)
 				role_.Domain, _ = config.GetDomain()
 
-				role_.Actions = make([]string, len([]interface{}(role["actions"].(primitive.A))))
-				for k := 0; k < len([]interface{}(role["actions"].(primitive.A))); k++ {
-					role_.Actions[k] = []interface{}(role["actions"].(primitive.A))[k].(string)
+				var actions []interface{}
+				switch role["actions"].(type) {
+				case primitive.A:
+					actions = []interface{}(role["actions"].(primitive.A))
+				case []interface{}:
+					actions = role["actions"].([]interface{})
+				}
+
+				for k := 0; k < len(actions); k++ {
+					role_.Actions[k] = actions[k].(string)
 				}
 				// set it back in the package descriptor.
 				descriptors[i].Roles[j] = role_
@@ -4012,7 +5441,15 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "{}"
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Packages`
+		} else {
+			return errors.New("unknown database type " + p.GetStoreType())
+		}
 	}
 
 	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, rqst.Options)
@@ -4043,33 +5480,65 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 
 		if data[i].(map[string]interface{})["keywords"] != nil {
 			data[i].(map[string]interface{})["keywords"] = []interface{}(data[i].(map[string]interface{})["keywords"].(primitive.A))
-			descriptor.Keywords = make([]string, len(data[i].(map[string]interface{})["keywords"].([]interface{})))
-			for j := 0; j < len(data[i].(map[string]interface{})["keywords"].([]interface{})); j++ {
-				descriptor.Keywords[j] = data[i].(map[string]interface{})["keywords"].([]interface{})[j].(string)
+			var keywords []interface{}
+			switch data[i].(map[string]interface{})["keywords"].(type) {
+			case primitive.A:
+				keywords = []interface{}(data[i].(map[string]interface{})["keywords"].(primitive.A))
+			case []interface{}:
+				keywords = data[i].(map[string]interface{})["keywords"].([]interface{})
+			}
+
+			descriptor.Keywords = make([]string, len(keywords))
+			for j := 0; j < len(keywords); j++ {
+				descriptor.Keywords[j] = keywords[j].(string)
 			}
 		}
 
 		if data[i].(map[string]interface{})["actions"] != nil {
-			data[i].(map[string]interface{})["actions"] = []interface{}(data[i].(map[string]interface{})["actions"].(primitive.A))
-			descriptor.Actions = make([]string, len(data[i].(map[string]interface{})["actions"].([]interface{})))
-			for j := 0; j < len(data[i].(map[string]interface{})["actions"].([]interface{})); j++ {
-				descriptor.Actions[j] = data[i].(map[string]interface{})["actions"].([]interface{})[j].(string)
+
+			var actions []interface{}
+			switch data[i].(map[string]interface{})["actions"].(type) {
+			case primitive.A:
+				actions = []interface{}(data[i].(map[string]interface{})["actions"].(primitive.A))
+			case []interface{}:
+				actions = data[i].(map[string]interface{})["actions"].([]interface{})
+			}
+
+			descriptor.Actions = make([]string, len(actions))
+			for j := 0; j < len(actions); j++ {
+				descriptor.Actions[j] = actions[j].(string)
 			}
 		}
 
 		if data[i].(map[string]interface{})["discoveries"] != nil {
-			data[i].(map[string]interface{})["discoveries"] = []interface{}(data[i].(map[string]interface{})["discoveries"].(primitive.A))
-			descriptor.Discoveries = make([]string, len(data[i].(map[string]interface{})["discoveries"].([]interface{})))
-			for j := 0; j < len(data[i].(map[string]interface{})["discoveries"].([]interface{})); j++ {
-				descriptor.Discoveries[j] = data[i].(map[string]interface{})["discoveries"].([]interface{})[j].(string)
+
+			var discoveries []interface{}
+			switch data[i].(map[string]interface{})["discoveries"].(type) {
+			case primitive.A:
+				discoveries = []interface{}(data[i].(map[string]interface{})["discoveries"].(primitive.A))
+			case []interface{}:
+				discoveries = data[i].(map[string]interface{})["discoveries"].([]interface{})
+			}
+
+			descriptor.Discoveries = make([]string, len(discoveries))
+			for j := 0; j < len(discoveries); j++ {
+				descriptor.Discoveries[j] = discoveries[j].(string)
 			}
 		}
 
 		if data[i].(map[string]interface{})["repositories"] != nil {
-			data[i].(map[string]interface{})["repositories"] = []interface{}(data[i].(map[string]interface{})["repositories"].(primitive.A))
-			descriptor.Repositories = make([]string, len(data[i].(map[string]interface{})["repositories"].([]interface{})))
-			for j := 0; j < len(data[i].(map[string]interface{})["repositories"].([]interface{})); j++ {
-				descriptor.Repositories[j] = data[i].(map[string]interface{})["repositories"].([]interface{})[j].(string)
+
+			var repositories []interface{}
+			switch data[i].(map[string]interface{})["repositories"].(type) {
+			case primitive.A:
+				repositories = []interface{}(data[i].(map[string]interface{})["repositories"].(primitive.A))
+			case []interface{}:
+				repositories = data[i].(map[string]interface{})["repositories"].([]interface{})
+			}
+
+			descriptor.Repositories = make([]string, len(repositories))
+			for j := 0; j < len(repositories); j++ {
+				descriptor.Repositories[j] = repositories[j].(string)
 			}
 		}
 
@@ -4104,6 +5573,17 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"id":"` + rqst.PackageDescriptor.Id + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Packages WHERE id='` + rqst.PackageDescriptor.Id + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	var marshaler jsonpb.Marshaler
 
 	jsonStr, err := marshaler.MarshalToString(rqst.PackageDescriptor)
@@ -4117,7 +5597,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
 
 	// Always create a new if not already exist.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", `{"id":"`+rqst.PackageDescriptor.Id+`", "publisherid":"`+rqst.PackageDescriptor.PublisherId+`", "version":"`+rqst.PackageDescriptor.Version+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4138,7 +5618,18 @@ func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+rqst.Id+`"}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Bundles WHERE _id='` + rqst.Id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Bundles", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4175,7 +5666,19 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Bundles WHERE _id='` + id + `'`
+	} else {
+		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), "unknown database type "+p.GetStoreType())
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", q, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, err
@@ -4188,6 +5691,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 /////////////////////////////////////////////////////////////////////////////////////////
 
 func (server *server) updateSession(accountId string, state resourcepb.SessionState, last_session_time, expire_at int64) error {
+
 	expiration := time.Unix(expire_at, 0)
 	delay := time.Until(expiration)
 	if state != resourcepb.SessionState_OFFLINE {
@@ -4211,8 +5715,19 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 
 	// send update_session event
 	//server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + accountId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		session["_id"] = Utility.RandomUUID() // set a random id for sql db.
+		q = `SELECT * FROM Sessions WHERE _id='` + accountId + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
 
-	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
+	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", q, jsonStr, `[{"upsert":true}]`)
 
 }
 
@@ -4238,8 +5753,19 @@ func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.Remove
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.AccountId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Sessions WHERE _id='` + rqst.AccountId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Now I will remove the token...
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+rqst.AccountId+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4257,7 +5783,36 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", rqst.Query, rqst.Options)
+	query := rqst.Query
+	if len(query) == 0 {
+		if p.GetStoreType() == "MONGODB" {
+			query = "{}"
+		} else if p.GetStoreType() == "SCYLLADB" {
+			query = `` // TODO scylla db query.
+		} else if p.GetStoreType() == "SQL" {
+			query = `SELECT * FROM Sessions`
+		} else {
+			return nil, errors.New("unknown database type " + p.GetStoreType())
+		}
+	} else {
+		if p.GetStoreType() == "SQL" {
+			paremeters := make(map[string]interface{})
+			err := json.Unmarshal([]byte(query), &paremeters)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			query = `SELECT * FROM Sessions WHERE `
+			if paremeters["state"] != nil {
+				query += ` state=` + Utility.ToString(paremeters["state"])
+			}
+
+		}
+	}
+
+	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", query, rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4269,6 +5824,7 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 		session := sessions[i].(map[string]interface{})
 		expireAt := Utility.ToInt(session["expire_at"])
 		lastStateTime := Utility.ToInt(session["last_state_time"])
+
 		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: resourcepb.SessionState(session["state"].(int32))})
 	}
 
@@ -4283,8 +5839,19 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 		return nil, err
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"accountId":"` + accountId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	// Now I will remove the token...
-	session_, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, "")
+	session_, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
 	if err != nil {
 		return nil, err
 	}
@@ -4301,10 +5868,11 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 	var state resourcepb.SessionState
 
 	if session["state"] != nil {
-		state = resourcepb.SessionState(session["state"].(int32))
+		state = resourcepb.SessionState(int32(Utility.ToInt(session["state"])))
 	}
 
-	return &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: state}, nil
+
+	return &resourcepb.Session{AccountId: session["accountId"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: state}, nil
 }
 
 // * Return a session for a given user
@@ -4355,7 +5923,17 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	query := `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
+	var query string
+	if p.GetStoreType() == "MONGODB" {
+		query = `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		query = `SELECT * FROM Calls WHERE caller='` + rqst.AccountId + `' OR callee='` + rqst.AccountId + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
 	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -4389,7 +5967,18 @@ func (resource_server *server) setCall(accountId string, call *resourcepb.Call) 
 	call_ := map[string]interface{}{"caller": call.Caller, "callee": call.Callee, "_id": call.Uuid, "start_time": call.StartTime, "end_time": call.EndTime}
 	jsonStr, _ := Utility.ToJson(call_)
 
-	err = p.ReplaceOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+call.Uuid+`"}`, jsonStr, `[{"upsert":true}]`)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + call.Uuid + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Calls WHERE _id='` + call.Uuid + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.ReplaceOne(context.Background(), "local_resource", db, "calls", q, jsonStr, `[{"upsert":true}]`)
 	if err != nil {
 		return err
 	}
@@ -4466,7 +6055,18 @@ func (resource_server *server) deleteCall(account_id, uuid string) error {
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	err = p.DeleteOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+uuid+`"}`, "")
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + uuid + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Calls WHERE _id='` + uuid + `'`
+	} else {
+		return errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	err = p.DeleteOne(context.Background(), "local_resource", db, "calls", q, "")
 	if err != nil {
 		return err
 	}
@@ -4515,8 +6115,8 @@ func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
-
 	query := rqst.Filter
+
 	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
 	if err != nil {
 		return nil, status.Errorf(

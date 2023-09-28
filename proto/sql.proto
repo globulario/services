@@ -13,6 +13,7 @@ message Connection {
 	string user = 6;
 	string password = 7;
 	int32 port = 8;
+	string path = 9; // the path to the database file, used by sqlite.
 }
 
 // Create connection

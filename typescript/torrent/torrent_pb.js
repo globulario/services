@@ -289,7 +289,8 @@ proto.torrent.TorrentLnk.toObject = function(includeInstance, msg) {
     lnk: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
     dest: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    seed: jspb.Message.getBooleanFieldWithDefault(msg, 4, false)
+    seed: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    owner: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -341,6 +342,10 @@ proto.torrent.TorrentLnk.deserializeBinaryFromReader = function(msg, reader) {
     case 4:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setSeed(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOwner(value);
       break;
     default:
       reader.skipField();
@@ -396,6 +401,13 @@ proto.torrent.TorrentLnk.serializeBinaryToWriter = function(message, writer) {
   if (f) {
     writer.writeBool(
       4,
+      f
+    );
+  }
+  f = message.getOwner();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
       f
     );
   }
@@ -471,6 +483,24 @@ proto.torrent.TorrentLnk.prototype.getSeed = function() {
  */
 proto.torrent.TorrentLnk.prototype.setSeed = function(value) {
   return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional string Owner = 5;
+ * @return {string}
+ */
+proto.torrent.TorrentLnk.prototype.getOwner = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.torrent.TorrentLnk} returns this
+ */
+proto.torrent.TorrentLnk.prototype.setOwner = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

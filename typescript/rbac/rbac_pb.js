@@ -5653,7 +5653,8 @@ proto.rbac.ResourceInfos.toObject = function(includeInstance, msg) {
   var f, obj = {
     index: jspb.Message.getFieldWithDefault(msg, 1, 0),
     permission: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 3, "")
+    path: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    field: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -5702,6 +5703,10 @@ proto.rbac.ResourceInfos.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readString());
       msg.setPath(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setField(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -5749,6 +5754,13 @@ proto.rbac.ResourceInfos.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getField();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -5806,6 +5818,24 @@ proto.rbac.ResourceInfos.prototype.getPath = function() {
  */
 proto.rbac.ResourceInfos.prototype.setPath = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string field = 4;
+ * @return {string}
+ */
+proto.rbac.ResourceInfos.prototype.getField = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.rbac.ResourceInfos} returns this
+ */
+proto.rbac.ResourceInfos.prototype.setField = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 

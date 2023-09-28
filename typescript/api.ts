@@ -832,7 +832,7 @@ export function getAllAccountsInfo(
   rqst.setCollection("Accounts");
   rqst.setDatabase("local_resource");
   rqst.setId("local_resource");
-  rqst.setQuery("{}"); // means all values.
+  rqst.setQuery(""); // means all values.
 
   const stream = globular.persistenceService.find(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1229,7 +1229,7 @@ export function getAllRoles(
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetRolesRqst
-  rqst.setQuery("{}"); // means all values.
+  rqst.setQuery(""); // means all values.
 
   const stream = globular.resourceService.getRoles(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1466,7 +1466,7 @@ export function getAllGroups(
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetGroupsRqst();
-  rqst.setQuery("{}"); // means all values.
+  rqst.setQuery(""); // means all values.
 
   const stream = globular.resourceService.getGroups(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1953,7 +1953,7 @@ export function getServiceBundles(
   rqst.setCollection("ServiceBundle");
   rqst.setDatabase("local_resource");
   rqst.setId("local_resource");
-  rqst.setQuery(`{}`); // means all values.
+  rqst.setQuery(``); // means all values.
 
   var stream = globular.persistenceService.find(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -2049,7 +2049,7 @@ export function readErrors(
   rqst.setDatabase(database);
   rqst.setCollection(collection);
   rqst.setOptions("");
-  rqst.setQuery("{}");
+  rqst.setQuery("");
 
   // call persist data
   const stream = globular.persistenceService.find(rqst, {
@@ -2359,7 +2359,7 @@ export function getAllPeersInfo(
   errorCallback: (err: any) => void
 ) {
   let rqst = new GetPeersRqst();
-  rqst.setQuery("{}");
+  rqst.setQuery("");
   let peers = new Array<Peer>();
 
   let stream = globular.resourceService.getPeers(rqst, {

@@ -852,7 +852,6 @@ func (svr *server) dropTorrent(name string) {
 
 // get torrents infos...
 func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInfosServer) chan bool {
-	fmt.Println("-----------------------------------------------> get torrents info")
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})

@@ -64,6 +64,7 @@ type connection struct {
 	User     string
 	Password string
 	Port     int32
+	Path     string // The path of the sqlite3 database.
 }
 
 func (c *connection) getConnectionString() string {
@@ -112,7 +113,7 @@ func (c *connection) getConnectionString() string {
 		connectionString += "charset=" + c.Charset + ";"
 
 	} else if c.Driver == "sqlite3" {
-		connectionString += c.Host + string(os.PathSeparator) + c.Name // The directory...
+		connectionString += c.Path + string(os.PathSeparator) + c.Name // The directory...
 	}
 
 	return connectionString
@@ -497,20 +498,29 @@ func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.Stop
 
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
+func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
+	
 	// sqlpb
 	var c connection
 
 	// Set the connection info from the request.
-	c.Id = rsqt.Connection.Id
-	c.Name = rsqt.Connection.Name
-	c.Host = rsqt.Connection.Host
-	c.Port = rsqt.Connection.Port
-	c.User = rsqt.Connection.User
-	c.Password = rsqt.Connection.Password
-	c.Driver = rsqt.Connection.Driver
-	c.Charset = rsqt.Connection.Charset
+	c.Id = rqst.Connection.Id
+	c.Name = rqst.Connection.Name
+	c.Host = rqst.Connection.Host
+	c.Port = rqst.Connection.Port
+	c.User = rqst.Connection.User
+	c.Password = rqst.Connection.Password
+	c.Driver = rqst.Connection.Driver
+	c.Charset = rqst.Connection.Charset
+	c.Path = rqst.Connection.Path
 
+	if c.Driver == "sqlite3" && len(c.Path) == 0 {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty for sqlite3 connection.")))
+	}
+
+	
 	db, err := sql.Open(c.Driver, c.getConnectionString())
 
 	if err != nil {
@@ -606,8 +616,8 @@ func (sql_server *server) ping(ctx context.Context, id string) (string, error) {
 }
 
 // Ping a sql connection.
-func (sql_server *server) Ping(ctx context.Context, rsqt *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
-	pong, err := sql_server.ping(ctx, rsqt.GetId())
+func (sql_server *server) Ping(ctx context.Context, rqst *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
+	pong, err := sql_server.ping(ctx, rqst.GetId())
 
 	if err != nil {
 		return nil, status.Errorf(

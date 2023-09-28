@@ -13,16 +13,13 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 
@@ -39,9 +36,6 @@ var (
 
 	// keep map in memory.
 	resourceInfos sync.Map
-
-	// Client connections.
-	clients sync.Map
 )
 
 func GetLogClient(address string) (*log_client.Log_Client, error) {
@@ -63,47 +57,6 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 		return nil, err
 	}
 	return client.(*rbac_client.Rbac_Client), nil
-}
-
-/**
- * Get a client
- */
-func getClient(name, address string) (globular_client.Client, error) {
-
-	if name == "persistence.PersistenceService" {
-		Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-		client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
-		if err != nil {
-			return nil, err
-		}
-		return client.(*persistence_client.Persistence_Client), nil
-
-	} else if name == "resource.ResourceService" {
-		Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-		client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
-		if err != nil {
-			return nil, err
-		}
-		return client.(*resource_client.Resource_Client), nil
-	}
-
-	return nil, errors.New("no service register with name " + name + " was found at address " + address)
-}
-
-/**
- * Invoke a methode on a given client.
- */
-func invoke(address, method string, rqst interface{}, ctx context.Context) (interface{}, error) {
-	name := strings.Split(method, "/")[1]
-	client, err := getClient(name, address)
-	if err != nil {
-		return nil, err
-	}
-
-	// So here I will inject the mac address to give the other peer information about
-	// where the request came from...
-	// add key-value pairs of metadata to context
-	return client.Invoke(method, rqst, ctx)
 }
 
 /**
@@ -144,6 +97,12 @@ func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectTyp
 }
 
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, bool, error) {
+
+	// Here I will test if the subject is the super admin...
+	localDomain, _ := config.GetDomain()
+	if subject == "sa@"+localDomain {
+		return true, false, nil
+	}
 
 	id := address + method + token
 	for i := 0; i < len(infos); i++ {
@@ -398,6 +357,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/repository.PackageRepository/DownloadBundle" {
 		return nil
 	}
+
+	//fmt.Print("ServerStreamInterceptorStream.RecvMsg ", l.method, " ", l.application, " ", l.token, " ", l.address, " ", l.clientId, " ", l.peer, " ", l.uuid, "\n")
 
 	// if the cache contain the uuid it means permission is allowed
 	_, ok := cache.Load(l.uuid)

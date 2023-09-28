@@ -10,18 +10,17 @@ import (
 
 var (
 	// Connect to the plc client.
-	domain                    = "globule-dell.globular.cloud"
+	domain                    = "globule-ryzen.globular.cloud"
 	client, _                 = NewResourceService_Client(domain, "resource.ResourceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	//token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
+	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
 
 /** Test create account **/
 /** Test create Organization */
 func TestCreateOrganization(t *testing.T) {
-	authentication_client_.Authenticate("sa", "adminadmin")
 	log.Println("---> test create organization.")
-	err := client.CreateOrganization("globulario", "globulario", "globulario@globuar.io", "description", "")
+	err := client.CreateOrganization(token, "globulario", "globulario", "globulario@globuar.io", "description", "")
 	if err != nil {
 		log.Println("---> create organization fail! ", err)
 	} else {
@@ -41,7 +40,7 @@ func TestCreateAccount(t *testing.T) {
 
 /** Test create group **/
 func TestCreateGroup(t *testing.T) {
-	err := client.CreateGroup("group_0", "group_0", "test")
+	err := client.CreateGroup(token, "group_0", "group_0", "test")
 	if err != nil {
 		log.Println("---> create group group_0 fail! ", err)
 	} else {
@@ -51,19 +50,19 @@ func TestCreateGroup(t *testing.T) {
 
 /** Test Add account, group and role to the organization **/
 func TestAddToOrganization(t *testing.T) {
-	client.AddOrganizationAccount("globulario", "dave")
-	client.AddOrganizationRole("globulario", "db_user")
-	client.AddOrganizationGroup("globulario", "group_0")
+	client.AddOrganizationAccount(token, "globulario", "dave")
+	client.AddOrganizationRole(token, "globulario", "db_user")
+	client.AddOrganizationGroup(token, "globulario", "group_0")
 }
 
 func TestRemoveFromOrganization(t *testing.T) {
-	client.RemoveOrganizationAccount("globulario", "dave")
-	client.RemoveOrganizationRole("globulario", "db_user")
-	client.RemoveOrganizationGroup("globulario", "group_0")
+	client.RemoveOrganizationAccount(token, "globulario", "dave")
+	client.RemoveOrganizationRole(token, "globulario", "db_user")
+	client.RemoveOrganizationGroup(token, "globulario", "group_0")
 }
 
 func TestAddGroupMemberAccount(t *testing.T) {
-	err := client.AddGroupMemberAccount("group_0", "dave")
+	err := client.AddGroupMemberAccount(token, "group_0", "dave")
 	if err != nil {
 		log.Println("---> add group member group_0 fail! ", err)
 	} else {
@@ -81,8 +80,8 @@ func TestGetGroups(t *testing.T) {
 }
 
 func TestCreateRole(t *testing.T) {
-	log.Println("---> create role ")
-	err := client.CreateRole("db_user", "db_user", []string{
+	log.Println("---> create role db_user")
+	err := client.CreateRole(token, "db_user", "db_user", []string{
 		"/persistence.PersistenceService/InsertOne",
 		"/persistence.PersistenceService/InsertMany",
 		"/persistence.PersistenceService/Find",
@@ -99,7 +98,7 @@ func TestCreateRole(t *testing.T) {
 }
 
 func TestRemoveMemberAccount(t *testing.T) {
-	err := client.RemoveGroupMemberAccount("group_0", "dave")
+	err := client.RemoveGroupMemberAccount(token, "group_0", "dave")
 	if err != nil {
 		log.Println("---> remove group group_0 fail! ", err)
 	} else {
@@ -108,7 +107,7 @@ func TestRemoveMemberAccount(t *testing.T) {
 }
 
 func TestDeleteGroup(t *testing.T) {
-	err := client.DeleteGroup("group_0")
+	err := client.DeleteGroup(token, "group_0")
 	if err != nil {
 		log.Println("---> delete group group_0 fail! ", err)
 	} else {
@@ -128,17 +127,17 @@ func TestAddAccountRole(t *testing.T) {
 	log.Println("---> Add account Role ")
 	err := client.AddAccountRole("dave", "db_user")
 	if err != nil {
-		log.Println("---> ", err)
+		log.Println("---> 130", err)
 	}
 
 	err = client.AddAccountRole("dave", "globular_user")
 	if err != nil {
-		log.Println("---> ", err)
+		log.Println("---> 135", err)
 	}
 }
 
-func TestValidateAction(t *testing.T) {
-	/*
+/*func TestValidateAction(t *testing.T) {
+	
 		infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
 		if err != nil {
 			log.Println("---> ", err)
@@ -177,8 +176,8 @@ func TestValidateAction(t *testing.T) {
 		} else {
 			log.Println("----------> dave has not access to read file " + path)
 		}
-	*/
-}
+	
+}*/
 
 func TestRemoveAccountRole(t *testing.T) {
 	err := client.RemoveAccountRole("dave", "db_user")
@@ -205,20 +204,19 @@ func TestDeleteRole(t *testing.T) {
 
 /*
 // Remove an account.
-func TestDeleteAccount(t *testing.T) {
+/*func TestDeleteAccount(t *testing.T) {
 	log.Println("---> test remove existing account.")
 	err := client.DeleteAccount("dave")
 	if err != nil {
 		log.Println("---> ", err)
 	}
-}
-
+}*/
 
 func TestDeleteOrganization(t *testing.T) {
 	log.Println("---> test delete organization")
-	err := client.DeleteOrganization("globulario")
+	err := client.DeleteOrganization(token, "globulario")
 	if err != nil {
 		log.Println("---> ", err)
 	}
 }
-*/
+

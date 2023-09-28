@@ -36,7 +36,7 @@ namespace Globular
         [Fact]
         public void TestFind()
         {   string token = resourceClient.Authenticate("sa", "adminadmin");
-            var data = this.client.Find("local_resource", "local_resource", "Accounts", "{}", "", token);
+            var data = this.client.Find("local_resource", "local_resource", "Accounts", "", "", token);
             Assert.True(data.Length > 0);
             string str = System.Text.Encoding.UTF8.GetString(data);
             /** Here's the json array with all values in it ..." **/

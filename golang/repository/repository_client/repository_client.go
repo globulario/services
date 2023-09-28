@@ -96,18 +96,18 @@ func (client *Repository_Service_Client) Reconnect() error {
 
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = repositorypb.NewPackageRepositoryClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
-	
+
 	return err
 }
 
@@ -449,9 +449,6 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		return -1, err
 	}
 
-	// Retreive the actual application installed version.
-	previousVersion, _ := resource_client_.GetApplicationVersion(name)
-
 	publisherId := user
 	if len(organization) > 0 {
 		publisherId = organization
@@ -471,46 +468,39 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		return -1, err
 	}
 
-	// If the version has change I will notify current users and undate the applications.
-	event_client_, err := GetEventClient(domain)
-	if err != nil {
-		return -1, err
-	}
+	resource_path := publisherId + "|" + name + "|" + version
+	
+	if len(organization) > 0 {
 
-	applications, err := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
-	if err != nil {
-		return -1, err
-	}
-
-	if len(applications) > 0 {
-		application := applications[0]
-
-		resource_path := application.Publisherid + "|" + application.Id + "|" + application.Name + "|" + application.Version
-
-		if len(organization) > 0 {
-			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0], "application", organization, rbacpb.SubjectType_ORGANIZATION)
-			if err != nil {
-				return -1, err
-			}
-
-			err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
-			if err != nil {
-				return -1, err
-			}
-
-		} else if len(user) > 0 {
-			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0], "application", user, rbacpb.SubjectType_ACCOUNT)
-			if err != nil {
-				return -1, err
-			}
-
-			err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
-			if err != nil {
-				return -1, err
-			}
+		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
+		if err != nil {
+			return -1, err
 		}
 
+	} else if len(user) > 0 {
+
+		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	applications, _ := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
+
+	if len(applications) > 0 {
+
+		// If the version has change I will notify current users and undate the applications.
+		event_client_, err := GetEventClient(domain)
+		if err != nil {
+			return -1, err
+		}
+
+		application := applications[0]
+
 		// Send application notification...
+		// Retreive the actual application installed version.
+		previousVersion, _ := resource_client_.GetApplicationVersion(name)
+
 		event_client_.Publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
 		if previousVersion != version {
 			message := `<div style="display: flex; flex-direction: column">
@@ -529,7 +519,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			notification.Message = message
 			notification.Recipient = application.Id
 			notification.Date = time.Now().Unix()
-			notification.Mac, _= Utility.MyMacAddr(Utility.MyIP())
+			notification.Mac, _ = Utility.MyMacAddr(Utility.MyIP())
 
 			notification.Sender = `{"_id":"` + application.Id + `", "name":"` + application.Name + `","icon":"` + application.Icon + `", "alias":"` + application.Alias + `"}`
 

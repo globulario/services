@@ -242,7 +242,10 @@ func (client *SQL_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &sqlpb.StopRequest{})
 }
 
-func (client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string) error {
+func (client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string, path string) error {
+	
+
+	
 	// Create a new connection
 	rqst := &sqlpb.CreateConnectionRqst{
 		Connection: &sqlpb.Connection{
@@ -254,8 +257,10 @@ func (client *SQL_Client) CreateConnection(connectionId string, name string, dri
 			Host:     host,
 			Driver:   driver,
 			Charset:  charset,
+			Path:     path,
 		},
 	}
+
 
 	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 

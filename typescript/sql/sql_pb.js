@@ -360,7 +360,8 @@ proto.sql.Connection.toObject = function(includeInstance, msg) {
     driver: jspb.Message.getFieldWithDefault(msg, 5, ""),
     user: jspb.Message.getFieldWithDefault(msg, 6, ""),
     password: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 8, 0)
+    port: jspb.Message.getFieldWithDefault(msg, 8, 0),
+    path: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -428,6 +429,10 @@ proto.sql.Connection.deserializeBinaryFromReader = function(msg, reader) {
     case 8:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setPort(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
       break;
     default:
       reader.skipField();
@@ -511,6 +516,13 @@ proto.sql.Connection.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt32(
       8,
+      f
+    );
+  }
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
       f
     );
   }
@@ -658,6 +670,24 @@ proto.sql.Connection.prototype.getPort = function() {
  */
 proto.sql.Connection.prototype.setPort = function(value) {
   return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional string path = 9;
+ * @return {string}
+ */
+proto.sql.Connection.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.sql.Connection} returns this
+ */
+proto.sql.Connection.prototype.setPath = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 

@@ -8896,7 +8896,9 @@ proto.persistence.StopResponse.serializeBinaryToWriter = function(message, write
  * @enum {number}
  */
 proto.persistence.StoreType = {
-  MONGO: 0
+  MONGO: 0,
+  SQL: 1,
+  SCYLLA: 2
 };
 
 goog.object.extend(exports, proto.persistence);

@@ -78,7 +78,7 @@ type server struct {
 
 	TLS bool
 
-	// svr-signed X.509 public keys for distribution
+	// srv-signed X.509 public keys for distribution
 	CertFile string
 
 	// a private RSA key to sign and authenticate the public key
@@ -92,11 +92,13 @@ type server struct {
 	Dependencies []string // The list of services needed by this services.
 
 	// The backend infos.
-	Backend_address  string
-	Backend_port     int64
-	Backend_user     string
-	Backend_password string
-	DataPath         string
+	Backend_type               string
+	Backend_address            string
+	Backend_port               int64
+	Backend_user               string
+	Backend_password           string
+	Backend_replication_factor int64
+	DataPath                   string
 
 	// The session time out.
 	SessionTimeout int
@@ -110,115 +112,115 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
 func (server *server) GetDependencies() []string {
@@ -241,167 +243,167 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
@@ -540,32 +542,6 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 	return err
 }
 
-// ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
-func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
-	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*persistence_client.Persistence_Client), nil
-}
-
-// Create the application connections in the backend.
-func (server *server) createApplicationConnection(app *resourcepb.Application) error {
-	persistence_client_, err := GetPersistenceClient(server.Domain)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("---------------------------> create connection ", float64(server.Backend_port))
-	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, float64(server.Backend_port), 0, app.Id, app.Password, 500, "", false)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
 
 /**
@@ -580,8 +556,8 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -590,16 +566,16 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 	return err
 }
 
-func (svr *server) deleteResourcePermissions(path string) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) deleteResourcePermissions(path string) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.DeleteResourcePermissions(path)
 }
 
-func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -609,16 +585,16 @@ func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -628,17 +604,79 @@ func (svr *server) Init() error {
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
+}
+
+
+// ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
+func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
+	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*persistence_client.Persistence_Client), nil
+}
+
+// Create the application connections in the backend.
+func (server *server) createApplicationConnections() error{
+
+	applications, err := server.getApplications("", "")
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(applications); i++ {
+		err = server.createApplicationConnection(applications[i])
+		if err != nil {
+			fmt.Println("fail to create application connection with error ", err)
+		}
+	}
+
+	return nil
+}
+
+
+// Create the application connections in the backend.
+func (server *server) createApplicationConnection(app *resourcepb.Application) error {
+
+	fmt.Println("---------------> create appliation connection: ", app.Name)
+	// That service made user of persistence service.
+	persistence_client_, err := GetPersistenceClient(server.Domain)
+	if err != nil {
+		return err
+	}
+
+	var storeType float64
+	var options string
+	if server.Backend_type == "MONGODB" {
+		storeType = 0
+	} else if server.Backend_type == "SCYLLADB" {
+		storeType = 2
+	} else if server.Backend_type == "SQL" {
+		storeType = 1
+		options = `{"driver": "sqlite3", "charset": "utf8", "path":"` + server.DataPath + "/sql-data"  +`"}` // TODO add the options for sql store...
+	} else {
+		return errors.New("unknown backend type " + server.Backend_type)
+	}
+
+	// Create the application connection...
+	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, float64(server.Backend_port), storeType, server.Backend_user, server.Backend_password, 500, options, false)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
@@ -654,6 +692,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	}
 	return client.(*log_client.Log_Client), nil
 }
+
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
@@ -672,48 +711,72 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
 
-// MongoDB backend, it must reside on the same server as the resource server (at this time...)
+// ** MongoDB backend, it must reside on the same server as the resource server (at this time...)
 
 /**
  * Connection to mongo db local store.
  */
-func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
+func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 	// That service made user of persistence service.
+	
+	if srv.store == nil {
 
-	if svr.store == nil {
+		var options_str = ""
 
-		svr.store = new(persistence_store.MongoStore)
-		// Start the store if is not already running...
-		err := svr.store.Start(svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
+		if srv.Backend_type == "SCYLLADB" {
+			srv.store = new(persistence_store.ScyllaStore)
+		} else if srv.Backend_type == "MONGODB" {
+
+			process, err := Utility.GetProcessIdsByName("mongod")
+			if err != nil {
+				fmt.Println("fail to get process id for mongod with error ", err)
+				return nil, err
+			}
+
+			if len(process) == 0 {
+				fmt.Println("mongod is not running on this server, please start it before starting the resource server")
+				return nil, errors.New("mongod is not running on this server, please start it before starting the resource server")
+			}
+
+			srv.store = new(persistence_store.MongoStore)
+
+		} else if srv.Backend_type == "SQL" {
+			srv.store = new(persistence_store.SqlStore)
+			options := map[string]interface{}{"driver": "sqlite3", "charset": "utf8", "path": srv.DataPath + "/sql-data"}
+			options_, _ := json.Marshal(options)
+			options_str = string(options_)
+		} else {
+			return nil, errors.New("unknown backend type " + srv.Backend_type)
+		}
+
+		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
 		if err != nil {
-			// codes.
-			fmt.Println("fail to start MongoDB store with error ", err)
+			fmt.Println("fail to connect store with error ", err)
 			return nil, err
 		}
 
-		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
+
+		err = srv.store.Ping(context.Background(), "local_resource")
 		if err != nil {
-			fmt.Println("fail to connect MongoDB store with error ", err)
+			fmt.Println("fail to reach store with error ", err)
 			return nil, err
 		}
 
-		err = svr.store.Ping(context.Background(), "local_resource")
+		srv.isReady = true
 
-		svr.isReady = true
+		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
-		fmt.Println("persistence store ", svr.Backend_address+":"+Utility.ToString(svr.Backend_port), "is runing and ready to be used.")
-
-	} else if !svr.isReady {
+	} else if !srv.isReady {
 		nbTry := 100
 		for i := 0; i < nbTry; i++ {
 			time.Sleep(100 * time.Millisecond)
-			if svr.isReady {
+			if srv.isReady {
 				break
 			}
 		}
 	}
 
-	return svr.store, nil
+	return srv.store, nil
 }
 
 /**
@@ -754,11 +817,19 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return err
 	}
 
-	// first of all the Persistence service must be active.
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, "")
-	if err != nil {
-		return err
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + id + `' OR name='` + name + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
 	}
+
+	// first of all the Persistence service must be active.
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 
 	// one account already exist for the name.
 	if count == 1 {
@@ -795,7 +866,14 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	// Each account will have their own database and a use that can read and write
 	// into it.
 	// Here I will wrote the script for mongoDB...
-	createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
+	var createUserScript string
+	if p.GetStoreType() == "MONGODB" {
+		createUserScript = fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
+	} else if p.GetStoreType() == "SCYLLADB" {
+		createUserScript = fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '%d' };", name, resource_server.Backend_replication_factor)
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
 
 	// I will execute the sript with the admin function.
 	p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
@@ -850,7 +928,18 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 		}
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, `{"_id":"`+targetId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + targetId + `"},{"name":"` + targetId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `' OR name='` + targetId + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
 	if err != nil {
 		return err
 	}
@@ -872,7 +961,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	target[targetField] = references_
 	jsonStr := serialyseObject(target)
 
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", targetCollection, `{"_id":"`+targetId+`"}`, jsonStr, ``)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", targetCollection, q, jsonStr, ``)
 	if err != nil {
 		return err
 	}
@@ -918,11 +1007,22 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 	}
 
+	var q string // query string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `' OR name='` + id + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
 	if !strings.Contains(targetId, "@") {
 		targetId += "@" + localDomain
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, `{"_id":"`+id+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
 		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " err: " + err.Error())
 	}
@@ -944,7 +1044,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	source[field] = append(references, map[string]interface{}{"$ref": targetCollection, "$id": targetId, "$db": "local_resource"})
 	jsonStr := serialyseObject(source)
 
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, `{"_id":"`+id+`"}`, jsonStr, ``)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, jsonStr, ``)
 	if err != nil {
 		return err
 	}
@@ -1012,9 +1112,20 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 		return err
 	}
 
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Groups WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, "")
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Groups", q, "")
 	if count > 0 {
 		return errors.New("Group with name '" + id + "' already exist!")
 	}
@@ -1047,17 +1158,38 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	return nil
 }
 
+/**
+ * Create account dir for all account in the database if not already exist.
+ */
 func (resource_server *server) CreateAccountDir() error {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
 	}
+	
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
 
-	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", "{}", "")
+	// Make sure some account exist on the server.
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
+	if count == 0 {
+		return errors.New("no account exist in the database")
+	}
+
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 	if err != nil {
 		return err
 	}
 	for i := 0; i < len(accounts); i++ {
+
 		a := accounts[i].(map[string]interface{})
 		id := a["_id"].(string)
 		domain := a["domain"].(string)
@@ -1092,7 +1224,18 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 		return err
 	}
 
-	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
+	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err == nil {
 		return errors.New("Role named " + name + " already exist!")
 	}
@@ -1109,7 +1252,10 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 		return err
 	}
 
-	resource_server.addResourceOwner(id+"@"+resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+	if name != "guest" && name != "admin" {
+		resource_server.addResourceOwner(id+"@"+resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+	}
+
 	return nil
 }
 
@@ -1138,7 +1284,18 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+applicationId+`"}`, ``)
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + applicationId + `"},{"name":"` + applicationId + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla query string here...
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `' OR name='` + applicationId + `'`
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
 	if err != nil {
 		return err
 	}
@@ -1148,7 +1305,6 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	// I will remove it from organization...
 	if application["organizations"] != nil {
 		organizations := []interface{}(application["organizations"].(primitive.A))
-
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
@@ -1168,22 +1324,23 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	}
 
 	// Finaly I will remove the entry in  the table.
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+applicationId+`"}`, "")
-	if err != nil {
-		return err
-	}
-
-	// Delete permissions
-	err = p.Delete(context.Background(), "local_resource", "local_resource", "Permissions", `{"owner":"`+applicationId+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Applications", q, "")
 	if err != nil {
 		return err
 	}
 
 	// Drop the application user.
 	// Here I will drop the db user.
-	dropUserScript := fmt.Sprintf(
-		`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
-		applicationId)
+	var dropUserScript string
+	if p.GetStoreType() == "MONGODB" {
+		dropUserScript = fmt.Sprintf(
+			`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
+			applicationId)
+	} else if p.GetStoreType() == "SCYLLADB" {
+		dropUserScript = fmt.Sprintf("DROP KEYSPACE IF EXISTS %s;", applicationId)
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
 
 	// I will execute the sript with the admin function.
 	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
@@ -1226,7 +1383,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"log.LogService", "persistence.PersistenceService"}
+	s_impl.Dependencies = []string{ "authentication.AuthenticationService", "log.LogService", "persistence.PersistenceService"}
 	s_impl.Permissions = make([]interface{}, 23)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -1237,7 +1394,9 @@ func main() {
 	s_impl.KeepUpToDate = true
 
 	// Backend informations.
+	s_impl.Backend_type = "MONGODB"
 	s_impl.Backend_address = "localhost"
+	s_impl.Backend_replication_factor = 1
 	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
@@ -1299,6 +1458,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	go func() {
+
 		// Can do anything
 		s_impl.createRole("admin", "admin", "sa", []string{})
 
@@ -1386,6 +1546,10 @@ func main() {
 
 		// Here I will create user directories if their not already exist...
 		s_impl.CreateAccountDir()
+
+		// TODO create applications connections.
+		s_impl.createApplicationConnections()
+
 	}()
 
 	// Start the service.

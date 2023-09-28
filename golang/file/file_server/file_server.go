@@ -2060,8 +2060,6 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 		dest := file_server.formatPath(rqst.Path)
 		info, _ := os.Stat(from)
 
-		fmt.Println("---------------> move file: ", from, "to", dest)
-
 		file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
 
 		if Utility.Exists(from) {

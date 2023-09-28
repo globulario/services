@@ -1282,7 +1282,7 @@ func (svr *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 	}
 
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
@@ -1397,7 +1397,7 @@ func (svr *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 	}
 
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
 	if err != nil {
@@ -1461,7 +1461,7 @@ func (svr *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 	}
 
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
@@ -1580,7 +1580,7 @@ func (svr *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
 	if err != nil {
@@ -1889,7 +1889,7 @@ func (svr *server) getLocalisations(query string, options string, connectionId s
 	}
 
 	if len(query) == 0 {
-		query = `{}`
+		query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Localisation", query, options)
@@ -2017,7 +2017,7 @@ func (svr *server) getCategories(query string, options string, connectionId stri
 	}
 
 	if len(query) == 0 {
-		query = `{}`
+		query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Category", query, options)
@@ -2171,7 +2171,7 @@ func (svr *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
@@ -2235,7 +2235,7 @@ func (svr *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 	}
 
 	if len(rqst.Query) == 0 {
-		rqst.Query = `{}`
+		rqst.Query = ``
 	}
 
 	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)

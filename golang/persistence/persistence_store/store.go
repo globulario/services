@@ -10,6 +10,11 @@ import (
 type Store interface {
 
 	/**
+	 * Return the store type...
+	 */
+	 GetStoreType() string
+	 
+	/**
 	 * Create a database
 	 */
 	CreateDatabase(ctx context.Context, connectionId string, name string) error
@@ -99,10 +104,6 @@ type Store interface {
 	 */
 	DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, options string) error
 
-	/**
-	 * Return the store type...
-	 */
-	GetStoreType() string
 
 	////////////////////////////////////////////////////////////////////////////
 	// Resource management functionality.
@@ -112,14 +113,4 @@ type Store interface {
 	 * Run an admin command on the server.
 	 */
 	RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error
-
-	/**
-	 * Start the data store.
-	 */
-	Start(user, password string, port int, dataPath string) error
-
-	/**
-	 * Stop the server
-	 */
-	Stop() error
 }

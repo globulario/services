@@ -268,6 +268,7 @@ func (client *Persistence_Client) CreateConnection(connectionId string, name str
 		Save: save,
 	}
 
+
 	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 	return err
 }

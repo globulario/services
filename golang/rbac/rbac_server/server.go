@@ -618,7 +618,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 			return nil, err
 		}
 
-		groups, err := resource_.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
+		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
 		if err != nil {
 			return nil, err
 		}
@@ -639,7 +639,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 			return nil, err
 		}
 
-		groups, err := resourceClient.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
+		groups, err := resourceClient.GetGroups(`{"_id":"` + groupId + `"}`)
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +712,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 			return nil, err
 		}
 
-		applications, err := resourceClient.GetApplications(`{"$or":[{"_id":"` + applicationId + `"},{"name":"` + applicationId + `"} ]}`)
+		applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
 		if err != nil {
 			return nil, err
 		}
@@ -746,7 +746,7 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 		return nil, err
 	}
 
-	peers, err := resourceClient.GetPeers(`{"$or":[{"domain":"` + peerId + `"},{"mac":"` + peerId + `"}]}`)
+	peers, err := resourceClient.GetPeers(`{"mac":"` + peerId + `"}`)
 	if err != nil {
 		return nil, err
 	}
@@ -808,7 +808,7 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 			return nil, err
 		}
 
-		organizations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organizationId + `"},{"name":"` + organizationId + `"} ]}`)
+		organizations, err := resourceClient.GetOrganizations(`{"_id":"` + organizationId + `"}`)
 		if err != nil {
 			return nil, err
 		}
@@ -843,7 +843,7 @@ func (server *server) getRoles() ([]*resourcepb.Role, error) {
 		return nil, err
 	}
 
-	roles, err := resource_.GetRoles(`{}`)
+	roles, err := resource_.GetRoles(``)
 	if err != nil || len(roles) == 1 {
 		return nil, err
 	}
@@ -875,7 +875,7 @@ func (server *server) getOrganizations() ([]*resourcepb.Organization, error) {
 		return nil, err
 	}
 
-	organizations, err := resource_.GetOrganizations(`{}`)
+	organizations, err := resource_.GetOrganizations(``)
 	if err != nil || len(organizations) == 1 {
 		return nil, err
 	}
@@ -920,7 +920,7 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 			return nil, err
 		}
 
-		roles, err := resourceClient.GetRoles(`{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`)
+		roles, err := resourceClient.GetRoles(`{"_id":"` + roleId + `"}`)
 		if err != nil {
 			return nil, err
 		}
@@ -1045,7 +1045,7 @@ func main() {
 	// The rbac storage.
 	//s_impl.permissions = storage_store.NewBadger_store()
 	s_impl.permissions = storage_store.NewBadger_store()
-	
+
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = config.GetDataDir()
 	}

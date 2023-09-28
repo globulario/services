@@ -201,6 +201,7 @@ func (svr *server) SetMac(mac string) {
 func (persistence_server *server) GetDescription() string {
 	return persistence_server.Description
 }
+
 func (persistence_server *server) SetDescription(description string) {
 	persistence_server.Description = description
 }
@@ -443,6 +444,14 @@ func (persistence_server *server) Init() error {
 			} else {
 				return err
 			}
+		}else if c.Store == persistencepb.StoreType_SQL {
+			s := new(persistence_store.SqlStore)
+			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
+			if err == nil {
+				persistence_server.stores[c.Id] = s
+			} else {
+				return err
+			}
 		}
 	}
 
@@ -503,12 +512,11 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
-func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool) error {
+func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
 
+	fmt.Println("---------------------------> create connection ", id, " ", name, " ", host, " ", port, " ", store, " ", save, " ", options, " ", user, " ", password)
 	var c connection
 	var err error
-
-	fmt.Println("------------------------> create connection: ", host, port)
 
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
@@ -529,6 +537,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c.User = user
 		c.Password = password
 		c.Store = store
+		c.Options = options
 
 		// If the connection need to save in the server configuration.
 		if save {
@@ -550,7 +559,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	}
 
 	if c.Store == persistencepb.StoreType_MONGO {
-
 		// here I will create a new mongo data store.
 		s := new(persistence_store.MongoStore)
 
@@ -563,6 +571,17 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 		// keep the store for futur call...
 		persistence_server.stores[c.Id] = s
+	} else if c.Store == persistencepb.StoreType_SQL {
+		s := new(persistence_store.SqlStore)
+		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
+		if err != nil {
+			fmt.Println("fail to connect with error ", err)
+			// codes.
+			return err
+		}
+		persistence_server.stores[c.Id] = s
+	} else {
+		return errors.New("Unknown store type " + string(c.Store))
 	}
 
 	// test if the connection is reacheable.
@@ -572,11 +591,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	if err != nil {
 		fmt.Println("fail to connect with error ", err)
 		persistence_server.stores[c.Id].Disconnect(c.Id)
-		if _, ok := persistence_server.connections[id]; ok {
-			delete(persistence_server.connections, id)
-		} else if _, ok := persistence_server.Connections[id]; ok {
-			delete(persistence_server.Connections, id)
-		}
 		return err
 	}
 
@@ -588,8 +602,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
 
-	fmt.Println("--------------------------> rqst.Connection ", rqst.Connection)
-	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save)
+	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save, rqst.Connection.Options)
 	if err != nil {
 		// codes.
 		return nil, status.Errorf(
@@ -633,6 +646,17 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 
 			// keep the store for futur call...
 			persistence_server.stores[c.Id] = s
+		} else if c.Store == persistencepb.StoreType_SQL {
+
+			s := new(persistence_store.SqlStore)
+			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
+			if err != nil {
+				// codes.
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
 		}
 
 		// set or update the connection and save it in json file.

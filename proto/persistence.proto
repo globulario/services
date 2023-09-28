@@ -8,9 +8,10 @@ package persistence;
 option go_package="persistence/persistencepb";
 import "google/protobuf/struct.proto";
 
-
 enum StoreType{
 	MONGO = 0;
+	SQL = 1;
+	SCYLLA = 2;
 }
 
 message Connection {

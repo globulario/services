@@ -40,6 +40,7 @@ type MongoStore struct {
 	Port     int
 	Password string
 	User     string // Must be the admin...
+	Host     string
 }
 
 /**
@@ -721,26 +722,6 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 	return err
 }
 
-/**
- * Start the datastore.
- */
-func (store *MongoStore) Start(user, password string, port int, dataPath string) error {
-
-	// Set store attributes.
-	store.User = user
-	store.Password = password
-	store.Port = port
-	store.DataPath = dataPath
-
-	return store.registerSa()
-}
-
-/**
- * Stop the datastore.
- */
-func (store *MongoStore) Stop() error {
-	return store.stopMongod()
-}
 
 /**
  * Create a role, privilege is a json sring describing the privilege.

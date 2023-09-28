@@ -109,7 +109,7 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 	connectionId := mbox.user + "_db"
 
 	// Get the message from the mailbox.
-	data, err := Store.Find(connectionId, connectionId, mbox.Name(), "{}", "")
+	data, err := Store.Find(connectionId, connectionId, mbox.Name(), "", "")
 	if err != nil {
 		return messages
 	}
