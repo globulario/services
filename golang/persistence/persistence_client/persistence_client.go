@@ -84,14 +84,14 @@ func NewPersistenceService_Client(address string, id string) (*Persistence_Clien
 func (client *Persistence_Client) Reconnect() error {
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = persistencepb.NewPersistenceServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -267,7 +267,6 @@ func (client *Persistence_Client) CreateConnection(connectionId string, name str
 		},
 		Save: save,
 	}
-
 
 	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 	return err
@@ -465,7 +464,7 @@ func (client *Persistence_Client) Count(connectionId string, database string, co
 func (client *Persistence_Client) InsertOne(connectionId string, database string, collection string, entity interface{}, options string) (string, error) {
 
 	// Try to marshal object...
-	data, err := json.Marshal(entity)
+	data, err := Utility.ToJson(entity)
 	if err != nil {
 		return "", err
 	}
@@ -548,7 +547,7 @@ func (client *Persistence_Client) ReplaceOne(connectionId string, database strin
 	if reflect.TypeOf(entity).Kind() == reflect.String {
 		value = entity.(string)
 	} else {
-		data, err := json.Marshal(entity)
+		data, err := Utility.ToJson(entity)
 		if err != nil {
 			return err
 		}
@@ -575,7 +574,7 @@ func (client *Persistence_Client) UpdateOne(connectionId string, database string
 	if reflect.TypeOf(entity).Kind() == reflect.String {
 		value = entity.(string)
 	} else {
-		data, err := json.Marshal(entity)
+		data, err := Utility.ToJson(entity)
 		if err != nil {
 			return err
 		}

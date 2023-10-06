@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -1038,7 +1037,7 @@ func (server *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*lda
 	}
 
 	// Here I got the results.
-	str, err := json.Marshal(results)
+	str, err := Utility.ToJson(results)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

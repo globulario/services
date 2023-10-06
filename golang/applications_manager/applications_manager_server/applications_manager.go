@@ -305,6 +305,8 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(token, domain, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
+	fmt.Println("install application ", name, " with roles ", roles, " and groups ", groups)
+	
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {

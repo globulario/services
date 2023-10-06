@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -458,7 +457,7 @@ func (server *server) getEventClient(domain string) (*event_client.Event_Client,
 
 // when services state change that publish
 func (server *server) publishUpdateServiceConfigEvent(config map[string]interface{}) error {
-	data, err := json.Marshal(config)
+	data, err := Utility.ToJson(config)
 	if err != nil {
 		return err
 	}

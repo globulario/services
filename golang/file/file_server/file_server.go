@@ -2766,7 +2766,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 
 											// now I will associate the path.
 											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-											path = strings.ReplaceAll(video_path, "/playlist.m3u8", "")
+											path = strings.ReplaceAll(path, "/playlist.m3u8", "")
 
 											err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
 											if err != nil {
@@ -2780,24 +2780,22 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 
 								} else {
 									path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-									path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+									path = strings.Replace(path, "/playlist.m3u8", "", -1)
 									// associate the path.
 									client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
 								}
 
 							} else {
 
-								fmt.Println("-------------> video : ", 2803)
 								video := new(titlepb.Video)
 								err := jsonpb.UnmarshalString(string(jsonStr), video)
 
 								if err == nil && video != nil {
 
-									fmt.Println("-------------> video : ", video)
-
 									// so here I will make sure the title exist...
 									v, _, err := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
 									if err != nil {
+
 										if video.Poster == nil {
 											video.Poster = new(titlepb.Poster)
 											video.Poster.ID = video.ID
@@ -2811,17 +2809,27 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path stri
 										if err == nil {
 											// now I will associate the path.
 											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-											path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+											path = strings.Replace(path, "/playlist.m3u8", "", -1)
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
+										} else {
+											fmt.Println("fail to create video ", video.ID, " with error ", err)
 										}
 
 									} else {
+
+										fmt.Println("video ", video.ID, " already exist")
+										// now I will associate the path.
 										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-										path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+										path = strings.Replace(path, "/playlist.m3u8", "", -1)
 
 										// associate the path.
-										client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+										err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+										if err != nil {
+											fmt.Println("fail to assciate file ", path, " with video ", v.ID)
+										}
 									}
+								} else {
+									fmt.Println("fail to unmarshal video ", err)
 								}
 							}
 						}
@@ -6335,7 +6343,7 @@ func main() {
 	s_impl.HasEnableGPU = false
 
 	cache = storage_store.NewBadger_store()
-	
+
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
 	s_impl.videoConversionErrors = new(sync.Map)

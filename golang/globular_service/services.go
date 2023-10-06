@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/davecourtois/Utility"
+	"github.com/fsnotify/fsnotify"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
@@ -30,10 +31,9 @@ import (
 	"github.com/kardianos/osext"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sync/errgroup"
-	"github.com/fsnotify/fsnotify"
 
 	//"github.com/globulario/services/golang/config"
-	"github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -398,23 +398,23 @@ func InitService(s Service) error {
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
-		
+
 		// Now I will set the path where the configuation will be save in that case.
 		servicesDir := config.GetServicesDir()
 		dir, _ := osext.ExecutableFolder()
 		path := strings.ReplaceAll(dir, "\\", "/")
 
-		if !strings.HasPrefix(path, servicesDir){
+		if !strings.HasPrefix(path, servicesDir) {
 			// this will create a new configuration config.json beside the exec if no configuration file
 			// already exist. Mostly use by development environnement.
 			s.SetConfigurationPath(path + "/config.json")
-		}else{
+		} else {
 			servicesConfigDir := config.GetServicesConfigDir()
 			configPath := strings.Replace(path, servicesDir, servicesConfigDir, -1)
-			if Utility.Exists(configPath + "/config.json"){
+			if Utility.Exists(configPath + "/config.json") {
 				s.SetConfigurationPath(configPath + "/config.json")
-			}else{
-				// so here no configuration exist at default configuration path and the 
+			} else {
+				// so here no configuration exist at default configuration path and the
 				// service was started without argument. In that case I will create the configuration
 				// file beside the executable file.
 				s.SetConfigurationPath(path + "/config.json")
@@ -437,13 +437,13 @@ func InitService(s Service) error {
 		}
 
 		// If no configuration was found from the configuration server i will get it from the configuration file.
-		str, err := json.Marshal(config_)
+		str, err := Utility.ToJson(config_)
 		if err != nil {
 			fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
 
-		err = json.Unmarshal(str, &s)
+		err = json.Unmarshal([]byte(str), &s)
 		if err != nil {
 			return err
 		}
@@ -467,7 +467,7 @@ func InitService(s Service) error {
 	// Now the platform.
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
-	
+
 	return SaveService(s)
 }
 
@@ -487,7 +487,7 @@ func SaveService(s Service) error {
 		data, _ := Utility.ToJson(config_)
 		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
 	}
-	
+
 	return config_client.SaveServiceConfiguration(config_)
 }
 
@@ -684,10 +684,10 @@ func StartService(s Service, server *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
-	address := "0.0.0.0" //Utility.MyLocalIP() // 
+	address := "0.0.0.0" //Utility.MyLocalIP() //
 
 	fmt.Println("start service ", s.GetName(), "grpc port ", s.GetPort(), " proxy port ", s.GetProxy())
-	lis, err = net.Listen("tcp", address + ":"+strconv.Itoa(s.GetPort()))
+	lis, err = net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
 		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)
@@ -698,7 +698,7 @@ func StartService(s Service, server *grpc.Server) error {
 	go func() {
 		// no web-rpc server.
 		if err := server.Serve(lis); err != nil {
-			fmt.Println("service",   s.GetName(),"exit with error", err)
+			fmt.Println("service", s.GetName(), "exit with error", err)
 			return
 		}
 	}()
@@ -706,7 +706,7 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
-/**
+	/**
 	Every breath you take
 	And every change you make
 	Every bond you break
@@ -741,7 +741,6 @@ func StartService(s Service, server *grpc.Server) error {
 						}
 					}
 
-					
 					if s.GetState() == "stopped" {
 						config.Exit() // stop process config
 

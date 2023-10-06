@@ -708,12 +708,12 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 	ids = Utility.RemoveString(ids, uuid)
 
 	// Now I will save the value.
-	blogs__, err := json.Marshal(ids)
+	blogs__, err := Utility.ToJson(ids)
 	if err != nil {
 		return err
 	}
 
-	err = svr.store.SetItem(blog.Author, blogs__)
+	err = svr.store.SetItem(blog.Author, []byte(blogs__))
 	if err != nil {
 		return err
 	}
@@ -757,12 +757,12 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 	}
 
 	// Now I will save the value.
-	blogs__, err := json.Marshal(blogs)
+	blogs__, err := Utility.ToJson(blogs)
 	if err != nil {
 		return err
 	}
 
-	err = svr.store.SetItem(author, blogs__)
+	err = svr.store.SetItem(author, []byte(blogs__))
 	if err != nil {
 		return err
 	}

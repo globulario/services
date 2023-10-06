@@ -335,6 +335,52 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 	return -1
 }
 
+// OrderDependencies orders the services based on their dependencies.
+func OrderDependencies(services []map[string]interface{}) ([]string, error) {
+
+	serviceMap := make(map[string]map[string]interface{})
+	for _, service := range services {
+		serviceMap[service["Name"].(string)] = service
+	}
+
+	var orderedServices []string
+	visited := make(map[string]bool)
+	var visit func(serviceName string) error
+
+	visit = func(serviceName string) error {
+		if visited[serviceName] {
+			return nil
+		}
+
+		service, exists := serviceMap[serviceName]
+		if !exists {
+			return fmt.Errorf("service not found: %s", serviceName)
+		}
+
+		for _, dependency := range service["Dependencies"].([]interface{}) {
+			if !visited[dependency.(string)] {
+				if err := visit(dependency.(string)); err != nil {
+					return err
+				}
+			}
+		}
+
+		visited[serviceName] = true
+		orderedServices = append(orderedServices, serviceName)
+		return nil
+	}
+
+	for _, service := range services {
+		if !visited[service["Name"].(string)] {
+			if err := visit(service["Name"].(string)); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return orderedServices, nil
+}
+
 // That function can be call by globular directly.
 func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 
@@ -343,43 +389,26 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
-	// Now I will order the services in a way required service will start first...
-	servicesNames := make([]string, len(services))
-	for i := 0; i < len(services); i++ {
-		servicesNames[i] = services[i]["Name"].(string)
+	// Order the services based on their dependencies.
+	orderedServices, err := OrderDependencies(services)
+	if err != nil {
+		fmt.Println("fail to order services with error ", err)
+		return nil, err
 	}
 
-	// Now I will move the services below all it dependencie in the array...
-	for i := 0; i < len(servicesNames); i++ {
-		index := getObjectIndex(servicesNames[i], "Name", services)
-		if services[index]["Dependencies"] != nil {
-			dependencies := services[index]["Dependencies"].([]interface{})
-
-			for j := 0; j < len(dependencies); j++ {
-				index_ := getObjectIndex(dependencies[j].(string), "Name", services)
-				if index_ != -1 {
-					if index < index_ {
-						// move the services in the array...
-						services = moveObject(services, index_, index)
-					}
-				}
+	// Now I will order the services based on their dependencies.
+	orderedServicesConfig := make([]map[string]interface{}, 0)
+	for i := 0; i < len(orderedServices); i++ {
+		for j := 0; j < len(services); j++ {
+			if services[j]["Name"].(string) == orderedServices[i] {
+				orderedServicesConfig = append(orderedServicesConfig, services[j])
+				break
 			}
 		}
 	}
 
-	// Here I will try to put the configuration service as the first services.
-	for i := 0; i < len(services); i++ {
-		if services[i]["Name"] == "config.ConfigService" {
-			configService := services[i]
-			// remove it from the array
-			services = append(services[:i], services[i+1:]...)
-			// insert it at first element.
-			services = append([]map[string]interface{}{configService}, services...)
-			break
-		}
-	}
+	return orderedServicesConfig, nil
 
-	return services, nil
 }
 
 /**
@@ -935,14 +964,14 @@ func initConfig() {
 					// copy files from the /bin into usr local bin...
 					execs, err := Utility.ReadDir(dir + "/bin")
 					if err == nil {
-						for i:=0; i < len(execs); i++ {
+						for i := 0; i < len(execs); i++ {
 							if !execs[i].IsDir() {
-								path :=  dir + "/bin/" + execs[i].Name()
+								path := dir + "/bin/" + execs[i].Name()
 								fmt.Println("copy ", path, "to", "/usr/local/bin/")
 								err := Utility.Move(path, "/usr/local/bin/")
-								if err == nil{
+								if err == nil {
 									os.Chmod(path, 0755)
-								}else{
+								} else {
 									fmt.Println("fail to move file", path, "with error ", err)
 								}
 							}
@@ -952,9 +981,9 @@ func initConfig() {
 					// copy libraries.
 					libs, err := Utility.ReadDir(dir + "/lib")
 					if err == nil {
-						for i:=0; i < len(libs); i++ {
+						for i := 0; i < len(libs); i++ {
 							if !libs[i].IsDir() {
-								path :=  dir + "/lib/" + libs[i].Name()
+								path := dir + "/lib/" + libs[i].Name()
 								Utility.Move(path, "/usr/local/lib")
 							}
 						}
@@ -966,9 +995,9 @@ func initConfig() {
 
 					applications, err := Utility.ReadDir(dir + "/var/globular/applications")
 					if err == nil {
-						for i:=0; i < len(applications); i++ {
+						for i := 0; i < len(applications); i++ {
 							if !libs[i].IsDir() {
-								path :=  dir + "/var/globular/applications/" + applications[i].Name()
+								path := dir + "/var/globular/applications/" + applications[i].Name()
 								err := Utility.Move(path, "/var/globular/applications")
 								if err != nil {
 									fmt.Println("-------------> ", path, err)
@@ -981,7 +1010,7 @@ func initConfig() {
 				files, err = Utility.FindFileByName(GetServicesConfigDir(), "config.json")
 				if err != nil {
 					fmt.Println("fail to retreive service configurations file with error: ", err)
-					os.Exit(0) 
+					os.Exit(0)
 				}
 			}
 		}
@@ -990,7 +1019,7 @@ func initConfig() {
 	// In that case I will exit
 	if len(files) == 0 {
 		fmt.Println("no services configuration was found at path ", serviceConfigDir)
-		os.Exit(0) 
+		os.Exit(0)
 	}
 
 	// configuration was found so I will set init to true
@@ -1018,7 +1047,7 @@ func initConfig() {
 
 			// If the execname is globular I will set the services path from exec found in that path...
 			if strings.HasPrefix(execname, "Globular") {
-				
+
 				if !Utility.Exists(s["Path"].(string)) {
 					service_name := filepath.Base(s["Path"].(string))
 					// set the executable path
@@ -1038,7 +1067,6 @@ func initConfig() {
 			}
 		}
 	}
-
 
 	// start the loop.
 	go accesServiceConfigurationFile(services)
@@ -1141,9 +1169,9 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			for index, _ := range services {
 				setServiceConfiguration(index, services)
 				// Here I will create a detach copy of the map...
-				data, _ := json.Marshal(services[index])
+				data, _ := Utility.ToJson(services[index])
 				s := make(map[string]interface{})
-				json.Unmarshal(data, &s)
+				json.Unmarshal([]byte(data), &s)
 				services_ = append(services_, s)
 			}
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_}
@@ -1158,9 +1186,9 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
 					setServiceConfiguration(i, services)
-					data, _ := json.Marshal(services[i])
+					data, _ := Utility.ToJson(services[i])
 					s = make(map[string]interface{})
-					json.Unmarshal(data, &s)
+					json.Unmarshal([]byte(data), &s)
 					break
 				}
 			}
@@ -1178,9 +1206,9 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			for i := 0; i < len(services); i++ {
 				if services[i]["Name"] == name {
 					setServiceConfiguration(i, services)
-					data, _ := json.Marshal(services[i])
+					data, _ := Utility.ToJson(services[i])
 					s := make(map[string]interface{})
-					json.Unmarshal(data, &s)
+					json.Unmarshal([]byte(data), &s)
 
 					services_ = append(services_, s)
 				}
@@ -1234,9 +1262,9 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	initConfig()
 
 	infos := make(map[string]interface{})
-	data, _ := json.Marshal(s)
+	data, _ := Utility.ToJson(s)
 	s_ := make(map[string]interface{})
-	json.Unmarshal(data, &s_)
+	json.Unmarshal([]byte(data), &s_)
 
 	infos["service_config"] = s_
 	infos["return"] = make(chan error)

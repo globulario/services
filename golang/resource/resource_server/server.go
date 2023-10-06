@@ -617,7 +617,6 @@ func (srv *server) StopService() error {
 	return globular.StopService(srv, srv.grpcServer)
 }
 
-
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
@@ -629,7 +628,7 @@ func GetPersistenceClient(address string) (*persistence_client.Persistence_Clien
 }
 
 // Create the application connections in the backend.
-func (server *server) createApplicationConnections() error{
+func (server *server) createApplicationConnections() error {
 
 	applications, err := server.getApplications("", "")
 	if err != nil {
@@ -646,11 +645,9 @@ func (server *server) createApplicationConnections() error{
 	return nil
 }
 
-
 // Create the application connections in the backend.
 func (server *server) createApplicationConnection(app *resourcepb.Application) error {
 
-	fmt.Println("---------------> create appliation connection: ", app.Name)
 	// That service made user of persistence service.
 	persistence_client_, err := GetPersistenceClient(server.Domain)
 	if err != nil {
@@ -665,7 +662,7 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
 		storeType = 2
 	} else if server.Backend_type == "SQL" {
 		storeType = 1
-		options = `{"driver": "sqlite3", "charset": "utf8", "path":"` + server.DataPath + "/sql-data"  +`"}` // TODO add the options for sql store...
+		options = `{"driver": "sqlite3", "charset": "utf8", "path":"` + server.DataPath + "/sql-data" + `"}` // TODO add the options for sql store...
 	} else {
 		return errors.New("unknown backend type " + server.Backend_type)
 	}
@@ -718,7 +715,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
  */
 func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 	// That service made user of persistence service.
-	
+
 	if srv.store == nil {
 
 		var options_str = ""
@@ -743,18 +740,18 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		} else if srv.Backend_type == "SQL" {
 			srv.store = new(persistence_store.SqlStore)
 			options := map[string]interface{}{"driver": "sqlite3", "charset": "utf8", "path": srv.DataPath + "/sql-data"}
-			options_, _ := json.Marshal(options)
+			options_, _ := Utility.ToJson(options)
 			options_str = string(options_)
 		} else {
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
 
+		// Connect to the store.
 		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
 		if err != nil {
 			fmt.Println("fail to connect store with error ", err)
 			return nil, err
 		}
-
 
 		err = srv.store.Ping(context.Background(), "local_resource")
 		if err != nil {
@@ -763,6 +760,25 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		}
 
 		srv.isReady = true
+
+		// Create tables if not already exist.
+		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"_id TEXT", "name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+		if err != nil {
+			fmt.Println("fail to create table Accounts with error ", err)
+			return nil, err
+		}
+
+		// Create organizations table.
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+
+		// Create roles table.
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+
+		// Create groups table.
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+
+		// Create peers table.
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"_id TEXT", "domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
 
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
@@ -848,6 +864,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	account["roles"] = make([]interface{}, 0)
 	account["groups"] = make([]interface{}, 0)
 	account["organizations"] = make([]interface{}, 0)
+	account["typeName"] = "Account"
 
 	// append guest role if not already exist.
 	if !Utility.Contains(roles, "guest@"+localDomain) {
@@ -871,12 +888,20 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		createUserScript = fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
 	} else if p.GetStoreType() == "SCYLLADB" {
 		createUserScript = fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '%d' };", name, resource_server.Backend_replication_factor)
+	} else if p.GetStoreType() == "SQL" {
+		createUserScript = fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s_db;", name)
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
 
 	// I will execute the sript with the admin function.
-	p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+	// TODO implement the admin function for scylla and sql.
+	if p.GetStoreType() == "MONGODB" {
+		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Organizations
 	for i := 0; i < len(organizations); i++ {
@@ -1009,44 +1034,83 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 	var q string // query string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"} ]}`
+		q = `{"_id":"` + id + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla query string here...
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `' OR name='` + id + `'`
+		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
 
-	if !strings.Contains(targetId, "@") {
-		targetId += "@" + localDomain
-	}
-
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
+	// Get the source object.
+	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
 		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " err: " + err.Error())
 	}
 
-	source = values.(map[string]interface{})
-
-	references := make([]interface{}, 0)
-	if source[field] != nil {
-		references = []interface{}(source[field].(primitive.A))
-	}
-
-	for j := 0; j < len(references); j++ {
-		if references[j].(map[string]interface{})["$id"] == targetId {
-			return errors.New(" named " + targetId + " aleready exist in  " + field + "!")
-		}
-	}
-
 	// append the account.
-	source[field] = append(references, map[string]interface{}{"$ref": targetCollection, "$id": targetId, "$db": "local_resource"})
-	jsonStr := serialyseObject(source)
+	source = source_values.(map[string]interface{})
 
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, jsonStr, ``)
-	if err != nil {
-		return err
+	// append the domain to the id.
+	if p.GetStoreType() == "MONGODB" {
+		if !strings.Contains(targetId, "@") {
+			targetId += "@" + localDomain
+		}
+
+		references := make([]interface{}, 0)
+		if source[field] != nil {
+			references = []interface{}(source[field].(primitive.A))
+		}
+
+		for j := 0; j < len(references); j++ {
+			if references[j].(map[string]interface{})["$id"] == targetId {
+				return errors.New(" named " + targetId + " aleready exist in  " + field + "!")
+			}
+		}
+
+		source[field] = append(references, map[string]interface{}{"$ref": targetCollection, "$id": targetId, "$db": "local_resource"})
+		jsonStr := serialyseObject(source)
+
+		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, jsonStr, ``)
+		if err != nil {
+			return err
+		}
+	} else if p.GetStoreType() == "SQL" {
+		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
+
+		// I will create the table if not already exist.
+		createTableSQL :=  fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_uid TEXT, target_uid TEXT, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+		p.(*persistence_store.SqlStore).ExecContext("local_resource", createTableSQL, "[]", nil)
+
+		// be sure that the target id is a valid id.
+		if source["uid"] == nil {
+			return errors.New("No uid field was found in object with id " + id + "!")
+		}
+
+		// So I need to insert  the reference in the database.
+		q := `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `'`
+
+		// Get the targer object.
+		target_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
+		if err != nil {
+			return errors.New("fail to find object with id " + targetId + " in collection " + targetCollection + " err: " + err.Error())
+		}
+
+		target := target_values.(map[string]interface{})
+
+		if target["uid"] == nil {
+			return errors.New("No uid field was found in object with id " + targetId + "!")
+		}
+
+		
+
+		// Here I will insert the reference in the database.
+		q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_uid, target_uid) VALUES ('` + source["uid"].(string) + `','` + target["uid"].(string) + `')`
+		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``, ``)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1114,11 +1178,11 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
+		q = `{"_id":"` + id + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla query string here...
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Groups WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
+		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
@@ -1137,6 +1201,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	g["name"] = name
 	g["description"] = description
 	g["domain"] = resource_server.Domain
+	g["typeName"] = "Group"
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
 	if err != nil {
@@ -1166,7 +1231,7 @@ func (resource_server *server) CreateAccountDir() error {
 	if err != nil {
 		return err
 	}
-	
+
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{}`
@@ -1246,6 +1311,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 	role["name"] = name
 	role["actions"] = actions
 	role["domain"] = resource_server.Domain
+	role["typeName"] = "Role"
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", role, "")
 	if err != nil {
@@ -1286,11 +1352,11 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"$or":[{"_id":"` + applicationId + `"},{"name":"` + applicationId + `"} ]}`
+		q = `{"_id":"` + applicationId + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla query string here...
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `' OR name='` + applicationId + `'`
+		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
@@ -1338,14 +1404,19 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 			applicationId)
 	} else if p.GetStoreType() == "SCYLLADB" {
 		dropUserScript = fmt.Sprintf("DROP KEYSPACE IF EXISTS %s;", applicationId)
+	} else if p.GetStoreType() == "SQL" {
+		dropUserScript = fmt.Sprintf("DROP DATABASE IF EXISTS %s;", applicationId)
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
 
 	// I will execute the sript with the admin function.
-	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
-	if err != nil {
-		return err
+	// TODO implement drop user for scylla and sql
+	if p.GetStoreType() == "MONGODB" {
+		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
+		if err != nil {
+			return err
+		}
 	}
 
 	// set back the domain part
@@ -1383,7 +1454,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{ "authentication.AuthenticationService", "log.LogService", "persistence.PersistenceService"}
+	s_impl.Dependencies = []string{"authentication.AuthenticationService", "log.LogService"}
 	s_impl.Permissions = make([]interface{}, 23)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

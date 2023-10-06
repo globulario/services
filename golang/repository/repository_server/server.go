@@ -510,7 +510,7 @@ func main() {
 	s_impl.Keywords = []string{"Repo", "Repository", "Package", "Service"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"resource.ResourceService", "application.ApplicationService", "log.LogService"}
+	s_impl.Dependencies = []string{"resource.ResourceService", "log.LogService", "applications_manager.ApplicationManagerService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

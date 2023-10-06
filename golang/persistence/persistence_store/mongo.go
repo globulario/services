@@ -798,7 +798,7 @@ func (store *MongoStore) registerSa() error {
 		}
 
 		// wait until mongodb stop.
-		fmt.Println("start mongoDB without authentification")
+		fmt.Println("start mongoDB without authentication")
 		go startMongoDB(store.Port, dataPath, false, wait)
 
 		err = <-wait

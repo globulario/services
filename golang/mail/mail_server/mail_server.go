@@ -540,7 +540,7 @@ type Attachment struct {
 }
 
 /**
- * Send mail... The server id is the authentification id...
+ * Send mail... The server id is the authentication id...
  */
 func (svr *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 

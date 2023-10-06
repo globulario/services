@@ -444,7 +444,7 @@ func (persistence_server *server) Init() error {
 			} else {
 				return err
 			}
-		}else if c.Store == persistencepb.StoreType_SQL {
+		} else if c.Store == persistencepb.StoreType_SQL {
 			s := new(persistence_store.SqlStore)
 			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			if err == nil {
@@ -514,7 +514,6 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 // //////////////////////////////////////////////////////////////////////////////////////
 func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
 
-	fmt.Println("---------------------------> create connection ", id, " ", name, " ", host, " ", port, " ", store, " ", save, " ", options, " ", user, " ", password)
 	var c connection
 	var err error
 
@@ -853,7 +852,7 @@ func (persistence_server *server) InsertOne(ctx context.Context, rqst *persisten
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	jsonStr, err := json.Marshal(id)
+	jsonStr, err := Utility.ToJson(id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1234,7 +1233,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"log.LogService"}
+	s_impl.Dependencies = []string{"log.LogService", "authentication.AuthenticationService", "config.ConfigService", "event.EventService"}
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true

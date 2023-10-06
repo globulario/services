@@ -721,7 +721,7 @@ func main() {
 	s_impl.Keywords = []string{"Authentication"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"event.EventService", "resource.ResourceService"}
+	s_impl.Dependencies = []string{"event.EventService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WatchSessionsDelay = 60
 	s_impl.SessionTimeout = 15

@@ -602,7 +602,7 @@ func main() {
 	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService", "authentication.AuthenticationService"}
+	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 1)
 	s_impl.WebRoot = config.GetWebRootDir()
 	s_impl.AllowAllOrigins = allow_all_origins

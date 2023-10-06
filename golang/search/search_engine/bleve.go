@@ -3,9 +3,11 @@ package search_engine
 import (
 	"encoding/json"
 	"errors"
-	"github.com/blevesearch/bleve"
-	"github.com/globulario/services/golang/search/searchpb"
 	"log"
+
+	"github.com/blevesearch/bleve"
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/search/searchpb"
 )
 
 /**
@@ -85,7 +87,7 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 			result.Rank = int32(val.Score * 100)
 
 			// serialyse the fragment and set it as snippet.
-			data, err := json.Marshal(val.Fragments)
+			data, err := Utility.ToJson(val.Fragments)
 			if err == nil {
 				result.Snippet = string(data)
 			}
@@ -125,10 +127,9 @@ func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj m
 	if len(data) > 0 {
 		err = index.SetInternal([]byte(id_), []byte(data))
 	} else {
-		var data_ []byte
-		data_, err = json.Marshal(obj)
+		data_, err := Utility.ToJson(obj)
 		if err == nil {
-			err = index.SetInternal([]byte(id_), data_)
+			err = index.SetInternal([]byte(id_), []byte(data_))
 		}
 	}
 

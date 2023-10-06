@@ -79,18 +79,18 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 func (client *SQL_Client) Reconnect() error {
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = sqlpb.NewSqlServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
-	
+
 	return err
 }
 
@@ -243,9 +243,7 @@ func (client *SQL_Client) StopService() {
 }
 
 func (client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string, path string) error {
-	
 
-	
 	// Create a new connection
 	rqst := &sqlpb.CreateConnectionRqst{
 		Connection: &sqlpb.Connection{
@@ -260,7 +258,6 @@ func (client *SQL_Client) CreateConnection(connectionId string, name string, dri
 			Path:     path,
 		},
 	}
-
 
 	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 
@@ -342,7 +339,7 @@ func (client *SQL_Client) QueryContext(connectionId string, query string, parame
 	result := make(map[string]interface{})
 	result["header"] = header
 	result["data"] = data
-	resultStr, _ := json.Marshal(result)
+	resultStr, _ := Utility.ToJson(result)
 	return string(resultStr), nil
 }
 
@@ -369,7 +366,7 @@ func (client *SQL_Client) ExecContext(connectionId interface{}, query interface{
 	result := make(map[string]interface{})
 	result["affectRows"] = rsp.AffectedRows
 	result["lastId"] = rsp.LastId
-	resultStr, _ := json.Marshal(result)
+	resultStr, _ := Utility.ToJson(result)
 
 	return string(resultStr), nil
 }

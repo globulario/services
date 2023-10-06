@@ -123,6 +123,7 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 
 /* Register a new Account */
 func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resourcepb.RegisterAccountRqst) (*resourcepb.RegisterAccountRsp, error) {
+	rqst.Account.TypeName = "Account"
 	if rqst.ConfirmPassword != rqst.Account.Password {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -551,7 +552,7 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 
 // * Return the list accounts *
 func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
-	
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -573,7 +574,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
 		}
-	}else {
+	} else {
 		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
@@ -1374,7 +1375,10 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	for i := 0; i < len(roles); i++ {
 		role := roles[i].(map[string]interface{})
-		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Domain: role["domain"].(string), Actions: make([]string, 0)}
+
+		fmt.Println("---------------> role: ", role["_id"].(string))
+		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
+
 		if role["domain"] != nil {
 			r.Domain = role["domain"].(string)
 		} else {
@@ -1668,7 +1672,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 
 	if needSave {
 
-		// jsonStr, _ := json.Marshal(role)
+		// jsonStr, _ := Utility.ToJson(role)
 		jsonStr := serialyseObject(role)
 
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", q, string(jsonStr), ``)
@@ -1754,7 +1758,7 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 		}
 
 		if needSave {
-			// jsonStr, _ := json.Marshal(role)
+			// jsonStr, _ := Utility.ToJson(role)
 			jsonStr := serialyseObject(role)
 
 			var q string
@@ -1874,7 +1878,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	}
 
 	if needSave {
-		// jsonStr, _ := json.Marshal(role)
+		// jsonStr, _ := Utility.ToJson(role)
 		jsonStr := serialyseObject(role)
 
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", q, string(jsonStr), ``)
@@ -2658,6 +2662,7 @@ func getLocalPeer() *resourcepb.Peer {
 	localConfig, _ := config.GetLocalConfig(true)
 
 	local_peer_ := new(resourcepb.Peer)
+	local_peer_.TypeName = "Peer"
 	local_peer_.Protocol = localConfig["Protocol"].(string)
 	local_peer_.PortHttp = int32(Utility.ToInt(localConfig["PortHttp"]))
 	local_peer_.PortHttps = int32(Utility.ToInt(localConfig["PortHttps"]))
@@ -3849,6 +3854,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		o := organizations[i].(map[string]interface{})
 
 		organization := new(resourcepb.Organization)
+		organization.TypeName = "Organization"
 		organization.Id = o["_id"].(string)
 		organization.Name = o["name"].(string)
 		organization.Icon = o["icon"].(string)
@@ -4479,6 +4485,7 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 // * Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
+	fmt.Println("--------------> create group:", rqst.Group)
 	var clientId string
 	var domain string
 
@@ -4963,7 +4970,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	for i := 0; i < len(notifications); i++ {
 		n_ := notifications[i].(map[string]interface{})
 		notificationType := resourcepb.NotificationType(int32(Utility.ToInt(n_["notificationtype"])))
-		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
+		values = append(values, &resourcepb.Notification{Id: n_["_id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetNotificationsRsp{
@@ -5163,7 +5170,8 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 	for i := 0; i < len(data); i++ {
 		descriptor := data[i].(map[string]interface{})
 		descriptors[i] = new(resourcepb.PackageDescriptor)
-		descriptors[i].Id = descriptor["id"].(string)
+		descriptors[i].TypeName = "PackageDescriptor"
+		descriptors[i].Id = descriptor["_id"].(string)
 		descriptors[i].Name = descriptor["name"].(string)
 		descriptors[i].Description = descriptor["description"].(string)
 		descriptors[i].PublisherId = descriptor["publisherid"].(string)
@@ -5241,6 +5249,7 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 
 // * Retrun all version of a given packages. *
 func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
+
 	p, err := server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5250,11 +5259,11 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	var query string
 	if p.GetStoreType() == "MONGODB" {
-		query = `{"id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+		query = `{"_id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		query = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Packages WHERE id='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
+		query = `SELECT * FROM Packages WHERE _id='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -5276,7 +5285,8 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	for i := 0; i < len(values); i++ {
 		descriptor := values[i].(map[string]interface{})
 		descriptors[i] = new(resourcepb.PackageDescriptor)
-		descriptors[i].Id = descriptor["id"].(string)
+		descriptors[i].TypeName = "PackageDescriptor"
+		descriptors[i].Id = descriptor["_id"].(string)
 		descriptors[i].Name = descriptor["name"].(string)
 		if descriptor["alias"] != nil {
 			descriptors[i].Alias = descriptor["alias"].(string)
@@ -5360,7 +5370,6 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 		}
 
 		if descriptor["groups"] != nil {
-
 			var groups []interface{}
 			switch descriptor["groups"].(type) {
 			case primitive.A:
@@ -5375,7 +5384,8 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 				//roles[i].(map[string]interface{})
 				g_ := groups[j].(map[string]interface{})
 				g := new(resourcepb.Group)
-				g.Id = g_["id"].(string)
+				g.TypeName = "Group"
+				g.Id = g_["_id"].(string)
 				g.Name = g_["name"].(string)
 				g.Domain, _ = config.GetDomain()
 				descriptors[i].Groups[j] = g
@@ -5398,7 +5408,8 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 				role := roles[i].(map[string]interface{})
 				role_ := new(resourcepb.Role)
-				role_.Id = role["id"].(string)
+				role_.TypeName = "Role"
+				role_.Id = role["_id"].(string)
 				role_.Name = role["name"].(string)
 				role_.Domain, _ = config.GetDomain()
 
@@ -5462,8 +5473,8 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 	descriptors := make([]*resourcepb.PackageDescriptor, 0)
 	for i := 0; i < len(data); i++ {
 		descriptor := new(resourcepb.PackageDescriptor)
-
-		descriptor.Id = data[i].(map[string]interface{})["id"].(string)
+		descriptor.TypeName = "PackageDescriptor"
+		descriptor.Id = data[i].(map[string]interface{})["_id"].(string)
 		descriptor.Name = data[i].(map[string]interface{})["name"].(string)
 		descriptor.Description = data[i].(map[string]interface{})["description"].(string)
 		descriptor.PublisherId = data[i].(map[string]interface{})["publisherid"].(string)
@@ -5575,17 +5586,26 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"id":"` + rqst.PackageDescriptor.Id + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
+		q = `{"_id":"` + rqst.PackageDescriptor.Id + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Packages WHERE id='` + rqst.PackageDescriptor.Id + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
+		q = `SELECT * FROM Packages WHERE _id='` + rqst.PackageDescriptor.Id + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	var marshaler jsonpb.Marshaler
+	rqst.PackageDescriptor.TypeName = "PackageDescriptor"
 
+	for i := 0; i < len(rqst.PackageDescriptor.Groups); i++ {
+		rqst.PackageDescriptor.Groups[i].TypeName = "Group"
+	}
+
+	for i := 0; i < len(rqst.PackageDescriptor.Roles); i++ {
+		rqst.PackageDescriptor.Roles[i].TypeName = "Role"
+	}
+
+	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.PackageDescriptor)
 	if err != nil {
 		return nil, status.Errorf(
@@ -5596,6 +5616,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	// little fix...
 	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
 
+	
 	// Always create a new if not already exist.
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
@@ -5722,7 +5743,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
 		session["_id"] = Utility.RandomUUID() // set a random id for sql db.
-		q = `SELECT * FROM Sessions WHERE _id='` + accountId + `'`
+		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -5759,13 +5780,13 @@ func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.Remove
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Sessions WHERE _id='` + rqst.AccountId + `'`
+		q = `SELECT * FROM Sessions WHERE accountId='` + rqst.AccountId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
 	// Now I will remove the token...
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
+	err = p.Delete(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5824,8 +5845,8 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 		session := sessions[i].(map[string]interface{})
 		expireAt := Utility.ToInt(session["expire_at"])
 		lastStateTime := Utility.ToInt(session["last_state_time"])
-
-		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: resourcepb.SessionState(session["state"].(int32))})
+		state := int32(Utility.ToInt(session["state"]))
+		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["accountId"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: resourcepb.SessionState(state)})
 	}
 
 	return &resourcepb.GetSessionsResponse{
@@ -5870,7 +5891,6 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 	if session["state"] != nil {
 		state = resourcepb.SessionState(int32(Utility.ToInt(session["state"])))
 	}
-
 
 	return &resourcepb.Session{AccountId: session["accountId"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: state}, nil
 }

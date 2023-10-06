@@ -1111,7 +1111,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Now I will set back the item in the store.
-	data, _ = json.Marshal(association)
+	data, _ =json.Marshal(association)
 	err = associations.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1210,7 +1210,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		associations.RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
-		data, _ := json.Marshal(file_association)
+		data, _ :=json.Marshal(file_association)
 		err = associations.SetItem(uuid, data)
 		if err != nil {
 			return err

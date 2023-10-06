@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	//"fmt"
 	"log"
 	"os"
@@ -80,8 +81,8 @@ type server struct {
 	ModTime            int64
 
 	// Contain the list of service use by the catalog server.
-	Services     map[string]interface{}
-	
+	Services map[string]interface{}
+
 	Permissions  []interface{}
 	Dependencies []string // The list of services needed by this services.
 
@@ -852,7 +853,6 @@ func (svr *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
@@ -2148,7 +2148,7 @@ func (svr *server) getOptionsString(options string) (string, error) {
 		options_ = append(options_, map[string]interface{}{"Projection": map[string]interface{}{"_id": 0}})
 	}
 
-	optionsStr, err := json.Marshal(options_)
+	optionsStr, err := Utility.ToJson(options_)
 	return string(optionsStr), err
 }
 

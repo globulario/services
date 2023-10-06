@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
@@ -48,10 +49,22 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		return err
 	}
 
-	// Authenticate the user.
-	token, err := authentication_client.Authenticate(user, password)
-	if err != nil {
-		return err
+	// Authenticate the user, I will try 5 times.
+	nbTry := 5
+	var token string
+	for nbTry > 0 {
+
+		var err error
+		// Authenticate the user.
+		token, err = authentication_client.Authenticate(user, password)
+		if err != nil && nbTry == 0 {
+			fmt.Println("Fail to authenticate user ", user, err)
+			return err
+		} else if err == nil {
+			break
+		}
+
+		time.Sleep(1 * time.Second)
 	}
 
 	// be sure that the data path exist.
@@ -102,6 +115,15 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	// keep the database reference.
 	connection.db = db
+
+	// Create the table if it does not exist.
+	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
+	if count == 0 && id != "local_resource" {
+		_, err := store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "firstName_": "", "lastName_": "", "middleName_": "", "profilePicture_": "", "domain_": "", "email_": ""}, "")
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -401,22 +423,21 @@ func generateCreateTableSQL(tableName string, columns map[string]interface{}) (s
 		// Check if the column is an array (slice)
 		isArray := reflect.Slice == reflect.TypeOf(columnType).Kind()
 
-		if isArray {
-			// For array columns, create a separate table
-			arrayTableName := tableName + "_" + columnName
-			arrayColumnType := reflect.TypeOf(columnType).Elem()
-			arrayColumnTypeSQL := getSQLType(arrayColumnType)
+		if !isArray {
 
-			// Create the array table
-			arrayTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (uid INTEGER PRIMARY KEY AUTOINCREMENT, value %s, %s_uid INTEGER, FOREIGN KEY (%s_uid) REFERENCES %s(uid) ON DELETE CASCADE );", arrayTableName, arrayColumnTypeSQL, tableName, tableName, tableName)
-			arrayTables = append(arrayTables, arrayTableSQL)
-		} else {
+			if columnName != "typeName" {
+				// This is not an array column, include it in the main table
+				if columnName == "id" {
+					// rename it to _id
+					columnName = "_id"
+				}
 
-			// Format column names with special characters in double quotes
-			columnNameFormatted := fmt.Sprintf("\"%s\"", columnName)
+				// Format column names with special characters in double quotes
+				columnNameFormatted := fmt.Sprintf("\"%s\"", columnName)
 
-			// Add the column to the main table
-			columnsSQL = append(columnsSQL, fmt.Sprintf("%s %s", columnNameFormatted, sqlType))
+				// Add the column to the main table
+				columnsSQL = append(columnsSQL, fmt.Sprintf("%s %s", columnNameFormatted, sqlType))
+			}
 		}
 	}
 
@@ -448,14 +469,22 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
 	var mainValues []interface{}
 
 	for columnName, columnValue := range data {
-		// Check if the column is an array (slice)
-		isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
 
-		if !isArray {
-			// This is not an array column, include it in the main table insert
-			mainColumns = append(mainColumns, fmt.Sprintf("\"%s\"", columnName))
-			mainPlaceholders = append(mainPlaceholders, "?")
-			mainValues = append(mainValues, columnValue)
+		// Check if the column is an array (slice)
+		if columnValue != nil {
+			isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
+
+			if !isArray && columnName != "typeName" {
+				if columnName == "id" {
+					// rename it to _id
+					columnName = "_id"
+				}
+
+				// This is not an array column, include it in the main table insert
+				mainColumns = append(mainColumns, fmt.Sprintf("\"%s\"", columnName))
+				mainPlaceholders = append(mainPlaceholders, "?")
+				mainValues = append(mainValues, columnValue)
+			}
 		}
 	}
 
@@ -467,14 +496,34 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
 /**
  * Insert data into the database. This function will insert the data into the main table and the array tables.
  */
-func (store *SqlStore) insertData(connectionId string, tableName string, data map[string]interface{}) (interface{}, error) {
+func (store *SqlStore) insertData(connectionId string, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
+
+	// test if the data already exist.
+	if store.isTableExist(connectionId, tableName) {
+		var id string
+		if data["id"] != nil {
+			id = data["id"].(string)
+		} else if data["_id"] != nil {
+			id = data["_id"].(string)
+		}
+
+		if len(id) > 0 {
+			// I will check if the data already exist.
+			query := fmt.Sprintf("SELECT * FROM %s WHERE _id='%s'", tableName, id)
+			values, err := store.FindOne(context.Background(), connectionId, "", tableName, query, "")
+			if err == nil {
+				return values.(map[string]interface{}), nil
+			}
+
+		}
+	}
 
 	// Insert data into the main table
 	insertSQL, values := generateMainInsertSQL(tableName, data)
 	values_, _ := Utility.ToJson(values)
 	str, err := store.ExecContext(connectionId, insertSQL, values_, nil)
 	if err != nil {
-		//fmt.Println("Error inserting data into main table: ", err)
+		fmt.Println("error inserting data into %s table", tableName, err)
 		return nil, err
 	}
 
@@ -490,45 +539,113 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 	// Insert data into the array tables
 	for columnName, columnValue := range data {
 		// Check if the column is an array (slice)
-		isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
+		if columnName != "typeName" {
+			if columnValue != nil {
+				isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
+				if isArray {
 
-		if isArray {
-			// This is an array column, insert the values into the array table
-			arrayTableName := tableName + "_" + columnName
+					// This is an array column, insert the values into the array table
+					arrayTableName := tableName + "_" + columnName
+					sliceValue := reflect.ValueOf(data[columnName])
+					length := sliceValue.Len()
+					for i := 0; i < length; i++ {
+						element := sliceValue.Index(i)
 
-			sliceValue := reflect.ValueOf(data[columnName])
-			length := sliceValue.Len()
-			for i := 0; i < length; i++ {
-				element := sliceValue.Index(i)
+						// Insert the values into the array table
+						arrayInsertSQL := fmt.Sprintf("INSERT INTO %s (value, %s_uid) VALUES (?, ?);", arrayTableName, tableName)
 
-				// Insert the values into the array table
-				arrayInsertSQL := fmt.Sprintf("INSERT INTO %s (value, %s_uid) VALUES (?, ?);", arrayTableName, tableName)
+						parameters := make([]interface{}, 0)
+						switch element.Interface().(type) {
+						case int:
+							intValue := element.Interface().(int)
+							parameters = append(parameters, intValue)
+						case float64:
+							floatValue := element.Interface().(float64)
+							parameters = append(parameters, floatValue)
+						case string:
+							stringValue := element.Interface().(string)
+							parameters = append(parameters, stringValue)
+						case map[string]interface{}:
 
-				parameters := make([]interface{}, 0)
-				switch element.Interface().(type) {
-				case int:
-					intValue := element.Interface().(int)
-					parameters = append(parameters, intValue)
-				case float64:
-					floatValue := element.Interface().(float64)
-					parameters = append(parameters, floatValue)
-				case string:
-					stringValue := element.Interface().(string)
-					parameters = append(parameters, stringValue)
-				case map[string]interface{}:
+							// TODO create the entity and insert it into the database....
+							entity := element.Interface().(map[string]interface{})
 
-					// TODO create the entity and insert it into the database....
-				default:
-					fmt.Printf("------------------> index %d: Unknown Type %s \n", i, columnName)
-				}
+							// So here I will insert the entity into the database.
+							// I will get the entity type.
+							// ** only if the entity has a typeName property.
+							if entity["typeName"] != nil {
+								typeName := entity["typeName"].(string)
 
-				// append the object id...
-				if len(parameters) > 0 {
-					parameters = append(parameters, Utility.ToInt(result["lastId"]))
-					parameters_, _ := Utility.ToJson(parameters)
-					_, err := store.ExecContext(connectionId, arrayInsertSQL, parameters_, Utility.ToInt(result["lastId"]))
-					if err != nil {
-						return nil, err
+								// I will get the entity type.
+								var err error
+								entity, err = store.insertData(connectionId, typeName+"s", entity)
+								if err != nil {
+									fmt.Println("Error inserting data into array table: ", err)
+								}
+
+								// I will get the entity id.
+								uid := Utility.ToInt(entity["uid"])
+								sourceCollection := tableName
+								targetCollection := typeName + "s"
+								field := columnName
+
+								// He I will create the reference table.
+								// I will create the table if not already exist.
+								fmt.Println("------------------------------> create reference table: ", sourceCollection+"_"+field)
+								createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_uid TEXT, target_uid TEXT, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+								_, err = store.ExecContext("local_resource", createTableSQL, "[]", nil)
+								if err == nil {
+									fmt.Println("Table created: ", sourceCollection+"_"+field)
+								}else{
+									fmt.Println("-------> Error creating table: ", sourceCollection+"_"+field, err)
+								}
+
+								
+
+								// I will insert the reference into the table.
+								insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_uid, target_uid) VALUES (?, ?);")
+								parameters := make([]interface{}, 0)
+								parameters = append(parameters, data["uid"])
+								parameters = append(parameters, uid)
+								parameters_, _ := Utility.ToJson(parameters)
+								_, err = store.ExecContext("local_resource", insertSQL, parameters_, nil)
+								if err != nil {
+									fmt.Println("Error inserting data into array table: ", err)
+								}
+
+							}
+
+						default:
+							fmt.Printf("------------------> index %d: Unknown Type %s \n", i, columnName)
+						}
+
+						// append the object id...
+						if len(parameters) > 0 {
+						
+							// Create the table if it does not exist.
+							if !store.isTableExist(connectionId, arrayTableName) {
+								createTableSQL, arrayTableSQL := generateCreateTableSQL(arrayTableName, map[string]interface{}{"value": 0, tableName + "_uid": 0})
+								_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+								if err != nil {
+									return nil, err
+								}
+
+								for _, sql := range arrayTableSQL {
+									_, err := store.ExecContext(connectionId, sql, "[]", nil)
+									if err != nil {
+										return nil, err
+									}
+								}
+							}
+
+							parameters = append(parameters, Utility.ToInt(result["lastId"]))
+							parameters_, _ := Utility.ToJson(parameters)
+							_, err := store.ExecContext(connectionId, arrayInsertSQL, parameters_, Utility.ToInt(result["lastId"]))
+							if err != nil {
+								fmt.Println("Error inserting data into array table: ", err)
+								return nil, err
+							}
+						}
 					}
 				}
 			}
@@ -538,11 +655,12 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 	return data, nil
 }
 
-func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, keyspace string, table string, entity interface{}, options string) (interface{}, error) {
+func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, db string, table string, entity interface{}, options string) (interface{}, error) {
 
 	if !store.isTableExist(connectionId, table) {
 		// Create the table
 		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity.(map[string]interface{}))
+
 		_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
 		if err != nil {
 			return nil, err
@@ -629,6 +747,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 	for _, dataRow := range data.([]interface{}) {
 		dataRow := dataRow.([]interface{})
 		object := make(map[string]interface{}, 0)
+		object["typeName"] = tableName // keep typename infos...
 
 		for index, fieldInfos := range header.([]interface{}) {
 			fieldInfos := fieldInfos.(map[string]interface{})
@@ -688,33 +807,55 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 		for _, values := range tables["data"].([]interface{}) {
 
 			for _, value := range values.([]interface{}) {
-				if strings.HasPrefix(value.(string), tableName+"_") {
+
+				field := strings.Replace(value.(string), tableName+"_", "", 1)
+
+				if strings.HasPrefix(value.(string), tableName+"_") && object[field] == nil {
 
 					// Query to retrieve the data from the array table
-					query := fmt.Sprintf("SELECT * FROM %s WHERE %s=?", value.(string), tableName+"_uid")
+					query := fmt.Sprintf("SELECT value FROM %s WHERE %s=?", value.(string), tableName+"_uid")
 					parameters := make([]interface{}, 0)
 					parameters = append(parameters, object["uid"]) // append the object id...
 					parameters_, _ := Utility.ToJson(parameters)
 
 					// Execute the query
 					str, err := store.QueryContext(connectionId, query, parameters_)
-					if err != nil {
-						return nil, err
+					if err == nil {
+						data := make(map[string]interface{}, 0)
+						err = json.Unmarshal([]byte(str), &data)
+						if err != nil {
+							return nil, err
+						}
+
+						object[field] = make([]interface{}, 0)
+						for _, values := range data["data"].([]interface{}) {
+							value := values.([]interface{})[0] // the value is the second element of the array.
+							object[field] = append(object[field].([]interface{}), value)
+						}
+					} else{
+
+						query := fmt.Sprintf("SELECT * FROM %s WHERE source_uid=?", value.(string))
+						parameters := make([]interface{}, 0)
+						parameters = append(parameters, object["uid"]) // append the object id...
+						parameters_, _ := Utility.ToJson(parameters)
+	
+						// Execute the query
+						str, err := store.QueryContext(connectionId, query, parameters_)
+						if err == nil {
+							data := make(map[string]interface{}, 0)
+							err = json.Unmarshal([]byte(str), &data)
+							if err != nil {
+								return nil, err
+							}
+	
+							object[field] = make([]interface{}, 0)
+							for _, values := range data["data"].([]interface{}) {
+								ref_uid := values.([]interface{})[1] // the value is the second element of the array.
+								fmt.Println("------------------------> ", ref_uid)
+							}
+						}
 					}
 
-					data := make(map[string]interface{}, 0)
-					err = json.Unmarshal([]byte(str), &data)
-					if err != nil {
-						return nil, err
-					}
-
-					field := strings.Replace(value.(string), tableName+"_", "", 1)
-					object[field] = make([]interface{}, 0)
-
-					for _, values := range data["data"].([]interface{}) {
-						value := values.([]interface{})[1] // the value is the second element of the array.
-						object[field] = append(object[field].([]interface{}), value)
-					}
 				}
 			}
 		}
@@ -878,7 +1019,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, keys
 	}
 
 	// delete entry if it exist.
-	err = store.deleteSqlEntry(connectionId, query)
+	err = store.deleteSqlEntry(connectionId, table, query)
 
 	if err != nil {
 		fmt.Println("fail to delete data: ", query, err)
@@ -889,8 +1030,6 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, keys
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("insert data: ", entity)
 
 	return nil
 }
@@ -938,7 +1077,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, keyspace
 		return err
 	}
 
-	parameters, _ := json.Marshal(values_["values"])
+	parameters, _ := Utility.ToJson(values_["values"])
 	_, err = store.ExecContext(connectionId, q, string(parameters), nil)
 	if err != nil {
 		return err
@@ -948,7 +1087,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, keyspace
 }
 
 func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-	fmt.Println("UpdateOne ", connectionId, keyspace, table, query, value, options)
+	// fmt.Println("UpdateOne ", connectionId, keyspace, table, query, value, options)
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {
@@ -960,7 +1099,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keysp
 		return err
 	}
 
-	parameters, _ := json.Marshal(values_["values"])
+	parameters, _ := Utility.ToJson(values_["values"])
 
 	_, err = store.ExecContext(connectionId, q, string(parameters), nil)
 	if err != nil {
@@ -970,7 +1109,34 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keysp
 	return nil
 }
 
-func (store *SqlStore) deleteSqlEntry(connectionId string, query string) error {
+func (store *SqlStore) deleteSqlEntry(connectionId string, table string, query string) error {
+
+	if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
+		if query == "{}" {
+			query = fmt.Sprintf("SELECT * FROM %s", table)
+		} else {
+			parameters := make(map[string]interface{}, 0)
+			err := json.Unmarshal([]byte(query), &parameters)
+			if err != nil {
+				return err
+			}
+
+			// I will build the query here.
+			query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
+			for key, value := range parameters {
+				if reflect.TypeOf(value).Kind() == reflect.String {
+					query += fmt.Sprintf("%s = '%v' AND ", key, value)
+				} else {
+					query += fmt.Sprintf("%s = %v AND ", key, value)
+				}
+			}
+
+			query = strings.TrimSuffix(query, " AND ")
+
+			fmt.Println("Query: ", query)
+		}
+	}
+
 	query = strings.Replace(query, "SELECT *", "DELETE", 1)
 	_, err := store.ExecContext(connectionId, query, "[]", nil)
 	if err != nil {
@@ -981,17 +1147,31 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, query string) error {
 
 func (store *SqlStore) Delete(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
 	fmt.Println("Delete ", connectionId, keyspace, table, query, options)
-	return store.deleteSqlEntry(connectionId, query)
+	return store.deleteSqlEntry(connectionId, table, query)
 }
 
 func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
 	fmt.Println("DeleteOne ", connectionId, keyspace, table, query, options)
-	return store.deleteSqlEntry(connectionId, query)
+	return store.deleteSqlEntry(connectionId, table, query)
 }
 
 func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keyspace string, table string, pipeline string, optionsStr string) ([]interface{}, error) {
 	fmt.Println("Aggregate ", connectionId, keyspace, table, pipeline, optionsStr)
 	return nil, errors.New("not implemented")
+}
+
+func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, database string, table string, fields []string) error {
+
+	fmt.Println("CreateTable ", connectionId, database, table, fields)
+
+	// Create the table
+	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (uid INTEGER PRIMARY KEY AUTOINCREMENT, %s);", table, strings.Join(fields, ", "))
+	_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (store *SqlStore) CreateCollection(ctx context.Context, connectionId string, database string, name string, optionsStr string) error {

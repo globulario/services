@@ -499,7 +499,7 @@ func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.Stop
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
-	
+
 	// sqlpb
 	var c connection
 
@@ -520,7 +520,6 @@ func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.Crea
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty for sqlite3 connection.")))
 	}
 
-	
 	db, err := sql.Open(c.Driver, c.getConnectionString())
 
 	if err != nil {
@@ -790,7 +789,7 @@ func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlp
 		size := uint(uintptr(len(rows_)) * reflect.TypeOf(rows_).Elem().Size())
 
 		if size > maxSize {
-			rowStr, _ := json.Marshal(rows_)
+			rowStr, _ := Utility.ToJson(rows_)
 			stream.Send(&sqlpb.QueryContextRsp{
 				Result: &sqlpb.QueryContextRsp_Rows{
 					Rows: string(rowStr),
@@ -801,7 +800,7 @@ func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlp
 	}
 
 	if len(rows_) > 0 {
-		rowStr, _ := json.Marshal(rows_)
+		rowStr, _ := Utility.ToJson(rows_)
 		stream.Send(&sqlpb.QueryContextRsp{
 			Result: &sqlpb.QueryContextRsp_Rows{
 				Rows: string(rowStr),
