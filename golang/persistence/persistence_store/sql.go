@@ -417,26 +417,29 @@ func generateCreateTableSQL(tableName string, columns map[string]interface{}) (s
 	var arrayTables []string
 
 	for columnName, columnType := range columns {
-		// Determine the SQL data type based on the Go data type
-		sqlType := getSQLType(reflect.TypeOf(columnType))
 
-		// Check if the column is an array (slice)
-		isArray := reflect.Slice == reflect.TypeOf(columnType).Kind()
+		if columnType != nil {
+			// Determine the SQL data type based on the Go data type
+			sqlType := getSQLType(reflect.TypeOf(columnType))
 
-		if !isArray {
+			// Check if the column is an array (slice)
+			isArray := reflect.Slice == reflect.TypeOf(columnType).Kind()
 
-			if columnName != "typeName" {
-				// This is not an array column, include it in the main table
-				if columnName == "id" {
-					// rename it to _id
-					columnName = "_id"
+			if !isArray {
+
+				if columnName != "typeName" {
+					// This is not an array column, include it in the main table
+					if columnName == "id" {
+						// rename it to _id
+						columnName = "_id"
+					}
+
+					// Format column names with special characters in double quotes
+					columnNameFormatted := fmt.Sprintf("\"%s\"", columnName)
+
+					// Add the column to the main table
+					columnsSQL = append(columnsSQL, fmt.Sprintf("%s %s", columnNameFormatted, sqlType))
 				}
-
-				// Format column names with special characters in double quotes
-				columnNameFormatted := fmt.Sprintf("\"%s\"", columnName)
-
-				// Add the column to the main table
-				columnsSQL = append(columnsSQL, fmt.Sprintf("%s %s", columnNameFormatted, sqlType))
 			}
 		}
 	}
@@ -447,6 +450,10 @@ func generateCreateTableSQL(tableName string, columns map[string]interface{}) (s
 }
 
 func getSQLType(goType reflect.Type) string {
+	if goType == nil {
+		return ""
+	}
+
 	switch goType.Kind() {
 	case reflect.Int, reflect.Int32, reflect.Int64:
 		return "INTEGER"
@@ -847,7 +854,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 								// I will create the array.
 								for _, values := range data["data"].([]interface{}) {
 									ref_uid := values.([]interface{})[1] // the value is the second element of the array.
-								
+
 									// The type name will be the field name with the first letter in upper case.
 									bytes := []byte(field)
 									bytes[0] = byte(unicode.ToUpper(rune(bytes[0])))
@@ -857,7 +864,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 									if typeName == "Members" {
 										typeName = "Accounts"
 									}
-									
+
 									// Now I will retrieve the entity from the database.
 									query := fmt.Sprintf("SELECT _id, domain FROM %s WHERE uid=?", typeName)
 									parameters := make([]interface{}, 0)
@@ -877,9 +884,9 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 										if len(data["data"].([]interface{})) > 0 {
 											refs := make([]interface{}, 0)
 											for _, values := range data["data"].([]interface{}) {
-												id := values.([]interface{})[0].(string) // the value is the second element of the array.
+												id := values.([]interface{})[0].(string)     // the value is the second element of the array.
 												domain := values.([]interface{})[1].(string) // the value is the second element of the array.
-												refs = append(refs, map[string]interface{}{ "$ref":typeName, "$id": id + "@" + domain, "$db":"local_resource"})
+												refs = append(refs, map[string]interface{}{"$ref": typeName, "$id": id + "@" + domain, "$db": "local_resource"})
 											}
 
 											object[field] = refs
@@ -1028,6 +1035,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, keyspace s
 
 func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
 
+	fmt.Println("-----------> ReplaceOne ", connectionId, keyspace, table, query, value, options)
 	// insert the new entry.
 	entity := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &entity)

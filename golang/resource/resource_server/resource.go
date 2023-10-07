@@ -183,7 +183,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
-
 	fmt.Println("-----------> GetAccount: ", rqst.AccountId)
 
 	// That service made user of persistence service.
@@ -1318,6 +1317,95 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 	return &resourcepb.UpdateRoleRsp{
 		Result: true,
 	}, nil
+}
+
+func (resource_server *server) getRole(id string) (*resourcepb.Role, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"} ]}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `'` // TODO sql query string here...
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
+	if err != nil {
+		return nil, err
+	}
+
+	role := values.(map[string]interface{})
+	r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
+
+	if role["domain"] != nil {
+		r.Domain = role["domain"].(string)
+	} else {
+		r.Domain = resource_server.Domain
+	}
+
+	if role["actions"] != nil {
+		var actions []interface{}
+		switch role["actions"].(type) {
+		case primitive.A:
+			actions = []interface{}(role["actions"].(primitive.A))
+		case []interface{}:
+			actions = []interface{}(role["actions"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["actions"])
+		}
+		if actions != nil {
+			for i := 0; i < len(actions); i++ {
+				r.Actions = append(r.Actions, actions[i].(string))
+			}
+		}
+	}
+
+	if role["organizations"] != nil {
+		var organizations []interface{}
+		switch role["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(role["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = []interface{}(role["organizations"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["organizations"])
+		}
+
+		if organizations != nil {
+			for i := 0; i < len(organizations); i++ {
+				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
+				r.Organizations = append(r.Organizations, organizationId)
+			}
+		}
+	}
+
+	if role["members"] != nil {
+		var members []interface{}
+		switch role["members"].(type) {
+		case primitive.A:
+			members = []interface{}(role["members"].(primitive.A))
+		case []interface{}:
+			members = []interface{}(role["members"].([]interface{}))
+		default:
+			fmt.Println("unknown type ", role["members"])
+		}
+
+		if members != nil {
+			for i := 0; i < len(members); i++ {
+				memberId := members[i].(map[string]interface{})["$id"].(string)
+				r.Members = append(r.Members, memberId)
+			}
+		}
+	}
+
+	return r, nil
 }
 
 func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.ResourceService_GetRolesServer) error {
@@ -4529,6 +4617,80 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
+func (resource_server *server) getGroup(id string) (*resourcepb.Group, error) {
+
+	p, err := resource_server.getPersistenceStore()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var q string
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
+	} else {
+		return nil, errors.New("unknown database type " + p.GetStoreType())
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", q, ``)
+	if err != nil {
+		return nil, err
+	}
+
+	group := new(resourcepb.Group)
+
+	if values != nil {
+		group.Name = values.(map[string]interface{})["name"].(string)
+		group.Id = values.(map[string]interface{})["_id"].(string)
+		group.Description = values.(map[string]interface{})["description"].(string)
+		group.Members = make([]string, 0)
+		if values.(map[string]interface{})["domain"] != nil {
+			group.Domain = values.(map[string]interface{})["domain"].(string)
+		} else {
+			group.Domain = resource_server.Domain
+		}
+
+		if values.(map[string]interface{})["members"] != nil {
+
+			var members []interface{}
+			switch values.(map[string]interface{})["members"].(type) {
+			case primitive.A:
+				members = []interface{}(values.(map[string]interface{})["members"].(primitive.A))
+			case []interface{}:
+				members = values.(map[string]interface{})["members"].([]interface{})
+			}
+
+			group.Members = make([]string, 0)
+			for j := 0; j < len(members); j++ {
+				group.Members = append(group.Members, members[j].(map[string]interface{})["$id"].(string))
+			}
+		}
+
+		if values.(map[string]interface{})["organizations"] != nil {
+
+			var organizations []interface{}
+			switch values.(map[string]interface{})["organizations"].(type) {
+			case primitive.A:
+				organizations = []interface{}(values.(map[string]interface{})["organizations"].(primitive.A))
+			case []interface{}:
+				organizations = values.(map[string]interface{})["organizations"].([]interface{})
+			}
+
+			group.Organizations = make([]string, 0)
+			for j := 0; j < len(organizations); j++ {
+				group.Organizations = append(group.Organizations, organizations[j].(map[string]interface{})["$id"].(string))
+			}
+		}
+		return group, nil
+	} else {
+		return nil, errors.New("group not found")
+	}
+}
+
 // * Return the list of organizations
 func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.ResourceService_GetGroupsServer) error {
 	// Get the persistence connection
@@ -5384,14 +5546,11 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 			descriptors[i].Groups = make([]*resourcepb.Group, len(groups))
 
 			for j := 0; j < len(groups); j++ {
-				//roles[i].(map[string]interface{})
-				g_ := groups[j].(map[string]interface{})
-				g := new(resourcepb.Group)
-				g.TypeName = "Group"
-				g.Id = g_["_id"].(string)
-				g.Name = g_["name"].(string)
-				g.Domain, _ = config.GetDomain()
-				descriptors[i].Groups[j] = g
+				groupId := groups[j].(map[string]interface{})["$id"].(string)
+				g, err := server.getGroup(groupId)
+				if err == nil {
+					descriptors[i].Groups[j] = g
+				}
 			}
 		}
 
@@ -5409,26 +5568,15 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 			for j := 0; j < len(roles); j++ {
 
-				role := roles[i].(map[string]interface{})
-				role_ := new(resourcepb.Role)
-				role_.TypeName = "Role"
-				role_.Id = role["_id"].(string)
-				role_.Name = role["name"].(string)
-				role_.Domain, _ = config.GetDomain()
+				// Get the role id.
+				roleId := roles[j].(map[string]interface{})["$id"].(string)
 
-				var actions []interface{}
-				switch role["actions"].(type) {
-				case primitive.A:
-					actions = []interface{}(role["actions"].(primitive.A))
-				case []interface{}:
-					actions = role["actions"].([]interface{})
+				// Get the role.
+				role_, err := server.getRole(roleId)
+				if err == nil {
+					// set it back in the package descriptor.
+					descriptors[i].Roles[j] = role_
 				}
-
-				for k := 0; k < len(actions); k++ {
-					role_.Actions[k] = actions[k].(string)
-				}
-				// set it back in the package descriptor.
-				descriptors[i].Roles[j] = role_
 			}
 		}
 	}
@@ -5619,7 +5767,6 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	// little fix...
 	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
 
-	
 	// Always create a new if not already exist.
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr, `[{"upsert": true}]`)
 	if err != nil {

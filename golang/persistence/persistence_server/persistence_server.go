@@ -517,6 +517,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	var c connection
 	var err error
 
+	fmt.Println("---> create connection for id ", id, " and name ", name, " and host ", host, " and port ", port, " and store ", store, " and save ", save, " and options ", options)
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]
@@ -574,7 +575,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		s := new(persistence_store.SqlStore)
 		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 		if err != nil {
-			fmt.Println("fail to connect with error ", err)
+			fmt.Println("----------> fail to connect with error ", err)
 			// codes.
 			return err
 		}
