@@ -1080,12 +1080,32 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
-		createTableSQL :=  fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_uid TEXT, target_uid TEXT, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_uid INTEGER, target_uid INTEGER, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
 		p.(*persistence_store.SqlStore).ExecContext("local_resource", createTableSQL, "[]", nil)
 
 		// be sure that the target id is a valid id.
 		if source["uid"] == nil {
 			return errors.New("No uid field was found in object with id " + id + "!")
+		}
+
+		if strings.Contains(targetId, "@") {
+			domain := strings.Split(targetId, "@")[1]
+			targetId = strings.Split(targetId, "@")[0]
+
+			if localDomain != domain {
+				// so here I will redirect the call to the resource server at remote location.
+				client, err := GetResourceClient(domain)
+				if err != nil {
+					return err
+				}
+
+				err = client.CreateReference(id, sourceCollection, field, targetId, targetCollection)
+				if err != nil {
+					return err
+				}
+
+				return nil // exit...
+			}
 		}
 
 		// So I need to insert  the reference in the database.
@@ -1103,16 +1123,22 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 			return errors.New("No uid field was found in object with id " + targetId + "!")
 		}
 
-		
-
 		// Here I will insert the reference in the database.
-		q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_uid, target_uid) VALUES ('` + source["uid"].(string) + `','` + target["uid"].(string) + `')`
-		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``, ``)
-		if err != nil {
-			return err
+
+		// I will first check if the reference already exist.
+		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_uid='` + Utility.ToString(source["uid"]) + `' AND target_uid='` + Utility.ToString(target["uid"]) + `'`
+
+		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
+		if count == 0 {
+			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_uid, target_uid) VALUES (` + Utility.ToString(source["uid"]) + `,` + Utility.ToString(target["uid"]) + `)`
+			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", q, "[]", nil)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
+	fmt.Println("reference created for ", sourceCollection, ":", field, ":", targetId, ":", targetCollection)
 	return nil
 }
 
@@ -1200,7 +1226,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	g["_id"] = id
 	g["name"] = name
 	g["description"] = description
-	g["domain"] = resource_server.Domain
+	g["domain"] = localDomain
 	g["typeName"] = "Group"
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
@@ -1310,7 +1336,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 	role["_id"] = id
 	role["name"] = name
 	role["actions"] = actions
-	role["domain"] = resource_server.Domain
+	role["domain"] = localDomain
 	role["typeName"] = "Role"
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", role, "")

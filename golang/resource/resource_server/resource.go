@@ -183,6 +183,9 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
+
+	fmt.Println("-----------> GetAccount: ", rqst.AccountId)
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
