@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -578,6 +579,8 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		}
 	} else {
 		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+
+			fmt.Println("get account query: ", query)
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
 			if err != nil {
@@ -593,7 +596,13 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 					query = query + " WHERE "
 
 					for key, value := range parameters {
-						query = query + key + "='" + value.(string) + "' AND "
+						if reflect.TypeOf(value).Kind() == reflect.String {
+							query = query + key + "='" + value.(string) + "' AND "
+						} else if reflect.TypeOf(value).Kind() == reflect.Map {
+							if value.(map[string]interface{})["$regex"] != nil {
+								query = query + key + " LIKE '" + value.(map[string]interface{})["$regex"].(string) + "%' AND "
+							}
+						}
 					}
 					query = query[:len(query)-4] // Remove the last AND
 				}
@@ -756,6 +765,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 // * Add contact to a given account *
 func (resource_server *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
 
+	fmt.Println("--------------> Set Account Contact: ", rqst.AccountId, " ", rqst.Contact.Id)
 	if rqst.Contact == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -789,11 +799,11 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"$or":[{"_id":"` + rqst.Contact.Id + `"},{"name":"` + rqst.Contact.Id + `"} ]}`
+		q = `{"_id":"` + rqst.Contact.Id + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Contacts WHERE _id='` + rqst.Contact.Id + `' OR name='` + rqst.Contact.Id + `'` // TODO sql query string here...
+		q = `SELECT * FROM Contacts WHERE _id='` + rqst.Contact.Id + `'` // TODO sql query string here...
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,

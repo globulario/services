@@ -1081,7 +1081,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 		// I will create the table if not already exist.
 		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_uid INTEGER, target_uid INTEGER, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-		p.(*persistence_store.SqlStore).ExecContext("local_resource", createTableSQL, "[]", nil)
+		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, "[]", nil)
 
 		// be sure that the target id is a valid id.
 		if source["uid"] == nil {
@@ -1131,7 +1131,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
 		if count == 0 {
 			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_uid, target_uid) VALUES (` + Utility.ToString(source["uid"]) + `,` + Utility.ToString(target["uid"]) + `)`
-			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", q, "[]", nil)
+			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, "[]", nil)
 			if err != nil {
 				return err
 			}

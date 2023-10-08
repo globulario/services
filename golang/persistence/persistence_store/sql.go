@@ -23,9 +23,8 @@ type Connection struct {
 	Id       string
 	Host     string
 	Token    string
-	Database string
 	Path     string
-	db       *sql.DB
+	databases map[string] *sql.DB
 }
 
 /**
@@ -41,6 +40,8 @@ func (store *SqlStore) GetStoreType() string {
 }
 
 // ///////////////////////////////////// Get SQL Client //////////////////////////////////////////
+
+// Connect to the SQL database.
 func (store *SqlStore) Connect(id string, host string, port int32, user string, password string, database string, timeout int32, options_str string) error {
 
 	// So here I will authenticate the user and password.
@@ -93,8 +94,8 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		Id:       id,
 		Host:     host,
 		Token:    token,
-		Database: database,
 		Path:     path,
+		databases: make(map[string] *sql.DB, 0),
 	}
 
 	if store.connections == nil {
@@ -114,7 +115,11 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	}
 
 	// keep the database reference.
-	connection.db = db
+	if connection.databases == nil {
+		connection.databases = make(map[string] *sql.DB, 0)
+	}
+
+	connection.databases[database] = db
 
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
@@ -128,27 +133,27 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	return nil
 }
 
-func (store *SqlStore) ExecContext(connectionId interface{}, query interface{}, parameters_string string, tx_ interface{}) (string, error) {
+func (store *SqlStore) ExecContext(connectionId string, database string, query string, parameters_string string, tx_ interface{}) (string, error) {
 	// Type assert the connection and query to their respective types
-	connID, ok := connectionId.(string)
-	if !ok {
-		return "", errors.New("connectionId should be of type string")
-	}
 
-	conn, exists := store.connections[connID]
+	conn, exists := store.connections[connectionId]
 	if !exists {
-		return "", fmt.Errorf("connection with ID %s does not exist", connID)
+		return "", fmt.Errorf("connection with ID %s does not exist", connectionId)
 	}
 
-	if conn.db == nil {
-		databasePath := conn.Path + "/" + conn.Database + ".db"
+	if conn.databases == nil {
+		conn.databases = make(map[string] *sql.DB, 0)
+	}
+
+	if conn.databases[database] == nil {
+		databasePath := conn.Path + "/" + database + ".db"
 
 		// Create the database.
 		db, err := sql.Open("sqlite3", databasePath)
 		if err != nil {
 			return "", err
 		}
-		conn.db = db
+		conn.databases[database] = db
 	}
 
 	// The list of parameters
@@ -164,13 +169,13 @@ func (store *SqlStore) ExecContext(connectionId interface{}, query interface{}, 
 	var result sql.Result
 	if hasTx {
 		// with transaction
-		tx, err := conn.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+		tx, err := conn.databases[database].BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 		if err != nil {
 			return "", err
 		}
 
 		var execErr error
-		result, execErr = tx.ExecContext(context.Background(), query.(string), parameters...)
+		result, execErr = tx.ExecContext(context.Background(), query, parameters...)
 		if execErr != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				err = errors.New(fmt.Sprint("update failed: %v, unable to rollback: %v\n", execErr, rollbackErr))
@@ -186,7 +191,7 @@ func (store *SqlStore) ExecContext(connectionId interface{}, query interface{}, 
 	} else {
 		// without transaction
 		var err error
-		result, err = conn.db.ExecContext(context.Background(), query.(string), parameters...)
+		result, err = conn.databases[database].ExecContext(context.Background(), query, parameters...)
 		if err != nil {
 			return "", err
 		}
@@ -204,21 +209,26 @@ func (store *SqlStore) ExecContext(connectionId interface{}, query interface{}, 
 	return fmt.Sprintf("{\"lastId\": %d, \"rowsAffected\": %d}", lastId, numRowsAffected), nil
 }
 
-func (store *SqlStore) QueryContext(connectionId string, query string, parameters_ string) (string, error) {
+func (store *SqlStore) QueryContext(connectionId string, database string, query string, parameters_ string) (string, error) {
 	conn, exists := store.connections[connectionId]
 	if !exists {
 		return "", fmt.Errorf("connection with ID %s does not exist", connectionId)
 	}
 
-	if conn.db == nil {
-		databasePath := conn.Path + "/" + conn.Database + ".db"
+	if conn.databases == nil {
+		conn.databases = make(map[string] *sql.DB, 0)
+	}
+
+	if conn.databases[database] == nil {
+		databasePath := conn.Path + "/" + database + ".db"
 
 		// Create the database.
 		db, err := sql.Open("sqlite3", databasePath)
 		if err != nil {
 			return "", err
 		}
-		conn.db = db
+
+		conn.databases[database] = db
 	}
 
 	// The list of parameters
@@ -231,7 +241,7 @@ func (store *SqlStore) QueryContext(connectionId string, query string, parameter
 	}
 
 	// Here I the sql works.
-	rows, err := conn.db.QueryContext(context.Background(), query, parameters...)
+	rows, err := conn.databases[database].QueryContext(context.Background(), query, parameters...)
 
 	if err != nil {
 		return "", err
@@ -336,8 +346,11 @@ func (store *SqlStore) Disconnect(connectionId string) error {
 	}
 
 	// Close the database connection
-	if err := store.connections[connectionId].db.Close(); err != nil {
-		return err
+	for _, db := range store.connections[connectionId].databases {
+		err := db.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Remove the connection from the map
@@ -359,22 +372,22 @@ func (store *SqlStore) CreateDatabase(ctx context.Context, connectionId string, 
 }
 
 // Delete the database.
-func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, name string) error {
+func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, db string) error {
 
-	fmt.Println("Delete database ", connectionId, name)
+	fmt.Println("Delete database ", connectionId, db)
 	var databasePath string
 
 	return os.RemoveAll(databasePath)
 }
 
-func (store *SqlStore) Count(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) (int64, error) {
-	fmt.Println("Count ", connectionId, keyspace, table, query, options)
+func (store *SqlStore) Count(ctx context.Context, connectionId string, db string, table string, query string, options string) (int64, error) {
+	fmt.Println("Count ", connectionId, db, table, query, options)
 
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
 	}
 
-	str, err := store.QueryContext(connectionId, query, "[]")
+	str, err := store.QueryContext(connectionId, db, query, "[]")
 	if err != nil {
 		return 0, err
 	}
@@ -390,12 +403,12 @@ func (store *SqlStore) Count(ctx context.Context, connectionId string, keyspace 
 	return count, nil
 }
 
-func (store *SqlStore) isTableExist(connectionId string, table string) bool {
+func (store *SqlStore) isTableExist(connectionId string, db string, table string) bool {
 	// Query to check if the table exists
 	query := fmt.Sprintf("SELECT name FROM sqlite_master WHERE type='table' AND name='%s'", table)
 
 	// Execute the query
-	str, err := store.QueryContext(connectionId, query, "[]")
+	str, err := store.QueryContext(connectionId, db, query, "[]")
 	if err != nil {
 		return false
 	}
@@ -503,10 +516,10 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
 /**
  * Insert data into the database. This function will insert the data into the main table and the array tables.
  */
-func (store *SqlStore) insertData(connectionId string, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
+func (store *SqlStore) insertData(connectionId string, db string, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
 
 	// test if the data already exist.
-	if store.isTableExist(connectionId, tableName) {
+	if store.isTableExist(connectionId, db, tableName) {
 		var id string
 		if data["id"] != nil {
 			id = data["id"].(string)
@@ -528,7 +541,7 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 	// Insert data into the main table
 	insertSQL, values := generateMainInsertSQL(tableName, data)
 	values_, _ := Utility.ToJson(values)
-	str, err := store.ExecContext(connectionId, insertSQL, values_, nil)
+	str, err := store.ExecContext(connectionId, db, insertSQL, values_, nil)
 	if err != nil {
 		fmt.Println("error inserting data into %s table", tableName, err)
 		return nil, err
@@ -590,7 +603,7 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 
 								// I will get the entity type.
 								var err error
-								entity, err = store.insertData(connectionId, typeName+"s", entity)
+								entity, err = store.insertData(connectionId, db, typeName+"s", entity)
 								if err != nil {
 									fmt.Println("Error inserting data into array table: ", err)
 								}
@@ -604,7 +617,7 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 								// He I will create the reference table.
 								// I will create the table if not already exist.
 								createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_uid INTEGER, target_uid INTEGER, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-								_, err = store.ExecContext("local_resource", createTableSQL, "[]", nil)
+								_, err = store.ExecContext("local_resource", db, createTableSQL, "[]", nil)
 								if err == nil {
 									fmt.Println("Table created: ", sourceCollection+"_"+field)
 								} else {
@@ -617,7 +630,7 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 								parameters = append(parameters, data["uid"])
 								parameters = append(parameters, uid)
 								parameters_, _ := Utility.ToJson(parameters)
-								_, err = store.ExecContext("local_resource", insertSQL, parameters_, nil)
+								_, err = store.ExecContext("local_resource", db, insertSQL, parameters_, nil)
 								if err != nil {
 									fmt.Println("Error inserting data into array table: ", err)
 								}
@@ -632,9 +645,9 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 						if len(parameters) > 0 {
 
 							// Create the table if it does not exist.
-							if !store.isTableExist(connectionId, arrayTableName) {
+							if !store.isTableExist(connectionId, db, arrayTableName) {
 								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (uid INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT, %s_uid INTEGER, FOREIGN KEY (%s_uid) REFERENCES %s(uid) ON DELETE CASCADE)", arrayTableName, tableName, tableName, tableName)
-								_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+								_, err := store.ExecContext(connectionId, db, createTableSQL, "[]", nil)
 								if err != nil {
 									return nil, err
 								}
@@ -642,7 +655,7 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 
 							parameters = append(parameters, Utility.ToInt(result["lastId"]))
 							parameters_, _ := Utility.ToJson(parameters)
-							_, err := store.ExecContext(connectionId, arrayInsertSQL, parameters_, Utility.ToInt(result["lastId"]))
+							_, err := store.ExecContext(connectionId, db, arrayInsertSQL, parameters_, Utility.ToInt(result["lastId"]))
 							if err != nil {
 								fmt.Println("Error inserting data into array table: ", err)
 								return nil, err
@@ -659,24 +672,30 @@ func (store *SqlStore) insertData(connectionId string, tableName string, data ma
 
 func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, db string, table string, entity interface{}, options string) (interface{}, error) {
 
-	if !store.isTableExist(connectionId, table) {
-		// Create the table
-		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity.(map[string]interface{}))
+	entity_, err := Utility.ToMap(entity)
+	if err != nil {
+		return nil, err
+	}
 
-		_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+	if !store.isTableExist(connectionId, db, table) {
+
+		// Create the table
+		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity_)
+
+		_, err = store.ExecContext(connectionId, db, createTableSQL, "[]", nil)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, sql := range arrayTableSQL {
-			_, err := store.ExecContext(connectionId, sql, "[]", nil)
+			_, err := store.ExecContext(connectionId, db, sql, "[]", nil)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	result, err := store.insertData(connectionId, table, entity.(map[string]interface{}))
+	result, err := store.insertData(connectionId, db, table, entity_)
 	if err != nil {
 		return nil, err
 	}
@@ -684,18 +703,24 @@ func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, db st
 	return result, nil
 }
 
-func (store *SqlStore) InsertMany(ctx context.Context, connectionId string, keyspace string, table string, entities []interface{}, options string) ([]interface{}, error) {
+func (store *SqlStore) InsertMany(ctx context.Context, connectionId string, db string, table string, entities []interface{}, options string) ([]interface{}, error) {
 
-	if !store.isTableExist(connectionId, table) {
+	if !store.isTableExist(connectionId, db, table) {
+
+		entity_, err := Utility.ToMap(entities[0])
+		if err != nil {
+			return nil, err
+		}
+
 		// Create the table
-		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entities[0].(map[string]interface{}))
-		_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity_)
+		_, err = store.ExecContext(connectionId, db, createTableSQL, "[]", nil)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, sql := range arrayTableSQL {
-			_, err := store.ExecContext(connectionId, sql, "[]", nil)
+			_, err := store.ExecContext(connectionId, db, sql, "[]", nil)
 			if err != nil {
 				return nil, err
 			}
@@ -704,7 +729,13 @@ func (store *SqlStore) InsertMany(ctx context.Context, connectionId string, keys
 
 	var results []interface{}
 	for _, entity := range entities {
-		result, err := store.insertData(connectionId, table, entity.(map[string]interface{}))
+
+		entity_, err := Utility.ToMap(entity)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := store.insertData(connectionId, db, table, entity_)
 		if err != nil {
 			return nil, err
 		}
@@ -727,7 +758,7 @@ func getIntValue(value interface{}) (int32, error) {
 }
 
 // RecreateArrayOfObjects recreates an array of objects from the given data and header.
-func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, dataHeader map[string]interface{}, options []map[string]interface{}) ([]interface{}, error) {
+func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string, dataHeader map[string]interface{}, options []map[string]interface{}) ([]interface{}, error) {
 	data := dataHeader["data"]
 	header := dataHeader["header"]
 
@@ -792,7 +823,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 		query := "SELECT name FROM sqlite_master WHERE type='table'"
 
 		// Execute the query
-		str, err := store.QueryContext(connectionId, query, "[]")
+		str, err := store.QueryContext(connectionId, db, query, "[]")
 		if err != nil {
 			fmt.Println("Error executing query: ", query, err)
 			return nil, err
@@ -821,7 +852,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 					parameters_, _ := Utility.ToJson(parameters)
 
 					// Execute the query
-					str, err := store.QueryContext(connectionId, query, parameters_)
+					str, err := store.QueryContext(connectionId, db, query, parameters_)
 					if err == nil {
 
 						data := make(map[string]interface{}, 0)
@@ -844,7 +875,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 						parameters_, _ := Utility.ToJson(parameters)
 
 						// Execute the query
-						str, err := store.QueryContext(connectionId, query, parameters_)
+						str, err := store.QueryContext(connectionId, db, query, parameters_)
 						if err == nil {
 
 							data := make(map[string]interface{}, 0)
@@ -872,7 +903,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, tableName string, da
 									parameters_, _ := Utility.ToJson(parameters)
 
 									// Execute the query
-									str, err := store.QueryContext(connectionId, query, parameters_)
+									str, err := store.QueryContext(connectionId, db, query, parameters_)
 									if err == nil {
 										data := make(map[string]interface{}, 0)
 										err = json.Unmarshal([]byte(str), &data)
@@ -934,7 +965,7 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 		}
 	}
 
-	str, err := store.QueryContext(connectionId, query, "[]")
+	str, err := store.QueryContext(connectionId, database, query, "[]")
 	if err != nil {
 		fmt.Println("Error executing query: ", query, err)
 		return nil, err
@@ -955,7 +986,7 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 		}
 	}
 
-	objects, err := store.recreateArrayOfObjects(connectionId, table, data, options_)
+	objects, err := store.recreateArrayOfObjects(connectionId, database, table, data, options_)
 	if err != nil {
 		return nil, err
 	}
@@ -967,9 +998,9 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 	return nil, errors.New("not found")
 }
 
-func (store *SqlStore) Find(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) ([]interface{}, error) {
+func (store *SqlStore) Find(ctx context.Context, connectionId string, db string, table string, query string, options string) ([]interface{}, error) {
 
-	fmt.Println("Find ", connectionId, keyspace, table, query, options)
+	fmt.Println("Find ", connectionId, db, table, query, options)
 
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
@@ -999,7 +1030,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, keyspace s
 		}
 	}
 
-	str, err := store.QueryContext(connectionId, query, "[]")
+	str, err := store.QueryContext(connectionId, db, query, "[]")
 	if err != nil {
 		fmt.Println("Error executing query: ", query, err)
 		return nil, err
@@ -1020,7 +1051,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, keyspace s
 		}
 	}
 
-	objects, err := store.recreateArrayOfObjects(connectionId, table, data, options_)
+	objects, err := store.recreateArrayOfObjects(connectionId, db, table, data, options_)
 	if err != nil {
 		fmt.Println("Error recreating array of objects: ", err)
 		return nil, err
@@ -1033,9 +1064,9 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, keyspace s
 	return nil, errors.New("not found")
 }
 
-func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
+func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
 
-	fmt.Println("-----------> ReplaceOne ", connectionId, keyspace, table, query, value, options)
+	fmt.Println("-----------> ReplaceOne ", connectionId, db, table, query, value, options)
 	// insert the new entry.
 	entity := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &entity)
@@ -1043,31 +1074,35 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, keys
 		return err
 	}
 
-	if !store.isTableExist(connectionId, table) {
+	if !store.isTableExist(connectionId, db, table) {
+
 		// Create the table
 		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity)
-		_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+		_, err := store.ExecContext(connectionId, db, createTableSQL, "[]", nil)
 		if err != nil {
 			return err
 		}
 
+		// Create the array tables, like list of strings etc...
 		for _, sql := range arrayTableSQL {
-			_, err := store.ExecContext(connectionId, sql, "[]", nil)
+			_, err := store.ExecContext(connectionId, db, sql, "[]", nil)
 			if err != nil {
 				return err
 			}
 		}
+	}else {
+		fmt.Println("---------> Table exist: ", table, connectionId, db)
 	}
 
 	// delete entry if it exist.
-	err = store.deleteSqlEntry(connectionId, table, query)
+	err = store.deleteSqlEntry(connectionId, db, table, query)
 
 	if err != nil {
 		fmt.Println("fail to delete data: ", query, err)
 
 	}
 
-	_, err = store.insertData(connectionId, table, entity)
+	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
 		return err
 	}
@@ -1099,8 +1134,8 @@ func generateUpdateTableQuery(tableName string, fields []interface{}, whereClaus
 	return updateQuery, nil
 }
 
-func (store *SqlStore) Update(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-	fmt.Println("Update ", connectionId, keyspace, table, query, value, options)
+func (store *SqlStore) Update(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
+	fmt.Println("Update ", connectionId, db, table, query, value, options)
 
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
@@ -1119,7 +1154,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, keyspace
 	}
 
 	parameters, _ := Utility.ToJson(values_["values"])
-	_, err = store.ExecContext(connectionId, q, string(parameters), nil)
+	_, err = store.ExecContext(connectionId, db, q, string(parameters), nil)
 	if err != nil {
 		return err
 	}
@@ -1127,7 +1162,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, keyspace
 	return nil
 }
 
-func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
+func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
 	// fmt.Println("UpdateOne ", connectionId, keyspace, table, query, value, options)
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
@@ -1142,7 +1177,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keysp
 
 	parameters, _ := Utility.ToJson(values_["values"])
 
-	_, err = store.ExecContext(connectionId, q, string(parameters), nil)
+	_, err = store.ExecContext(connectionId, db, q, string(parameters), nil)
 	if err != nil {
 		return err
 	}
@@ -1150,7 +1185,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, keysp
 	return nil
 }
 
-func (store *SqlStore) deleteSqlEntry(connectionId string, table string, query string) error {
+func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table string, query string) error {
 
 	// I will retreive the entity with the query.
 	entity, err := store.FindOne(context.Background(), connectionId, "", table, query, "")
@@ -1186,7 +1221,7 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, table string, query s
 
 	// Here I will delete the entity from the database.
 	query = strings.Replace(query, "SELECT *", "DELETE", 1)
-	_, err = store.ExecContext(connectionId, query, "[]", nil)
+	_, err = store.ExecContext(connectionId, db, query, "[]", nil)
 	if err != nil {
 		return err
 	}
@@ -1208,7 +1243,7 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, table string, query s
 					parameters_, _ := Utility.ToJson(parameters)
 
 					// Execute the query
-					_, err := store.ExecContext(connectionId, query, parameters_, nil)
+					_, err := store.ExecContext(connectionId, db, query, parameters_, nil)
 					if err != nil {
 						fmt.Println("Error deleting data from array table: ", err)
 						return err
@@ -1221,14 +1256,14 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, table string, query s
 	return nil
 }
 
-func (store *SqlStore) Delete(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
-	fmt.Println("Delete ", connectionId, keyspace, table, query, options)
-	return store.deleteSqlEntry(connectionId, table, query)
+func (store *SqlStore) Delete(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
+	fmt.Println("Delete ", connectionId, db, table, query, options)
+	return store.deleteSqlEntry(connectionId, db, table, query)
 }
 
-func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
-	fmt.Println("DeleteOne ", connectionId, keyspace, table, query, options)
-	return store.deleteSqlEntry(connectionId, table, query)
+func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
+	fmt.Println("DeleteOne ", connectionId, db, table, query, options)
+	return store.deleteSqlEntry(connectionId, db, table, query)
 }
 
 func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keyspace string, table string, pipeline string, optionsStr string) ([]interface{}, error) {
@@ -1236,13 +1271,13 @@ func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keysp
 	return nil, errors.New("not implemented")
 }
 
-func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, database string, table string, fields []string) error {
+func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, db string, table string, fields []string) error {
 
-	fmt.Println("CreateTable ", connectionId, database, table, fields)
+	fmt.Println("CreateTable ", connectionId, db, table, fields)
 
 	// Create the table
 	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (uid INTEGER PRIMARY KEY AUTOINCREMENT, %s);", table, strings.Join(fields, ", "))
-	_, err := store.ExecContext(connectionId, createTableSQL, "[]", nil)
+	_, err := store.ExecContext(connectionId, db, createTableSQL, "[]", nil)
 	if err != nil {
 		return err
 	}
