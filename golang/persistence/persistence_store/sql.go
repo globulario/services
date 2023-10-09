@@ -1055,7 +1055,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 		return objects, nil
 	}
 
-	return nil, errors.New("not found")
+	return []interface{}{}, nil
 }
 
 func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
