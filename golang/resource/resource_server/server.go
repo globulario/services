@@ -670,6 +670,7 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
 	// Create the application connection...
 	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, float64(server.Backend_port), storeType, server.Backend_user, server.Backend_password, 500, options, false)
 	if err != nil {
+		fmt.Println("fail to create application connection with error ", err)
 		return err
 	}
 
@@ -762,23 +763,39 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		srv.isReady = true
 
 		// Create tables if not already exist.
-		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"_id TEXT", "name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
 		if err != nil {
 			fmt.Println("fail to create table Accounts with error ", err)
-			return nil, err
+		}
+
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INTEGER"})
+		if err != nil {
+			fmt.Println("fail to create table Organizations with error ", err)
 		}
 
 		// Create organizations table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT"})
+		if err != nil {
+			fmt.Println("fail to create table Organizations with error ", err)
+		}
 
 		// Create roles table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+		err =  srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
+		if err != nil {
+			fmt.Println("fail to create table Roles with error ", err)
+		}
 
 		// Create groups table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"_id TEXT", "name TEXT", "domain TEXT", "description TEXT"})
+		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
+		if err != nil {
+			fmt.Println("fail to create table Groups with error ", err)
+		}
 
 		// Create peers table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"_id TEXT", "domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
+		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{ "domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
+		if err != nil {
+			fmt.Println("fail to create table Peers with error ", err)
+		}
 
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
@@ -1080,12 +1097,12 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
-		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_uid INTEGER, target_uid INTEGER, FOREIGN KEY (source_uid) REFERENCES %s(uid) ON DELETE CASCADE, FOREIGN KEY (target_uid) REFERENCES %s(uid) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, "[]", nil)
+		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, nil, 0)
 
 		// be sure that the target id is a valid id.
-		if source["uid"] == nil {
-			return errors.New("No uid field was found in object with id " + id + "!")
+		if source["_id"] == nil {
+			return errors.New("No _id field was found in object with id " + id + "!")
 		}
 
 		if strings.Contains(targetId, "@") {
@@ -1119,19 +1136,19 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 		target := target_values.(map[string]interface{})
 
-		if target["uid"] == nil {
-			return errors.New("No uid field was found in object with id " + targetId + "!")
+		if target["_id"] == nil {
+			return errors.New("No _id field was found in object with id " + targetId + "!")
 		}
 
 		// Here I will insert the reference in the database.
 
 		// I will first check if the reference already exist.
-		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_uid='` + Utility.ToString(source["uid"]) + `' AND target_uid='` + Utility.ToString(target["uid"]) + `'`
+		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_id='` + Utility.ToString(source["_id"]) + `' AND target_id='` + Utility.ToString(target["_id"]) + `'`
 
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
 		if count == 0 {
-			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_uid, target_uid) VALUES (` + Utility.ToString(source["uid"]) + `,` + Utility.ToString(target["uid"]) + `)`
-			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, "[]", nil)
+			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_id, target_id) VALUES (?,?)`
+			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], target["_id"]}, 0)
 			if err != nil {
 				return err
 			}
@@ -1294,7 +1311,7 @@ func (resource_server *server) CreateAccountDir() error {
 	return nil
 }
 
-func (resource_server *server) createRole(id, name, owner string, actions []string) error {
+func (resource_server *server) createRole(id, name, owner string, description string, actions []string) error {
 	localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
@@ -1337,6 +1354,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 	role["name"] = name
 	role["actions"] = actions
 	role["domain"] = localDomain
+	role["description"] = description
 	role["typeName"] = "Role"
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", role, "")
@@ -1557,10 +1575,10 @@ func main() {
 	go func() {
 
 		// Can do anything
-		s_impl.createRole("admin", "admin", "sa", []string{})
+		s_impl.createRole("admin", "admin", "sa", "the super admin role", []string{})
 
 		//  Register the guest role
-		s_impl.createRole("guest", "guest", "sa", []string{
+		s_impl.createRole("guest", "guest", "sa", "the guest role, every user must a least have this role", []string{
 			"/admin.AdminService/RunCmd",
 			"/admin.AdminService/SaveConfig",
 			"/conversation.ConversationService/AcceptInvitation",

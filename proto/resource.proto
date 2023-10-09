@@ -249,7 +249,6 @@ message CreateRoleRqst { Role role = 1; }
 
 message CreateRoleRsp { bool result = 1; }
 
-
 /**
  * Update role values...
  */

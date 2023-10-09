@@ -225,6 +225,8 @@ func GetRepositoryClient(domain string) (*repository_client.Repository_Service_C
 
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
+	fmt.Println("228 -------------->  InstallApplication", rqst)
+	
 	var token string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
@@ -233,6 +235,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		}
 	}
 
+	// Here I will try to install the application from the local directory...
 	err := server.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
 	if err == nil {
 		fmt.Println("application", rqst.ApplicationId, "was install localy...")
@@ -241,6 +244,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		}, nil
 	}
 
+	fmt.Println("--------> install application from ", rqst.DicorveryId)
 	// Connect to the dicovery services
 	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
@@ -305,7 +309,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(token, domain, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
-	fmt.Println("install application ", name, " with roles ", roles, " and groups ", groups)
+	fmt.Println("-------------> install application ", name, " with roles ", roles, " and groups ", groups)
 	
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)

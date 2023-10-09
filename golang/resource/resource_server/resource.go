@@ -306,6 +306,18 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + accountId + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM user_data WHERE _id='` + accountId + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -526,6 +538,18 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
+	if p.GetStoreType() == "MONGODB" {
+		q = `{"_id":"` + rqst.Account.Id + `"}`
+	} else if p.GetStoreType() == "SCYLLADB" {
+		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM user_data WHERE _id='` + rqst.Account.Id + `'`
+	} else {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+	}
+
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -693,13 +717,14 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		db := a.Id
 		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 		db += "_db"
+
 		var q string
 		if p.GetStoreType() == "MONGODB" {
-			q = `{"$or":[{"_id":"` + a.Id + `"},{"name":"` + a.Id + `"} ]}`
+			q = `{"_id":"` + a.Id + `"}`
 		} else if p.GetStoreType() == "SCYLLADB" {
 			q = `` // TODO scylla db query.
 		} else if p.GetStoreType() == "SQL" {
-			q = `SELECT * FROM Accounts WHERE _id='` + a.Id + `' OR name='` + a.Id + `'`
+			q = `SELECT * FROM user_data WHERE _id='` + a.Id + `'`
 		} else {
 			return status.Errorf(
 				codes.Internal,
@@ -765,7 +790,6 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 // * Add contact to a given account *
 func (resource_server *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
 
-	fmt.Println("--------------> Set Account Contact: ", rqst.AccountId, " ", rqst.Contact.Id)
 	if rqst.Contact == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -811,6 +835,8 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	}
 
 	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone + `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
+
+	fmt.Println("--------------> replace one: ", q, sentInvitation)
 
 	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", q, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {
@@ -1245,7 +1271,7 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// That service made user of persistence service.
-	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId+"@"+domain, rqst.Role.Actions)
+	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId+"@"+domain, rqst.Role.Description, rqst.Role.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2067,6 +2093,7 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 // * save a new application *
 func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
+	fmt.Println("try to save_application: ", app)
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -2136,15 +2163,25 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 			return errors.New("unknown database type " + p.GetStoreType())
 		}
 
-		// create the application database.
-		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
-		if err != nil {
-			return err
+		// create the application database if not exist. 
+		if p.GetStoreType() == "MONGODB" {
+			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
+			if err != nil {
+				return err
+			}
+		}else if p.GetStoreType() == "SCYLLADB" {
+			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
+			if err != nil {
+				return err
+			}
+		} else if p.GetStoreType() == "SQL" {
+			// the database is created when the connection is made.
 		}
 
 		application["creation_date"] = time.Now().Unix() // save it as unix time.
 		_, err := p.InsertOne(context.Background(), "local_resource", "local_resource", "Applications", application, "")
 		if err != nil {
+			fmt.Println("error while inserting application ", err)
 			return err
 		}
 
@@ -5063,9 +5100,10 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 	// if the account is not on the domain will redirect the request...
 	if rqst.Notification.NotificationType == resourcepb.NotificationType_USER_NOTIFICATION {
 		recipient := rqst.Notification.Recipient
+		localDomain, _ := config.GetDomain()
 		if strings.Contains(recipient, "@") {
 			domain := strings.Split(recipient, "@")[1]
-			localDomain, _ := config.GetDomain()
+			
 			if localDomain != domain {
 				client, err := GetResourceClient(domain)
 				if err != nil {
@@ -5083,6 +5121,8 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 
 				return &resourcepb.CreateNotificationRsp{}, nil
 			}
+		}else {
+			recipient += "@" + localDomain
 		}
 	}
 
@@ -5112,7 +5152,16 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
 	}
 
-	recipient := strings.Split(rqst.Recipient, "@")[0]
+	db := rqst.Recipient
+	if strings.Contains(db, "@") {
+		db = strings.Split(db, "@")[0]
+	}
+	db += "_db"
+
+	fmt.Println("--------------------> get notifications: for ", rqst.Recipient)
+	if !strings.Contains(rqst.Recipient, "@") {
+		rqst.Recipient += "@" + resource_server.Domain
+	}
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -5123,16 +5172,16 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	var query string
 
 	if p.GetStoreType() == "MONGODB" {
-		query = `{}`
+		query = `{"recipient":"` + rqst.Recipient + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		query = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Notifications WHERE recipient='` + recipient + `'`
+		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	notifications, err := p.Find(context.Background(), "local_resource", recipient+"_db", "Notifications", query, "")
+	notifications, err := p.Find(context.Background(), "local_resource",  db, "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -5145,7 +5194,9 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	for i := 0; i < len(notifications); i++ {
 		n_ := notifications[i].(map[string]interface{})
 		notificationType := resourcepb.NotificationType(int32(Utility.ToInt(n_["notificationtype"])))
-		values = append(values, &resourcepb.Notification{Id: n_["_id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
+		noticationDate := Utility.ToInt(n_["date"])
+
+		values = append(values, &resourcepb.Notification{Id: n_["_id"].(string), Mac: n_["mac"].(string), Sender: n_["sender"].(string), Date: int64(noticationDate), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetNotificationsRsp{
@@ -5180,8 +5231,21 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 // * Remove a notification
 func (resource_server *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
 
-	recipient := strings.Split(rqst.Recipient, "@")[0]
+	if len(rqst.Recipient) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
+	}
 
+	db := rqst.Recipient
+	if strings.Contains(db, "@") {
+		db = strings.Split(db, "@")[0]
+	}
+
+	if !strings.Contains(rqst.Recipient, "@") {
+		rqst.Recipient += "@" + resource_server.Domain
+	}
+	
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5200,7 +5264,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	err = p.DeleteOne(context.Background(), "local_resource", recipient+"_db", "Notifications", q, ``)
+	err = p.DeleteOne(context.Background(), "local_resource", db, "Notifications", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5223,7 +5287,14 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
 	}
 
-	recipient := strings.Split(rqst.Recipient, "@")[0]
+	db := rqst.Recipient
+	if strings.Contains(db, "@") {
+		db = strings.Split(db, "@")[0]
+	}
+
+	if !strings.Contains(rqst.Recipient, "@") {
+		rqst.Recipient += "@" + resource_server.Domain
+	}
 
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -5238,12 +5309,12 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	} else if p.GetStoreType() == "SCYLLADB" {
 		query = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Notifications WHERE recipient='` + recipient + `'`
+		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	err = p.Delete(context.Background(), "local_resource", recipient+"_db", "Notifications", query, ``)
+	err = p.Delete(context.Background(), "local_resource", db, "Notifications", query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5279,7 +5350,7 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 	} else if p.GetStoreType() == "SCYLLADB" {
 		query = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Notifications WHERE notificationtype=` + Utility.ToString(notificationType)
+		query = `SELECT * FROM Notifications`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -5888,7 +5959,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 
 	// Log a message to display update session...
 	//server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
-	session := map[string]interface{}{"accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
+	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 	jsonStr, err := Utility.ToJson(session)
 	if err != nil {
 		return err
@@ -6124,7 +6195,10 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	calls := make([]*resourcepb.Call, len(results))
 	for i := 0; i < len(results); i++ {
 		call := results[i].(map[string]interface{})
-		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: int64(call["start_time"].(int32)), EndTime: int64(call["end_time"].(int32))}
+		startTime := Utility.ToInt(call["start_time"])
+		endTime := Utility.ToInt(call["end_time"])
+
+		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: int64(startTime), EndTime: int64(endTime)}
 	}
 
 	return &resourcepb.GetCallHistoryRsp{Calls: calls}, nil
