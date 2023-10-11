@@ -168,7 +168,7 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 		if exist {
 			id += a
 		} else {
-			return nil, errors.New("no application found with id " + subject)
+			return nil, errors.New("171 no application found with id " + subject)
 		}
 	} else if subject_type == rbacpb.SubjectType_GROUP {
 		id += "GROUPS/"
@@ -2164,7 +2164,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 		if exist {
 			subjectId = "PERMISSIONS/APPLICATIONS/" + a
 		} else {
-			return nil, errors.New("no application found with id " + rqst.Subject)
+			return nil, errors.New("2167 no application found with id " + rqst.Subject)
 		}
 	} else if rqst.Type == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(rqst.Subject)

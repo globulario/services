@@ -25,6 +25,7 @@ require (
 	github.com/emicklei/proto v1.9.0
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ldap/ldap/v3 v3.3.0
+	github.com/go-playground/locales v0.13.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/gocql/gocql v1.6.0

@@ -31,23 +31,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (server *server) uninstallApplication(token, applicationId string) error {
+func (server *server) uninstallApplication(token, id string) error {
 
-	fmt.Println("uninstall application ", applicationId)
-	if !strings.Contains(applicationId, "@") {
-		return errors.New("application id must contain the domain")
+	// I will retrieve the application from the database.
+	application, err := server.getApplication(id)
+	if err != nil {
+		return err
 	}
 
-
-
 	// Same as delete applicaitons.
-	err := server.deleteApplication(token, applicationId)
+	err = server.deleteApplication(token, id)
 	if err != nil {
 		return err
 	}
 
 	// Remove the application directory... but keep application data...
-	return os.RemoveAll(config.GetWebRootDir() + "/" + strings.Split(applicationId, "@")[0])
+	return os.RemoveAll(config.GetWebRootDir() + "/" + application.Name)
 
 }
 
@@ -190,7 +189,7 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 		}
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
+		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
 		if err != nil {
 			return err
 		}
@@ -225,8 +224,7 @@ func GetRepositoryClient(domain string) (*repository_client.Repository_Service_C
 
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
-	fmt.Println("228 -------------->  InstallApplication", rqst)
-	
+
 	var token string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
@@ -244,7 +242,6 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		}, nil
 	}
 
-	fmt.Println("--------> install application from ", rqst.DicorveryId)
 	// Connect to the dicovery services
 	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
@@ -291,7 +288,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		r := bytes.NewReader(bundle.Binairies)
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
+		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -307,10 +304,8 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 }
 
 // Intall
-func (server *server) installApplication(token, domain, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
+func (server *server) installApplication(token, domain, id, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
-	fmt.Println("-------------> install application ", name, " with roles ", roles, " and groups ", groups)
-	
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
@@ -362,7 +357,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		return errors.New("no application version was given")
 	}
 
-	err = server.createApplication(token, name, domain, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
+	err = server.createApplication(token, id, name, domain, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
 		return err
 	}
@@ -390,7 +385,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		return errors.New("no domain given for application")
 	}
 
-	err = server.addResourceOwner("/applications/"+name, "file", name+"@"+domain, rbacpb.SubjectType_APPLICATION)
+	err = server.addResourceOwner("/applications/"+name, "file", id+"@"+domain, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}

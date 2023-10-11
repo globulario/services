@@ -19,7 +19,6 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -419,6 +418,7 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 // when services state change that publish
 func (server *server) publishEvent(evt string, data []byte, domain string) error {
 
+	fmt.Println("publish event ", evt, domain)
 	client, err := GetEventClient(domain)
 	if err != nil {
 		return err
@@ -617,65 +617,7 @@ func (srv *server) StopService() error {
 	return globular.StopService(srv, srv.grpcServer)
 }
 
-// ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
-func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
-	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*persistence_client.Persistence_Client), nil
-}
 
-// Create the application connections in the backend.
-func (server *server) createApplicationConnections() error {
-
-	applications, err := server.getApplications("", "")
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(applications); i++ {
-		err = server.createApplicationConnection(applications[i])
-		if err != nil {
-			fmt.Println("fail to create application connection with error ", err)
-		}
-	}
-
-	return nil
-}
-
-// Create the application connections in the backend.
-func (server *server) createApplicationConnection(app *resourcepb.Application) error {
-
-	// That service made user of persistence service.
-	persistence_client_, err := GetPersistenceClient(server.Domain)
-	if err != nil {
-		return err
-	}
-
-	var storeType float64
-	var options string
-	if server.Backend_type == "MONGODB" {
-		storeType = 0
-	} else if server.Backend_type == "SCYLLADB" {
-		storeType = 2
-	} else if server.Backend_type == "SQL" {
-		storeType = 1
-		options = `{"driver": "sqlite3", "charset": "utf8", "path":"` + server.DataPath + "/sql-data" + `"}` // TODO add the options for sql store...
-	} else {
-		return errors.New("unknown backend type " + server.Backend_type)
-	}
-
-	// Create the application connection...
-	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, float64(server.Backend_port), storeType, server.Backend_user, server.Backend_password, 500, options, false)
-	if err != nil {
-		fmt.Println("fail to create application connection with error ", err)
-		return err
-	}
-
-	return nil
-}
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 
@@ -774,7 +716,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		}
 
 		// Create organizations table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT"})
+		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
 		if err != nil {
 			fmt.Println("fail to create table Organizations with error ", err)
 		}
@@ -795,6 +737,12 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{ "domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
 		if err != nil {
 			fmt.Println("fail to create table Peers with error ", err)
+		}
+
+		// Create the sessions table.
+		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
+		if err != nil {
+			fmt.Println("fail to create table Sessions with error ", err)
 		}
 
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
@@ -1410,6 +1358,10 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
+	// I will remove all the access to the application, before removing the application.
+	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
+	resource_server.deleteResourcePermissions(applicationId)
+
 	application := values.(map[string]interface{})
 
 	// I will remove it from organization...
@@ -1466,8 +1418,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	// set back the domain part
 	applicationId = application["_id"].(string) + "@" + application["domain"].(string)
 
-	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
-	resource_server.deleteResourcePermissions(applicationId)
+
 	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
 	resource_server.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
 
@@ -1498,7 +1449,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"authentication.AuthenticationService", "log.LogService"}
+	s_impl.Dependencies = []string{"authentication.AuthenticationService", "log.LogService", "persistence.PersistenceService"}
 	s_impl.Permissions = make([]interface{}, 23)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -1509,7 +1460,7 @@ func main() {
 	s_impl.KeepUpToDate = true
 
 	// Backend informations.
-	s_impl.Backend_type = "MONGODB"
+	s_impl.Backend_type = "SQL" // use SQL as default backend.
 	s_impl.Backend_address = "localhost"
 	s_impl.Backend_replication_factor = 1
 	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
@@ -1661,9 +1612,6 @@ func main() {
 
 		// Here I will create user directories if their not already exist...
 		s_impl.CreateAccountDir()
-
-		// TODO create applications connections.
-		s_impl.createApplicationConnections()
 
 	}()
 

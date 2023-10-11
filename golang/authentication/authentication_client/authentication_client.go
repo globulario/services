@@ -2,6 +2,7 @@ package authentication_client
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -249,16 +250,18 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 
 // Authenticate a user.
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
-	// In case of other domain than localhost I will rip off the token file
-	// before each authentication.
-	err := Utility.CreateDirIfNotExist(tokensPath)
+
+	
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
-		log.Println("fail to create dir ", tokensPath, " with error ", err)
 		return "", err
 	}
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	// In case of other domain than localhost I will rip off the token file
+	// before each authentication.
+	err = Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
+		log.Println("fail to create dir ", tokensPath, " with error ", err)
 		return "", err
 	}
 
@@ -268,12 +271,14 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 		Issuer:   macAddress,
 	}
 
-	log.Println("Authenticate", name, " on domain ", client.GetDomain())
-
 	rsp, err := client.c.Authenticate(client.GetCtx(), rqst)
 	if err != nil {
-		log.Println("fail to authenticate!")
+		log.Println("fail to authenticate ", name, " on domain ", client.GetDomain(), " with error ", err)
 		return "", err
+	}
+
+	if len(rsp.Token) == 0 {
+		return "", fmt.Errorf("fail to authenticate %s on domain %s", name, client.GetDomain())
 	}
 
 	return rsp.Token, nil

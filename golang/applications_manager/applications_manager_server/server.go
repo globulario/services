@@ -432,6 +432,21 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 	return client.(*resource_client.Resource_Client), nil
 }
 
+func (svr *server) getApplication(applicationId string) (*resourcepb.Application, error) {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	return applications[0], nil
+}
+
+
 func (svr *server) deleteApplication(token, applicationId string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
@@ -441,13 +456,13 @@ func (svr *server) deleteApplication(token, applicationId string) error {
 	return resourceClient.DeleteApplication(token, applicationId)
 }
 
-func (svr *server) createApplication(token, id, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (svr *server) createApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.CreateApplication(token, id, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
+	return resourceClient.CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
 
 }
 
@@ -534,6 +549,12 @@ func updateApplication(svr *server, application *resourcepb.Application) func(ev
 
 		descriptor := new(resourcepb.PackageDescriptor)
 		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+		applicationId :=  Utility.GenerateUUID(application.Publisherid + "%" + application.Name + "%" + application.Version)	
+
+		// be sure the Id is set correctly.
+		application.Id = applicationId
+		descriptor.Id = application.Id
+
 		if err == nil {
 			ip := Utility.MyLocalIP()
 			mac, _ := Utility.MyMacAddr(ip)
@@ -543,19 +564,21 @@ func updateApplication(svr *server, application *resourcepb.Application) func(ev
 				return
 			}
 
-			err = svr.uninstallApplication(token, application.Id+"@"+application.Domain)
+			// Here I will uninstall the application.
+
+			err = svr.uninstallApplication(token, applicationId)
 			if err == nil {
 				// Get the new package...
 				repository := descriptor.Repositories[0]
 				package_repository, err := GetRepositoryClient(repository)
 				if err != nil {
-					fmt.Println("fail to install application with error: ", err)
+					fmt.Println("570 fail to install application with error: ", err)
 					return
 				}
 
 				bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
 				if err != nil {
-					fmt.Println("fail to install application with error: ", err)
+					fmt.Println("576 fail to install application with error: ", err)
 					return
 				}
 
@@ -565,9 +588,9 @@ func updateApplication(svr *server, application *resourcepb.Application) func(ev
 				domain, _ := config.GetDomain()
 
 				// Now I will install the applicaiton.
-				err = svr.installApplication(token, domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
+				err = svr.installApplication(token, domain, descriptor.Id, descriptor.Name, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
 				if err != nil {
-					fmt.Println("fail to install application with error: ", err)
+					fmt.Println("588 fail to install application with error: ", err)
 					return
 				}
 

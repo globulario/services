@@ -15,6 +15,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -184,8 +185,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
-	fmt.Println("-----------> GetAccount: ", rqst.AccountId)
-
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -318,6 +317,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
 	}
 
+	p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", db, "user_data", []string{"email_ TEXT", "domain_ TEXT", "firstName_ TEXT", "lastName_ TEXT", "middleName_ TEXT", "profilePicture_ TEXT"})
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -336,10 +336,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 			if user_data_["middleName_"] != nil {
 				a.Middle = user_data_["middleName_"].(string)
 			}
-
 		}
-	} else {
-		fmt.Println("fail to retreive user data ", db, accountId, err)
 	}
 
 	return &resourcepb.GetAccountRsp{
@@ -570,7 +567,11 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 
 		}
 	} else {
-		fmt.Println("---> fail to retreive user data ", db, rqst.Account.Id, err)
+		err := errors.New("fail to retreive user data " + db + " " + rqst.Account.Id)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
 	return &resourcepb.SetAccountRsp{}, nil
@@ -604,7 +605,6 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	} else {
 		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
 
-			fmt.Println("get account query: ", query)
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
 			if err != nil {
@@ -646,7 +646,6 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	values := make([]*resourcepb.Account, 0)
 
 	for i := 0; i < len(accounts); i++ {
-		fmt.Println("account ", i, " ", accounts[i])
 		account := accounts[i].(map[string]interface{})
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string)}
 
@@ -751,7 +750,11 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 			}
 		} else {
-			fmt.Println("fail to retreive user data ", db, a.Id, err)
+			err := errors.New("fail to retreive user data " + db + " " + a.Id)
+
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		values = append(values, a)
@@ -835,8 +838,6 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	}
 
 	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone + `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
-
-	fmt.Println("--------------> replace one: ", q, sentInvitation)
 
 	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", q, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {
@@ -1502,8 +1503,6 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	for i := 0; i < len(roles); i++ {
 		role := roles[i].(map[string]interface{})
-
-		fmt.Println("---------------> role: ", role["_id"].(string))
 		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
 
 		if role["domain"] != nil {
@@ -2093,7 +2092,6 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 // * save a new application *
 func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
-	fmt.Println("try to save_application: ", app)
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -2118,7 +2116,8 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 	application := make(map[string]interface{}, 0)
 	application["_id"] = app.Id
-	application["path"] = "/" + app.Id // The path must be the same as the application name.
+	application["name"] = app.Name
+	application["path"] = "/" + app.Name // The path must be the same as the application name.
 	application["publisherid"] = app.Publisherid
 	application["version"] = app.Version
 	application["domain"] = resource_server.Domain // the domain where the application is save...
@@ -2163,13 +2162,13 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 			return errors.New("unknown database type " + p.GetStoreType())
 		}
 
-		// create the application database if not exist. 
+		// create the application database if not exist.
 		if p.GetStoreType() == "MONGODB" {
 			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
 			}
-		}else if p.GetStoreType() == "SCYLLADB" {
+		} else if p.GetStoreType() == "SCYLLADB" {
 			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
@@ -2185,28 +2184,16 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 			return err
 		}
 
-		// give time to mongodb...
-		// create ressour ce application...
-		// no more needed...
-		defer resource_server.createApplicationConnection(app)
-
 	} else {
-		actions_, _ := Utility.ToJson(app.Actions)
-		keywords_, _ := Utility.ToJson(app.Keywords)
-		var setApplication string
-		if p.GetStoreType() == "MONGODB" {
-			setApplication = `{ "$set":{ "last_deployed":` + Utility.ToString(time.Now().Unix()) + ` }, "$set":{"keywords":` + keywords_ + `}, "$set":{"actions":` + actions_ + `},"$set":{"publisherid":"` + app.Publisherid + `"},"$set":{"description":"` + app.Description + `"},"$set":{"alias":"` + app.Alias + `"},"$set":{"icon":"` + app.Icon + `"}, "$set":{"version":"` + app.Version + `"}}`
-		} else if p.GetStoreType() == "SCYLLADB" {
-			setApplication = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			fields := []string{"last_deployed", "publisherid", "description", "alias", "icon", "version"}
-			values := []string{Utility.ToString(time.Now().Unix()), app.Publisherid, app.Description, app.Alias, app.Icon, app.Version}
-			setApplication = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+		if app.CreationDate == 0 {
+			application["creation_date"] = time.Now().Unix() // save it as unix time.
 		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
+			application["creation_date"] = app.CreationDate
 		}
 
-		err := p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", q, setApplication, "")
+		jsonStr, _ := Utility.ToJson(application)
+
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, jsonStr, "")
 
 		if err != nil {
 			return err
@@ -2214,7 +2201,7 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	// Create the application file directory.
-	path := "/applications/" + app.Id
+	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
@@ -2335,11 +2322,11 @@ func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.Id + `"}`
+		q = `{"name":"` + rqst.Id + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
+		q = `SELECT * FROM Applications WHERE name='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -2673,6 +2660,7 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
  */
 func (resource_server *server) getApplications(query string, options string) ([]*resourcepb.Application, error) {
 
+	
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
@@ -2710,6 +2698,8 @@ func (resource_server *server) getApplications(query string, options string) ([]
 			}
 		}
 	}
+
+	fmt.Println("2702 ------------------> query ", query)
 
 	// So here I will get the list of retreived permission.
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, options)
@@ -2754,7 +2744,7 @@ func (resource_server *server) getApplications(query string, options string) ([]
 				actions = append(actions, actions_[i].(string))
 			}
 		}
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
@@ -2828,7 +2818,6 @@ func GetResourceClient(domain string) (*resource_client.Resource_Client, error) 
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
-	fmt.Println("connect to ressource client at address: ", address)
 	client, err := GetResourceClient(address)
 	if err != nil {
 		fmt.Println("1896 fail to connect with client with error ", err)
@@ -3290,7 +3279,6 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 		}
 	}
 
-	fmt.Println("try to get peer info from ", rqst.RemotePeerAddress)
 	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)
 	if err != nil {
 		return nil, status.Errorf(
@@ -4623,7 +4611,6 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 // * Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
-	fmt.Println("--------------> create group:", rqst.Group)
 	var clientId string
 	var domain string
 
@@ -4970,7 +4957,6 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", q, "")
 	if err != nil {
-		fmt.Println("3043", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -5103,7 +5089,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 		localDomain, _ := config.GetDomain()
 		if strings.Contains(recipient, "@") {
 			domain := strings.Split(recipient, "@")[1]
-			
+
 			if localDomain != domain {
 				client, err := GetResourceClient(domain)
 				if err != nil {
@@ -5121,7 +5107,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 
 				return &resourcepb.CreateNotificationRsp{}, nil
 			}
-		}else {
+		} else {
 			recipient += "@" + localDomain
 		}
 	}
@@ -5158,7 +5144,6 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	}
 	db += "_db"
 
-	fmt.Println("--------------------> get notifications: for ", rqst.Recipient)
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + resource_server.Domain
 	}
@@ -5181,7 +5166,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 		return errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	notifications, err := p.Find(context.Background(), "local_resource",  db, "Notifications", query, "")
+	notifications, err := p.Find(context.Background(), "local_resource", db, "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -5245,7 +5230,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + resource_server.Domain
 	}
-	
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5505,15 +5490,16 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	var query string
 	if p.GetStoreType() == "MONGODB" {
-		query = `{"_id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+		query = `{"name":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		query = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Packages WHERE _id='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
+		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
+	
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -5809,6 +5795,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
  * Create / Update a pacakge descriptor
  */
 func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
+	
 	p, err := server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5818,16 +5805,17 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.PackageDescriptor.Id + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
+		q = `{"name":"` + rqst.PackageDescriptor.Name + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Packages WHERE _id='` + rqst.PackageDescriptor.Id + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
+		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
 	rqst.PackageDescriptor.TypeName = "PackageDescriptor"
+	rqst.PackageDescriptor.Id = Utility.GenerateUUID(rqst.PackageDescriptor.PublisherId + "%" + rqst.PackageDescriptor.Name + "%" + rqst.PackageDescriptor.Version)	
 
 	for i := 0; i < len(rqst.PackageDescriptor.Groups); i++ {
 		rqst.PackageDescriptor.Groups[i].TypeName = "Group"
@@ -5854,6 +5842,14 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", q, "")
+	if count == 0 || err != nil{
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unable to create the package descriptor")))
+
 	}
 
 	return &resourcepb.SetPackageDescriptorResponse{

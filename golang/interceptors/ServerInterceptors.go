@@ -410,12 +410,12 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-		address, _ = config.GetAddress()
+		//address, _ = config.GetAddress()
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
-		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
-		address_ = strings.ToLower(address_)
+		address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], ""))) 
+		
 	}
 
 	var clientId string

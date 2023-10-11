@@ -469,7 +469,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	resource_path := publisherId + "|" + name + "|" + version
-	
+
 	if len(organization) > 0 {
 
 		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
@@ -485,7 +485,8 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		}
 	}
 
-	applications, _ := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
+	applicationId := Utility.GenerateUUID(publisherId + "%" + name + "%" + version)
+	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 
 	if len(applications) > 0 {
 
@@ -501,7 +502,10 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		// Retreive the actual application installed version.
 		previousVersion, _ := resource_client_.GetApplicationVersion(name)
 
-		event_client_.Publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
+		
+		event_client_.Publish("update_"+applicationId+"_evt", []byte(version))
+
+		fmt.Println("previous version ", previousVersion, " current version ", version)
 		if previousVersion != version {
 			message := `<div style="display: flex; flex-direction: column">
 				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.

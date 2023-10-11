@@ -83,14 +83,14 @@ func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, er
 func (client *Dicovery_Client) Reconnect() error {
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = discoverypb.NewPackageDiscoveryClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -332,12 +332,14 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
  */
 func (client *Dicovery_Client) PublishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
-	if len(token) > 0 {
-		claims, _ := security.ValidateToken(token)
+	if len(token) == 0 {
+		return errors.New("no token was provided")
+	}
 
-		if !strings.Contains(user, "@") {
-			user += "@" + claims.UserDomain
-		}
+	claims, _ := security.ValidateToken(token)
+
+	if !strings.Contains(user, "@") {
+		user += "@" + claims.UserDomain
 	}
 
 	rqst := &discoverypb.PublishApplicationRequest{

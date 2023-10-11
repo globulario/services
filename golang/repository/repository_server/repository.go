@@ -23,7 +23,6 @@ func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, s
 
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Plaform)
-
 	path := server.Root + "/packages-repository"
 
 	var err error
@@ -105,6 +104,10 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 		server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
+
+
+	// Set the bundle descriptor id.
+	bundle.PackageDescriptor.Id = Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version)
 
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)

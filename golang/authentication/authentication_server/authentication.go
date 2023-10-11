@@ -211,7 +211,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 		}
 	}
 
-	if clientId != "sa"{
+	if clientId != "sa" {
 		if !Utility.Exists(configPath) {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -441,7 +441,6 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		localDomain, _ := config_.GetDomain()
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
 		if err != nil {
-
 			return "", status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -456,12 +455,12 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 		// Be sure the password is correct.
 		/*
-		err = server.changeAccountPassword(accountId, tokenString, pwd, pwd)
-		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}*/
+			err = server.changeAccountPassword(accountId, tokenString, pwd, pwd)
+			if err != nil {
+				return "", status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}*/
 
 		// set back the password in the config file.
 		config["RootPassword"] = pwd
@@ -580,31 +579,47 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 		return nil, err
 	}
 
+	var tokenString string
+
+	// The issuer is the mac address from where the request come from.
+	// If the issuer is empty then I will use the mac address of the server.
+	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
+	if strings.Contains(rqst.Name, "@") {
+		domain:= strings.Split(rqst.Name, "@")[1]
+		if domain == server.Domain {
+			rqst.Issuer = mac
+		}
+	}
+
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
 		rqst.Issuer = mac
+	} else if rqst.Issuer == mac {
+		// Try to authenticate on the server directly...
+		tokenString, err = server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
+		if err == nil {
+			return &authenticationpb.AuthenticateRsp{
+				Token: tokenString,
+			}, nil
+		}
 	}
-
-	// Try to authenticate on the server directly...
-	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 
 	// Now I will try each peer...
 	if err != nil {
-		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate on other peers...")
-		uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
-		
-		// no matter what happen the token must be remove...
-		defer Utility.RemoveString(server.authentications_, uuid)
-		if Utility.Contains(server.authentications_, uuid) {
-			return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
-		}
+		peers, _ := server.getPeers()
+		if len(peers) == 0 {
+			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
 
-		// append the string in the list to cut infinite recursion
-		server.authentications_ = append(server.authentications_, uuid)
+			// no matter what happen the token must be remove...
+			defer Utility.RemoveString(server.authentications_, uuid)
+			if Utility.Contains(server.authentications_, uuid) {
+				return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
+			}
 
-		// I will try to authenticate the peer on other resource service...
-		peers, err := server.getPeers()
-		if err == nil {
+			// append the string in the list to cut infinite recursion
+			server.authentications_ = append(server.authentications_, uuid)
+
+			// I will try to authenticate the peer on other resource service...
 			for i := 0; i < len(peers); i++ {
 				peer := peers[i]
 				address := peer.Domain
@@ -613,6 +628,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 				} else {
 					address += ":" + Utility.ToString(peer.PortHttp)
 				}
+
 				resource_client_, err := GetResourceClient(address)
 				if err == nil {
 					defer resource_client_.Close()

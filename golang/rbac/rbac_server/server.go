@@ -718,7 +718,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 		}
 
 		if len(applications) == 0 {
-			return nil, errors.New("no application found wiht name or _id " + applicationId)
+			return nil, errors.New("no application found with name or _id " + applicationId)
 		}
 
 		return applications[0], nil

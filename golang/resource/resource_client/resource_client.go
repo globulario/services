@@ -1263,10 +1263,11 @@ func (client *Resource_Client) DeleteApplication(token, id string) error {
 /**
  * Create an application descriptor...
  */
-func (client *Resource_Client) CreateApplication(token, id, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (client *Resource_Client) CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	rqst := &resourcepb.CreateApplicationRqst{
 		Application: &resourcepb.Application{
 			Id:          id,
+			Name: 	  	 name,
 			Path:        path,
 			Publisherid: publisherId,
 			Version:     version,

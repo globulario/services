@@ -44,6 +44,27 @@ func (store *SqlStore) GetStoreType() string {
 // Connect to the SQL database.
 func (store *SqlStore) Connect(id string, host string, port int32, user string, password string, database string, timeout int32, options_str string) error {
 
+	if len(id) == 0 {
+		return errors.New("the connection id is required")
+	}
+
+	if len(host) == 0 {
+		return errors.New("the host is required")
+	}
+
+	if len(user) == 0 {
+		return errors.New("the user is required")
+
+	}
+
+	if len(password) == 0 {
+		return errors.New("the password is required")
+	}
+
+	if len(database) == 0 {
+		return errors.New("the database is required")
+	}
+
 	// So here I will authenticate the user and password.
 	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
@@ -135,6 +156,13 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 func (store *SqlStore) ExecContext(connectionId string, database string, query string, parameters []interface{}, tx_ int) (string, error) {
 	// Type assert the connection and query to their respective types
+	if len(connectionId) == 0 {
+		return "", errors.New("the connection id is required")
+	}
+
+	if len(database) == 0 {
+		return "", errors.New("the database is required")
+	}
 
 	conn, exists := store.connections[connectionId]
 	if !exists {
@@ -206,6 +234,14 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 
 func (store *SqlStore) QueryContext(connectionId string, database string, query string, parameters_ string) (string, error) {
 	
+	if len(connectionId) == 0 {
+		return "", errors.New("the connection id is required")
+	}
+
+	if len(database) == 0 {
+		return "", errors.New("the database is required")
+	}
+
 	conn, exists := store.connections[connectionId]
 	if !exists {
 		return "", fmt.Errorf("connection with ID %s does not exist", connectionId)
@@ -370,14 +406,12 @@ func (store *SqlStore) CreateDatabase(ctx context.Context, connectionId string, 
 // Delete the database.
 func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, db string) error {
 
-	fmt.Println("Delete database ", connectionId, db)
 	var databasePath string
 
 	return os.RemoveAll(databasePath)
 }
 
 func (store *SqlStore) Count(ctx context.Context, connectionId string, db string, table string, query string, options string) (int64, error) {
-	fmt.Println("Count ", connectionId, db, table, query, options)
 
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
@@ -1126,7 +1160,6 @@ func generateUpdateTableQuery(tableName string, fields []interface{}, whereClaus
 }
 
 func (store *SqlStore) Update(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
-	fmt.Println("Update ", connectionId, db, table, query, value, options)
 
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
@@ -1202,7 +1235,6 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 
 			query = strings.TrimSuffix(query, " AND ")
 
-			fmt.Println("Query: ", query)
 		}
 	}
 
@@ -1243,23 +1275,19 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 }
 
 func (store *SqlStore) Delete(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	fmt.Println("Delete ", connectionId, db, table, query, options)
 	return store.deleteSqlEntry(connectionId, db, table, query)
 }
 
 func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	fmt.Println("DeleteOne ", connectionId, db, table, query, options)
 	return store.deleteSqlEntry(connectionId, db, table, query)
 }
 
 func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keyspace string, table string, pipeline string, optionsStr string) ([]interface{}, error) {
-	fmt.Println("Aggregate ", connectionId, keyspace, table, pipeline, optionsStr)
+
 	return nil, errors.New("not implemented")
 }
 
 func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, db string, table string, fields []string) error {
-
-	fmt.Println("CreateTable ", connectionId, db, table, fields)
 
 	// Create the table
 	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (_id TEXT PRIMARY KEY, %s);", table, strings.Join(fields, ", "))
@@ -1272,12 +1300,12 @@ func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, db 
 }
 
 func (store *SqlStore) CreateCollection(ctx context.Context, connectionId string, database string, name string, optionsStr string) error {
-	fmt.Println("CreateCollection ", connectionId, database, name)
+
 	return errors.New("not implemented")
 }
 
 func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string, database string, collection string) error {
-	fmt.Println("DeleteCollection ", connectionId, database, collection)
+
 	return errors.New("not implemented")
 }
 
