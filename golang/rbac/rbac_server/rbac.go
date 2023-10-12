@@ -215,8 +215,6 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 			if p.ResourceType == resource_type || len(resource_type) == 0 {
 				permissions = append(permissions, p)
 			}
-		} else {
-			fmt.Println("218 path not found: ", paths[i], err)
 		}
 	}
 
@@ -2527,12 +2525,9 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 		return false
 	}
 
-	fmt.Println("----------------> validate access allowed for ", subject, name, path)
-
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
 
-	fmt.Println("---------------> permissions: ", permissions, err)
 	if err == nil {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission

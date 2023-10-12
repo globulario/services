@@ -20,11 +20,11 @@ import (
 
 // Connection represent a connection to a SQL database.
 type Connection struct {
-	Id       string
-	Host     string
-	Token    string
-	Path     string
-	databases map[string] *sql.DB
+	Id        string
+	Host      string
+	Token     string
+	Path      string
+	databases map[string]*sql.DB
 }
 
 /**
@@ -112,11 +112,11 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	// Create the connection.
 	connection := Connection{
-		Id:       id,
-		Host:     host,
-		Token:    token,
-		Path:     path,
-		databases: make(map[string] *sql.DB, 0),
+		Id:        id,
+		Host:      host,
+		Token:     token,
+		Path:      path,
+		databases: make(map[string]*sql.DB, 0),
 	}
 
 	if store.connections == nil {
@@ -137,7 +137,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	// keep the database reference.
 	if connection.databases == nil {
-		connection.databases = make(map[string] *sql.DB, 0)
+		connection.databases = make(map[string]*sql.DB, 0)
 	}
 
 	connection.databases[database] = db
@@ -170,7 +170,7 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 	}
 
 	if conn.databases == nil {
-		conn.databases = make(map[string] *sql.DB, 0)
+		conn.databases = make(map[string]*sql.DB, 0)
 	}
 
 	if conn.databases[database] == nil {
@@ -184,9 +184,7 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 		conn.databases[database] = db
 	}
 
-
-	hasTx := tx_  == 1
-	
+	hasTx := tx_ == 1
 
 	// Execute the query here.
 	var result sql.Result
@@ -233,7 +231,7 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 }
 
 func (store *SqlStore) QueryContext(connectionId string, database string, query string, parameters_ string) (string, error) {
-	
+
 	if len(connectionId) == 0 {
 		return "", errors.New("the connection id is required")
 	}
@@ -248,7 +246,7 @@ func (store *SqlStore) QueryContext(connectionId string, database string, query 
 	}
 
 	if conn.databases == nil {
-		conn.databases = make(map[string] *sql.DB, 0)
+		conn.databases = make(map[string]*sql.DB, 0)
 	}
 
 	if conn.databases[database] == nil {
@@ -583,7 +581,6 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 		return nil, err
 	}
 
-
 	// Insert data into the array tables
 	for columnName, columnValue := range data {
 		// Check if the column is an array (slice)
@@ -645,7 +642,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								// He I will create the reference table.
 								// I will create the table if not already exist.
 								createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-								_, err = store.ExecContext("local_resource", db, createTableSQL,  nil, 0)
+								_, err = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
 								if err == nil {
 									fmt.Println("Table created: ", sourceCollection+"_"+field)
 								} else {
@@ -981,9 +978,12 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 			for key, value := range parameters {
 				if reflect.TypeOf(value).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else {
-					query += fmt.Sprintf("%s = %v AND ", key, value)
+				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
+					if key == "$and" || key == "$or" {
+						query += store.getParameters(key, value.([]interface{}))
+					}
 				}
+
 			}
 
 			query = strings.TrimSuffix(query, " AND ")
@@ -1024,6 +1024,28 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 	return nil, errors.New("not found")
 }
 
+func (store *SqlStore) getParameters(condition string, values []interface{}) string {
+	query := ""
+
+	if condition == "$and" {
+		query += "("
+		for _, v := range values {
+			value := v.(map[string]interface{})
+			fmt.Println("-----> value: ", value)
+			for key, v := range value {
+				if reflect.TypeOf(v).Kind() == reflect.String {
+					query += fmt.Sprintf("%s = '%v' AND ", key, v)
+				}
+
+			}
+		}
+		query = strings.TrimSuffix(query, " AND ")
+		query += ")"
+	}
+
+	return query
+}
+
 func (store *SqlStore) Find(ctx context.Context, connectionId string, db string, table string, query string, options string) ([]interface{}, error) {
 
 	if len(query) == 0 || query == "{}" {
@@ -1043,9 +1065,12 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 			for key, value := range parameters {
 				if reflect.TypeOf(value).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else {
-					query += fmt.Sprintf("%s = %v AND ", key, value)
+				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
+					if key == "$and" || key == "$or" {
+						query += store.getParameters(key, value.([]interface{}))
+					}
 				}
+
 			}
 
 			query = strings.TrimSuffix(query, " AND ")
@@ -1223,9 +1248,12 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 			for key, value := range parameters {
 				if reflect.TypeOf(value).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else {
-					query += fmt.Sprintf("%s = %v AND ", key, value)
+				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
+					if key == "$and" || key == "$or" {
+						query += store.getParameters(key, value.([]interface{}))
+					}
 				}
+
 			}
 
 			query = strings.TrimSuffix(query, " AND ")
@@ -1254,7 +1282,7 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 					query := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", arrayTableName, table)
 					parameters := make([]interface{}, 0)
 					parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
-		
+
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)
 					if err != nil {

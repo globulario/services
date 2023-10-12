@@ -15,6 +15,8 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+
+	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -2205,13 +2207,36 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
-	resource_server.addResourceOwner(path, "file", app.Id, rbacpb.SubjectType_APPLICATION)
+	resource_server.addResourceOwner(path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
 	resource_server.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	resource_server.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, app.Domain)
+
+	// Now I will create the application connection.
+	address, _ := config.GetAddress()
+	persistenceClient, err := GetPersistenceClient(address)
+
+	if err != nil {
+		return err
+	}
+
+	var storeType float64
+	if resource_server.Backend_type == "SQL" {
+		storeType = 1.0
+	} else if resource_server.Backend_type == "MONGODB" {
+		storeType = 0.0
+	} else if resource_server.Backend_type == "SCYLLADB" {
+		storeType = 2.0
+	}
+
+	// Now I will create the application connection.
+	err = persistenceClient.CreateConnection( app.Name, app.Name+"_db", address, float64(resource_server.Backend_port), storeType,  resource_server.Backend_user, resource_server.Backend_password, 500, "", false)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -2800,6 +2825,16 @@ func getLocalPeer() *resourcepb.Peer {
 	local_peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
 	return local_peer_
+}
+
+// ////////////////////// Resource Client ////////////////////////////////////////////
+func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
+	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*persistence_client.Persistence_Client), nil
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
@@ -5053,6 +5088,7 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 // * Create a notification
 func (resource_server *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
 
+	//fmt.Println("-----------------> CreateNotification!!!!! ", rqst.Notification.Recipient)
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5496,7 +5532,6 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
-
 	
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
 	if err != nil {
@@ -5706,7 +5741,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 		descriptor.Type = resourcepb.PackageType(Utility.ToInt(data[i].(map[string]interface{})["type"]))
 
 		if data[i].(map[string]interface{})["keywords"] != nil {
-			data[i].(map[string]interface{})["keywords"] = []interface{}(data[i].(map[string]interface{})["keywords"].(primitive.A))
+			
 			var keywords []interface{}
 			switch data[i].(map[string]interface{})["keywords"].(type) {
 			case primitive.A:

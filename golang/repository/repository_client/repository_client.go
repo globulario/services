@@ -471,20 +471,21 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	resource_path := publisherId + "|" + name + "|" + version
 
 	if len(organization) > 0 {
-
+		fmt.Println("-----------> add resource owner ", resource_path, organization)
 		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
 			return -1, err
 		}
 
 	} else if len(user) > 0 {
-
+		fmt.Println("-----------> add resource owner ", resource_path, user)
 		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
 			return -1, err
 		}
 	}
 
+	
 	applicationId := Utility.GenerateUUID(publisherId + "%" + name + "%" + version)
 	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 

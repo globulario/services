@@ -616,8 +616,6 @@ func (srv *server) StopService() error {
 	return globular.StopService(srv, srv.grpcServer)
 }
 
-
-
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 
 /**
@@ -680,10 +678,12 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			srv.store = new(persistence_store.MongoStore)
 
 		} else if srv.Backend_type == "SQL" {
+
 			srv.store = new(persistence_store.SqlStore)
 			options := map[string]interface{}{"driver": "sqlite3", "charset": "utf8", "path": srv.DataPath + "/sql-data"}
 			options_, _ := Utility.ToJson(options)
 			options_str = string(options_)
+
 		} else {
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
@@ -703,49 +703,56 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		srv.isReady = true
 
-		// Create tables if not already exist.
-		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
-		if err != nil {
-			fmt.Println("fail to create table Accounts with error ", err)
-		}
-
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INTEGER"})
-		if err != nil {
-			fmt.Println("fail to create table Organizations with error ", err)
-		}
-
-		// Create organizations table.
-		srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
-		if err != nil {
-			fmt.Println("fail to create table Organizations with error ", err)
-		}
-
-		// Create roles table.
-		err =  srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
-		if err != nil {
-			fmt.Println("fail to create table Roles with error ", err)
-		}
-
-		// Create groups table.
-		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
-		if err != nil {
-			fmt.Println("fail to create table Groups with error ", err)
-		}
-
-		// Create peers table.
-		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{ "domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
-		if err != nil {
-			fmt.Println("fail to create table Peers with error ", err)
-		}
-
-		// Create the sessions table.
-		err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
-		if err != nil {
-			fmt.Println("fail to create table Sessions with error ", err)
-		}
-
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
+		if srv.Backend_type == "SQL" {
+			// Create tables if not already exist.
+			err := srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Accounts with error ", err)
+			}
+
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INTEGER"})
+			if err != nil {
+				fmt.Println("fail to create table Organizations with error ", err)
+			}
+
+			// Create organizations table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Organizations with error ", err)
+			}
+
+			// Create roles table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Roles with error ", err)
+			}
+
+			// Create groups table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Groups with error ", err)
+			}
+
+			// Create peers table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
+			if err != nil {
+				fmt.Println("fail to create table Peers with error ", err)
+			}
+
+			// Create the sessions table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
+			if err != nil {
+				fmt.Println("fail to create table Sessions with error ", err)
+			}
+
+			// Create the notifications table.
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date REAL", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
+			if err != nil {
+				fmt.Println("fail to create table Notifications with error ", err)
+			}
+		}
 	} else if !srv.isReady {
 		nbTry := 100
 		for i := 0; i < nbTry; i++ {
@@ -1416,7 +1423,6 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 	// set back the domain part
 	applicationId = application["_id"].(string) + "@" + application["domain"].(string)
-
 
 	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
 	resource_server.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
