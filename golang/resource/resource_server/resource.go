@@ -2699,8 +2699,6 @@ func (resource_server *server) getApplications(query string, options string) ([]
 		}
 	}
 
-	fmt.Println("2702 ------------------> query ", query)
-
 	// So here I will get the list of retreived permission.
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, options)
 	if err != nil {

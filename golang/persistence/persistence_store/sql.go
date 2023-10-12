@@ -963,7 +963,6 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 }
 
 func (store *SqlStore) FindOne(ctx context.Context, connectionId string, database string, table string, query string, options string) (interface{}, error) {
-	fmt.Println("FindOne ", connectionId, database, table, query, options)
 
 	if len(query) == 0 {
 		return nil, errors.New("query is empty")
@@ -989,7 +988,6 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 
 			query = strings.TrimSuffix(query, " AND ")
 
-			fmt.Println("Query: ", query)
 		}
 	}
 
@@ -1028,8 +1026,6 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 
 func (store *SqlStore) Find(ctx context.Context, connectionId string, db string, table string, query string, options string) ([]interface{}, error) {
 
-	fmt.Println("Find ", connectionId, db, table, query, options)
-
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
 	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
@@ -1054,7 +1050,6 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 
 			query = strings.TrimSuffix(query, " AND ")
 
-			fmt.Println("Query: ", query)
 		}
 	}
 
@@ -1186,7 +1181,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 }
 
 func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
-	// fmt.Println("UpdateOne ", connectionId, keyspace, table, query, value, options)
+
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {

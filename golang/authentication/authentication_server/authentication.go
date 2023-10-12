@@ -391,8 +391,6 @@ func (server *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
-	fmt.Println("authenticate ", accountId, "issuer", issuer)
-
 	// If the user is the root...
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
 

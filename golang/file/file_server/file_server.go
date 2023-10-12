@@ -6497,8 +6497,6 @@ func main() {
 
 			if err != nil {
 				fmt.Println("Fail to connect to event channel index_file_event")
-			} else {
-				fmt.Println("Connected to event channel index_file_event", event_client.GetAddress(), "port", event_client.GetPort())
 			}
 
 		}

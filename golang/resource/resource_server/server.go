@@ -418,7 +418,6 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 // when services state change that publish
 func (server *server) publishEvent(evt string, data []byte, domain string) error {
 
-	fmt.Println("publish event ", evt, domain)
 	client, err := GetEventClient(domain)
 	if err != nil {
 		return err

@@ -482,14 +482,12 @@ func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
  * Read previous link's
  */
 func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
-	fmt.Println("readTorrentLnks ", svr.DownloadDir+"/lnks.gob")
 
 	// open data file
 	dataFile, err := os.Open(svr.DownloadDir + "/lnks.gob")
 	lnks := make([]TorrentLnk, 0)
 
 	if err != nil {
-		fmt.Println("readTorrentLnks: no file found...", err)
 		return lnks, err
 	}
 	defer dataFile.Close()
@@ -497,13 +495,11 @@ func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
 	dataDecoder := gob.NewDecoder(dataFile)
 	err = dataDecoder.Decode(&lnks)
 
-	fmt.Println("readTorrentLnks: decode done...")
 	if err != nil {
 		fmt.Println("readTorrentLnks: decode error...", err)
 		return lnks, err
 	}
 
-	fmt.Println("readTorrentLnks: decode done...")
 	return lnks, err
 }
 
@@ -560,7 +556,6 @@ func (svr *server) processTorrent() {
 			select {
 			case a := <-svr.actions:
 				if a["action"] == "setTorrentTransfer" {
-					fmt.Println("setTorrentTransfer")
 					t := a["torrentTransfer"].(*TorrentTransfer)
 					pending = append(pending, t)
 
@@ -581,18 +576,14 @@ func (svr *server) processTorrent() {
 					if !exist {
 						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name(), Owner: t.owner})
 						err := svr.saveTorrentLnks(lnks)
-						if err == nil {
-							fmt.Println("lnk ", lnks[len(lnks)-1], " was set")
+						if err != nil {
+							fmt.Println("fail to save torrent lnks with error ", err)
 						}
 					}
 
 				} else if a["action"] == "getTorrentsInfo" {
-
-					fmt.Println("getTorrentsInfo")
 					getTorrentsInfo_actions = append(getTorrentsInfo_actions, a)
-
 				} else if a["action"] == "dropTorrent" {
-					fmt.Println("dropTorrent", a["name"].(string))
 					// remove it from the map...
 					delete(infos, a["name"].(string))
 					pending_ := make([]*TorrentTransfer, 0)
@@ -621,7 +612,6 @@ func (svr *server) processTorrent() {
 					}
 
 				} else if a["action"] == "getTorrentLnks" {
-					fmt.Println("execute getTorrentLnks...")
 					lnks, err := svr.readTorrentLnks()
 					lnks_ := make([]*torrentpb.TorrentLnk, 0)
 
@@ -667,7 +657,6 @@ func (svr *server) processTorrent() {
 								if err != nil {
 									fmt.Println("fail to copy torrent file with error ", err)
 								} else {
-									fmt.Println("copy ", src, " to ", dst, " successfull")
 									svr.addResourceOwner(dst, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
 
 									// publish reload dir event.
@@ -831,7 +820,7 @@ func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *tor
 // Set the torrent files... the torrent will be download in the
 // DownloadDir and moved to it destination when done.
 func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string, owner string) {
-	fmt.Println("set torrent transfer ", t.Name())
+
 	a := make(map[string]interface{})
 	a["action"] = "setTorrentTransfer"
 	a["torrentTransfer"] = &TorrentTransfer{dst: dest, lnk: lnk, tor: t, seed: seed, owner: owner}
@@ -841,7 +830,7 @@ func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest s
 }
 
 func (svr *server) dropTorrent(name string) {
-	fmt.Println("drop torrent ", name)
+
 	a := make(map[string]interface{})
 	a["action"] = "dropTorrent"
 	a["name"] = name
@@ -871,7 +860,6 @@ func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInf
 
 // get torrents infos...
 func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
-	fmt.Println("get torrents info")
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})
@@ -924,14 +912,9 @@ func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) e
 	// Start download the torrent...
 	go func() {
 		// Wait to get the info...
-		fmt.Println("wait for torrent info...")
-
 		<-t.GotInfo()
 
-		fmt.Println("torrent info received...")
-
 		// Start download...
-		fmt.Println("Download torrent...")
 		t.DownloadAll()
 
 		svr.setTorrentTransfer(t, seed, link, dest, owner)
@@ -1089,9 +1072,7 @@ func main() {
 	// download links...
 	go func() {
 		lnks, err := s_impl.readTorrentLnks()
-		if err != nil {
-			fmt.Println("fail to read torrent links with error ", err)
-		} else {
+		if err == nil {
 			if len(lnks) > 0 {
 				// Now I will download all the torrent...
 				for i := 0; i < len(lnks); i++ {
@@ -1099,8 +1080,6 @@ func main() {
 					fmt.Println("open torrent ", lnk.Name)
 					s_impl.downloadTorrent(lnk.Lnk, lnk.Dir, lnk.Seed, lnk.Owner)
 				}
-			} else {
-				fmt.Println("no torrent to download")
 			}
 		}
 	}()

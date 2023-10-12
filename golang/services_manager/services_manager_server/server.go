@@ -808,10 +808,7 @@ func main() {
 				evt := service["PublisherId"].(string) + ":" + service["Id"].(string)
 				values := strings.Split(service["PublisherId"].(string), "@")
 				if len(values) == 2 {
-					err = s_impl.subscribe(values[1], evt, updateService(s_impl, service))
-					if err == nil {
-						fmt.Println("subscribe to event", evt, "succeed on ", values[1])
-					}
+					 s_impl.subscribe(values[1], evt, updateService(s_impl, service))
 				}
 			}
 		}

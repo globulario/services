@@ -448,9 +448,9 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil && err.Error() != "EOF" {
-		fmt.Println("fail to read the config content with err ", err)
 		return nil, err
 	}
+	
 	// set back the error to nil
 	err = nil
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
@@ -522,7 +522,6 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil && err.Error() != "EOF" {
-		fmt.Println("fail to read the config content with err ", err)
 		return nil, err
 	}
 	// set back the error to nil

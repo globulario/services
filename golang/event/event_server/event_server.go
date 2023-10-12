@@ -641,8 +641,6 @@ func (event_server *server) Publish(ctx context.Context, rqst *eventpb.PublishRe
 	publish["name"] = rqst.Evt.Name
 	publish["data"] = rqst.Evt.Data
 
-	fmt.Println("Publish event ", rqst.Evt.Name)
-
 	// publish the data.
 	event_server.actions <- publish
 	return &eventpb.PublishResponse{

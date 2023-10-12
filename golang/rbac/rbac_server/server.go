@@ -1051,7 +1051,6 @@ func main() {
 	}
 
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
-
 	if err != nil {
 		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
 	}

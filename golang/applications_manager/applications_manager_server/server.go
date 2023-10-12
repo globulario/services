@@ -539,7 +539,6 @@ func (svr *server) subscribe(domain, evt string, listener func(evt *eventpb.Even
 		return err
 	}
 
-	fmt.Println("subscribe to event", evt, "succeed on ", eventClient.GetName()+""+eventClient.GetDomain(), eventClient.GetPort())
 	// register a listener...
 	return nil
 }
@@ -667,7 +666,6 @@ func main() {
 					application := applications[i]
 					evt := application.Publisherid + ":" + application.Name
 					values := strings.Split(application.Publisherid, "@")
-					fmt.Println("listen for application update event: ", values[1], evt)
 					if len(values) == 2 {
 						s_impl.subscribe(values[1], evt, updateApplication(s_impl, application))
 					}
