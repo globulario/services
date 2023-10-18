@@ -15,6 +15,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
@@ -22,7 +23,6 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	// "go.mongodb.org/mongo-driver/x/mongo/driver/session"
@@ -320,6 +320,8 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", db, "user_data", []string{"email_ TEXT", "domain_ TEXT", "firstName_ TEXT", "lastName_ TEXT", "middleName_ TEXT", "profilePicture_ TEXT"})
+	p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", db, "Notifications", []string{"date REAL", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
+	
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -3169,13 +3171,13 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	var q string
 	var setState string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac)+ `"}`
 		setState = `{ "$set":{"state":1}}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = ``        // TODO scylla db query.
 		setState = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 		fields := []string{"state"}
 		values := []interface{}{1}
 		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
@@ -3250,13 +3252,13 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 	var q string
 	var setState string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 		setState = `{ "$set":{"state":2}}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = ``        // TODO scylla db query.
 		setState = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 		fields := []string{"state"}
 		values := []interface{}{2}
 		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
@@ -3434,11 +3436,11 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -3499,11 +3501,11 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + rqst.Peer.Mac + `"}`
+		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + rqst.Peer.Mac + `'`
+		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -3612,8 +3614,8 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 
 		for j := 0; j < len(actions_); j++ {
 			exist := false
-			for i := 0; i < len(peer["actions"].(primitive.A)); i++ {
-				if peer["actions"].(primitive.A)[i].(string) == actions_[j] {
+			for i := 0; i < len(actions); i++ {
+				if actions[i].(string) == actions_[j] {
 					exist = true
 					break
 				}
@@ -5181,6 +5183,8 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + resource_server.Domain
 	}
+
+
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()

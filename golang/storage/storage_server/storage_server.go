@@ -536,6 +536,8 @@ func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst
 		store = storage_store.NewBigCache_store()
 	} else if conn.Type == storagepb.StoreType_BADGER_DB {
 		store = storage_store.NewBadger_store()
+	} else if conn.Type == storagepb.StoreType_SCYLLA_DB {
+		store = storage_store.NewScylla_store("127.0.0.1", "")
 	}
 
 	if store == nil {

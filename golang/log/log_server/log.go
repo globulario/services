@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -10,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -17,68 +19,84 @@ import (
 // Api
 ////////////////////////////////////////////////////////////////////////////////
 
-func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, error) {
+func (server *server) log(info *logpb.LogInfo) error {
 
-	key := ""
+	if info == nil {
+		return errors.New("no log info was given")
+	}
 
+	if len(info.Application) == 0 {
+		return errors.New("no application name was given")
+	}
+
+	if len(info.Method) == 0 {
+		return errors.New("no method name was given")
+	}
+
+	if len(info.Line) == 0 {
+		return errors.New("no line number was given")
+	}
+
+	var level string
 	if info.GetLevel() == logpb.LogLevel_INFO_MESSAGE {
-		key += "/info"
+		level = "info"
 	} else if info.GetLevel() == logpb.LogLevel_DEBUG_MESSAGE {
-		key += "/debug"
+		level = "debug"
 	} else if info.GetLevel() == logpb.LogLevel_ERROR_MESSAGE {
-		key += "/error"
+		level = "error"
 	} else if info.GetLevel() == logpb.LogLevel_FATAL_MESSAGE {
-		key += "/fatal"
+		level = "fatal"
 	} else if info.GetLevel() == logpb.LogLevel_TRACE_MESSAGE {
-		key += "/trace"
+		level = "trace"
 	} else if info.GetLevel() == logpb.LogLevel_WARN_MESSAGE {
-		key += "/warning"
+		level = "warning"
 	}
 
-	if len(info.Method) > 0 {
-		key += "/" + info.Method
-	}
+	// Set the id of the log info.
+	info.Id = Utility.GenerateUUID(level + `|` + info.Application + `|` + info.Method + `|` + info.Line)
 
-	key += "/" + Utility.GenerateUUID(info.FunctionName + info.Line)
+	info.Occurences = 1
 
-	// I will try to retreive previous item...
-	return key, nil
-}
-
-func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error {
-
-	// The userId can be a single string or a JWT token.
-	if len(occurence.UserId) > 0 {
-		claims, err := security.ValidateToken(occurence.UserId)
-		if err == nil {
-			occurence.UserId = claims.Id
-			occurence.UserName = claims.Username // keep only the user name
-		}
-	}
-
-	// Return the log information.
-	key, err := server.getLogInfoKeyValue(info)
-	if err != nil {
-		return err
-	}
-
-	// Here I will get the previous info and append it new offucrence before saved it...
-	previousInstance := new(logpb.LogInfo)
-	data, err := server.logs.GetItem(key)
+	// I will retreive the previous items...
+	data, err := server.logs.GetItem(info.Id)
 	if err == nil {
-		err = jsonpb.UnmarshalString(string(data), previousInstance)
-		if err == nil {
-			if previousInstance.Occurences == nil {
-				previousInstance.Occurences = make([]*logpb.Occurence, 0)
+		jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
+		for jsonDecoder.More() {
+
+			previousInfo := logpb.LogInfo{}
+			err := jsonpb.UnmarshalNext(jsonDecoder, &previousInfo)
+			if err != nil {
+				return err
 			}
-			previousInstance.Occurences = append(previousInstance.Occurences, occurence)
+
+			// I will set the previous id...
+			info.Occurences = previousInfo.Occurences + 1
 		}
-		info.Occurences = previousInstance.Occurences
-	} else {
-		info.Occurences = make([]*logpb.Occurence, 0)
-		info.Occurences = append(info.Occurences, occurence)
 	}
 
+	// I will index the log info...
+	index := Utility.GenerateUUID(level + `|` + info.Application)
+	data_, err := server.logs.GetItem(index)
+	if err == nil {
+		indexed := make([]string, 0)
+		err = json.Unmarshal(data_, &indexed)
+		if err == nil && !Utility.Contains(indexed, info.Id) {
+			indexed = append(indexed, info.Id)
+			data_, err = json.Marshal(indexed)
+			if err == nil {
+				server.logs.SetItem(index, data_)
+			}
+		}
+	} else {
+		indexed := make([]string, 0)
+		indexed = append(indexed, info.Id)
+		data_, err = json.Marshal(indexed)
+		if err == nil {
+			server.logs.SetItem(index, data_)
+		}
+	}
+
+	// Marshal the log info into a json string.
 	marshaler := new(jsonpb.Marshaler)
 	jsonStr, err := marshaler.MarshalToString(info)
 	if err != nil {
@@ -86,147 +104,205 @@ func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error
 	}
 
 	// Append the log in leveldb
-	server.logs.SetItem(key, []byte(jsonStr))
+	server.logs.SetItem(info.Id, []byte(jsonStr))
 
 	// That must be use to keep all logger upto date...
-	err = server.publish("new_log_evt", []byte(jsonStr))
+	server.publish("new_log_evt", []byte(jsonStr))
+
+	// Inc the counter
+	server.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
 
 	return nil
 }
 
 // Log error or information into the data base *
 func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
+
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, errors.New("no token was given")
+		}
+	}
+
+	// Valide the token...
+	// The userId can be a single string or a JWT token.
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return nil, err
+	}
+
 	// Publish event...
-	server.log(rqst.Info, rqst.Occurence)
+	server.log(rqst.Info)
+
 	return &logpb.LogRsp{
 		Result: true,
 	}, nil
+}
+
+// Retreive the log informations
+func (server *server) getLogs(application string, level string) ([]*logpb.LogInfo, error) {
+	index := Utility.GenerateUUID(level + `|` + application)
+	data, err := server.logs.GetItem(index)
+	if err != nil {
+		return nil, err
+	}
+
+	indexed := make([]string, 0)
+	err = json.Unmarshal(data, &indexed)
+	if err != nil {
+		return nil, err
+	}
+
+	logs := make([]*logpb.LogInfo, 0)
+	for _, id := range indexed {
+		data, err := server.logs.GetItem(id)
+		if err == nil {
+
+			info := logpb.LogInfo{}
+			err = jsonpb.UnmarshalString(string(data), &info)
+			if err != nil {
+				return nil, err
+			}
+
+			logs = append(logs, &info)
+		}
+	}
+
+	return logs, nil
 }
 
 // Log error or information into the data base *
 // Retreive log infos (the query must be something like /infos/'date'/'applicationName'/'userName'
 func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
 
+	// Retreive the logs...
 	query := rqst.Query
 	if len(query) == 0 {
-		query = "/*"
-	}
-	data, err := server.logs.GetItem(query)
-	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-	jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
-
-	// read open bracket
-	_, err = jsonDecoder.Token()
-	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return errors.New("no query was given")
 	}
 
+	parameters := strings.Split(query, "/")
+	if len(parameters) != 3 {
+		return errors.New("the query must be something like /debug/application/*'")
+	}
+
+	logs, err := server.getLogs(parameters[1], parameters[0])
+	if err != nil {
+		return err
+	}
+
+	// send the first 100 logs...
 	infos := make([]*logpb.LogInfo, 0)
-	i := 0
 	max := 100
 
-	for jsonDecoder.More() {
-		info := logpb.LogInfo{}
-		err := jsonpb.UnmarshalNext(jsonDecoder, &info)
-		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	for _, info := range logs {
+		if max == 0 {
+			break
 		}
-		// append the info inside the stream.
-		infos = append(infos, &info)
-		if i == max-1 {
-			// I will send the stream at each 100 logs...
-			rsp := &logpb.GetLogRsp{
-				Infos: infos,
-			}
-			// Send the infos
-			err = stream.Send(rsp)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			infos = make([]*logpb.LogInfo, 0)
-			i = 0
-		}
-		i++
+
+		infos = append(infos, info)
+		max = max - 1
+
 	}
 
-	// Send the last infos...
-	if len(infos) > 0 {
-		rsp := &logpb.GetLogRsp{
-			Infos: infos,
-		}
-		err = stream.Send(rsp)
-		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-	return nil
+	return stream.Send(&logpb.GetLogRsp{
+		Infos: infos,
+	})
 }
 
-func (server *server) deleteLog(query string) error {
+func (server *server) clearLogs(query string) error {
+
+	// TODO: retreive the logs and delete them...
+	// Retreive the logs...
+	if len(query) == 0 {
+		return errors.New("no query was given")
+	}
+
+	parameters := strings.Split(query, "/")
+	if len(parameters) != 3 {
+		return errors.New("the query must be something like /debug/application/*'")
+	}
 
 	// First of all I will retreive the log info with a given date.
-	data, err := server.logs.GetItem(query)
+	logs, err := server.getLogs(parameters[1], parameters[0])
+
 	if err != nil {
 		return err
 	}
 
-	jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
-	// read open bracket
-	_, err = jsonDecoder.Token()
-	if err != nil {
-		return err
+	// I will delete the logs...
+	for _, info := range logs {
+		err := server.logs.RemoveItem(info.Id)
+		if err != nil {
+			return err
+		}
 	}
 
-	for jsonDecoder.More() {
-		info := logpb.LogInfo{}
-
-		err := jsonpb.UnmarshalNext(jsonDecoder, &info)
-		if err != nil {
-			return err
-		}
-
-		key, err := server.getLogInfoKeyValue(&info)
-		if err != nil {
-			return err
-		}
-
-		server.logs.RemoveItem(key)
+	// I will delete the index...
+	index := Utility.GenerateUUID(parameters[0] + `|` + parameters[1])
+	err = server.logs.RemoveItem(index)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-//* Delete a log info *
+// * Delete a log info *
 func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
 
-	key, _ := server.getLogInfoKeyValue(rqst.Log)
-	err := server.logs.RemoveItem(key)
+	err := server.logs.RemoveItem(rqst.Log.Id)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var level string
+	if rqst.Log.GetLevel() == logpb.LogLevel_INFO_MESSAGE {
+		level = "info"
+	} else if rqst.Log.GetLevel() == logpb.LogLevel_DEBUG_MESSAGE {
+		level = "debug"
+	} else if rqst.Log.GetLevel() == logpb.LogLevel_ERROR_MESSAGE {
+		level = "error"
+	} else if rqst.Log.GetLevel() == logpb.LogLevel_FATAL_MESSAGE {
+		level = "fatal"
+	} else if rqst.Log.GetLevel() == logpb.LogLevel_TRACE_MESSAGE {
+		level = "trace"
+	} else if rqst.Log.GetLevel() == logpb.LogLevel_WARN_MESSAGE {
+		level = "warning"
+	}
+
+	// I will remove the log from index...
+	index := Utility.GenerateUUID(level + `|` + rqst.Log.Application)
+	data, err := server.logs.GetItem(index)
+	if err == nil {
+		indexed := make([]string, 0)
+		err = json.Unmarshal(data, &indexed)
+		if err == nil {
+			for i, id := range indexed {
+				if id == rqst.Log.Id {
+					indexed = append(indexed[:i], indexed[i+1:]...)
+					data, err = json.Marshal(indexed)
+					if err == nil {
+						server.logs.SetItem(index, data)
+					}
+					break
+				}
+			}
+		}
+	}
 	return &logpb.DeleteLogRsp{
 		Result: true,
 	}, nil
 }
 
-//* Clear logs. info or errors *
+// * Clear logs. info or errors *
 func (server *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst) (*logpb.ClearAllLogRsp, error) {
-	err := server.deleteLog(rqst.Query)
+	err := server.clearLogs(rqst.Query)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

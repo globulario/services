@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -423,9 +424,9 @@ func (svr *server) StopService() error {
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
-func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+func (svr *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(svr.Address, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -433,22 +434,62 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 }
 
 func (svr *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-	resourceClient, err := svr.getResourceClient()
-	if err != nil {
-		return nil, err
+	localDomain, _ := config.GetDomain()
+	var domain string
+
+	if strings.Contains(applicationId, "@") {
+		if len(strings.Split(applicationId, "@")[1]) > 0 {
+			domain = strings.Split(applicationId, "@")[1]
+		}
+
+		applicationId = strings.Split(applicationId, "@")[0]
+
 	}
 
-	applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
-	if err != nil {
-		return nil, err
-	}
+	if localDomain != domain && len(domain) > 0 {
 
-	return applications[0], nil
+		// so here I will get the account from it domain resource manager.
+		resource_, err := svr.getResourceClient(domain)
+		if err != nil {
+			return nil, err
+		}
+
+		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
+		if err != nil || len(applications) != 1 {
+			return nil, err
+		}
+
+		// In that case I will
+		return applications[0], nil
+
+	} else {
+		resourceClient, err := svr.getResourceClient(localDomain)
+		if err != nil {
+			return nil, err
+		}
+
+		applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(applications) == 0 {
+			return nil, errors.New("no application found with name or _id " + applicationId)
+		}
+
+		return applications[0], nil
+	}
 }
 
 
 func (svr *server) deleteApplication(token, applicationId string) error {
-	resourceClient, err := svr.getResourceClient()
+	
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -457,7 +498,12 @@ func (svr *server) deleteApplication(token, applicationId string) error {
 }
 
 func (svr *server) createApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
-	resourceClient, err := svr.getResourceClient()
+	
+	if domain != svr.Domain {
+		return errors.New("you can only create application in your own domain")
+	}
+	
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -467,7 +513,7 @@ func (svr *server) createApplication(token, id, name, domain, password, path, pu
 }
 
 func (svr *server) createRole(token, id, name string, actions []string) error {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -476,7 +522,7 @@ func (svr *server) createRole(token, id, name string, actions []string) error {
 }
 
 func (svr *server) createGroup(token, id, name, description string) error {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -657,7 +703,7 @@ func main() {
 
 	// keep applications up to date...
 	go func() {
-		resource_client, err := s_impl.getResourceClient()
+		resource_client, err := s_impl.getResourceClient(s_impl.Address)
 		if err == nil {
 			// retreive all applications.
 			applications, err := resource_client.GetApplications("")

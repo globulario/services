@@ -25,7 +25,6 @@ require (
 	github.com/emicklei/proto v1.9.0
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ldap/ldap/v3 v3.3.0
-	github.com/go-playground/locales v0.13.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/gocql/gocql v1.6.0
@@ -50,7 +49,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	google.golang.org/grpc v1.44.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.31.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
 

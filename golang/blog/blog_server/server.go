@@ -93,7 +93,7 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// Store global conversation information like conversation owner's participant...
-	store *storage_store.Badger_store
+	store storage_store.Store
 
 	// keep in map active conversation db connections.
 	blogs *sync.Map
@@ -414,8 +414,7 @@ func (svr *server) Init() error {
 
 	// Create a new local store.
 	svr.store = storage_store.NewBadger_store()
-
-	return nil
+	return svr.store.Open(`{"path":"` + svr.Root + `/blogs", "name":"blogs"}`)
 
 }
 

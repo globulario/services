@@ -2110,8 +2110,8 @@ export function readLogs(
   stream.on("status", (status) => {
     if (status.code === 0) {
       results = results.sort((t1, t2) => {
-        const name1 = t1.getOccurencesList().length;
-        const name2 = t2.getOccurencesList().length;
+        const name1 = t1.getOccurences();
+        const name2 = t2.getOccurences();
         if (name1 < name2) {
           return 1;
         }

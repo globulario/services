@@ -116,7 +116,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			return -1, err
 		}
 	*/
-	
+
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	p.Dir = filepath.Dir(s["Path"].(string))
 
@@ -510,7 +510,20 @@ scrape_configs:
     - targets: ['localhost:9100']
     
 `
-		err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus.yml", []byte(config_), 0644)
+
+		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
+		if err == nil {
+			config_ += `
+  - job_name: 'log_entries_metrics'
+    scrape_interval: 5s
+    static_configs:
+	metrics_path: /metrics
+	scheme: http
+    - targets: ['localhost:` + Utility.ToString(logServiceConfig["Monitoring_Port"]) + `']
+`
+		}
+
+		err = ioutil.WriteFile(config.GetConfigDir()+"/prometheus.yml", []byte(config_), 0644)
 		if err != nil {
 			return err
 		}

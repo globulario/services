@@ -80,8 +80,7 @@ var (
 	rbac_client_ *rbac_client.Rbac_Client
 
 	// Here I will keep files info in cache...
-	//cache *storage_store.Badger_store
-	cache *storage_store.Badger_store
+	cache storage_store.Store
 )
 
 const (
@@ -6342,7 +6341,9 @@ func main() {
 	// set it to true in order to enable GPU acceleration.
 	s_impl.HasEnableGPU = false
 
+	// set the default storage.
 	cache = storage_store.NewBadger_store()
+
 
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
@@ -6402,7 +6403,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	Utility.CreateDirIfNotExist(s_impl.Root + "/cache")
-	err = cache.Open(`{"path":"` + s_impl.Root + `/cache"}`)
+	err = cache.Open(`{"path":"` + s_impl.Root + `", "name":"cache"}`)
 	if err != nil {
 		fmt.Println("fail to open cache with error:", err)
 	}
@@ -6411,94 +6412,96 @@ func main() {
 	go func() {
 
 		event_client, err := getEventClient()
-		title_client, err := getTitleClient()
 		if err == nil {
+			title_client, err := getTitleClient()
+			if err == nil {
 
-			channel_0 := make(chan string)
-			channel_1 := make(chan string)
-			channel_2 := make(chan string)
-			channel_3 := make(chan string)
+				channel_0 := make(chan string)
+				channel_1 := make(chan string)
+				channel_2 := make(chan string)
+				channel_3 := make(chan string)
 
-			// Process request received...
-			go func() {
-				for {
-					select {
-					case path := <-channel_0:
-						// Now I will create the ownership...
-						if strings.HasPrefix(path, "/users/") {
-							values := strings.Split(path, "/")
-							if len(values) > 1 {
-								owner := values[2]
+				// Process request received...
+				go func() {
+					for {
+						select {
+						case path := <-channel_0:
+							// Now I will create the ownership...
+							if strings.HasPrefix(path, "/users/") {
+								values := strings.Split(path, "/")
+								if len(values) > 1 {
+									owner := values[2]
 
-								// Set the owner of the conversation.
-								rbac_client_, err = getRbacClient()
-								if err == nil {
-									err = rbac_client_.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT)
-									if err != nil {
-										fmt.Println("fail to set file owner with error ", err)
+									// Set the owner of the conversation.
+									rbac_client_, err = getRbacClient()
+									if err == nil {
+										err = rbac_client_.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT)
+										if err != nil {
+											fmt.Println("fail to set file owner with error ", err)
+										}
 									}
 								}
 							}
-						}
-						// send to the other channel but dont wait...
-						go func() {
-							channel_1 <- path
-						}()
+							// send to the other channel but dont wait...
+							go func() {
+								channel_1 <- path
+							}()
 
-					case path := <-channel_1:
-						path_ := s_impl.formatPath(path)
-						mac, _ := Utility.MyMacAddr(Utility.MyIP())
-						token, _ := security.GetLocalToken(mac)
-						restoreVideoInfos(title_client, token, path_)
+						case path := <-channel_1:
+							path_ := s_impl.formatPath(path)
+							mac, _ := Utility.MyMacAddr(Utility.MyIP())
+							token, _ := security.GetLocalToken(mac)
+							restoreVideoInfos(title_client, token, path_)
 
-						s_impl.createVideoPreview(path_, 20, 128, false)
-						dir := string(path)[0:strings.LastIndex(string(path), "/")]
-						dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
+							s_impl.createVideoPreview(path_, 20, 128, false)
+							dir := string(path)[0:strings.LastIndex(string(path), "/")]
+							dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
 
-						// remove it from the cache.
-						cache.RemoveItem(path_)
+							// remove it from the cache.
+							cache.RemoveItem(path_)
 
-						// force client to reload their informations.
-						event_client.Publish("reload_dir_event", []byte(dir))
-						go func() {
-							channel_2 <- path
-						}()
+							// force client to reload their informations.
+							event_client.Publish("reload_dir_event", []byte(dir))
+							go func() {
+								channel_2 <- path
+							}()
 
-					case path := <-channel_2:
-						path_ := s_impl.formatPath(path)
-						s_impl.generateVideoPreview(path_, 10, 320, 30, false)
-						s_impl.createVideoTimeLine(path_, 180, .2, false) // 1 frame per 5 seconds.
+						case path := <-channel_2:
+							path_ := s_impl.formatPath(path)
+							s_impl.generateVideoPreview(path_, 10, 320, 30, false)
+							s_impl.createVideoTimeLine(path_, 180, .2, false) // 1 frame per 5 seconds.
 
-					case path := <-channel_3:
-						path_ := s_impl.formatPath(path)
-						err := s_impl.indexFile(path_)
-						if err != nil {
-							fmt.Println("fail to index file with error: ", err)
+						case path := <-channel_3:
+							path_ := s_impl.formatPath(path)
+							err := s_impl.indexFile(path_)
+							if err != nil {
+								fmt.Println("fail to index file with error: ", err)
+							}
 						}
 					}
+				}()
+
+				// generate preview event
+				err := event_client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+					channel_0 <- string(evt.Data)
+				})
+				if err != nil {
+					fmt.Println("Fail to connect to event channel generate_video_preview_event")
 				}
-			}()
 
-			// generate preview event
-			err := event_client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
-				channel_0 <- string(evt.Data)
-			})
-			if err != nil {
-				fmt.Println("Fail to connect to event channel generate_video_preview_event")
+				// index file event
+				err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+					channel_3 <- string(evt.Data)
+				})
+
+				// subscribe to cancel_upload_event event...
+				event_client.Subscribe("cancel_upload_event", s_impl.GetId(), cancelUploadVideoHandeler(s_impl, title_client))
+
+				if err != nil {
+					fmt.Println("Fail to connect to event channel index_file_event")
+				}
+
 			}
-
-			// index file event
-			err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
-				channel_3 <- string(evt.Data)
-			})
-
-			// subscribe to cancel_upload_event event...
-			event_client.Subscribe("cancel_upload_event", s_impl.GetId(), cancelUploadVideoHandeler(s_impl, title_client))
-
-			if err != nil {
-				fmt.Println("Fail to connect to event channel index_file_event")
-			}
-
 		}
 
 	}()

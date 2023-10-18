@@ -94,8 +94,7 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// RBAC store.
-	//permissions *storage_store.Badger_store
-	permissions *storage_store.Badger_store
+	permissions storage_store.Store
 
 	// Here I will keep files info in memory...
 	cache *storage_store.BigCache_store // todo use cache instead of memory...
@@ -1038,21 +1037,22 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
 
-	// Set the cache
-	s_impl.cache = storage_store.NewBigCache_store()
-	s_impl.cache.Open("")
-
 	// The rbac storage.
-	//s_impl.permissions = storage_store.NewBadger_store()
 	s_impl.permissions = storage_store.NewBadger_store()
+	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
+	if err != nil {
+		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
+	}
 
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = config.GetDataDir()
 	}
 
-	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
+	// Set the cache
+	s_impl.cache = storage_store.NewBigCache_store()
+	err = s_impl.cache.Open("")
 	if err != nil {
-		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
+		fmt.Println("fail to read/create cache folder with error: ", s_impl.Root+"/cache", err)
 	}
 
 	// Register the rbac services

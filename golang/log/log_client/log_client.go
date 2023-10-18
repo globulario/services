@@ -253,20 +253,16 @@ func (client *Log_Client) Log(application string, user string, method string, le
 	// Here I set a log information.
 	rqst := new(logpb.LogRqst)
 	info := new(logpb.LogInfo)
-	occurence := new(logpb.Occurence)
-
-	occurence.Application = application
-	occurence.UserName = user
-	occurence.Date = time.Now().Unix()
 
 	info.Method = method
-	info.FunctionName = functionName
 	info.Line = fileLine
 	info.Level = level
+	info.Application = application
 	info.Message = message
+	info.Occurences = 0
 
 	rqst.Info = info
-	rqst.Occurence = occurence
+	
 	_, err := client.c.Log(client.GetCtx(), rqst)
 
 	fmt.Println(application, user, method, level, message)

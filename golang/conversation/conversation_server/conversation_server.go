@@ -121,7 +121,7 @@ type server struct {
 	search_engine *search_engine.BleveSearchEngine
 
 	// Store global conversation information like conversation owner's participant...
-	store *storage_store.Badger_store
+	store storage_store.Store
 
 	// keep in map active conversation db connections.
 	conversations *sync.Map
@@ -556,9 +556,7 @@ func (svr *server) Init() error {
 
 	// Create a new local store.
 	svr.store = storage_store.NewBadger_store()
-
-	return nil
-
+	return svr.store.Open(`{"path":"` + svr.Root + `", "name":"conversations"}`)
 }
 
 // Save the configuration values.
@@ -595,10 +593,6 @@ func (svr *server) getConversationConnection(id string) (*storage_store.Badger_s
 	connection, ok := svr.conversations.Load(dbPath)
 	if !ok {
 		connection = storage_store.NewBadger_store()
-		err := connection.(*storage_store.Badger_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
-		if err != nil {
-			return nil, err
-		}
 		svr.conversations.Store(dbPath, connection)
 	}
 

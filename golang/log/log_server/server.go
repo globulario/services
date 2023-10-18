@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -43,6 +46,7 @@ type server struct {
 	Proto           string
 	Port            int
 	Proxy           int
+	Monitoring_Port int
 	AllowAllOrigins bool
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
@@ -86,6 +90,9 @@ type server struct {
 
 	// Log store.
 	logs *storage_store.Badger_store
+
+	// Prometheus metrics
+	logCount *prometheus.CounterVec
 }
 
 // The path of the configuration.
@@ -476,6 +483,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.Monitoring_Port = 10031
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -502,6 +510,24 @@ func main() {
 	// Register the echo services
 	logpb.RegisterLogServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Now I will set metrics in prometheus for keep occurences timeline...
+	s_impl.logCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "log_entries_total",
+			Help: "Total log entries by log level.",
+		},
+		[]string{"level", "application", "method"},
+	)
+
+	// Register the counter
+	prometheus.MustRegister(s_impl.logCount)
+
+	// start publishing log info to prometheus
+	http.Handle("/metrics", promhttp.Handler())
+	go func() {
+		http.ListenAndServe(":"+Utility.ToString(s_impl.Monitoring_Port), nil)
+	}()
 
 	// Start the service.
 	s_impl.StartService()

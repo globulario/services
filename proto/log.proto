@@ -17,25 +17,19 @@ enum LogLevel{
 	TRACE_MESSAGE=5;
 }
 
-message Occurence {
-	int64 date = 1;
-	string application = 2;
-	string userId = 3;
-	string userName = 4;
-}
 
 message LogInfo{
-	LogLevel level = 1;
-	string method = 2;
-	string message = 3;
-	string function_name = 4;
-	string line = 5;
-	repeated Occurence occurences = 6;
+	string id = 1; // the id of the log
+	LogLevel level = 2; // the level of the log
+	string application = 3;
+	string method = 4; // the method where the error occured
+	string message = 5; // the encounter error message
+	string line = 6; // the line number where the error occured
+	int64 occurences = 7; // the number of time the error occured
 }
 
 message LogRqst{
 	LogInfo info = 1;
-	Occurence occurence = 2;
 }
 
 message LogRsp{
