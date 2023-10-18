@@ -146,6 +146,12 @@ type server struct {
 	// If set to true the gpu will be used to convert video.
 	HasEnableGPU bool
 
+	// Define the backend to use as cache it can be scylla, badger or leveldb the default is bigcache a memory cache.
+	CacheType string
+
+	// Define the cache address in case is not local.
+	CacheAddess string
+
 	// Public contain a list of paths reachable by the file server.
 	Public []string
 
@@ -499,7 +505,7 @@ func (file_server *server) Stop(context.Context, *filepb.StopRequest) (*filepb.S
 
 func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
-	id := path + "_" + Utility.ToString(h) + "x" + Utility.ToString(w)
+	id := path + "_" + Utility.ToString(h) + "x" + Utility.ToString(w) + "@" + s.Domain
 
 	data, err := cache.GetItem(id)
 	if err == nil {
@@ -541,7 +547,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	}
 
 	// Here I will try to get the info from the cache...
-	data, err_ := cache.GetItem(path)
+	data, err_ := cache.GetItem(path + "@" + s.Domain)
 	if err_ == nil {
 		err := jsonpb.UnmarshalString(string(data), info)
 		if err == nil {
@@ -1806,7 +1812,7 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	}
 
 	// Now I will disscociate the file.
-	dissociateFileWithTitle(rqst.GetPath())
+	dissociateFileWithTitle(rqst.GetPath(), file_server.Domain)
 
 	// Refresh playlist...
 	dir := strings.ReplaceAll(filepath.Dir(path), "\\", "/")
@@ -2017,7 +2023,7 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 			}
 		}
 	} else {
-		videos_, err := getFileVideos(path_)
+		videos_, err := getFileVideos(path_, file_server.Domain)
 		if err == nil {
 			videos[path] = videos_
 		}
@@ -2679,12 +2685,12 @@ func getHttpClient() *http.Client {
 
 }
 
-func restoreVideoInfos(client *title_client.Title_Client, token, video_path string) error {
+func restoreVideoInfos(client *title_client.Title_Client, token, video_path, domain string) error {
 
 	fmt.Println("try to restore video info for ", video_path)
 
 	// get video info from metadata
-	infos, err := getVideoInfos(video_path)
+	infos, err := getVideoInfos(video_path, domain)
 	if err != nil {
 		fmt.Println("fail to get video info for file at path: ", video_path)
 		return err
@@ -2990,7 +2996,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 
 		// Restore information as needed...
 		for i := 0; i < len(video_paths); i++ {
-			err := restoreVideoInfos(client, token, video_paths[i])
+			err := restoreVideoInfos(client, token, video_paths[i], file_server.Domain)
 			if err != nil {
 				fmt.Println("fail to restore video infos with error: ", err)
 			}
@@ -3433,7 +3439,7 @@ func (server *server) createVideoMpeg4H264(path string) (string, error) {
 }
 
 // Dissociate file, if the if is deleted...
-func dissociateFileWithTitle(path string) error {
+func dissociateFileWithTitle(path string, domain string) error {
 
 	path = strings.ReplaceAll(path, "\\", "/")
 
@@ -3452,7 +3458,7 @@ func dissociateFileWithTitle(path string) error {
 	}
 
 	// Look for videos
-	videos, err := getFileVideos(path)
+	videos, err := getFileVideos(path, domain)
 	if err == nil {
 		// Here I will asscociate the path
 		for _, video := range videos {
@@ -3463,10 +3469,10 @@ func dissociateFileWithTitle(path string) error {
 	return nil
 }
 
-func getFileVideos(path string) ([]*titlepb.Video, error) {
+func getFileVideos(path string, domain string) ([]*titlepb.Video, error) {
 
-	id := path + ":videos"
 
+	id := path + "@" + domain + ":videos"
 	data, err := cache.GetItem(id)
 	videos := new(titlepb.Videos)
 
@@ -3533,7 +3539,7 @@ func getFileTitles(path string) ([]*titlepb.Title, error) {
 }
 
 // Reassociate a path when it name was change...
-func reassociatePath(path, new_path string) error {
+func reassociatePath(path, new_path, domain string) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	// So here I will try to retreive indexation for the file...
@@ -3553,7 +3559,7 @@ func reassociatePath(path, new_path string) error {
 	}
 
 	// Look for videos
-	videos, err := getFileVideos(path)
+	videos, err := getFileVideos(path, domain)
 
 	if err == nil {
 		// Here I will asscociate the path
@@ -3792,7 +3798,7 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 
 		// reassociate the title here...
 		path_ := strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
-		reassociatePath(path_, path_[0:strings.LastIndex(path_, ".")])
+		reassociatePath(path_, path_[0:strings.LastIndex(path_, ".")], srv.Domain)
 
 		// remove the original file.
 		os.Remove(path) // remove the orignal file.
@@ -4253,7 +4259,7 @@ func getVideoResolution(path string) (int, int) {
 }
 
 // Return the information store in a video file.
-func getVideoInfos(path string) (map[string]interface{}, error) {
+func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 
 	path = strings.ReplaceAll(path, "\\", "/")
 
@@ -4297,7 +4303,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 			}
 
 			// Test for videos
-			videos, err := getFileVideos(path_)
+			videos, err := getFileVideos(path_, domain)
 			if err == nil && videos != nil {
 				if len(videos) > 0 {
 					// Convert the videos info to json string
@@ -5226,7 +5232,7 @@ func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.
 						videos := make(map[string][]*titlepb.Video, 0)
 						mac, _ := Utility.MyMacAddr(Utility.MyIP())
 						token, _ := security.GetLocalToken(mac)
-						err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name())
+						err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), file_server.Domain)
 						if err != nil {
 							err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
 							if err != nil {
@@ -5615,7 +5621,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			// remove file with no asscociation...
 			if strings.HasSuffix(f.Name(), ".mp4") {
 				videos := make(map[string][]*titlepb.Video, 0)
-				err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name())
+				err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), file_server.Domain)
 				if err != nil {
 					err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
 					if err != nil {
@@ -6323,6 +6329,7 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
+	s_impl.CacheAddess = Utility.MyLocalIP()
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -6340,10 +6347,6 @@ func main() {
 
 	// set it to true in order to enable GPU acceleration.
 	s_impl.HasEnableGPU = false
-
-	// set the default storage.
-	cache = storage_store.NewBadger_store()
-
 
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
@@ -6389,6 +6392,19 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if s_impl.CacheType == "badger" {
+		cache = storage_store.NewBadger_store()
+	} else if s_impl.CacheType == "scylla" {
+		// set the default storage.
+		cache = storage_store.NewScylla_store(s_impl.CacheAddess, "files")
+	}else if s_impl.CacheType == "leveldb" {
+		// set the default storage.
+		cache = storage_store.NewLevelDB_store()
+	}else {
+		// set in memory store
+		cache = storage_store.NewBigCache_store()
+	}
+
 	if len(s_impl.MaximumVideoConversionDelay) == 0 {
 		s_impl.StartVideoConversionHour = "00:00"
 
@@ -6401,9 +6417,9 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
 	Utility.CreateDirIfNotExist(s_impl.Root + "/cache")
-	err = cache.Open(`{"path":"` + s_impl.Root + `", "name":"cache"}`)
+
+	err = cache.Open(`{"path":"` + s_impl.Root + `", "name":"files"}`)
 	if err != nil {
 		fmt.Println("fail to open cache with error:", err)
 	}
@@ -6451,7 +6467,7 @@ func main() {
 							path_ := s_impl.formatPath(path)
 							mac, _ := Utility.MyMacAddr(Utility.MyIP())
 							token, _ := security.GetLocalToken(mac)
-							restoreVideoInfos(title_client, token, path_)
+							restoreVideoInfos(title_client, token, path_, s_impl.Domain)
 
 							s_impl.createVideoPreview(path_, 20, 128, false)
 							dir := string(path)[0:strings.LastIndex(string(path), "/")]

@@ -34,7 +34,7 @@ func NewScylla_store(address string, keySpace string) *ScyllaStore {
 	`
 
 	fmt.Println("ScyllaDB store create keyspace")
-	adminCluster := gocql.NewCluster("127.0.0.1") // Replace with your ScyllaDB cluster IP address
+	adminCluster := gocql.NewCluster(address) // Replace with your ScyllaDB cluster IP address
 	adminCluster.Keyspace = "system"              // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
