@@ -152,6 +152,9 @@ type server struct {
 	// Define the cache address in case is not local.
 	CacheAddess string
 
+	// the number of replication for the cache.
+	CacheReplicationFactor int
+
 	// Public contain a list of paths reachable by the file server.
 	Public []string
 
@@ -6329,7 +6332,7 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
-	s_impl.CacheAddess = Utility.MyLocalIP()
+	s_impl.CacheAddess, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -6344,6 +6347,7 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
+	s_impl.CacheReplicationFactor = 3
 
 	// set it to true in order to enable GPU acceleration.
 	s_impl.HasEnableGPU = false
@@ -6396,7 +6400,7 @@ func main() {
 		cache = storage_store.NewBadger_store()
 	} else if s_impl.CacheType == "scylla" {
 		// set the default storage.
-		cache = storage_store.NewScylla_store(s_impl.CacheAddess, "files")
+		cache = storage_store.NewScylla_store(s_impl.CacheAddess, "files", s_impl.CacheReplicationFactor)
 	}else if s_impl.CacheType == "leveldb" {
 		// set the default storage.
 		cache = storage_store.NewLevelDB_store()

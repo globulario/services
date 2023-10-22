@@ -1466,7 +1466,7 @@ func main() {
 
 	// Backend informations.
 	s_impl.Backend_type = "SQL" // use SQL as default backend.
-	s_impl.Backend_address = "localhost"
+	s_impl.Backend_address =  s_impl.Address
 	s_impl.Backend_replication_factor = 1
 	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
 	s_impl.Backend_user = "sa"
@@ -1518,6 +1518,10 @@ func main() {
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+	}
+
+	if s_impl.Backend_address == "localhost" {
+		s_impl.Backend_address = s_impl.Address
 	}
 
 	if s_impl.SessionTimeout == 0 {

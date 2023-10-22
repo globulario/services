@@ -99,6 +99,15 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
+	// The cache address
+	CacheAddress string
+
+	// The replication factor
+	CacheReplicationFactor int
+
+	// The type of cache to use.
+	CacheType string
+
 	// Contain indexation.
 	indexs map[string]bleve.Index
 
@@ -1076,17 +1085,9 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	associations := srv.getAssociations(rqst.IndexPath)
-	if associations == nil {
-		//associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-		srv.associations.Store(rqst.IndexPath, associations)
-
-		// open in it own thread
-		err := associations.Open(`{"path":"` + rqst.IndexPath + `","name":"` + filepath.Base(rqst.IndexPath) + `"}`)
-		if err != nil {
-			return nil, err
-		}
+	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
+	if err != nil {
+		return  nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -1155,6 +1156,37 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
 }
 
+// Return the store.
+func (srv *server) getStore(name, path string) (storage_store.Store, error) {
+
+	// check if the store is already open...
+	if store, ok := srv.associations.Load(name); ok {
+		return store.(storage_store.Store), nil
+	}
+
+	var store storage_store.Store
+	if srv.CacheType == "badger" {
+		store = storage_store.NewBadger_store()
+	} else if srv.CacheType == "leveldb" {
+		store = storage_store.NewLevelDB_store()
+	} else if srv.CacheType == "scylla" {
+		store = storage_store.NewScylla_store(srv.CacheAddress, name, srv.CacheReplicationFactor)
+	} else {
+		store = storage_store.NewBigCache_store()
+	}
+
+	err := store.Open(`{"path":"` + path + `","name":"` + name + `"}`)
+
+	// open in it own thread
+	if err != nil {
+		return nil, err
+	}
+
+	srv.associations.Store(name, store)
+
+	return store, nil
+}
+
 func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath string) error {
 	if !Utility.Exists(indexPath) {
 		return errors.New("no database found at path " + indexPath)
@@ -1180,19 +1212,9 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		uuid = Utility.CreateFileChecksum(absoluteFilePath)
 	}
 
-	associations := srv.getAssociations(indexPath)
-
-	if associations == nil {
-		// associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-
-		srv.associations.Store(indexPath, associations)
-		// open in it own thread
-		err := associations.Open(`{"path":"` + indexPath + `","name":"` + filepath.Base(indexPath) + `"}`)
-		// open in it own thread
-		if err != nil {
-			return err
-		}
+	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
+	if err != nil {
+		return  err
 	}
 
 	file_data, err := associations.GetItem(uuid)
@@ -1309,17 +1331,9 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
-	associations := srv.getAssociations(indexPath)
-	if associations == nil {
-		//associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-
-		srv.associations.Store(indexPath, associations)
-
-		err := associations.Open(`{"path":"` + indexPath + `","name":"` + filepath.Base(indexPath) + `"}`)
-		if err != nil {
-			return nil, err
-		}
+	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
+	if err != nil {
+		return nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2019,18 +2033,9 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	associations := srv.getAssociations(rqst.IndexPath)
-
-	if associations == nil {
-		//associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-
-		srv.associations.Store(rqst.IndexPath, associations)
-		// open in it own thread
-		err := associations.Open(`{"path":"` + rqst.IndexPath + `","name":"` + filepath.Base(rqst.IndexPath) + `"}`)
-		if err != nil {
-			return nil, err
-		}
+	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
+	if err != nil {
+		return  nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2071,16 +2076,9 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	}
 
 	// I will use the file checksum as file id...
-	associations := srv.getAssociations(indexPath)
-
-	if associations == nil {
-		associations = storage_store.NewBadger_store()
-		srv.associations.Store(indexPath, associations)
-		// open in it own thread
-		err := associations.Open(`{"path":"` + indexPath + `", "name":"` + filepath.Base(indexPath) + `"}`)
-		if err != nil {
-			return nil, err
-		}
+	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
+	if err != nil {
+		return  nil, err
 	}
 
 	data, err := associations.GetItem(titleId)
@@ -2300,19 +2298,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			Summary: summary,
 		},
 	})
-
-	associations := srv.getAssociations(rqst.IndexPath)
-	if associations == nil {
-		//associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-		srv.associations.Store(rqst.IndexPath, associations)
-		// open in it own thread
-
-		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"` + filepath.Base(rqst.IndexPath) + `"}`)
-		if err != nil {
-			return err
-		}
-	}
 
 	// Now I will generate the hits informations...
 	for i, hit := range result.Hits {
@@ -2887,18 +2872,9 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-	associations := srv.getAssociations(rqst.IndexPath)
-
-	if associations == nil {
-		//associations = storage_store.NewBadger_store()
-		associations = storage_store.NewBadger_store()
-		srv.associations.Store(rqst.IndexPath, associations)
-
-		// open in it own thread
-		err := associations.Open(`{"path":"` + rqst.IndexPath + `", "name":"` + filepath.Base(rqst.IndexPath) + `"}`)
-		if err != nil {
-			return nil, err
-		}
+	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
+	if err != nil {
+		return  nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2984,6 +2960,8 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.associations = new(sync.Map)
+	s_impl.CacheAddress = Utility.MyLocalIP()
+	s_impl.CacheReplicationFactor = 3
 
 	// Set Permissions.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/title.TitleService/DeleteVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}

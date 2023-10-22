@@ -55,6 +55,7 @@ require (
 
 require (
 	github.com/PuerkitoBio/goquery v1.5.1 // indirect
+	github.com/allegro/bigcache/v3 v3.1.0 // indirect
 	github.com/andybalholm/cascadia v1.2.0 // indirect
 	github.com/antchfx/htmlquery v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.2.4 // indirect

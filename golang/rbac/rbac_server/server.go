@@ -71,6 +71,8 @@ type server struct {
 	LastError       string
 	State           string
 	ModTime         int64
+	CacheAddress    string
+	CacheType       string
 
 	TLS bool
 
@@ -1022,6 +1024,8 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.CacheAddress = s_impl.Address
+	s_impl.CacheType = ""
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -1038,7 +1042,12 @@ func main() {
 	}
 
 	// The rbac storage.
-	s_impl.permissions = storage_store.NewBadger_store()
+	//s_impl.permissions = storage_store.NewBadger_store()
+	if s_impl.CacheType == "scylla" {
+		s_impl.permissions = storage_store.NewScylla_store(s_impl.CacheAddress, `permissions`, 3)
+	} else {
+		s_impl.permissions = storage_store.NewBadger_store()
+	}
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
 	if err != nil {
 		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
