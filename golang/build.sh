@@ -34,7 +34,6 @@ export ServicesRoot=/home/dave/globulario/services
 ./blog/blog_server/blog_server &
 ./applications_manager/applications_manager_server/applications_manager_server &
 ./services_manager/services_manager_server/services_manager_server &
-./authentication/authentication_server/authentication_server &
 ./catalog/catalog_server/catalog_server &
 ./conversation/conversation_server/conversation_server &
 ./discovery/discovery_server/discovery_server &
