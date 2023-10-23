@@ -352,21 +352,27 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 			return nil
 		}
 
+
 		service, exists := serviceMap[serviceName]
 		if !exists {
 			return fmt.Errorf("service not found: %s", serviceName)
 		}
 
+		visited[serviceName] = true
+
 		for _, dependency := range service["Dependencies"].([]interface{}) {
 			if !visited[dependency.(string)] {
 				if err := visit(dependency.(string)); err != nil {
+					fmt.Println("fail to add dependency with error: ", err)
 					return err
 				}
 			}
 		}
+		
+		if !Utility.Contains(orderedServices, serviceName){
+			orderedServices = append(orderedServices, serviceName)
+		}
 
-		visited[serviceName] = true
-		orderedServices = append(orderedServices, serviceName)
 		return nil
 	}
 
