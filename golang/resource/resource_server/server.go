@@ -807,9 +807,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM Accounts WHERE _id='` + id + `' OR name='` + name + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -927,9 +925,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"$or":[{"_id":"` + targetId + `"},{"name":"` + targetId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `' OR name='` + targetId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1006,9 +1002,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	var q string // query string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1047,11 +1041,16 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		if err != nil {
 			return err
 		}
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
 		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+		if p.GetStoreType() == "SCYLLADB" {
+			// the foreign key is not supported by scyllaDB.
+			createTableSQL = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+		}
+		
 		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, nil, 0)
 
 		// be sure that the target id is a valid id.
@@ -1176,9 +1175,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB"  {
 		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1232,9 +1229,7 @@ func (resource_server *server) CreateAccountDir() error {
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	}  else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
 		q = `SELECT * FROM Accounts`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1289,9 +1284,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
 		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1351,9 +1344,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + applicationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla query string here...
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
 		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())

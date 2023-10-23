@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/davecourtois/Utility"
 	"github.com/gocql/gocql"
 )
 
 /**
  * The ScyllaDB store.
  */
- type ScyllaStore struct {
+type ScyllaStore struct {
 	/** The cluster */
 	cluster *gocql.ClusterConfig
 
-	/** The session */
-	session *gocql.Session
+	/** the connections... */
+	sessions map[string]*gocql.Session
 }
 
 func (store *ScyllaStore) GetStoreType() string {
@@ -23,6 +25,15 @@ func (store *ScyllaStore) GetStoreType() string {
 }
 
 func (store *ScyllaStore) Connect(id string, host string, port int32, user string, password string, keyspace string, timeout int32, options_str string) error {
+
+	uuid := Utility.GenerateUUID(host + keyspace)
+
+	if store.sessions == nil {
+		store.sessions = make(map[string]*gocql.Session)
+	} else if _, ok := store.sessions[uuid]; ok {
+		return nil
+	}
+
 	// Create the cluster
 	cluster := gocql.NewCluster(host)
 	cluster.Port = int(port)
@@ -41,7 +52,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 
 	// Store the session
 	store.cluster = cluster
-	store.session = session
+	store.sessions[uuid] = session
 
 	return nil
 }
@@ -54,11 +65,11 @@ func (store *ScyllaStore) Ping(ctx context.Context, connectionId string) error {
 	return errors.New("not implemented")
 }
 
-func (store *ScyllaStore) CreateDatabase(ctx context.Context, connectionId string, name string) error {
+func (store *ScyllaStore) CreateDatabase(ctx context.Context, connectionId string, keyspace string) error {
 	return errors.New("not implemented")
 }
 
-func (store *ScyllaStore) DeleteDatabase(ctx context.Context, connectionId string, name string) error {
+func (store *ScyllaStore) DeleteDatabase(ctx context.Context, connectionId string, keyspace string) error {
 	return errors.New("not implemented")
 }
 
@@ -106,15 +117,14 @@ func (store *ScyllaStore) Aggregate(ctx context.Context, connectionId string, ke
 	return nil, errors.New("not implemented")
 }
 
-func (store *ScyllaStore) CreateCollection(ctx context.Context, connectionId string, database string, collection string, options string) error {
+func (store *ScyllaStore) CreateCollection(ctx context.Context, connectionId string, keyspace string, collection string, options string) error {
 	return errors.New("not implemented")
 }
 
-func (store *ScyllaStore) DeleteCollection(ctx context.Context, connectionId string, database string, collection string) error {
+func (store *ScyllaStore) DeleteCollection(ctx context.Context, connectionId string, keyspace string, collection string) error {
 	return errors.New("not implemented")
 }
 
 func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
 	return errors.New("not implemented")
 }
-
