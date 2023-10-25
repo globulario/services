@@ -467,9 +467,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	} else if p.GetStoreType() == "SCYLLADB" {
 		setPassword = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		fields := []string{"password"}
-		values := []interface{}{string(pwd)}
-		setPassword = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+		setPassword =  `{"$set":{"password":"` + string(pwd) + `"}}`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -511,16 +509,13 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 
 	var setAccount string
 	if p.GetStoreType() == "MONGODB" {
-		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `"}, "$set":{"email":"` + rqst.Account.Email + `"}, "$set":{"domain":"` + rqst.Account.Domain + `"} }`
+		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
 	} else if p.GetStoreType() == "SCYLLADB" {
 		setAccount = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
 
 		// Set the field and the values to update.
-		fields := []string{"name", "email", "domain"}
-		values := []interface{}{rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain}
-		setAccount = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
-
+		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3177,10 +3172,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 		q = ``        // TODO scylla db query.
 		setState = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
-		fields := []string{"state"}
-		values := []interface{}{1}
-		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+		setState = `{ "$set":{"state":1}}`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -3259,9 +3251,7 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 		setState = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
-		fields := []string{"state"}
-		values := []interface{}{2}
-		setState = Utility.ToString(map[string]interface{}{"fields": fields, "values": values})
+		setState = `{ "$set":{"state":2}}`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}

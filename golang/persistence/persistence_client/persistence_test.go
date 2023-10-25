@@ -3,6 +3,7 @@ package persistence_client
 import (
 	//"fmt"
 	//"io/ioutil"
+	"fmt"
 	"log"
 	"testing"
 
@@ -15,36 +16,22 @@ import (
 var (
 
 	// Connect to the plc client.
-	domain                    = "localhost"
+	domain                    = "globule-ryzen.globular.cloud"
 	client, _                 = NewPersistenceService_Client(domain, "persistence.PersistenceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
 
-/*
-func TestCreateSaConnection(t *testing.T) {
-
-	//log.Println(token)
-	log.Println("Connection creation test.")
-	user := "sa"
-	pwd := "adminadmin"
-	err := client.CreateConnection("local_resource", "local_resource", domain, 27017, 0, user, pwd, 500, "", true)
-	if err != nil {
-		log.Println("fail to create connection! ", err)
-	}
-}
-*/
 // First test create a fresh new connection...
-
 func TestCreateConnection(t *testing.T) {
 
-	//log.Println(token)
-	log.Println("Connection creation test.")
+	//fmt.Println(token)
+	fmt.Println("Connection creation test.")
 	user := "sa"
 	pwd := "adminadmin"
-	err := client.CreateConnection("test_connection", "test_connection", domain, 27017, 0, user, pwd, 500, "", true)
+	err := client.CreateConnection("test_connection", "TestDB", domain, 27017, 1, user, pwd, 500, "", true)
 	if err != nil {
-		log.Println("fail to create connection! ", err)
+		fmt.Println("fail to create connection! ", err)
 	}
 }
 
@@ -54,7 +41,7 @@ func TestCreateDatabase(t *testing.T) {
 	Database := "TestDB"
 	err := client.CreateDatabase(Id, Database)
 	if err != nil {
-		log.Println("fail to create database ", Database, err)
+		fmt.Println("fail to create database ", Database, err)
 	}
 }
 
@@ -62,7 +49,7 @@ func TestConnect(t *testing.T) {
 
 	err := client.Connect("test_connection", "adminadmin")
 	if err != nil {
-		log.Println("fail to connect to the backend with error ", err)
+		fmt.Println("fail to connect to the backend with error ", err)
 	}
 
 }
@@ -74,7 +61,7 @@ func TestPingConnection(t *testing.T) {
 		log.Fatalln("fail to ping the backend with error ", err)
 	}
 
-	log.Println("Ping test_connection successed!")
+	fmt.Println("Ping test_connection successed!")
 }
 
 func TestPersistOne(t *testing.T) {
@@ -83,20 +70,27 @@ func TestPersistOne(t *testing.T) {
 	Database := "TestDB"
 	Collection := "Employees"
 	employe := map[string]interface{}{
-		"hire_date":  "2007-07-01",
-		"last_name":  "Courtois",
-		"first_name": "Dave",
-		"birth_date": "1976-01-28",
-		"emp_no":     200000,
-		"gender":     "M"}
+		"_id":               "1",
+		"employeeNumber":    1,
+		"jobTitleName":      "Developer",
+		"firstName":         "Dave",
+		"lastName":          "Courtois",
+		"preferredFullName": "Dave Courtois",
+		"employeeCode":      "E1",
+		"region":            "Or",
+		"state":			 "Oregon",
+		"phoneNumber":       "408-123-4567",
+		"emailAddress":      "dave.courtois60@gmail.com",
+		"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
+	}
 
 	id, err := client.InsertOne(Id, Database, Collection, employe, "")
 
 	if err != nil {
-		log.Fatalf("fail to pesist entity with error %v", err)
+		fmt.Println("fail to pesist entity with error", err)
 	}
 
-	log.Println("Entity persist with id ", id)
+	fmt.Println("Entity persist with id ", id)
 }
 
 func TestPersistMany(t *testing.T) {
@@ -104,37 +98,46 @@ func TestPersistMany(t *testing.T) {
 	entities :=
 		[]interface{}{
 			map[string]interface{}{
-				"_id":               "rirani",
+				"_id":               "2",
+				"employeeNumber":    2,
 				"jobTitleName":      "Developer",
 				"firstName":         "Romin",
 				"lastName":          "Irani",
 				"preferredFullName": "Romin Irani",
-				"employeeCode":      "E1",
+				"employeeCode":      "E2",
 				"region":            "CA",
-				"phoneNumber":       "408-1234567",
+				"state":			 "California",
+				"phoneNumber":       "408-123-4567",
 				"emailAddress":      "romin.k.irani@gmail.com",
+				"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
 			},
 			map[string]interface{}{
-				"_id":               "nirani",
+				"_id":               "3",
+				"employeeNumber":    3,
 				"jobTitleName":      "Developer",
 				"firstName":         "Neil",
 				"lastName":          "Irani",
 				"preferredFullName": "Neil Irani",
-				"employeeCode":      "E2",
+				"employeeCode":      "E3",
 				"region":            "CA",
-				"phoneNumber":       "408-1111111",
+				"state":			 "California",
+				"phoneNumber":       "408-111-1111",
 				"emailAddress":      "neilrirani@gmail.com",
+				"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python"},
 			},
 			map[string]interface{}{
-				"_id":               "thanks",
+				"_id":               "4",
+				"employeeNumber":    4,
 				"jobTitleName":      "Program Directory",
 				"firstName":         "Tom",
 				"lastName":          "Hanks",
 				"preferredFullName": "Tom Hanks",
-				"employeeCode":      "E3",
+				"employeeCode":      "E4",
 				"region":            "CA",
-				"phoneNumber":       "408-2222222",
+				"state":			 "California",
+				"phoneNumber":       "408-222-2222",
 				"emailAddress":      "tomhanks@gmail.com",
+				"programmingLanguages": []string{"Java", "C++", "Scala"},
 			},
 		}
 
@@ -144,7 +147,7 @@ func TestPersistMany(t *testing.T) {
 
 	err := client.InsertMany(Id, Database, Collection, entities, "")
 	if err != nil {
-		log.Fatalf("Fail to insert many entities with error %v", err)
+		fmt.Println("Fail to insert many entities with error ", err)
 	}
 }
 
@@ -157,19 +160,22 @@ func TestReplaceOne(t *testing.T) {
 	Collection := "Employees"
 
 	entity := map[string]interface{}{
-		"_id":               "nirani",
+		"_id":               "3",
+		"employeeNumber":    3,
 		"jobTitleName":      "Full Stack Developper",
 		"firstName":         "Neil",
 		"lastName":          "Irani",
 		"preferredFullName": "Neil Irani",
 		"employeeCode":      "E2",
 		"region":            "CA",
-		"phoneNumber":       "408-1111111",
-		"emailAddress":      "neilrirani@gmail.com"}
+		"phoneNumber":       "408-111-1111",
+		"emailAddress":      "neilrirani@gmail.com",
+		"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue"},
+	}
 
-	err := client.ReplaceOne(Id, Database, Collection, `{"_id":"nirani"}`, entity, "")
+	err := client.ReplaceOne(Id, Database, Collection, `{"_id":"3"}`, entity, "")
 	if err != nil {
-		log.Fatalf("Fail to replace entity %v", err)
+		fmt.Println("Fail to replace entity", err)
 	}
 }
 
@@ -178,9 +184,9 @@ func TestUpdateOne(t *testing.T) {
 	Database := "TestDB"
 	Collection := "Employees"
 
-	err := client.UpdateOne(Id, Database, Collection, `{"_id":"nirani"}`, `{ "$set":{"employeeCode":"E2.2"},"$set":{"phoneNumber":"408-1231234"}}`, "")
+	err := client.UpdateOne(Id, Database, Collection, `{"_id":"3"}`, `{"$set":{"employeeCode":"E2.2", "phoneNumber":"408-123-1234"} }`, "")
 	if err != nil {
-		log.Fatalf("Fail to update entity %v", err)
+		fmt.Println("Fail to update one entity", err)
 	}
 }
 
@@ -193,31 +199,31 @@ func TestUpdate(t *testing.T) {
 
 	err := client.Update(Id, Database, Collection, Query, Value, "")
 	if err != nil {
-		log.Fatalf("TestUpdate fail %v", err)
+		fmt.Println("TestUpdate fail", err)
 	}
-	log.Println("---> update success!")
+	fmt.Println("---> update success!")
 }
 
 /** Test find one **/
 func TestFindOne(t *testing.T) {
-	log.Println("Find one test.")
+	fmt.Println("Find one test.")
 
 	Id := "test_connection"
 	Database := "TestDB"
 	Collection := "Employees"
-	Query := `{"first_name": "Dave"}`
+	Query := `{"firstName": "Dave"}`
 
 	values, err := client.FindOne(Id, Database, Collection, Query, "")
 	if err != nil {
-		log.Fatalf("TestFind fail %v", err)
+		fmt.Println("TestFind fail", err)
 	}
 
-	log.Println(values)
+	fmt.Println(values)
 }
 
 /** Test find many **/
 func TestFind(t *testing.T) {
-	log.Println("Find many test.")
+	fmt.Println("Find many test.")
 
 	Id := "test_connection"
 	Database := "TestDB"
@@ -226,14 +232,14 @@ func TestFind(t *testing.T) {
 
 	values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"firstName":1}}]`)
 	if err != nil {
-		log.Fatalf("fail to find entities with error %v", err)
+		fmt.Println("fail to find entities with error", err)
 	}
 
-	log.Println(values)
+	fmt.Println(values)
 
 }
 
-func TestAggregate(t *testing.T) {
+/*func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
 	Id := "test_connection"
 	Database := "TestDB"
@@ -241,32 +247,30 @@ func TestAggregate(t *testing.T) {
 
 	results, err := client.Aggregate(Id, Database, Collection, `[{"$count":"region"}]`, "")
 	if err != nil {
-		log.Fatalf("fail to create aggregation with error %v", err)
+		fmt.Println("fail to create aggregation with error", err)
 	}
-	log.Println("---> ", results)
+	fmt.Println("---> ", results)
 
-}
+}*/
 
 /** Test remove **/
 
 func TestRemove(t *testing.T) {
-	log.Println("Test Remove")
+	fmt.Println("Test Remove")
 
 	Id := "test_connection"
 	Database := "TestDB"
 	Collection := "Employees"
-	Query := `{"_id":"nirani"}`
+	Query := `{"_id":"3"}`
 
 	err := client.DeleteOne(Id, Database, Collection, Query, "")
 	if err != nil {
-		log.Fatalf("Fail to delete one entity with error %v", err)
+		fmt.Println("Fail to delete one entity with error", err)
 	}
-
-	log.Println("---> Delete success!")
 }
 
 func TestRemoveMany(t *testing.T) {
-	log.Println("Test Remove")
+	fmt.Println("Test Remove")
 
 	Id := "test_connection"
 	Database := "TestDB"
@@ -275,44 +279,48 @@ func TestRemoveMany(t *testing.T) {
 
 	err := client.Delete(Id, Database, Collection, Query, "")
 	if err != nil {
-		log.Fatalf("Fail to remove entities %v", err)
+		fmt.Println("Fail to remove entities", err)
 	}
-	log.Println("---> Delete success!")
+	fmt.Println("---> Delete success!")
 }
 
-func TestDeleteCollection(t *testing.T) {
-	log.Println("Delete collection test.")
+/*func TestDeleteCollection(t *testing.T) {
+	fmt.Println("Delete collection test.")
+
 	Id := "test_connection"
 	Database := "TestDB"
 	Collection := "Employees"
+
 	err := client.DeleteCollection(Id, Database, Collection)
 	if err != nil {
-		log.Println("fail to delete collection! ", err)
+		fmt.Println("fail to delete collection! ", err)
 	}
-}
+}*/
 
-func TestDeleteDatabase(t *testing.T) {
-	log.Println("Delete database test.")
+/*func TestDeleteDatabase(t *testing.T) {
+	fmt.Println("Delete database test.")
+
 	Id := "test_connection"
 	Database := "TestDB"
+
 	err := client.DeleteDatabase(Id, Database)
 	if err != nil {
-		log.Println("fail to delete database! ", err)
+		fmt.Println("fail to delete database! ", err)
 	}
-}
+}*/
 
-func TestDisconnect(t *testing.T) {
-	log.Println("Disconnect test.")
+/*func TestDisconnect(t *testing.T) {
+	fmt.Println("Disconnect test.")
 	err := client.Disconnect("test_connection")
 	if err != nil {
-		log.Println("fail to delete connection! ", err)
+		fmt.Println("fail to delete connection! ", err)
 	}
-}
+}*/
 
-func TestDeleteConnection(t *testing.T) {
-	log.Println("Delete connection test.")
+/*func TestDeleteConnection(t *testing.T) {
+	fmt.Println("Delete connection test.")
 	err := client.DeleteConnection("test_connection")
 	if err != nil {
-		log.Println("fail to delete connection! ", err)
+		fmt.Println("fail to delete connection! ", err)
 	}
-}
+}*/

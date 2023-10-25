@@ -3474,7 +3474,6 @@ func dissociateFileWithTitle(path string, domain string) error {
 
 func getFileVideos(path string, domain string) ([]*titlepb.Video, error) {
 
-
 	id := path + "@" + domain + ":videos"
 	data, err := cache.GetItem(id)
 	videos := new(titlepb.Videos)
@@ -5061,13 +5060,20 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				video, err = indexXhamsterVideo(token, video_id, video_url, index_path, video_path, strings.ReplaceAll(file_path, "/.hidden/", ""))
 			} else if strings.Contains(video_url, "youtube") {
 				video, err = indexYoutubeVideo(token, video_id, video_url, index_path, video_path, strings.ReplaceAll(file_path, "/.hidden/", ""))
-				if info["thumbnails"] != nil {
-					if len(info["thumbnails"].([]interface{})) > 0 {
-						if info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"] != nil {
-							video.Poster.URL = info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"].(string)
-						} else {
-							video.Poster.URL = ""
+				if err == nil {
 
+					if info["thumbnails"] != nil {
+						if video.Poster == nil {
+							video.Poster = new(titlepb.Poster)
+						}
+
+						if len(info["thumbnails"].([]interface{})) > 0 {
+							if info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"] != nil {
+								video.Poster.URL = info["thumbnails"].([]interface{})[0].(map[string]interface{})["url"].(string)
+							} else {
+								video.Poster.URL = ""
+
+							}
 						}
 					}
 				}
@@ -5078,6 +5084,9 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 				if info["fulltitle"] != nil {
 					video.Description = info["fulltitle"].(string)
 					if info["thumbnail"] != nil {
+						if video.Poster == nil {
+							video.Poster = new(titlepb.Poster)
+						}
 						video.Poster.URL = info["thumbnail"].(string)
 					}
 				}
@@ -6401,10 +6410,10 @@ func main() {
 	} else if s_impl.CacheType == "scylla" {
 		// set the default storage.
 		cache = storage_store.NewScylla_store(s_impl.CacheAddess, "files", s_impl.CacheReplicationFactor)
-	}else if s_impl.CacheType == "leveldb" {
+	} else if s_impl.CacheType == "leveldb" {
 		// set the default storage.
 		cache = storage_store.NewLevelDB_store()
-	}else {
+	} else {
 		// set in memory store
 		cache = storage_store.NewBigCache_store()
 	}

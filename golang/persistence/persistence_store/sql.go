@@ -19,7 +19,7 @@ import (
 )
 
 // Connection represent a connection to a SQL database.
-type Connection struct {
+type SqlConnection struct {
 	Id        string
 	Host      string
 	Token     string
@@ -32,7 +32,7 @@ type Connection struct {
  */
 type SqlStore struct {
 	/** The connections */
-	connections map[string]Connection
+	connections map[string]SqlConnection
 }
 
 func (store *SqlStore) GetStoreType() string {
@@ -46,6 +46,18 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	if len(id) == 0 {
 		return errors.New("the connection id is required")
+	}
+
+	if store.connections != nil {
+		if _, ok := store.connections[id]; ok {
+			if store.connections[id].databases != nil {
+				if _, ok := store.connections[id].databases[database]; ok {
+					return nil
+				}
+			}
+		}
+	} else {
+		store.connections = make(map[string]SqlConnection)
 	}
 
 	if len(host) == 0 {
@@ -111,20 +123,21 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	Utility.CreateDirIfNotExist(path)
 
 	// Create the connection.
-	connection := Connection{
-		Id:        id,
-		Host:      host,
-		Token:     token,
-		Path:      path,
-		databases: make(map[string]*sql.DB, 0),
-	}
+	var connection SqlConnection
+	if _, ok := store.connections[id]; ok {
+		connection = store.connections[id]
+	} else {
+		connection = SqlConnection{
+			Id:        id,
+			Host:      host,
+			Token:     token,
+			Path:      path,
+			databases: make(map[string]*sql.DB, 0),
+		}
 
-	if store.connections == nil {
-		store.connections = make(map[string]Connection, 0)
+		// Save the connection.
+		store.connections[id] = connection
 	}
-
-	// Save the connection.
-	store.connections[id] = connection
 
 	// Create the database if it does not exist.
 	databasePath := connection.Path + "/" + database + ".db"
@@ -133,11 +146,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return err
-	}
-
-	// keep the database reference.
-	if connection.databases == nil {
-		connection.databases = make(map[string]*sql.DB, 0)
 	}
 
 	connection.databases[database] = db
@@ -362,7 +370,6 @@ func (store *SqlStore) QueryContext(connectionId string, database string, query 
 	result := make(map[string]interface{}, 0)
 	result["header"] = header
 	result["data"] = rows_
-
 	// I will send back the result to the caller.
 	result_, _ := Utility.ToJson(result)
 	return result_, nil
@@ -959,48 +966,55 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 	return objects, nil
 }
 
+func (store *SqlStore) formatQuery(table, query string) (string, error) {
+	if query == "{}" {
+		query = fmt.Sprintf("SELECT * FROM %s", table)
+	} else {
+		parameters := make(map[string]interface{}, 0)
+		err := json.Unmarshal([]byte(query), &parameters)
+		if err != nil {
+			return "", err
+		}
+
+		// I will build the query here.
+		query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
+		for key, value := range parameters {
+			if reflect.TypeOf(value).Kind() == reflect.String {
+				query += fmt.Sprintf("%s = '%v' AND ", key, value)
+			} else if reflect.TypeOf(value).Kind() == reflect.Slice {
+				if key == "$and" || key == "$or" {
+					query += store.getParameters(key, value.([]interface{}))
+				}
+			}
+
+		}
+
+		query = strings.TrimSuffix(query, " AND ")
+	}
+
+	return query, nil
+}
+
 func (store *SqlStore) FindOne(ctx context.Context, connectionId string, database string, table string, query string, options string) (interface{}, error) {
 
 	if len(query) == 0 {
 		return nil, errors.New("query is empty")
 	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
-		if query == "{}" {
-			query = fmt.Sprintf("SELECT * FROM %s", table)
-		} else {
-			parameters := make(map[string]interface{}, 0)
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return nil, err
-			}
-
-			// I will build the query here.
-			query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
-			for key, value := range parameters {
-				if reflect.TypeOf(value).Kind() == reflect.String {
-					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-					if key == "$and" || key == "$or" {
-						query += store.getParameters(key, value.([]interface{}))
-					}
-				}
-
-			}
-
-			query = strings.TrimSuffix(query, " AND ")
-
+		var err error
+		query, err = store.formatQuery(table, query)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	str, err := store.QueryContext(connectionId, database, query, "[]")
 	if err != nil {
-		fmt.Println("Error executing query: ", query, err)
 		return nil, err
 	}
 
 	data := make(map[string]interface{}, 0)
 	err = json.Unmarshal([]byte(str), &data)
 	if err != nil {
-		fmt.Print("Error unmarshalling result: ", str, err)
 		return nil, err
 	}
 
@@ -1051,30 +1065,10 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
 	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
-		if query == "{}" {
-			query = fmt.Sprintf("SELECT * FROM %s", table)
-		} else {
-			parameters := make(map[string]interface{}, 0)
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return nil, err
-			}
-
-			// I will build the query here.
-			query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
-			for key, value := range parameters {
-				if reflect.TypeOf(value).Kind() == reflect.String {
-					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-					if key == "$and" || key == "$or" {
-						query += store.getParameters(key, value.([]interface{}))
-					}
-				}
-
-			}
-
-			query = strings.TrimSuffix(query, " AND ")
-
+		var err error
+		query, err = store.formatQuery(table, query)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -1139,14 +1133,24 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		}
 	}
 
+	// Parse the query to check if it is a valid JSON.
+	if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
+		var err error
+		query, err = store.formatQuery(table, query)
+		if err != nil {
+			return err
+		}
+	}
+
 	// delete entry if it exist.
-	err = store.deleteSqlEntry(connectionId, db, table, query)
+	err = store.deleteOneSqlEntry(connectionId, db, table, query)
 
 	if err != nil {
 		fmt.Println("fail to delete data: ", query, err)
 
 	}
 
+	fmt.Println("-------------> insert entry: ", entity)
 	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
 		return err
@@ -1187,17 +1191,30 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 		return err
 	}
 
-	// Ensure the number of fields and values match
-	if len(values_["fields"].([]interface{})) != len(values_["values"].([]interface{})) {
-		return fmt.Errorf("number of fields does not match the number of values")
+	if values_["$set"] == nil {
+		return errors.New("no $set operator allowed in UpdateOne")
 	}
 
-	q, err := generateUpdateTableQuery(table, values_["fields"].([]interface{}), query)
+	query, err = store.formatQuery(table, query)
 	if err != nil {
 		return err
 	}
 
-	_, err = store.ExecContext(connectionId, db, q, values_["values"].([]interface{}), 0)
+	// Here I will retreive the fiedls
+	fields := make([]interface{}, 0)
+	values := make([]interface{}, 0)
+
+	for key, value := range values_["$set"].(map[string]interface{}) {
+		fields = append(fields, key)
+		values = append(values, value)
+	}
+
+	q, err := generateUpdateTableQuery(table, fields, query)
+	if err != nil {
+		return err
+	}
+
+	_, err = store.ExecContext(connectionId, db, q, values, 0)
 	if err != nil {
 		return err
 	}
@@ -1213,11 +1230,31 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 		return err
 	}
 
-	q, err := generateUpdateTableQuery(table, values_["fields"].([]interface{}), query)
+	if values_["$set"] == nil {
+		return errors.New("no $set operator allowed in UpdateOne")
+	}
+
+	query, err = store.formatQuery(table, query)
 	if err != nil {
 		return err
 	}
-	_, err = store.ExecContext(connectionId, db, q, values_["values"].([]interface{}), 0)
+
+	// Here I will retreive the fiedls
+	fields := make([]interface{}, 0)
+	values := make([]interface{}, 0)
+
+	for key, value := range values_["$set"].(map[string]interface{}) {
+		fields = append(fields, key)
+		values = append(values, value)
+	}
+
+	q, err := generateUpdateTableQuery(table, fields, query)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = store.ExecContext(connectionId, db, q, values, 0)
 	if err != nil {
 		return err
 	}
@@ -1225,7 +1262,27 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 	return nil
 }
 
-func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table string, query string) error {
+func (store *SqlStore) deleteSqlEntries(connectionId string, db string, table string, query string) error {
+	entities, err := store.Find(context.Background(), connectionId, db, table, query, "")
+	if err != nil {
+		return err
+	}
+
+	for _, entity := range entities {
+		if entity.(map[string]interface{})["_id"] != nil {
+			query := fmt.Sprintf("SELECT * FROM '%s' WHERE _id='%s'", table, entity.(map[string]interface{})["_id"].(string))
+			// Execute the query
+			err := store.deleteOneSqlEntry(connectionId, db, table, query)
+			if err != nil {
+				fmt.Println(query, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table string, query string) error {
 
 	// I will retreive the entity with the query.
 	entity, err := store.FindOne(context.Background(), connectionId, db, table, query, "")
@@ -1234,30 +1291,10 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 	}
 
 	if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
-		if query == "{}" {
-			query = fmt.Sprintf("SELECT * FROM %s", table)
-		} else {
-			parameters := make(map[string]interface{}, 0)
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return err
-			}
-
-			// I will build the query here.
-			query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
-			for key, value := range parameters {
-				if reflect.TypeOf(value).Kind() == reflect.String {
-					query += fmt.Sprintf("%s = '%v' AND ", key, value)
-				} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-					if key == "$and" || key == "$or" {
-						query += store.getParameters(key, value.([]interface{}))
-					}
-				}
-
-			}
-
-			query = strings.TrimSuffix(query, " AND ")
-
+		var err error
+		query, err = store.formatQuery(table, query)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -1268,6 +1305,7 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 		return err
 	}
 
+	// Now I will delete the data from the array tables.
 	for columnName, columnValue := range entity.(map[string]interface{}) {
 		// Check if the column is an array (slice)
 		if columnName != "typeName" {
@@ -1280,8 +1318,11 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 
 					// I will delete the data from the array table.
 					query := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", arrayTableName, table)
+
+					
 					parameters := make([]interface{}, 0)
 					parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
+					fmt.Println("----------------> ", query, parameters)
 
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)
@@ -1298,11 +1339,11 @@ func (store *SqlStore) deleteSqlEntry(connectionId string, db string, table stri
 }
 
 func (store *SqlStore) Delete(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	return store.deleteSqlEntry(connectionId, db, table, query)
+	return store.deleteSqlEntries(connectionId, db, table, query)
 }
 
 func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	return store.deleteSqlEntry(connectionId, db, table, query)
+	return store.deleteOneSqlEntry(connectionId, db, table, query)
 }
 
 func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keyspace string, table string, pipeline string, optionsStr string) ([]interface{}, error) {
@@ -1329,7 +1370,41 @@ func (store *SqlStore) CreateCollection(ctx context.Context, connectionId string
 
 func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string, database string, collection string) error {
 
-	return errors.New("not implemented")
+	// I will delete the table.
+	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", collection)
+	_, err := store.ExecContext(connectionId, database, query, nil, 0)
+	if err != nil {
+		return err
+	}
+
+	// I will delete the reference tables.
+	query = fmt.Sprintf("SELECT name FROM sqlite_master WHERE type='table'")
+	str, err := store.QueryContext(connectionId, database, query, "[]")
+	if err != nil {
+		return err
+	}
+
+	data := make(map[string]interface{}, 0)
+	err = json.Unmarshal([]byte(str), &data)
+	if err != nil {
+		return err
+	}
+
+	// Loop through the tables
+	for _, values := range data["data"].([]interface{}) {
+		for _, value := range values.([]interface{}) {
+			if strings.HasPrefix(value.(string), collection+"_") {
+				// I will delete the table.
+				query := fmt.Sprintf("DROP TABLE IF EXISTS %s", value.(string))
+				_, err := store.ExecContext(connectionId, database, query, nil, 0)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (store *SqlStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {

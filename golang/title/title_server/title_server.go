@@ -1172,7 +1172,7 @@ func (srv *server) getStore(name, path string) (storage_store.Store, error) {
 	} else if srv.CacheType == "scylla" {
 		store = storage_store.NewScylla_store(srv.CacheAddress, name, srv.CacheReplicationFactor)
 	} else {
-		store = storage_store.NewBigCache_store()
+		store = storage_store.NewBadger_store() // default
 	}
 
 	err := store.Open(`{"path":"` + path + `","name":"` + name + `"}`)
