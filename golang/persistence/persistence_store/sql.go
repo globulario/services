@@ -653,7 +653,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								if err == nil {
 									fmt.Println("Table created: ", sourceCollection+"_"+field)
 								} else {
-									fmt.Println("-------> Error creating table: ", sourceCollection+"_"+field, err)
+									fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
 								}
 
 								// I will insert the reference into the table.
@@ -669,7 +669,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							}
 
 						default:
-							fmt.Printf("------------------> index %d: Unknown Type %s \n", i, columnName)
+							fmt.Printf("index %d: Unknown Type %s \n", i, columnName)
 						}
 
 						// append the object id...
@@ -1045,7 +1045,6 @@ func (store *SqlStore) getParameters(condition string, values []interface{}) str
 		query += "("
 		for _, v := range values {
 			value := v.(map[string]interface{})
-			fmt.Println("-----> value: ", value)
 			for key, v := range value {
 				if reflect.TypeOf(v).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' AND ", key, v)
@@ -1150,7 +1149,6 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 
 	}
 
-	fmt.Println("-------------> insert entry: ", entity)
 	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
 		return err
@@ -1322,7 +1320,6 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 					
 					parameters := make([]interface{}, 0)
 					parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
-					fmt.Println("----------------> ", query, parameters)
 
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)
