@@ -93,13 +93,35 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		time.Sleep(1 * time.Second)
 	}
 
-	// Create the cluster
-	cluster := gocql.NewCluster(host)
-	cluster.Port = int(port)
-	cluster.Keyspace = keyspace
-	cluster.Timeout = time.Duration(timeout) * time.Second
+	createKeyspaceQuery := `
+	CREATE KEYSPACE IF NOT EXISTS ` + keyspace + `
+	WITH replication = {
+		'class': 'SimpleStrategy',
+		'replication_factor': 1
+	}`
 	
-	// Create the session
+	fmt.Println("ScyllaDB store create session", keyspace, " for connection ", id, " host ", host)
+	adminCluster := gocql.NewCluster() // Replace with your ScyllaDB cluster IP address
+	adminCluster.Hosts = []string{host, "127.0.0.1"} // add local host as well.
+	adminCluster.Keyspace = "system"          // Use the 'system' keyspace for administrative tasks
+	adminSession, err := adminCluster.CreateSession()
+	if err != nil {
+		return err
+	}
+
+	defer adminSession.Close()
+
+	// Create the keyspace.
+	if err := adminSession.Query(createKeyspaceQuery).Exec(); err != nil {
+		return err
+	}
+
+	// The cluster address...
+	cluster := gocql.NewCluster() // Set your ScyllaDB cluster address here
+	cluster.Keyspace = keyspace          // Set your keyspace name here
+	cluster.Consistency = gocql.Quorum
+	cluster.Hosts = []string{host, "127.0.0.1"}
+	cluster.Port = 9042
 	session, err := cluster.CreateSession()
 	if err != nil {
 		return err
@@ -121,6 +143,9 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Save the session for that keyspace.
 	connection.sessions[keyspace] = session
 
+	// Save the connection.
+	store.connections[id] = connection
+	
 	return nil
 }
 

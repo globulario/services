@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"reflect"
 	"time"
@@ -253,13 +254,25 @@ func (client *Persistence_Client) StopService() {
 // Create a new datastore connection.
 func (client *Persistence_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string, save bool) error {
 
+	var storeType_ persistencepb.StoreType
+
+	if storeType == 0 {
+		storeType_ = persistencepb.StoreType_MONGO
+	} else if storeType == 1 {
+		storeType_ = persistencepb.StoreType_SQL
+	} else  if storeType == 2{
+	storeType_ = persistencepb.StoreType_SCYLLA
+	}else {
+		return errors.New("the store type is not supported")
+	}
+
 	rqst := &persistencepb.CreateConnectionRqst{
 		Connection: &persistencepb.Connection{
 			Id:       connectionId,
 			Name:     name,
 			Host:     host,
 			Port:     int32(Utility.ToInt(port)),
-			Store:    persistencepb.StoreType(storeType),
+			Store:    storeType_,
 			User:     user,
 			Password: pwd,
 			Timeout:  int32(Utility.ToInt(timeout)),
