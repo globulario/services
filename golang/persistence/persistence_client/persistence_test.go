@@ -16,7 +16,7 @@ import (
 var (
 
 	// Connect to the plc client.
-	database 				  = "test_db"
+	database                  = "test_db"
 	domain                    = "globule-ryzen.globular.cloud"
 	client, _                 = NewPersistenceService_Client(domain, "persistence.PersistenceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
@@ -65,22 +65,23 @@ func TestPingConnection(t *testing.T) {
 	fmt.Println("Ping test_connection successed!")
 }
 
-/* func TestPersistOne(t *testing.T) {
+func TestPersistOne(t *testing.T) {
 
 	Id := "test_connection"
 	Collection := "Employees"
 	employe := map[string]interface{}{
-		"_id":               "1",
-		"employeeNumber":    1,
-		"jobTitleName":      "Developer",
-		"firstName":         "Dave",
-		"lastName":          "Courtois",
-		"preferredFullName": "Dave Courtois",
-		"employeeCode":      "E1",
-		"region":            "Or",
-		"state":			 "Oregon",
-		"phoneNumber":       "408-123-4567",
-		"emailAddress":      "dave.courtois60@gmail.com",
+		"_id":                  "1",
+		"typeName":             "Employee",
+		"employeeNumber":       1.0,
+		"jobTitleName":         "Developer",
+		"firstName":            "Dave",
+		"lastName":             "Courtois",
+		"preferredFullName":    "Dave Courtois",
+		"employeeCode":         "E1",
+		"region":               "Or",
+		"state":                "Oregon",
+		"phoneNumber":          "408-123-4567",
+		"emailAddress":         "dave.courtois60@gmail.com",
 		"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
 	}
 
@@ -91,7 +92,7 @@ func TestPingConnection(t *testing.T) {
 	}
 
 	fmt.Println("Entity persist with id ", id)
-}*/
+}
 
 /*func TestPersistMany(t *testing.T) {
 
@@ -99,6 +100,7 @@ func TestPingConnection(t *testing.T) {
 		[]interface{}{
 			map[string]interface{}{
 				"_id":               "2",
+				"typeName":              "Employee",
 				"employeeNumber":    2,
 				"jobTitleName":      "Developer",
 				"firstName":         "Romin",
@@ -113,6 +115,7 @@ func TestPingConnection(t *testing.T) {
 			},
 			map[string]interface{}{
 				"_id":               "3",
+				"typeName":              "Employee",
 				"employeeNumber":    3,
 				"jobTitleName":      "Developer",
 				"firstName":         "Neil",
@@ -127,6 +130,7 @@ func TestPingConnection(t *testing.T) {
 			},
 			map[string]interface{}{
 				"_id":               "4",
+				"typeName":              "Employee",
 				"employeeNumber":    4,
 				"jobTitleName":      "Program Directory",
 				"firstName":         "Tom",
@@ -160,6 +164,7 @@ func TestPingConnection(t *testing.T) {
 	entity := map[string]interface{}{
 		"_id":               "3",
 		"employeeNumber":    3,
+		"typeName":              "Employee",
 		"jobTitleName":      "Full Stack Developper",
 		"firstName":         "Neil",
 		"lastName":          "Irani",
@@ -285,9 +290,9 @@ func TestPingConnection(t *testing.T) {
 	if err != nil {
 		fmt.Println("fail to delete collection! ", err)
 	}
-}*/
+}
 
-/*func TestDeleteDatabase(t *testing.T) {
+func TestDeleteDatabase(t *testing.T) {
 	fmt.Println("Delete database test.")
 
 	Id := "test_connection"

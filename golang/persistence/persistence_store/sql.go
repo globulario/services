@@ -554,23 +554,26 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
  * Insert data into the database. This function will insert the data into the main table and the array tables.
  */
 func (store *SqlStore) insertData(connectionId string, db string, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
+
 	var id string
+
+	if data["id"] != nil {
+		id = data["id"].(string)
+	} else if data["_id"] != nil {
+		id = data["_id"].(string)
+	}
+
+	if len(id) == 0 {
+		return nil, errors.New("the id is required")
+	}
 
 	// test if the data already exist.
 	if store.isTableExist(connectionId, db, tableName) {
-		if data["id"] != nil {
-			id = data["id"].(string)
-		} else if data["_id"] != nil {
-			id = data["_id"].(string)
-		}
-
-		if len(id) > 0 {
-			// I will check if the data already exist.
-			query := fmt.Sprintf("SELECT * FROM %s WHERE _id='%s'", tableName, id)
-			values, err := store.FindOne(context.Background(), connectionId, db, tableName, query, "")
-			if err == nil {
-				return values.(map[string]interface{}), nil
-			}
+		// I will check if the data already exist.
+		query := fmt.Sprintf("SELECT * FROM %s WHERE id='%s'", tableName, id)
+		values, err := store.FindOne(context.Background(), connectionId, db, tableName, query, "")
+		if err == nil {
+			return values.(map[string]interface{}), nil
 		}
 	}
 
@@ -1317,7 +1320,6 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 					// I will delete the data from the array table.
 					query := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", arrayTableName, table)
 
-					
 					parameters := make([]interface{}, 0)
 					parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
 
