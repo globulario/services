@@ -71,7 +71,6 @@ func TestPersistOne(t *testing.T) {
 	Collection := "Employees"
 	employe := map[string]interface{}{
 		"_id":                  "1",
-		"typeName":             "Employee",
 		"employeeNumber":       1.0,
 		"jobTitleName":         "Developer",
 		"firstName":            "Dave",
@@ -94,13 +93,12 @@ func TestPersistOne(t *testing.T) {
 	fmt.Println("Entity persist with id ", id)
 }
 
-/*func TestPersistMany(t *testing.T) {
+func TestPersistMany(t *testing.T) {
 
 	entities :=
 		[]interface{}{
 			map[string]interface{}{
 				"_id":               "2",
-				"typeName":              "Employee",
 				"employeeNumber":    2,
 				"jobTitleName":      "Developer",
 				"firstName":         "Romin",
@@ -115,7 +113,6 @@ func TestPersistOne(t *testing.T) {
 			},
 			map[string]interface{}{
 				"_id":               "3",
-				"typeName":              "Employee",
 				"employeeNumber":    3,
 				"jobTitleName":      "Developer",
 				"firstName":         "Neil",
@@ -130,7 +127,6 @@ func TestPersistOne(t *testing.T) {
 			},
 			map[string]interface{}{
 				"_id":               "4",
-				"typeName":              "Employee",
 				"employeeNumber":    4,
 				"jobTitleName":      "Program Directory",
 				"firstName":         "Tom",
@@ -152,11 +148,10 @@ func TestPersistOne(t *testing.T) {
 	if err != nil {
 		fmt.Println("Fail to insert many entities with error ", err)
 	}
-}*/
+}
 
 /** Test Replace One **/
-
-/*func TestReplaceOne(t *testing.T) {
+func TestReplaceOne(t *testing.T) {
 
 	Id := "test_connection"
 	Collection := "Employees"
@@ -164,7 +159,6 @@ func TestPersistOne(t *testing.T) {
 	entity := map[string]interface{}{
 		"_id":               "3",
 		"employeeNumber":    3,
-		"typeName":              "Employee",
 		"jobTitleName":      "Full Stack Developper",
 		"firstName":         "Neil",
 		"lastName":          "Irani",
@@ -173,16 +167,16 @@ func TestPersistOne(t *testing.T) {
 		"region":            "CA",
 		"phoneNumber":       "408-111-1111",
 		"emailAddress":      "neilrirani@gmail.com",
-		"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue"},
+		"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue", "React Native"},
 	}
 
-	err := client.ReplaceOne(Id, database, Collection, `{"_id":"3"}`, entity, "")
+	err := client.ReplaceOne(Id, database, Collection, `{"_id":"3"}`, entity, `[{"upsert": true}]`)
 	if err != nil {
 		fmt.Println("Fail to replace entity", err)
 	}
-}*/
+}
 
-/*func TestUpdateOne(t *testing.T) {
+func TestUpdateOne(t *testing.T) {
 	Id := "test_connection"
 	Collection := "Employees"
 
@@ -190,23 +184,23 @@ func TestPersistOne(t *testing.T) {
 	if err != nil {
 		fmt.Println("Fail to update one entity", err)
 	}
-}*/
+}
 
-/*func TestUpdate(t *testing.T) {
+func TestUpdate(t *testing.T) {
 	Id := "test_connection"
 	Collection := "Employees"
 	Query := `{"region": "CA"}`
-	Value := `{"$set":{"state":"California"}}`
+	Value := `{"$set":{"state":"Californication"}}`
 
 	err := client.Update(Id, database, Collection, Query, Value, "")
 	if err != nil {
 		fmt.Println("TestUpdate fail", err)
 	}
 	fmt.Println("---> update success!")
-}*/
+}
 
 /** Test find one **/
-/*func TestFindOne(t *testing.T) {
+func TestFindOne(t *testing.T) {
 	fmt.Println("Find one test.")
 
 	Id := "test_connection"
@@ -215,11 +209,11 @@ func TestPersistOne(t *testing.T) {
 
 	values, err := client.FindOne(Id, database, Collection, Query, "")
 	if err != nil {
-		fmt.Println("TestFind fail", err)
+		fmt.Println("Test Find One fail", err)
 	}
 
 	fmt.Println(values)
-}*/
+}
 
 /** Test find many **/
 /*func TestFind(t *testing.T) {
@@ -290,9 +284,9 @@ func TestPersistOne(t *testing.T) {
 	if err != nil {
 		fmt.Println("fail to delete collection! ", err)
 	}
-}
+}*/
 
-func TestDeleteDatabase(t *testing.T) {
+/*func TestDeleteDatabase(t *testing.T) {
 	fmt.Println("Delete database test.")
 
 	Id := "test_connection"
@@ -300,9 +294,9 @@ func TestDeleteDatabase(t *testing.T) {
 	if err != nil {
 		fmt.Println("fail to delete database! ", err)
 	}
-}*/
+}
 
-/*func TestDisconnect(t *testing.T) {
+func TestDisconnect(t *testing.T) {
 	fmt.Println("Disconnect test.")
 	err := client.Disconnect("test_connection")
 	if err != nil {

@@ -44,6 +44,7 @@ func (store *SqlStore) GetStoreType() string {
 // Connect to the SQL database.
 func (store *SqlStore) Connect(id string, host string, port int32, user string, password string, database string, timeout int32, options_str string) error {
 
+	
 	if len(id) == 0 {
 		return errors.New("the connection id is required")
 	}
@@ -60,6 +61,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		store.connections = make(map[string]SqlConnection)
 	}
 
+	
 	if len(host) == 0 {
 		return errors.New("the host is required")
 	}
@@ -111,6 +113,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		}
 	}
 
+	
 	// set default path
 	path := config.GetDataDir() + "/sql-data"
 
@@ -150,11 +153,14 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	connection.databases[database] = db
 
+
+
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
-	if count == 0 && id != "local_resource" {
+	if count == 0 && id != "local_resource" && user != "sa" {
 		_, err := store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "firstName_": "", "lastName_": "", "middleName_": "", "profilePicture_": "", "domain_": "", "email_": ""}, "")
 		if err != nil {
+			fmt.Println("Error creating user_data table: ", id, user, err)
 			return err
 		}
 	}
@@ -596,9 +602,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 		// Check if the column is an array (slice)
 		if columnName != "typeName" {
 			if columnValue != nil {
-				isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
-				if isArray {
-
+				if reflect.Slice == reflect.TypeOf(columnValue).Kind() {
 					// This is an array column, insert the values into the array table
 					arrayTableName := tableName + "_" + columnName
 					sliceValue := reflect.ValueOf(data[columnName])
@@ -622,7 +626,6 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							parameters = append(parameters, stringValue)
 						case map[string]interface{}:
 
-							// TODO create the entity and insert it into the database....
 							entity := element.Interface().(map[string]interface{})
 
 							// So here I will insert the entity into the database.
@@ -678,9 +681,10 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						// append the object id...
 						if len(parameters) > 0 {
 
+
 							// Create the table if it does not exist.
 							if !store.isTableExist(connectionId, db, arrayTableName) {
-								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value TEXT, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)", arrayTableName, tableName, tableName, tableName)
+								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)",getSQLType(reflect.TypeOf(columnValue)), arrayTableName, tableName, tableName, tableName)
 								_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 								if err != nil {
 									return nil, err
@@ -694,6 +698,55 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								return nil, err
 							}
 						}
+					}
+				} else if reflect.Map == reflect.TypeOf(columnValue).Kind() {
+
+					entity := columnValue.(map[string]interface{})
+
+					// So here I will insert the entity into the database.
+					// I will get the entity type.
+					// ** only if the entity has a typeName property.
+					if entity["typeName"] != nil {
+						typeName := entity["typeName"].(string)
+
+						if entity["domain"] != nil {
+							localDomain, _ := config.GetDomain()
+							entity["domain"] = localDomain
+						}
+
+						// I will get the entity type.
+						var err error
+						entity, err = store.insertData(connectionId, db, typeName+"s", entity)
+						if err != nil {
+							fmt.Println("Error inserting data into array table: ", err)
+						}
+
+						// I will get the entity id.
+						_id := Utility.ToInt(entity["_id"])
+						sourceCollection := tableName
+						targetCollection := typeName + "s"
+						field := columnName
+
+						// He I will create the reference table.
+						// I will create the table if not already exist.
+						createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+						_, err = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+						if err == nil {
+							fmt.Println("Table created: ", sourceCollection+"_"+field)
+						} else {
+							fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+						}
+
+						// I will insert the reference into the table.
+						insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+						parameters := make([]interface{}, 0)
+						parameters = append(parameters, id)
+						parameters = append(parameters, _id)
+						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
+						if err != nil {
+							fmt.Println("Error inserting data into array table: ", err)
+						}
+
 					}
 				}
 			}
