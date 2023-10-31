@@ -302,6 +302,7 @@ func (client *Resource_Client) CreateOrganization(token, id, name, email, descri
 			Description: description,
 			Icon:        icon,
 			Email:       email,
+			Domain:      client.domain,
 		},
 	}
 

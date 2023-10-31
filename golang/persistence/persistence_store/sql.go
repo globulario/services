@@ -1336,6 +1336,7 @@ func (store *SqlStore) deleteSqlEntries(connectionId string, db string, table st
 	return nil
 }
 
+
 func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table string, query string) error {
 
 	// I will retreive the entity with the query.
@@ -1366,7 +1367,7 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 			if columnValue != nil {
 				isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
 				if isArray {
-
+			
 					// This is an array column, insert the values into the array table
 					arrayTableName := table + "_" + columnName
 
@@ -1379,8 +1380,19 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)
 					if err != nil {
-						fmt.Println("Error deleting data from array table: ", err)
-						return err
+						
+						query := fmt.Sprintf("DELETE FROM %s WHERE source_id=?", arrayTableName)
+
+						parameters := make([]interface{}, 0)
+						parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
+
+						// Execute the query
+						_, err := store.ExecContext(connectionId, db, query, parameters, 0)
+						if err != nil {
+							fmt.Println("Error deleting data from array table: ", err)
+
+							return err
+						}
 					}
 				}
 			}

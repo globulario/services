@@ -20,7 +20,7 @@ var (
 /** Test create Organization */
 func TestCreateOrganization(t *testing.T) {
 	log.Println("---> test create organization.")
-	err := client.CreateOrganization(token, "globulario", "globulario", "globulario@globuar.io", "description", "")
+	err := client.CreateOrganization(token, "globulario", "globulario", "globulario@globule-ryzen.globular.cloud", "description", "")
 	if err != nil {
 		log.Println("---> create organization fail! ", err)
 	} else {

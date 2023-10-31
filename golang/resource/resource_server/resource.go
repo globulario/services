@@ -1030,6 +1030,10 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
+		if err.Error() == "not found" {
+			return  &resourcepb.DeleteAccountRsp{Result: ""}, nil
+		}
+		
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1645,6 +1649,10 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	// Remove references
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
+		if err.Error() == "not found" {
+			return  &resourcepb.DeleteRoleRsp{Result: true}, nil
+		}
+
 		return nil, err
 	}
 
@@ -4433,6 +4441,9 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", q, ``)
 	if err != nil {
+		if err.Error() == "not found" {
+			return  &resourcepb.DeleteOrganizationRsp{Result: true}, nil
+		}
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -4469,7 +4480,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		}
 	}
 
-	if organization["roles"].(primitive.A) != nil {
+	if organization["roles"] != nil {
 
 		var roles []interface{}
 		switch organization["roles"].(type) {
@@ -4499,7 +4510,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		}
 	}
 
-	if organization["applications"].(primitive.A) != nil {
+	if organization["applications"] != nil {
 
 		var applications []interface{}
 		switch organization["applications"].(type) {
@@ -4529,7 +4540,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		}
 	}
 
-	if organization["accounts"].(primitive.A) != nil {
+	if organization["accounts"] != nil {
 
 		var accounts []interface{}
 		switch organization["accounts"].(type) {
@@ -4922,6 +4933,10 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", q, ``)
 	if err != nil {
+		if err.Error() == "not found" {
+			return  &resourcepb.DeleteGroupRsp{Result: true}, nil
+		}
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

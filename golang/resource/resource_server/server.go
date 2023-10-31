@@ -925,7 +925,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"$or":[{"_id":"` + targetId + `"},{"name":"` + targetId + `"} ]}`
-	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `' OR name='` + targetId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -942,7 +942,14 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 		return errors.New("No field named " + targetField + " was found in object with id " + targetId + "!")
 	}
 
-	references := []interface{}(target[targetField].(primitive.A))
+	var references []interface{}
+	switch target[targetField].(type) {
+	case primitive.A:
+		references = []interface{}(target[targetField].(primitive.A))
+	case []interface{}:
+		references = target[targetField].([]interface{})
+	}
+
 	references_ := make([]interface{}, 0)
 	for j := 0; j < len(references); j++ {
 		if references[j].(map[string]interface{})["$id"] != refId {
@@ -1002,7 +1009,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	var q string // query string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1023,9 +1030,14 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 			targetId += "@" + localDomain
 		}
 
-		references := make([]interface{}, 0)
+		var references []interface{}
 		if source[field] != nil {
-			references = []interface{}(source[field].(primitive.A))
+			switch source[field].(type) {
+			case primitive.A:
+				references = []interface{}(source[field].(primitive.A))
+			case []interface{}:
+				references = source[field].([]interface{})
+			}
 		}
 
 		for j := 0; j < len(references); j++ {
@@ -1041,16 +1053,16 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		if err != nil {
 			return err
 		}
-	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
 		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
 		if p.GetStoreType() == "SCYLLADB" {
 			// the foreign key is not supported by scyllaDB.
-			createTableSQL = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+			createTableSQL = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
 		}
-		
+
 		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, nil, 0)
 
 		// be sure that the target id is a valid id.
@@ -1175,7 +1187,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" ||  p.GetStoreType() == "SCYLLADB"  {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1229,7 +1241,7 @@ func (resource_server *server) CreateAccountDir() error {
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{}`
-	}  else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM Accounts`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1284,7 +1296,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1344,7 +1356,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	var q string
 	if p.GetStoreType() == "MONGODB" {
 		q = `{"_id":"` + applicationId + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB"{
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
 		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1363,7 +1375,14 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 	// I will remove it from organization...
 	if application["organizations"] != nil {
-		organizations := []interface{}(application["organizations"].(primitive.A))
+
+		var organizations []interface{}
+		switch values.(map[string]interface{})["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(values.(map[string]interface{})["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = values.(map[string]interface{})["organizations"].([]interface{})
+		}
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
@@ -1457,7 +1476,7 @@ func main() {
 
 	// Backend informations.
 	s_impl.Backend_type = "SQL" // use SQL as default backend.
-	s_impl.Backend_address =  s_impl.Address
+	s_impl.Backend_address = s_impl.Address
 	s_impl.Backend_replication_factor = 1
 	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
 	s_impl.Backend_user = "sa"
