@@ -25,7 +25,6 @@ import (
 	"github.com/globulario/services/golang/security"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	// "go.mongodb.org/mongo-driver/x/mongo/driver/session"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -46,12 +45,10 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 	accountId := rqst.AccountId
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -220,12 +217,10 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -307,11 +302,9 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + accountId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM user_data WHERE _id='` + accountId + `'`
 	} else {
 		return nil, status.Errorf(
@@ -321,7 +314,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", db, "user_data", []string{"email_ TEXT", "domain_ TEXT", "firstName_ TEXT", "lastName_ TEXT", "middleName_ TEXT", "profilePicture_ TEXT"})
 	p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", db, "Notifications", []string{"date REAL", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
-	
+
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -382,12 +375,10 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + rqst.AccountId + `"},{"name":"` + rqst.AccountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + rqst.AccountId + `' OR name='` + rqst.AccountId + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + rqst.AccountId + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -418,9 +409,9 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	}
 
 	var changePasswordScript string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		changePasswordScript = fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
-	} else if p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SCYLLA" {
 		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
 	} else if p.GetStoreType() == "SQL" {
 		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
@@ -461,18 +452,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		}
 	}
 
-	var setPassword string
-	if p.GetStoreType() == "MONGODB" {
-		setPassword = `{"$set":{"password":"` + string(pwd) + `"}}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		setPassword = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		setPassword =  `{"$set":{"password":"` + string(pwd) + `"}}`
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-	}
+	setPassword := `{"$set":{"password":"` + string(pwd) + `"}}`
 
 	// Hash the password...
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setPassword, "")
@@ -495,32 +475,18 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + rqst.Account.Id + `"},{"name":"` + rqst.Account.Id + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + rqst.Account.Id + `' OR name='` + rqst.Account.Id + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + rqst.Account.Id + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
 	}
 
-	var setAccount string
-	if p.GetStoreType() == "MONGODB" {
-		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		setAccount = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-
-		// Set the field and the values to update.
-		setAccount = `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-	}
+	// Set the field and the values to update.
+	setAccount := `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount, "")
 	if err != nil {
@@ -534,11 +500,9 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Account.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM user_data WHERE _id='` + rqst.Account.Id + `'`
 	} else {
 		return nil, status.Errorf(
@@ -590,19 +554,9 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = ``
-		} else {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-		}
+		query = "{}"
 	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
 
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
@@ -717,11 +671,9 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		db += "_db"
 
 		var q string
-		if p.GetStoreType() == "MONGODB" {
+		if p.GetStoreType() == "MONGO" {
 			q = `{"_id":"` + a.Id + `"}`
-		} else if p.GetStoreType() == "SCYLLADB" {
-			q = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
+		} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 			q = `SELECT * FROM user_data WHERE _id='` + a.Id + `'`
 		} else {
 			return status.Errorf(
@@ -824,12 +776,10 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	db += "_db"
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Contact.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Contacts WHERE _id='` + rqst.Contact.Id + `'` // TODO sql query string here...
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Contacts WHERE _id='` + rqst.Contact.Id + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -908,10 +858,10 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"},{"email":"` + accountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `' OR email='` + accountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `' OR email='` + accountId + `'` // TODO scylla db query.
 	} else {
@@ -943,12 +893,10 @@ func (resource_server *server) isOrganizationMemeber(account string, organizatio
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + account + `"},{"name":"` + account + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + account + `' OR name='` + account + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + account + `'`
 	} else {
 		return false
 	}
@@ -1016,12 +964,10 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + accountId + `"},{"name":"` + accountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `' OR name='` + accountId + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Accounts WHERE _id='` + accountId + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1031,9 +977,9 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		if err.Error() == "not found" {
-			return  &resourcepb.DeleteAccountRsp{Result: ""}, nil
+			return &resourcepb.DeleteAccountRsp{Result: ""}, nil
 		}
-		
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1123,18 +1069,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
-	var get_contacts string
-	if p.GetStoreType() == "MONGODB" {
-		get_contacts = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		get_contacts = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		get_contacts = ``
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-	}
+	get_contacts := `{}`
 
 	// so before remove database I need to remove the accout from it contacts...
 	contacts, err := p.Find(context.Background(), "local_resource", name+"_db", "Contacts", get_contacts, "")
@@ -1160,11 +1095,11 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	var dropUserScript string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		dropUserScript = fmt.Sprintf(
 			`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
 			name)
-	} else if p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SCYLLA" {
 		dropUserScript = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
 		q = `` // TODO sql query string here...
@@ -1315,12 +1250,10 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + rqst.RoleId + `"},{"name":"` + rqst.RoleId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Roles WHERE _id='` + rqst.RoleId + `' OR name='` + rqst.RoleId + `'` // TODO sql query string here...
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + rqst.RoleId + `'` // TODO sql query string here...
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1366,12 +1299,10 @@ func (resource_server *server) getRole(id string) (*resourcepb.Role, error) {
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `'` // TODO sql query string here...
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + id + `'` // TODO sql query string here...
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -1457,19 +1388,9 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Roles` // TODO sql query string here...
-		} else {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-		}
+		query = "{}"
 	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
 			if err != nil {
@@ -1634,12 +1555,10 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Roles WHERE _id='` + roleId + `' OR name='` + roleId + `'` // TODO sql query string here...
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + roleId + `'` // TODO sql query string here...
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1650,7 +1569,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
 		if err.Error() == "not found" {
-			return  &resourcepb.DeleteRoleRsp{Result: true}, nil
+			return &resourcepb.DeleteRoleRsp{Result: true}, nil
 		}
 
 		return nil, err
@@ -1750,12 +1669,10 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Roles WHERE _id='` + roleId + `' OR name='` + roleId + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
+		q = `SELECT * FROM Roles WHERE _id='` + roleId + `'`
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1836,18 +1753,7 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGODB" {
-		q = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Roles`
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-	}
+	q := `{}`
 
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err != nil {
@@ -1895,11 +1801,9 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 			jsonStr := serialyseObject(role)
 
 			var q string
-			if p.GetStoreType() == "MONGODB" {
+			if p.GetStoreType() == "MONGO" {
 				q = `{"_id":"` + role["_id"].(string) + `"}`
-			} else if p.GetStoreType() == "SCYLLADB" {
-				q = `` // TODO scylla db query.
-			} else if p.GetStoreType() == "SQL" {
+			} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 				q = `SELECT * FROM Roles WHERE _id='` + role["_id"].(string) + `'`
 			} else {
 				return nil, status.Errorf(
@@ -1955,11 +1859,9 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + roleId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Roles WHERE _id='` + roleId + `'`
 	} else {
 		return nil, status.Errorf(
@@ -2109,11 +2011,9 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + app.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Applications WHERE _id='` + app.Id + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())
@@ -2155,11 +2055,11 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 		var createApplicationDbScript string
 
-		if p.GetStoreType() == "MONGODB" {
+		if p.GetStoreType() == "MONGO" {
 			createApplicationDbScript = fmt.Sprintf(
 				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
 				app.Id, app.Id, app.Id, app.Id)
-		} else if p.GetStoreType() == "SCYLLADB" {
+		} else if p.GetStoreType() == "SCYLLA" {
 			createApplicationDbScript = fmt.Sprintf(
 				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }; USE %s_db; CREATE TABLE application_data (id text PRIMARY KEY, data text);",
 				app.Id, app.Id)
@@ -2170,12 +2070,12 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 		}
 
 		// create the application database if not exist.
-		if p.GetStoreType() == "MONGODB" {
+		if p.GetStoreType() == "MONGO" {
 			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
 			}
-		} else if p.GetStoreType() == "SCYLLADB" {
+		} else if p.GetStoreType() == "SCYLLA" {
 			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
@@ -2231,14 +2131,14 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	var storeType float64
 	if resource_server.Backend_type == "SQL" {
 		storeType = 1.0
-	} else if resource_server.Backend_type == "MONGODB" {
+	} else if resource_server.Backend_type == "MONGO" {
 		storeType = 0.0
-	} else if resource_server.Backend_type == "SCYLLADB" {
+	} else if resource_server.Backend_type == "SCYLLA" {
 		storeType = 2.0
 	}
 
 	// Now I will create the application connection.
-	err = persistenceClient.CreateConnection( app.Name, app.Name+"_db", address, float64(resource_server.Backend_port), storeType,  resource_server.Backend_user, resource_server.Backend_password, 500, "", false)
+	err = persistenceClient.CreateConnection(app.Name, app.Name+"_db", address, float64(resource_server.Backend_port), storeType, resource_server.Backend_user, resource_server.Backend_password, 500, "", false)
 	if err != nil {
 		return err
 	}
@@ -2297,11 +2197,9 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.ApplicationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2351,11 +2249,9 @@ func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"name":"` + rqst.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Applications WHERE name='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2391,11 +2287,9 @@ func (resource_server *server) GetApplicationAlias(ctx context.Context, rqst *re
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2423,11 +2317,9 @@ func (resource_server *server) GetApplicationIcon(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Applications WHERE _id='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2455,11 +2347,9 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.ApplicationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2529,11 +2419,9 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.ApplicationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Applications WHERE _id='` + rqst.ApplicationId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2609,9 +2497,9 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SCYLLA" {
 		q = `` // TODO scylla db query.
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Applications` // TODO sql query string here...
@@ -2663,11 +2551,9 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 		if needSave {
 			jsonStr := serialyseObject(application)
 			var q string
-			if p.GetStoreType() == "MONGODB" {
+			if p.GetStoreType() == "MONGO" {
 				q = `{"_id":"` + application["_id"].(string) + `"}`
-			} else if p.GetStoreType() == "SCYLLADB" {
-				q = `` // TODO scylla db query.
-			} else if p.GetStoreType() == "SQL" {
+			} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 				q = `SELECT * FROM Applications WHERE _id='` + application["_id"].(string) + `'`
 			} else {
 				return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -2690,24 +2576,15 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
  */
 func (resource_server *server) getApplications(query string, options string) ([]*resourcepb.Application, error) {
 
-	
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}" // all
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Applications` // TODO sql query string here...
-		} else {
-			return nil, errors.New("unknown database type " + p.GetStoreType())
-		}
+		query = "{}"
 	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
 			if err != nil {
@@ -2906,11 +2783,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3171,19 +3046,8 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var q string
-	var setState string
-	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac)+ `"}`
-		setState = `{ "$set":{"state":1}}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = ``        // TODO scylla db query.
-		setState = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		setState = `{ "$set":{"state":1}}`
-	} else {
-		return nil, errors.New("unknown database type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	setState := `{ "$set":{"state":1}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
 	if err != nil {
@@ -3249,20 +3113,8 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var q string
-	var setState string
-	if p.GetStoreType() == "MONGODB" {
-		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-		setState = `{ "$set":{"state":2}}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = ``        // TODO scylla db query.
-		setState = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
-		setState = `{ "$set":{"state":2}}`
-	} else {
-		return nil, errors.New("unknown database type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	setState := `{ "$set":{"state":2}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
 	if err != nil {
@@ -3352,15 +3204,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Peers`
-		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
-		}
+		query = "{}"
 	}
 
 	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
@@ -3433,11 +3277,9 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3498,11 +3340,9 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Peers WHERE _id='` + Utility.GenerateUUID(rqst.Peer.Mac) + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3579,11 +3419,9 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"mac":"` + mac + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Peers WHERE mac='` + mac + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())
@@ -3667,11 +3505,9 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"mac":"` + rqst.Mac + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Peers WHERE mac='` + rqst.Mac + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3735,16 +3571,7 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGODB" {
-		q = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Peers`
-	} else {
-		return nil, errors.New("unknown database type " + p.GetStoreType())
-	}
+	q := `{}`
 
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", q, ``)
 	if err != nil {
@@ -3779,11 +3606,9 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 		if needSave {
 			localDomain, _ := config.GetDomain()
 			var q string
-			if p.GetStoreType() == "MONGODB" {
+			if p.GetStoreType() == "MONGO" {
 				q = `{"_id":"` + peer["_id"].(string) + `"}`
-			} else if p.GetStoreType() == "SCYLLADB" {
-				q = `` // TODO scylla db query.
-			} else if p.GetStoreType() == "SQL" {
+			} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 				q = `SELECT * FROM Peers WHERE _id='` + peer["_id"].(string) + `'`
 			} else {
 				return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3837,12 +3662,10 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + rqst.Organization.Id + `"},{"name":"` + rqst.Organization.Id + `"},{"name":"` + rqst.Organization.Name + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Organizations WHERE _id='` + rqst.Organization.Id + `' OR name='` + rqst.Organization.Id + `' OR name='` + rqst.Organization.Name + `'`
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
+		q = `SELECT * FROM Organizations WHERE _id='` + rqst.Organization.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -3938,11 +3761,9 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.OrganizationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Organizations WHERE _id='` + rqst.OrganizationId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -3988,15 +3809,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Organizations`
-		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
-		}
+		query = "{}"
 	}
 
 	organizations, err := p.Find(context.Background(), "local_resource", "local_resource", "Organizations", query, rqst.Options)
@@ -4429,11 +4242,9 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + organizationId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Organizations WHERE _id='` + organizationId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -4442,7 +4253,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", q, ``)
 	if err != nil {
 		if err.Error() == "not found" {
-			return  &resourcepb.DeleteOrganizationRsp{Result: true}, nil
+			return &resourcepb.DeleteOrganizationRsp{Result: true}, nil
 		}
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4603,11 +4414,9 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.GroupId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Groups WHERE _id='` + rqst.GroupId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -4696,11 +4505,9 @@ func (resource_server *server) getGroup(id string) (*resourcepb.Group, error) {
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -4771,18 +4578,9 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Groups`
-		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
-		}
-
+		query = "{}"
 	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGODB" {
+		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
 			parameters := make(map[string]interface{})
 			err := json.Unmarshal([]byte(query), &parameters)
 			if err != nil {
@@ -4921,11 +4719,9 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + groupId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Groups WHERE _id='` + groupId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -4934,7 +4730,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", q, ``)
 	if err != nil {
 		if err.Error() == "not found" {
-			return  &resourcepb.DeleteGroupRsp{Result: true}, nil
+			return &resourcepb.DeleteGroupRsp{Result: true}, nil
 		}
 
 		return nil, status.Errorf(
@@ -5104,11 +4900,9 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Notification.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Notifications WHERE _id='` + rqst.Notification.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -5189,8 +4983,6 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 		rqst.Recipient += "@" + resource_server.Domain
 	}
 
-
-
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -5199,10 +4991,10 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 
 	var query string
 
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{"recipient":"` + rqst.Recipient + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `'`
 	} else {
@@ -5282,11 +5074,9 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Notifications WHERE _id='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -5332,10 +5122,10 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	}
 
 	var query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `'`
 	} else {
@@ -5373,11 +5163,9 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 	db += "_db"
 
 	var query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{ "notificationtype":` + Utility.ToString(notificationType) + `}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		query = `SELECT * FROM Notifications`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -5423,10 +5211,10 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 	}
 
 	var query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{"keywords": { "$all" : ` + kewordsStr + `}}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		query = `SELECT * FROM Packages WHERE keywords='` + kewordsStr + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Packages WHERE keywords='` + kewordsStr + `'`
 	} else {
@@ -5532,16 +5320,16 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}
 
 	var query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{"name":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
-	
+
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -5712,15 +5500,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Packages`
-		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
-		}
+		query = "{}"
 	}
 
 	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, rqst.Options)
@@ -5750,7 +5530,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 		descriptor.Type = resourcepb.PackageType(Utility.ToInt(data[i].(map[string]interface{})["type"]))
 
 		if data[i].(map[string]interface{})["keywords"] != nil {
-			
+
 			var keywords []interface{}
 			switch data[i].(map[string]interface{})["keywords"].(type) {
 			case primitive.A:
@@ -5837,7 +5617,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
  * Create / Update a pacakge descriptor
  */
 func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
-	
+
 	p, err := server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -5846,10 +5626,10 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"name":"` + rqst.PackageDescriptor.Name + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
 	} else {
@@ -5857,7 +5637,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}
 
 	rqst.PackageDescriptor.TypeName = "PackageDescriptor"
-	rqst.PackageDescriptor.Id = Utility.GenerateUUID(rqst.PackageDescriptor.PublisherId + "%" + rqst.PackageDescriptor.Name + "%" + rqst.PackageDescriptor.Version)	
+	rqst.PackageDescriptor.Id = Utility.GenerateUUID(rqst.PackageDescriptor.PublisherId + "%" + rqst.PackageDescriptor.Name + "%" + rqst.PackageDescriptor.Version)
 
 	for i := 0; i < len(rqst.PackageDescriptor.Groups); i++ {
 		rqst.PackageDescriptor.Groups[i].TypeName = "Group"
@@ -5887,7 +5667,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}
 
 	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", q, "")
-	if count == 0 || err != nil{
+	if count == 0 || err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unable to create the package descriptor")))
@@ -5909,11 +5689,9 @@ func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resour
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.Id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Bundles WHERE _id='` + rqst.Id + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
@@ -5957,11 +5735,9 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Bundles WHERE _id='` + id + `'`
 	} else {
 		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), "unknown database type "+p.GetStoreType())
@@ -6006,10 +5782,10 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 	// send update_session event
 	//server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + accountId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		session["_id"] = Utility.RandomUUID() // set a random id for sql db.
 		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `'`
@@ -6044,10 +5820,10 @@ func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.Remove
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + rqst.AccountId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Sessions WHERE accountId='` + rqst.AccountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Sessions WHERE accountId='` + rqst.AccountId + `'`
 	} else {
@@ -6075,15 +5851,7 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 
 	query := rqst.Query
 	if len(query) == 0 {
-		if p.GetStoreType() == "MONGODB" {
-			query = "{}"
-		} else if p.GetStoreType() == "SCYLLADB" {
-			query = `` // TODO scylla db query.
-		} else if p.GetStoreType() == "SQL" {
-			query = `SELECT * FROM Sessions`
-		} else {
-			return nil, errors.New("unknown database type " + p.GetStoreType())
-		}
+		query = "{}"
 	} else {
 		if p.GetStoreType() == "SQL" {
 			paremeters := make(map[string]interface{})
@@ -6130,10 +5898,10 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"accountId":"` + accountId + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `'`
 	} else {
@@ -6213,10 +5981,10 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	db += "_db"
 
 	var query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		query = `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		query = `` // TODO scylla db query.
+	} else if p.GetStoreType() == "SCYLLA" {
+		query = `SELECT * FROM Calls WHERE caller='` + rqst.AccountId + `' OR callee='` + rqst.AccountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
 		query = `SELECT * FROM Calls WHERE caller='` + rqst.AccountId + `' OR callee='` + rqst.AccountId + `'`
 	} else {
@@ -6260,11 +6028,9 @@ func (resource_server *server) setCall(accountId string, call *resourcepb.Call) 
 	jsonStr, _ := Utility.ToJson(call_)
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + call.Uuid + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Calls WHERE _id='` + call.Uuid + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())
@@ -6348,11 +6114,9 @@ func (resource_server *server) deleteCall(account_id, uuid string) error {
 	db += "_db"
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + uuid + `"}`
-	} else if p.GetStoreType() == "SCYLLADB" {
-		q = `` // TODO scylla db query.
-	} else if p.GetStoreType() == "SQL" {
+	} else if p.GetStoreType() == "SCYLLA" || p.GetStoreType() == "SQL"{
 		q = `SELECT * FROM Calls WHERE _id='` + uuid + `'`
 	} else {
 		return errors.New("unknown database type " + p.GetStoreType())

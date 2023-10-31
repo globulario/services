@@ -26,7 +26,7 @@ type ScyllaConnection struct {
 }
 
 /**
- * The ScyllaDB store.
+ * The SCYLLA store.
  */
 type ScyllaStore struct {
 
@@ -36,11 +36,11 @@ type ScyllaStore struct {
 }
 
 func (store *ScyllaStore) GetStoreType() string {
-	return "SCYLLADB"
+	return "SCYLLA"
 }
 
 /**
- * Create a new ScyllaDB store.
+ * Create a new SCYLLA store.
  */
 func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.ClusterConfig, error) {
 
@@ -65,7 +65,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	}`
 
 	// Create the admin session.
-	adminCluster := gocql.NewCluster()                          // Replace with your ScyllaDB cluster IP address
+	adminCluster := gocql.NewCluster()                          // Replace with your SCYLLA cluster IP address
 	adminCluster.Hosts = []string{connection.Host, "127.0.0.1"} // add local host as well.
 	adminCluster.Keyspace = "system"                            // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
@@ -81,7 +81,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	}
 
 	// The cluster address...
-	cluster := gocql.NewCluster() // Set your ScyllaDB cluster address here
+	cluster := gocql.NewCluster() // Set your SCYLLA cluster address here
 	cluster.Keyspace = keyspace   // Set your keyspace name here
 	cluster.Consistency = gocql.Quorum
 	cluster.Hosts = []string{connection.Host, "127.0.0.1"}
@@ -374,7 +374,7 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 func deleteKeyspace(host, keyspace string) error {
 
 	// Create the admin session.
-	adminCluster := gocql.NewCluster()               // Replace with your ScyllaDB cluster IP address
+	adminCluster := gocql.NewCluster()               // Replace with your SCYLLA cluster IP address
 	adminCluster.Hosts = []string{host, "127.0.0.1"} // add local host as well.
 	adminCluster.Keyspace = "system"                 // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
@@ -1124,7 +1124,7 @@ func (store *ScyllaStore) ReplaceOne(ctx context.Context, connectionId string, k
 }
 
 func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-	
+
 	// I will get the session for that keyspace.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
@@ -1141,7 +1141,6 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 		return errors.New("the session does not exist")
 	}
 
-	
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {
@@ -1197,7 +1196,6 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 
 	return err
 }
-
 
 func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
 

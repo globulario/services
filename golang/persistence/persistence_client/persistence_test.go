@@ -11,7 +11,7 @@ import (
 	//"github.com/davecourtois/Utility"
 )
 
-// start: mongod --dbpath E:\Project\src\github.com\davecourtois\Globular\data\mongodb-data
+// start: mongod --dbpath E:\Project\src\github.com\davecourtois\Globular\data\MONGO-data
 // Set the correct addresse here as needed.
 var (
 
@@ -36,7 +36,7 @@ func TestCreateConnection(t *testing.T) {
 	}
 }
 
-/* In case of mongoDB the Collection and Database is create at first insert.*/
+/* In case of MONGO the Collection and Database is create at first insert.*/
 func TestCreateDatabase(t *testing.T) {
 	Id := "test_connection"
 
@@ -98,45 +98,45 @@ func TestPersistMany(t *testing.T) {
 	entities :=
 		[]interface{}{
 			map[string]interface{}{
-				"_id":               "2",
-				"employeeNumber":    2,
-				"jobTitleName":      "Developer",
-				"firstName":         "Romin",
-				"lastName":          "Irani",
-				"preferredFullName": "Romin Irani",
-				"employeeCode":      "E2",
-				"region":            "CA",
-				"state":			 "California",
-				"phoneNumber":       "408-123-4567",
-				"emailAddress":      "romin.k.irani@gmail.com",
+				"_id":                  "2",
+				"employeeNumber":       2,
+				"jobTitleName":         "Developer",
+				"firstName":            "Romin",
+				"lastName":             "Irani",
+				"preferredFullName":    "Romin Irani",
+				"employeeCode":         "E2",
+				"region":               "CA",
+				"state":                "California",
+				"phoneNumber":          "408-123-4567",
+				"emailAddress":         "romin.k.irani@gmail.com",
 				"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
 			},
 			map[string]interface{}{
-				"_id":               "3",
-				"employeeNumber":    3,
-				"jobTitleName":      "Developer",
-				"firstName":         "Neil",
-				"lastName":          "Irani",
-				"preferredFullName": "Neil Irani",
-				"employeeCode":      "E3",
-				"region":            "CA",
-				"state":			 "California",
-				"phoneNumber":       "408-111-1111",
-				"emailAddress":      "neilrirani@gmail.com",
+				"_id":                  "3",
+				"employeeNumber":       3,
+				"jobTitleName":         "Developer",
+				"firstName":            "Neil",
+				"lastName":             "Irani",
+				"preferredFullName":    "Neil Irani",
+				"employeeCode":         "E3",
+				"region":               "CA",
+				"state":                "California",
+				"phoneNumber":          "408-111-1111",
+				"emailAddress":         "neilrirani@gmail.com",
 				"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python"},
 			},
 			map[string]interface{}{
-				"_id":               "4",
-				"employeeNumber":    4,
-				"jobTitleName":      "Program Directory",
-				"firstName":         "Tom",
-				"lastName":          "Hanks",
-				"preferredFullName": "Tom Hanks",
-				"employeeCode":      "E4",
-				"region":            "CA",
-				"state":			 "California",
-				"phoneNumber":       "408-222-2222",
-				"emailAddress":      "tomhanks@gmail.com",
+				"_id":                  "4",
+				"employeeNumber":       4,
+				"jobTitleName":         "Program Directory",
+				"firstName":            "Tom",
+				"lastName":             "Hanks",
+				"preferredFullName":    "Tom Hanks",
+				"employeeCode":         "E4",
+				"region":               "CA",
+				"state":                "California",
+				"phoneNumber":          "408-222-2222",
+				"emailAddress":         "tomhanks@gmail.com",
 				"programmingLanguages": []string{"Java", "C++", "Scala"},
 			},
 		}
@@ -157,16 +157,16 @@ func TestReplaceOne(t *testing.T) {
 	Collection := "Employees"
 
 	entity := map[string]interface{}{
-		"_id":               "3",
-		"employeeNumber":    3,
-		"jobTitleName":      "Full Stack Developper",
-		"firstName":         "Neil",
-		"lastName":          "Irani",
-		"preferredFullName": "Neil Irani",
-		"employeeCode":      "E2",
-		"region":            "CA",
-		"phoneNumber":       "408-111-1111",
-		"emailAddress":      "neilrirani@gmail.com",
+		"_id":                  "3",
+		"employeeNumber":       3,
+		"jobTitleName":         "Full Stack Developper",
+		"firstName":            "Neil",
+		"lastName":             "Irani",
+		"preferredFullName":    "Neil Irani",
+		"employeeCode":         "E2",
+		"region":               "CA",
+		"phoneNumber":          "408-111-1111",
+		"emailAddress":         "neilrirani@gmail.com",
 		"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue", "React Native"},
 	}
 

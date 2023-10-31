@@ -768,7 +768,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"log.LogService", "persistence.PersistenceService"}
 	s_impl.Connections = make(map[string]connection)
-	s_impl.DbIpV4 = "0.0.0.0:27018" // default mongodb port.
+	s_impl.DbIpV4 = "0.0.0.0:27018" // default MONGO port.
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.

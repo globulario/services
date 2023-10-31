@@ -14,7 +14,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type User_impl struct {
-	// contain values from mongoDB
+	// contain values from MONGO
 	info map[string]interface{}
 }
 

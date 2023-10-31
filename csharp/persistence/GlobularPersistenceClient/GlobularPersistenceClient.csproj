@@ -4,7 +4,7 @@
     <TargetFramework>net5.0</TargetFramework>
     <Title>Globular persistence client</Title>
     <Language>CSharp</Language>
-    <Description>Persistence client that give access to mongoDB via gRpc.</Description>
+    <Description>Persistence client that give access to MONGO via gRpc.</Description>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <projectUrl>https://www.globular.io</projectUrl>
     <Version>1.0.6</Version>

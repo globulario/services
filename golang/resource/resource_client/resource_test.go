@@ -202,15 +202,15 @@ func TestDeleteRole(t *testing.T) {
 	}
 }
 
-/*
+
 // Remove an account.
-/*func TestDeleteAccount(t *testing.T) {
+func TestDeleteAccount(t *testing.T) {
 	log.Println("---> test remove existing account.")
-	err := client.DeleteAccount("dave")
+	err := client.DeleteAccount("dave", token)
 	if err != nil {
 		log.Println("---> ", err)
 	}
-}*/
+}
 
 func TestDeleteOrganization(t *testing.T) {
 	log.Println("---> test delete organization")

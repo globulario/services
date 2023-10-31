@@ -7,7 +7,7 @@ Currently, there are 28 available microservices that can be used by your applica
 
 * Event Service: This service acts as an event hub, allowing different parts of your application to communicate with each other. You can create event channels and propagate events on the network to synchronize clients or multiple servers. It follows the pub-sub principle and can be used to create an event-driven architecture. Globular itself makes use of this service for inter-service communications.
 
-* Persistence: This service provides an interface to MongoDB (with support for other stores in the future). It gives your web application access to a persistence store. The API is simple, offering CRUD operations and covering almost all the functionality offered by MongoDB. It is secure and easy to use.
+* Persistence: This service provides an interface to MONGO (with support for other stores in the future). It gives your web application access to a persistence store. The API is simple, offering CRUD operations and covering almost all the functionality offered by MONGO. It is secure and easy to use.
 
 * SQL: This service helps you connect your web application to a SQL server. Connection information is hidden on the server side. By using stored procedures on the SQL server, no SQL queries are visible on the client side, making it more difficult for malicious attacks. The API is simple and provides all you need to interact with a SQL server from your web application.
 

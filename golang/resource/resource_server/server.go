@@ -648,7 +648,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
 
-// ** MongoDB backend, it must reside on the same server as the resource server (at this time...)
+// ** MONGO backend, it must reside on the same server as the resource server (at this time...)
 
 /**
  * Connection to mongo db local store.
@@ -660,9 +660,12 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		var options_str = ""
 
-		if srv.Backend_type == "SCYLLADB" {
+		if srv.Backend_type == "SCYLLA" {
 			srv.store = new(persistence_store.ScyllaStore)
-		} else if srv.Backend_type == "MONGODB" {
+			options := map[string]interface{}{"keyspace": "local_resource", "replication_factor": srv.Backend_replication_factor, "hosts": []string{srv.Backend_address}, "port": srv.Backend_port}
+			options_, _ := Utility.ToJson(options)
+			options_str = string(options_)
+		} else if srv.Backend_type == "MONGO" {
 
 			process, err := Utility.GetProcessIdsByName("mongod")
 			if err != nil {
@@ -805,10 +808,10 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
-		q = `SELECT * FROM Accounts WHERE _id='` + id + `' OR name='` + name + `'`
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Accounts WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
@@ -851,11 +854,11 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// Each account will have their own database and a use that can read and write
 	// into it.
-	// Here I will wrote the script for mongoDB...
+	// Here I will wrote the script for MONGO...
 	var createUserScript string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		createUserScript = fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
-	} else if p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SCYLLA" {
 		createUserScript = fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '%d' };", name, resource_server.Backend_replication_factor)
 	} else if p.GetStoreType() == "SQL" {
 		createUserScript = fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s_db;", name)
@@ -865,7 +868,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// I will execute the sript with the admin function.
 	// TODO implement the admin function for scylla and sql.
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
 		if err != nil {
 			return err
@@ -923,10 +926,10 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + targetId + `"},{"name":"` + targetId + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
-		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `' OR name='` + targetId + `'`
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
@@ -1007,9 +1010,9 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	}
 
 	var q string // query string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1025,7 +1028,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	source = source_values.(map[string]interface{})
 
 	// append the domain to the id.
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		if !strings.Contains(targetId, "@") {
 			targetId += "@" + localDomain
 		}
@@ -1053,13 +1056,13 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		if err != nil {
 			return err
 		}
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
 		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-		if p.GetStoreType() == "SCYLLADB" {
-			// the foreign key is not supported by scyllaDB.
+		if p.GetStoreType() == "SCYLLA" {
+			// the foreign key is not supported by SCYLLA.
 			createTableSQL = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
 		}
 
@@ -1185,9 +1188,9 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1239,9 +1242,9 @@ func (resource_server *server) CreateAccountDir() error {
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM Accounts`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1294,10 +1297,10 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
-		q = `SELECT * FROM Roles WHERE _id='` + id + `' OR name='` + id + `' OR name='` + name + `'`
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
+		q = `SELECT * FROM Roles WHERE _id='` + id + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
 	}
@@ -1354,9 +1357,9 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		q = `{"_id":"` + applicationId + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `'`
 	} else {
 		return errors.New("unknown backend type " + p.GetStoreType())
@@ -1410,11 +1413,11 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	// Drop the application user.
 	// Here I will drop the db user.
 	var dropUserScript string
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		dropUserScript = fmt.Sprintf(
 			`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
 			applicationId)
-	} else if p.GetStoreType() == "SCYLLADB" {
+	} else if p.GetStoreType() == "SCYLLA" {
 		dropUserScript = fmt.Sprintf("DROP KEYSPACE IF EXISTS %s;", applicationId)
 	} else if p.GetStoreType() == "SQL" {
 		dropUserScript = fmt.Sprintf("DROP DATABASE IF EXISTS %s;", applicationId)
@@ -1424,7 +1427,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 	// I will execute the sript with the admin function.
 	// TODO implement drop user for scylla and sql
-	if p.GetStoreType() == "MONGODB" {
+	if p.GetStoreType() == "MONGO" {
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
 		if err != nil {
 			return err
@@ -1478,7 +1481,7 @@ func main() {
 	s_impl.Backend_type = "SQL" // use SQL as default backend.
 	s_impl.Backend_address = s_impl.Address
 	s_impl.Backend_replication_factor = 1
-	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case mongodb is already exist
+	s_impl.Backend_port = 27018 // Here I will use the port beside the default one in case MONGO is already exist
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
 	s_impl.DataPath = config.GetDataDir()

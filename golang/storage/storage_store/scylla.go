@@ -37,10 +37,10 @@ func NewScylla_store(address string, keySpace string, replicationFactor int) *Sc
 		'replication_factor': ` + Utility.ToString(replicationFactor) + `
 	}
 	`
-	
-	adminCluster := gocql.NewCluster() // Replace with your ScyllaDB cluster IP address
+
+	adminCluster := gocql.NewCluster()                  // Replace with your SCYLLA cluster IP address
 	adminCluster.Hosts = []string{address, "127.0.0.1"} // add local host as well.
-	adminCluster.Keyspace = "system"          // Use the 'system' keyspace for administrative tasks
+	adminCluster.Keyspace = "system"                    // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
 		fmt.Println("Error creating admin session:", err)
@@ -51,10 +51,10 @@ func NewScylla_store(address string, keySpace string, replicationFactor int) *Sc
 		fmt.Println("Error creating keyspace:", err)
 	}
 
-	fmt.Println("ScyllaDB store create session")
+	fmt.Println("SCYLLA store create session")
 
 	// The cluster address...
-	cluster := gocql.NewCluster(address) // Set your ScyllaDB cluster address here
+	cluster := gocql.NewCluster(address) // Set your SCYLLA cluster address here
 	cluster.Keyspace = keySpace          // Set your keyspace name here
 	cluster.Consistency = gocql.Quorum
 	cluster.Hosts = []string{address, "127.0.0.1"}
@@ -63,7 +63,6 @@ func NewScylla_store(address string, keySpace string, replicationFactor int) *Sc
 	if err != nil {
 		panic(err)
 	}
-
 
 	s := &ScyllaStore{
 		cluster: cluster,
@@ -112,10 +111,9 @@ func (store *ScyllaStore) run() {
 	}
 }
 
-
 func (s *ScyllaStore) open(optionsStr string) error {
 
-	fmt.Println("ScyllaDB store open")
+	fmt.Println("SCYLLA store open")
 	options := make(map[string]interface{})
 
 	if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {

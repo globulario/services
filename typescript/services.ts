@@ -79,7 +79,7 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
-  BackendPort:number; // mongoDB port.
+  BackendPort:number; // MONGO port.
   AdminEmail: string;
   SessionTimeout: number;
   Protocol: string;

@@ -134,7 +134,7 @@ func (store *MongoStore) Disconnect(connectionId string) error {
 }
 
 func (store *MongoStore) GetStoreType() string {
-	return "MONGODB"
+	return "MONGO"
 }
 
 /**

@@ -1,6 +1,6 @@
 # Persistence Service
 Create Read Update and Delete entities... Persistence service give you all required functionalities that make all your application entities persistent.
-That microservice define a generic datastore that can be implement by almost any storage technologie. At this time only mongoDB is available,
+That microservice define a generic datastore that can be implement by almost any storage technologie. At this time only MONGO is available,
 but SQL is planned to be done next.
 
 ## Create a connection
@@ -14,7 +14,7 @@ Here is how to create a connection. The required parameters are,
 * The _database_ name
 * The data store _domain_ 
 * The data store _port_
-* The data store type 0 is _mongoDB_
+* The data store type 0 is _MONGO_
 * The _user_
 * The _password_
 * The connection _timeout_
@@ -64,14 +64,14 @@ Note that if your entity contain a large number of data you must considere using
 in size and the serialized data can't be larger than that size. It will return an error if already existing entity is present.
 You can use _upsert_ option to replace existing entity.
 
-Here an exemple how to persist employe data. If you made use of _mongoDB_ as backend, the database and the collection will
+Here an exemple how to persist employe data. If you made use of _MONGO_ as backend, the database and the collection will
 be create automaticaly at first insertion, otherwise you must explicitly create it by calling _CreateDatabase_ and _CreateCollection_
 explicitly.
 
 _Go_
 ```go
 Id := "connection_id"
-Database := "TestMongoDB"
+Database := "TestMONGO"
 Collection := "Employees"
 
 employe := map[string]interface{}{
@@ -201,7 +201,7 @@ err := client.Update(Id, Database, Collection, Query, Value, "")
 
 ## Find One
 To find one object at time you can use _FindOne_. That function return an entity if it exist or an error if not.
-The _Query_ parameter is will depend of the backend, I the fowlling example the backend is _mongoDB_. Note that the entity size must not
+The _Query_ parameter is will depend of the backend, I the fowlling example the backend is _MONGO_. Note that the entity size must not
 exeeded the gRPC message size limit, if so made use of _Find_ insetead.
 
 ```go
