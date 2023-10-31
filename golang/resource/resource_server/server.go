@@ -755,6 +755,53 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			if err != nil {
 				fmt.Println("fail to create table Notifications with error ", err)
 			}
+		} else if srv.Backend_type == "SCYLLA" {
+			// Create tables if not already exist.
+			err := srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Accounts with error ", err)
+			}
+
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INT", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INT"})
+			if err != nil {
+				fmt.Println("fail to create table Organizations with error ", err)
+			}
+
+			// Create organizations table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Organizations with error ", err)
+			}
+
+			// Create roles table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Roles with error ", err)
+			}
+
+			// Create groups table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			if err != nil {
+				fmt.Println("fail to create table Groups with error ", err)
+			}
+
+			// Create peers table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "portHttp INT", "portHttps INT"})
+			if err != nil {
+				fmt.Println("fail to create table Peers with error ", err)
+			}
+
+			// Create the sessions table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INT", "last_state_time INT", "expire_at INT"})
+			if err != nil {
+				fmt.Println("fail to create table Sessions with error ", err)
+			}
+
+			// Create the notifications table.
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date DOUBLE", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
+			if err != nil {
+				fmt.Println("fail to create table Notifications with error ", err)
+			}
 		}
 	} else if !srv.isReady {
 		nbTry := 100
@@ -807,14 +854,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Accounts WHERE _id='` + id + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + id + `"}`
 
 	// first of all the Persistence service must be active.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -899,7 +939,6 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
 
-	fmt.Println("try to remove ", refId, "from", targetId, "field", targetField, "collection", targetCollection)
 	if strings.Contains(targetId, "@") {
 		domain := strings.Split(targetId, "@")[1]
 		targetId = strings.Split(targetId, "@")[0]
@@ -925,15 +964,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 		}
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"$or":[{"_id":"` + targetId + `"},{"name":"` + targetId + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
-
+	q := `{"_id":"` + targetId + `"}`
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
 	if err != nil {
 		return err
@@ -1009,14 +1040,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 	}
 
-	var q string // query string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM ` + sourceCollection + ` WHERE _id='` + id + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + id + `"}`
 
 	// Get the source object.
 	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
@@ -1026,6 +1050,10 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 	// append the account.
 	source = source_values.(map[string]interface{})
+	// be sure that the target id is a valid id.
+	if source["_id"] == nil {
+		return errors.New("No _id field was found in object with id " + id + "!")
+	}
 
 	// append the domain to the id.
 	if p.GetStoreType() == "MONGO" {
@@ -1060,17 +1088,23 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
-		createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-		if p.GetStoreType() == "SCYLLA" {
+		if p.GetStoreType() == "SQL" {
+			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+			p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTable, nil, 0)
+
+		} else if p.GetStoreType() == "SCYLLA" {
 			// the foreign key is not supported by SCYLLA.
-			createTableSQL = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-		}
+			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+			session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
 
-		p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTableSQL, nil, 0)
+			if session == nil {
+				return errors.New("fail to get session for local_resource")
+			}
 
-		// be sure that the target id is a valid id.
-		if source["_id"] == nil {
-			return errors.New("No _id field was found in object with id " + id + "!")
+			err = session.Query(createTable).Exec()
+			if err != nil {
+				return err
+			}
 		}
 
 		if strings.Contains(targetId, "@") {
@@ -1094,7 +1128,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 
 		// So I need to insert  the reference in the database.
-		q := `SELECT * FROM ` + targetCollection + ` WHERE _id='` + targetId + `'`
+		q := `{"_id":"` + targetId + `"}`
 
 		// Get the targer object.
 		target_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
@@ -1112,13 +1146,32 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 		// I will first check if the reference already exist.
 		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_id='` + Utility.ToString(source["_id"]) + `' AND target_id='` + Utility.ToString(target["_id"]) + `'`
+		if p.GetStoreType() == "SCYLLA" {
+			q += ` ALLOW FILTERING`
+		}
 
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
+
 		if count == 0 {
 			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_id, target_id) VALUES (?,?)`
-			_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], target["_id"]}, 0)
-			if err != nil {
-				return err
+
+			if p.GetStoreType() == "SCYLLA" {
+
+				session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
+				if session == nil {
+					return errors.New("fail to get session for local_resource")
+				}
+
+				err = session.Query(q, source["_id"], target["_id"]).Exec()
+				if err != nil {
+					return err
+				}
+
+			} else if p.GetStoreType() == "SQL" {
+				_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], target["_id"]}, 0)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -1187,14 +1240,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 		return err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"_id":"` + id + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Groups WHERE _id='` + id + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + id + `"}`
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
@@ -1241,14 +1287,7 @@ func (resource_server *server) CreateAccountDir() error {
 		return err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Accounts`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q := `{}`
 
 	// Make sure some account exist on the server.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -1297,13 +1336,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	}
 
 	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"$or":[{"_id":"` + id + `"},{"name":"` + id + `"},{"name":"` + name + `"} ]}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Roles WHERE _id='` + id + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q = `{"_id":"` + id + `"}`
 
 	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err == nil {
@@ -1356,14 +1389,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
-	var q string
-	if p.GetStoreType() == "MONGO" {
-		q = `{"_id":"` + applicationId + `"}`
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Applications WHERE _id='` + applicationId + `'`
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
-	}
+	q := `{"_id":"` + applicationId + `"}`
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
 	if err != nil {
