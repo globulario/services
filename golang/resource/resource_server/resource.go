@@ -439,10 +439,11 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	q := `{"_id":"` + rqst.Account.Id + `"}`
 
 	// Set the field and the values to update.
-	setAccount := `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `, "domain":"` + rqst.Account.Domain + `"}}`
+	setAccount := `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `", "domain":"` + rqst.Account.Domain + `"}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount, "")
 	if err != nil {
+		
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -4666,6 +4667,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 		}
 	}
 
+	// insert notification into recipient database
 	_, err = p.InsertOne(context.Background(), "local_resource", recipient+"_db", "Notifications", rqst.Notification, "")
 	if err != nil {
 		return nil, status.Errorf(

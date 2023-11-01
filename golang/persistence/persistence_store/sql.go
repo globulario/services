@@ -152,9 +152,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	}
 
 	connection.databases[database] = db
-
-
-
+	
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {

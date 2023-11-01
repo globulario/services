@@ -187,6 +187,15 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Save the session for that keyspace.
 	connection.sessions[keyspace] = session
 
+	// Create the table if it does not exist.
+	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
+	if count == 0 && id != "local_resource" && user != "sa" {
+		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "firstName_": "", "lastName_": "", "middleName_": "", "profilePicture_": "", "domain_": "", "email_": ""}, "")
+		if err != nil {
+			fmt.Println("Error creating user_data table: ", id, user, err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -654,6 +663,15 @@ func (store *ScyllaStore) InsertOne(ctx context.Context, connectionId string, ke
 		return nil, errors.New("the session does not exist")
 	}
 
+	// Here I will create the keyspace if not already exist.
+	createKeyspaceSQL := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS \"%s\" WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };", keyspace)
+	// Execute the CREATE TABLE query
+	err := session.Query(createKeyspaceSQL).Exec()
+	if err != nil {
+		fmt.Println("Failed to create keyspace ", keyspace, "with error:", err)
+		return nil, err
+	}
+
 	// Check if the table exist.
 	if !store.isTableExist(connectionId, keyspace, table) {
 		// return nil, errors.New("the table does not exist")
@@ -668,7 +686,6 @@ func (store *ScyllaStore) InsertOne(ctx context.Context, connectionId string, ke
 	}
 
 	// Generate the INSERT statement
-	var err error
 	entity, err = store.insertData(connectionId, keyspace, table, entity.(map[string]interface{}))
 	if err != nil {
 		return nil, err
@@ -1157,6 +1174,15 @@ func (store *ScyllaStore) ReplaceOne(ctx context.Context, connectionId string, k
 		return err
 	}
 
+	// Here I will create the keyspace if not already exist.
+	createKeyspaceSQL := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS \"%s\" WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };", keyspace)
+	// Execute the CREATE TABLE query
+	err = session.Query(createKeyspaceSQL).Exec()
+	if err != nil {
+		fmt.Println("Failed to create keyspace ", keyspace, "with error:", err)
+		return err
+	}
+
 	// Check if the table exist.
 	if !store.isTableExist(connectionId, keyspace, table) {
 		// return nil, errors.New("the table does not exist")
@@ -1269,6 +1295,7 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {
+		fmt.Println("Error unmarshalling value: ", value, err)
 		return err
 	}
 
@@ -1278,6 +1305,7 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 
 	query, err = store.formatQuery(table, query)
 	if err != nil {
+
 		return err
 	}
 
@@ -1362,9 +1390,6 @@ func (store *ScyllaStore) Aggregate(ctx context.Context, connectionId string, ke
 
 func (store *ScyllaStore) CreateTable(ctx context.Context, connectionId string, db string, table string, fields []string) error {
 
-	// Create the table
-	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (id TEXT PRIMARY KEY, %s);", table, strings.Join(fields, ", "))
-
 	// I will get the session for that keyspace.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
@@ -1380,8 +1405,20 @@ func (store *ScyllaStore) CreateTable(ctx context.Context, connectionId string, 
 		return errors.New("the session does not exist")
 	}
 
+	// Here I will create the keyspace if not already exist.
+	createKeyspaceSQL := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS \"%s\" WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 };", db)
 	// Execute the CREATE TABLE query
-	err := session.Query(createTableSQL).Exec()
+	err := session.Query(createKeyspaceSQL).Exec()
+	if err != nil {
+		fmt.Println("Failed to create keyspace ", db, "with error:", err)
+		return err
+	}
+
+	// Create the table
+	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (id TEXT PRIMARY KEY, %s);", table, strings.Join(fields, ", "))
+
+	// Execute the CREATE TABLE query
+	err = session.Query(createTableSQL).Exec()
 	if err != nil {
 		fmt.Println("Failed to create table ", table, "with error:", err)
 		return err

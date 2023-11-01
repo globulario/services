@@ -889,6 +889,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return err
 	}
 
+
 	// replace @ and . by _  * active directory
 	name = strings.ReplaceAll(strings.ReplaceAll(name, "@", "_"), ".", "_")
 
@@ -898,12 +899,6 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	var createUserScript string
 	if p.GetStoreType() == "MONGO" {
 		createUserScript = fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
-	} else if p.GetStoreType() == "SCYLLA" {
-		createUserScript = fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '%d' };", name, resource_server.Backend_replication_factor)
-	} else if p.GetStoreType() == "SQL" {
-		createUserScript = fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s_db;", name)
-	} else {
-		return errors.New("unknown backend type " + p.GetStoreType())
 	}
 
 	// I will execute the sript with the admin function.
@@ -913,6 +908,15 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		if err != nil {
 			return err
 		}
+	} else {
+		fmt.Println("-----------------------> create user db", name)
+		err = p.CreateDatabase(context.Background(), "local_resource",  name+"_db");
+		if err != nil {
+			fmt.Println("fail to create database ", name+"_db", " with error ", err)
+			return err
+		}
+
+		fmt.Println("-----> db was created")
 	}
 
 	// Organizations
@@ -1085,7 +1089,6 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 			return err
 		}
 	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
-		fmt.Println("create reference for sql store source:", sourceCollection, ":", field, "target:", targetId, ":", targetCollection)
 
 		// I will create the table if not already exist.
 		if p.GetStoreType() == "SQL" {

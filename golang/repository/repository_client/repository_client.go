@@ -522,7 +522,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			notification.Id = Utility.RandomUUID()
 			notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
 			notification.Message = message
-			notification.Recipient = application.Id
+			notification.Recipient = application.Name
 			notification.Date = time.Now().Unix()
 			notification.Mac, _ = Utility.MyMacAddr(Utility.MyIP())
 
