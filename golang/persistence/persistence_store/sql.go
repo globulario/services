@@ -150,6 +150,12 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	connection.databases[database] = db
 
+	// Create the table if it does not exist.
+	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
+	if count == 0 && id != "local_resource" {
+		store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "" , "email": ""}, "")
+	}
+
 	return nil
 }
 
@@ -668,7 +674,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 
 							// Create the table if it does not exist.
 							if !store.isTableExist(connectionId, db, arrayTableName) {
-								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)", getSQLType(reflect.TypeOf(columnValue)), arrayTableName, tableName, tableName, tableName)
+								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)", arrayTableName, getSQLType(reflect.TypeOf(columnValue)), tableName, tableName, tableName)
 								_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 								if err != nil {
 									return nil, err
@@ -678,6 +684,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							parameters = append(parameters, id)
 							_, err := store.ExecContext(connectionId, db, arrayInsertSQL, parameters, 0)
 							if err != nil {
+								fmt.Println("686")
 								fmt.Println("Error inserting data into array table: ", err)
 								return nil, err
 							}
@@ -1147,10 +1154,13 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 
 func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
 
+	fmt.Println("ReplaceOne: ", query)
+
 	// insert the new entry.
 	entity := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &entity)
 	if err != nil {
+		fmt.Println("Error unmarshalling entity: ", err)
 		return err
 	}
 
@@ -1160,6 +1170,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity)
 		_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 		if err != nil {
+			fmt.Println("Error creating table: ", err)
 			return err
 		}
 
@@ -1167,6 +1178,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		for _, sql := range arrayTableSQL {
 			_, err := store.ExecContext(connectionId, db, sql, nil, 0)
 			if err != nil {
+				fmt.Println("Error creating table: ", err)
 				return err
 			}
 		}
@@ -1177,6 +1189,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		var err error
 		query, err = store.formatQuery(table, query)
 		if err != nil {
+			fmt.Println("Error formatting query: ", err)
 			return err
 		}
 	}
@@ -1191,6 +1204,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 
 	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
+		fmt.Println("Error inserting data: ", err)
 		return err
 	}
 

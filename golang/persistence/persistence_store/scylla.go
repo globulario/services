@@ -196,7 +196,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {
-		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "domain": "", "email": ""}, "")
+		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "",  "email": ""}, "")
 		if err != nil {
 			return err
 		}
@@ -1126,22 +1126,26 @@ func (store *ScyllaStore) ReplaceOne(ctx context.Context, connectionId string, k
 	}
 
 	// I will get the entity.
-	entity, err := store.find(connectionId, keyspace, table, query)
+	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil && !upsert {
+		fmt.Println("Error finding entity: ", err)
 		return err
 	}
 
 	// I will delete the entity.
-	if len(entity) > 0 {
-		err = store.deleteEntity(connectionId, keyspace, table, entity[0])
+	if len(entities) > 0 {
+		err = store.deleteEntity(connectionId, keyspace, table, entities[0])
 		if err != nil {
+			fmt.Println("Error deleting entity: ", err)
 			return err
 		}
 	}
 
 	// I will insert the entity.
 	_, err = store.insertData(connectionId, keyspace, table, data)
-
+	if err != nil {
+		fmt.Println("Error inserting entity: ", err)
+	}
 	return err
 }
 
