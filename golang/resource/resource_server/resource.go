@@ -207,7 +207,6 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	q := `{"_id":"` + accountId + `"}`
-
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		fmt.Println("fail to retreive account: ", accountId)
@@ -285,24 +284,23 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	q = `{"_id":"` + accountId + `"}`
 
-
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
 
 			user_data_ := user_data.(map[string]interface{})
-			if user_data_["profilePicture_"] != nil {
-				a.ProfilePicture = user_data_["profilePicture_"].(string)
+			if user_data_["profile_picture"] != nil {
+				a.ProfilePicture = user_data_["profile_picture"].(string)
 			}
-			if user_data_["firstName_"] != nil {
-				a.FirstName = user_data_["firstName_"].(string)
+			if user_data_["first_name"] != nil {
+				a.FirstName = user_data_["first_name"].(string)
 			}
-			if user_data_["lastName_"] != nil {
-				a.LastName = user_data_["lastName_"].(string)
+			if user_data_["last_name"] != nil {
+				a.LastName = user_data_["last_name"].(string)
 			}
-			if user_data_["middleName_"] != nil {
-				a.Middle = user_data_["middleName_"].(string)
+			if user_data_["middle_name"] != nil {
+				a.Middle = user_data_["middle_name"].(string)
 			}
 		}
 	}
@@ -443,7 +441,7 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount, "")
 	if err != nil {
-		
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -461,17 +459,17 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 		// set the user infos....
 		if user_data != nil {
 			user_data_ := user_data.(map[string]interface{})
-			if user_data_["profilePicture_"] != nil {
-				rqst.Account.ProfilePicture = user_data_["profilePicture_"].(string)
+			if user_data_["profile_picture"] != nil {
+				rqst.Account.ProfilePicture = user_data_["profile_picture"].(string)
 			}
-			if user_data_["firstName_"] != nil {
-				rqst.Account.FirstName = user_data_["firstName_"].(string)
+			if user_data_["first_name"] != nil {
+				rqst.Account.FirstName = user_data_["first_name"].(string)
 			}
-			if user_data_["lastName_"] != nil {
-				rqst.Account.LastName = user_data_["lastName_"].(string)
+			if user_data_["last_name"] != nil {
+				rqst.Account.LastName = user_data_["last_name"].(string)
 			}
-			if user_data_["middleName_"] != nil {
-				rqst.Account.Middle = user_data_["middleName_"].(string)
+			if user_data_["middle_name"] != nil {
+				rqst.Account.Middle = user_data_["middle_name"].(string)
 			}
 
 		}
@@ -623,22 +621,21 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 			// set the user infos....
 			if user_data != nil {
 				user_data_ := user_data.(map[string]interface{})
-				if user_data_["profilePicture_"] != nil {
-					a.ProfilePicture = user_data_["profilePicture_"].(string)
+				if user_data_["profile_picture"] != nil {
+					a.ProfilePicture = user_data_["profile_picture"].(string)
 				}
-				if user_data_["firstName_"] != nil {
-					a.FirstName = user_data_["firstName_"].(string)
+				if user_data_["first_name"] != nil {
+					a.FirstName = user_data_["first_name"].(string)
 				}
-				if user_data_["lastName_"] != nil {
-					a.LastName = user_data_["lastName_"].(string)
+				if user_data_["last_name"] != nil {
+					a.LastName = user_data_["last_name"].(string)
 				}
-				if user_data_["middleName_"] != nil {
-					a.Middle = user_data_["middleName_"].(string)
+				if user_data_["middle_name"] != nil {
+					a.Middle = user_data_["middle_name"].(string)
 				}
-
 			}
 		} else {
-			err := errors.New("fail to retreive user data " + db + " " + a.Id)
+			err := errors.New("fail to retreive user data " + db + " " + a.Id + " " + err.Error())
 
 			return status.Errorf(
 				codes.Internal,
@@ -1898,12 +1895,10 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 		if p.GetStoreType() == "MONGO" {
 			createApplicationDbScript = fmt.Sprintf(
-				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
-				app.Id, app.Id, app.Id, app.Id)
+				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", app.Name, app.Name, app.Name, app.Name)
 		} else if p.GetStoreType() == "SCYLLA" {
 			createApplicationDbScript = fmt.Sprintf(
-				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }; USE %s_db; CREATE TABLE application_data (id text PRIMARY KEY, data text);",
-				app.Id, app.Id)
+				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s_db.application_data (id text PRIMARY KEY, data text);", app.Name, resource_server.Backend_replication_factor, app.Name)
 		} else if p.GetStoreType() == "SQL" {
 			q = `` // TODO sql query string here...
 		} else {
@@ -1921,8 +1916,6 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 			if err != nil {
 				return err
 			}
-		} else if p.GetStoreType() == "SQL" {
-			// the database is created when the connection is made.
 		}
 
 		application["creation_date"] = time.Now().Unix() // save it as unix time.
@@ -2382,28 +2375,7 @@ func (resource_server *server) getApplications(query string, options string) ([]
 
 	if len(query) == 0 {
 		query = "{}"
-	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
-			parameters := make(map[string]interface{})
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return nil, err
-			}
-
-			if p.GetStoreType() == "SQL" {
-				query = `SELECT * FROM Applications`
-
-				if len(parameters) > 0 {
-					query = query + " WHERE "
-
-					for key, value := range parameters {
-						query = query + key + "='" + value.(string) + "' AND "
-					}
-					query = query[:len(query)-4] // Remove the last AND
-				}
-			}
-		}
-	}
+	} 
 
 	// So here I will get the list of retreived permission.
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, options)

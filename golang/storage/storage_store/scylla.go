@@ -51,8 +51,6 @@ func NewScylla_store(address string, keySpace string, replicationFactor int) *Sc
 		fmt.Println("Error creating keyspace:", err)
 	}
 
-	fmt.Println("SCYLLA store create session")
-
 	// The cluster address...
 	cluster := gocql.NewCluster(address) // Set your SCYLLA cluster address here
 	cluster.Keyspace = keySpace          // Set your keyspace name here

@@ -691,6 +691,10 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 
 	}
 
+	// Try to get the application with the _id or the name.
+	q0 := `{"_id":"` + applicationId + `"}`
+	q1:= `{"name":"` + applicationId + `"}`
+	
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
@@ -699,8 +703,12 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 			return nil, err
 		}
 
-		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
+		applications, err := resource_.GetApplications(q0)
 		if err != nil || len(applications) != 1 {
+			applications, err = resource_.GetApplications(q1)
+			if err != nil || len(applications) != 1 {
+				return nil, err
+			}
 			return nil, err
 		}
 
@@ -713,9 +721,12 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 			return nil, err
 		}
 
-		applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
-		if err != nil {
-			return nil, err
+		applications, err := resourceClient.GetApplications(q0)
+		if err != nil || len(applications) == 0 {
+			applications, err = resourceClient.GetApplications(q1)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if len(applications) == 0 {
@@ -730,6 +741,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
  * Test if a application exist.
  */
 func (server *server) applicationExist(id string) (bool, string) {
+
 	a, err := server.getApplication(id)
 	if err != nil || a == nil {
 		return false, ""

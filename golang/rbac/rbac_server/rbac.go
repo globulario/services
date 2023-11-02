@@ -2870,6 +2870,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
 			return false, false, err
 		}
+		
 		actions = application.Actions
 
 	} else if subjectType == rbacpb.SubjectType_PEER {

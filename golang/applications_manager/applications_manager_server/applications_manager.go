@@ -81,6 +81,7 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 // Install local package. found in the local directory...
 func (server *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
 
+	// in case of local package I will try to find the package in the local directory...
 	path := config.GetGlobularExecPath() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
 
 	fmt.Println("try to get package ", path)

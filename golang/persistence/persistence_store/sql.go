@@ -44,7 +44,6 @@ func (store *SqlStore) GetStoreType() string {
 // Connect to the SQL database.
 func (store *SqlStore) Connect(id string, host string, port int32, user string, password string, database string, timeout int32, options_str string) error {
 
-	
 	if len(id) == 0 {
 		return errors.New("the connection id is required")
 	}
@@ -61,7 +60,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		store.connections = make(map[string]SqlConnection)
 	}
 
-	
 	if len(host) == 0 {
 		return errors.New("the host is required")
 	}
@@ -113,7 +111,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		}
 	}
 
-	
 	// set default path
 	path := config.GetDataDir() + "/sql-data"
 
@@ -152,16 +149,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	}
 
 	connection.databases[database] = db
-	
-	// Create the table if it does not exist.
-	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
-	if count == 0 && id != "local_resource" && user != "sa" {
-		_, err := store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "firstName_": "", "lastName_": "", "middleName_": "", "profilePicture_": "", "domain_": "", "email_": ""}, "")
-		if err != nil {
-			fmt.Println("Error creating user_data table: ", id, user, err)
-			return err
-		}
-	}
 
 	return nil
 }
@@ -679,10 +666,9 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						// append the object id...
 						if len(parameters) > 0 {
 
-
 							// Create the table if it does not exist.
 							if !store.isTableExist(connectionId, db, arrayTableName) {
-								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)",getSQLType(reflect.TypeOf(columnValue)), arrayTableName, tableName, tableName, tableName)
+								createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)", getSQLType(reflect.TypeOf(columnValue)), arrayTableName, tableName, tableName, tableName)
 								_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 								if err != nil {
 									return nil, err
@@ -1334,7 +1320,6 @@ func (store *SqlStore) deleteSqlEntries(connectionId string, db string, table st
 	return nil
 }
 
-
 func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table string, query string) error {
 
 	// I will retreive the entity with the query.
@@ -1365,7 +1350,7 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 			if columnValue != nil {
 				isArray := reflect.Slice == reflect.TypeOf(columnValue).Kind()
 				if isArray {
-			
+
 					// This is an array column, insert the values into the array table
 					arrayTableName := table + "_" + columnName
 
@@ -1378,7 +1363,7 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)
 					if err != nil {
-						
+
 						query := fmt.Sprintf("DELETE FROM %s WHERE source_id=?", arrayTableName)
 
 						parameters := make([]interface{}, 0)

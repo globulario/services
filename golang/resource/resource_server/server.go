@@ -706,6 +706,8 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		srv.isReady = true
 
+		
+
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
 		if srv.Backend_type == "SQL" {
@@ -889,34 +891,35 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return err
 	}
 
-
 	// replace @ and . by _  * active directory
 	name = strings.ReplaceAll(strings.ReplaceAll(name, "@", "_"), ".", "_")
 
 	// Each account will have their own database and a use that can read and write
 	// into it.
 	// Here I will wrote the script for MONGO...
-	var createUserScript string
-	if p.GetStoreType() == "MONGO" {
-		createUserScript = fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
-	}
 
 	// I will execute the sript with the admin function.
 	// TODO implement the admin function for scylla and sql.
 	if p.GetStoreType() == "MONGO" {
+
+		createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
 		if err != nil {
 			return err
 		}
-	} else {
-		fmt.Println("-----------------------> create user db", name)
-		err = p.CreateDatabase(context.Background(), "local_resource",  name+"_db");
+
+	} else if p.GetStoreType() == "SQL" {
+		err = p.CreateDatabase(context.Background(), "local_resource", name+"_db")
 		if err != nil {
 			fmt.Println("fail to create database ", name+"_db", " with error ", err)
 			return err
 		}
-
-		fmt.Println("-----> db was created")
+	} else if p.GetStoreType() == "SCYLLA" {
+		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, resource_server.Backend_replication_factor, name, name, id, email)
+		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Organizations

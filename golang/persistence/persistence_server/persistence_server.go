@@ -933,20 +933,22 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 // Find many
 func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.PersistenceService_FindServer) error {
 
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
+	store := persistence_server.stores[connectionId]
 
 	if store == nil {
-		err := errors.New("Find No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
+		err := errors.New("Find No store connection exist for id " + connectionId)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	results, err := store.Find(stream.Context(), strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
+	results, err := store.Find(stream.Context(), connectionId, strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
 	if err != nil {
+		err_ := errors.New(connectionId + " " + rqst.Collection + " " + rqst.Query + " " + err.Error())
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err_))
 	}
 
 	// No I will stream the result over the networks.
