@@ -79,7 +79,8 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
-  BackendPort:number; // MONGO port.
+  BackendPort:number;
+  BackendStore: number;
   AdminEmail: string;
   SessionTimeout: number;
   Protocol: string;

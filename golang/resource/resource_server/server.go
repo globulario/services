@@ -794,13 +794,13 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			}
 
 			// Create the sessions table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INT", "last_state_time INT", "expire_at INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource",  "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
 			if err != nil {
 				fmt.Println("fail to create table Sessions with error ", err)
 			}
 
 			// Create the notifications table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date DOUBLE", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date DOUBLE", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
 			if err != nil {
 				fmt.Println("fail to create table Notifications with error ", err)
 			}

@@ -134,9 +134,12 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		return errors.New("the database is required")
 	}
 
+	fmt.Println("---------------> connecting to SCYLLA with id ", id)
+
 	// So here I will authenticate the user and password.
 	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
+		fmt.Println("---------------> fail to connect with error ", id, err)
 		return err
 	}
 
@@ -148,14 +151,17 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		var err error
 		// Authenticate the user.
 		token, err = authentication_client.Authenticate(user, password)
-		if err != nil && nbTry == 0 {
-			fmt.Println("Fail to authenticate user ", user, err)
-			return err
+		if err != nil {
+			fmt.Println("-----> Fail to authenticate user ", user, err)
+			if nbTry == 0 {
+				return err
+			}
+			nbTry--
+			time.Sleep(1 * time.Second)
 		} else if err == nil {
 			break
 		}
 
-		time.Sleep(1 * time.Second)
 	}
 
 	var connection *ScyllaConnection
@@ -171,35 +177,43 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		}
 	}
 
-	// Save the connection.
+	// save the connection before creating the cluster.
+
 	store.lock.Lock()
 	store.connections[id] = connection
 	store.lock.Unlock()
 
-	fmt.Println("------------------> connection: ", id, " created.")
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
+		fmt.Println("-------------> error creating key space with error: ", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
+		fmt.Println("-------------> Error creating session: ", err)
 		return err
 	}
 
+	fmt.Println("-------------> set the session for keyspace ", keyspace, " with id ", id)
 	// Save the session for that keyspace.
 	connection.sessions[keyspace] = session
+
+	fmt.Println("---------------> set connection with id ", id)
 
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {
 		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "domain": "", "email": ""}, "")
 		if err != nil {
-			fmt.Println("Error creating user_data table: ", id, user, err)
+			fmt.Println("----------------> Error creating user_data table: ", id, user, err)
 			return err
 		}
 	}
+
+	fmt.Println("--------------------> SCYLLA connected")
+
 	return nil
 }
 
@@ -325,16 +339,24 @@ func (store *ScyllaStore) isTableExist(connectionId string, keyspace string, tab
 
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
+		fmt.Println("fail to validate if table", table, "exist with error: ", err)
 		return false
 	}
 
 	// Check if the table exist.
-	query := session.Query(`SELECT columnfamily_name FROM system.schema_columnfamilies WHERE keyspace_name = ? AND columnfamily_name = ?`, keyspace, table)
-	iter := query.Iter()
-	defer iter.Close()
+	// Query system_schema.tables to check if the table exists
+	query := "SELECT table_name FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?"
+	iter := session.Query(query, keyspace, table).Iter()
 
-	// Test if the table exist.
-	return iter.NumRows() > 0
+	var existingTable string
+	if iter.Scan(&existingTable) {
+		fmt.Printf("The table '%s' exists in keyspace '%s'.\n", table, keyspace)
+		return true
+	} else {
+		fmt.Printf("The table '%s' does not exist in keyspace '%s'.\n", table, keyspace)
+
+		return false
+	}
 }
 
 func deduceColumnType(value interface{}) string {
@@ -452,13 +474,22 @@ func (store *ScyllaStore) Count(ctx context.Context, connectionId string, keyspa
 }
 
 func (store *ScyllaStore) getSession(connectionId, keyspace string) (*gocql.Session, error) {
+
+	if len(keyspace) == 0 {
+		return nil, errors.New("the database is required")
+	}
+
+	if len(connectionId) == 0 {
+		return nil, errors.New("the connection id is required")
+	}
+
 	// I will get the session for that keyspace.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
 
 	if connection == nil {
-		return nil, errors.New("the connection does not exist")
+		return nil, errors.New("the connection " + connectionId + "does not exist")
 	}
 
 	// Get the first found session.
@@ -472,7 +503,7 @@ func (store *ScyllaStore) getSession(connectionId, keyspace string) (*gocql.Sess
 			}
 		}
 
-		return nil, errors.New("the session does not exist")
+		return nil, errors.New("connection with id " + connectionId + " does not have a session for keyspace " + keyspace)
 	}
 
 	return session, nil
@@ -530,8 +561,13 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 				if valueType.Kind() == reflect.Map {
 					entity := element.Interface().(map[string]interface{})
+
 					if entity["typeName"] != nil {
 						typeName := entity["typeName"].(string)
+
+						// set the entity domain...
+						localDomain, _ := config.GetDomain()
+						entity["domain"] = localDomain
 
 						// I will save the entity itself.
 						var err error
@@ -950,6 +986,11 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 	// I will set the type name.
 	entity["typeName"] = typeName
 
+	if entity["domain"] != nil {
+		localDomain, _ := config.GetDomain()
+		entity["domain"] = localDomain
+	}
+
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return nil, err
@@ -992,6 +1033,23 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
  * Find entities.
  */
 func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]map[string]interface{}, error) {
+
+	if len(keyspace) == 0 {
+		return nil, errors.New("the database is required")
+	}
+
+	if len(connectionId) == 0 {
+		return nil, errors.New("the connection id is required")
+	}
+
+	if len(table) == 0 {
+		return nil, errors.New("the table is required")
+	}
+
+	// I will test if the table exist.
+	if !store.isTableExist(connectionId, keyspace, table) {
+		return nil, errors.New("the table " + keyspace + "." + table + " does not exist")
+	}
 
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {

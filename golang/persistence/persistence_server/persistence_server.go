@@ -517,6 +517,8 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	var c connection
 	var err error
 
+	fmt.Print("----> createConnection ", id, " ", name, " ", host, " ", port, " ", store, " ", save, " ", options, "\n")
+
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]
@@ -610,6 +612,21 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
 
+	if rqst.Connection == nil {
+		err := errors.New("no connection provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
+
+	if len(rqst.Connection.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save, rqst.Connection.Options)
 	if err != nil {
 		// codes.
@@ -625,6 +642,12 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 }
 
 func (persistence_server *server) Connect(ctx context.Context, rqst *persistencepb.ConnectRqst) (*persistencepb.ConnectRsp, error) {
+	if len(rqst.GetConnectionId()) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	store := persistence_server.stores[rqst.GetConnectionId()]
 	if store == nil {
@@ -683,6 +706,13 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 
 // Close connection.
 func (persistence_server *server) Disconnect(ctx context.Context, rqst *persistencepb.DisconnectRqst) (*persistencepb.DisconnectRsp, error) {
+	if len(rqst.GetConnectionId()) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[rqst.GetConnectionId()]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.GetConnectionId())
@@ -706,6 +736,20 @@ func (persistence_server *server) Disconnect(ctx context.Context, rqst *persiste
 
 // Create a database
 func (persistence_server *server) CreateDatabase(ctx context.Context, rqst *persistencepb.CreateDatabaseRqst) (*persistencepb.CreateDatabaseRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("CreateDatabase No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -728,6 +772,20 @@ func (persistence_server *server) CreateDatabase(ctx context.Context, rqst *pers
 
 // Delete a database
 func (persistence_server *server) DeleteDatabase(ctx context.Context, rqst *persistencepb.DeleteDatabaseRqst) (*persistencepb.DeleteDatabaseRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteDatabase No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -750,6 +808,20 @@ func (persistence_server *server) DeleteDatabase(ctx context.Context, rqst *pers
 
 // Create a Collection
 func (persistence_server *server) CreateCollection(ctx context.Context, rqst *persistencepb.CreateCollectionRqst) (*persistencepb.CreateCollectionRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("CreateCollection No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -772,6 +844,20 @@ func (persistence_server *server) CreateCollection(ctx context.Context, rqst *pe
 
 // Delete collection
 func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *persistencepb.DeleteCollectionRqst) (*persistencepb.DeleteCollectionRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteCollection No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -794,6 +880,14 @@ func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *pe
 
 // Ping a sql connection.
 func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.PingConnectionRqst) (*persistencepb.PingConnectionRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("ping No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -816,6 +910,20 @@ func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.
 
 // Get the number of entry in a collection
 func (persistence_server *server) Count(ctx context.Context, rqst *persistencepb.CountRqst) (*persistencepb.CountRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("Count No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -838,6 +946,21 @@ func (persistence_server *server) Count(ctx context.Context, rqst *persistencepb
 
 // Implementation of the Persistence method.
 func (persistence_server *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOneRqst) (*persistencepb.InsertOneRsp, error) {
+	
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("InsertOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -883,7 +1006,22 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 	var collection string
 
 	for {
+
 		rqst, err = stream.Recv()
+		if len(rqst.Id) == 0 {
+			err := errors.New("no connection id provided")
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	
+		if len(rqst.Database) == 0 {
+			err := errors.New("no database provided")
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
 		if err == io.EOF {
 			// end of stream...
 			err_ := stream.SendAndClose(&persistencepb.InsertManyRsp{})
@@ -932,6 +1070,19 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 
 // Find many
 func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.PersistenceService_FindServer) error {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
 	store := persistence_server.stores[connectionId]
@@ -982,6 +1133,19 @@ func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream pers
 }
 
 func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, stream persistencepb.PersistenceService_AggregateServer) error {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 
@@ -1033,17 +1197,33 @@ func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, s
 // Find one
 func (persistence_server *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst) (*persistencepb.FindOneResp, error) {
 
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
-	if store == nil {
-		err := errors.New("FindOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	result, err := store.FindOne(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
-	if err != nil {
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
+
+	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
+	
+	store := persistence_server.stores[connectionId]
+	if store == nil {
+		err := errors.New("FindOne No store connection exist for id " + connectionId)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	result, err := store.FindOne(ctx, connectionId, strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
+	if err != nil {
 		err = errors.New(rqst.Collection + " " + rqst.Query + " " + err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1071,6 +1251,20 @@ func (persistence_server *server) FindOne(ctx context.Context, rqst *persistence
 
 // Update a single or many value depending of the query
 func (persistence_server *server) Update(ctx context.Context, rqst *persistencepb.UpdateRqst) (*persistencepb.UpdateRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("FindOne No connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("FindOne No database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("Update No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -1091,6 +1285,20 @@ func (persistence_server *server) Update(ctx context.Context, rqst *persistencep
 
 // Update a single docuemnt value(s)
 func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persistencepb.UpdateOneRqst) (*persistencepb.UpdateOneRsp, error) {
+	if len(rqst.Id) == 0 {
+		err := errors.New("no connection id provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Database) == 0 {
+		err := errors.New("no database provided")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("UpdateOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))

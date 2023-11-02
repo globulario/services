@@ -5429,6 +5429,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 func (server *server) updateSession(accountId string, state resourcepb.SessionState, last_session_time, expire_at int64) error {
 
+	fmt.Println("------------------------------> update session: ", accountId, " state: ", state, " last_session_time: ", last_session_time, " expire_at: ", expire_at)
 	expiration := time.Unix(expire_at, 0)
 	delay := time.Until(expiration)
 	if state != resourcepb.SessionState_OFFLINE {
