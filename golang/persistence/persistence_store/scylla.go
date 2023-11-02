@@ -134,12 +134,9 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		return errors.New("the database is required")
 	}
 
-	fmt.Println("---------------> connecting to SCYLLA with id ", id)
-
 	// So here I will authenticate the user and password.
 	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
-		fmt.Println("---------------> fail to connect with error ", id, err)
 		return err
 	}
 
@@ -152,7 +149,6 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		// Authenticate the user.
 		token, err = authentication_client.Authenticate(user, password)
 		if err != nil {
-			fmt.Println("-----> Fail to authenticate user ", user, err)
 			if nbTry == 0 {
 				return err
 			}
@@ -186,33 +182,25 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
-		fmt.Println("-------------> error creating key space with error: ", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		fmt.Println("-------------> Error creating session: ", err)
 		return err
 	}
 
-	fmt.Println("-------------> set the session for keyspace ", keyspace, " with id ", id)
 	// Save the session for that keyspace.
 	connection.sessions[keyspace] = session
-
-	fmt.Println("---------------> set connection with id ", id)
 
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {
 		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "domain": "", "email": ""}, "")
 		if err != nil {
-			fmt.Println("----------------> Error creating user_data table: ", id, user, err)
 			return err
 		}
 	}
-
-	fmt.Println("--------------------> SCYLLA connected")
 
 	return nil
 }
@@ -333,30 +321,6 @@ func snakeToCamel(input string) string {
 	}
 
 	return result.String()
-}
-
-func (store *ScyllaStore) isTableExist(connectionId string, keyspace string, table string) bool {
-
-	session, err := store.getSession(connectionId, keyspace)
-	if err != nil {
-		fmt.Println("fail to validate if table", table, "exist with error: ", err)
-		return false
-	}
-
-	// Check if the table exist.
-	// Query system_schema.tables to check if the table exists
-	query := "SELECT table_name FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?"
-	iter := session.Query(query, keyspace, table).Iter()
-
-	var existingTable string
-	if iter.Scan(&existingTable) {
-		fmt.Printf("The table '%s' exists in keyspace '%s'.\n", table, keyspace)
-		return true
-	} else {
-		fmt.Printf("The table '%s' does not exist in keyspace '%s'.\n", table, keyspace)
-
-		return false
-	}
 }
 
 func deduceColumnType(value interface{}) string {
@@ -528,20 +492,17 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 		return nil, errors.New("the id is required")
 	}
 
-	// test if the data already exist.
-	if store.isTableExist(connectionId, keyspace, tableName) {
-		// I will check if the data already exist.
-		query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id='%s'", keyspace, tableName, id)
-		values, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, "")
-		if err == nil {
-			return values.(map[string]interface{}), nil
-		}
-	} else {
-		// Create the table.
-		if err := store.createScyllaTable(session, keyspace, tableName, data); err != nil {
-			fmt.Println("Fail to create table ", err)
-			return nil, err
-		}
+	// I will check if the data already exist.
+	query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id='%s'", keyspace, tableName, id)
+	values_, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, "")
+	if err == nil {
+		return values_.(map[string]interface{}), nil
+	}
+
+	// Create the table.
+	if err := store.createScyllaTable(session, keyspace, tableName, data); err != nil {
+		fmt.Println("Fail to create table ", err)
+		return nil, err
 	}
 
 	columns := make([]string, 0)
@@ -564,6 +525,12 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 					if entity["typeName"] != nil {
 						typeName := entity["typeName"].(string)
+						if !strings.HasSuffix(typeName, "s") {
+							typeName += "s"
+						}
+
+						// be sure that the first letter is upper case.
+						typeName = strings.Title(typeName)
 
 						// set the entity domain...
 						localDomain, _ := config.GetDomain()
@@ -571,9 +538,9 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 						// I will save the entity itself.
 						var err error
-						entity, err = store.insertData(connectionId, keyspace, typeName+"s", entity)
+						entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Println("error inserting data into array table: ", typeName, err)
 						}
 
 						// I will get the entity id.
@@ -628,9 +595,16 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 			entity := value.(map[string]interface{})
 			typeName := entity["typeName"].(string)
 
+			if !strings.HasSuffix(typeName, "s") {
+				typeName += "s"
+			}
+
+			// be sure that the first letter is upper case.
+			typeName = strings.Title(typeName)
+
 			// I will save the entity itself.
 			var err error
-			entity, err = store.insertData(connectionId, keyspace, typeName+"s", entity)
+			entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 			if err != nil {
 				fmt.Println("Error inserting data into array table: ", err)
 			}
@@ -667,7 +641,10 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 		}
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (", keyspace, tableName, joinStrings(columns, ", "))
+	// be sure the first letter of the table name is upper case.
+	tableName = strings.Title(tableName)
+
+	query = fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (", keyspace, tableName, joinStrings(columns, ", "))
 	placeholders := make([]string, len(columns))
 
 	for i := range columns {
@@ -704,34 +681,9 @@ func joinStrings(slice []string, separator string) string {
 
 func (store *ScyllaStore) InsertOne(ctx context.Context, connectionId string, keyspace string, table string, data interface{}, options string) (interface{}, error) {
 
-	// I will get the session for that keyspace.
-	session, err := store.getSession(connectionId, keyspace)
-	if err != nil {
-		return nil, err
-	}
-
-	// Here I will create the keyspace if not already exist.
-	_, err = store.createKeyspace(connectionId, keyspace)
-	if err != nil {
-		return nil, err
-	}
-
 	entity, err := Utility.ToMap(data)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check if the table exist.
-	if !store.isTableExist(connectionId, keyspace, table) {
-		// return nil, errors.New("the table does not exist")
-		// Create the table.
-		if err := store.createScyllaTable(session, keyspace, table, entity); err != nil {
-			fmt.Println("Fail to create table ", err)
-			return nil, err
-		}
-
-		// Wait for the table to be created.
-		time.Sleep(1 * time.Second)
 	}
 
 	// Generate the INSERT statement
@@ -746,24 +698,6 @@ func (store *ScyllaStore) InsertOne(ctx context.Context, connectionId string, ke
 func (store *ScyllaStore) InsertMany(ctx context.Context, connectionId string, keyspace string, table string, entities []interface{}, options string) ([]interface{}, error) {
 
 	// I will get the session for that keyspace.
-	session, err := store.getSession(connectionId, keyspace)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if the table exist.
-	if !store.isTableExist(connectionId, keyspace, table) {
-		// return nil, errors.New("the table does not exist")
-		// Create the table.
-		if err := store.createScyllaTable(session, keyspace, table, entities[0].(map[string]interface{})); err != nil {
-			fmt.Println("Fail to create table ", err)
-			return nil, err
-		}
-
-		// Wait for the table to be created.
-		time.Sleep(1 * time.Second)
-	}
-
 	for _, data := range entities {
 		var err error
 		entity, err := Utility.ToMap(data)
@@ -1046,11 +980,6 @@ func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]m
 		return nil, errors.New("the table is required")
 	}
 
-	// I will test if the table exist.
-	if !store.isTableExist(connectionId, keyspace, table) {
-		return nil, errors.New("the table " + keyspace + "." + table + " does not exist")
-	}
-
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return nil, err
@@ -1189,35 +1118,11 @@ func (store *ScyllaStore) ReplaceOne(ctx context.Context, connectionId string, k
 		}
 	}
 
-	session, err := store.getSession(connectionId, keyspace)
-	if err != nil {
-		return err
-	}
-
 	// I will insert the new entity.
 	data := make(map[string]interface{})
-	err = json.Unmarshal([]byte(value), &data)
+	err := json.Unmarshal([]byte(value), &data)
 	if err != nil {
 		return err
-	}
-
-	// Here I will create the keyspace if not already exist.
-	_, err = store.createKeyspace(connectionId, keyspace)
-	if err != nil {
-		return err
-	}
-
-	// Check if the table exist.
-	if !store.isTableExist(connectionId, keyspace, table) {
-		// return nil, errors.New("the table does not exist")
-		// Create the table.
-		if err := store.createScyllaTable(session, keyspace, table, data); err != nil {
-			fmt.Println("Fail to create table ", err)
-			return err
-		}
-
-		// Wait for the table to be created.
-		time.Sleep(1 * time.Second)
 	}
 
 	// I will get the entity.
