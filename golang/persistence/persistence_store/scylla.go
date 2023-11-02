@@ -14,6 +14,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
+	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 )
 
@@ -32,7 +33,9 @@ type ScyllaStore struct {
 
 	/** the connections... */
 	connections map[string]*ScyllaConnection
-	lock        sync.Mutex
+
+	/** the lock. */
+	lock sync.Mutex
 }
 
 func (store *ScyllaStore) GetStoreType() string {
@@ -741,7 +744,7 @@ func (store *ScyllaStore) InsertMany(ctx context.Context, connectionId string, k
 func (store *ScyllaStore) getParameters(condition string, values []interface{}) string {
 	query := ""
 	if condition == "$and" {
-		query += "("
+
 		for _, v := range values {
 			value := v.(map[string]interface{})
 			for key, v := range value {
@@ -753,10 +756,9 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 			}
 		}
 		query = strings.TrimSuffix(query, " AND ")
-		query += ")"
+
 	} else if condition == "$or" {
 
-		query += "("
 		for _, v := range values {
 			value := v.(map[string]interface{})
 			for key, v := range value {
@@ -768,7 +770,6 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 			}
 		}
 		query = strings.TrimSuffix(query, " OR ")
-		query += ")"
 
 	}
 
@@ -843,33 +844,35 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName st
 			break
 		}
 
-		
 		// Do things with row
 		if targetId, ok := row["target_id"]; ok {
 
-			fmt.Println("851 -------------------> ",keyspace, tableName)
+			tableName_ := field
 
 			// Do things with row
-			tableName := tableName[:len(tableName)-len(field)-1] + "s"
-
-			fmt.Println("831 -------------------> ", tableName, targetId)
+			if field == "members" {
+				tableName_ = "accounts"
+			}
 
 			// I will get the entity.
-			query := fmt.Sprintf("SELECT * FROM %s.%s WHERE _id = ? ALLOW FILTERING;", keyspace, tableName[:len(tableName)-len(field)-1]+"s")
+			query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id = ? ALLOW FILTERING;", keyspace, tableName_)
 			iter := session.Query(query, targetId).Iter()
 			defer iter.Close()
 
 			for {
+
 				// New map each iteration
 				row := make(map[string]interface{})
 				if !iter.MapScan(row) {
 					break
 				}
 
-				err := store.initEntity(connectionId, keyspace, tableName, row)
-				if err == nil {
-					array = append(array, row)
-				}
+				// array = append(array, entity)
+				// so here I will not add the entity but a references information.
+				// todo set the correct domain here...
+				domain, _ := config.GetDomain()
+				array = append(array, map[string]interface{}{"$ref": tableName_, "$id": row["id"].(string) + "@" + domain, "$db": keyspace})
+
 			}
 		}
 	}
@@ -877,8 +880,8 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName st
 	// I will get the entity type name.
 	entity[field] = array
 
-	if err := iter.Close(); err != nil {
-		return err
+	if len(array) == 0 {
+		return errors.New("no entities found")
 	}
 
 	return nil
@@ -917,15 +920,15 @@ func (store *ScyllaStore) initArrayValues(connectionId, keyspace, tableName stri
 
 	field := strings.ReplaceAll(tableName, strings.Split(tableName, "_")[0]+"_", "")
 	field = snakeToCamel(field)
+	entity[field] = array
 
-	entity[snakeToCamel(field)] = array
 	return nil
 }
 
-func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, entity map[string]interface{}) error {
+func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, entity map[string]interface{}) (map[string]interface{}, error) {
 
 	if len(typeName) == 0 {
-		return errors.New("the type name is required")
+		return nil, errors.New("the type name is required")
 	}
 
 	// I will convert the column names to camel case.
@@ -940,12 +943,16 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 		delete(entity, "id")
 	}
 
+	if entity["_id"] == nil {
+		return nil, errors.New("the _id is required")
+	}
+
 	// I will set the type name.
 	entity["typeName"] = typeName
 
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Retreive the list of all tables in teh keyspace.
@@ -967,16 +974,17 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 		// I will ignore the array tables.
 		if strings.HasPrefix(strings.ToLower(tableName), strings.ToLower(typeName)+"_") {
 			// I will initialize the array of entities.
-			store.initArrayEntities(connectionId, keyspace, tableName, entity)
+			err := store.initArrayEntities(connectionId, keyspace, tableName, entity)
 
 			// I will initialize the array values.
-			store.initArrayValues(connectionId, keyspace, tableName, entity)
-
+			if err != nil {
+				store.initArrayValues(connectionId, keyspace, tableName, entity)
+			}
 		}
 
 	}
 
-	return nil
+	return entity, nil
 
 }
 
@@ -1015,10 +1023,11 @@ func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]m
 		}
 
 		// init
-		err := store.initEntity(connectionId, keyspace, table, row)
+		entity, err := store.initEntity(connectionId, keyspace, table, row)
 		if err == nil {
-			results = append(results, row)
+			results = append(results, entity)
 		}
+
 	}
 
 	return results, nil
@@ -1035,6 +1044,7 @@ func (store *ScyllaStore) FindOne(ctx context.Context, connectionId string, keys
 		return nil, errors.New("no entity found")
 	}
 
+	fmt.Println("results: ", table, query, results[0])
 	return results[0], nil
 
 }
