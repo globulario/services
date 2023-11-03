@@ -196,7 +196,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {
-		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "",  "email": ""}, "")
+		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "email": ""}, "")
 		if err != nil {
 			return err
 		}
@@ -354,11 +354,13 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 
 	// Iterate through the map's fields and deduce the data types
 	for fieldName, value := range data {
-		fieldType := deduceColumnType(value)
-		if fieldType != "unknow" {
-			if fieldType != "array" {
-				fieldName = camelToSnake(fieldName)
-				createTableQuery += fieldName + " " + fieldType + ", "
+		if value != nil {
+			fieldType := deduceColumnType(value)
+			if fieldType != "unknow" {
+				if fieldType != "array" {
+					fieldName = camelToSnake(fieldName)
+					createTableQuery += fieldName + " " + fieldType + ", "
+				}
 			}
 		}
 	}
@@ -509,6 +511,9 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 	values := make([]interface{}, 0)
 
 	for column, value := range data {
+		if value == nil {
+			continue
+		}
 		goType := reflect.TypeOf(value)
 		if goType.Kind() == reflect.Slice {
 			// This is an array column, insert the values into the array table
@@ -567,7 +572,9 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 							fmt.Println("Error inserting data into array table: ", err)
 						}
 					}
-				} else {
+				} else if !element.IsNil() && element.IsValid() {
+
+					fmt.Println("----------------> element: ", element.Interface())
 
 					arrayTableName := tableName + "_" + field
 					createTable := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, PRIMARY KEY ((value, %s_id)));", arrayTableName, deduceColumnType(element.Interface()), tableName, tableName)
@@ -660,7 +667,6 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 	// Execute the CREATE TABLE query
 	err = session.Query(query, values...).Exec()
 	if err != nil {
-		fmt.Println(query)
 		fmt.Println("Failed to insert entity ", err)
 		return nil, err
 	}
@@ -1031,7 +1037,6 @@ func (store *ScyllaStore) FindOne(ctx context.Context, connectionId string, keys
 		return nil, errors.New("no entity found")
 	}
 
-	fmt.Println("results: ", table, query, results[0])
 	return results[0], nil
 
 }
