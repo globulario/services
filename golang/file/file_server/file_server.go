@@ -150,7 +150,7 @@ type server struct {
 	CacheType string
 
 	// Define the cache address in case is not local.
-	CacheAddess string
+	CacheAddress string
 
 	// the number of replication for the cache.
 	CacheReplicationFactor int
@@ -6341,7 +6341,7 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
-	s_impl.CacheAddess, _ = config.GetAddress()
+	s_impl.CacheAddress, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -6405,12 +6405,12 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
-	if s_impl.CacheType == "badger" {
+	if s_impl.CacheType == "BADGER" {
 		cache = storage_store.NewBadger_store()
-	} else if s_impl.CacheType == "scylla" {
+	} else if s_impl.CacheType == "SCYLLA" {
 		// set the default storage.
-		cache = storage_store.NewScylla_store(s_impl.CacheAddess, "files", s_impl.CacheReplicationFactor)
-	} else if s_impl.CacheType == "leveldb" {
+		cache = storage_store.NewScylla_store(s_impl.CacheAddress, "files", s_impl.CacheReplicationFactor)
+	} else if s_impl.CacheType == "LEVELDB" {
 		// set the default storage.
 		cache = storage_store.NewLevelDB_store()
 	} else {

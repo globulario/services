@@ -1037,7 +1037,7 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.CacheAddress = s_impl.Address
-	s_impl.CacheType = ""
+	s_impl.CacheType = "BADGER"
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -1053,13 +1053,18 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
 
+	if s_impl.CacheAddress == "localhost" {
+		s_impl.CacheAddress = s_impl.Address
+	}
+
 	// The rbac storage.
 	//s_impl.permissions = storage_store.NewBadger_store()
-	if s_impl.CacheType == "scylla" {
+	if s_impl.CacheType == "SCYLLA" {
 		s_impl.permissions = storage_store.NewScylla_store(s_impl.CacheAddress, `permissions`, 3)
 	} else {
 		s_impl.permissions = storage_store.NewBadger_store()
 	}
+
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
 	if err != nil {
 		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)

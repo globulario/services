@@ -1087,7 +1087,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -1165,11 +1165,11 @@ func (srv *server) getStore(name, path string) (storage_store.Store, error) {
 	}
 
 	var store storage_store.Store
-	if srv.CacheType == "badger" {
+	if srv.CacheType == "BADGER" {
 		store = storage_store.NewBadger_store()
-	} else if srv.CacheType == "leveldb" {
+	} else if srv.CacheType == "LEVELDB" {
 		store = storage_store.NewLevelDB_store()
-	} else if srv.CacheType == "scylla" {
+	} else if srv.CacheType == "SCYLLA" {
 		store = storage_store.NewScylla_store(srv.CacheAddress, name, srv.CacheReplicationFactor)
 	} else {
 		store = storage_store.NewBadger_store() // default
@@ -1214,7 +1214,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 
 	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	file_data, err := associations.GetItem(uuid)
@@ -2035,7 +2035,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2078,7 +2078,7 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	// I will use the file checksum as file id...
 	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
 
 	data, err := associations.GetItem(titleId)
@@ -2874,7 +2874,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 
 	associations, err := srv.getStore(filepath.Base(rqst.IndexPath), rqst.IndexPath)
 	if err != nil {
-		return  nil, err
+		return nil, err
 	}
 
 	data, err := associations.GetItem(uuid)
@@ -2960,7 +2960,8 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.associations = new(sync.Map)
-	s_impl.CacheAddress = Utility.MyLocalIP()
+	s_impl.CacheType = "BADGER"
+	s_impl.CacheAddress = s_impl.Address
 	s_impl.CacheReplicationFactor = 3
 
 	// Set Permissions.
@@ -2994,6 +2995,10 @@ func main() {
 	// Register the title services
 	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	if s_impl.CacheAddress == "localhost" {
+		s_impl.CacheAddress = s_impl.Address
+	}
 
 	// Start the service.
 	s_impl.StartService()
