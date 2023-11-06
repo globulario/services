@@ -676,6 +676,36 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 									fmt.Println("Error inserting data into array table: ", err)
 								}
 
+							}else if entity["$ref"] != nil {
+							
+								// I will get the entity id.
+								
+								sourceCollection := tableName
+								targetCollection := entity["$ref"].(string)
+								_id := entity["$id"].(string)
+
+								field := columnName
+															// He I will create the reference table.
+								// I will create the table if not already exist.
+								createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+								fmt.Println("createTableSQL: ", createTableSQL)
+
+								_, err = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+								if err == nil {
+									fmt.Println("Table created: ", sourceCollection+"_"+field)
+								} else {
+									fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+								}
+
+								// I will insert the reference into the table.
+								insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+								parameters := make([]interface{}, 0)
+								parameters = append(parameters, id)
+								parameters = append(parameters, _id)
+								_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
+								if err != nil {
+									fmt.Println("Error inserting data into array table: ", err)
+								}
 							}
 
 						default:
@@ -751,6 +781,33 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							fmt.Println("Error inserting data into array table: ", err)
 						}
 
+					} else if entity["$ref"] != nil {
+					 
+						// I will get the entity id.
+						sourceCollection := tableName
+						targetCollection := entity["$ref"].(string)
+						_id := entity["$id"].(string)
+
+						field := columnName
+						// He I will create the reference table.
+						// I will create the table if not already exist.
+						createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
+						_, err = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+						if err == nil {
+							fmt.Println("Table created: ", sourceCollection+"_"+field)
+						} else {
+							fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+						}
+
+						// I will insert the reference into the table.
+						insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+						parameters := make([]interface{}, 0)
+						parameters = append(parameters, id)
+						parameters = append(parameters, _id)
+						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
+						if err != nil {
+							fmt.Println("Error inserting data into array table: ", err)
+						}	
 					}
 				}
 			}
@@ -1082,8 +1139,6 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 		return objects[0], nil
 	}
 
-	fmt.Println("Not found: ", query)
-
 	return nil, errors.New("not found")
 }
 
@@ -1156,8 +1211,6 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 
 func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
 
-	fmt.Println("ReplaceOne: ", query)
-
 	// insert the new entry.
 	entity := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &entity)
@@ -1198,7 +1251,6 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 
 	// delete entry if it exist.
 	err = store.deleteOneSqlEntry(connectionId, db, table, query)
-
 	if err != nil {
 		fmt.Println("fail to delete data: ", query, err)
 

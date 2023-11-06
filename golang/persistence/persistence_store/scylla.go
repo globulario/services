@@ -571,7 +571,40 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						if err != nil {
 							fmt.Println("Error inserting data into array table: ", err)
 						}
+					} else if entity["$ref"] != nil {
+						typeName := entity["$ref"].(string)
+						if !strings.HasSuffix(typeName, "s") {
+							typeName += "s"
+						}
+
+						// be sure that the first letter is upper case.
+						typeName = strings.Title(typeName)
+
+						// I will get the entity id.
+						_id := Utility.ToInt(entity["$id"])
+						sourceCollection := tableName
+
+						// He I will create the reference table.
+						// I will create the table if not already exist.
+						createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+						err = session.Query(createTable).Exec()
+						if err != nil {
+							fmt.Println("Error creating array table: ", createTable, err)
+						}
+
+						// I will insert the reference into the table.
+						insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+						parameters := make([]interface{}, 0)
+						parameters = append(parameters, id)
+						parameters = append(parameters, _id)
+
+						err = session.Query(insertSQL, parameters...).Exec()
+
+						if err != nil {
+							fmt.Println("Error inserting data into array table: ", err)
+						}
 					}
+
 				} else if !element.IsNil() && element.IsValid() {
 
 					fmt.Println("----------------> element: ", element.Interface())
@@ -600,45 +633,85 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 		} else if goType.Kind() == reflect.Map {
 			entity := value.(map[string]interface{})
-			typeName := entity["typeName"].(string)
 
-			if !strings.HasSuffix(typeName, "s") {
-				typeName += "s"
-			}
+			if entity["typeName"] != nil {
 
-			// be sure that the first letter is upper case.
-			typeName = strings.Title(typeName)
+				typeName := entity["typeName"].(string)
 
-			// I will save the entity itself.
-			var err error
-			entity, err = store.insertData(connectionId, keyspace, typeName, entity)
-			if err != nil {
-				fmt.Println("Error inserting data into array table: ", err)
-			}
+				if !strings.HasSuffix(typeName, "s") {
+					typeName += "s"
+				}
 
-			// I will get the entity id.
-			_id := Utility.ToInt(entity["_id"])
-			sourceCollection := tableName
-			field := column
+				// be sure that the first letter is upper case.
+				typeName = strings.Title(typeName)
 
-			// He I will create the reference table.
-			// I will create the table if not already exist.
-			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-			err = session.Query(createTable).Exec()
-			if err == nil {
-				fmt.Println("Table created: ", sourceCollection+"_"+field)
-			}
+				// I will save the entity itself.
+				var err error
+				entity, err = store.insertData(connectionId, keyspace, typeName, entity)
+				if err != nil {
+					fmt.Println("Error inserting data into array table: ", err)
+				}
 
-			// I will insert the reference into the table.
-			insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
-			parameters := make([]interface{}, 0)
-			parameters = append(parameters, id)
-			parameters = append(parameters, _id)
+				// I will get the entity id.
+				_id := Utility.ToInt(entity["_id"])
+				sourceCollection := tableName
+				field := column
 
-			err = session.Query(insertSQL, parameters...).Exec()
+				// He I will create the reference table.
+				// I will create the table if not already exist.
+				createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+				err = session.Query(createTable).Exec()
+				if err == nil {
+					fmt.Println("Table created: ", sourceCollection+"_"+field)
+				}
 
-			if err != nil {
-				fmt.Println("Error inserting data into array table: ", err)
+				// I will insert the reference into the table.
+				insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+				parameters := make([]interface{}, 0)
+				parameters = append(parameters, id)
+				parameters = append(parameters, _id)
+
+				err = session.Query(insertSQL, parameters...).Exec()
+
+				if err != nil {
+					fmt.Println("Error inserting data into array table: ", err)
+				}
+			} else if entity["$ref"] != nil {
+				typeName := entity["$ref"].(string)
+
+				if !strings.HasSuffix(typeName, "s") {
+					typeName += "s"
+				}
+
+				// be sure that the first letter is upper case.
+				typeName = strings.Title(typeName)
+
+
+				// I will get the entity id.
+				_id := Utility.ToInt(entity["$id"])
+				sourceCollection := tableName
+				field := column
+
+				// He I will create the reference table.
+				// I will create the table if not already exist.
+				createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+				err = session.Query(createTable).Exec()
+				if err == nil {
+					fmt.Println("Table created: ", sourceCollection+"_"+field)
+				}
+
+				// I will insert the reference into the table.
+				insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
+				parameters := make([]interface{}, 0)
+				parameters = append(parameters, id)
+				parameters = append(parameters, _id)
+
+				err = session.Query(insertSQL, parameters...).Exec()
+
+				if err != nil {
+					fmt.Println("Error inserting data into array table: ", err)
+				}
+
 			}
 
 		} else if column != "typeName" {
