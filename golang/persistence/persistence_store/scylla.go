@@ -830,26 +830,7 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName st
 				tableName_ = "accounts"
 			}
 
-			// I will get the entity.
-			query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id = ? ALLOW FILTERING;", keyspace, tableName_)
-			iter := session.Query(query, targetId).Iter()
-			defer iter.Close()
-
-			for {
-
-				// New map each iteration
-				row := make(map[string]interface{})
-				if !iter.MapScan(row) {
-					break
-				}
-
-				// array = append(array, entity)
-				// so here I will not add the entity but a references information.
-				// todo set the correct domain here...
-				domain, _ := config.GetDomain()
-				array = append(array, map[string]interface{}{"$ref": tableName_, "$id": row["id"].(string) + "@" + domain, "$db": keyspace})
-
-			}
+			array = append(array, map[string]interface{}{"$ref": tableName_, "$id": targetId, "$db": keyspace})
 		}
 	}
 

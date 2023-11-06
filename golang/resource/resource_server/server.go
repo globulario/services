@@ -908,12 +908,6 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 			return err
 		}
 
-	} else if p.GetStoreType() == "SQL" {
-		err = p.CreateDatabase(context.Background(), "local_resource", name+"_db")
-		if err != nil {
-			fmt.Println("fail to create database ", name+"_db", " with error ", err)
-			return err
-		}
 	} else if p.GetStoreType() == "SCYLLA" {
 		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, resource_server.Backend_replication_factor, name, name, id, email)
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
@@ -924,16 +918,26 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// Organizations
 	for i := 0; i < len(organizations); i++ {
+		if !strings.Contains(organizations[i], "@") {
+			organizations[i] = organizations[i] + "@" + localDomain
+		}
+
 		resource_server.createCrossReferences(organizations[i], "Organizations", "accounts", id, "Accounts", "organizations")
 	}
 
 	// Roles
 	for i := 0; i < len(roles); i++ {
+		if !strings.Contains(roles[i], "@") {
+			roles[i] = roles[i] + "@" + localDomain
+		}
 		resource_server.createCrossReferences(roles[i], "Roles", "members", id, "Accounts", "roles")
 	}
 
 	// Groups
 	for i := 0; i < len(groups); i++ {
+		if !strings.Contains(groups[i], "@") {
+			groups[i] = groups[i] + "@" + localDomain
+		}
 		resource_server.createCrossReferences(groups[i], "Groups", "members", id, "Accounts", "groups")
 	}
 
@@ -1027,10 +1031,17 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		return err
 	}
 
-	if strings.Contains(id, "@") {
-		domain := strings.Split(id, "@")[1]
-		id = strings.Split(id, "@")[0]
+	domain := localDomain
 
+	// the must contain the domain in the id.
+	if !strings.Contains(targetId, "@") {
+		return errors.New("target id must be a valid id with domain")
+	}
+
+	if strings.Contains(id, "@") {
+		domain = strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+		// if the domain is not the same as the local domain then I will redirect the call to the remote resource server.
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
 			client, err := GetResourceClient(domain)
@@ -1042,17 +1053,17 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 			if err != nil {
 				return err
 			}
-
 			return nil // exit...
 		}
 	}
 
+	// I will first check if the reference already exist.
 	q := `{"_id":"` + id + `"}`
 
 	// Get the source object.
 	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
-		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " err: " + err.Error())
+		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at domain "+ domain + " err: " + err.Error())
 	}
 
 	// append the account.
@@ -1096,7 +1107,10 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		// I will create the table if not already exist.
 		if p.GetStoreType() == "SQL" {
 			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-			p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTable, nil, 0)
+			_, err := p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTable, nil, 0)
+			if err != nil {
+				return err
+			}
 
 		} else if p.GetStoreType() == "SCYLLA" {
 			// the foreign key is not supported by SCYLLA.
@@ -1113,51 +1127,16 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 			}
 		}
 
-		if strings.Contains(targetId, "@") {
-			domain := strings.Split(targetId, "@")[1]
-			targetId = strings.Split(targetId, "@")[0]
-
-			if localDomain != domain {
-				// so here I will redirect the call to the resource server at remote location.
-				client, err := GetResourceClient(domain)
-				if err != nil {
-					return err
-				}
-
-				err = client.CreateReference(id, sourceCollection, field, targetId, targetCollection)
-				if err != nil {
-					return err
-				}
-
-				return nil // exit...
-			}
-		}
-
-		// So I need to insert  the reference in the database.
-		q := `{"_id":"` + targetId + `"}`
-
-		// Get the targer object.
-		target_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
-		if err != nil {
-			return errors.New("fail to find object with id " + targetId + " in collection " + targetCollection + " err: " + err.Error())
-		}
-
-		target := target_values.(map[string]interface{})
-
-		if target["_id"] == nil {
-			return errors.New("No _id field was found in object with id " + targetId + "!")
-		}
-
 		// Here I will insert the reference in the database.
 
 		// I will first check if the reference already exist.
-		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_id='` + Utility.ToString(source["_id"]) + `' AND target_id='` + Utility.ToString(target["_id"]) + `'`
+		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_id='` + Utility.ToString(source["_id"]) + `' AND target_id='` + targetId + `'`
 		if p.GetStoreType() == "SCYLLA" {
 			q += ` ALLOW FILTERING`
 		}
 
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
-
+	
 		if count == 0 {
 			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_id, target_id) VALUES (?,?)`
 
@@ -1168,13 +1147,13 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 					return errors.New("fail to get session for local_resource")
 				}
 
-				err = session.Query(q, source["_id"], target["_id"]).Exec()
+				err = session.Query(q, source["_id"], targetId).Exec()
 				if err != nil {
 					return err
 				}
 
 			} else if p.GetStoreType() == "SQL" {
-				_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], target["_id"]}, 0)
+				_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], targetId}, 0)
 				if err != nil {
 					return err
 				}
@@ -1182,7 +1161,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 	}
 
-	fmt.Println("reference created for ", sourceCollection, ":", field, ":", targetId, ":", targetCollection)
+	fmt.Println("------------> reference created for ", sourceCollection, ":", field, ":", targetId, ":", targetCollection)
 	return nil
 }
 
@@ -1271,6 +1250,11 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 
 	// Create references.
 	for i := 0; i < len(members); i++ {
+
+		if !strings.Contains(members[i], "@") {
+			members[i] = members[i] + "@" + localDomain
+		}
+
 		err := resource_server.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
 		if err != nil {
 			return err

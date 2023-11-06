@@ -174,6 +174,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
+	
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -181,6 +182,9 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	accountId := rqst.AccountId
+
+	fmt.Println("186 --------------------------------> GetAccount ", accountId)
+
 	if strings.Contains(accountId, "@") {
 		domain := strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
@@ -1117,12 +1121,12 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 
 	// members...
 	for i := 0; i < len(rqst.Role.Members); i++ {
-		resource_server.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId(), "Roles", "members")
+		resource_server.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId() +  "@" + rqst.Role.GetDomain(), "Roles", "members")
 	}
 
 	// Organizations
 	for i := 0; i < len(rqst.Role.Organizations); i++ {
-		resource_server.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId(), "Roles", "organizations")
+		resource_server.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId() +  "@" + rqst.Role.GetDomain(), "Roles", "organizations")
 	}
 
 	var marshaler jsonpb.Marshaler
@@ -1781,6 +1785,14 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 // * Add role to a given account *
 func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccountRoleRqst) (*resourcepb.AddAccountRoleRsp, error) {
 
+	if !strings.Contains(rqst.RoleId, "@") {
+		rqst.RoleId = rqst.RoleId + "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.AccountId, "@") {
+		rqst.AccountId = rqst.AccountId + "@" + resource_server.Domain
+	}
+
 	// That service made user of persistence service.
 	err := resource_server.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
 	if err != nil {
@@ -2375,7 +2387,7 @@ func (resource_server *server) getApplications(query string, options string) ([]
 
 	if len(query) == 0 {
 		query = "{}"
-	} 
+	}
 
 	// So here I will get the list of retreived permission.
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, options)
@@ -2544,6 +2556,11 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 // * Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
+
+	// Here I will first look if a peer with a same name already exist on the
+	if resource_server.Mac == rqst.Peer.Mac {
+		return nil, errors.New("can not register peer to itself")
+	}
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2811,7 +2828,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-	setState := `{ "$set":{"state":1}}`
+	setState := `{"$set":{"state":1}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
 	if err != nil {
@@ -2939,15 +2956,37 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 }
 
 func initPeer(values interface{}) *resourcepb.Peer {
-	state := resourcepb.PeerApprovalState(values.(map[string]interface{})["state"].(int32))
-	p := &resourcepb.Peer{Protocol: values.(map[string]interface{})["protocol"].(string), PortHttp: int32(Utility.ToInt(values.(map[string]interface{})["portHttp"])), PortHttps: int32(Utility.ToInt(values.(map[string]interface{})["portHttps"])), Hostname: values.(map[string]interface{})["hostname"].(string), Domain: values.(map[string]interface{})["domain"].(string), ExternalIpAddress: values.(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: values.(map[string]interface{})["local_ip_address"].(string), Mac: values.(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
+	values_ := values.(map[string]interface{})
+	state := resourcepb.PeerApprovalState(int32(Utility.ToInt(values_["state"])))
+
+	portHttp := int32(80)
+	if values_["portHttp"] != nil {
+		portHttp = int32(Utility.ToInt(values_["portHttp"]))
+	} else if values_["port_http"] != nil {
+		portHttp = int32(Utility.ToInt(values_["port_http"]))
+	}
+
+	portHttps := int32(443)
+	if values_["portHttps"] != nil {
+		portHttps = int32(Utility.ToInt(values_["portHttps"]))
+	} else if values_["port_https"] != nil {
+		portHttps = int32(Utility.ToInt(values_["port_https"]))
+	}
+
+	hostname := values_["hostname"].(string)
+	domain := values_["domain"].(string)
+	externalIpAddress := values_["external_ip_address"].(string)
+	localIpAddress := values_["local_ip_address"].(string)
+	mac := values_["mac"].(string)
+
+	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHttp: portHttp, PortHttps: portHttps, Hostname: hostname, Domain: domain, ExternalIpAddress: externalIpAddress, LocalIpAddress: localIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
 
 	var actions_ []interface{}
-	switch values.(map[string]interface{})["actions"].(type) {
+	switch values_["actions"].(type) {
 	case primitive.A:
-		actions_ = []interface{}(values.(map[string]interface{})["actions"].(primitive.A))
+		actions_ = []interface{}(values_["actions"].(primitive.A))
 	case []interface{}:
-		actions_ = values.(map[string]interface{})["actions"].([]interface{})
+		actions_ = values_["actions"].([]interface{})
 	}
 
 	for j := 0; j < len(actions_); j++ {
@@ -3049,27 +3088,35 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	peer := values.(map[string]interface{})
+	// init the peer object.
+	peer := initPeer(values)
 
-	// Here I will save only value that can change over time.
-	peer["protocol"] = rqst.Peer.Protocol
-	peer["portHttps"] = rqst.Peer.PortHttps
-	peer["portHttp"] = rqst.Peer.PortHttp
-	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
-	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
+	// Here I will update the peer information.
+	peer.Protocol = rqst.Peer.Protocol
+	peer.PortHttps = rqst.Peer.PortHttps
+	peer.PortHttp = rqst.Peer.PortHttp
+	peer.LocalIpAddress = rqst.Peer.LocalIpAddress
+	peer.ExternalIpAddress = rqst.Peer.ExternalIpAddress
 
-	jsonStr, _ := Utility.ToJson(peer)
-
-	// Save the peer.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, jsonStr, "")
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err = marshaler.MarshalToString(rqst.Peer)
+	// update peer values.
+	var setValues string
+	if p.GetStoreType() == "SCYLLA" {
+		// Scylla does not support camel case...
+		setValues = `{$set{"hostname":"` + rqst.Peer.Hostname + `","domain":"` + rqst.Peer.Domain + `","protocol":"` + rqst.Peer.Protocol + `","port_https":` + Utility.ToString(rqst.Peer.PortHttps) + `,"port_http":` + Utility.ToString(rqst.Peer.PortHttp) + `,"local_ip_address":"` + rqst.Peer.LocalIpAddress + `","external_ip_address":"` + rqst.Peer.ExternalIpAddress + `"}}`
+	} else {
+		// MONGO and SQL
+		setValues = `{$set{"hostname":"` + rqst.Peer.Hostname + `","domain":"` + rqst.Peer.Domain + `","protocol":"` + rqst.Peer.Protocol + `","portHttps":` + Utility.ToString(rqst.Peer.PortHttps) + `,"portHttp":` + Utility.ToString(rqst.Peer.PortHttp) + `,"local_ip_address":"` + rqst.Peer.LocalIpAddress + `","external_ip_address":"` + rqst.Peer.ExternalIpAddress + `"}}`
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setValues, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3098,21 +3145,26 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Peers", q, "")
+	// try to get the peer from the database.
+	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// not an error...
-	if count == 0 {
-		return &resourcepb.DeletePeerRsp{
-			Result: true,
-		}, nil
+	// the peer was not found.
+	if data == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no peer with mac "+rqst.Peer.Mac+" was found")))
 	}
 
-	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	// init the peer object.
+	peer := initPeer(data)
+
+	// Delete all peer access.
+	resource_server.deleteAllAccess(peer.Mac, rbacpb.SubjectType_PEER)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -3122,33 +3174,33 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Delete permissions
-	resource_server.deleteResourcePermissions(rqst.Peer.Mac)
+	resource_server.deleteResourcePermissions(peer.Mac)
 	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Delete peer public key...
-	security.DeletePublicKey(rqst.Peer.Mac)
+	security.DeletePublicKey(peer.Mac)
 
 	// remove from /etc/hosts
-	resource_server.removeFromLocalHosts(rqst.Peer)
+	resource_server.removeFromLocalHosts(peer)
 
 	// Here I will append the resource owner...
-	domain := rqst.Peer.Hostname
-	if len(rqst.Peer.Domain) > 0 {
-		domain += "." + rqst.Peer.Domain
+	domain := peer.Hostname
+	if len(peer.Domain) > 0 {
+		domain += "." + peer.Domain
 	}
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.Domain)
-	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac), localDomain)
-	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac), rqst.Peer.Domain)
+	resource_server.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, localDomain)
+	resource_server.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.Domain)
+	resource_server.publishEvent("delete_peer_evt", []byte(peer.Mac), localDomain)
+	resource_server.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.Domain)
 
-	address_ := rqst.Peer.Domain
-	if rqst.Peer.Protocol == "https" {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	address_ := peer.Domain
+	if peer.Protocol == "https" {
+		address_ += ":" + Utility.ToString(peer.PortHttps)
 	} else {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		address_ += ":" + Utility.ToString(peer.PortHttp)
 	}
 
 	// Also remove the peer at the other end...
@@ -3453,22 +3505,34 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 
 	// accounts...
 	for i := 0; i < len(rqst.Organization.Accounts); i++ {
-		resource_server.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId(), "Organizations", "accounts")
+		if !strings.Contains(rqst.Organization.Accounts[i], "@") {
+			rqst.Organization.Accounts[i] += "@" + rqst.Organization.Domain
+		}
+		resource_server.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "Organizations", "accounts")
 	}
 
 	// groups...
 	for i := 0; i < len(rqst.Organization.Groups); i++ {
-		resource_server.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId(), "Organizations", "groups")
+		if !strings.Contains(rqst.Organization.Groups[i], "@") {
+			rqst.Organization.Groups[i] += "@" + rqst.Organization.Domain
+		}
+		resource_server.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()  + "@" + rqst.Organization.Domain, "Organizations", "groups")
 	}
 
 	// roles...
 	for i := 0; i < len(rqst.Organization.Roles); i++ {
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId(), "Organizations", "roles")
+		if !strings.Contains(rqst.Organization.Roles[i], "@") {
+			rqst.Organization.Roles[i] += "@" + rqst.Organization.Domain
+		}
+		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()  + "@" + rqst.Organization.Domain, "Organizations", "roles")
 	}
 
 	// applications...
 	for i := 0; i < len(rqst.Organization.Applications); i++ {
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId(), "Organizations", "applications")
+		if !strings.Contains(rqst.Organization.Applications[i], "@") {
+			rqst.Organization.Applications[i] += "@" + rqst.Organization.Domain
+		}
+		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "Organizations", "applications")
 	}
 
 	var marshaler jsonpb.Marshaler
@@ -3678,6 +3742,15 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 // * Add Account *
 func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.AddOrganizationAccountRqst) (*resourcepb.AddOrganizationAccountRsp, error) {
+	
+	if !strings.Contains(rqst.AccountId, "@") {
+		rqst.AccountId += "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.OrganizationId, "@") {
+		rqst.OrganizationId += "@" + resource_server.Domain
+	}
+	
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "accounts", rqst.AccountId, "Accounts", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3707,6 +3780,15 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 
 // * Add Group *
 func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.AddOrganizationGroupRqst) (*resourcepb.AddOrganizationGroupRsp, error) {
+	
+	if !strings.Contains(rqst.GroupId, "@") {
+		rqst.GroupId += "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.OrganizationId, "@") {
+		rqst.OrganizationId += "@" + resource_server.Domain
+	}
+	
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "groups", rqst.GroupId, "Groups", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3736,6 +3818,15 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 
 // * Add Role *
 func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.AddOrganizationRoleRqst) (*resourcepb.AddOrganizationRoleRsp, error) {
+	
+	if !strings.Contains(rqst.RoleId, "@") {
+		rqst.RoleId += "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.OrganizationId, "@") {
+		rqst.OrganizationId += "@" + resource_server.Domain
+	}
+	
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "roles", rqst.RoleId, "Roles", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3765,6 +3856,15 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 
 // * Add Application *
 func (resource_server *server) AddOrganizationApplication(ctx context.Context, rqst *resourcepb.AddOrganizationApplicationRqst) (*resourcepb.AddOrganizationApplicationRsp, error) {
+	
+	if !strings.Contains(rqst.ApplicationId, "@") {
+		rqst.ApplicationId += "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.OrganizationId, "@") {
+		rqst.OrganizationId += "@" + resource_server.Domain
+	}
+	
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "applications", rqst.ApplicationId, "Applications", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -4515,6 +4615,14 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 // * Add a member account to the group *
 func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.AddGroupMemberAccountRqst) (*resourcepb.AddGroupMemberAccountRsp, error) {
+
+	if !strings.Contains(rqst.AccountId, "@") {
+		rqst.AccountId += "@" + resource_server.Domain
+	}
+
+	if !strings.Contains(rqst.GroupId, "@") {
+		rqst.GroupId += "@" + resource_server.Domain
+	}
 
 	err := resource_server.createCrossReferences(rqst.GroupId, "Groups", "members", rqst.AccountId, "Accounts", "groups")
 	if err != nil {

@@ -153,7 +153,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	// Create the table if it does not exist.
 	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE _id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" {
-		store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "" , "email": ""}, "")
+		store.InsertOne(context.Background(), id, database, "user_data", map[string]interface{}{"_id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "email": ""}, "")
 	}
 
 	return nil
@@ -409,6 +409,13 @@ func (store *SqlStore) CreateDatabase(ctx context.Context, connectionId string, 
 func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, db string) error {
 
 	var databasePath string
+	if len(db) == 0 {
+		return errors.New("the database name is required")
+	} else {
+		databasePath = store.connections[connectionId].Path + "/" + db + ".db"
+	}
+
+	fmt.Println("Delete database files: ", databasePath)
 
 	return os.RemoveAll(databasePath)
 }
@@ -417,6 +424,12 @@ func (store *SqlStore) Count(ctx context.Context, connectionId string, db string
 
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
+	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
+		var err error
+		query, err = store.formatQuery(table, query)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	str, err := store.QueryContext(connectionId, db, query, "[]")
@@ -944,6 +957,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 							value := values.([]interface{})[0] // the value is the second element of the array.
 							object[field] = append(object[field].([]interface{}), value)
 						}
+						
 					} else {
 
 						// Query to retrieve the data from the array table
@@ -962,7 +976,13 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 
 								// I will create the array.
 								for _, values := range data["data"].([]interface{}) {
-									ref_id := values.([]interface{})[1] // the value is the second element of the array.
+
+									ref_id := Utility.ToString(values.([]interface{})[1]) // the value is the second element of the array.
+
+									if !strings.Contains(ref_id, "@") {
+										domain, _ := config.GetDomain()
+										ref_id = ref_id + "@" + domain
+									}
 
 									// The type name will be the field name with the first letter in upper case.
 									bytes := []byte(field)
@@ -974,33 +994,11 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 										typeName = "Accounts"
 									}
 
-									// Now I will retrieve the entity from the database.
-									query := fmt.Sprintf("SELECT _id, domain FROM %s WHERE _id=?", typeName)
-									parameters := make([]interface{}, 0)
-									parameters = append(parameters, ref_id) // append the object id...
-									parameters_, _ := Utility.ToJson(parameters)
-
-									// Execute the query
-									str, err := store.QueryContext(connectionId, db, query, parameters_)
-									if err == nil {
-										data := make(map[string]interface{}, 0)
-										err = json.Unmarshal([]byte(str), &data)
-										if err != nil {
-											return nil, err
-										}
-
-										// I will get the first element.
-										if len(data["data"].([]interface{})) > 0 {
-											refs := make([]interface{}, 0)
-											for _, values := range data["data"].([]interface{}) {
-												id := values.([]interface{})[0].(string)     // the value is the second element of the array.
-												domain := values.([]interface{})[1].(string) // the value is the second element of the array.
-												refs = append(refs, map[string]interface{}{"$ref": typeName, "$id": id + "@" + domain, "$db": db})
-											}
-
-											object[field] = refs
-										}
+									if object[field] == nil {
+										object[field] = make([]interface{}, 0)
 									}
+
+									object[field] = append(object[field].([]interface{}), map[string]interface{}{"$ref": typeName, "$id": ref_id, "$db": db})
 								}
 							}
 						}
@@ -1061,7 +1059,9 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 
 	data := make(map[string]interface{}, 0)
 	err = json.Unmarshal([]byte(str), &data)
+
 	if err != nil {
+		fmt.Print("Error unmarshalling result: ", str, err)
 		return nil, err
 	}
 
@@ -1081,6 +1081,8 @@ func (store *SqlStore) FindOne(ctx context.Context, connectionId string, databas
 	if len(objects) > 0 {
 		return objects[0], nil
 	}
+
+	fmt.Println("Not found: ", query)
 
 	return nil, errors.New("not found")
 }
