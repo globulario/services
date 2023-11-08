@@ -2000,6 +2000,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
+	fmt.Println("get file videos for relative path ", filePath)
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
 	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
@@ -2009,6 +2010,8 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
+
+	fmt.Println("get file videos for absolute path ", filePath)
 
 	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
