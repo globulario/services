@@ -2835,6 +2835,8 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 										if err != nil {
 											fmt.Println("fail to assciate file ", path, " with video ", v.ID)
 										}
+
+										fmt.Println("file " + path + " is now asscociated with video ", v.ID)
 									}
 								} else {
 									fmt.Println("fail to unmarshal video ", err)
