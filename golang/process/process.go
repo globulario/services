@@ -339,6 +339,8 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
+	fmt.Println("start proxy process with command", cmd, "and args", proxyArgs)
+
 	err := proxyProcess.Start()
 	if err != nil {
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {

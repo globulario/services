@@ -950,7 +950,6 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
 
-	fmt.Println("----------------> delete reference ", refId, " ", targetId, " ", targetField, " ", targetCollection)
 	if strings.Contains(targetId, "@") {
 		domain := strings.Split(targetId, "@")[1]
 		targetId = strings.Split(targetId, "@")[0]
@@ -997,8 +996,6 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 		references = target[targetField].([]interface{})
 	}
 
-	fmt.Println("--------------------> references ", references)
-
 	references_ := make([]interface{}, 0)
 	for j := 0; j < len(references); j++ {
 		if references[j].(map[string]interface{})["$id"] != refId {
@@ -1008,12 +1005,10 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 
 	target[targetField] = references_
 
-	fmt.Println("--------------------> references ", target[targetField])
 	jsonStr := serialyseObject(target)
 
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", targetCollection, q, jsonStr, ``)
 	if err != nil {
-		fmt.Println("----------------------> fail to delete reference ", err)
 		return err
 	}
 	return nil

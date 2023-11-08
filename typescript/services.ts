@@ -79,7 +79,7 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
-  BackendPort:number;
+  BackendPort: number;
   BackendStore: number;
   AdminEmail: string;
   SessionTimeout: number;
@@ -244,7 +244,7 @@ export class EventHub {
 
             stream.cancel() // cancel the stream if it was active
             this.globular.resetEventService(); // reset listeners...
-            this.connect( () => {
+            this.connect(() => {
               this.reinitRemoteListeners();
             });
 
@@ -432,9 +432,11 @@ export class EventHub {
 
 // Get the configuration from url
 function getFileConfig(url: string, callback: (obj: any) => void, errorcallback: (err: any) => void) {
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.timeout = 1500;
-  xmlhttp.onreadystatechange = function () {
+
+  // so I will try to get the configuration from the server...
+  var xmlhttp2 = new XMLHttpRequest();
+  xmlhttp2.timeout = 1500;
+  xmlhttp2.onreadystatechange = function () {
     if (this.readyState == 4 && this.status == 201) {
       var obj = JSON.parse(this.responseText);
       callback(obj);
@@ -443,8 +445,11 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
     }
   };
 
-  xmlhttp.open("GET", url, true);
-  xmlhttp.send();
+  // Create a URL object
+  var url_ = new URL(url);
+  xmlhttp2.open("GET", `/config?host=${url_.hostname}`, true);
+  xmlhttp2.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+  xmlhttp2.send();
 }
 
 /**
