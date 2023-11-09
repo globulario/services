@@ -4871,6 +4871,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + resource_server.Domain
@@ -4912,6 +4913,7 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + resource_server.Domain
@@ -5945,6 +5947,7 @@ func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
+	
 	query := rqst.Filter
 
 	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
