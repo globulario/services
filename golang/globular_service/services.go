@@ -173,6 +173,7 @@ func (s *WrapperedGRPCWebServer) Serve() error {
 		)
 	}
 
+	// fmt.Println("Starting grpcweb server on", addr, options)
 	wrappedServer := grpcweb.WrapServer(s.GRPCServer, options...)
 	handler := func(resp http.ResponseWriter, req *http.Request) {
 		wrappedServer.ServeHTTP(resp, req)
@@ -686,7 +687,6 @@ func StartService(s Service, server *grpc.Server) error {
 	var err error
 	address := "0.0.0.0" //Utility.MyLocalIP() //
 
-	fmt.Println("start service ", s.GetName(), "grpc port ", s.GetPort(), " proxy port ", s.GetProxy())
 	lis, err = net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())

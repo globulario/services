@@ -492,6 +492,7 @@ func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 /** Set the host if it's part of the same local network. */
 func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 	fmt.Println("try to set ip and domain in /etc/host with value ip:", peer.LocalIpAddress, " domain:", peer.GetDomain())
+	
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {

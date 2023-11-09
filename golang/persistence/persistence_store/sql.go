@@ -1333,6 +1333,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {
+		fmt.Println("Error unmarshalling entity values with error: ", err)
 		return err
 	}
 

@@ -174,7 +174,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 // * Return a given account
 func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
-	
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1121,12 +1120,12 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 
 	// members...
 	for i := 0; i < len(rqst.Role.Members); i++ {
-		resource_server.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId() +  "@" + rqst.Role.GetDomain(), "Roles", "members")
+		resource_server.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "members")
 	}
 
 	// Organizations
 	for i := 0; i < len(rqst.Role.Organizations); i++ {
-		resource_server.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId() +  "@" + rqst.Role.GetDomain(), "Roles", "organizations")
+		resource_server.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "organizations")
 	}
 
 	var marshaler jsonpb.Marshaler
@@ -3107,16 +3106,26 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// update peer values.
-	var setValues string
+	setValues := map[string] interface{} { "$set": map[string] interface{}{ "hostname":  rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}};
+
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...
-		setValues = `{$set{"hostname":"` + rqst.Peer.Hostname + `","domain":"` + rqst.Peer.Domain + `","protocol":"` + rqst.Peer.Protocol + `","port_https":` + Utility.ToString(rqst.Peer.PortHttps) + `,"port_http":` + Utility.ToString(rqst.Peer.PortHttp) + `,"local_ip_address":"` + rqst.Peer.LocalIpAddress + `","external_ip_address":"` + rqst.Peer.ExternalIpAddress + `"}}`
+		setValues["$set"].(map[string] interface{})["port_https"] = rqst.Peer.PortHttps
+		setValues["$set"].(map[string] interface{})["port_http"] = rqst.Peer.PortHttp
 	} else {
 		// MONGO and SQL
-		setValues = `{$set{"hostname":"` + rqst.Peer.Hostname + `","domain":"` + rqst.Peer.Domain + `","protocol":"` + rqst.Peer.Protocol + `","portHttps":` + Utility.ToString(rqst.Peer.PortHttps) + `,"portHttp":` + Utility.ToString(rqst.Peer.PortHttp) + `,"local_ip_address":"` + rqst.Peer.LocalIpAddress + `","external_ip_address":"` + rqst.Peer.ExternalIpAddress + `"}}`
+		setValues["$set"].(map[string] interface{})["portHttps"] = rqst.Peer.PortHttps
+		setValues["$set"].(map[string] interface{})["portHttp"] = rqst.Peer.PortHttp	
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setValues, "")
+	setValues_ , err := Utility.ToJson(setValues)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setValues_, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3508,7 +3517,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Accounts[i], "@") {
 			rqst.Organization.Accounts[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "Organizations", "accounts")
+		resource_server.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "accounts")
 	}
 
 	// groups...
@@ -3516,7 +3525,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Groups[i], "@") {
 			rqst.Organization.Groups[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()  + "@" + rqst.Organization.Domain, "Organizations", "groups")
+		resource_server.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "groups")
 	}
 
 	// roles...
@@ -3524,7 +3533,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Roles[i], "@") {
 			rqst.Organization.Roles[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()  + "@" + rqst.Organization.Domain, "Organizations", "roles")
+		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "roles")
 	}
 
 	// applications...
@@ -3532,7 +3541,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Applications[i], "@") {
 			rqst.Organization.Applications[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "Organizations", "applications")
+		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications")
 	}
 
 	var marshaler jsonpb.Marshaler
@@ -3742,7 +3751,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 
 // * Add Account *
 func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.AddOrganizationAccountRqst) (*resourcepb.AddOrganizationAccountRsp, error) {
-	
+
 	if !strings.Contains(rqst.AccountId, "@") {
 		rqst.AccountId += "@" + resource_server.Domain
 	}
@@ -3750,7 +3759,7 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 	if !strings.Contains(rqst.OrganizationId, "@") {
 		rqst.OrganizationId += "@" + resource_server.Domain
 	}
-	
+
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "accounts", rqst.AccountId, "Accounts", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3780,7 +3789,7 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 
 // * Add Group *
 func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.AddOrganizationGroupRqst) (*resourcepb.AddOrganizationGroupRsp, error) {
-	
+
 	if !strings.Contains(rqst.GroupId, "@") {
 		rqst.GroupId += "@" + resource_server.Domain
 	}
@@ -3788,7 +3797,7 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 	if !strings.Contains(rqst.OrganizationId, "@") {
 		rqst.OrganizationId += "@" + resource_server.Domain
 	}
-	
+
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "groups", rqst.GroupId, "Groups", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3818,7 +3827,7 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 
 // * Add Role *
 func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.AddOrganizationRoleRqst) (*resourcepb.AddOrganizationRoleRsp, error) {
-	
+
 	if !strings.Contains(rqst.RoleId, "@") {
 		rqst.RoleId += "@" + resource_server.Domain
 	}
@@ -3826,7 +3835,7 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 	if !strings.Contains(rqst.OrganizationId, "@") {
 		rqst.OrganizationId += "@" + resource_server.Domain
 	}
-	
+
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "roles", rqst.RoleId, "Roles", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
@@ -3856,7 +3865,7 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 
 // * Add Application *
 func (resource_server *server) AddOrganizationApplication(ctx context.Context, rqst *resourcepb.AddOrganizationApplicationRqst) (*resourcepb.AddOrganizationApplicationRsp, error) {
-	
+
 	if !strings.Contains(rqst.ApplicationId, "@") {
 		rqst.ApplicationId += "@" + resource_server.Domain
 	}
@@ -3864,7 +3873,7 @@ func (resource_server *server) AddOrganizationApplication(ctx context.Context, r
 	if !strings.Contains(rqst.OrganizationId, "@") {
 		rqst.OrganizationId += "@" + resource_server.Domain
 	}
-	
+
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "applications", rqst.ApplicationId, "Applications", "organizations")
 	if err != nil {
 		return nil, status.Errorf(

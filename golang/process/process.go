@@ -206,7 +206,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			// if the service fail
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
-				if s["KeepAlive"].(bool) == true {
+				if s["KeepAlive"].(bool) {
 
 					// give ti some time to free resources like port files... etc.
 					pid, err := StartServiceProcess(s, port, proxyPort)
@@ -329,7 +329,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// browser client connection maximum life.
 	proxyArgs = append(proxyArgs, "--server_http_max_read_timeout=48h")
 	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
-	proxyArgs = append(proxyArgs, "--use_websockets=false")
+	proxyArgs = append(proxyArgs, "--use_websockets=true")
 
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
@@ -338,8 +338,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
-
-	fmt.Println("start proxy process with command", cmd, "and args", proxyArgs)
 
 	err := proxyProcess.Start()
 	if err != nil {
@@ -398,14 +396,22 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		wait <- proxyProcess.Process.Pid // ok the proxy pid must be other than -1
 
 		// wait to proxy
-		err = proxyProcess.Wait()
+		proxyProcess.Wait()
+
 
 		// reload the config directly from the file...
 		data, err := os.ReadFile(s["ConfigPath"].(string))
+		if err != nil {
+			fmt.Println("proxy prcess fail with error:  ", err)
+			return
+		}
+
 		json.Unmarshal(data, &s)
 		processPid = Utility.ToInt(s["Process"])
 
-		if processPid != -1 {
+		if processPid != -1 && s["KeepAlive"].(bool) {
+
+			fmt.Println("try to restart proxy process for service", s["Name"], "with process id", processPid)
 			exist, err := Utility.PidExists(processPid)
 			if err == nil && exist {
 				StartServiceProxyProcess(s, certificateAuthorityBundle, certificate, proxyPort, processPid)
@@ -414,8 +420,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				return
 			}
 		}
-
-		return
 
 	}()
 
