@@ -1664,7 +1664,6 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 	data, err := rbac_server.getItem(path)
 	if err != nil {
-		fmt.Println("fail to get: ", path, err)
 		return nil, err
 	}
 

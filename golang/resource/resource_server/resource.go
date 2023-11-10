@@ -182,8 +182,6 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	accountId := rqst.AccountId
 
-	fmt.Println("186 --------------------------------> GetAccount ", accountId)
-
 	if strings.Contains(accountId, "@") {
 		domain := strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]

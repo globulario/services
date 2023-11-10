@@ -591,7 +591,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 	insertSQL, values := generateMainInsertSQL(tableName, data)
 	str, err := store.ExecContext(connectionId, db, insertSQL, values, 0)
 	if err != nil {
-		fmt.Println("error inserting data into %s table", tableName, err)
+		fmt.Printf("error inserting data into %s table with error: %s", tableName, err.Error())
 		return nil, err
 	}
 
@@ -647,7 +647,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								var err error
 								entity, err = store.insertData(connectionId, db, typeName+"s", entity)
 								if err != nil {
-									fmt.Println("Error inserting data into array table: ", err)
+									fmt.Printf("error inserting data into %s table with error: %s", typeName + "s", err.Error())
 								}
 
 								// I will get the entity id.
@@ -663,7 +663,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								if err == nil {
 									fmt.Println("Table created: ", sourceCollection+"_"+field)
 								} else {
-									fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+									fmt.Printf("error creating table: %s with error %s", sourceCollection+"_"+field, err.Error())
 								}
 
 								// I will insert the reference into the table.
@@ -673,7 +673,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								parameters = append(parameters, _id)
 								_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 								if err != nil {
-									fmt.Println("Error inserting data into array table: ", err)
+									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
 								}
 
 							}else if entity["$ref"] != nil {
@@ -694,7 +694,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								if err == nil {
 									fmt.Println("Table created: ", sourceCollection+"_"+field)
 								} else {
-									fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+									fmt.Printf("error creating table: %s with error %s", sourceCollection+"_"+field, err.Error())
 								}
 
 								// I will insert the reference into the table.
@@ -704,7 +704,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								parameters = append(parameters, _id)
 								_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 								if err != nil {
-									fmt.Println("Error inserting data into array table: ", err)
+									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
 								}
 							}
 
@@ -727,8 +727,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							parameters = append(parameters, id)
 							_, err := store.ExecContext(connectionId, db, arrayInsertSQL, parameters, 0)
 							if err != nil {
-								fmt.Println("686")
-								fmt.Println("Error inserting data into array table: ", err)
+								fmt.Printf("error inserting data into %s table with error: %s", arrayTableName, err.Error())
 								return nil, err
 							}
 						}
@@ -752,7 +751,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						var err error
 						entity, err = store.insertData(connectionId, db, typeName+"s", entity)
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Printf("error inserting data into %s table with error: %s", typeName+"s", err.Error())
 						}
 
 						// I will get the entity id.
@@ -768,7 +767,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						if err == nil {
 							fmt.Println("Table created: ", sourceCollection+"_"+field)
 						} else {
-							fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+							fmt.Printf("error creating table: %s with error %s ", sourceCollection+"_"+field, err.Error())
 						}
 
 						// I will insert the reference into the table.
@@ -778,7 +777,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						parameters = append(parameters, _id)
 						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
 						}
 
 					} else if entity["$ref"] != nil {
@@ -796,7 +795,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						if err == nil {
 							fmt.Println("Table created: ", sourceCollection+"_"+field)
 						} else {
-							fmt.Println("Error creating table: ", sourceCollection+"_"+field, err)
+							fmt.Printf("error creating table: %s with error %s", sourceCollection+"_"+field, err)
 						}
 
 						// I will insert the reference into the table.
@@ -806,7 +805,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						parameters = append(parameters, _id)
 						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
 						}	
 					}
 				}
@@ -972,7 +971,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 		// Execute the query
 		str, err := store.QueryContext(connectionId, db, query, "[]")
 		if err != nil {
-			fmt.Println("Error executing query: ", query, err)
+			fmt.Printf("error executing query: %s with error %s", query, err)
 			return nil, err
 		}
 
@@ -1177,7 +1176,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 
 	str, err := store.QueryContext(connectionId, db, query, "[]")
 	if err != nil {
-		fmt.Println("Error executing query: ", query, err)
+		fmt.Printf("error executing query: %s with error %s ", query, err.Error())
 		return nil, err
 	}
 
@@ -1198,7 +1197,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 
 	objects, err := store.recreateArrayOfObjects(connectionId, db, table, data, options_)
 	if err != nil {
-		fmt.Println("Error recreating array of objects: ", err)
+		fmt.Printf("error recreating array of objects %s", err)
 		return nil, err
 	}
 
@@ -1215,7 +1214,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 	entity := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &entity)
 	if err != nil {
-		fmt.Println("Error unmarshalling entity: ", err)
+		fmt.Printf("error unmarshalling %s", err)
 		return err
 	}
 
@@ -1225,7 +1224,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		createTableSQL, arrayTableSQL := generateCreateTableSQL(table, entity)
 		_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 		if err != nil {
-			fmt.Println("Error creating table: ", err)
+			fmt.Printf("error creating table: %s with error %s ", table, err.Error())
 			return err
 		}
 
@@ -1233,7 +1232,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		for _, sql := range arrayTableSQL {
 			_, err := store.ExecContext(connectionId, db, sql, nil, 0)
 			if err != nil {
-				fmt.Println("Error creating table: ", err)
+				fmt.Printf("error creating table: %s with error %s", table, err.Error())
 				return err
 			}
 		}
@@ -1244,21 +1243,18 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 		var err error
 		query, err = store.formatQuery(table, query)
 		if err != nil {
-			fmt.Println("Error formatting query: ", err)
+			fmt.Printf("error formatting query: %s with error %s", query, err.Error())
 			return err
 		}
 	}
 
 	// delete entry if it exist.
-	err = store.deleteOneSqlEntry(connectionId, db, table, query)
-	if err != nil {
-		fmt.Println("fail to delete data: ", query, err)
+	store.deleteOneSqlEntry(connectionId, db, table, query)
 
-	}
 
 	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
-		fmt.Println("Error inserting data: ", err)
+		fmt.Printf("error inserting data into %s table with error: %s", table, err.Error())
 		return err
 	}
 
@@ -1333,7 +1329,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 	values_ := make(map[string]interface{}, 0)
 	err := json.Unmarshal([]byte(value), &values_)
 	if err != nil {
-		fmt.Println("Error unmarshalling entity values with error: ", err)
+		fmt.Printf("error unmarshalling entity values with error: %s", err.Error())
 		return err
 	}
 
@@ -1441,7 +1437,7 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 						// Execute the query
 						_, err := store.ExecContext(connectionId, db, query, parameters, 0)
 						if err != nil {
-							fmt.Println("Error deleting data from array table: ", err)
+							fmt.Printf("error deleting data from array table: %s with error %s", arrayTableName, err.Error())
 
 							return err
 						}
