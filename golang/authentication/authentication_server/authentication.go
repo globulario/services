@@ -51,7 +51,6 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 
 	// first of all I will validate the current token.
 	claims, err := security.ValidateToken(rqst.Token)
-
 	if err != nil {
 		if !strings.Contains(err.Error(), "token is expired") {
 			return nil, status.Errorf(
@@ -59,6 +58,13 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
+
+	if len(claims.UserDomain) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+	}
+
 
 	// If the token is older than seven day without being refresh then I retrun an error.
 	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
@@ -118,6 +124,11 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
@@ -202,6 +213,11 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
@@ -448,7 +464,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
+			server.addResourceOwner(path, "file", "sa@" + localDomain, rbacpb.SubjectType_ACCOUNT)
 		}
 
 		// Be sure the password is correct.
@@ -527,11 +543,17 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	// get the expire time.
 	claims, _ := security.ValidateToken(tokenString)
 
+	owner := claims.Id
+	if !strings.Contains(owner, "@") {
+		owner += "@"+ claims.UserDomain
+	}
+
 	// Create the user file directory.
-	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + claims.Id + "@" + account.Domain)
+	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
+
 
 	// be sure the user is the owner of that directory...
-	server.addResourceOwner("/users/"+claims.Id+"@"+account.Domain, "file", claims.Id+"@"+account.Domain, rbacpb.SubjectType_ACCOUNT)
+	server.addResourceOwner("/users/"+account.Id + "@" + account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE

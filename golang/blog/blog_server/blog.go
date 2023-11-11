@@ -44,6 +44,11 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			err := errors.New("CreateBlogPost no token was given")
@@ -137,6 +142,11 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
@@ -378,6 +388,11 @@ func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			err := errors.New("DeleteBlogPost no token was given")
@@ -433,6 +448,11 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
@@ -522,6 +542,11 @@ func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {

@@ -73,6 +73,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	adminCluster.Keyspace = "system"                            // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
+		fmt.Println("line 76 fail to create admin session: ", adminCluster.Hosts, err)
 		return nil, err
 	}
 
@@ -80,6 +81,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 
 	// Create the keyspace.
 	if err := adminSession.Query(createKeyspaceQuery).Exec(); err != nil {
+		fmt.Println("line 84 fail to create keyspace", keyspace, "whith error", err)
 		return nil, err
 	}
 
@@ -119,6 +121,10 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 
 	if len(host) == 0 {
 		return errors.New("the host is required")
+	}
+
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
 	}
 
 	if len(user) == 0 {
@@ -182,11 +188,13 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
+		fmt.Println("187 ----------> error creating keyspace: ", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
+		fmt.Println("193 ----------> fail to create session: ", err)
 		return err
 	}
 
@@ -349,6 +357,11 @@ func deduceColumnType(value interface{}) string {
 }
 
 func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, tableName string, data map[string]interface{}) error {
+
+	if data["_id"] == nil && data["id"] == nil {
+		return errors.New("the _id is required")
+	}
+
 	// Prepare the CREATE TABLE query
 	createTableQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (", keyspace, tableName)
 
@@ -373,7 +386,11 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 	}
 
 	// Add the primary key
-	createTableQuery += "PRIMARY KEY (id));"
+	if data["domain"] != nil {
+		createTableQuery += "PRIMARY KEY (id, domain));"
+	} else {
+		createTableQuery += "PRIMARY KEY (id));"
+	}
 
 	// Execute the CREATE TABLE query
 	err := session.Query(createTableQuery).Exec()
@@ -496,6 +513,10 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 	// I will check if the data already exist.
 	query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id='%s'", keyspace, tableName, id)
+	if data["domain"] != nil {
+		query += fmt.Sprintf(" AND domain='%s'", data["domain"])
+	}
+	
 	values_, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, "")
 	if err == nil {
 		return values_.(map[string]interface{}), nil
@@ -538,8 +559,11 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						typeName = strings.Title(typeName)
 
 						// set the entity domain...
-						localDomain, _ := config.GetDomain()
-						entity["domain"] = localDomain
+						if entity["domain"] == nil {
+							localDomain, _ := config.GetDomain()
+							// be sure the domain is set...
+							entity["domain"] = localDomain
+						}
 
 						// I will save the entity itself.
 						var err error
@@ -606,8 +630,6 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 					}
 
 				} else if !element.IsNil() && element.IsValid() {
-
-					fmt.Println("----------------> element: ", element.Interface())
 
 					arrayTableName := tableName + "_" + field
 					createTable := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, PRIMARY KEY ((value, %s_id)));", arrayTableName, deduceColumnType(element.Interface()), tableName, tableName)
@@ -685,7 +707,6 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 				// be sure that the first letter is upper case.
 				typeName = strings.Title(typeName)
-
 
 				// I will get the entity id.
 				_id := Utility.ToInt(entity["$id"])
@@ -836,7 +857,7 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 		parameters := make(map[string]interface{}, 0)
 		err := json.Unmarshal([]byte(q), &parameters)
 		if err != nil {
-			fmt.Println("Error unmarshalling query: ", err)
+			fmt.Println("Error unmarshalling query: ", 	q, "with error", err)
 			return "", err
 		}
 
@@ -980,7 +1001,12 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 	// I will set the type name.
 	entity["typeName"] = typeName
 
-	if entity["domain"] != nil {
+	if typeName == "Accounts" {
+		fmt.Println("-----------> entity: ", entity)
+	}
+
+	if entity["domain"] == nil {
+		// be sure the domain is set...
 		localDomain, _ := config.GetDomain()
 		entity["domain"] = localDomain
 	}

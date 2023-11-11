@@ -293,6 +293,10 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
 		if !strings.Contains(user, "@") {
+			if len(claims.UserDomain) == 0 {
+				return errors.New("no user domain was found in the token")
+			}
+			
 			user += "@" + claims.UserDomain
 		}
 	}
@@ -339,6 +343,14 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 	claims, _ := security.ValidateToken(token)
 
 	if !strings.Contains(user, "@") {
+		if len(claims.UserDomain) == 0 {
+			return errors.New("no user domain was found in the token")
+		}
+		
+		if len(claims.UserDomain) == 0 {
+			return errors.New("no user domain was found in the token")
+		}
+
 		user += "@" + claims.UserDomain
 	}
 

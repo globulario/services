@@ -589,7 +589,11 @@ func (svr *server) updateSession(session *resourcepb.Session) error {
 }
 
 func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+	domain := svr.GetDomain()
+	if strings.Contains(accountId, "@") {
+		domain = strings.Split(accountId, "@")[1]
+	}
+	resourceClient, err := svr.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -601,7 +605,12 @@ func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
  * Retreive an account with a given id.
  */
 func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+	domain := svr.GetDomain()
+	if strings.Contains(accountId, "@") {
+		domain = strings.Split(accountId, "@")[1]
+	}
+
+	resourceClient, err := svr.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -610,12 +619,17 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
+	domain := svr.GetDomain()
+	if strings.Contains(accountId, "@") {
+		domain = strings.Split(accountId, "@")[1]
+	}
+
 	// take the first part of the account.
 	if strings.Contains(accountId, "@") {
 		accountId = strings.Split(accountId, "@")[0]
 	}
 
-	resourceClient, err := svr.getResourceClient(svr.Address)
+	resourceClient, err := svr.getResourceClient(domain)
 	if err != nil {
 		return err
 	}

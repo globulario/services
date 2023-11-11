@@ -283,7 +283,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	q = `{"_id":"` + accountId + `"}`
+	q = `{"$and":[{"_id":"` + accountId + `", "domain":"` + a.Domain + `"}]}`
 
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
@@ -413,10 +413,11 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		}
 	}
 
-	setPassword := `{"$set":{"password":"` + string(pwd) + `"}}`
-
+	setPassword := map[string]interface{}{"$set": map[string]interface{}{"password": string(pwd)}}
+	setPassword_, _ := Utility.ToJson(setPassword)
+	
 	// Hash the password...
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setPassword, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setPassword_, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -435,12 +436,15 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + rqst.Account.Id + `"}`
+	// Set the query.
+	
+	q := `{"$and":[{"_id":"` + rqst.Account.Id + `", "domain":"` + rqst.Account.Domain + `"}]}`
 
 	// Set the field and the values to update.
-	setAccount := `{"$set":{"name":"` + rqst.Account.Name + `", "email":"` + rqst.Account.Email + `", "domain":"` + rqst.Account.Domain + `"}}`
+	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email, "domain": rqst.Account.Domain}}
+	setAccount_, _ := Utility.ToJson(setAccount)
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount_, "")
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -545,11 +549,9 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 	for i := 0; i < len(accounts); i++ {
 		account := accounts[i].(map[string]interface{})
-		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string)}
-
-		if account["domain"] != nil {
-			a.Domain = account["domain"].(string)
-		} else {
+		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Domain: account["domain"].(string)}
+		
+		if account["domain"] == nil {
 			a.Domain = resource_server.Domain
 		}
 
@@ -1097,6 +1099,12 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			if len(claims.Domain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no domain was given in the token")))	
 			}
 
 			clientId = claims.Id + "@" + claims.UserDomain
@@ -2007,6 +2015,12 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
@@ -2825,9 +2839,15 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
-	setState := `{"$set":{"state":1}}`
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
+	// Now I will retreive the peer informations.
+	setState := map[string]interface{}{"$set": map[string]interface{}{"state": resourcepb.PeerApprovalState_PEER_ACCETEP}}
+	setStateStr, err := Utility.ToJson(setState)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setStateStr, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3449,6 +3469,13 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+					
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
@@ -4289,6 +4316,12 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+					
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
@@ -5561,7 +5594,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 
 	// Log a message to display update session...
 	//server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
-	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
+	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain":server.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 	jsonStr, err := Utility.ToJson(session)
 	if err != nil {
 		return err
@@ -5571,7 +5604,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 	//server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
 	var q string
 	if p.GetStoreType() == "MONGO" {
-		q = `{"_id":"` + accountId + `"}`
+		q = `{"accountId":"` + accountId + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM Sessions WHERE accountId='` + accountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
@@ -5609,7 +5642,7 @@ func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.Remove
 
 	var q string
 	if p.GetStoreType() == "MONGO" {
-		q = `{"_id":"` + rqst.AccountId + `"}`
+		q = `{"accountId":"` + rqst.AccountId + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
 		q = `SELECT * FROM Sessions WHERE accountId='` + rqst.AccountId + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
@@ -5722,6 +5755,8 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 
 // * Return a session for a given user
 func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessionRequest) (*resourcepb.GetSessionResponse, error) {
+
+	fmt.Println("get session for ", rqst.AccountId)
 
 	// Now I will remove the token...
 	session, err := server.getSession(rqst.AccountId)

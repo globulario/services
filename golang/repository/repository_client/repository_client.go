@@ -439,7 +439,11 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
+		
 		if !strings.Contains(user, "@") {
+			if len(claims.UserDomain) == 0 {
+				return -1, errors.New("no user domain was found in the token")
+			}
 			user += "@" + claims.UserDomain
 		}
 	}
@@ -471,14 +475,12 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	resource_path := publisherId + "|" + name + "|" + version
 
 	if len(organization) > 0 {
-		fmt.Println("-----------> add resource owner ", resource_path, organization)
 		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
 			return -1, err
 		}
 
 	} else if len(user) > 0 {
-		fmt.Println("-----------> add resource owner ", resource_path, user)
 		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
 			return -1, err
@@ -585,6 +587,9 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 			return err
 		}
 		if !strings.Contains(user, "@") {
+			if len(claims.UserDomain) == 0 {
+				return errors.New("no user domain was found in the token")
+			}
 			user += "@" + claims.UserDomain
 		}
 	}

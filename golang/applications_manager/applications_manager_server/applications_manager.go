@@ -386,7 +386,12 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 		return errors.New("no domain given for application")
 	}
 
-	err = server.addResourceOwner("/applications/"+name, "file", id+"@"+domain, rbacpb.SubjectType_APPLICATION)
+	owner := id
+	if !strings.Contains(owner, "@") {
+		owner += "@"+domain
+	}
+
+	err = server.addResourceOwner("/applications/"+name, "file", owner, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}

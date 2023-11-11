@@ -421,10 +421,14 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 			if err != nil {
 				return err
 			}
+			
+			if len(claims.UserDomain) == 0 {
+				return errors.New("no user domain was found in the token")
+			}
 
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
-			errors.New("dns serveer createPermission no token was given")
+			return errors.New("dns serveer createPermission no token was given")
 		}
 	}
 

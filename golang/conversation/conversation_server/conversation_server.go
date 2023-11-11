@@ -838,6 +838,11 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 			if err != nil {
 				return nil, err
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
@@ -970,6 +975,11 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 			if err != nil {
 				return nil, err
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, errors.New("No token was given!")
@@ -1050,6 +1060,11 @@ func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return errors.New("conversion Connect no token was given")
@@ -1083,6 +1098,11 @@ func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconne
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, errors.New("conversation Disconnect no token was given")
@@ -1115,6 +1135,12 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return errors.New("JoinConversation no token was given")
@@ -1211,6 +1237,12 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, errors.New("LeaveConversation no token was given")
@@ -1264,6 +1296,13 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -1568,6 +1607,13 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -1612,6 +1658,13 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -1655,6 +1708,13 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -1697,6 +1757,13 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -1748,6 +1815,13 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+			}
+			
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(

@@ -1366,6 +1366,11 @@ func (file_server *server) setOwner(token, path string) error {
 		if err != nil {
 			return err
 		}
+
+		if len(claims.UserDomain) == 0 {
+			return errors.New("no user domain was found in the token")
+		}
+
 		clientId = claims.Id + "@" + claims.UserDomain
 	} else {
 		err := errors.New("CreateBlogPost no token was given")

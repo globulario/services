@@ -638,7 +638,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							if entity["typeName"] != nil {
 								typeName := entity["typeName"].(string)
 
-								if entity["domain"] != nil {
+								if entity["domain"] == nil {
 									localDomain, _ := config.GetDomain()
 									entity["domain"] = localDomain
 								}
@@ -742,7 +742,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 					if entity["typeName"] != nil {
 						typeName := entity["typeName"].(string)
 
-						if entity["domain"] != nil {
+						if entity["domain"] == nil {
 							localDomain, _ := config.GetDomain()
 							entity["domain"] = localDomain
 						}

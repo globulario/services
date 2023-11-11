@@ -631,6 +631,10 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 				return nil, err
 			}
 
+			if len(claims.UserDomain) == 0 {
+				return nil, errors.New("no user domain was found in the token")
+			}
+
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			errors.New("no token was given")
@@ -1105,6 +1109,10 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
 			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, err
+			}
+
+			if len(claims.UserDomain) == 0 {
+				return nil, errors.New("no user domain was found in the token")
 			}
 
 			clientId = claims.Id + "@" + claims.UserDomain
