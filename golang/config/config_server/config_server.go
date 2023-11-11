@@ -502,6 +502,7 @@ func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *co
 
 // Get the list of all services configurations
 func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb.GetServicesConfigurationsRequest) (*configpb.GetServicesConfigurationsResponse, error) {
+	
 	configs, err := config.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(

@@ -25,12 +25,18 @@ import (
  */
 func GetAddress() (string, error) {
 
-	domain, _ := GetDomain()
-
 	// I need the local configuration to get info about the address.
 	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return "", err
+	}
+
+	domain := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		if len(domain) > 0 {
+			domain += "."
+		}
+		domain += localConfig["Domain"].(string)
 	}
 
 	// Return the address where to grab the configuration.
@@ -67,23 +73,18 @@ func GetName() (string, error) {
  * Return the Domain.
  */
 func GetDomain() (string, error) {
+
+	// Retreive the domain from the local configuration.
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
-
-		domain := localConfig["Name"].(string)
-		if len(localConfig["Domain"].(string)) > 0 {
-			if len(domain) > 0 {
-				domain += "."
-			}
-			domain += localConfig["Domain"].(string)
+		if len(localConfig["Domain"].(string)) != 0 {
+			return strings.ToLower(localConfig["Domain"].(string)), nil
+		}else{
+			return "", errors.New("no domain was found in the local configuration")
 		}
-		return strings.ToLower(domain), nil
-	} else {
-		fmt.Println("fail to retreive local configuration with error ", err)
+	}else{
+		return "", err
 	}
-
-	// if not configuration already exist on the server I will return it hostname...
-	return GetName()
 }
 
 // Those function are use to get the correct
@@ -521,7 +522,6 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 			fmt.Println("fail to retreive remote config at url: ", "https://"+address+":"+Utility.ToString(port)+"/config", err)
 			return nil, err
 		}
-
 	}
 
 	defer resp.Body.Close()
@@ -972,7 +972,6 @@ func initConfig() {
 						for i := 0; i < len(execs); i++ {
 							if !execs[i].IsDir() {
 								path := dir + "/bin/" + execs[i].Name()
-								fmt.Println("copy ", path, "to", "/usr/local/bin/")
 								err := Utility.Move(path, "/usr/local/bin/")
 								if err == nil {
 									os.Chmod(path, 0755)
@@ -1005,7 +1004,7 @@ func initConfig() {
 								path := dir + "/var/globular/applications/" + applications[i].Name()
 								err := Utility.Move(path, "/var/globular/applications")
 								if err != nil {
-									fmt.Println("-------------> ", path, err)
+									fmt.Println("fail to move ", path, err)
 								}
 							}
 						}
@@ -1285,7 +1284,6 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
  */
 func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
 
-	initConfig()
 
 	infos := make(map[string]interface{})
 	infos["name"] = name
@@ -1309,6 +1307,7 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 
+	fmt.Println("get service configuration by id ", id)
 	initConfig()
 
 	infos := make(map[string]interface{})
@@ -1319,6 +1318,7 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 	getServiceConfigurationByIdChan <- infos
 	results_chan := infos["return"].(chan map[string]interface{})
 	results := <-results_chan
+
 	if results["error"] != nil {
 		return nil, results["error"].(error)
 	}

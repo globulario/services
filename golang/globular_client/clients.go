@@ -158,6 +158,7 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
+
 	if len(address) == 0 {
 		return errors.New("no address was given for client id " + id)
 	}
@@ -170,7 +171,7 @@ func InitClient(client Client, address string, id string) error {
 	var err error
 
 	// Here the address must contain the port where the configuration can be found on the
-	// http server. If not given thas mean if it's local (on the same domain) I will retreive
+	// http server. If not given that mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
 	localConfig, _ := config.GetLocalConfig(true)
@@ -214,7 +215,6 @@ func InitClient(client Client, address string, id string) error {
 	var san_city string
 	var san_organization string
 	san_alternateDomains := make([]interface{}, 0)
-
 	if isLocal {
 
 		// get san values from the globule itself...
@@ -243,6 +243,7 @@ func InitClient(client Client, address string, id string) error {
 	} else {
 		// so here I try to get more information from peers...
 		var globule_config map[string]interface{}
+		
 		globule_config, err = config.GetRemoteConfig(domain, port)
 		if err == nil {
 			config_, err = config.GetRemoteServiceConfig(domain, port, id)
@@ -419,8 +420,14 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	var cc *grpc.ClientConn
 	var err error
 
+	address := client.GetAddress()
+	if strings.Contains(address, ":") {
+		address = strings.Split(address, ":")[0]
+	}
+
 	// The grpc address
-	address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
+	address +=  ":" + Utility.ToString(client.GetPort())
+	
 	//fmt.Println("get client connection ", address)
 	if client.HasTLS() {
 		//fmt.Println("client connection use tls")
@@ -461,8 +468,15 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			fmt.Println(err)
 			return nil, err
 		}
+
+		// I will use the address to get the domain name.
+		address := client.GetAddress()
+		if strings.Contains(address, ":") {
+			address = strings.Split(address, ":")[0]
+		}
+
 		creds := credentials.NewTLS(&tls.Config{
-			ServerName:   client.GetDomain(), // NOTE: this is required!
+			ServerName:   address, // NOTE: this is required!
 			Certificates: []tls.Certificate{certificate},
 			ClientAuth:   tls.RequireAndVerifyClientCert,
 			ClientCAs:    certPool,
@@ -508,14 +522,18 @@ func GetClientContext(client Client) context.Context {
 	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
 	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
+	address := client.GetAddress()
+	if strings.Contains(address, ":") {
+		address = strings.Split(address, ":")[0]
+	}
 
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac": macAddress})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": macAddress})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": macAddress})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": macAddress})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 
 	return ctx

@@ -273,12 +273,12 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 
 	rsp, err := client.c.Authenticate(client.GetCtx(), rqst)
 	if err != nil {
-		log.Println("fail to authenticate ", name, " on domain ", client.GetDomain(), " with error ", err)
+		log.Println("fail to authenticate ", name, " on domain ", client.GetAddress(), " with error ", err)
 		return "", err
 	}
 
 	if len(rsp.Token) == 0 {
-		return "", fmt.Errorf("fail to authenticate %s on domain %s", name, client.GetDomain())
+		return "", fmt.Errorf("fail to authenticate %s on domain %s", name, client.GetAddress())
 	}
 
 	return rsp.Token, nil

@@ -3,10 +3,8 @@ package config_client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
-
-	//"fmt"
-	"strings"
 
 	// "github.com/davecourtois/Utility"
 	"github.com/davecourtois/Utility"
@@ -105,8 +103,8 @@ func (client *Config_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Config_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	// If the configuration is on the client domain...
-	if !strings.HasPrefix(strings.ToLower(address), strings.ToLower(client.GetDomain())) {
+	// test if the client is not the same as the one I am looking for.
+	if address == client.GetAddress() {
 		Utility.RegisterFunction("NewConfigService_Client", NewConfigService_Client)
 		client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 		if err != nil {
@@ -284,11 +282,13 @@ func (client *Config_Client) GetServicesConfigurationsByName(name string) ([]map
 
 // Return list of all services configuration
 func (client *Config_Client) GetServicesConfigurations() ([]map[string]interface{}, error) {
+
 	rqst := new(configpb.GetServicesConfigurationsRequest)
 	rsp, err := client.c.GetServicesConfigurations(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
+
 	configs := make([]map[string]interface{}, 0)
 	for i := 0; i < len(rsp.Configs); i++ {
 		config_ := make(map[string]interface{})
@@ -323,6 +323,7 @@ func getConfigClient() (*Config_Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	Utility.RegisterFunction("NewConfigService_Client", NewConfigService_Client)
 	client, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
@@ -373,13 +374,17 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	client, err := getConfigClient()
+	
 	if err == nil {
 		// If a configuration client exist I will use it...
+		fmt.Println("-----> 380")
 		configs, err := client.GetServicesConfigurations()
+		fmt.Println("381 configs", configs)
 		if err == nil {
 			return configs, nil
 		}
 	}
+
 
 	// I will use the synchronize file version.
 	return config.GetServicesConfigurations()
