@@ -3,12 +3,7 @@ package blog_client
 import (
 	"context"
 	"time"
-
-	//"github.com/davecourtois/Utility"
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blogpb"
-	"github.com/globulario/services/golang/config/config_client"
-	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -98,16 +93,6 @@ func (client *Blog_Client) Reconnect() error {
 // The address where the client can connect.
 func (client *Blog_Client) SetAddress(address string) {
 	client.address = address
-}
-
-// Return the configuration from the configuration server.
-func (client *Blog_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client_.(*config_client.Config_Client).GetServiceConfiguration(id)
 }
 
 func (client *Blog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

@@ -22,7 +22,6 @@ go build  -buildvcs=false -o ./repository/repository_server ./repository/reposit
 go build  -buildvcs=false -o ./resource/resource_server ./resource/resource_server
 go build  -buildvcs=false -o ./sql/sql_server ./sql/sql_server
 go build  -buildvcs=false -o ./storage/storage_server ./storage/storage_server
-go build  -buildvcs=false -o ./config/config_server ./config/config_server
 go build  -buildvcs=false -o ./title/title_server ./title/title_server
 go build  -buildvcs=false -o ./torrent/torrent_server ./torrent/torrent_server
 go build  -buildvcs=false -o ./search/search_server ./search/search_server

@@ -74,9 +74,6 @@ func GetClient(address, name, fct string) (Client, error) {
 // The client service interface.
 type Client interface {
 
-	// Return the configuration from the configuration server.
-	GetConfiguration(address, id string) (map[string]interface{}, error)
-
 	// Return the address with the port where configuration can be found...
 	GetAddress() string
 
@@ -174,7 +171,8 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given that mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
-	localConfig, _ := config.GetLocalConfig(true)
+	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
+	localConfig, _ := config.GetConfig("", true)
 
 	if !strings.Contains(address, ":") {
 		if strings.HasPrefix(address_, address) {
@@ -193,6 +191,7 @@ func InitClient(client Client, address string, id string) error {
 					p := peers[i].(map[string]interface{})
 					if p["Domain"].(string) == address {
 						address += ":" + Utility.ToString(p["Port"])
+						mac = p["Mac"].(string)
 						break
 					}
 				}
@@ -215,60 +214,28 @@ func InitClient(client Client, address string, id string) error {
 	var san_city string
 	var san_organization string
 	san_alternateDomains := make([]interface{}, 0)
-	if isLocal {
 
-		// get san values from the globule itself...
-		globule_config, _ := config.GetLocalConfig(true)
-		if globule_config["Country"] != nil {
-			san_country = globule_config["Country"].(string)
-		}
-		if globule_config["State"] != nil {
-			san_state = globule_config["State"].(string)
-		}
-		if globule_config["City"] != nil {
-			san_city = globule_config["City"].(string)
-		}
-		if globule_config["Organization"] != nil {
-			san_organization = globule_config["Organization"].(string)
-		}
-		if globule_config["AlternateDomains"] != nil {
-			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
-		}
-
-		// Local client configuration
-		config_, err = client.GetConfiguration(address, id)
-		if err != nil {
-			config_, err = config.GetServiceConfigurationById(id)
-		}
-	} else {
-		// so here I try to get more information from peers...
-		var globule_config map[string]interface{}
-		
-		globule_config, err = config.GetRemoteConfig(domain, port)
-		if err == nil {
-			config_, err = config.GetRemoteServiceConfig(domain, port, id)
-		}
-
-		// set san values
-		if globule_config["Country"] != nil {
-			san_country = globule_config["Country"].(string)
-		}
-		if globule_config["State"] != nil {
-			san_state = globule_config["State"].(string)
-		}
-		if globule_config["City"] != nil {
-			san_city = globule_config["City"].(string)
-		}
-		if globule_config["Organization"] != nil {
-			san_organization = globule_config["Organization"].(string)
-		}
-		if globule_config["AlternateDomains"] != nil {
-			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
-		}
-
+	// get san values from the globule itself...
+	globule_config, _ := config.GetConfig(mac, true)
+	if globule_config["Country"] != nil {
+		san_country = globule_config["Country"].(string)
+	}
+	if globule_config["State"] != nil {
+		san_state = globule_config["State"].(string)
+	}
+	if globule_config["City"] != nil {
+		san_city = globule_config["City"].(string)
+	}
+	if globule_config["Organization"] != nil {
+		san_organization = globule_config["Organization"].(string)
+	}
+	if globule_config["AlternateDomains"] != nil {
+		san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
 	}
 
-	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
+	// Get the service configuration
+	config_, err = config.GetServiceConfigurationById(mac, id)
+
 	if err != nil {
 		fmt.Println("fail to initialyse client", id, "with error", err)
 		return err
@@ -426,8 +393,8 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	}
 
 	// The grpc address
-	address +=  ":" + Utility.ToString(client.GetPort())
-	
+	address += ":" + Utility.ToString(client.GetPort())
+
 	//fmt.Println("get client connection ", address)
 	if client.HasTLS() {
 		//fmt.Println("client connection use tls")

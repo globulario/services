@@ -11,7 +11,6 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
@@ -615,7 +614,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 	s["Process"] = -1
 	s["ProxyProcess"] = -1
 
-	err = config.SaveServiceConfiguration(s)
+	err = config.SaveServiceConfiguration(s["Mac"].(string), s)
 	if err != nil {
 		return err
 	}
@@ -626,7 +625,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 // uninstall service
 func (server *server) uninstallService(token, publisherId, serviceId, version string, deletePermissions bool) error {
 	// First of all I will stop the running service(s) instance.
-	services, err := config_client.GetServicesConfigurations()
+	services, err := config.GetServicesConfigurations(server.Address)
 	if err != nil {
 		return err
 	}
@@ -637,7 +636,7 @@ func (server *server) uninstallService(token, publisherId, serviceId, version st
 			server.stopService(s)
 
 			// Get the list of method to remove from the list of actions.
-			toDelete, err := config.GetServiceMethods(s["Name"].(string), publisherId, version)
+			toDelete, err := config.GetServiceMethods(s["Mac"].(string), s["Name"].(string), publisherId, version)
 			if err != nil {
 				return err
 			}
@@ -801,7 +800,7 @@ func main() {
 	go func() {
 
 		// retreive all services configuations.
-		services, err := config.GetServicesConfigurations()
+		services, err := config.GetServicesConfigurations(s_impl.Address)
 		if err == nil {
 			for i := 0; i < len(services); i++ {
 				service := services[i]

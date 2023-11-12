@@ -2841,7 +2841,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 											fmt.Println("fail to assciate file ", path, " with video ", v.ID)
 										}
 
-										fmt.Println("file " + path + " is now asscociated with video ", v.ID)
+										fmt.Println("file "+path+" is now asscociated with video ", v.ID)
 									}
 								} else {
 									fmt.Println("fail to unmarshal video ", err)
@@ -4060,7 +4060,7 @@ func createVttFile(output string, fps float32) error {
 	time_ := 0
 	index := 1
 	address, _ := config.GetAddress()
-	localConfig, _ := config.GetLocalConfig(true)
+	localConfig, _ := config.GetConfig("", true)
 
 	for _, thumbnail := range thumbnails {
 		if strings.HasSuffix(thumbnail.Name(), ".jpg") {
@@ -4541,7 +4541,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 			playlist += "\n"
 
 			// now I will generate the url...
-			localConfig, _ := config.GetLocalConfig(true)
+			localConfig, _ := config.GetConfig("", true)
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {
@@ -4617,7 +4617,7 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 			playlist += "\n"
 
 			// now I will generate the url...
-			localConfig, _ := config.GetLocalConfig(true)
+			localConfig, _ := config.GetConfig("", true)
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {

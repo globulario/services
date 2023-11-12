@@ -20,11 +20,8 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/struCoder/pidusage"
@@ -66,26 +63,6 @@ var (
 	servicesMemoryUsage *prometheus.GaugeVec
 )
 
-/**
- * Get the log client.
- */
-func getLogClient(address string) (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
-}
-
-func logInfo(name, address, fileLine, functionName, message string, level logpb.LogLevel) {
-	log_client_, err := getLogClient(address)
-	if err != nil {
-		return
-	}
-	log_client_.Log(name, address, functionName, level, message, fileLine, functionName)
-}
-
 // Start a service process.
 func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, error) {
 
@@ -107,15 +84,6 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		// before give up I will try to retreive the exec
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
-
-	/*
-		// That command can't be run by launchd... So be sure the permissions are correctly set for
-		// all service executable in order for service to start correctly...
-		err = os.Chmod(s["Path"].(string), 0755)
-		if err != nil {
-			return -1, err
-		}
-	*/
 
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	p.Dir = filepath.Dir(s["Path"].(string))
@@ -150,7 +118,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	s["Process"] = -1
 
 	// save the port and ProxyProcess
-	err = config_client.SaveServiceConfiguration(s)
+	err = config.SaveServiceConfiguration(s["Mac"].(string), s)
 	if err != nil {
 		fmt.Println("fail to save service configuration", err)
 		return -1, err
@@ -180,7 +148,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		s["Process"] = p.Process.Pid
 		s["State"] = "running"
 		s["LastError"] = ""
-		err = config_client.SaveServiceConfiguration(s)
+		err = config.SaveServiceConfiguration(s["Mac"].(string), s)
 		if err != nil {
 			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
 		}
@@ -214,7 +182,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 						return // fail to restart the process...
 					}
 
-					localConfig, _ := config.GetLocalConfig(true)
+					localConfig, _ := config.GetConfig("", true)
 
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
@@ -243,7 +211,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
-		config_client.SaveServiceConfiguration(s)
+		config.SaveServiceConfiguration(s["Mac"].(string), s)
 
 	}(s["Id"].(string))
 
@@ -398,7 +366,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		// wait to proxy
 		proxyProcess.Wait()
 
-
 		// reload the config directly from the file...
 		data, err := os.ReadFile(s["ConfigPath"].(string))
 		if err != nil {
@@ -430,7 +397,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcessPid
 
-	return proxyProcessPid, config_client.SaveServiceConfiguration(s)
+	return proxyProcessPid, config.SaveServiceConfiguration(s["Mac"].(string), s)
 
 }
 
@@ -517,7 +484,7 @@ scrape_configs:
     
 `
 
-		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
+		logServiceConfig, err := config.GetServiceConfigurationById("", "log.LogService")
 		if err == nil {
 			config_ += `
   - job_name: 'log_entries_metrics'
@@ -624,7 +591,7 @@ inhibit_rules:
 					}
 				}
 
-				services, err := config_client.GetServicesConfigurations()
+				services, err := config.GetServicesConfigurations("")
 				if err == nil {
 					for i := 0; i < len(services); i++ {
 
@@ -633,9 +600,7 @@ inhibit_rules:
 						if pid > 0 {
 							sysInfo, err := pidusage.GetStat(pid)
 							if err == nil {
-								//log.Println("---> set cpu for process ", services[i]["Name"], sysInfo.CPU)
 								servicesCpuUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.CPU)
-								//log.Println("---> set memory for process ", services[i]["Name"], sysInfo.Memory)
 								servicesMemoryUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.Memory)
 							}
 						}

@@ -415,7 +415,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 
 	setPassword := map[string]interface{}{"$set": map[string]interface{}{"password": string(pwd)}}
 	setPassword_, _ := Utility.ToJson(setPassword)
-	
+
 	// Hash the password...
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setPassword_, "")
 	if err != nil {
@@ -437,7 +437,7 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Set the query.
-	
+
 	q := `{"$and":[{"_id":"` + rqst.Account.Id + `", "domain":"` + rqst.Account.Domain + `"}]}`
 
 	// Set the field and the values to update.
@@ -550,7 +550,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	for i := 0; i < len(accounts); i++ {
 		account := accounts[i].(map[string]interface{})
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Domain: account["domain"].(string)}
-		
+
 		if account["domain"] == nil {
 			a.Domain = resource_server.Domain
 		}
@@ -1104,7 +1104,7 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 			if len(claims.Domain) == 0 {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no domain was given in the token")))	
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no domain was given in the token")))
 			}
 
 			clientId = claims.Id + "@" + claims.UserDomain
@@ -2486,7 +2486,7 @@ func getLocalPeer() *resourcepb.Peer {
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
 	domain, _ := config.GetDomain()
-	localConfig, _ := config.GetLocalConfig(true)
+	localConfig, _ := config.GetConfig("", true)
 
 	local_peer_ := new(resourcepb.Peer)
 	local_peer_.TypeName = "Peer"
@@ -2552,7 +2552,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 		return nil, "", err
 	}
 
-	localConfig, err := config.GetLocalConfig(true)
+	localConfig, err := config.GetConfig("", true)
 	httpPort := Utility.ToInt(localConfig["PortHttp"])
 	httpsPort := Utility.ToInt(localConfig["PortHttps"])
 	protocol := localConfig["Protocol"].(string)
@@ -3124,19 +3124,19 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// update peer values.
-	setValues := map[string] interface{} { "$set": map[string] interface{}{ "hostname":  rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}};
+	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
 
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...
-		setValues["$set"].(map[string] interface{})["port_https"] = rqst.Peer.PortHttps
-		setValues["$set"].(map[string] interface{})["port_http"] = rqst.Peer.PortHttp
+		setValues["$set"].(map[string]interface{})["port_https"] = rqst.Peer.PortHttps
+		setValues["$set"].(map[string]interface{})["port_http"] = rqst.Peer.PortHttp
 	} else {
 		// MONGO and SQL
-		setValues["$set"].(map[string] interface{})["portHttps"] = rqst.Peer.PortHttps
-		setValues["$set"].(map[string] interface{})["portHttp"] = rqst.Peer.PortHttp	
+		setValues["$set"].(map[string]interface{})["portHttps"] = rqst.Peer.PortHttps
+		setValues["$set"].(map[string]interface{})["portHttp"] = rqst.Peer.PortHttp
 	}
 
-	setValues_ , err := Utility.ToJson(setValues)
+	setValues_, err := Utility.ToJson(setValues)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3473,7 +3473,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-					
+
 			}
 
 			clientId = claims.Id + "@" + claims.UserDomain
@@ -4321,7 +4321,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-					
+
 			}
 			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
@@ -5594,7 +5594,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 
 	// Log a message to display update session...
 	//server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
-	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain":server.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
+	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain": server.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 	jsonStr, err := Utility.ToJson(session)
 	if err != nil {
 		return err
@@ -5980,7 +5980,7 @@ func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
-	
+
 	query := rqst.Filter
 
 	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")

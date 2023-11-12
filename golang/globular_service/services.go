@@ -25,7 +25,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/fsnotify/fsnotify"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/kardianos/osext"
@@ -431,12 +430,27 @@ func InitService(s Service) error {
 	// if the service configuration does not exist.
 	if Utility.Exists(s.GetConfigurationPath()) {
 		// Here I will get the configuration from the Configuration server...
-		config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
-		if err != nil {
-			fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
-			return err
+		var config_ map[string]interface{}
+		if s.GetName() == "config.ConfigService" {
+			data, err := os.ReadFile(s.GetConfigurationPath())
+			if err != nil {
+				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+				return err
+			}
+			err = json.Unmarshal(data, &config_)
+			if err != nil {
+				return err
+			}
+		}else{
+			var err error
+			config_, err = config.GetServiceConfigurationById("", s.GetConfigurationPath())
+			if err != nil {
+				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+				return err
+			}
 		}
-
+		
+		
 		// If no configuration was found from the configuration server i will get it from the configuration file.
 		str, err := Utility.ToJson(config_)
 		if err != nil {
@@ -489,7 +503,12 @@ func SaveService(s Service) error {
 		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
 	}
 
-	return config_client.SaveServiceConfiguration(config_)
+	if s.GetName() == "config.ConfigService" {
+		data, _ := Utility.ToJson(config_)
+		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
+	}
+
+	return config.SaveServiceConfiguration(s.GetMac(), config_)
 }
 
 /**
@@ -742,8 +761,6 @@ func StartService(s Service, server *grpc.Server) error {
 					}
 
 					if s.GetState() == "stopped" {
-						config.Exit() // stop process config
-
 						// exit program.
 						os.Exit(0)
 					}
