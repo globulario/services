@@ -1053,6 +1053,10 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	if s_impl.CacheAddress == "localhost" {
 		s_impl.CacheAddress = s_impl.Address
 	}

@@ -449,7 +449,7 @@ func InitService(s Service) error {
 				return err
 			}
 		} else {
-			// Here I will simply get the configuration from the configuration file.
+			// Here I will simply get the configuration from the configuration file directly.
 			data, err := os.ReadFile(s.GetConfigurationPath())
 			if err != nil {
 				fmt.Println("fail read ", s.GetConfigurationPath(), "with error", err)
@@ -679,7 +679,6 @@ func getEventClient() (*event_client.Event_Client, error) {
 			return nil, err
 		}
 
-		fmt.Println("---------------------> connect to event server address", address)
 		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 		if err != nil {
 			return nil, err
@@ -716,6 +715,7 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+
 	/**
 	Every breath you take
 	And every change you make
@@ -741,20 +741,23 @@ func StartService(s Service, server *grpc.Server) error {
 				}
 				if event.Op == fsnotify.Write {
 					// reinit the service...
-					data, err := os.ReadFile(s.GetConfigurationPath())
+					config, err := config.GetServiceConfigurationById(s.GetMac(), s.GetId())
 					if err != nil {
-						err = json.Unmarshal(data, &s)
+						data, err := json.Marshal(config)
 						if err == nil {
-							// Publish the configuration change event.
-							event_client_, err := getEventClient()
+							err = json.Unmarshal(data, &s)
 							if err == nil {
-								event_client_.Publish("update_globular_service_configuration_evt", data)
+								// Publish the configuration change event.
+								event_client_, err := getEventClient()
+								if err == nil {
+									event_client_.Publish("update_globular_service_configuration_evt", data)
+								}
 							}
-						}
 
-						if s.GetState() == "stopped" {
-							// exit program.
-							os.Exit(0)
+							if s.GetState() == "stopped" {
+								// exit program.
+								os.Exit(0)
+							}
 						}
 					}
 				}

@@ -492,6 +492,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
+
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +822,11 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		log.Fatalf("fail to initialyse service %s: %s with error %s", s_impl.Name, s_impl.Id, err.Error())
+	}
+
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
 	}
 
 	// Open the connetion with the store.

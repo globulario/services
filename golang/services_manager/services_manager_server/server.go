@@ -787,6 +787,10 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+	
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}

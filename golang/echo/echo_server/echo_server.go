@@ -489,6 +489,10 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+	
 	// Register the echo services
 	echopb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)

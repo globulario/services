@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"time"
 
@@ -692,8 +693,12 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		fmt.Printf("fail to initialyse service %s: %s\n", s_impl.Name, s_impl.Id)
+		log.Fatalf("fail to initialyse service %s: %s with error %s", s_impl.Name, s_impl.Id, err.Error())
 		return
+	}
+
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
 	}
 
 	// Register the echo services

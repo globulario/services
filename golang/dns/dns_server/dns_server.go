@@ -1979,6 +1979,10 @@ func main() {
 		fmt.Printf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	// Start dns services
 	go func() {
 		ServeDns(s_impl.DnsPort)

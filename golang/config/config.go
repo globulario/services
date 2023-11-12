@@ -7,9 +7,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
+
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
+	"github.com/fsnotify/fsnotify"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
@@ -494,13 +498,101 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 // Synchronized access functions.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Here I will store the configuration.
+var cache *sync.Map
 
+// watch for configuration changes.
+func watchFileChanges(filename string, updateFunc func(map[string]interface{})) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		fmt.Println("Error creating watcher:", err)
+		return
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(filename)
+	if err != nil {
+		fmt.Println("Error adding file to watcher:", err)
+		return
+	}
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write {
+
+				// Here I will read the configuration file.
+				config, err := readConfigFromFile(filename)
+				if err != nil {
+					continue
+				}
+
+				updateFunc(config)
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			fmt.Println("Error watching file:", err)
+		}
+	}
+}
+
+// Here I will read the configuration from the file system.
+func readConfigFromFile(path string) (map[string]interface{}, error) {
+	const maxRetries = 25
+	const retryInterval = 100 * time.Millisecond // Adjust the interval as needed
+
+	var file *os.File
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		// Attempt to acquire the lock
+		file, err = lockFile(path)
+		if err == nil {
+			break // Lock acquired successfully
+		}
+
+		if i < maxRetries-1 {
+			// Sleep and retry
+			time.Sleep(retryInterval)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("cannot acquire lock after multiple attempts: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		unlockFile(file)
+		return nil, err
+	}
+
+	// Here I will unlock the file.
+	unlockFile(file)
+
+	// Here I will parse the configuration file.
+	config := make(map[string]interface{})
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// Here I will create a mutex to synchronize access to the configuration.
 func lockFile(filename string) (*os.File, error) {
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}
 
+	// Attempt to acquire the lock
 	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
 		file.Close()
@@ -510,6 +602,7 @@ func lockFile(filename string) (*os.File, error) {
 	return file, nil
 }
 
+// Here I will create a mutex to synchronize access to the configuration.
 func unlockFile(file *os.File) {
 	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 	file.Close()
@@ -618,6 +711,11 @@ func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
+
+	if cache == nil {
+		cache = new(sync.Map)
+	}
+
 	// Here I will get the address from the local configuration.
 	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
@@ -644,35 +742,36 @@ func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
 		}
 
 		for i := 0; i < len(files); i++ {
+
+			// I will get the service configuration from the cache.
+			if value, ok := cache.Load(files[i]); ok {
+				services = append(services, value.(map[string]interface{}))
+				continue
+			}
+
 			// Here I will read the configuration file.
-
-			file, err := lockFile(files[i])
-
+			config, err := readConfigFromFile(files[i])
 			if err != nil {
-				fmt.Println("fail to lock file ", files[i], " with error ", err)
-				continue
-			}
-
-			data, err := os.ReadFile(files[i])
-			if err != nil {
-				unlockFile(file)
-				fmt.Println("fail to read file ", files[i], " with error ", err)
-				continue
-			}
-
-			// Here I will unlock the file.
-			unlockFile(file)
-
-			// Here I will parse the configuration file.
-			config := make(map[string]interface{})
-			err = json.Unmarshal(data, &config)
-			if err != nil {
-				fmt.Println("fail to parse file ", files[i], " with error ", err)
+				fmt.Println("fail to read configuration file at path ", files[i], " with error ", err)
 				continue
 			}
 
 			// Here I will add the configuration to the list.
 			services = append(services, config)
+
+			// Here I will add the configuration to the cache.
+			cache.Store(files[i], config)
+
+			// Closure to capture the file path
+			watchFunc := func(filePath string) func(map[string]interface{}) {
+				return func(config map[string]interface{}) {
+					// Here I will add the configuration to the cache.
+					cache.Store(filePath, config)
+				}
+			}(files[i])
+
+			// Here I will watch for file changes.
+			go watchFileChanges(files[i], watchFunc)
 		}
 
 		return services, nil
@@ -715,7 +814,6 @@ func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
 			return err
 		}
 
-
 		err = os.WriteFile(configPath, []byte(data), 0644)
 		if err != nil {
 			unlockFile(file)
@@ -743,7 +841,6 @@ func GetServicesConfigurationsByName(mac string, name string) ([]map[string]inte
 		// set the mac address to the local one.
 		mac = local
 	}
-
 
 	if isEtcdRunning() {
 		// Here I will get the configuration from etcd.

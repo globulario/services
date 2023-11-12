@@ -2223,6 +2223,10 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	// The search engine use to search into message, file and conversation.
 	s_impl.search_engine = new(search_engine.BleveSearchEngine)
 

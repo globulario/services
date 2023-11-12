@@ -500,6 +500,10 @@ func main() {
 		return
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	// The logs storage.
 	s_impl.logs = storage_store.NewBadger_store()
 	err = s_impl.logs.Open(`{"path":"` + s_impl.Root + `", "name":"logs"}`)

@@ -6412,6 +6412,10 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	if s_impl.CacheType == "BADGER" {
 		cache = storage_store.NewBadger_store()
 	} else if s_impl.CacheType == "SCYLLA" {

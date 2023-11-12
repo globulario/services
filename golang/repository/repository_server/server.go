@@ -536,6 +536,10 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
+	}
+
 	// Register the repository services
 	repositorypb.RegisterPackageRepositoryServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)

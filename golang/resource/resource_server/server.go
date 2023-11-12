@@ -1173,7 +1173,6 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 	}
 
-	fmt.Println("------------> reference created for ", sourceCollection, ":", field, ":", targetId, ":", targetCollection)
 	return nil
 }
 
@@ -1559,6 +1558,10 @@ func main() {
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+	}
+
+	if s_impl.Address == "" {
+		s_impl.Address, _ = config.GetAddress()
 	}
 
 	if s_impl.Backend_address == "localhost" {

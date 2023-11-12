@@ -225,6 +225,11 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
  * Get local event client.
  */
 func getEventClient(address string) (*event_client.Event_Client, error) {
+
+	if address == "" {
+		address, _ = config.GetAddress()
+	}
+
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
@@ -380,10 +385,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 		json.Unmarshal(data, &s)
 		processPid = Utility.ToInt(s["Process"])
-
 		if processPid != -1 && s["KeepAlive"].(bool) {
-
-			fmt.Println("try to restart proxy process for service", s["Name"], "with process id", processPid)
 			exist, err := Utility.PidExists(processPid)
 			if err == nil && exist {
 				StartServiceProxyProcess(s, certificateAuthorityBundle, certificate, proxyPort, processPid)
