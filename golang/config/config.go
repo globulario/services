@@ -15,7 +15,8 @@ import (
 // Globular Configurations
 // - Globular configuration are stored in /etc/globular/config/config.json
 // - Globular configuration are stored in /etc/globular/config/services
-// those configuration are stored in json format. Those files are read only.
+// those configuration are stored in json format in config.json file. Configurations
+// must be access in a synchronized way.
 //////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -229,7 +230,7 @@ func GetServicesConfigDir() string {
 			// Test if it's in the development environnement.
 			_, filename, _, _ := runtime.Caller(0)
 			fmt.Println("Current test filename: ", filename)
-			if strings.Index(filename, "/services/golang/config/") != -1 {
+			if strings.Contains(filename, "/services/golang/config/") {
 				return filename[0:strings.Index(filename, "/config/")]
 			}
 
@@ -389,82 +390,6 @@ func GetOrderedServicesConfigurations(address string) ([]map[string]interface{},
 	return orderedServicesConfig, nil
 }
 
-/**
- * Return the server local configuration if one exist.
- * if lazy is set to true service will not be set in the configuration.
- */
-func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
-
-	// Here I will get the local configuration.
-	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return nil, err
-		}
-
-		// retreive the local configuration.
-		mac = local
-	}
-
-	/*
-
-		// display configuration value.
-		ConfigPath := GetConfigDir() + "/config.json"
-
-		if !Utility.Exists(ConfigPath) {
-			err := errors.New("no local Globular configuration found with path " + ConfigPath)
-			return nil, err
-		}
-
-		config := make(map[string]interface{})
-
-		data, err := os.ReadFile(ConfigPath)
-		if err != nil {
-			return nil, err
-		}
-
-		err = json.Unmarshal(data, &config)
-		if err != nil {
-			return nil, err
-		}
-
-		// Set the mac address
-		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return nil, err
-		}
-
-		config["Mac"] = macAddress
-
-		if lazy {
-			config_ = config
-			return config, nil
-		}
-
-		// Now I will read the services configurations...
-		config["Services"] = make(map[string]interface{})
-
-		// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
-		services_config, err := GetServicesConfigurations()
-		if err != nil {
-			return nil, err
-		}
-
-		for i := 0; i < len(services_config); i++ {
-			config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
-		}
-
-		// if the Globule name is not set I will use the name of the computer hostname itself.
-		if len(config["Name"].(string)) == 0 {
-			config["Name"], _ = GetName()
-		}
-
-		return config, nil
-	*/
-
-	return nil, errors.New("not implemented yet")
-}
 
 /**
  * Return the list of method's for a given service.
@@ -567,6 +492,83 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Synchronized access functions.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Return the server local configuration if one exist.
+ * if lazy is set to true service will not be set in the configuration.
+ */
+ func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
+
+	// Here I will get the local configuration.
+	if len(mac) == 0 {
+		// Here I will get the address from the local configuration.
+		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return nil, err
+		}
+
+		// retreive the local configuration.
+		mac = local
+	}
+
+	/*
+
+		// display configuration value.
+		ConfigPath := GetConfigDir() + "/config.json"
+
+		if !Utility.Exists(ConfigPath) {
+			err := errors.New("no local Globular configuration found with path " + ConfigPath)
+			return nil, err
+		}
+
+		config := make(map[string]interface{})
+
+		data, err := os.ReadFile(ConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the mac address
+		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return nil, err
+		}
+
+		config["Mac"] = macAddress
+
+		if lazy {
+			config_ = config
+			return config, nil
+		}
+
+		// Now I will read the services configurations...
+		config["Services"] = make(map[string]interface{})
+
+		// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
+		services_config, err := GetServicesConfigurations()
+		if err != nil {
+			return nil, err
+		}
+
+		for i := 0; i < len(services_config); i++ {
+			config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
+		}
+
+		// if the Globule name is not set I will use the name of the computer hostname itself.
+		if len(config["Name"].(string)) == 0 {
+			config["Name"], _ = GetName()
+		}
+
+		return config, nil
+	*/
+
+	return nil, errors.New("not implemented yet")
+}
 
 /**
  * Return the list of services all installed serverices on a server.
