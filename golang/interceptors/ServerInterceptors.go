@@ -99,7 +99,11 @@ func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectTyp
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, bool, error) {
 
 	// Here I will test if the subject is the super admin...
-	localDomain, _ := config.GetDomain()
+	localDomain, _ := config.GetAddress()
+	if strings.Contains(localDomain, ":") {
+		localDomain = strings.Split(localDomain, ":")[0]
+	}
+
 	if subject == "sa@"+localDomain {
 		return true, false, nil
 	}
@@ -217,7 +221,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Here I will test if the
 	method := info.FullMethod
-	domain, _ = config.GetDomain()
+	domain, _ = config.GetAddress()
+	if strings.Contains(domain, ":") {
+		domain = strings.Split(domain, ":")[0]
+	}
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 
@@ -409,7 +416,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var address string // the address if the token issuer
 
 	method := info.FullMethod
-	domain, _ = config.GetDomain()
+	domain, _ = config.GetAddress()
+	if strings.Contains(domain, ":") {
+		domain = strings.Split(domain, ":")[0]
+	}
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")

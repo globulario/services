@@ -443,6 +443,7 @@ func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.
 // port number must be pass as argument.
 func main() {
 
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
@@ -485,13 +486,14 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id, err.Error())
 	}
 
 	// Register the echo services
 	echopb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	fmt.Printf("Service %s is ready to listen on port %d\n", s_impl.Name, s_impl.Port)
 	// Start the service.
 	s_impl.StartService()
 

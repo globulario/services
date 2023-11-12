@@ -1,14 +1,16 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"github.com/emicklei/proto"
-	"github.com/syndtr/goleveldb/leveldb/errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
+	"github.com/davecourtois/Utility"
+	"github.com/emicklei/proto"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -390,7 +392,6 @@ func GetOrderedServicesConfigurations(address string) ([]map[string]interface{},
 	return orderedServicesConfig, nil
 }
 
-
 /**
  * Return the list of method's for a given service.
  */
@@ -491,27 +492,67 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Synchronized access functions.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+func lockFile(filename string) (*os.File, error) {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("cannot lock file: %v", err)
+	}
+
+	return file, nil
+}
+
+func unlockFile(file *os.File) {
+	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	file.Close()
+}
+
+/**
+ * Test if etcd is running.
+ */
+func isEtcdRunning() bool {
+	pids, err := Utility.GetProcessIdsByName("etcd")
+	if err != nil {
+		return false
+	}
+
+	if len(pids) == 0 {
+		return false
+	}
+
+	return true
+}
 
 /**
  * Return the server local configuration if one exist.
  * if lazy is set to true service will not be set in the configuration.
  */
- func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
+func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
 
 	// Here I will get the local configuration.
-	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return nil, err
-		}
+	// Here I will get the address from the local configuration.
+	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
-		// retreive the local configuration.
+	if len(mac) == 0 {
+		// set the mac address to the local one.
 		mac = local
 	}
 
-	/*
+	if isEtcdRunning() {
+		// Here I will get the configuration from etcd.
+
+	} else if local == mac {
 
 		// display configuration value.
 		ConfigPath := GetConfigDir() + "/config.json"
@@ -523,26 +564,29 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 
 		config := make(map[string]interface{})
 
-		data, err := os.ReadFile(ConfigPath)
+		// Here I will lock the file.
+		file, err := lockFile(ConfigPath)
 		if err != nil {
 			return nil, err
 		}
+
+		data, err := os.ReadFile(ConfigPath)
+		if err != nil {
+			unlockFile(file)
+			return nil, err
+		}
+
+		// Here I will unlock the file.
+		unlockFile(file)
 
 		err = json.Unmarshal(data, &config)
 		if err != nil {
 			return nil, err
 		}
 
-		// Set the mac address
-		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return nil, err
-		}
-
-		config["Mac"] = macAddress
+		config["Mac"] = mac
 
 		if lazy {
-			config_ = config
 			return config, nil
 		}
 
@@ -550,7 +594,7 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 		config["Services"] = make(map[string]interface{})
 
 		// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
-		services_config, err := GetServicesConfigurations()
+		services_config, err := GetServicesConfigurations(mac)
 		if err != nil {
 			return nil, err
 		}
@@ -565,78 +609,208 @@ func GetServiceMethods(mac string, name string, publisherId string, version stri
 		}
 
 		return config, nil
-	*/
+	}
 
-	return nil, errors.New("not implemented yet")
+	return nil, errors.New("fail to retreive configuration for globule with mac address " + mac)
 }
 
 /**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
-	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
-		if err != nil {
-			return nil, err
-		}
+	// Here I will get the address from the local configuration.
+	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
-		// retreive the local configuration.
+	if len(mac) == 0 {
+		// set the mac address to the local one.
 		mac = local
 	}
 
-	return nil, errors.New("not implemented yet")
+	if isEtcdRunning() {
+		// Here I will get the configuration from etcd.
+	} else if local == mac {
+
+		// Here I will get the configuration from the local file system.
+		// I will start configuation processing...
+		serviceConfigDir := GetServicesConfigDir()
+		files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
+		services := make([]map[string]interface{}, 0)
+		if err != nil {
+			return services, err
+
+		}
+
+		for i := 0; i < len(files); i++ {
+			// Here I will read the configuration file.
+
+			file, err := lockFile(files[i])
+
+			if err != nil {
+				fmt.Println("fail to lock file ", files[i], " with error ", err)
+				continue
+			}
+
+			data, err := os.ReadFile(files[i])
+			if err != nil {
+				unlockFile(file)
+				fmt.Println("fail to read file ", files[i], " with error ", err)
+				continue
+			}
+
+			// Here I will unlock the file.
+			unlockFile(file)
+
+			// Here I will parse the configuration file.
+			config := make(map[string]interface{})
+			err = json.Unmarshal(data, &config)
+			if err != nil {
+				fmt.Println("fail to parse file ", files[i], " with error ", err)
+				continue
+			}
+
+			// Here I will add the configuration to the list.
+			services = append(services, config)
+		}
+
+		return services, nil
+	}
+
+	return nil, errors.New("no service configuration found for mac address " + mac)
 }
 
 /**
  * Save a service configuration.
  */
 func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
+	// Here I will get the address from the local configuration.
+	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return err
+	}
+
 	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		// set the mac address to the local one.
+		mac = local
+	}
+
+	if isEtcdRunning() {
+		// Here I will get the configuration from etcd.
+	} else if local == mac {
+		configPath := s["ConfigPath"].(string)
+		if len(configPath) == 0 {
+			return errors.New("no configuration path was set")
+		}
+
+		// Here I will save the configuration.
+		data, err := Utility.ToJson(s)
+		if err != nil {
+			return err
+		}
+		// Here I will save the configuration.
+		file, err := lockFile(configPath)
 		if err != nil {
 			return err
 		}
 
-		// retreive the local configuration.
-		mac = local
+
+		err = os.WriteFile(configPath, []byte(data), 0644)
+		if err != nil {
+			unlockFile(file)
+			return err
+		}
+
+		// Here I will unlock the file.
+		unlockFile(file)
 	}
-	return errors.New("not implemented yet")
+
+	return nil
 }
 
 /**
  * Return the list of service that match a given name.
  */
 func GetServicesConfigurationsByName(mac string, name string) ([]map[string]interface{}, error) {
+	// Here I will get the address from the local configuration.
+	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		// set the mac address to the local one.
+		mac = local
+	}
+
+
+	if isEtcdRunning() {
+		// Here I will get the configuration from etcd.
+	} else if local == mac {
+
+		services, err := GetServicesConfigurations(mac)
 		if err != nil {
 			return nil, err
 		}
 
-		// retreive the local configuration.
-		mac = local
+		// Here I will return the list of services that match the given name.
+		servicesByName := make([]map[string]interface{}, 0)
+		for i := 0; i < len(services); i++ {
+			if services[i]["Name"] == name {
+				servicesByName = append(servicesByName, services[i])
+			}
+		}
+
+		return servicesByName, nil
+
 	}
 
-	return nil, errors.New("not implemented yet")
+	return nil, errors.New("no service configuration found with name " + name + " for mac address " + mac)
 }
 
 /**
- * Return a service with a given configuration id.
+ * Return a service with a given configuration id, or if id is a name it will return the first service that match the name.
  */
 func GetServiceConfigurationById(mac string, id string) (map[string]interface{}, error) {
+	// Here I will get the address from the local configuration.
+	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	if len(mac) == 0 {
-		// Here I will get the address from the local configuration.
-		local, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		// set the mac address to the local one.
+		mac = local
+	}
+
+	if !Utility.IsUuid(id) {
+		services, err := GetServicesConfigurationsByName(mac, id)
 		if err != nil {
 			return nil, err
 		}
 
-		// retreive the local configuration.
-		mac = local
+		if len(services) == 0 {
+			return nil, errors.New("no service configuration found with name " + id + " for mac address " + mac)
+		}
+
+		return services[0], nil
 	}
 
-	return nil, errors.New("not implemented yet")
+	if isEtcdRunning() {
+		// Here I will get the configuration from etcd.
+	} else if local == mac {
+		services, err := GetServicesConfigurations(mac)
+		if err != nil {
+			return nil, err
+		}
+
+		for i := 0; i < len(services); i++ {
+			if services[i]["Id"] == id {
+				return services[i], nil
+			}
+		}
+	}
+
+	return nil, errors.New("no service configuration found for with id " + id + " for mac address " + mac)
 }

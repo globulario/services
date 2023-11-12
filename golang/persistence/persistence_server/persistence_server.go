@@ -1452,7 +1452,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"log.LogService", "authentication.AuthenticationService", "config.ConfigService", "event.EventService"}
+	s_impl.Dependencies = []string{"log.LogService", "authentication.AuthenticationService", "event.EventService"}
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true

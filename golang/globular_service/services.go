@@ -430,38 +430,38 @@ func InitService(s Service) error {
 	// if the service configuration does not exist.
 	if Utility.Exists(s.GetConfigurationPath()) {
 		// Here I will get the configuration from the Configuration server...
-		var config_ map[string]interface{}
-		if s.GetName() == "config.ConfigService" {
+		if len(s.GetId()) > 0 {
+			config_, err := config.GetServiceConfigurationById("", s.GetId())
+			if err != nil {
+				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+				return err
+			}
+
+			// If no configuration was found from the configuration server i will get it from the configuration file.
+			str, err := Utility.ToJson(config_)
+			if err != nil {
+				fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
+				return err
+			}
+
+			err = json.Unmarshal([]byte(str), &s)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Here I will simply get the configuration from the configuration file.
 			data, err := os.ReadFile(s.GetConfigurationPath())
 			if err != nil {
-				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+				fmt.Println("fail read ", s.GetConfigurationPath(), "with error", err)
 				return err
 			}
-			err = json.Unmarshal(data, &config_)
+
+			err = json.Unmarshal(data, &s)
 			if err != nil {
 				return err
 			}
-		}else{
-			var err error
-			config_, err = config.GetServiceConfigurationById("", s.GetConfigurationPath())
-			if err != nil {
-				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
-				return err
-			}
-		}
-		
-		
-		// If no configuration was found from the configuration server i will get it from the configuration file.
-		str, err := Utility.ToJson(config_)
-		if err != nil {
-			fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
-			return err
 		}
 
-		err = json.Unmarshal([]byte(str), &s)
-		if err != nil {
-			return err
-		}
 	} else {
 		s.SetId(Utility.RandomUUID())
 	}
@@ -495,17 +495,6 @@ func SaveService(s Service) error {
 	config_, err := Utility.ToMap(s)
 	if err != nil {
 		return err
-	}
-
-	// if the program was start directly without Globular.
-	if len(os.Args) == 1 {
-		data, _ := Utility.ToJson(config_)
-		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
-	}
-
-	if s.GetName() == "config.ConfigService" {
-		data, _ := Utility.ToJson(config_)
-		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
 	}
 
 	return config.SaveServiceConfiguration(s.GetMac(), config_)
@@ -689,6 +678,8 @@ func getEventClient() (*event_client.Event_Client, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		fmt.Println("---------------------> connect to event server address", address)
 		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 		if err != nil {
 			return nil, err
@@ -751,18 +742,20 @@ func StartService(s Service, server *grpc.Server) error {
 				if event.Op == fsnotify.Write {
 					// reinit the service...
 					data, err := os.ReadFile(s.GetConfigurationPath())
-					err = json.Unmarshal(data, &s)
-					if err == nil {
-						// Publish the configuration change event.
-						event_client_, err := getEventClient()
+					if err != nil {
+						err = json.Unmarshal(data, &s)
 						if err == nil {
-							event_client_.Publish("update_globular_service_configuration_evt", data)
+							// Publish the configuration change event.
+							event_client_, err := getEventClient()
+							if err == nil {
+								event_client_.Publish("update_globular_service_configuration_evt", data)
+							}
 						}
-					}
 
-					if s.GetState() == "stopped" {
-						// exit program.
-						os.Exit(0)
+						if s.GetState() == "stopped" {
+							// exit program.
+							os.Exit(0)
+						}
 					}
 				}
 			case err, ok := <-watcher.Errors:

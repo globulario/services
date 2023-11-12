@@ -253,7 +253,12 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		cmd += ".exe" // in case of windows.
 	}
 
-	proxyBackendAddress := s["Domain"].(string) + ":" + strconv.Itoa(servicePort)
+	address := s["Address"].(string)
+	if strings.Contains(address, ":") {
+		address = strings.Split(address, ":")[0]
+	}
+
+	proxyBackendAddress := address + ":" + strconv.Itoa(servicePort)
 	proxyAllowAllOrgins := "true"
 	proxyArgs := make([]string, 0)
 

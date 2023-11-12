@@ -1001,10 +1001,6 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 	// I will set the type name.
 	entity["typeName"] = typeName
 
-	if typeName == "Accounts" {
-		fmt.Println("-----------> entity: ", entity)
-	}
-
 	if entity["domain"] == nil {
 		// be sure the domain is set...
 		localDomain, _ := config.GetDomain()

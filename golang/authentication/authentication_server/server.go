@@ -235,7 +235,11 @@ func (svr *server) SetConfigPort(port int) {
 
 // Return the address where the configuration can be found...
 func (svr *server) GetConfigAddress() string {
-	return svr.GetDomain() + ":" + Utility.ToString(svr.ConfigPort)
+	domain := svr.GetAddress()
+	if strings.Contains(domain, ":") {
+		domain = strings.Split(domain, ":")[0]
+	}
+	return domain + ":" + Utility.ToString(svr.ConfigPort)
 }
 
 func (server *server) GetRepositories() []string {
@@ -561,7 +565,7 @@ func (svr *server) getResourceClient(address string) (*resource_client.Resource_
  * Get actives sessions
  */
 func (svr *server) getSessions() ([]*resourcepb.Session, error) {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+	resourceClient, err := svr.getResourceClient(svr.GetAddress())
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +575,7 @@ func (svr *server) getSessions() ([]*resourcepb.Session, error) {
 
 /** Now yet use **/
 func (svr *server) removeSession(accountId string) error {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+	resourceClient, err := svr.getResourceClient(svr.GetAddress())
 	if err != nil {
 		return err
 	}
@@ -580,7 +584,7 @@ func (svr *server) removeSession(accountId string) error {
 }
 
 func (svr *server) updateSession(session *resourcepb.Session) error {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+	resourceClient, err := svr.getResourceClient(svr.GetAddress())
 	if err != nil {
 		return err
 	}
@@ -593,6 +597,10 @@ func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
 	}
+
+	// toto fix that...
+	domain = svr.GetAddress()
+
 	resourceClient, err := svr.getResourceClient(domain)
 	if err != nil {
 		return nil, err
@@ -610,6 +618,9 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 		domain = strings.Split(accountId, "@")[1]
 	}
 
+	// toto fix that...
+	domain = svr.GetAddress()
+
 	resourceClient, err := svr.getResourceClient(domain)
 	if err != nil {
 		return nil, err
@@ -623,6 +634,9 @@ func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassw
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
 	}
+
+	// toto fix that...
+	domain = svr.GetAddress()
 
 	// take the first part of the account.
 	if strings.Contains(accountId, "@") {
@@ -640,7 +654,7 @@ func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassw
  * Return a peer with a given id
  */
 func (svr *server) getPeers() ([]*resourcepb.Peer, error) {
-	resourceClient, err := svr.getResourceClient(svr.Address)
+	resourceClient, err := svr.getResourceClient(svr.GetAddress())
 	if err != nil {
 		return nil, err
 	}

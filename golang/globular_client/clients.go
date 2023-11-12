@@ -172,7 +172,7 @@ func InitClient(client Client, address string, id string) error {
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
 	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-	localConfig, _ := config.GetConfig("", true)
+	localConfig, _ := config.GetConfig(mac, true)
 
 	if !strings.Contains(address, ":") {
 		if strings.HasPrefix(address_, address) {
@@ -191,6 +191,7 @@ func InitClient(client Client, address string, id string) error {
 					p := peers[i].(map[string]interface{})
 					if p["Domain"].(string) == address {
 						address += ":" + Utility.ToString(p["Port"])
+						// I will set the mac address of the client to the mac address of the peer.
 						mac = p["Mac"].(string)
 						break
 					}
@@ -235,7 +236,6 @@ func InitClient(client Client, address string, id string) error {
 
 	// Get the service configuration
 	config_, err = config.GetServiceConfigurationById(mac, id)
-
 	if err != nil {
 		fmt.Println("fail to initialyse client", id, "with error", err)
 		return err
@@ -436,14 +436,13 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			return nil, err
 		}
 
-		// I will use the address to get the domain name.
-		address := client.GetAddress()
+		domain := address
 		if strings.Contains(address, ":") {
-			address = strings.Split(address, ":")[0]
+			domain = strings.Split(address, ":")[0]
 		}
 
 		creds := credentials.NewTLS(&tls.Config{
-			ServerName:   address, // NOTE: this is required!
+			ServerName:   domain, // NOTE: this is required!
 			Certificates: []tls.Certificate{certificate},
 			ClientAuth:   tls.RequireAndVerifyClientCert,
 			ClientCAs:    certPool,
