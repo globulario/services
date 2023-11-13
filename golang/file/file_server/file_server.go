@@ -1158,24 +1158,9 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
-	var err error
-	var token string
-	ctx := stream.Context()
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) > 0 {
-				_, err := security.ValidateToken(token)
-				if err != nil {
-					return err
-				}
-			} else {
-				errors.New("no token was given for path " + rqst.Path)
-			}
-		}
-	} else {
-		return errors.New("no valid context found")
+	_, token, err := security.GetClientId(stream.Context())
+	if err != nil {
+		return err
 	}
 
 	path := file_server.formatPath(rqst.Path)
@@ -1224,22 +1209,9 @@ func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) > 0 {
-				_, err := security.ValidateToken(token)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				errors.New("no token was given for path " + rqst.Path)
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	file_server.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
@@ -1265,28 +1237,10 @@ func (file_server *server) isPublic(path string) bool {
 // Create an archive from a given dir and set it with name.
 func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
 
-	var user string
-	var domain string
-	var err error
-	var token string
 
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			user = claims.Id
-			domain = claims.Domain
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("CreateAchive no token was given")))
-		}
+	clientId, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Here I will create the directory...
@@ -1338,7 +1292,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 	var buf bytes.Buffer
 	Utility.CompressDir(tmp, &buf)
-	dest := "/users/" + user + "@" + domain + "/" + rqst.GetName() + ".tar.gz"
+	dest := "/users/" +clientId + "/" + rqst.GetName() + ".tar.gz"
 
 	// Set user as owner.
 	file_server.setOwner(token, dest)
@@ -1401,17 +1355,9 @@ func (file_server *server) setOwner(token, path string) error {
 // Rename a file or a directory.
 func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) == 0 {
-				return nil, errors.New("No token given")
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	path := file_server.formatPath(rqst.GetPath())
@@ -1774,17 +1720,9 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
 	// return nil, errors.New("test phase...")
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) == 0 {
-				return nil, errors.New("No token given")
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	path := file_server.formatPath(rqst.GetPath())
@@ -2043,17 +1981,9 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 // Move a file/directory
 func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) == 0 {
-				return nil, errors.New("No token given")
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// So here I will try to retreive indexation for the file...
@@ -2207,17 +2137,9 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 // Copy a file/directory
 func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) == 0 {
-				return nil, errors.New("No token given")
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// get the rbac client.
@@ -2365,18 +2287,10 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 
 // Return the list of thumbnail for a given directory...
 func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
-	var token string
-	ctx := stream.Context()
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) == 0 {
-				return errors.New("No token given")
-			}
-		}
-	} else {
-		return errors.New("no valid context found")
+	
+	_, token, err := security.GetClientId(stream.Context())
+	if err != nil {
+		return err
 	}
 
 	path := rqst.GetPath()
@@ -2431,24 +2345,9 @@ func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnk
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no directory found at path "+path)))
 	}
 
-	var token string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			_, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given for download torrent")))
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	err = os.WriteFile(path+"/"+rqst.Name, []byte(rqst.Lnk), 0644)
@@ -4751,22 +4650,10 @@ func (file_server *server) orderedPlayList(path string, files []string) []string
 
 // Generate the playlists for a directory...
 func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.GeneratePlaylistRequest) (*filepb.GeneratePlaylistResponse, error) {
-	token := ""
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			_, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("GeneratePlaylist no token was given")))
-		}
+	
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// retreive the path...
@@ -4779,7 +4666,7 @@ func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.Ge
 	os.Remove(path + "/audio.mu3")
 	os.Remove(path + "/video.mu3")
 
-	err := file_server.generatePlaylist(path, token)
+	err = file_server.generatePlaylist(path, token)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -5426,21 +5313,10 @@ func (server *server) GetFileClient(domain string) (*file_client.File_Client, er
 
 // Upload a video from a given url, it use youtube-dl.
 func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.FileService_UploadFileServer) error {
-	var err error
-
-	// Done with upload now I will porcess videos
-	ctx := stream.Context()
-	var token string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			_, err = security.ValidateToken(token)
-			if err != nil {
-				return err
-			}
-		}
+	
+	_, token, err := security.GetClientId(stream.Context())
+	if err != nil {
+		return err
 	}
 
 	if rqst.IsDir {
@@ -5559,22 +5435,9 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	var err error
 
 	// Done with upload now I will porcess videos
-	ctx := stream.Context()
-	var token string
-	var domain string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			domain = claims.UserDomain
-		}
+	_, token, err := security.GetClientId(stream.Context())
+	if err != nil {
+		return err
 	}
 
 	path := file_server.formatPath(rqst.Dest)
@@ -5898,22 +5761,9 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 // Start process audio file inside a directory...
 func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) > 0 {
-				_, err := security.ValidateToken(token)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				errors.New("no token was given for path " + rqst.Path)
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	path := file_server.formatPath(rqst.Path)
@@ -5922,7 +5772,7 @@ func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.S
 	audios := Utility.GetFilePathsByExtension(path, ".mp3")
 	audios = append(audios, Utility.GetFilePathsByExtension(path, ".flac")...)
 
-	err := file_server.generateAudioPlaylist(path, token, audios)
+	err = file_server.generateAudioPlaylist(path, token, audios)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5935,22 +5785,9 @@ func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.S
 // Start process video on the server.
 func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.StartProcessVideoRequest) (*filepb.StartProcessVideoResponse, error) {
 
-	var token string
-	if ctx != nil {
-		// Now I will index the conversation to be retreivable for it creator...
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token = strings.Join(md["token"], "")
-			if len(token) > 0 {
-				_, err := security.ValidateToken(token)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				errors.New("no token was given for path " + rqst.Path)
-			}
-		}
-	} else {
-		return nil, errors.New("no valid context found")
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Convert video file, set permissions...

@@ -52,6 +52,7 @@ func GetLogClient(address string) (*log_client.Log_Client, error) {
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+
 	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
@@ -211,27 +212,29 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
-	
 	// The token and the application id.
 	var token string
 	var application string
-	var domain string
-	var address string // the address if the token issuer
 	var organization string
+	
+	// The peer domain.
+	address, err := config.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+	
+	if len(address) == 0 {
+		return nil, errors.New("fail to get the address")
+	}
 
 	// Here I will test if the
 	method := info.FullMethod
-	domain, _ = config.GetAddress()
-	if strings.Contains(domain, ":") {
-		domain = strings.Split(domain, ":")[0]
-	}
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 
 		// The application...
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-		address, _ = config.GetAddress()
 	}
 
 	// If the call come from a local client it has hasAccess
@@ -246,13 +249,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	var clientId string
-	var err error
 	var issuer string
 
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
-			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
 
@@ -292,9 +294,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess || accessDenied {
-		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " domain:" + domain + " application:" + application)
+		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " address:" + address + " application:" + application)
 		
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, err
 	}
 
@@ -303,7 +305,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Send log message.
 	if err != nil {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
 	return result, err
@@ -412,29 +414,29 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var application string
 
 	// The peer domain.
-	var domain string  // This is the target domain, the one use in TLS certificate.
-	var address string // the address if the token issuer
+	address, err := config.GetAddress()
+	if err != nil {
+		return err
+	}
+
+	if len(address) == 0 {
+		return errors.New("fail to get the address")
+	}
 
 	method := info.FullMethod
-	domain, _ = config.GetAddress()
-	if strings.Contains(domain, ":") {
-		domain = strings.Split(domain, ":")[0]
-	}
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-		//address, _ = config.GetAddress()
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
-		address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], ""))) 
-		
+		//address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], ""))) 
 	}
 
+	fmt.Println("-------------> address:", address)
 	var clientId string
 	var issuer string
-	var err error
 	hasAccess := true
 
 	// TODO set method the require access validation here....
@@ -443,7 +445,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
-			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			fmt.Println(token)
 			return err
 		}
@@ -463,7 +465,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
 
 	if err != nil {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
 	// Remove the uuid from the cache

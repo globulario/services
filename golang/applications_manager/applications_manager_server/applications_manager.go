@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
 
@@ -58,15 +59,12 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 		/** TODO remove applicaiton permissions...*/
 	}
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return nil, errors.New("application manager UninstallApplication no token was given")
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	err := server.uninstallApplication(token, rqst.ApplicationId)
+	err = server.uninstallApplication(token, rqst.ApplicationId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -226,16 +224,13 @@ func GetRepositoryClient(domain string) (*repository_client.Repository_Service_C
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return nil, errors.New("InstallApplication no token was given")
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Here I will try to install the application from the local directory...
-	err := server.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
+	err = server.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
 	if err == nil {
 		fmt.Println("application", rqst.ApplicationId, "was install localy...")
 		return &applications_managerpb.InstallApplicationResponse{

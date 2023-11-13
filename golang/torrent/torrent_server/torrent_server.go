@@ -949,25 +949,9 @@ func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, strea
 // * Download a torrent file
 func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
 
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			clientId = claims.Id + "@" + claims.Domain
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given for download torrent")))
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// So here I will create a new client...

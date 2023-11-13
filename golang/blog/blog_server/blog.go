@@ -30,32 +30,10 @@ import (
 func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPostRequest) (*blogpb.CreateBlogPostResponse, error) {
 
 	// So here I will create a new blog from the infromation sent by the user.
-	var clientId string
-	var err error
-	var token string
-
-	// Get information from the token...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			err := errors.New("CreateBlogPost no token was given")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	// Get validated user id and token.
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	uuid := Utility.RandomUUID()
@@ -130,31 +108,10 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 
 // Update a blog post...
 func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRequest) (*blogpb.SaveBlogPostResponse, error) {
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			err := errors.New("SaveBlogPost no token was given")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Save the blog.
@@ -190,6 +147,11 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 
 	if err == nil {
 		err = index.SetInternal([]byte(rqst.BlogPost.Uuid), []byte(jsonStr))
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// TODO send publish event also..
@@ -375,31 +337,9 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 // Delete a blog.
 func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPostRequest) (*blogpb.DeleteBlogPostResponse, error) {
 
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			err := errors.New("DeleteBlogPost no token was given")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	err = srv.deleteBlogPost(clientId, rqst.Uuid)
@@ -436,31 +376,10 @@ func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 
 // Emoji a post or comment
 func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (*blogpb.AddEmojiResponse, error) {
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			err := errors.New("AddEmoji no token was given")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if rqst.Emoji.AccountId != clientId {
@@ -530,31 +449,10 @@ func (srv *server) RemoveEmoji(ctx context.Context, rqst *blogpb.RemoveEmojiRequ
 
 // Comment a post or comment
 func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentRequest) (*blogpb.AddCommentResponse, error) {
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			err := errors.New("AddComment no token was given")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if rqst.Comment.AccountId != clientId {

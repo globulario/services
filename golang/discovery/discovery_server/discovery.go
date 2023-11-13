@@ -24,6 +24,16 @@ var (
 // Publish a service. The service must be install localy on the server.
 func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
 
+
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if clientId != rqst.User {
+		return nil, errors.New("the user id dosent match the token id")
+	}
+
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
@@ -34,22 +44,6 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 		publisherId = rqst.Organization
 		if !isMember {
 			return nil, err
-		}
-	}
-
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			_, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-		} else {
-			return nil, errors.New("PublishService no token was given")
 		}
 	}
 
@@ -67,7 +61,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 	}
 
 	// Publish the service package.
-	err := server.publishPackageDescriptor(descriptor)
+	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -82,19 +76,13 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			_, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-		} else {
-			return nil, errors.New("PublishApplication no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if clientId != rqst.User {
+		return nil, errors.New("the user id dosent match the token id")
 	}
 
 	publisherId := rqst.User
@@ -121,7 +109,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 	}
 
 	// Fist of all publish the package descriptor.
-	err := server.publishPackageDescriptor(descriptor)
+	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

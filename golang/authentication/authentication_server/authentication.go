@@ -112,30 +112,11 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 
 // * Set the account password *
 func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
-	var token string
-	var clientId string
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
-		}
+	
+	// Get validated user id and token.
+	clientId, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Here I will get the account info.
@@ -201,33 +182,14 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 
 // Set the root password, the root password will be save in the configuration file.
 func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
-	var token string
-	var clientId string
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
-		}
+	// Get validated user id and token.
+	clientId, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	if clientId != "sa" {
+	domain, _ := config.GetDomain()
+	if clientId != "sa@" + domain {
 		if !Utility.Exists(configPath) {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -683,31 +645,16 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 // * Generate a token for a peer with a given mac address *
 func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
 
-	var userId, userName, email, userDomain string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			// So here I will
-			userId = claims.Id
-			userDomain = claims.UserDomain
-
-		} else {
-			return nil, errors.New("no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
+	userId := strings.Split(clientId, "@")[0]
+	userDomain := strings.Split(clientId, "@")[1]
+
 	// The generated token.
-	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email, userDomain)
+	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, "", "", userDomain)
 
 	return &authenticationpb.GeneratePeerTokenResponse{
 		Token: token,

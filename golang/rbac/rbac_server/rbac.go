@@ -618,27 +618,9 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 
 	// So here only admin must be abble to set the allocated space, or members of admin role...
 	// Here I will add additional validation...
-	var clientId string
-	var err error
-	var token string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(claims.UserDomain) == 0 {
-				return nil, errors.New("no user domain was found in the token")
-			}
-
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			errors.New("no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if !strings.HasPrefix(clientId, "sa@") {
@@ -1098,29 +1080,11 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
 	}
 
 	// Here I will add additional validation...
-	var clientId string
-	var err error
-	var token string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(claims.UserDomain) == 0 {
-				return nil, errors.New("no user domain was found in the token")
-			}
-
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			errors.New("no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
-
+	
 	if !strings.HasPrefix(clientId, "sa@") {
 		if !rbac_server.isOwner(clientId, rbacpb.SubjectType_ACCOUNT, rqst.Path) {
 			return nil, errors.New(clientId + " must be owner of " + rqst.Path + " to set permission")

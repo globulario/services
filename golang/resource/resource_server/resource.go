@@ -316,25 +316,9 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 // TODO make sure only user can
 func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 
-	var clientId string
-	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			clientId = claims.Id
-		} else {
-			return nil, errors.New("SetAccountPassword no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	p, err := resource_server.getPersistenceStore()
@@ -1085,37 +1069,14 @@ func (resource_server *server) DeleteReference(ctx context.Context, rqst *resour
 
 // * Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
-	var clientId string
-	var domain string
-	var err error
 
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			if len(claims.Domain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no domain was given in the token")))
-			}
-
-			clientId = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-		} else {
-			return nil, errors.New("SetAccountPassword no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// That service made user of persistence service.
-	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId+"@"+domain, rqst.Role.Description, rqst.Role.Actions)
+	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId, rqst.Role.Description, rqst.Role.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1136,8 +1097,9 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Role)
+
 	if err == nil {
-		resource_server.publishEvent("create_role_evt", []byte(jsonStr), domain)
+		resource_server.publishEvent("create_role_evt", []byte(jsonStr), resource_server.GetAddress())
 	}
 
 	return &resourcepb.CreateRoleRsp{Result: true}, nil
@@ -2002,33 +1964,12 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
 
-	var clientId string
-	var domain string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-		} else {
-			return nil, errors.New("resource server CreateApplication no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	err := resource_server.save_application(rqst.Application, clientId+"@"+domain)
+	err = resource_server.save_application(rqst.Application, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2038,7 +1979,7 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Application)
 	if err == nil {
-		resource_server.publishEvent("create_application_evt", []byte(jsonStr), domain)
+		resource_server.publishEvent("create_application_evt", []byte(jsonStr), resource_server.GetAddress())
 	}
 
 	return &resourcepb.CreateApplicationRsp{}, nil
@@ -2614,116 +2555,113 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	var marshaler jsonpb.Marshaler
 
+	clientId, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// If no mac address was given it mean the request came from a web application
 	// so the intention is to register the server itself on another server...
 	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
 	if len(rqst.Peer.Mac) == 0 {
-		if md, ok := metadata.FromIncomingContext(ctx); ok {
-			token := strings.Join(md["token"], "")
 
-			address_ := rqst.Peer.Domain
-			if rqst.Peer.Protocol == "https" {
-				address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
-			} else {
-				address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
-			}
-
-			// In that case I want to register the server to another server.
-			peer_, public_key, err := resource_server.registerPeer(token, address_)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			// Save the received values on the db
-			peer := make(map[string]interface{})
-			peer["_id"] = Utility.GenerateUUID(peer_.Mac) // The peer mac address will be use as peers id
-			peer["domain"] = peer_.Domain
-
-			// keep the address where the configuration can be found...
-			// in case of docker instance that will be usefull to get peer addres config...
-			peer["protocol"] = rqst.Peer.Protocol
-			peer["portHttps"] = rqst.Peer.PortHttps
-			peer["portHttp"] = rqst.Peer.PortHttp
-			peer["hostname"] = peer_.Hostname
-			peer["mac"] = peer_.Mac
-			peer["local_ip_address"] = peer_.LocalIpAddress
-			peer["external_ip_address"] = peer_.ExternalIpAddress
-			peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
-			peer["actions"] = []interface{}{}
-
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			// Here I wiil save the public key in the keys directory.
-			err = security.SetPeerPublicKey(peer_.Mac, public_key)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			// set the remote peer in /etc/hosts
-			resource_server.setLocalHosts(peer_)
-
-			// in case local dns is use that peers will be able to change values releated to it domain.
-			// but no other peer will be able to do it...
-			resource_server.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
-
-			jsonStr, err := marshaler.MarshalToString(peer_)
-			if err != nil {
-				return nil, err
-			}
-
-			// Update peer event.
-			localDomain, _ := config.GetDomain()
-			resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
-
-			address := rqst.Peer.Domain
-			if rqst.Peer.Protocol == "https" {
-				address += ":" + Utility.ToString(rqst.Peer.PortHttps)
-			} else {
-				address += ":" + Utility.ToString(rqst.Peer.PortHttp)
-			}
-
-			// So here I need to publish my information as a pee
-
-			// Publish local peer information...
-			jsonStr, err = marshaler.MarshalToString(getLocalPeer())
-			if err != nil {
-				return nil, err
-			}
-
-			resource_server.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
-
-			// Set peer action
-			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
-			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
-			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
-			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
-			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
-
-			// Send back the peers informations.
-			return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
-
+		address_ := rqst.Peer.Domain
+		if rqst.Peer.Protocol == "https" {
+			address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 		} else {
+			address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		}
+
+		// In that case I want to register the server to another server.
+		peer_, public_key, err := resource_server.registerPeer(token, address_)
+		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("resource server RegisterPeer no token was given")))
-
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
+
+		// Save the received values on the db
+		peer := make(map[string]interface{})
+		peer["_id"] = Utility.GenerateUUID(peer_.Mac) // The peer mac address will be use as peers id
+		peer["domain"] = peer_.Domain
+
+		// keep the address where the configuration can be found...
+		// in case of docker instance that will be usefull to get peer addres config...
+		peer["protocol"] = rqst.Peer.Protocol
+		peer["portHttps"] = rqst.Peer.PortHttps
+		peer["portHttp"] = rqst.Peer.PortHttp
+		peer["hostname"] = peer_.Hostname
+		peer["mac"] = peer_.Mac
+		peer["local_ip_address"] = peer_.LocalIpAddress
+		peer["external_ip_address"] = peer_.ExternalIpAddress
+		peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+		peer["actions"] = []interface{}{}
+
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// Here I wiil save the public key in the keys directory.
+		err = security.SetPeerPublicKey(peer_.Mac, public_key)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// set the remote peer in /etc/hosts
+		resource_server.setLocalHosts(peer_)
+
+		// in case local dns is use that peers will be able to change values releated to it domain.
+		// but no other peer will be able to do it...
+		resource_server.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
+
+		jsonStr, err := marshaler.MarshalToString(peer_)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update peer event.
+		localDomain, _ := config.GetDomain()
+		resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+
+		address := rqst.Peer.Domain
+		if rqst.Peer.Protocol == "https" {
+			address += ":" + Utility.ToString(rqst.Peer.PortHttps)
+		} else {
+			address += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		}
+
+		// So here I need to publish my information as a pee
+
+		// Publish local peer information...
+		jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+		if err != nil {
+			return nil, err
+		}
+
+		resource_server.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
+
+		// Set peer action
+		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
+		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
+		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
+		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
+		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
+
+		// Send back the peers informations.
+		return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
+
 	}
 
 	// Here I will keep the peer info until it will be accepted by the admin of the other peer.
@@ -2738,27 +2676,19 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer["actions"] = []interface{}{}
 
 	// if the token is generate by the sa and it has permission i will accept the peer directly
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err == nil {
-
-				if claims.Id == "sa" {
-					peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
-					peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
-					peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
-					peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
-					peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
-					peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
-					domain := rqst.Peer.Hostname
-					if len(rqst.Peer.Domain) > 0 {
-						domain += "." + rqst.Peer.Domain
-					}
-					resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
-				}
-			}
+	localDomain, _ := config.GetDomain()
+	if clientId == "sa@"+localDomain {
+		peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+		peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
+		peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
+		domain := rqst.Peer.Hostname
+		if len(rqst.Peer.Domain) > 0 {
+			domain += "." + rqst.Peer.Domain
 		}
+		resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 	}
 
 	// Insert the peer into the local resource database.
@@ -2791,8 +2721,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// signal peers changes...
-	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), resource_server.GetAddress())
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -3231,10 +3160,12 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Also remove the peer at the other end...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		resource_server.deletePeer(token, address_)
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
+
+	resource_server.deletePeer(token, address_)
 
 	return &resourcepb.DeletePeerRsp{
 		Result: true,
@@ -3456,31 +3387,9 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 // * Register a new organization
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
-	var clientId string
-	var domain string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-
-			}
-
-			clientId = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-		} else {
-			return nil, errors.New("resource server CreateOrganization no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get the persistence connection
@@ -3577,7 +3486,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -4304,34 +4213,13 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 // * Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
-	var clientId string
-	var domain string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			if len(claims.UserDomain) == 0 {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
-
-			}
-			clientId = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-		} else {
-			return nil, errors.New("CreateGroup no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get the persistence connection
-	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId+"@"+domain, rqst.Group.Description, rqst.Group.Members)
+	err = resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -4342,7 +4230,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Group)
 	if err == nil {
-		resource_server.publishEvent("create_group_evt", []byte(jsonStr), domain)
+		resource_server.publishEvent("create_group_evt", []byte(jsonStr), resource_server.GetAddress())
 	}
 
 	return &resourcepb.CreateGroupRsp{

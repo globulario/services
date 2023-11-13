@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -31,15 +32,12 @@ import (
 // Uninstall a service...
 func (server *server) UninstallService(ctx context.Context, rqst *services_managerpb.UninstallServiceRequest) (*services_managerpb.UninstallServiceResponse, error) {
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return nil, errors.New("UninstallService no token was given")
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	err := server.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
+	err = server.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -198,12 +196,9 @@ func GetResourceClient(domain string) (*resource_client.Resource_Client, error) 
 
 // Install/Update a service on globular instance.
 func (server *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return nil, errors.New("InstallService no token was given")
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Connect to the dicovery services

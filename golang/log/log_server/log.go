@@ -118,17 +118,14 @@ func (server *server) log(info *logpb.LogInfo) error {
 // Log error or information into the data base *
 func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
 
-	var token string
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return nil, errors.New("no token was given")
-		}
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Valide the token...
 	// The userId can be a single string or a JWT token.
-	_, err := security.ValidateToken(token)
+	_, err = security.ValidateToken(token)
 	if err != nil {
 		return nil, err
 	}

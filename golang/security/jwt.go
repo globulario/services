@@ -14,6 +14,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
+	"google.golang.org/grpc/metadata"
 )
 
 // Authentication holds the login/password
@@ -176,6 +177,33 @@ func ValidateToken(token string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func GetClientId(ctx context.Context) (string, string, error) {
+	var username string
+	var token string
+	
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := ValidateToken(token)
+			if err != nil {
+				return "", "", err
+			}
+
+			if len(claims.UserDomain) == 0 {
+				return "", "", errors.New("no user domain found in the token")
+			}
+
+			username = claims.Id + "@" + claims.UserDomain
+
+		} else {
+			return "", "", errors.New("no token found in the request")
+		}
+	}
+
+	return username, token, nil
 }
 
 /**

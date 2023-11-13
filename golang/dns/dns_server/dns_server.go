@@ -409,29 +409,11 @@ func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 func (server *server) createPermission(ctx context.Context, path string) error {
-	var clientId string
-	var err error
-	var token string
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return err
-			}
-			
-			if len(claims.UserDomain) == 0 {
-				return errors.New("no user domain was found in the token")
-			}
-
-			clientId = claims.Id + "@" + claims.UserDomain
-		} else {
-			return errors.New("dns serveer createPermission no token was given")
-		}
+	clientId, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return err
 	}
-
+	
 	// Set the owner of the conversation.
 	rbac_client_, err := server.GetRbacClient()
 	if err != nil {
