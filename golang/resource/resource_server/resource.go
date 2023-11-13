@@ -25,7 +25,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 

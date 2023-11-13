@@ -8,7 +8,6 @@ import (
 
 	//"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/blevesearch/bleve"
@@ -17,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
-	"google.golang.org/grpc/metadata"
 
 	//"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"

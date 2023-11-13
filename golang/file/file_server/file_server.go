@@ -60,7 +60,6 @@ import (
 	"github.com/tealeg/xlsx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
@@ -5486,7 +5485,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 		}
 
 		file_server.generatePlaylist(path, "")
-		authentication_client_, err := getAuticationClient(domain)
+		authentication_client_, err := getAuticationClient(file_server.GetAddress())
 		if err != nil {
 			return err
 		}

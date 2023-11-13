@@ -26,9 +26,6 @@ import (
 	"github.com/globulario/services/golang/security"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
-
-	//"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 

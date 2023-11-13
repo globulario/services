@@ -24,7 +24,6 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )

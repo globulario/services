@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +24,6 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"
-	"google.golang.org/grpc/metadata"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
