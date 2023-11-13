@@ -33,16 +33,12 @@ export ServicesRoot=/home/dave/globulario/services
 ./blog/blog_server/blog_server &
 ./applications_manager/applications_manager_server/applications_manager_server &
 ./services_manager/services_manager_server/services_manager_server &
-./catalog/catalog_server/catalog_server &
 ./conversation/conversation_server/conversation_server &
 ./discovery/discovery_server/discovery_server &
-./dns/dns_server/dns_server &
 ./echo/echo_server/echo_server &
 ./event/event_server/event_server &
 ./file/file_server/file_server &
-./ldap/ldap_server/ldap_server &
 ./log/log_server/log_server &
-./mail/mail_server/mail_server &
 ./monitoring/monitoring_server/monitoring_server &
 ./persistence/persistence_server/persistence_server &
 ./rbac/rbac_server/rbac_server &
@@ -51,8 +47,10 @@ export ServicesRoot=/home/dave/globulario/services
 ./search/search_server/search_server &
 ./sql/sql_server/sql_server &
 ./storage/storage_server/storage_server &
-./config/config_server/config_server &
 ./title/title_server/title_server &
 ./torrent/torrent_server/torrent_server
-
+./catalog/catalog_server/catalog_server &
+./dns/dns_server/dns_server &
+./ldap/ldap_server/ldap_server &
+./mail/mail_server/mail_server
 # publish services, that trigger executable update on globule who run that services.

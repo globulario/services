@@ -65,6 +65,7 @@ require (
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
+	github.com/nightlyone/lockfile v1.0.0 // indirect
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20120816061221-3af4cd4741ca // indirect

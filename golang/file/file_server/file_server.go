@@ -5158,8 +5158,6 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 	//Utility.RunCmd("yt-dlp", path, []string{"-j", "--flat-playlist", "--skip-download", url},  wait)
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
 
-	//fmt.Println("------------> run: ", "yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
-
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
 	if err != nil {
@@ -5900,7 +5898,6 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 // Start process audio file inside a directory...
 func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
 
-	fmt.Println("------------> 5839", rqst.Path)
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
