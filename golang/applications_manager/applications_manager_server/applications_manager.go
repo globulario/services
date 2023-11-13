@@ -199,9 +199,9 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +209,9 @@ func GetResourceClient(domain string) (*resource_client.Resource_Client, error) 
 }
 
 // ////////////////////// Repository Client ////////////////////////////////////////////
-func GetRepositoryClient(domain string) (*repository_client.Repository_Service_Client, error) {
+func GetRepositoryClient(address string) (*repository_client.Repository_Service_Client, error) {
 	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
-	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "NewRepositoryService_Client")
+	client, err := globular_client.GetClient(address, "repository.PackageRepository", "NewRepositoryService_Client")
 	if err != nil {
 		return nil, err
 	}

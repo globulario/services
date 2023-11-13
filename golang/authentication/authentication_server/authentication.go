@@ -535,18 +535,18 @@ func (server *server) processFiles() {
 
 }
 
-func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*resource_client.Resource_Client), nil
 }
 
-func GetAuthenticationClient(domain string) (*authentication_client.Authentication_Client, error) {
+func GetAuthenticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
-	client, err := globular_client.GetClient(domain, "authentication.AuthenticationService", "NewAuthenticationService_Client")
+	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
 	if err != nil {
 		return nil, err
 	}

@@ -445,9 +445,9 @@ func (server *server) StopService() error {
 
 // /////////////////// resource service functions ////////////////////////////////////
 
-func (server *server) getEventClient(domain string) (*event_client.Event_Client, error) {
+func (server *server) getEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}

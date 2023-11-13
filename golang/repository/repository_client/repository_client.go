@@ -290,9 +290,9 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -401,18 +401,18 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	client, err := globular_client.GetClient(domain, "rbac.RbacService", "NewRbacService_Client")
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func GetEventClient(domain string) (*event_client.Event_Client, error) {
+func GetEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 
 		return nil, err

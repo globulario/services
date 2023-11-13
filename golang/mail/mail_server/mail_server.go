@@ -718,9 +718,9 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 	}
 }
 
-func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
 		return nil, err
 	}

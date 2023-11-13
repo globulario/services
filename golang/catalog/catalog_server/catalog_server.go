@@ -390,18 +390,18 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 	svr.Permissions = permissions
 }
 
-func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*persistence_client.Persistence_Client), nil
 }
 
-func GetEventClient(domain string) (*event_client.Event_Client, error) {
+func GetEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}

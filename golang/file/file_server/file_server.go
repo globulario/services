@@ -5300,10 +5300,10 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 /**
  * Get a file client for a given domain.
  */
-func (server *server) GetFileClient(domain string) (*file_client.File_Client, error) {
+func (server *server) GetFileClient(address string) (*file_client.File_Client, error) {
 	// validate the port has not change...
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
-	client, err := globular_client.GetClient(domain, "file.FileService", "NewFileService_Client")
+	client, err := globular_client.GetClient(address, "file.FileService", "NewFileService_Client")
 	if err != nil {
 		return nil, err
 	}

@@ -2444,9 +2444,9 @@ func getLocalPeer() *resourcepb.Peer {
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
-	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -2454,9 +2454,9 @@ func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
