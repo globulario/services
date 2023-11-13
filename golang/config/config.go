@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"github.com/nightlyone/lockfile"
+	"syscall"
 	"time"
 
 	"github.com/davecourtois/Utility"
@@ -546,12 +546,12 @@ func readConfigFromFile(path string) (map[string]interface{}, error) {
 	const maxRetries = 25
 	const retryInterval = 100 * time.Millisecond // Adjust the interval as needed
 
-	var file *lockfile.Lockfile
+	var file *os.File
 	var err error
 
 	for i := 0; i < maxRetries; i++ {
 		// Attempt to acquire the lock
-		file, err = lockFile(path + ".lock")
+		file, err = lockFile(path)
 		if err == nil {
 			break // Lock acquired successfully
 		}
@@ -585,24 +585,28 @@ func readConfigFromFile(path string) (map[string]interface{}, error) {
 	return config, nil
 }
 
-func lockFile(filename string) (*lockfile.Lockfile, error) {
-	lock, err := lockfile.New(filename)
+// Here I will create a mutex to synchronize access to the configuration.
+func lockFile(filename string) (*os.File, error) {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create lockfile: %v", err)
+		return nil, err
 	}
 
-	err = lock.TryLock()
+	// Attempt to acquire the lock
+	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
+		file.Close()
 		return nil, fmt.Errorf("cannot lock file: %v", err)
 	}
 
-	return &lock, nil
+	return file, nil
 }
 
-func unlockFile(lock *lockfile.Lockfile) {
-	lock.Unlock()
+// Here I will create a mutex to synchronize access to the configuration.
+func unlockFile(file *os.File) {
+	syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	file.Close()
 }
-
 
 /**
  * Test if etcd is running.
@@ -653,21 +657,20 @@ func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
 
 		config := make(map[string]interface{})
 
-	
 		// Here I will lock the file.
-		lock, err := lockFile(ConfigPath + ".lock")
+		file, err := lockFile(ConfigPath)
 		if err != nil {
 			return nil, err
 		}
 
 		data, err := os.ReadFile(ConfigPath)
 		if err != nil {
-			unlockFile(lock)
+			unlockFile(file)
 			return nil, err
 		}
 
 		// Here I will unlock the file.
-		unlockFile(lock)
+		unlockFile(file)
 
 		err = json.Unmarshal(data, &config)
 		if err != nil {
@@ -781,8 +784,6 @@ func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
  * Save a service configuration.
  */
 func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
-
-	fmt.Println("---------> save config file" )
 	// Here I will get the address from the local configuration.
 	local, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
@@ -808,7 +809,7 @@ func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
 			return err
 		}
 		// Here I will save the configuration.
-		file, err := lockFile(configPath + ".lock")
+		file, err := lockFile(configPath)
 		if err != nil {
 			return err
 		}
