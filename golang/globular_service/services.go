@@ -429,7 +429,7 @@ func InitService(s Service) error {
 
 	// if the service configuration does not exist.
 	if Utility.Exists(s.GetConfigurationPath()) {
-		// Here I will get the configuration from the Configuration server...
+		// Here I will get the configuration from the Configuration srv...
 		if len(s.GetId()) > 0 {
 			config_, err := config.GetServiceConfigurationById("", s.GetId())
 			if err != nil {
@@ -688,7 +688,7 @@ func getEventClient() (*event_client.Event_Client, error) {
 	return event_client_, nil
 }
 
-func StartService(s Service, server *grpc.Server) error {
+func StartService(s Service, srv *grpc.Server) error {
 
 	// First of all I will create a listener.
 	// Create the channel to listen on
@@ -705,8 +705,8 @@ func StartService(s Service, server *grpc.Server) error {
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-		// no web-rpc server.
-		if err := server.Serve(lis); err != nil {
+		// no web-rpc srv.
+		if err := srv.Serve(lis); err != nil {
 			fmt.Println("service", s.GetName(), "exit with error", err)
 			return
 		}
@@ -779,7 +779,7 @@ func StartService(s Service, server *grpc.Server) error {
 
 	<-ch
 
-	server.Stop() // I kill it but not softly...
+	srv.Stop() // I kill it but not softly...
 
 	s.SetState("stopped")
 	s.SetProcess(-1)
@@ -790,9 +790,9 @@ func StartService(s Service, server *grpc.Server) error {
 
 }
 
-func StopService(s Service, server *grpc.Server) error {
+func StopService(s Service, srv *grpc.Server) error {
 
 	// Stop the service.
-	server.Stop()
+	srv.Stop()
 	return nil
 }

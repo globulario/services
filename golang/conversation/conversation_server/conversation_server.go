@@ -128,298 +128,298 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Singleton.
@@ -435,57 +435,57 @@ var (
 /**
  * Get the log client.
  */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
+	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
-func (server *server) getEventClient() (*event_client.Event_Client, error) {
+func (srv *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
 }
 
-func (svr *server) publish(event string, data []byte) error {
-	eventClient, err := svr.getEventClient()
+func (srv *server) publish(event string, data []byte) error {
+	eventClient, err := srv.getEventClient()
 	if err != nil {
 		return err
 	}
 	return eventClient.Publish(event, data)
 }
 
-func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
-	eventClient, err := svr.getEventClient()
+func (srv *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := srv.getEventClient()
 	if err != nil {
 		return err
 	}
 
 	// register a listener...
-	return eventClient.Subscribe(evt, svr.Name, listener)
+	return eventClient.Subscribe(evt, srv.Name, listener)
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
@@ -501,16 +501,16 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (server *server) deleteResourcePermissions(path string) error {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) deleteResourcePermissions(path string) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.DeleteResourcePermissions(path)
 }
 
-func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return false, false, err
 	}
@@ -519,8 +519,8 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -528,8 +528,8 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
-func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -537,46 +537,46 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse the search engine.
-	svr.search_engine = new(search_engine.BleveSearchEngine)
+	srv.search_engine = new(search_engine.BleveSearchEngine)
 
 	// Create a new local store.
-	svr.store = storage_store.NewBadger_store()
-	return svr.store.Open(`{"path":"` + svr.Root + `", "name":"conversations"}`)
+	srv.store = storage_store.NewBadger_store()
+	return srv.store.Open(`{"path":"` + srv.Root + `", "name":"conversations"}`)
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	svr.exit <- true
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	srv.exit <- true
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (svr *server) Stop(context.Context, *conversationpb.StopRequest) (*conversationpb.StopResponse, error) {
-	svr.exit <- true
-	return &conversationpb.StopResponse{}, svr.StopService()
+func (srv *server) Stop(context.Context, *conversationpb.StopRequest) (*conversationpb.StopResponse, error) {
+	srv.exit <- true
+	return &conversationpb.StopResponse{}, srv.StopService()
 }
 
 /////////////////////// Conversation specific function /////////////////////////////////
@@ -585,15 +585,15 @@ func (svr *server) Stop(context.Context, *conversationpb.StopRequest) (*conversa
  * Databases will be created in the 'conversations' directory inside the Root path
  * Each conversation will have it own leveldb database
  */
-func (svr *server) getConversationConnection(id string) (*storage_store.Badger_store, error) {
+func (srv *server) getConversationConnection(id string) (*storage_store.Badger_store, error) {
 
-	dbPath := svr.Root + "/conversations/" + id
+	dbPath := srv.Root + "/conversations/" + id
 	Utility.CreateDirIfNotExist(dbPath)
 
-	connection, ok := svr.conversations.Load(dbPath)
+	connection, ok := srv.conversations.Load(dbPath)
 	if !ok {
 		connection = storage_store.NewBadger_store()
-		svr.conversations.Store(dbPath, connection)
+		srv.conversations.Store(dbPath, connection)
 	}
 
 	connection_ := connection.(*storage_store.Badger_store)
@@ -601,10 +601,10 @@ func (svr *server) getConversationConnection(id string) (*storage_store.Badger_s
 	return connection_, nil
 }
 
-func (svr *server) closeConversationConnection(id string) {
+func (srv *server) closeConversationConnection(id string) {
 
-	dbPath := svr.Root + "/conversations/" + id
-	connection, ok := svr.conversations.Load(dbPath)
+	dbPath := srv.Root + "/conversations/" + id
+	connection, ok := srv.conversations.Load(dbPath)
 	if !ok {
 		return
 	}
@@ -612,7 +612,7 @@ func (svr *server) closeConversationConnection(id string) {
 	// Close the connection.
 	connection.(*storage_store.Badger_store).Close()
 
-	defer svr.conversations.Delete(dbPath)
+	defer srv.conversations.Delete(dbPath)
 }
 
 /////////////////////////// Public interfaces //////////////////////////////////
@@ -620,8 +620,8 @@ func (svr *server) closeConversationConnection(id string) {
 // Create a new conversation with a given name. The creator will became the
 // owner of that conversation and he will be able to set permissions to
 // determine who can participate to the conversation.
-func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
-	
+func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -646,7 +646,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 		Mac:             mac,
 	}
 
-	err = svr.saveConversation(conversation)
+	err = srv.saveConversation(conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -654,14 +654,14 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// So here I will append the value in the index.
-	err = svr.addParticipantConversation(clientId, uuid)
+	err = srv.addParticipantConversation(clientId, uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.addResourceOwner(uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT)
+	err = srv.addResourceOwner(uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -676,9 +676,9 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 }
 
 // Return the list of conversations created by a given user.
-func (svr *server) getConversations(accountId string) (*conversationpb.Conversations, error) {
+func (srv *server) getConversations(accountId string) (*conversationpb.Conversations, error) {
 
-	_conversations_, err := svr.store.GetItem(accountId + "_conversations")
+	_conversations_, err := srv.store.GetItem(accountId + "_conversations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -692,7 +692,7 @@ func (svr *server) getConversations(accountId string) (*conversationpb.Conversat
 
 	json.Unmarshal(_conversations_, &uuids)
 	for i := 0; i < len(uuids); i++ {
-		conversation, err := svr.getConversation(uuids[i])
+		conversation, err := srv.getConversation(uuids[i])
 		if err == nil {
 			_conversations.Conversations = append(_conversations.Conversations, conversation)
 		}
@@ -702,8 +702,8 @@ func (svr *server) getConversations(accountId string) (*conversationpb.Conversat
 }
 
 // Return the list of conversations created by a given user.
-func (svr *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
-	conversations, err := svr.getConversations(rqst.Creator)
+func (srv *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
+	conversations, err := srv.getConversations(rqst.Creator)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -715,22 +715,22 @@ func (svr *server) GetConversations(ctx context.Context, rqst *conversationpb.Ge
 }
 
 // The list of participant inside a conversation.
-func (svr *server) addConversationParticipant(participant string, conversation string) error {
-	c, err := svr.getConversation(conversation)
+func (srv *server) addConversationParticipant(participant string, conversation string) error {
+	c, err := srv.getConversation(conversation)
 	if err != nil {
 		return err
 	}
 
 	if !Utility.Contains(c.Participants, participant) {
 		c.Participants = append(c.Participants, participant)
-		return svr.saveConversation(c)
+		return srv.saveConversation(c)
 	}
 
 	return nil
 }
 
-func (svr *server) removeConversationParticipant(participant string, conversation string) error {
-	c, err := svr.getConversation(conversation)
+func (srv *server) removeConversationParticipant(participant string, conversation string) error {
+	c, err := srv.getConversation(conversation)
 	if err != nil {
 		return err
 	}
@@ -747,14 +747,14 @@ func (svr *server) removeConversationParticipant(participant string, conversatio
 	}
 
 	c.Participants = paticipants
-	return svr.saveConversation(c)
+	return srv.saveConversation(c)
 }
 
 // The list of conversation of a participant.
-func (svr *server) addParticipantConversation(paticipant string, conversation string) error {
+func (srv *server) addParticipantConversation(paticipant string, conversation string) error {
 
 	// Index owned conversation to be retreivable by it creator.
-	_conversations_, err := svr.store.GetItem(paticipant + "_conversations")
+	_conversations_, err := srv.store.GetItem(paticipant + "_conversations")
 	_conversations := make([]string, 0)
 	if err == nil {
 		err = json.Unmarshal(_conversations_, &_conversations)
@@ -777,14 +777,14 @@ func (svr *server) addParticipantConversation(paticipant string, conversation st
 		return err
 	}
 
-	return svr.store.SetItem(paticipant+"_conversations", jsonStr)
+	return srv.store.SetItem(paticipant+"_conversations", jsonStr)
 
 }
 
 // Remove conversation from a given participant
-func (svr *server) removeParticipantConversation(paticipant string, conversation string) error {
+func (srv *server) removeParticipantConversation(paticipant string, conversation string) error {
 	// Index owned conversation to be retreivable by it creator.
-	jsonStr, err := svr.store.GetItem(paticipant + "_conversations")
+	jsonStr, err := srv.store.GetItem(paticipant + "_conversations")
 	_conversations := make([]string, 0)
 	if err == nil {
 		err = json.Unmarshal(jsonStr, &_conversations)
@@ -807,12 +807,12 @@ func (svr *server) removeParticipantConversation(paticipant string, conversation
 	}
 
 	// save it back...
-	return svr.store.SetItem(paticipant+"_conversations", jsonStr_)
+	return srv.store.SetItem(paticipant+"_conversations", jsonStr_)
 
 }
 
 // Kickout a user for any good reason...
-func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversationpb.KickoutFromConversationRequest) (*conversationpb.KickoutFromConversationResponse, error) {
+func (srv *server) KickoutFromConversation(ctx context.Context, rqst *conversationpb.KickoutFromConversationRequest) (*conversationpb.KickoutFromConversationResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -820,7 +820,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Get conversation if not exist I will return here.
-	_, err = svr.getConversation(rqst.ConversationUuid)
+	_, err = srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -829,7 +829,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	isOwner, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	isOwner, _, err := srv.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
 
@@ -845,14 +845,14 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Here I will simply remove the converstion from the paticipant.
-	err = svr.removeConversationParticipant(rqst.Account, rqst.ConversationUuid)
+	err = srv.removeConversationParticipant(rqst.Account, rqst.ConversationUuid)
 	if err != nil {
 
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	err = svr.removeParticipantConversation(rqst.Account, rqst.ConversationUuid)
+	err = srv.removeParticipantConversation(rqst.Account, rqst.ConversationUuid)
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -864,29 +864,29 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 }
 
 // Delete the conversation
-func (svr *server) deleteConversation(clientId string, conversation *conversationpb.Conversation) error {
+func (srv *server) deleteConversation(clientId string, conversation *conversationpb.Conversation) error {
 
-	err := svr.removeConversationParticipant(clientId, conversation.Uuid)
+	err := srv.removeConversationParticipant(clientId, conversation.Uuid)
 	if err != nil {
 		return err
 	}
 
-	err = svr.removeParticipantConversation(clientId, conversation.Uuid)
+	err = srv.removeParticipantConversation(clientId, conversation.Uuid)
 	if err != nil {
 		return err
 	}
 
 	// kickout all participants...
 	for i := 0; i < len(conversation.Participants); i++ {
-		svr.publish(`kickout_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Participants[i]))
+		srv.publish(`kickout_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Participants[i]))
 	}
 
 	// Close leveldb connection
-	svr.closeConversationConnection(conversation.Uuid)
+	srv.closeConversationConnection(conversation.Uuid)
 
 	// I will remove the conversation datastore...
-	if Utility.Exists(svr.Root + "/conversations/" + conversation.Uuid) {
-		err = os.RemoveAll(svr.Root + "/conversations/" + conversation.Uuid)
+	if Utility.Exists(srv.Root + "/conversations/" + conversation.Uuid) {
+		err = os.RemoveAll(srv.Root + "/conversations/" + conversation.Uuid)
 		if err != nil {
 			return err
 		}
@@ -895,7 +895,7 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 	// Now I will remove indexation.
 
 	// Remove the connection from the search engine.
-	err = svr.search_engine.DeleteDocument(svr.Root+"/conversations/search_data", conversation.Uuid)
+	err = srv.search_engine.DeleteDocument(srv.Root+"/conversations/search_data", conversation.Uuid)
 	if err != nil {
 		return err
 	}
@@ -903,26 +903,26 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 	// Remove the pending invitation.
 	if conversation.Invitations != nil {
 		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
-			svr.removeInvitation(conversation.Invitations.Invitations[i])
+			srv.removeInvitation(conversation.Invitations.Invitations[i])
 		}
 	}
 
 	// Remove conversation from participant conversations.
 	for i := 0; i < len(conversation.Participants); i++ {
-		svr.removeParticipantConversation(conversation.Participants[i], conversation.Uuid)
+		srv.removeParticipantConversation(conversation.Participants[i], conversation.Uuid)
 	}
 
 	// Delete conversation from the store.
-	err = svr.store.RemoveItem(conversation.Uuid)
+	err = srv.store.RemoveItem(conversation.Uuid)
 	if err != nil {
 		return err
 	}
 
 	// publish delete conversation event.
-	svr.publish(`delete_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Uuid))
+	srv.publish(`delete_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Uuid))
 
 	// I will remove the conversation from the db.
-	err = svr.deleteResourcePermissions(conversation.Uuid)
+	err = srv.deleteResourcePermissions(conversation.Uuid)
 	// TODO find a way to remove it...
 	if err != nil {
 		return err
@@ -932,7 +932,7 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 }
 
 // Delete the conversation
-func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
+func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -940,17 +940,17 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	_, _, err = svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	_, _, err = srv.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		// Here I will simply remove the converstion from the paticipant.
-		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
+		err := srv.removeConversationParticipant(clientId, rqst.ConversationUuid)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		err = svr.removeParticipantConversation(clientId, rqst.ConversationUuid)
+		err = srv.removeParticipantConversation(clientId, rqst.ConversationUuid)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -959,7 +959,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		return nil, err
 	}
 
-	conversation, err := svr.getConversation(rqst.ConversationUuid)
+	conversation, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -967,7 +967,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Get conversation if not exist I will return here.
-	err = svr.deleteConversation(clientId, conversation)
+	err = srv.deleteConversation(clientId, conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -977,10 +977,10 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 }
 
 // Retreive a conversation by keywords or name...
-func (svr *server) FindConversations(ctx context.Context, rqst *conversationpb.FindConversationsRequest) (*conversationpb.FindConversationsResponse, error) {
-	paths := []string{svr.Root + "/conversations/search_data"}
+func (srv *server) FindConversations(ctx context.Context, rqst *conversationpb.FindConversationsRequest) (*conversationpb.FindConversationsResponse, error) {
+	paths := []string{srv.Root + "/conversations/search_data"}
 
-	results, err := svr.search_engine.SearchDocuments(paths, rqst.Language, []string{"name", "keywords"}, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetSize)
+	results, err := srv.search_engine.SearchDocuments(paths, rqst.Language, []string{"name", "keywords"}, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetSize)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,7 +1000,7 @@ func (svr *server) FindConversations(ctx context.Context, rqst *conversationpb.F
 	}, nil
 }
 
-func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversationpb.ConversationService_ConnectServer) error {
+func (srv *server) Connect(rqst *conversationpb.ConnectRequest, stream conversationpb.ConversationService_ConnectServer) error {
 	var clientId string
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
@@ -1030,15 +1030,15 @@ func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 	action["clientId"] = clientId
 	action["quit"] = make(chan bool)
 
-	svr.actions <- action
+	srv.actions <- action
 
 	// wait util unsbscribe or connection is close.
 	<-action["quit"].(chan bool)
 	return nil
 }
 
-// Close connection with the conversation server.
-func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
+// Close connection with the conversation srv.
+func (srv *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1048,7 +1048,7 @@ func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconne
 	quit["action"] = "disconnect"
 	quit["uuid"] = rqst.Uuid
 	quit["clientId"] = clientId
-	svr.actions <- quit
+	srv.actions <- quit
 
 	return &conversationpb.DisconnectResponse{
 		Result: true,
@@ -1056,7 +1056,7 @@ func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconne
 }
 
 // Join a conversation.
-func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
+func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
 	var clientId string
 	var err error
 	// Now I will index the conversation to be retreivable for it creator...
@@ -1088,24 +1088,24 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 	join["uuid"] = rqst.ConnectionUuid   // Must be the connection uuid...
 	join["clientId"] = clientId
 
-	svr.actions <- join
+	srv.actions <- join
 
 	// so here I will get existing convesation messages and return it in the stream.
-	conn, err := svr.getConversationConnection(rqst.ConversationUuid)
+	conn, err := srv.getConversationConnection(rqst.ConversationUuid)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.addConversationParticipant(clientId, rqst.ConversationUuid)
+	err = srv.addConversationParticipant(clientId, rqst.ConversationUuid)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	conversation, err := svr.getConversation(rqst.ConversationUuid)
+	conversation, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1132,7 +1132,7 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 
 			for i := 0; i < len(results); i++ {
 
-				msg, err := svr.getMessage(results[i].(map[string]interface{})["conversation"].(string), results[i].(map[string]interface{})["uuid"].(string))
+				msg, err := srv.getMessage(results[i].(map[string]interface{})["conversation"].(string), results[i].(map[string]interface{})["uuid"].(string))
 
 				if err == nil {
 					if i == 0 {
@@ -1158,7 +1158,7 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 }
 
 // Leave a given conversation.
-func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
+func (srv *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1170,9 +1170,9 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 	leave["uuid"] = rqst.ConnectionUuid
 	leave["clientId"] = clientId
 
-	svr.actions <- leave
+	srv.actions <- leave
 
-	err = svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
+	err = srv.removeConversationParticipant(clientId, rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1184,7 +1184,7 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	conversation, err := svr.getConversation(rqst.ConversationUuid)
+	conversation, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1196,7 +1196,7 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 }
 
 // Conversation owner can invite a contact into Conversation.
-func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.SendInvitationRequest) (*conversationpb.SendInvitationResponse, error) {
+func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.SendInvitationRequest) (*conversationpb.SendInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1210,7 +1210,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 
 	domain, _ := config.GetDomain()
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, _, err := svr.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess, _, err := srv.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1224,7 +1224,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Append it to the list of conversation invitations.
-	conversation, err := svr.getConversation(rqst.Invitation.Conversation)
+	conversation, err := srv.getConversation(rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1254,7 +1254,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	// set time from now...
 	rqst.Invitation.InvitationDate = time.Now().Unix()
 	// Index sent invitations
-	sent_invitations_, err := svr.store.GetItem(clientId + "_sent_invitations")
+	sent_invitations_, err := srv.store.GetItem(clientId + "_sent_invitations")
 	sent_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
@@ -1282,7 +1282,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.store.SetItem(clientId+"_sent_invitations", []byte(jsonStr))
+	err = srv.store.SetItem(clientId+"_sent_invitations", []byte(jsonStr))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1290,7 +1290,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Index received invitations.
-	received_invitations_, err := svr.store.GetItem(rqst.Invitation.To + "_received_invitations")
+	received_invitations_, err := srv.store.GetItem(rqst.Invitation.To + "_received_invitations")
 	received_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		received_invitations.Invitations = make([]*conversationpb.Invitation, 0)
@@ -1314,7 +1314,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.store.SetItem(rqst.Invitation.To+"_received_invitations", []byte(jsonStr))
+	err = srv.store.SetItem(rqst.Invitation.To+"_received_invitations", []byte(jsonStr))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1323,7 +1323,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 
 	// Here I will append the invitations to conversation and save it.
 	conversation.Invitations.Invitations = append(conversation.Invitations.Invitations, rqst.Invitation)
-	err = svr.saveConversation(conversation)
+	err = srv.saveConversation(conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1336,8 +1336,8 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 /**
  * Return a conversation with it given uuid
  */
-func (svr *server) getConversation(uuid string) (*conversationpb.Conversation, error) {
-	data, err := svr.store.GetItem(uuid)
+func (srv *server) getConversation(uuid string) (*conversationpb.Conversation, error) {
+	data, err := srv.store.GetItem(uuid)
 	conversation := new(conversationpb.Conversation)
 	if err != nil {
 		return nil, err
@@ -1352,8 +1352,8 @@ func (svr *server) getConversation(uuid string) (*conversationpb.Conversation, e
 }
 
 // Return a conversation with a given id.
-func (svr *server) GetConversation(ctx context.Context, rqst *conversationpb.GetConversationRequest) (*conversationpb.GetConversationResponse, error) {
-	convesation, err := svr.getConversation(rqst.Id)
+func (srv *server) GetConversation(ctx context.Context, rqst *conversationpb.GetConversationRequest) (*conversationpb.GetConversationResponse, error) {
+	convesation, err := srv.getConversation(rqst.Id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1368,7 +1368,7 @@ func (svr *server) GetConversation(ctx context.Context, rqst *conversationpb.Get
 /**
  * Save a conversations.
  */
-func (svr *server) saveConversation(conversation *conversationpb.Conversation) error {
+func (srv *server) saveConversation(conversation *conversationpb.Conversation) error {
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(conversation)
 	if err != nil {
@@ -1376,13 +1376,13 @@ func (svr *server) saveConversation(conversation *conversationpb.Conversation) e
 	}
 
 	// set the new one.
-	err = svr.store.SetItem(conversation.Uuid, []byte(jsonStr))
+	err = srv.store.SetItem(conversation.Uuid, []byte(jsonStr))
 	if err != nil {
 		return err
 	}
 
 	// Now I will set the search information for conversations...
-	err = svr.search_engine.IndexJsonObject(svr.Root+"/conversations/search_data", jsonStr, conversation.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	err = srv.search_engine.IndexJsonObject(srv.Root+"/conversations/search_data", jsonStr, conversation.Language, "uuid", []string{"name", "keywords"}, jsonStr)
 	if err != nil {
 		return err
 	}
@@ -1393,10 +1393,10 @@ func (svr *server) saveConversation(conversation *conversationpb.Conversation) e
 }
 
 // Remove invitation.
-func (svr *server) removeInvitation(invitation *conversationpb.Invitation) error {
+func (srv *server) removeInvitation(invitation *conversationpb.Invitation) error {
 
 	// Remove from sent invitations...
-	sent_invitations_, err := svr.store.GetItem(invitation.From + "_sent_invitations")
+	sent_invitations_, err := srv.store.GetItem(invitation.From + "_sent_invitations")
 	sent_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		return err
@@ -1424,13 +1424,13 @@ func (svr *server) removeInvitation(invitation *conversationpb.Invitation) error
 		return err
 	}
 
-	err = svr.store.SetItem(invitation.From+"_sent_invitations", []byte(jsonStr))
+	err = srv.store.SetItem(invitation.From+"_sent_invitations", []byte(jsonStr))
 	if err != nil {
 		return err
 	}
 
 	// Remove it from received invitations...
-	received_invitations_, err := svr.store.GetItem(invitation.To + "_received_invitations")
+	received_invitations_, err := srv.store.GetItem(invitation.To + "_received_invitations")
 	received_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		return err
@@ -1457,13 +1457,13 @@ func (svr *server) removeInvitation(invitation *conversationpb.Invitation) error
 		return err
 	}
 
-	err = svr.store.SetItem(invitation.To+"_received_invitations", []byte(jsonStr))
+	err = srv.store.SetItem(invitation.To+"_received_invitations", []byte(jsonStr))
 	if err != nil {
 		return err
 	}
 
-	// Now I will remove invitation from the conversation itsvr.
-	conversation, err := svr.getConversation(invitation.Conversation)
+	// Now I will remove invitation from the conversation itsrv.
+	conversation, err := srv.getConversation(invitation.Conversation)
 	if err != nil {
 		return err
 	}
@@ -1477,12 +1477,12 @@ func (svr *server) removeInvitation(invitation *conversationpb.Invitation) error
 
 	conversation.Invitations.Invitations = invitations__
 
-	return svr.saveConversation(conversation)
+	return srv.saveConversation(conversation)
 
 }
 
 // Accept invitation response.
-func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.AcceptInvitationRequest) (*conversationpb.AcceptInvitationResponse, error) {
+func (srv *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.AcceptInvitationRequest) (*conversationpb.AcceptInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1495,20 +1495,20 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Invitation.To)))
 	}
 
-	err = svr.removeInvitation(rqst.Invitation)
+	err = srv.removeInvitation(rqst.Invitation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	svr.addParticipantConversation(rqst.Invitation.To, rqst.Invitation.Conversation)
+	srv.addParticipantConversation(rqst.Invitation.To, rqst.Invitation.Conversation)
 
 	return &conversationpb.AcceptInvitationResponse{}, nil
 }
 
 // Decline invitation response.
-func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.DeclineInvitationRequest) (*conversationpb.DeclineInvitationResponse, error) {
+func (srv *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.DeclineInvitationRequest) (*conversationpb.DeclineInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1521,7 +1521,7 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Invitation.To)))
 	}
 
-	err = svr.removeInvitation(rqst.Invitation)
+	err = srv.removeInvitation(rqst.Invitation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1532,7 +1532,7 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 }
 
 // Revoke invitation.
-func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.RevokeInvitationRequest) (*conversationpb.RevokeInvitationResponse, error) {
+func (srv *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.RevokeInvitationRequest) (*conversationpb.RevokeInvitationResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1546,7 +1546,7 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("wrong account id your not authenticated as "+rqst.Invitation.From)))
 	}
 
-	err = svr.removeInvitation(rqst.Invitation)
+	err = srv.removeInvitation(rqst.Invitation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1557,7 +1557,7 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 }
 
 // Get the list of received invitations request.
-func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversationpb.GetReceivedInvitationsRequest) (*conversationpb.GetReceivedInvitationsResponse, error) {
+func (srv *server) GetReceivedInvitations(ctx context.Context, rqst *conversationpb.GetReceivedInvitationsRequest) (*conversationpb.GetReceivedInvitationsResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1570,7 +1570,7 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Account)))
 	}
 
-	received_invitations_, err := svr.store.GetItem(clientId + "_received_invitations")
+	received_invitations_, err := srv.store.GetItem(clientId + "_received_invitations")
 	received_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1590,8 +1590,8 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 }
 
 // Get the list of sent invitations request.
-func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.GetSentInvitationsRequest) (*conversationpb.GetSentInvitationsResponse, error) {
-	
+func (srv *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.GetSentInvitationsRequest) (*conversationpb.GetSentInvitationsResponse, error) {
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -1605,7 +1605,7 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Index sent invitations
-	sent_invitations_, err := svr.store.GetItem(clientId + "_sent_invitations")
+	sent_invitations_, err := srv.store.GetItem(clientId + "_sent_invitations")
 	sent_invitations := new(conversationpb.Invitations)
 	if err != nil {
 		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
@@ -1625,10 +1625,10 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 /**
  * Create/Update message and send it back on the conversation channel.
  */
-func (svr *server) sendMessage(msg *conversationpb.Message) error {
+func (srv *server) sendMessage(msg *conversationpb.Message) error {
 
 	// Save the message in the database...
-	conn, err := svr.getConversationConnection(msg.Conversation)
+	conn, err := srv.getConversationConnection(msg.Conversation)
 	if err != nil {
 		return err
 	}
@@ -1647,18 +1647,18 @@ func (svr *server) sendMessage(msg *conversationpb.Message) error {
 	}
 
 	// Now I will index the message in the search engine...
-	Utility.CreateDirIfNotExist(svr.Root + "/conversations/" + msg.Conversation + "/search_data")
-	svr.search_engine.IndexJsonObject(svr.Root+"/conversations/"+msg.Conversation+"/search_data", jsonStr_, msg.Language, "uuid", []string{"text"}, jsonStr_)
+	Utility.CreateDirIfNotExist(srv.Root + "/conversations/" + msg.Conversation + "/search_data")
+	srv.search_engine.IndexJsonObject(srv.Root+"/conversations/"+msg.Conversation+"/search_data", jsonStr_, msg.Language, "uuid", []string{"text"}, jsonStr_)
 
 	// set the conversation time...
-	conversation, err := svr.getConversation(msg.Conversation)
+	conversation, err := srv.getConversation(msg.Conversation)
 	if err != nil {
 		return err
 	}
 
 	conversation.LastMessageTime = time.Now().Unix()
 
-	err = svr.saveConversation(conversation)
+	err = srv.saveConversation(conversation)
 	if err != nil {
 		return err
 	}
@@ -1670,15 +1670,15 @@ func (svr *server) sendMessage(msg *conversationpb.Message) error {
 	send_message["message"] = msg
 
 	// publish the message.
-	svr.actions <- send_message
+	srv.actions <- send_message
 	return nil
 }
 
 // Send a message
-func (svr *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
+func (srv *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
 
 	// Save the message in the database...
-	err := svr.sendMessage(rqst.Msg)
+	err := srv.sendMessage(rqst.Msg)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1688,9 +1688,9 @@ func (svr *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMes
 }
 
 // Delete message.
-func (svr *server) DeleteMessage(ctx context.Context, rqst *conversationpb.DeleteMessageRequest) (*conversationpb.DeleteMessageResponse, error) {
+func (srv *server) DeleteMessage(ctx context.Context, rqst *conversationpb.DeleteMessageRequest) (*conversationpb.DeleteMessageResponse, error) {
 
-	err := svr.deleteMessges(rqst.Conversation, rqst.Uuid)
+	err := srv.deleteMessges(rqst.Conversation, rqst.Uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -1699,7 +1699,7 @@ func (svr *server) DeleteMessage(ctx context.Context, rqst *conversationpb.Delet
 }
 
 // Retreive a conversation by keywords or name...
-func (svr *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream conversationpb.ConversationService_FindMessagesServer) error {
+func (srv *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream conversationpb.ConversationService_FindMessagesServer) error {
 
 	return nil
 }
@@ -1707,8 +1707,8 @@ func (svr *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream
 /**
  * Get message.
  */
-func (svr *server) getMessage(conversation string, uuid string) (*conversationpb.Message, error) {
-	conn, err := svr.getConversationConnection(conversation)
+func (srv *server) getMessage(conversation string, uuid string) (*conversationpb.Message, error) {
+	conn, err := srv.getConversationConnection(conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1729,8 +1729,8 @@ func (svr *server) getMessage(conversation string, uuid string) (*conversationpb
 	return msg, nil
 }
 
-func (svr *server) deleteMessges(conversation string, uuid string) error {
-	conn, err := svr.getConversationConnection(conversation)
+func (srv *server) deleteMessges(conversation string, uuid string) error {
+	conn, err := srv.getConversationConnection(conversation)
 	if err != nil {
 		return err
 	}
@@ -1739,10 +1739,10 @@ func (svr *server) deleteMessges(conversation string, uuid string) error {
 }
 
 // append a like message
-func (svr *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMessageRqst) (*conversationpb.LikeMessageResponse, error) {
+func (srv *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMessageRqst) (*conversationpb.LikeMessageResponse, error) {
 
 	// Get the message by it id.
-	msg, err := svr.getMessage(rqst.Conversation, rqst.Message)
+	msg, err := srv.getMessage(rqst.Conversation, rqst.Message)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1765,7 +1765,7 @@ func (svr *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMes
 	}
 
 	/** Send message */
-	err = svr.sendMessage(msg)
+	err = srv.sendMessage(msg)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1776,9 +1776,9 @@ func (svr *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMes
 }
 
 // dislike message
-func (svr *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
+func (srv *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
 	// Get the message by it id.
-	msg, err := svr.getMessage(rqst.Conversation, rqst.Message)
+	msg, err := srv.getMessage(rqst.Conversation, rqst.Message)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1800,7 +1800,7 @@ func (svr *server) DislikeMessage(ctx context.Context, rqst *conversationpb.Disl
 	}
 
 	/** Send message */
-	err = svr.sendMessage(msg)
+	err = srv.sendMessage(msg)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1811,12 +1811,12 @@ func (svr *server) DislikeMessage(ctx context.Context, rqst *conversationpb.Disl
 }
 
 // set message as read
-func (svr *server) SetMessageRead(ctx context.Context, rqst *conversationpb.SetMessageReadRqst) (*conversationpb.SetMessageReadResponse, error) {
+func (srv *server) SetMessageRead(ctx context.Context, rqst *conversationpb.SetMessageReadRqst) (*conversationpb.SetMessageReadResponse, error) {
 	return nil, nil
 }
 
 // That function process channel operation and run in it own go routine.
-func (svr *server) run() {
+func (srv *server) run() {
 
 	log.Println("start conversation service")
 	channels := make(map[string][]string)
@@ -1825,13 +1825,13 @@ func (svr *server) run() {
 	quits := make(map[string]chan bool)
 
 	// Here will create the action channel.
-	svr.actions = make(chan map[string]interface{})
+	srv.actions = make(chan map[string]interface{})
 
 	for {
 		select {
-		case <-svr.exit:
+		case <-srv.exit:
 			return
-		case a := <-svr.actions:
+		case a := <-srv.actions:
 
 			action := a["action"].(string)
 			if action == "connect" {
@@ -1882,7 +1882,7 @@ func (svr *server) run() {
 								}
 							}
 							channels[name] = uuids
-							svr.removeConversationParticipant(clientId, uuid)
+							srv.removeConversationParticipant(clientId, uuid)
 						}
 						// return from OnEvent
 						quits[uuid] <- true
@@ -1918,14 +1918,14 @@ func (svr *server) run() {
 	}
 }
 
-func (svr *server) deleteAccountListener(evt *eventpb.Event) {
+func (srv *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
 	fmt.Println("Remove conversation for account ", accountId)
-	conversations, err := svr.getConversations(accountId)
+	conversations, err := srv.getConversations(accountId)
 	if err == nil {
 		for i := 0; i < len(conversations.GetConversations()); i++ {
 			conversation := conversations.GetConversations()[i]
-			svr.deleteConversation(accountId, conversation)
+			srv.deleteConversation(accountId, conversation)
 		}
 	}
 }

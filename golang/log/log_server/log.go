@@ -18,7 +18,7 @@ import (
 // Api
 ////////////////////////////////////////////////////////////////////////////////
 
-func (server *server) log(info *logpb.LogInfo) error {
+func (srv *server) log(info *logpb.LogInfo) error {
 
 	if info == nil {
 		return errors.New("no log info was given")
@@ -57,7 +57,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 	info.Occurences = 1
 
 	// I will retreive the previous items...
-	data, err := server.logs.GetItem(info.Id)
+	data, err := srv.logs.GetItem(info.Id)
 	if err == nil {
 		jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
 		for jsonDecoder.More() {
@@ -75,7 +75,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 
 	// I will index the log info...
 	index := Utility.GenerateUUID(level + `|` + info.Application)
-	data_, err := server.logs.GetItem(index)
+	data_, err := srv.logs.GetItem(index)
 	if err == nil {
 		indexed := make([]string, 0)
 		err = json.Unmarshal(data_, &indexed)
@@ -83,7 +83,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 			indexed = append(indexed, info.Id)
 			data_, err = json.Marshal(indexed)
 			if err == nil {
-				server.logs.SetItem(index, data_)
+				srv.logs.SetItem(index, data_)
 			}
 		}
 	} else {
@@ -91,7 +91,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 		indexed = append(indexed, info.Id)
 		data_, err = json.Marshal(indexed)
 		if err == nil {
-			server.logs.SetItem(index, data_)
+			srv.logs.SetItem(index, data_)
 		}
 	}
 
@@ -103,19 +103,19 @@ func (server *server) log(info *logpb.LogInfo) error {
 	}
 
 	// Append the log in leveldb
-	server.logs.SetItem(info.Id, []byte(jsonStr))
+	srv.logs.SetItem(info.Id, []byte(jsonStr))
 
 	// That must be use to keep all logger upto date...
-	server.publish("new_log_evt", []byte(jsonStr))
+	srv.publish("new_log_evt", []byte(jsonStr))
 
 	// Inc the counter
-	server.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
+	srv.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
 
 	return nil
 }
 
 // Log error or information into the data base *
-func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
+func (srv *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -130,7 +130,7 @@ func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogR
 	}
 
 	// Publish event...
-	server.log(rqst.Info)
+	srv.log(rqst.Info)
 
 	return &logpb.LogRsp{
 		Result: true,
@@ -138,9 +138,9 @@ func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogR
 }
 
 // Retreive the log informations
-func (server *server) getLogs(application string, level string) ([]*logpb.LogInfo, error) {
+func (srv *server) getLogs(application string, level string) ([]*logpb.LogInfo, error) {
 	index := Utility.GenerateUUID(level + `|` + application)
-	data, err := server.logs.GetItem(index)
+	data, err := srv.logs.GetItem(index)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (server *server) getLogs(application string, level string) ([]*logpb.LogInf
 
 	logs := make([]*logpb.LogInfo, 0)
 	for _, id := range indexed {
-		data, err := server.logs.GetItem(id)
+		data, err := srv.logs.GetItem(id)
 		if err == nil {
 
 			info := logpb.LogInfo{}
@@ -171,7 +171,7 @@ func (server *server) getLogs(application string, level string) ([]*logpb.LogInf
 
 // Log error or information into the data base *
 // Retreive log infos (the query must be something like /infos/'date'/'applicationName'/'userName'
-func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
+func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
 
 	// Retreive the logs...
 	query := rqst.Query
@@ -184,7 +184,7 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 		return errors.New("the query must be something like /debug/application/*'")
 	}
 
-	logs, err := server.getLogs(parameters[1], parameters[0])
+	logs, err := srv.getLogs(parameters[1], parameters[0])
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 	})
 }
 
-func (server *server) clearLogs(query string) error {
+func (srv *server) clearLogs(query string) error {
 
 	// TODO: retreive the logs and delete them...
 	// Retreive the logs...
@@ -222,7 +222,7 @@ func (server *server) clearLogs(query string) error {
 	}
 
 	// First of all I will retreive the log info with a given date.
-	logs, err := server.getLogs(parameters[1], parameters[0])
+	logs, err := srv.getLogs(parameters[1], parameters[0])
 
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (server *server) clearLogs(query string) error {
 
 	// I will delete the logs...
 	for _, info := range logs {
-		err := server.logs.RemoveItem(info.Id)
+		err := srv.logs.RemoveItem(info.Id)
 		if err != nil {
 			return err
 		}
@@ -238,7 +238,7 @@ func (server *server) clearLogs(query string) error {
 
 	// I will delete the index...
 	index := Utility.GenerateUUID(parameters[0] + `|` + parameters[1])
-	err = server.logs.RemoveItem(index)
+	err = srv.logs.RemoveItem(index)
 	if err != nil {
 		return err
 	}
@@ -247,9 +247,9 @@ func (server *server) clearLogs(query string) error {
 }
 
 // * Delete a log info *
-func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
+func (srv *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
 
-	err := server.logs.RemoveItem(rqst.Log.Id)
+	err := srv.logs.RemoveItem(rqst.Log.Id)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -274,7 +274,7 @@ func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) 
 
 	// I will remove the log from index...
 	index := Utility.GenerateUUID(level + `|` + rqst.Log.Application)
-	data, err := server.logs.GetItem(index)
+	data, err := srv.logs.GetItem(index)
 	if err == nil {
 		indexed := make([]string, 0)
 		err = json.Unmarshal(data, &indexed)
@@ -284,7 +284,7 @@ func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) 
 					indexed = append(indexed[:i], indexed[i+1:]...)
 					data, err = json.Marshal(indexed)
 					if err == nil {
-						server.logs.SetItem(index, data)
+						srv.logs.SetItem(index, data)
 					}
 					break
 				}
@@ -297,8 +297,8 @@ func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) 
 }
 
 // * Clear logs. info or errors *
-func (server *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst) (*logpb.ClearAllLogRsp, error) {
-	err := server.clearLogs(rqst.Query)
+func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst) (*logpb.ClearAllLogRsp, error) {
+	err := srv.clearLogs(rqst.Query)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

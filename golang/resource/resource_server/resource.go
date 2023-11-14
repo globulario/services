@@ -29,11 +29,11 @@ import (
 )
 
 // Set the root password
-func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
+func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
 
 	// Here I will set the root password.
 	// First of all I will get the user information from the database.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -105,14 +105,14 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 
 	domain, _ := config.GetDomain()
 
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, domain)
 
 	// Return the token.
 	return &resourcepb.SetEmailResponse{}, nil
 }
 
 /* Register a new Account */
-func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resourcepb.RegisterAccountRqst) (*resourcepb.RegisterAccountRsp, error) {
+func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.RegisterAccountRqst) (*resourcepb.RegisterAccountRsp, error) {
 	rqst.Account.TypeName = "Account"
 	if rqst.ConfirmPassword != rqst.Account.Password {
 		return nil, status.Errorf(
@@ -127,7 +127,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 
 	}
 
-	err := resource_server.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
+	err := srv.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -142,7 +142,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
+	tokenString, _ := security.GenerateToken(srv.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
@@ -150,7 +150,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.updateSession(claims.Id+"@"+claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
+	err = srv.updateSession(claims.Id+"@"+claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -161,7 +161,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Account)
 	if err == nil {
-		resource_server.publishEvent("create_account_evt", []byte(jsonStr), domain)
+		srv.publishEvent("create_account_evt", []byte(jsonStr), domain)
 	}
 
 	// Now I will
@@ -171,10 +171,10 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 }
 
 // * Return a given account
-func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
+func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRqst) (*resourcepb.GetAccountRsp, error) {
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 
 		if _domain != domain {
-			a, err := resource_server.getRemoteAccount(accountId, domain)
+			a, err := srv.getRemoteAccount(accountId, domain)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -313,14 +313,14 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 // * Update account password.
 // TODO make sure only user can
-func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
+func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -344,7 +344,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 
 	// In case the request dosent came from the sa...
 	if clientId != "sa" {
-		err = resource_server.validatePassword(rqst.OldPassword, account["password"].(string))
+		err = srv.validatePassword(rqst.OldPassword, account["password"].(string))
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -366,7 +366,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	}
 
 	// Change the password...
-	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, changePasswordScript)
+	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, changePasswordScript)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -374,7 +374,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	}
 
 	// Create bcrypt...
-	pwd, err := resource_server.hashPassword(rqst.NewPassword)
+	pwd, err := srv.hashPassword(rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -383,12 +383,12 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 
 	// so here the sa password has change so I need to update the backend password and reconnect to the persistence service.
 	if clientId == "sa" && (rqst.AccountId == "sa" || strings.HasPrefix(rqst.AccountId, "sa@")) {
-		resource_server.Backend_password = rqst.NewPassword
-		resource_server.Save()
+		srv.Backend_password = rqst.NewPassword
+		srv.Save()
 
 		// reconnect...
-		resource_server.store = nil
-		p, err = resource_server.getPersistenceStore()
+		srv.store = nil
+		p, err = srv.getPersistenceStore()
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -411,8 +411,8 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 }
 
 // * Save an account
-func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRqst) (*resourcepb.SetAccountRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRqst) (*resourcepb.SetAccountRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -474,10 +474,10 @@ func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.
 }
 
 // * Return the list accounts *
-func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
+func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -535,7 +535,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Domain: account["domain"].(string)}
 
 		if account["domain"] == nil {
-			a.Domain = resource_server.Domain
+			a.Domain = srv.Domain
 		}
 
 		if account["groups"] != nil {
@@ -662,7 +662,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 }
 
 // * Add contact to a given account *
-func (resource_server *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
+func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
 
 	if rqst.Contact == nil {
 		return nil, status.Errorf(
@@ -671,7 +671,7 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -711,26 +711,26 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	if strings.Contains(rqst.Contact.Id, "@") {
 		contact_domain = strings.Split(rqst.Contact.Id, "@")[1]
 	} else {
-		contact_domain = resource_server.Domain
+		contact_domain = srv.Domain
 	}
 
 	var account_domain string
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, contact_domain)
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, contact_domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.SetAccountContactRsp{Result: true}, nil
 }
 
-func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExistRqst) (*resourcepb.AccountExistRsp, error) {
+func (srv *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExistRqst) (*resourcepb.AccountExistRsp, error) {
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -752,7 +752,7 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 		// find account on other domain.
 		if localDomain != domain {
 
-			_, err := resource_server.getRemoteAccount(accountId, domain)
+			_, err := srv.getRemoteAccount(accountId, domain)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -783,9 +783,9 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 }
 
 // Test if account is a member of organization.
-func (resource_server *server) isOrganizationMemeber(account string, organization string) bool {
+func (srv *server) isOrganizationMemeber(account string, organization string) bool {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return false
 	}
@@ -821,8 +821,8 @@ func (resource_server *server) isOrganizationMemeber(account string, organizatio
 }
 
 // * Test if an account is part of an organization *
-func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.IsOrgnanizationMemberRqst) (*resourcepb.IsOrgnanizationMemberRsp, error) {
-	result := resource_server.isOrganizationMemeber(rqst.AccountId, rqst.OrganizationId)
+func (srv *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.IsOrgnanizationMemberRqst) (*resourcepb.IsOrgnanizationMemberRsp, error) {
+	result := srv.isOrganizationMemeber(rqst.AccountId, rqst.OrganizationId)
 
 	return &resourcepb.IsOrgnanizationMemberRsp{
 		Result: result,
@@ -830,7 +830,7 @@ func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *
 }
 
 // * Delete an account *
-func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
+func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
 	accountId := rqst.Id
 	localDomain, _ := config.GetDomain()
 	domain, _ := config.GetDomain()
@@ -848,7 +848,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -881,12 +881,12 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		}
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
+			srv.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
 
 			if strings.Contains(organizationId, "@") {
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
 			} else {
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
 			}
 		}
 	}
@@ -904,11 +904,11 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Groups")
+			srv.deleteReference(p, rqst.Id, groupId, "members", "Groups")
 			if strings.Contains(groupId, "@") {
-				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
+				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
 			} else {
-				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
+				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
 			}
 		}
 	}
@@ -926,18 +926,18 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
+			srv.deleteReference(p, rqst.Id, roleId, "members", "Roles")
 
 			if strings.Contains(roleId, "@") {
-				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
+				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
 			} else {
-				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
+				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
 			}
 		}
 
 	}
 
-	resource_server.deleteAllAccess(accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	srv.deleteAllAccess(accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -968,8 +968,8 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			if err == nil {
 				// Here I will send delete contact event.
 
-				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, domain)
-				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, contact["domain"].(string))
+				srv.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, domain)
+				srv.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, contact["domain"].(string))
 			}
 
 		}
@@ -991,7 +991,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	// I will execute the sript with the admin function.
-	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
+	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, dropUserScript)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1007,14 +1007,14 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	// Remove the file...
-	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
-	resource_server.deleteAllAccess(name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	srv.deleteResourcePermissions("/users/" + name + "@" + domain)
+	srv.deleteAllAccess(name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
 	// Publish delete account event.
-	resource_server.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{}, domain)
-	resource_server.publishEvent("delete_account_evt", []byte(name+"@"+domain), domain)
+	srv.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{}, domain)
+	srv.publishEvent("delete_account_evt", []byte(name+"@"+domain), domain)
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,
@@ -1022,16 +1022,16 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 }
 
 // Create an object reference inside another object, ex. add a reference to an account (field 'members') into a group.
-func (resource_server *server) CreateReference(ctx context.Context, rqst *resourcepb.CreateReferenceRqst) (*resourcepb.CreateReferenceRsp, error) {
+func (srv *server) CreateReference(ctx context.Context, rqst *resourcepb.CreateReferenceRqst) (*resourcepb.CreateReferenceRsp, error) {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection)
+	err = srv.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1043,15 +1043,15 @@ func (resource_server *server) CreateReference(ctx context.Context, rqst *resour
 }
 
 // Delete a reference from an object.
-func (resource_server *server) DeleteReference(ctx context.Context, rqst *resourcepb.DeleteReferenceRqst) (*resourcepb.DeleteReferenceRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) DeleteReference(ctx context.Context, rqst *resourcepb.DeleteReferenceRqst) (*resourcepb.DeleteReferenceRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection)
+	err = srv.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1066,7 +1066,7 @@ func (resource_server *server) DeleteReference(ctx context.Context, rqst *resour
  */
 
 // * Create a role with given action list *
-func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
+func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1074,7 +1074,7 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// That service made user of persistence service.
-	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId, rqst.Role.Description, rqst.Role.Actions)
+	err = srv.createRole(rqst.Role.Id, rqst.Role.Name, clientId, rqst.Role.Description, rqst.Role.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1085,19 +1085,19 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 
 	// members...
 	for i := 0; i < len(rqst.Role.Members); i++ {
-		resource_server.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "members")
+		srv.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "members")
 	}
 
 	// Organizations
 	for i := 0; i < len(rqst.Role.Organizations); i++ {
-		resource_server.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "organizations")
+		srv.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "organizations")
 	}
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Role)
 
 	if err == nil {
-		resource_server.publishEvent("create_role_evt", []byte(jsonStr), resource_server.GetAddress())
+		srv.publishEvent("create_role_evt", []byte(jsonStr), srv.GetAddress())
 	}
 
 	return &resourcepb.CreateRoleRsp{Result: true}, nil
@@ -1106,8 +1106,8 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 /**
  * Create a group with a given name of update existing one.
  */
-func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRqst) (*resourcepb.UpdateRoleRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRqst) (*resourcepb.UpdateRoleRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1138,18 +1138,18 @@ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.
 	if strings.Contains(rqst.RoleId, "@") {
 		role_domain = strings.Split(rqst.RoleId, "@")[1]
 	} else {
-		role_domain = resource_server.Domain
+		role_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.UpdateRoleRsp{
 		Result: true,
 	}, nil
 }
 
-func (resource_server *server) getRole(id string) (*resourcepb.Role, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) getRole(id string) (*resourcepb.Role, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1167,7 +1167,7 @@ func (resource_server *server) getRole(id string) (*resourcepb.Role, error) {
 	if role["domain"] != nil {
 		r.Domain = role["domain"].(string)
 	} else {
-		r.Domain = resource_server.Domain
+		r.Domain = srv.Domain
 	}
 
 	if role["actions"] != nil {
@@ -1228,9 +1228,9 @@ func (resource_server *server) getRole(id string) (*resourcepb.Role, error) {
 	return r, nil
 }
 
-func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.ResourceService_GetRolesServer) error {
+func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.ResourceService_GetRolesServer) error {
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1281,7 +1281,7 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		if role["domain"] != nil {
 			r.Domain = role["domain"].(string)
 		} else {
-			r.Domain = resource_server.Domain
+			r.Domain = srv.Domain
 		}
 
 		if role["actions"] != nil {
@@ -1373,7 +1373,7 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 }
 
 // * Delete a role with a given id *
-func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
+func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
 
 	// set the role id.
 	roleId := rqst.RoleId
@@ -1398,7 +1398,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1430,11 +1430,11 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 		}
 		for i := 0; i < len(accounts); i++ {
 			accountId := accounts[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, accountId, roleId, "roles", "Accounts")
+			srv.deleteReference(p, accountId, roleId, "roles", "Accounts")
 			if strings.Contains(accountId, "@") {
-				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
+				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
 			} else {
-				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, localDomain)
+				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, localDomain)
 			}
 		}
 	}
@@ -1453,11 +1453,11 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.RoleId, organizationId, "roles", "Roles")
+			srv.deleteReference(p, rqst.RoleId, organizationId, "roles", "Roles")
 			if strings.Contains(organizationId, "@") {
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
 			} else {
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
 			}
 		}
 	}
@@ -1470,17 +1470,17 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// TODO delete role permissions
-	resource_server.deleteResourcePermissions(rqst.RoleId)
-	resource_server.deleteAllAccess(rqst.RoleId, rbacpb.SubjectType_ROLE)
+	srv.deleteResourcePermissions(rqst.RoleId)
+	srv.deleteAllAccess(rqst.RoleId, rbacpb.SubjectType_ROLE)
 
-	resource_server.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("delete_role_evt", []byte(rqst.RoleId), localDomain)
+	srv.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_role_evt", []byte(rqst.RoleId), localDomain)
 
 	return &resourcepb.DeleteRoleRsp{Result: true}, nil
 }
 
 // * Append an action to existing role. *
-func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleActionsRqst) (*resourcepb.AddRoleActionsRsp, error) {
+func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleActionsRqst) (*resourcepb.AddRoleActionsRsp, error) {
 	roleId := rqst.RoleId
 	localDomain, err := config.GetDomain()
 
@@ -1503,7 +1503,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1565,21 +1565,21 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 	}
 
 	if strings.Contains(rqst.RoleId, "@") {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
 	} else {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
 	}
 
 	return &resourcepb.AddRoleActionsRsp{Result: true}, nil
 }
 
 // * Remove an action to existing role. *
-func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
+func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
 
 	localDomain, _ := config.GetDomain()
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1641,9 +1641,9 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 			}
 
 			if strings.Contains(role["_id"].(string), "@") {
-				resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, role["domain"].(string))
+				srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, role["domain"].(string))
 			} else {
-				resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, localDomain)
+				srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, localDomain)
 			}
 
 		}
@@ -1653,7 +1653,7 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 }
 
 // * Remove an action to existing role. *
-func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
+func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
 	roleId := rqst.RoleId
 	localDomain, err := config.GetDomain()
 	if strings.Contains(roleId, "@") {
@@ -1675,7 +1675,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -1739,27 +1739,27 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	}
 
 	if strings.Contains(rqst.RoleId, "@") {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
 	} else {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
 	}
 
 	return &resourcepb.RemoveRoleActionRsp{Result: true}, nil
 }
 
 // * Add role to a given account *
-func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccountRoleRqst) (*resourcepb.AddAccountRoleRsp, error) {
+func (srv *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccountRoleRqst) (*resourcepb.AddAccountRoleRsp, error) {
 
 	if !strings.Contains(rqst.RoleId, "@") {
-		rqst.RoleId = rqst.RoleId + "@" + resource_server.Domain
+		rqst.RoleId = rqst.RoleId + "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.AccountId, "@") {
-		rqst.AccountId = rqst.AccountId + "@" + resource_server.Domain
+		rqst.AccountId = rqst.AccountId + "@" + srv.Domain
 	}
 
 	// That service made user of persistence service.
-	err := resource_server.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
+	err := srv.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1767,32 +1767,32 @@ func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourc
 	}
 
 	if strings.Contains(rqst.RoleId, "@") {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
 	} else {
-		resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, resource_server.Domain)
+		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Domain)
 	}
 
 	return &resourcepb.AddAccountRoleRsp{Result: true}, nil
 }
 
 // * Remove a role from a given account *
-func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.RemoveAccountRoleRqst) (*resourcepb.RemoveAccountRoleRsp, error) {
+func (srv *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.RemoveAccountRoleRqst) (*resourcepb.RemoveAccountRoleRsp, error) {
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
 	// That service made user of persistence service.
-	err = resource_server.deleteReference(p, rqst.AccountId, rqst.RoleId, "members", "Roles")
+	err = srv.deleteReference(p, rqst.AccountId, rqst.RoleId, "members", "Roles")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.deleteReference(p, rqst.RoleId, rqst.AccountId, "roles", "Accounts")
+	err = srv.deleteReference(p, rqst.RoleId, rqst.AccountId, "roles", "Accounts")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1803,27 +1803,27 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	if strings.Contains(rqst.RoleId, "@") {
 		role_domain = strings.Split(rqst.RoleId, "@")[1]
 	} else {
-		role_domain = resource_server.Domain
+		role_domain = srv.Domain
 	}
 
 	var account_domain string
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
 
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
 // * save a new application *
-func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
+func (srv *server) save_application(app *resourcepb.Application, owner string) error {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1842,7 +1842,7 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	application["path"] = "/" + app.Name // The path must be the same as the application name.
 	application["publisherid"] = app.Publisherid
 	application["version"] = app.Version
-	application["domain"] = resource_server.Domain // the domain where the application is save...
+	application["domain"] = srv.Domain // the domain where the application is save...
 	application["description"] = app.Description
 	application["actions"] = app.Actions
 	application["keywords"] = app.Keywords
@@ -1875,7 +1875,7 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", app.Name, app.Name, app.Name, app.Name)
 		} else if p.GetStoreType() == "SCYLLA" {
 			createApplicationDbScript = fmt.Sprintf(
-				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s_db.application_data (id text PRIMARY KEY, data text);", app.Name, resource_server.Backend_replication_factor, app.Name)
+				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s_db.application_data (id text PRIMARY KEY, data text);", app.Name, srv.Backend_replication_factor, app.Name)
 		} else if p.GetStoreType() == "SQL" {
 			q = `` // TODO sql query string here...
 		} else {
@@ -1884,12 +1884,12 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 		// create the application database if not exist.
 		if p.GetStoreType() == "MONGO" {
-			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
+			err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
 			}
 		} else if p.GetStoreType() == "SCYLLA" {
-			err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationDbScript)
+			err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createApplicationDbScript)
 			if err != nil {
 				return err
 			}
@@ -1923,13 +1923,13 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
-	resource_server.addResourceOwner(path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
+	srv.addResourceOwner(path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	resource_server.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
-	resource_server.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, app.Domain)
+	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, app.Domain)
 
 	// Now I will create the application connection.
 	address, _ := config.GetAddress()
@@ -1940,16 +1940,16 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	var storeType float64
-	if resource_server.Backend_type == "SQL" {
+	if srv.Backend_type == "SQL" {
 		storeType = 1.0
-	} else if resource_server.Backend_type == "MONGO" {
+	} else if srv.Backend_type == "MONGO" {
 		storeType = 0.0
-	} else if resource_server.Backend_type == "SCYLLA" {
+	} else if srv.Backend_type == "SCYLLA" {
 		storeType = 2.0
 	}
 
 	// Now I will create the application connection.
-	err = persistenceClient.CreateConnection(app.Name, app.Name+"_db", address, float64(resource_server.Backend_port), storeType, resource_server.Backend_user, resource_server.Backend_password, 500, "", false)
+	err = persistenceClient.CreateConnection(app.Name, app.Name+"_db", address, float64(srv.Backend_port), storeType, srv.Backend_user, srv.Backend_password, 500, "", false)
 	if err != nil {
 		return err
 	}
@@ -1960,14 +1960,14 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Application
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
+func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.save_application(rqst.Application, clientId)
+	err = srv.save_application(rqst.Application, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1977,15 +1977,15 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Application)
 	if err == nil {
-		resource_server.publishEvent("create_application_evt", []byte(jsonStr), resource_server.GetAddress())
+		srv.publishEvent("create_application_evt", []byte(jsonStr), srv.GetAddress())
 	}
 
 	return &resourcepb.CreateApplicationRsp{}, nil
 }
 
 // * Update application informations.
-func (resource_server *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2002,19 +2002,19 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 	}
 
 	if strings.Contains(rqst.ApplicationId, "@") {
-		resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
+		srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
 	} else {
-		resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, resource_server.Domain)
+		srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Domain)
 	}
 
 	return &resourcepb.UpdateApplicationRsp{}, nil
 }
 
-// * Delete an application from the server. *
-func (resource_server *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
+// * Delete an application from the srv. *
+func (srv *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
 	// That service made user of persistence service.
-	err := resource_server.deleteApplication(rqst.ApplicationId)
+	err := srv.deleteApplication(rqst.ApplicationId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2028,9 +2028,9 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 	}, nil
 }
 
-func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *resourcepb.GetApplicationVersionRqst) (*resourcepb.GetApplicationVersionRsp, error) {
+func (srv *server) GetApplicationVersion(ctx context.Context, rqst *resourcepb.GetApplicationVersionRqst) (*resourcepb.GetApplicationVersionRsp, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2066,9 +2066,9 @@ func (resource_server *server) GetApplicationVersion(ctx context.Context, rqst *
 
 }
 
-func (resource_server *server) GetApplicationAlias(ctx context.Context, rqst *resourcepb.GetApplicationAliasRqst) (*resourcepb.GetApplicationAliasRsp, error) {
+func (srv *server) GetApplicationAlias(ctx context.Context, rqst *resourcepb.GetApplicationAliasRqst) (*resourcepb.GetApplicationAliasRsp, error) {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2090,8 +2090,8 @@ func (resource_server *server) GetApplicationAlias(ctx context.Context, rqst *re
 	}, nil
 }
 
-func (resource_server *server) GetApplicationIcon(ctx context.Context, rqst *resourcepb.GetApplicationIconRqst) (*resourcepb.GetApplicationIconRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) GetApplicationIcon(ctx context.Context, rqst *resourcepb.GetApplicationIconRqst) (*resourcepb.GetApplicationIconRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2114,9 +2114,9 @@ func (resource_server *server) GetApplicationIcon(ctx context.Context, rqst *res
 }
 
 // * Append an action to existing application. *
-func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.AddApplicationActionsRqst) (*resourcepb.AddApplicationActionsRsp, error) {
+func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.AddApplicationActionsRqst) (*resourcepb.AddApplicationActionsRsp, error) {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -2172,16 +2172,16 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 		}
 	}
 
-	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
 
 	return &resourcepb.AddApplicationActionsRsp{Result: true}, nil
 }
 
 // * Remove an action to existing application. *
-func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb.RemoveApplicationActionRqst) (*resourcepb.RemoveApplicationActionRsp, error) {
+func (srv *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb.RemoveApplicationActionRqst) (*resourcepb.RemoveApplicationActionRsp, error) {
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -2243,16 +2243,16 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 		}
 	}
 
-	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
 
 	return &resourcepb.RemoveApplicationActionRsp{Result: true}, nil
 }
 
 // * Remove an action to existing application. *
-func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcepb.RemoveApplicationsActionRqst) (*resourcepb.RemoveApplicationsActionRsp, error) {
+func (srv *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcepb.RemoveApplicationsActionRqst) (*resourcepb.RemoveApplicationsActionRsp, error) {
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -2313,7 +2313,7 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 			jsonStr := serialyseObject(application)
 			q = `{"_id":"` + application["_id"].(string) + `"}`
 			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
-			resource_server.publishEvent("update_application_"+application["_id"].(string)+"_evt", []byte{}, application["domain"].(string))
+			srv.publishEvent("update_application_"+application["_id"].(string)+"_evt", []byte{}, application["domain"].(string))
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -2328,9 +2328,9 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 /**
  * Get application informations.
  */
-func (resource_server *server) getApplications(query string, options string) ([]*resourcepb.Application, error) {
+func (srv *server) getApplications(query string, options string) ([]*resourcepb.Application, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -2398,9 +2398,9 @@ func (resource_server *server) getApplications(query string, options string) ([]
 }
 
 // /////////////////////  resource management. /////////////////
-func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
+func (srv *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
 
-	applications, err := resource_server.getApplications(rqst.Query, rqst.Options)
+	applications, err := srv.getApplications(rqst.Query, rqst.Options)
 
 	if err != nil {
 		return err
@@ -2464,7 +2464,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
-func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
+func (srv *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
 	client, err := GetResourceClient(address)
 	if err != nil {
@@ -2505,15 +2505,15 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 }
 
 // * Connect tow peer toggether on the network.
-func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
+func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
 	// Here I will first look if a peer with a same name already exist on the
-	if resource_server.Mac == rqst.Peer.Mac {
+	if srv.Mac == rqst.Peer.Mac {
 		return nil, errors.New("can not register peer to itself")
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2523,7 +2523,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	// set the remote peer in /etc/hosts
-	resource_server.setLocalHosts(rqst.Peer)
+	srv.setLocalHosts(rqst.Peer)
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
@@ -2559,7 +2559,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// If no mac address was given it mean the request came from a web application
-	// so the intention is to register the server itself on another server...
+	// so the intention is to register the server itself on another srv...
 	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
 	if len(rqst.Peer.Mac) == 0 {
@@ -2571,8 +2571,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 		}
 
-		// In that case I want to register the server to another server.
-		peer_, public_key, err := resource_server.registerPeer(token, address_)
+		// In that case I want to register the server to another srv.
+		peer_, public_key, err := srv.registerPeer(token, address_)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -2618,11 +2618,11 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		}
 
 		// set the remote peer in /etc/hosts
-		resource_server.setLocalHosts(peer_)
+		srv.setLocalHosts(peer_)
 
 		// in case local dns is use that peers will be able to change values releated to it domain.
 		// but no other peer will be able to do it...
-		resource_server.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
+		srv.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
 
 		jsonStr, err := marshaler.MarshalToString(peer_)
 		if err != nil {
@@ -2631,7 +2631,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 		// Update peer event.
 		localDomain, _ := config.GetDomain()
-		resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
 
 		address := rqst.Peer.Domain
 		if rqst.Peer.Protocol == "https" {
@@ -2648,14 +2648,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			return nil, err
 		}
 
-		resource_server.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
+		srv.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
 
 		// Set peer action
-		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
-		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
-		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
-		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
-		resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
 
 		// Send back the peers informations.
 		return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
@@ -2686,7 +2686,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		if len(rqst.Peer.Domain) > 0 {
 			domain += "." + rqst.Peer.Domain
 		}
-		resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+		srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 	}
 
 	// Insert the peer into the local resource database.
@@ -2719,7 +2719,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// signal peers changes...
-	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), resource_server.GetAddress())
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.GetAddress())
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2732,10 +2732,10 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, err
 	}
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	// set the remote peer in /etc/hosts
-	resource_server.setLocalHosts(getLocalPeer())
+	srv.setLocalHosts(getLocalPeer())
 
 	return &resourcepb.RegisterPeerRsp{
 		Peer:      getLocalPeer(),
@@ -2744,8 +2744,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 }
 
 // * Return the peer public key */
-func (resource_server *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPeerPublicKeyRqst) (*resourcepb.GetPeerPublicKeyRsp, error) {
-	public_key, err := resource_server.getPeerPublicKey(rqst.RemotePeerAddress, rqst.Mac)
+func (srv *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPeerPublicKeyRqst) (*resourcepb.GetPeerPublicKeyRsp, error) {
+	public_key, err := srv.getPeerPublicKey(rqst.RemotePeerAddress, rqst.Mac)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2756,9 +2756,9 @@ func (resource_server *server) GetPeerPublicKey(ctx context.Context, rqst *resou
 }
 
 // * Accept a given peer *
-func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
+func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2782,14 +2782,14 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Add actions require by peer...
-	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
-	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetAAAA"})
-	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetCAA"})
-	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetText"})
-	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/RemoveText"})
+	srv.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
+	srv.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetAAAA"})
+	srv.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetCAA"})
+	srv.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetText"})
+	srv.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/RemoveText"})
 
 	// set the remote peer in /etc/hosts
-	resource_server.setLocalHosts(rqst.Peer)
+	srv.setLocalHosts(rqst.Peer)
 
 	// Here I will append the resource owner...
 	domain := rqst.Peer.Hostname
@@ -2799,7 +2799,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
-	resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
 	if err != nil {
@@ -2808,7 +2808,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2821,7 +2821,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	if err != nil {
 		return nil, err
 	}
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -2829,9 +2829,9 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 // * Reject a given peer, note that the peer will stay reject, so
 // I will be imposible to request again and again, util it will be
 // explicitly removed from the peer's list
-func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
+func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2856,7 +2856,7 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2869,7 +2869,7 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 	if err != nil {
 		return nil, err
 	}
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
 }
@@ -2877,7 +2877,7 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 /**
  * Return the state of approval of a peer by anther one.
  */
-func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error) {
+func (srv *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error) {
 	mac := rqst.Mac
 	if len(mac) == 0 {
 		var err error
@@ -2889,7 +2889,7 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 		}
 	}
 
-	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)
+	peer, err := srv.getPeerInfos(rqst.RemotePeerAddress, mac)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2941,10 +2941,10 @@ func initPeer(values interface{}) *resourcepb.Peer {
 }
 
 // * Return the list of authorized peers *
-func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
+func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -2999,7 +2999,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	return nil
 }
 
-func (resource_server *server) deletePeer(token, address string) error {
+func (srv *server) deletePeer(token, address string) error {
 	// Connect to remote server and call Register peer on it...
 	client, err := GetResourceClient(address)
 	if err != nil {
@@ -3016,9 +3016,9 @@ func (resource_server *server) deletePeer(token, address string) error {
 }
 
 // * Update a peer
-func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRqst) (*resourcepb.UpdatePeerRsp, error) {
+func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRqst) (*resourcepb.UpdatePeerRsp, error) {
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -3080,19 +3080,19 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	localDomain, _ := config.GetDomain()
 
 	// signal peers changes...
-	resource_server.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.Domain)
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.Domain)
 
 	// give the peer information...
-	resource_server.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
 
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
 
 // * Remove a peer from the network *
-func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
+func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -3118,7 +3118,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	peer := initPeer(data)
 
 	// Delete all peer access.
-	resource_server.deleteAllAccess(peer.Mac, rbacpb.SubjectType_PEER)
+	srv.deleteAllAccess(peer.Mac, rbacpb.SubjectType_PEER)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -3128,14 +3128,14 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Delete permissions
-	resource_server.deleteResourcePermissions(peer.Mac)
-	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.deleteResourcePermissions(peer.Mac)
+	srv.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Delete peer public key...
 	security.DeletePublicKey(peer.Mac)
 
 	// remove from /etc/hosts
-	resource_server.removeFromLocalHosts(peer)
+	srv.removeFromLocalHosts(peer)
 
 	// Here I will append the resource owner...
 	domain := peer.Hostname
@@ -3145,10 +3145,10 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.Domain)
-	resource_server.publishEvent("delete_peer_evt", []byte(peer.Mac), localDomain)
-	resource_server.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.Domain)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.Domain)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), localDomain)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.Domain)
 
 	address_ := peer.Domain
 	if peer.Protocol == "https" {
@@ -3163,15 +3163,15 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	resource_server.deletePeer(token, address_)
+	srv.deletePeer(token, address_)
 
 	return &resourcepb.DeletePeerRsp{
 		Result: true,
 	}, nil
 }
 
-func (resource_server *server) addPeerActions(mac string, actions_ []string) error {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) addPeerActions(mac string, actions_ []string) error {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -3232,15 +3232,15 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 
 	// signal peers changes...
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_peer_"+mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+mac+"_evt", []byte{}, localDomain)
 
 	return nil
 }
 
 // * Add peer action permission *
-func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
+func (srv *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
 
-	err := resource_server.addPeerActions(rqst.Mac, rqst.Actions)
+	err := srv.addPeerActions(rqst.Mac, rqst.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3248,16 +3248,16 @@ func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourc
 	}
 
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
 
 	return &resourcepb.AddPeerActionsRsp{Result: true}, nil
 
 }
 
 // * Remove peer action permission *
-func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.RemovePeerActionRqst) (*resourcepb.RemovePeerActionRsp, error) {
+func (srv *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.RemovePeerActionRqst) (*resourcepb.RemovePeerActionRsp, error) {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -3317,14 +3317,14 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 	localDomain, _ := config.GetDomain()
 
 	// signal peers changes...
-	resource_server.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
 
 	return &resourcepb.RemovePeerActionRsp{Result: true}, nil
 }
 
-func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.RemovePeersActionRqst) (*resourcepb.RemovePeersActionRsp, error) {
+func (srv *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.RemovePeersActionRqst) (*resourcepb.RemovePeersActionRsp, error) {
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -3366,7 +3366,7 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 			q = `{"_id":"` + peer["_id"].(string) + `"}`
 			jsonStr := serialyseObject(peer)
 			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, string(jsonStr), ``)
-			resource_server.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{}, localDomain)
+			srv.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{}, localDomain)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -3383,7 +3383,7 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 /////////////////////////////////////////////////////////////////////////////////////////
 
 // * Register a new organization
-func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
+func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -3391,7 +3391,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -3429,7 +3429,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email
 	o["description"] = rqst.Organization.Email
-	o["domain"] = resource_server.Domain
+	o["domain"] = srv.Domain
 
 	// Those are the list of entity linked to the organization
 	o["accounts"] = make([]interface{}, 0)
@@ -3449,7 +3449,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Accounts[i], "@") {
 			rqst.Organization.Accounts[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "accounts")
+		srv.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "accounts")
 	}
 
 	// groups...
@@ -3457,7 +3457,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Groups[i], "@") {
 			rqst.Organization.Groups[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "groups")
+		srv.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "groups")
 	}
 
 	// roles...
@@ -3465,7 +3465,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Roles[i], "@") {
 			rqst.Organization.Roles[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "roles")
+		srv.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "roles")
 	}
 
 	// applications...
@@ -3473,18 +3473,18 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 		if !strings.Contains(rqst.Organization.Applications[i], "@") {
 			rqst.Organization.Applications[i] += "@" + rqst.Organization.Domain
 		}
-		resource_server.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications")
+		srv.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications")
 	}
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Organization)
 	if err == nil {
 		localDomain, _ := config.GetDomain()
-		resource_server.publishEvent("create_organization_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("create_organization_evt", []byte(jsonStr), localDomain)
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -3492,8 +3492,8 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 }
 
 // Update an organization informations.
-func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3521,9 +3521,9 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 	}
 
 	if strings.Contains(rqst.OrganizationId, "@") {
-		resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, rqst.OrganizationId[strings.Index(rqst.OrganizationId, "@")+1:])
+		srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, rqst.OrganizationId[strings.Index(rqst.OrganizationId, "@")+1:])
 	} else {
-		resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, resource_server.Domain)
+		srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Domain)
 	}
 
 	return &resourcepb.UpdateOrganizationRsp{
@@ -3532,10 +3532,10 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 }
 
 // * Return the list of organizations
-func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, stream resourcepb.ResourceService_GetOrganizationsServer) error {
+func (srv *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, stream resourcepb.ResourceService_GetOrganizationsServer) error {
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -3568,7 +3568,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		if o["domain"] != nil {
 			organization.Domain = o["domain"].(string)
 		} else {
-			organization.Domain = resource_server.Domain
+			organization.Domain = srv.Domain
 		}
 
 		// Here I will set the aggregation.
@@ -3682,17 +3682,17 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 }
 
 // * Add Account *
-func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.AddOrganizationAccountRqst) (*resourcepb.AddOrganizationAccountRsp, error) {
+func (srv *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.AddOrganizationAccountRqst) (*resourcepb.AddOrganizationAccountRsp, error) {
 
 	if !strings.Contains(rqst.AccountId, "@") {
-		rqst.AccountId += "@" + resource_server.Domain
+		rqst.AccountId += "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.OrganizationId, "@") {
-		rqst.OrganizationId += "@" + resource_server.Domain
+		rqst.OrganizationId += "@" + srv.Domain
 	}
 
-	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "accounts", rqst.AccountId, "Accounts", "organizations")
+	err := srv.createCrossReferences(rqst.OrganizationId, "Organizations", "accounts", rqst.AccountId, "Accounts", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3703,34 +3703,34 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
 	var organization_domain string
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.AddOrganizationAccountRsp{Result: true}, nil
 }
 
 // * Add Group *
-func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.AddOrganizationGroupRqst) (*resourcepb.AddOrganizationGroupRsp, error) {
+func (srv *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.AddOrganizationGroupRqst) (*resourcepb.AddOrganizationGroupRsp, error) {
 
 	if !strings.Contains(rqst.GroupId, "@") {
-		rqst.GroupId += "@" + resource_server.Domain
+		rqst.GroupId += "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.OrganizationId, "@") {
-		rqst.OrganizationId += "@" + resource_server.Domain
+		rqst.OrganizationId += "@" + srv.Domain
 	}
 
-	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "groups", rqst.GroupId, "Groups", "organizations")
+	err := srv.createCrossReferences(rqst.OrganizationId, "Organizations", "groups", rqst.GroupId, "Groups", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3741,34 +3741,34 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var group_domain string
 	if strings.Contains(rqst.GroupId, "@") {
 		group_domain = strings.Split(rqst.GroupId, "@")[1]
 	} else {
-		group_domain = resource_server.Domain
+		group_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.AddOrganizationGroupRsp{Result: true}, nil
 }
 
 // * Add Role *
-func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.AddOrganizationRoleRqst) (*resourcepb.AddOrganizationRoleRsp, error) {
+func (srv *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.AddOrganizationRoleRqst) (*resourcepb.AddOrganizationRoleRsp, error) {
 
 	if !strings.Contains(rqst.RoleId, "@") {
-		rqst.RoleId += "@" + resource_server.Domain
+		rqst.RoleId += "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.OrganizationId, "@") {
-		rqst.OrganizationId += "@" + resource_server.Domain
+		rqst.OrganizationId += "@" + srv.Domain
 	}
 
-	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "roles", rqst.RoleId, "Roles", "organizations")
+	err := srv.createCrossReferences(rqst.OrganizationId, "Organizations", "roles", rqst.RoleId, "Roles", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3779,34 +3779,34 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var role_domain string
 	if strings.Contains(rqst.RoleId, "@") {
 		role_domain = strings.Split(rqst.RoleId, "@")[1]
 	} else {
-		role_domain = resource_server.Domain
+		role_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.AddOrganizationRoleRsp{Result: true}, nil
 }
 
 // * Add Application *
-func (resource_server *server) AddOrganizationApplication(ctx context.Context, rqst *resourcepb.AddOrganizationApplicationRqst) (*resourcepb.AddOrganizationApplicationRsp, error) {
+func (srv *server) AddOrganizationApplication(ctx context.Context, rqst *resourcepb.AddOrganizationApplicationRqst) (*resourcepb.AddOrganizationApplicationRsp, error) {
 
 	if !strings.Contains(rqst.ApplicationId, "@") {
-		rqst.ApplicationId += "@" + resource_server.Domain
+		rqst.ApplicationId += "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.OrganizationId, "@") {
-		rqst.OrganizationId += "@" + resource_server.Domain
+		rqst.OrganizationId += "@" + srv.Domain
 	}
 
-	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "applications", rqst.ApplicationId, "Applications", "organizations")
+	err := srv.createCrossReferences(rqst.OrganizationId, "Organizations", "applications", rqst.ApplicationId, "Applications", "organizations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3817,35 +3817,35 @@ func (resource_server *server) AddOrganizationApplication(ctx context.Context, r
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var application_domain string
 	if strings.Contains(rqst.ApplicationId, "@") {
 		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
 	} else {
-		application_domain = resource_server.Domain
+		application_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, application_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, application_domain)
 
 	return &resourcepb.AddOrganizationApplicationRsp{Result: true}, nil
 }
 
 // * Remove Account *
-func (resource_server *server) RemoveOrganizationAccount(ctx context.Context, rqst *resourcepb.RemoveOrganizationAccountRqst) (*resourcepb.RemoveOrganizationAccountRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) RemoveOrganizationAccount(ctx context.Context, rqst *resourcepb.RemoveOrganizationAccountRqst) (*resourcepb.RemoveOrganizationAccountRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.AccountId, rqst.OrganizationId, "accounts", "Organizations")
+	err = srv.deleteReference(p, rqst.AccountId, rqst.OrganizationId, "accounts", "Organizations")
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.OrganizationId, rqst.AccountId, "organizations", "Accounts")
+	err = srv.deleteReference(p, rqst.OrganizationId, rqst.AccountId, "organizations", "Accounts")
 	if err != nil {
 		return nil, err
 	}
@@ -3854,35 +3854,35 @@ func (resource_server *server) RemoveOrganizationAccount(ctx context.Context, rq
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var account_domain string
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveOrganizationAccountRsp{Result: true}, nil
 }
 
 // * Remove Group *
-func (resource_server *server) RemoveOrganizationGroup(ctx context.Context, rqst *resourcepb.RemoveOrganizationGroupRqst) (*resourcepb.RemoveOrganizationGroupRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) RemoveOrganizationGroup(ctx context.Context, rqst *resourcepb.RemoveOrganizationGroupRqst) (*resourcepb.RemoveOrganizationGroupRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.GroupId, rqst.OrganizationId, "groups", "Organizations")
+	err = srv.deleteReference(p, rqst.GroupId, rqst.OrganizationId, "groups", "Organizations")
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.OrganizationId, rqst.GroupId, "organizations", "Groups")
+	err = srv.deleteReference(p, rqst.OrganizationId, rqst.GroupId, "organizations", "Groups")
 	if err != nil {
 		return nil, err
 	}
@@ -3891,35 +3891,35 @@ func (resource_server *server) RemoveOrganizationGroup(ctx context.Context, rqst
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var group_domain string
 	if strings.Contains(rqst.GroupId, "@") {
 		group_domain = strings.Split(rqst.GroupId, "@")[1]
 	} else {
-		group_domain = resource_server.Domain
+		group_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.RemoveOrganizationGroupRsp{Result: true}, nil
 }
 
 // * Remove Role *
-func (resource_server *server) RemoveOrganizationRole(ctx context.Context, rqst *resourcepb.RemoveOrganizationRoleRqst) (*resourcepb.RemoveOrganizationRoleRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) RemoveOrganizationRole(ctx context.Context, rqst *resourcepb.RemoveOrganizationRoleRqst) (*resourcepb.RemoveOrganizationRoleRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.RoleId, rqst.OrganizationId, "roles", "Organizations")
+	err = srv.deleteReference(p, rqst.RoleId, rqst.OrganizationId, "roles", "Organizations")
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.OrganizationId, rqst.RoleId, "organizations", "Roles")
+	err = srv.deleteReference(p, rqst.OrganizationId, rqst.RoleId, "organizations", "Roles")
 	if err != nil {
 		return nil, err
 	}
@@ -3928,35 +3928,35 @@ func (resource_server *server) RemoveOrganizationRole(ctx context.Context, rqst 
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var role_domain string
 	if strings.Contains(rqst.RoleId, "@") {
 		role_domain = strings.Split(rqst.RoleId, "@")[1]
 	} else {
-		role_domain = resource_server.Domain
+		role_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
 
 	return &resourcepb.RemoveOrganizationRoleRsp{Result: true}, nil
 }
 
 // * Remove Application *
-func (resource_server *server) RemoveOrganizationApplication(ctx context.Context, rqst *resourcepb.RemoveOrganizationApplicationRqst) (*resourcepb.RemoveOrganizationApplicationRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) RemoveOrganizationApplication(ctx context.Context, rqst *resourcepb.RemoveOrganizationApplicationRqst) (*resourcepb.RemoveOrganizationApplicationRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.ApplicationId, rqst.OrganizationId, "applications", "Organizations")
+	err = srv.deleteReference(p, rqst.ApplicationId, rqst.OrganizationId, "applications", "Organizations")
 	if err != nil {
 		return nil, err
 	}
 
-	err = resource_server.deleteReference(p, rqst.OrganizationId, rqst.ApplicationId, "organizations", "Applications")
+	err = srv.deleteReference(p, rqst.OrganizationId, rqst.ApplicationId, "organizations", "Applications")
 	if err != nil {
 		return nil, err
 	}
@@ -3965,24 +3965,24 @@ func (resource_server *server) RemoveOrganizationApplication(ctx context.Context
 	if strings.Contains(rqst.OrganizationId, "@") {
 		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
 	} else {
-		organization_domain = resource_server.Domain
+		organization_domain = srv.Domain
 	}
 
 	var application_domain string
 	if strings.Contains(rqst.ApplicationId, "@") {
 		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
 	} else {
-		application_domain = resource_server.Domain
+		application_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application_domain)
 
 	return &resourcepb.RemoveOrganizationApplicationRsp{Result: true}, nil
 }
 
 // * Delete organization
-func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.DeleteOrganizationRqst) (*resourcepb.DeleteOrganizationRsp, error) {
+func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.DeleteOrganizationRqst) (*resourcepb.DeleteOrganizationRsp, error) {
 
 	localDomain, err := config.GetDomain()
 	organizationId := rqst.Organization
@@ -4005,7 +4005,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -4036,7 +4036,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if groups != nil {
 			for i := 0; i < len(groups); i++ {
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
-				err := resource_server.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
+				err := srv.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -4045,10 +4045,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if strings.Contains(groupId, "@") {
 					group_domain = strings.Split(groupId, "@")[1]
 				} else {
-					group_domain = resource_server.Domain
+					group_domain = srv.Domain
 				}
 
-				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, group_domain)
+				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, group_domain)
 			}
 		}
 	}
@@ -4066,7 +4066,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if roles != nil {
 			for i := 0; i < len(roles); i++ {
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
-				err := resource_server.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
+				err := srv.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -4075,10 +4075,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if strings.Contains(roleId, "@") {
 					role_domain = strings.Split(roleId, "@")[1]
 				} else {
-					role_domain = resource_server.Domain
+					role_domain = srv.Domain
 				}
 
-				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, role_domain)
+				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, role_domain)
 			}
 		}
 	}
@@ -4096,7 +4096,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if applications != nil {
 			for i := 0; i < len(applications); i++ {
 				applicationId := applications[i].(map[string]interface{})["$id"].(string)
-				err := resource_server.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
+				err := srv.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -4105,10 +4105,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if strings.Contains(applicationId, "@") {
 					application_domain = strings.Split(applicationId, "@")[1]
 				} else {
-					application_domain = resource_server.Domain
+					application_domain = srv.Domain
 				}
 
-				resource_server.publishEvent("update_application_"+applicationId+"_evt", []byte{}, application_domain)
+				srv.publishEvent("update_application_"+applicationId+"_evt", []byte{}, application_domain)
 			}
 		}
 	}
@@ -4126,7 +4126,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if accounts != nil {
 			for i := 0; i < len(accounts); i++ {
 				accountId := accounts[i].(map[string]interface{})["$id"].(string)
-				err := resource_server.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
+				err := srv.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -4135,17 +4135,17 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 				if strings.Contains(accountId, "@") {
 					account_domain = strings.Split(accountId, "@")[1]
 				} else {
-					account_domain = resource_server.Domain
+					account_domain = srv.Domain
 				}
 
-				resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
+				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
 			}
 		}
 	}
 
 	// Delete organization
 	organizationId = organization["_id"].(string) + "@" + organization["domain"].(string)
-	resource_server.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
+	srv.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
 
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", q, "")
@@ -4155,11 +4155,11 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.deleteResourcePermissions(organizationId)
-	resource_server.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
+	srv.deleteResourcePermissions(organizationId)
+	srv.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
 
-	resource_server.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("delete_organization_evt", []byte(organizationId), localDomain)
+	srv.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_organization_evt", []byte(organizationId), localDomain)
 
 	return &resourcepb.DeleteOrganizationRsp{Result: true}, nil
 }
@@ -4167,8 +4167,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 /**
  * Create a group with a given name of update existing one.
  */
-func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroupRqst) (*resourcepb.UpdateGroupRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroupRqst) (*resourcepb.UpdateGroupRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4198,10 +4198,10 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 	if strings.Contains(rqst.GroupId, "@") {
 		group_domain = strings.Split(rqst.GroupId, "@")[1]
 	} else {
-		group_domain = resource_server.Domain
+		group_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
 
 	return &resourcepb.UpdateGroupRsp{
 		Result: true,
@@ -4209,7 +4209,7 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 }
 
 // * Register a new group
-func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
+func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -4217,7 +4217,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	}
 
 	// Get the persistence connection
-	err = resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
+	err = srv.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -4228,7 +4228,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Group)
 	if err == nil {
-		resource_server.publishEvent("create_group_evt", []byte(jsonStr), resource_server.GetAddress())
+		srv.publishEvent("create_group_evt", []byte(jsonStr), srv.GetAddress())
 	}
 
 	return &resourcepb.CreateGroupRsp{
@@ -4236,9 +4236,9 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
-func (resource_server *server) getGroup(id string) (*resourcepb.Group, error) {
+func (srv *server) getGroup(id string) (*resourcepb.Group, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 
 	if err != nil {
 		return nil, err
@@ -4261,7 +4261,7 @@ func (resource_server *server) getGroup(id string) (*resourcepb.Group, error) {
 		if values.(map[string]interface{})["domain"] != nil {
 			group.Domain = values.(map[string]interface{})["domain"].(string)
 		} else {
-			group.Domain = resource_server.Domain
+			group.Domain = srv.Domain
 		}
 
 		if values.(map[string]interface{})["members"] != nil {
@@ -4302,9 +4302,9 @@ func (resource_server *server) getGroup(id string) (*resourcepb.Group, error) {
 }
 
 // * Return the list of organizations
-func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.ResourceService_GetGroupsServer) error {
+func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.ResourceService_GetGroupsServer) error {
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -4354,7 +4354,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 		if groups[i].(map[string]interface{})["domain"] != nil {
 			g.Domain = groups[i].(map[string]interface{})["domain"].(string)
 		} else {
-			g.Domain = resource_server.Domain
+			g.Domain = srv.Domain
 		}
 
 		if groups[i].(map[string]interface{})["members"] != nil {
@@ -4421,7 +4421,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 }
 
 // * Delete organization
-func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
+func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
 
 	groupId := rqst.Group
 	localDomain, err := config.GetDomain()
@@ -4445,7 +4445,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		fmt.Println("fail to get persistence connection ", err)
 		return nil, err
@@ -4480,14 +4480,14 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 		for j := 0; j < len(members); j++ {
 			accountId := members[j].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Group, accountId, "groups", "Accounts")
+			srv.deleteReference(p, rqst.Group, accountId, "groups", "Accounts")
 			var account_domain string
 			if strings.Contains(accountId, "@") {
 				account_domain = strings.Split(accountId, "@")[1]
 			} else {
-				account_domain = resource_server.Domain
+				account_domain = srv.Domain
 			}
-			resource_server.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
+			srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
 		}
 	}
 
@@ -4505,14 +4505,14 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		if organizations != nil {
 			for i := 0; i < len(organizations); i++ {
 				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Group, organizationId, "groups", "Organizations")
+				srv.deleteReference(p, rqst.Group, organizationId, "groups", "Organizations")
 				var organization_domain string
 				if strings.Contains(organizationId, "@") {
 					organization_domain = strings.Split(organizationId, "@")[1]
 				} else {
-					organization_domain = resource_server.Domain
+					organization_domain = srv.Domain
 				}
-				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, organization_domain)
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, organization_domain)
 			}
 		}
 	}
@@ -4526,12 +4526,12 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 	groupId = group["_id"].(string) + "@" + group["domain"].(string)
 
-	resource_server.deleteResourcePermissions(rqst.Group)
-	resource_server.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
+	srv.deleteResourcePermissions(rqst.Group)
+	srv.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
 
-	resource_server.publishEvent("delete_group_"+groupId+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_group_"+groupId+"_evt", []byte{}, localDomain)
 
-	resource_server.publishEvent("delete_group_evt", []byte(groupId), localDomain)
+	srv.publishEvent("delete_group_evt", []byte(groupId), localDomain)
 
 	return &resourcepb.DeleteGroupRsp{
 		Result: true,
@@ -4540,17 +4540,17 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 }
 
 // * Add a member account to the group *
-func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.AddGroupMemberAccountRqst) (*resourcepb.AddGroupMemberAccountRsp, error) {
+func (srv *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.AddGroupMemberAccountRqst) (*resourcepb.AddGroupMemberAccountRsp, error) {
 
 	if !strings.Contains(rqst.AccountId, "@") {
-		rqst.AccountId += "@" + resource_server.Domain
+		rqst.AccountId += "@" + srv.Domain
 	}
 
 	if !strings.Contains(rqst.GroupId, "@") {
-		rqst.GroupId += "@" + resource_server.Domain
+		rqst.GroupId += "@" + srv.Domain
 	}
 
-	err := resource_server.createCrossReferences(rqst.GroupId, "Groups", "members", rqst.AccountId, "Accounts", "groups")
+	err := srv.createCrossReferences(rqst.GroupId, "Groups", "members", rqst.AccountId, "Accounts", "groups")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4561,38 +4561,38 @@ func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *
 	if strings.Contains(rqst.GroupId, "@") {
 		group_domain = strings.Split(rqst.GroupId, "@")[1]
 	} else {
-		group_domain = resource_server.Domain
+		group_domain = srv.Domain
 	}
 
 	var account_domain string
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.AddGroupMemberAccountRsp{Result: true}, nil
 }
 
 // * Remove member account from the group *
-func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcepb.RemoveGroupMemberAccountRqst) (*resourcepb.RemoveGroupMemberAccountRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcepb.RemoveGroupMemberAccountRqst) (*resourcepb.RemoveGroupMemberAccountRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
 	// That service made user of persistence service.
-	err = resource_server.deleteReference(p, rqst.AccountId, rqst.GroupId, "members", "Groups")
+	err = srv.deleteReference(p, rqst.AccountId, rqst.GroupId, "members", "Groups")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.deleteReference(p, rqst.GroupId, rqst.AccountId, "groups", "Accounts")
+	err = srv.deleteReference(p, rqst.GroupId, rqst.AccountId, "groups", "Accounts")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4603,18 +4603,18 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 	if strings.Contains(rqst.GroupId, "@") {
 		group_domain = strings.Split(rqst.GroupId, "@")[1]
 	} else {
-		group_domain = resource_server.Domain
+		group_domain = srv.Domain
 	}
 
 	var account_domain string
 	if strings.Contains(rqst.AccountId, "@") {
 		account_domain = strings.Split(rqst.AccountId, "@")[1]
 	} else {
-		account_domain = resource_server.Domain
+		account_domain = srv.Domain
 	}
 
-	resource_server.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
-	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
 
 	return &resourcepb.RemoveGroupMemberAccountRsp{Result: true}, nil
 }
@@ -4623,9 +4623,9 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 // Notification implementation
 // //////////////////////////////////////////////////////////////////////////////////
 // * Create a notification
-func (resource_server *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
+func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4685,14 +4685,14 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 	jsonStr, err := marshaler.MarshalToString(rqst.Notification)
 	localDomain, _ := config.GetDomain()
 	if err == nil {
-		resource_server.publishEvent("create_notification_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("create_notification_evt", []byte(jsonStr), localDomain)
 	}
 
 	return &resourcepb.CreateNotificationRsp{}, nil
 }
 
 // * Retreive notifications
-func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
+func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
 
 	if len(rqst.Recipient) == 0 {
 		return status.Errorf(
@@ -4707,11 +4707,11 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
-		rqst.Recipient += "@" + resource_server.Domain
+		rqst.Recipient += "@" + srv.Domain
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -4776,7 +4776,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 }
 
 // * Remove a notification
-func (resource_server *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
+func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
 
 	if len(rqst.Recipient) == 0 {
 		return nil, status.Errorf(
@@ -4791,10 +4791,10 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
-		rqst.Recipient += "@" + resource_server.Domain
+		rqst.Recipient += "@" + srv.Domain
 	}
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4811,14 +4811,14 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	}
 
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("delete_notification_"+rqst.Id+"_evt", []byte{}, localDomain)
-	resource_server.publishEvent("delete_notification_evt", []byte(rqst.Id), localDomain)
+	srv.publishEvent("delete_notification_"+rqst.Id+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_notification_evt", []byte(rqst.Id), localDomain)
 
 	return &resourcepb.DeleteNotificationRsp{}, nil
 }
 
 // * Remove all Notification
-func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
+func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
 
 	if len(rqst.Recipient) == 0 {
 		return nil, status.Errorf(
@@ -4833,10 +4833,10 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
-		rqst.Recipient += "@" + resource_server.Domain
+		rqst.Recipient += "@" + srv.Domain
 	}
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4862,14 +4862,14 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	}
 
 	localDomain, _ := config.GetDomain()
-	resource_server.publishEvent("clear_notification_evt", []byte{}, localDomain)
+	srv.publishEvent("clear_notification_evt", []byte{}, localDomain)
 
 	return &resourcepb.ClearAllNotificationsRsp{}, nil
 }
 
 // * Remove all notification of a given type
-func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqst *resourcepb.ClearNotificationsByTypeRqst) (*resourcepb.ClearNotificationsByTypeRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcepb.ClearNotificationsByTypeRqst) (*resourcepb.ClearNotificationsByTypeRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4916,9 +4916,9 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 /////////////////////////////////////////////////////////////////////////////////////////
 
 // Find packages by keywords...
-func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackagesDescriptorRequest) (*resourcepb.FindPackagesDescriptorResponse, error) {
+func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackagesDescriptorRequest) (*resourcepb.FindPackagesDescriptorResponse, error) {
 	// That service made user of persistence service.
-	p, err := server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5032,9 +5032,9 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 }
 
 // * Retrun all version of a given packages. *
-func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
+func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
 
-	p, err := server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5166,7 +5166,7 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 			for j := 0; j < len(groups); j++ {
 				groupId := groups[j].(map[string]interface{})["$id"].(string)
-				g, err := server.getGroup(groupId)
+				g, err := srv.getGroup(groupId)
 				if err == nil {
 					descriptors[i].Groups[j] = g
 				}
@@ -5191,7 +5191,7 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 				roleId := roles[j].(map[string]interface{})["$id"].(string)
 
 				// Get the role.
-				role_, err := server.getRole(roleId)
+				role_, err := srv.getRole(roleId)
 				if err == nil {
 					// set it back in the package descriptor.
 					descriptors[i].Roles[j] = role_
@@ -5212,8 +5212,8 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 }
 
 // * Return the list of all packages *
-func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream resourcepb.ResourceService_GetPackagesDescriptorServer) error {
-	p, err := server.getPersistenceStore()
+func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream resourcepb.ResourceService_GetPackagesDescriptorServer) error {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -5338,9 +5338,9 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 /**
  * Create / Update a pacakge descriptor
  */
-func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
+func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
 
-	p, err := server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5402,8 +5402,8 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 }
 
 // * Get the package bundle checksum use for validation *
-func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcepb.GetPackageBundleChecksumRequest) (*resourcepb.GetPackageBundleChecksumResponse, error) {
-	p, err := server.getPersistenceStore()
+func (srv *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcepb.GetPackageBundleChecksumRequest) (*resourcepb.GetPackageBundleChecksumResponse, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5427,12 +5427,12 @@ func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resour
 }
 
 // * Set the package bundle (without data)
-func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
+func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
 	bundle := rqst.Bundle
 
-	p, err := server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
-		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -5443,7 +5443,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.PackageDescriptor.PublisherId, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
-		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -5453,7 +5453,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", q, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
-		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, err
 	}
 	return &resourcepb.SetPackageBundleResponse{Result: true}, nil
@@ -5463,7 +5463,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 // Session
 /////////////////////////////////////////////////////////////////////////////////////////
 
-func (server *server) updateSession(accountId string, state resourcepb.SessionState, last_session_time, expire_at int64) error {
+func (srv *server) updateSession(accountId string, state resourcepb.SessionState, last_session_time, expire_at int64) error {
 
 	expiration := time.Unix(expire_at, 0)
 	delay := time.Until(expiration)
@@ -5473,21 +5473,21 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 		}
 	}
 
-	p, err := server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
 	// Log a message to display update session...
-	//server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
-	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain": server.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
+	//srv.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
+	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain": srv.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 	jsonStr, err := Utility.ToJson(session)
 	if err != nil {
 		return err
 	}
 
 	// send update_session event
-	//server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
+	//srv.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
 	var q string
 	if p.GetStoreType() == "MONGO" {
 		q = `{"accountId":"` + accountId + `"}`
@@ -5505,9 +5505,9 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 }
 
 // * Update user session informations
-func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
+func (srv *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
 
-	err := server.updateSession(rqst.Session.AccountId, rqst.Session.State, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
+	err := srv.updateSession(rqst.Session.AccountId, rqst.Session.State, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5518,8 +5518,8 @@ func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.Update
 }
 
 // * Remove session
-func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.RemoveSessionRequest) (*resourcepb.RemoveSessionResponse, error) {
-	p, err := server.getPersistenceStore()
+func (srv *server) RemoveSession(ctx context.Context, rqst *resourcepb.RemoveSessionRequest) (*resourcepb.RemoveSessionResponse, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5548,8 +5548,8 @@ func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.Remove
 	return &resourcepb.RemoveSessionResponse{}, nil
 }
 
-func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessionsRequest) (*resourcepb.GetSessionsResponse, error) {
-	p, err := server.getPersistenceStore()
+func (srv *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessionsRequest) (*resourcepb.GetSessionsResponse, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5598,8 +5598,8 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 	}, nil
 }
 
-func (server *server) getSession(accountId string) (*resourcepb.Session, error) {
-	p, err := server.getPersistenceStore()
+func (srv *server) getSession(accountId string) (*resourcepb.Session, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
@@ -5640,12 +5640,12 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 }
 
 // * Return a session for a given user
-func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessionRequest) (*resourcepb.GetSessionResponse, error) {
+func (srv *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessionRequest) (*resourcepb.GetSessionResponse, error) {
 
 	fmt.Println("get session for ", rqst.AccountId)
 
 	// Now I will remove the token...
-	session, err := server.getSession(rqst.AccountId)
+	session, err := srv.getSession(rqst.AccountId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5662,8 +5662,8 @@ func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessio
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // * Return the list of calls for a given account *
-func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallHistoryRqst) (*resourcepb.GetCallHistoryRsp, error) {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallHistoryRqst) (*resourcepb.GetCallHistoryRsp, error) {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5719,10 +5719,10 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	return &resourcepb.GetCallHistoryRsp{Calls: calls}, nil
 }
 
-func (resource_server *server) setCall(accountId string, call *resourcepb.Call) error {
+func (srv *server) setCall(accountId string, call *resourcepb.Call) error {
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -5747,14 +5747,14 @@ func (resource_server *server) setCall(accountId string, call *resourcepb.Call) 
 }
 
 // * Set calling information *
-func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*resourcepb.SetCallRsp, error) {
+func (srv *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*resourcepb.SetCallRsp, error) {
 
 	// Get the persistence connection
 	if strings.Contains(rqst.Call.Caller, "@") {
 		domain := strings.Split(rqst.Call.Caller, "@")[1]
 		localDomain, _ := config.GetDomain()
 		if domain == localDomain {
-			err := resource_server.setCall(strings.Split(rqst.Call.Caller, "@")[0], rqst.Call)
+			err := srv.setCall(strings.Split(rqst.Call.Caller, "@")[0], rqst.Call)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -5762,7 +5762,7 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 			}
 		}
 	} else {
-		err := resource_server.setCall(rqst.Call.Caller, rqst.Call)
+		err := srv.setCall(rqst.Call.Caller, rqst.Call)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -5774,7 +5774,7 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 		domain := strings.Split(rqst.Call.Callee, "@")[1]
 		localDomain, _ := config.GetDomain()
 		if domain == localDomain {
-			err := resource_server.setCall(strings.Split(rqst.Call.Callee, "@")[0], rqst.Call)
+			err := srv.setCall(strings.Split(rqst.Call.Callee, "@")[0], rqst.Call)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -5782,7 +5782,7 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 			}
 		}
 	} else {
-		err := resource_server.setCall(rqst.Call.Callee, rqst.Call)
+		err := srv.setCall(rqst.Call.Callee, rqst.Call)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -5793,8 +5793,8 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 	return &resourcepb.SetCallRsp{}, nil
 }
 
-func (resource_server *server) deleteCall(account_id, uuid string) error {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) deleteCall(account_id, uuid string) error {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -5826,9 +5826,9 @@ func (resource_server *server) deleteCall(account_id, uuid string) error {
 }
 
 // * Delete a calling infos *
-func (resource_server *server) DeleteCall(ctx context.Context, rqst *resourcepb.DeleteCallRqst) (*resourcepb.DeleteCallRsp, error) {
+func (srv *server) DeleteCall(ctx context.Context, rqst *resourcepb.DeleteCallRqst) (*resourcepb.DeleteCallRsp, error) {
 
-	err := resource_server.deleteCall(rqst.AccountId, rqst.Uuid)
+	err := srv.deleteCall(rqst.AccountId, rqst.Uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5839,9 +5839,9 @@ func (resource_server *server) DeleteCall(ctx context.Context, rqst *resourcepb.
 }
 
 // * Clear Call's *
-func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRqst) (*resourcepb.ClearCallsRsp, error) {
+func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRqst) (*resourcepb.ClearCallsRsp, error) {
 
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5879,7 +5879,7 @@ func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.
 	// Delete the call.
 	for i := 0; i < len(results); i++ {
 		call := results[i].(map[string]interface{})
-		resource_server.deleteCall(rqst.AccountId, call["_id"].(string))
+		srv.deleteCall(rqst.AccountId, call["_id"].(string))
 	}
 
 	return &resourcepb.ClearCallsRsp{}, nil

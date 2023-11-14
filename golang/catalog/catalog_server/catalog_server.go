@@ -80,13 +80,13 @@ type server struct {
 	Plaform            string
 	ModTime            int64
 
-	// Contain the list of service use by the catalog server.
+	// Contain the list of service use by the catalog srv.
 	Services map[string]interface{}
 
 	Permissions  []interface{}
 	Dependencies []string // The list of services needed by this services.
 
-	// Here I will create client to services use by the catalog server.
+	// Here I will create client to services use by the catalog srv.
 	persistenceClient *persistence_client.Persistence_Client
 	eventClient       *event_client.Event_Client
 	// The grpc server.
@@ -94,300 +94,300 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
 
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
 }
 
-func (svr *server) GetChecksum() string {
-
-	return svr.Checksum
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) GetChecksum() string {
+
+	return srv.Checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
+}
+
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
 
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
@@ -409,34 +409,34 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Connect to the persistence service.
-	if svr.Services["Persistence"] != nil {
-		persistence_service := svr.Services["Persistence"].(map[string]interface{})
+	if srv.Services["Persistence"] != nil {
+		persistence_service := srv.Services["Persistence"].(map[string]interface{})
 		address := persistence_service["Address"].(string)
-		svr.persistenceClient, err = GetPersistenceClient(address)
+		srv.persistenceClient, err = GetPersistenceClient(address)
 		if err != nil {
 			log.Println("fail to connect to persistence service ", err)
 		}
 	}
 
-	if svr.Services["Event"] != nil {
-		event_service := svr.Services["Event"].(map[string]interface{})
+	if srv.Services["Event"] != nil {
+		event_service := srv.Services["Event"].(map[string]interface{})
 		address := event_service["Address"].(string)
-		svr.eventClient, err = GetEventClient(address)
+		srv.eventClient, err = GetEventClient(address)
 		if err != nil {
 			log.Println("fail to connect to event service ", err)
 		}
@@ -447,25 +447,25 @@ func (svr *server) Init() error {
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (svr *server) Stop(context.Context, *catalogpb.StopRequest) (*catalogpb.StopResponse, error) {
-	return &catalogpb.StopResponse{}, svr.StopService()
+func (srv *server) Stop(context.Context, *catalogpb.StopRequest) (*catalogpb.StopResponse, error) {
+	return &catalogpb.StopResponse{}, srv.StopService()
 }
 
 // Create a new connection.
-func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateConnectionRqst) (*catalogpb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateConnectionRqst) (*catalogpb.CreateConnectionRsp, error) {
 	if rqst.Connection == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -473,8 +473,8 @@ func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 
 	}
 	// So here I will call the function on the client.
-	if svr.persistenceClient != nil {
-		persistence := svr.Services["Persistence"].(map[string]interface{})
+	if srv.persistenceClient != nil {
+		persistence := srv.Services["Persistence"].(map[string]interface{})
 		if persistence["Connections"] == nil {
 			persistence["Connections"] = make(map[string]interface{})
 		}
@@ -482,7 +482,7 @@ func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 		connections := persistence["Connections"].(map[string]interface{})
 
 		storeType := int32(rqst.Connection.GetStore())
-		err := svr.persistenceClient.CreateConnection(rqst.Connection.GetId(), rqst.Connection.GetName(), rqst.Connection.GetHost(), Utility.ToNumeric(rqst.Connection.Port), Utility.ToNumeric(storeType), rqst.Connection.GetUser(), rqst.Connection.GetPassword(), Utility.ToNumeric(rqst.Connection.GetTimeout()), rqst.Connection.GetOptions(), false)
+		err := srv.persistenceClient.CreateConnection(rqst.Connection.GetId(), rqst.Connection.GetName(), rqst.Connection.GetHost(), Utility.ToNumeric(rqst.Connection.Port), Utility.ToNumeric(storeType), rqst.Connection.GetUser(), rqst.Connection.GetPassword(), Utility.ToNumeric(rqst.Connection.GetTimeout()), rqst.Connection.GetOptions(), false)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -502,7 +502,7 @@ func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 
 		connections[rqst.Connection.GetId()] = connection
 
-		svr.Save()
+		srv.Save()
 
 	}
 
@@ -512,15 +512,15 @@ func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 }
 
 // Delete a connection.
-func (svr *server) DeleteConnection(ctx context.Context, rqst *catalogpb.DeleteConnectionRqst) (*catalogpb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *catalogpb.DeleteConnectionRqst) (*catalogpb.DeleteConnectionRsp, error) {
 	return nil, nil
 }
 
 // Create unit of measure exemple inch
-func (svr *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUnitOfMeasureRequest) (*catalogpb.SaveUnitOfMeasureResponse, error) {
+func (srv *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUnitOfMeasureRequest) (*catalogpb.SaveUnitOfMeasureResponse, error) {
 	unitOfMeasure := rqst.GetUnitOfMeasure()
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -532,7 +532,7 @@ func (svr *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(unitOfMeasure.Id + unitOfMeasure.LanguageCode)
-	svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", `{ "_id" : "`+_id+`" }`, "")
+	srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", `{ "_id" : "`+_id+`" }`, "")
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(unitOfMeasure)
@@ -544,7 +544,7 @@ func (svr *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	id, err := svr.persistenceClient.InsertOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", jsonStr, "")
+	id, err := srv.persistenceClient.InsertOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", jsonStr, "")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -558,10 +558,10 @@ func (svr *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 }
 
 // Create property definition return the uuid of the created property
-func (svr *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.SavePropertyDefinitionRequest) (*catalogpb.SavePropertyDefinitionResponse, error) {
+func (srv *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.SavePropertyDefinitionRequest) (*catalogpb.SavePropertyDefinitionResponse, error) {
 	propertyDefinition := rqst.PropertyDefinition
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -584,7 +584,7 @@ func (svr *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PropertyDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PropertyDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -598,10 +598,10 @@ func (svr *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.S
 }
 
 // Create item definition.
-func (svr *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveItemDefinitionRequest) (*catalogpb.SaveItemDefinitionResponse, error) {
+func (srv *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveItemDefinitionRequest) (*catalogpb.SaveItemDefinitionResponse, error) {
 	itemDefinition := rqst.ItemDefinition
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -629,7 +629,7 @@ func (svr *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -643,9 +643,9 @@ func (svr *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 }
 
 // Create item response request.
-func (svr *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInventoryRequest) (*catalogpb.SaveInventoryResponse, error) {
+func (srv *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInventoryRequest) (*catalogpb.SaveInventoryResponse, error) {
 	inventory := rqst.Inventory
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -675,7 +675,7 @@ func (svr *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 	}
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -688,9 +688,9 @@ func (svr *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 }
 
 // Create item response request.
-func (svr *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveItemInstanceRequest) (*catalogpb.SaveItemInstanceResponse, error) {
+func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveItemInstanceRequest) (*catalogpb.SaveItemInstanceResponse, error) {
 	instance := rqst.ItemInstance
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -723,7 +723,7 @@ func (svr *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 	}
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -736,9 +736,9 @@ func (svr *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 }
 
 // Save Manufacturer
-func (svr *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveManufacturerRequest) (*catalogpb.SaveManufacturerResponse, error) {
+func (srv *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveManufacturerRequest) (*catalogpb.SaveManufacturerResponse, error) {
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -764,7 +764,7 @@ func (svr *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Manufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Manufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -778,8 +778,8 @@ func (svr *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 }
 
 // Save Supplier
-func (svr *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplierRequest) (*catalogpb.SaveSupplierResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplierRequest) (*catalogpb.SaveSupplierResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -806,7 +806,7 @@ func (svr *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -820,8 +820,8 @@ func (svr *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 }
 
 // Save localisation
-func (svr *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLocalisationRequest) (*catalogpb.SaveLocalisationResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLocalisationRequest) (*catalogpb.SaveLocalisationResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -862,7 +862,7 @@ func (svr *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 	jsonStr = strings.Replace(jsonStr, "refDbName", "$db", -1)
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -876,8 +876,8 @@ func (svr *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 }
 
 // Save Package
-func (svr *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageRequest) (*catalogpb.SavePackageResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageRequest) (*catalogpb.SavePackageResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -936,7 +936,7 @@ func (svr *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 	jsonStr = strings.Replace(jsonStr, "refDbName", "$db", -1)
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Package", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Package", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -951,8 +951,8 @@ func (svr *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 }
 
 // Save Package Supplier
-func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.SavePackageSupplierRequest) (*catalogpb.SavePackageSupplierResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.SavePackageSupplierRequest) (*catalogpb.SavePackageSupplierResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -974,7 +974,7 @@ func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	}
 
 	// Test if the pacakge exist
-	_, err := svr.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Package.RefDbName, rqst.PackageSupplier.Package.RefColId, `{"_id":"`+rqst.PackageSupplier.Package.RefObjId+`"}`, "")
+	_, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Package.RefDbName, rqst.PackageSupplier.Package.RefColId, `{"_id":"`+rqst.PackageSupplier.Package.RefObjId+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -982,7 +982,7 @@ func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	}
 
 	// Test if the supplier exist.
-	_, err = svr.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Supplier.RefDbName, rqst.PackageSupplier.Supplier.RefColId, `{"_id":"`+rqst.PackageSupplier.Supplier.RefObjId+`"}`, "")
+	_, err = srv.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Supplier.RefDbName, rqst.PackageSupplier.Supplier.RefColId, `{"_id":"`+rqst.PackageSupplier.Supplier.RefObjId+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1008,7 +1008,7 @@ func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	jsonStr = strings.Replace(jsonStr, "refDbName", "$db", -1)
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1021,8 +1021,8 @@ func (svr *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 }
 
 // Save Item Manufacturer
-func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.SaveItemManufacturerRequest) (*catalogpb.SaveItemManufacturerResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.SaveItemManufacturerRequest) (*catalogpb.SaveItemManufacturerResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1033,7 +1033,7 @@ func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
 	// Test if the item exist
-	_, err := svr.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Item.RefDbName, rqst.ItemManafacturer.Item.RefColId, `{"_id":"`+rqst.ItemManafacturer.Item.RefObjId+`"}`, "")
+	_, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Item.RefDbName, rqst.ItemManafacturer.Item.RefColId, `{"_id":"`+rqst.ItemManafacturer.Item.RefObjId+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1041,7 +1041,7 @@ func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	}
 
 	// Test if the supplier exist.
-	_, err = svr.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Manufacturer.RefDbName, rqst.ItemManafacturer.Manufacturer.RefColId, `{"_id":"`+rqst.ItemManafacturer.Manufacturer.RefObjId+`"}`, "")
+	_, err = srv.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Manufacturer.RefDbName, rqst.ItemManafacturer.Manufacturer.RefColId, `{"_id":"`+rqst.ItemManafacturer.Manufacturer.RefObjId+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1071,7 +1071,7 @@ func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	jsonStr = strings.Replace(jsonStr, "refDbName", "$db", -1)
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemManufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemManufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1084,8 +1084,8 @@ func (svr *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 }
 
 // Save Item Category
-func (svr *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategoryRequest) (*catalogpb.SaveCategoryResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategoryRequest) (*catalogpb.SaveCategoryResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1112,7 +1112,7 @@ func (svr *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
 
 	// Always create a new
-	err = svr.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Category", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Category", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1126,9 +1126,9 @@ func (svr *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 }
 
 // Append a new Item to manufacturer
-func (svr *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catalogpb.AppendItemDefinitionCategoryRequest) (*catalogpb.AppendItemDefinitionCategoryResponse, error) {
+func (srv *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catalogpb.AppendItemDefinitionCategoryRequest) (*catalogpb.AppendItemDefinitionCategoryResponse, error) {
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1155,7 +1155,7 @@ func (svr *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 	jsonStr = `{ "$push": { "categories":` + jsonStr + `}}`
 
 	// Always create a new
-	err = svr.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
+	err = srv.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1168,9 +1168,9 @@ func (svr *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 }
 
 // Remove Item from manufacturer
-func (svr *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catalogpb.RemoveItemDefinitionCategoryRequest) (*catalogpb.RemoveItemDefinitionCategoryResponse, error) {
+func (srv *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catalogpb.RemoveItemDefinitionCategoryRequest) (*catalogpb.RemoveItemDefinitionCategoryResponse, error) {
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1197,7 +1197,7 @@ func (svr *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 	jsonStr = `{ "$pull": { "categories":` + jsonStr + `}}` // remove a particular item.
 
 	// Always create a new
-	err = svr.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
+	err = srv.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1214,8 +1214,8 @@ func (svr *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 // Getter function.
 
 // Getter Item instance.
-func (svr *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemInstanceRequest) (*catalogpb.GetItemInstanceResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemInstanceRequest) (*catalogpb.GetItemInstanceResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1231,7 +1231,7 @@ func (svr *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemI
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ItemInstanceId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
 		return nil, err
 	}
@@ -1263,8 +1263,8 @@ func (svr *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemI
 }
 
 // Get Item Instances.
-func (svr *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItemInstancesRequest) (*catalogpb.GetItemInstancesResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItemInstancesRequest) (*catalogpb.GetItemInstancesResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1274,7 +1274,7 @@ func (svr *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1285,7 +1285,7 @@ func (svr *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 		rqst.Query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1328,8 +1328,8 @@ func (svr *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 }
 
 // Getter Item defintion.
-func (svr *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetItemDefinitionRequest) (*catalogpb.GetItemDefinitionResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetItemDefinitionRequest) (*catalogpb.GetItemDefinitionResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1345,7 +1345,7 @@ func (svr *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIte
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ItemDefinitionId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
 		return nil, err
 	}
@@ -1378,8 +1378,8 @@ func (svr *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIte
 }
 
 // Get Inventories.
-func (svr *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInventoriesRequest) (*catalogpb.GetInventoriesResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInventoriesRequest) (*catalogpb.GetInventoriesResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1389,7 +1389,7 @@ func (svr *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1399,7 +1399,7 @@ func (svr *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
 	}
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1442,8 +1442,8 @@ func (svr *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 }
 
 // Get Item Definitions.
-func (svr *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetItemDefinitionsRequest) (*catalogpb.GetItemDefinitionsResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetItemDefinitionsRequest) (*catalogpb.GetItemDefinitionsResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1453,7 +1453,7 @@ func (svr *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1464,7 +1464,7 @@ func (svr *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 		rqst.Query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1513,8 +1513,8 @@ func (svr *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 }
 
 // Getter Supplier.
-func (svr *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierRequest) (*catalogpb.GetSupplierResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierRequest) (*catalogpb.GetSupplierResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1530,7 +1530,7 @@ func (svr *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierR
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.SupplierId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Supplier", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Supplier", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
 		return nil, err
 	}
@@ -1562,8 +1562,8 @@ func (svr *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierR
 }
 
 // Get Suppliers
-func (svr *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSuppliersRequest) (*catalogpb.GetSuppliersResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSuppliersRequest) (*catalogpb.GetSuppliersResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1573,7 +1573,7 @@ func (svr *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1582,7 +1582,7 @@ func (svr *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
 	}
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1625,8 +1625,8 @@ func (svr *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 }
 
 // Get Package supplier.
-func (svr *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetSupplierPackagesRequest) (*catalogpb.GetSupplierPackagesResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetSupplierPackagesRequest) (*catalogpb.GetSupplierPackagesResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1642,7 +1642,7 @@ func (svr *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 		query = `{"supplier.$id":"` + Utility.GenerateUUID(rqst.SupplierId) + `"}`
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", query, `[{"Projection":{"_id":1}}]`)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", query, `[{"Projection":{"_id":1}}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1668,7 +1668,7 @@ func (svr *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 	packagesSupplier := make([]*catalogpb.PackageSupplier, 0)
 
 	for i := 0; i < len(results); i++ {
-		obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+results[i]["_id"].(string)+`"}`, `[{"Projection":{"_id":0}}]`)
+		obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+results[i]["_id"].(string)+`"}`, `[{"Projection":{"_id":0}}]`)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1706,8 +1706,8 @@ func (svr *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 }
 
 // Get Package
-func (svr *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageRequest) (*catalogpb.GetPackageResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageRequest) (*catalogpb.GetPackageResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1723,7 +1723,7 @@ func (svr *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.PackageId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1757,8 +1757,8 @@ func (svr *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 }
 
 // Get Packages
-func (svr *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesRequest) (*catalogpb.GetPackagesResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesRequest) (*catalogpb.GetPackagesResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -1767,14 +1767,14 @@ func (svr *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesR
 	}
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Package", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Package", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1817,8 +1817,8 @@ func (svr *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesR
 
 }
 
-func (svr *server) getLocalisation(localisationId string, connectionId string) (*catalogpb.Localisation, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) getLocalisation(localisationId string, connectionId string) (*catalogpb.Localisation, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return nil, errors.New("no connection found with id " + connectionId)
@@ -1833,7 +1833,7 @@ func (svr *server) getLocalisation(localisationId string, connectionId string) (
 		query = `{"_id":"` + Utility.GenerateUUID(localisationId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Localisation", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Localisation", query, `[{"Projection":{"_id":0}}]`)
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1859,9 +1859,9 @@ func (svr *server) getLocalisation(localisationId string, connectionId string) (
 }
 
 // Get Localisation
-func (svr *server) GetLocalisation(ctx context.Context, rqst *catalogpb.GetLocalisationRequest) (*catalogpb.GetLocalisationResponse, error) {
+func (srv *server) GetLocalisation(ctx context.Context, rqst *catalogpb.GetLocalisationRequest) (*catalogpb.GetLocalisationResponse, error) {
 
-	localisation, err := svr.getLocalisation(rqst.LocalisationId, rqst.ConnectionId)
+	localisation, err := srv.getLocalisation(rqst.LocalisationId, rqst.ConnectionId)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -1875,15 +1875,15 @@ func (svr *server) GetLocalisation(ctx context.Context, rqst *catalogpb.GetLocal
 
 }
 
-func (svr *server) getLocalisations(query string, options string, connectionId string) ([]*catalogpb.Localisation, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) getLocalisations(query string, options string, connectionId string) ([]*catalogpb.Localisation, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return nil, errors.New("no connection found with id " + connectionId)
 	}
 
 	connection := persistence["Connections"].(map[string]interface{})[connectionId].(map[string]interface{})
-	options, err := svr.getOptionsString(options)
+	options, err := srv.getOptionsString(options)
 	if err != nil {
 		return nil, err
 	}
@@ -1892,7 +1892,7 @@ func (svr *server) getLocalisations(query string, options string, connectionId s
 		query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Localisation", query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Localisation", query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -1927,10 +1927,10 @@ func (svr *server) getLocalisations(query string, options string, connectionId s
 }
 
 // Get Packages
-func (svr *server) GetLocalisations(ctx context.Context, rqst *catalogpb.GetLocalisationsRequest) (*catalogpb.GetLocalisationsResponse, error) {
+func (srv *server) GetLocalisations(ctx context.Context, rqst *catalogpb.GetLocalisationsRequest) (*catalogpb.GetLocalisationsResponse, error) {
 
 	// unmarshall object
-	localisations, err := svr.getLocalisations(rqst.Query, rqst.Options, rqst.ConnectionId)
+	localisations, err := srv.getLocalisations(rqst.Query, rqst.Options, rqst.ConnectionId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1946,8 +1946,8 @@ func (svr *server) GetLocalisations(ctx context.Context, rqst *catalogpb.GetLoca
 /**
  * Get the category.
  */
-func (svr *server) getCategory(categoryId string, connectionId string) (*catalogpb.Category, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) getCategory(categoryId string, connectionId string) (*catalogpb.Category, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return nil, errors.New("no connection found with id " + connectionId)
@@ -1962,7 +1962,7 @@ func (svr *server) getCategory(categoryId string, connectionId string) (*catalog
 		query = `{"_id":"` + Utility.GenerateUUID(categoryId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Category", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Category", query, `[{"Projection":{"_id":0}}]`)
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1987,9 +1987,9 @@ func (svr *server) getCategory(categoryId string, connectionId string) (*catalog
 	return category, nil
 }
 
-func (svr *server) GetCategory(ctx context.Context, rqst *catalogpb.GetCategoryRequest) (*catalogpb.GetCategoryResponse, error) {
+func (srv *server) GetCategory(ctx context.Context, rqst *catalogpb.GetCategoryRequest) (*catalogpb.GetCategoryResponse, error) {
 
-	category, err := svr.getCategory(rqst.CategoryId, rqst.ConnectionId)
+	category, err := srv.getCategory(rqst.CategoryId, rqst.ConnectionId)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2003,15 +2003,15 @@ func (svr *server) GetCategory(ctx context.Context, rqst *catalogpb.GetCategoryR
 
 }
 
-func (svr *server) getCategories(query string, options string, connectionId string) ([]*catalogpb.Category, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) getCategories(query string, options string, connectionId string) ([]*catalogpb.Category, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return nil, errors.New("no connection found with id " + connectionId)
 	}
 
 	connection := persistence["Connections"].(map[string]interface{})[connectionId].(map[string]interface{})
-	options, err := svr.getOptionsString(options)
+	options, err := srv.getOptionsString(options)
 	if err != nil {
 		return nil, err
 	}
@@ -2020,7 +2020,7 @@ func (svr *server) getCategories(query string, options string, connectionId stri
 		query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Category", query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Category", query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -2055,10 +2055,10 @@ func (svr *server) getCategories(query string, options string, connectionId stri
 }
 
 // Get Packages
-func (svr *server) GetCategories(ctx context.Context, rqst *catalogpb.GetCategoriesRequest) (*catalogpb.GetCategoriesResponse, error) {
+func (srv *server) GetCategories(ctx context.Context, rqst *catalogpb.GetCategoriesRequest) (*catalogpb.GetCategoriesResponse, error) {
 
 	// unmarshall object
-	categories, err := svr.getCategories(rqst.Query, rqst.Options, rqst.ConnectionId)
+	categories, err := srv.getCategories(rqst.Query, rqst.Options, rqst.ConnectionId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2072,8 +2072,8 @@ func (svr *server) GetCategories(ctx context.Context, rqst *catalogpb.GetCategor
 }
 
 // Get Manufacturer
-func (svr *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManufacturerRequest) (*catalogpb.GetManufacturerResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManufacturerRequest) (*catalogpb.GetManufacturerResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -2089,7 +2089,7 @@ func (svr *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManuf
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ManufacturerId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2121,7 +2121,7 @@ func (svr *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManuf
 
 }
 
-func (svr *server) getOptionsString(options string) (string, error) {
+func (srv *server) getOptionsString(options string) (string, error) {
 	options_ := make([]map[string]interface{}, 0)
 	if len(options) > 0 {
 		err := json.Unmarshal([]byte(options), &options_)
@@ -2153,8 +2153,8 @@ func (svr *server) getOptionsString(options string) (string, error) {
 }
 
 // Get Manufacturers
-func (svr *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManufacturersRequest) (*catalogpb.GetManufacturersResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManufacturersRequest) (*catalogpb.GetManufacturersResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -2164,7 +2164,7 @@ func (svr *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2174,7 +2174,7 @@ func (svr *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 		rqst.Query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2217,8 +2217,8 @@ func (svr *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 }
 
 // Get Package
-func (svr *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUnitOfMeasuresRequest) (*catalogpb.GetUnitOfMeasuresResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUnitOfMeasuresRequest) (*catalogpb.GetUnitOfMeasuresResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -2227,7 +2227,7 @@ func (svr *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 	}
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
-	options, err := svr.getOptionsString(rqst.Options)
+	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2238,7 +2238,7 @@ func (svr *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 		rqst.Query = ``
 	}
 
-	values, err := svr.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)
+	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2282,8 +2282,8 @@ func (svr *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 }
 
 // Get Unit of measure.
-func (svr *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnitOfMeasureRequest) (*catalogpb.GetUnitOfMeasureResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnitOfMeasureRequest) (*catalogpb.GetUnitOfMeasureResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
@@ -2299,7 +2299,7 @@ func (svr *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.UnitOfMeasureId) + `"}`
 	}
 
-	obj, err := svr.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2341,8 +2341,8 @@ func (svr *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 ////// Delete function //////
 
 // Delete a package.
-func (svr *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePackageRequest) (*catalogpb.DeletePackageResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePackageRequest) (*catalogpb.DeletePackageResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2357,7 +2357,7 @@ func (svr *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePack
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(package_.Id + package_.LanguageCode)
 
-	err := svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Package", `{"_id":"`+_id+`"}`, "")
+	err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Package", `{"_id":"`+_id+`"}`, "")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2371,8 +2371,8 @@ func (svr *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePack
 }
 
 // Delete a package supplier
-func (svr *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.DeletePackageSupplierRequest) (*catalogpb.DeletePackageSupplierResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.DeletePackageSupplierRequest) (*catalogpb.DeletePackageSupplierResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2387,7 +2387,7 @@ func (svr *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.De
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(packageSupplier.Id)
 
-	err := svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+_id+`"}`, "")
+	err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+_id+`"}`, "")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2401,8 +2401,8 @@ func (svr *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.De
 }
 
 // Delete a supplier
-func (svr *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSupplierRequest) (*catalogpb.DeleteSupplierResponse, error) {
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+func (srv *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSupplierRequest) (*catalogpb.DeleteSupplierResponse, error) {
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2416,7 +2416,7 @@ func (svr *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSup
 
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(supplier.Id)
-	err := svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{"_id":"`+_id+`"}`, "")
+	err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{"_id":"`+_id+`"}`, "")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2430,38 +2430,38 @@ func (svr *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSup
 }
 
 // Delete propertie definition
-func (svr *server) DeletePropertyDefinition(ctx context.Context, rqst *catalogpb.DeletePropertyDefinitionRequest) (*catalogpb.DeletePropertyDefinitionResponse, error) {
+func (srv *server) DeletePropertyDefinition(ctx context.Context, rqst *catalogpb.DeletePropertyDefinitionRequest) (*catalogpb.DeletePropertyDefinitionResponse, error) {
 	return nil, nil
 }
 
 // Delete unit of measure
-func (svr *server) DeleteUnitOfMeasure(ctx context.Context, rqst *catalogpb.DeleteUnitOfMeasureRequest) (*catalogpb.DeleteUnitOfMeasureResponse, error) {
+func (srv *server) DeleteUnitOfMeasure(ctx context.Context, rqst *catalogpb.DeleteUnitOfMeasureRequest) (*catalogpb.DeleteUnitOfMeasureResponse, error) {
 	return nil, nil
 }
 
 // Delete Item Instance
-func (svr *server) DeleteItemInstance(ctx context.Context, rqst *catalogpb.DeleteItemInstanceRequest) (*catalogpb.DeleteItemInstanceResponse, error) {
+func (srv *server) DeleteItemInstance(ctx context.Context, rqst *catalogpb.DeleteItemInstanceRequest) (*catalogpb.DeleteItemInstanceResponse, error) {
 	return nil, nil
 }
 
 // Delete Manufacturer
-func (svr *server) DeleteManufacturer(ctx context.Context, rqst *catalogpb.DeleteManufacturerRequest) (*catalogpb.DeleteManufacturerResponse, error) {
+func (srv *server) DeleteManufacturer(ctx context.Context, rqst *catalogpb.DeleteManufacturerRequest) (*catalogpb.DeleteManufacturerResponse, error) {
 	return nil, nil
 }
 
 // Delete Item Manufacturer
-func (svr *server) DeleteItemManufacturer(ctx context.Context, rqst *catalogpb.DeleteItemManufacturerRequest) (*catalogpb.DeleteItemManufacturerResponse, error) {
+func (srv *server) DeleteItemManufacturer(ctx context.Context, rqst *catalogpb.DeleteItemManufacturerRequest) (*catalogpb.DeleteItemManufacturerResponse, error) {
 	return nil, nil
 }
 
 // Delete Category
-func (svr *server) DeleteCategory(ctx context.Context, rqst *catalogpb.DeleteCategoryRequest) (*catalogpb.DeleteCategoryResponse, error) {
+func (srv *server) DeleteCategory(ctx context.Context, rqst *catalogpb.DeleteCategoryRequest) (*catalogpb.DeleteCategoryResponse, error) {
 	return nil, nil
 }
 
-func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, connectionId string) error {
+func (srv *server) deleteLocalisation(localisation *catalogpb.Localisation, connectionId string) error {
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[connectionId] == nil {
 		return errors.New("no connection found with id " + connectionId)
 	}
@@ -2469,7 +2469,7 @@ func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, conn
 	connection := persistence["Connections"].(map[string]interface{})[connectionId].(map[string]interface{})
 
 	// I will remove referencing object...
-	referenced, err := svr.getLocalisations(`{"subLocalisations.values.$id":"`+Utility.GenerateUUID(localisation.GetId()+localisation.GetLanguageCode())+`"}`, "", connectionId)
+	referenced, err := srv.getLocalisations(`{"subLocalisations.values.$id":"`+Utility.GenerateUUID(localisation.GetId()+localisation.GetLanguageCode())+`"}`, "", connectionId)
 	if err == nil {
 		refStr := `{"$id":"` + Utility.GenerateUUID(localisation.GetId()+localisation.GetLanguageCode()) + `","$ref":"Localisation","$db":"` + connection["Name"].(string) + `"}`
 		for i := 0; i < len(referenced); i++ {
@@ -2477,7 +2477,7 @@ func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, conn
 			query := `{"$pull":{"subLocalisations.values":` + refStr + `}}` // remove a particular item.
 			_id := Utility.GenerateUUID(referenced[i].Id + referenced[i].LanguageCode)
 			// Always create a new
-			err = svr.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{"_id" : "`+_id+`"}`, query, `[]`)
+			err = srv.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{"_id" : "`+_id+`"}`, query, `[]`)
 			if err != nil {
 				return err
 			}
@@ -2487,9 +2487,9 @@ func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, conn
 	// So here I will delete all sub-localisation to...
 	if localisation.GetSubLocalisations() != nil {
 		for i := 0; i < len(localisation.GetSubLocalisations().GetValues()); i++ {
-			subLocalisation, err := svr.getLocalisation(localisation.GetSubLocalisations().GetValues()[i].GetRefObjId(), connectionId)
+			subLocalisation, err := srv.getLocalisation(localisation.GetSubLocalisations().GetValues()[i].GetRefObjId(), connectionId)
 			if err == nil {
-				err := svr.deleteLocalisation(subLocalisation, connectionId)
+				err := srv.deleteLocalisation(subLocalisation, connectionId)
 				if err != nil {
 					return err
 				}
@@ -2500,14 +2500,14 @@ func (svr *server) deleteLocalisation(localisation *catalogpb.Localisation, conn
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(localisation.Id + localisation.LanguageCode)
 
-	return svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{"_id":"`+_id+`"}`, "")
+	return srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{"_id":"`+_id+`"}`, "")
 
 }
 
 // Delete Localisation
-func (svr *server) DeleteLocalisation(ctx context.Context, rqst *catalogpb.DeleteLocalisationRequest) (*catalogpb.DeleteLocalisationResponse, error) {
+func (srv *server) DeleteLocalisation(ctx context.Context, rqst *catalogpb.DeleteLocalisationRequest) (*catalogpb.DeleteLocalisationResponse, error) {
 
-	err := svr.deleteLocalisation(rqst.Localisation, rqst.ConnectionId)
+	err := srv.deleteLocalisation(rqst.Localisation, rqst.ConnectionId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2520,9 +2520,9 @@ func (svr *server) DeleteLocalisation(ctx context.Context, rqst *catalogpb.Delet
 }
 
 // Delete Localisation
-func (svr *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteInventoryRequest) (*catalogpb.DeleteInventoryResponse, error) {
+func (srv *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteInventoryRequest) (*catalogpb.DeleteInventoryResponse, error) {
 
-	persistence := svr.Services["Persistence"].(map[string]interface{})
+	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2536,7 +2536,7 @@ func (svr *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteIn
 
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(inventory.LocalisationId + inventory.PacakgeId)
-	err := svr.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{"_id":"`+_id+`"}`, "")
+	err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{"_id":"`+_id+`"}`, "")
 
 	if err != nil {
 		return nil, status.Errorf(

@@ -20,8 +20,7 @@ var (
 ///////////////////// resource service functions ////////////////////////////////////
 
 // Publish a service. The service must be install localy on the server.
-func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
-
+func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -35,7 +34,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
-		isMember, err := server.isOrganizationMember(rqst.User, rqst.Organization)
+		isMember, err := srv.isOrganizationMember(rqst.User, rqst.Organization)
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +58,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 	}
 
 	// Publish the service package.
-	err = server.publishPackageDescriptor(descriptor)
+	err = srv.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -72,7 +71,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 }
 
 // Publish a web application to a globular node. That must be use at development mostly...
-func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
+func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -107,7 +106,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 	}
 
 	// Fist of all publish the package descriptor.
-	err = server.publishPackageDescriptor(descriptor)
+	err = srv.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

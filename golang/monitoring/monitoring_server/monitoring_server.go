@@ -63,7 +63,7 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 
-	// monitoring_server-signed X.509 public keys for distribution
+	// srv-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -94,318 +94,318 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (monitoring_server *server) GetId() string {
-	return monitoring_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (monitoring_server *server) SetId(id string) {
-	monitoring_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (monitoring_server *server) GetName() string {
-	return monitoring_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (monitoring_server *server) SetName(name string) {
-	monitoring_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (monitoring_server *server) GetDescription() string {
-	return monitoring_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (monitoring_server *server) SetDescription(description string) {
-	monitoring_server.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (monitoring_server *server) GetKeywords() []string {
-	return monitoring_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (monitoring_server *server) SetKeywords(keywords []string) {
-	monitoring_server.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (monitoring_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, monitoring_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (monitoring_server *server) GetRepositories() []string {
-	return monitoring_server.Repositories
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (monitoring_server *server) SetRepositories(repositories []string) {
-	monitoring_server.Repositories = repositories
-}
-
-func (monitoring_server *server) GetDiscoveries() []string {
-	return monitoring_server.Discoveries
-}
-func (monitoring_server *server) SetDiscoveries(discoveries []string) {
-	monitoring_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
 }
 
-func (svr *server) GetChecksum() string {
-
-	return svr.Checksum
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) GetChecksum() string {
+
+	return srv.Checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
+}
+
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (monitoring_server *server) GetPath() string {
-	return monitoring_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (monitoring_server *server) SetPath(path string) {
-	monitoring_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (monitoring_server *server) GetProto() string {
-	return monitoring_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (monitoring_server *server) SetProto(proto string) {
-	monitoring_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (monitoring_server *server) GetPort() int {
-	return monitoring_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (monitoring_server *server) SetPort(port int) {
-	monitoring_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (monitoring_server *server) GetProxy() int {
-	return monitoring_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (monitoring_server *server) SetProxy(proxy int) {
-	monitoring_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (monitoring_server *server) GetProtocol() string {
-	return monitoring_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (monitoring_server *server) SetProtocol(protocol string) {
-	monitoring_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (monitoring_server *server) GetAllowAllOrigins() bool {
-	return monitoring_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (monitoring_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	monitoring_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (monitoring_server *server) GetAllowedOrigins() string {
-	return monitoring_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (monitoring_server *server) SetAllowedOrigins(allowedOrigins string) {
-	monitoring_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (monitoring_server *server) GetDomain() string {
-	return monitoring_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (monitoring_server *server) SetDomain(domain string) {
-	monitoring_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (monitoring_server *server) GetTls() bool {
-	return monitoring_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (monitoring_server *server) SetTls(hasTls bool) {
-	monitoring_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (monitoring_server *server) GetCertAuthorityTrust() string {
-	return monitoring_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (monitoring_server *server) SetCertAuthorityTrust(ca string) {
-	monitoring_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (monitoring_server *server) GetCertFile() string {
-	return monitoring_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (monitoring_server *server) SetCertFile(certFile string) {
-	monitoring_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (monitoring_server *server) GetKeyFile() string {
-	return monitoring_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (monitoring_server *server) SetKeyFile(keyFile string) {
-	monitoring_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (monitoring_server *server) GetVersion() string {
-	return monitoring_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (monitoring_server *server) SetVersion(version string) {
-	monitoring_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (monitoring_server *server) GetPublisherId() string {
-	return monitoring_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (monitoring_server *server) SetPublisherId(publisherId string) {
-	monitoring_server.PublisherId = publisherId
-}
-
-func (monitoring_server *server) GetKeepUpToDate() bool {
-	return monitoring_server.KeepUpToDate
-}
-func (monitoring_server *server) SetKeepUptoDate(val bool) {
-	monitoring_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (monitoring_server *server) GetKeepAlive() bool {
-	return monitoring_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (monitoring_server *server) SetKeepAlive(val bool) {
-	monitoring_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (monitoring_server *server) GetPermissions() []interface{} {
-	return monitoring_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (monitoring_server *server) SetPermissions(permissions []interface{}) {
-	monitoring_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (monitoring_server *server) Init() error {
-	monitoring_server.stores = make(map[string]monitoring_store.Store)
-	monitoring_server.Connections = make(map[string]connection)
+func (srv *server) Init() error {
+	srv.stores = make(map[string]monitoring_store.Store)
+	srv.Connections = make(map[string]connection)
 
-	err := globular.InitService(monitoring_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	monitoring_server.grpcServer, err = globular.InitGrpcServer(monitoring_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// init store for existiong connection.
-	for _, c := range monitoring_server.Connections {
+	for _, c := range srv.Connections {
 
 		var store monitoring_store.Store
 		var err error
@@ -424,7 +424,7 @@ func (monitoring_server *server) Init() error {
 		}
 
 		// Keep the ref to the store.
-		monitoring_server.stores[c.Id] = store
+		srv.stores[c.Id] = store
 	}
 
 	return nil
@@ -432,25 +432,25 @@ func (monitoring_server *server) Init() error {
 }
 
 // Save the configuration values.
-func (monitoring_server *server) Save() error {
+func (srv *server) Save() error {
 
-	return globular.SaveService(monitoring_server)
+	return globular.SaveService(srv)
 }
 
-func (monitoring_server *server) StartService() error {
-	return globular.StartService(monitoring_server, monitoring_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (monitoring_server *server) StopService() error {
-	return globular.StopService(monitoring_server, monitoring_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (monitoring_server *server) Stop(context.Context, *monitoringpb.StopRequest) (*monitoringpb.StopResponse, error) {
-	return &monitoringpb.StopResponse{}, monitoring_server.StopService()
+func (srv *server) Stop(context.Context, *monitoringpb.StopRequest) (*monitoringpb.StopResponse, error) {
+	return &monitoringpb.StopResponse{}, srv.StopService()
 }
 
 // /////////////////// Monitoring specific functions ////////////////////////////
-func (monitoring_server *server) createConnection(id string, host string, port int32, storeType monitoringpb.StoreType) error {
+func (srv *server) createConnection(id string, host string, port int32, storeType monitoringpb.StoreType) error {
 	var c connection
 
 	// Set the connection info from the request.
@@ -459,12 +459,12 @@ func (monitoring_server *server) createConnection(id string, host string, port i
 	c.Port = port
 	c.Type = storeType
 
-	if monitoring_server.Connections == nil {
-		monitoring_server.Connections = make(map[string]connection, 0)
+	if srv.Connections == nil {
+		srv.Connections = make(map[string]connection, 0)
 	}
 
 	// set or update the connection and save it in json file.
-	monitoring_server.Connections[c.Id] = c
+	srv.Connections[c.Id] = c
 
 	var store monitoring_store.Store
 	var err error
@@ -483,10 +483,10 @@ func (monitoring_server *server) createConnection(id string, host string, port i
 	}
 
 	// Keep the ref to the store.
-	monitoring_server.stores[c.Id] = store
+	srv.stores[c.Id] = store
 
 	// In that case I will save it in file.
-	err = monitoring_server.Save()
+	err = srv.Save()
 	if err != nil {
 		return err
 	}
@@ -500,9 +500,9 @@ func (monitoring_server *server) createConnection(id string, host string, port i
 }
 
 // Create a connection.
-func (monitoring_server *server) CreateConnection(ctx context.Context, rqst *monitoringpb.CreateConnectionRqst) (*monitoringpb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rqst *monitoringpb.CreateConnectionRqst) (*monitoringpb.CreateConnectionRsp, error) {
 
-	err := monitoring_server.createConnection(rqst.Connection.Id, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store)
+	err := srv.createConnection(rqst.Connection.Id, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -516,18 +516,18 @@ func (monitoring_server *server) CreateConnection(ctx context.Context, rqst *mon
 }
 
 // Delete a connection.
-func (monitoring_server *server) DeleteConnection(ctx context.Context, rqst *monitoringpb.DeleteConnectionRqst) (*monitoringpb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *monitoringpb.DeleteConnectionRqst) (*monitoringpb.DeleteConnectionRsp, error) {
 	id := rqst.GetId()
-	if _, ok := monitoring_server.Connections[id]; !ok {
+	if _, ok := srv.Connections[id]; !ok {
 		return &monitoringpb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(monitoring_server.Connections, id)
+	delete(srv.Connections, id)
 
 	// In that case I will save it in file.
-	err := monitoring_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -542,8 +542,8 @@ func (monitoring_server *server) DeleteConnection(ctx context.Context, rqst *mon
 }
 
 // Alerts returns a list of all active alerts.
-func (monitoring_server *server) Alerts(ctx context.Context, rqst *monitoringpb.AlertsRequest) (*monitoringpb.AlertsResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Alerts(ctx context.Context, rqst *monitoringpb.AlertsRequest) (*monitoringpb.AlertsResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -565,8 +565,8 @@ func (monitoring_server *server) Alerts(ctx context.Context, rqst *monitoringpb.
 }
 
 // AlertManagers returns an overview of the current state of the Prometheus alert manager discovery.
-func (monitoring_server *server) AlertManagers(ctx context.Context, rqst *monitoringpb.AlertManagersRequest) (*monitoringpb.AlertManagersResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) AlertManagers(ctx context.Context, rqst *monitoringpb.AlertManagersRequest) (*monitoringpb.AlertManagersResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -588,8 +588,8 @@ func (monitoring_server *server) AlertManagers(ctx context.Context, rqst *monito
 }
 
 // CleanTombstones removes the deleted data from disk and cleans up the existing tombstones.
-func (monitoring_server *server) CleanTombstones(ctx context.Context, rqst *monitoringpb.CleanTombstonesRequest) (*monitoringpb.CleanTombstonesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) CleanTombstones(ctx context.Context, rqst *monitoringpb.CleanTombstonesRequest) (*monitoringpb.CleanTombstonesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -611,8 +611,8 @@ func (monitoring_server *server) CleanTombstones(ctx context.Context, rqst *moni
 }
 
 // Config returns the current Prometheus configuration.
-func (monitoring_server *server) Config(ctx context.Context, rqst *monitoringpb.ConfigRequest) (*monitoringpb.ConfigResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Config(ctx context.Context, rqst *monitoringpb.ConfigRequest) (*monitoringpb.ConfigResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -634,8 +634,8 @@ func (monitoring_server *server) Config(ctx context.Context, rqst *monitoringpb.
 }
 
 // DeleteSeries deletes data for a selection of series in a time range.
-func (monitoring_server *server) DeleteSeries(ctx context.Context, rqst *monitoringpb.DeleteSeriesRequest) (*monitoringpb.DeleteSeriesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) DeleteSeries(ctx context.Context, rqst *monitoringpb.DeleteSeriesRequest) (*monitoringpb.DeleteSeriesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -661,8 +661,8 @@ func (monitoring_server *server) DeleteSeries(ctx context.Context, rqst *monitor
 }
 
 // Flags returns the flag values that Prometheus was launched with.
-func (monitoring_server *server) Flags(ctx context.Context, rqst *monitoringpb.FlagsRequest) (*monitoringpb.FlagsResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Flags(ctx context.Context, rqst *monitoringpb.FlagsRequest) (*monitoringpb.FlagsResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -684,8 +684,8 @@ func (monitoring_server *server) Flags(ctx context.Context, rqst *monitoringpb.F
 }
 
 // LabelNames returns all the unique label names present in the block in sorted order.
-func (monitoring_server *server) LabelNames(ctx context.Context, rqst *monitoringpb.LabelNamesRequest) (*monitoringpb.LabelNamesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) LabelNames(ctx context.Context, rqst *monitoringpb.LabelNamesRequest) (*monitoringpb.LabelNamesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -708,8 +708,8 @@ func (monitoring_server *server) LabelNames(ctx context.Context, rqst *monitorin
 }
 
 // LabelValues performs a query for the values of the given label.
-func (monitoring_server *server) LabelValues(ctx context.Context, rqst *monitoringpb.LabelValuesRequest) (*monitoringpb.LabelValuesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) LabelValues(ctx context.Context, rqst *monitoringpb.LabelValuesRequest) (*monitoringpb.LabelValuesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -732,8 +732,8 @@ func (monitoring_server *server) LabelValues(ctx context.Context, rqst *monitori
 }
 
 // Query performs a query for the given time.
-func (monitoring_server *server) Query(ctx context.Context, rqst *monitoringpb.QueryRequest) (*monitoringpb.QueryResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Query(ctx context.Context, rqst *monitoringpb.QueryRequest) (*monitoringpb.QueryResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -757,9 +757,9 @@ func (monitoring_server *server) Query(ctx context.Context, rqst *monitoringpb.Q
 }
 
 // QueryRange performs a query for the given range.
-func (monitoring_server *server) QueryRange(rqst *monitoringpb.QueryRangeRequest, stream monitoringpb.MonitoringService_QueryRangeServer) error {
+func (srv *server) QueryRange(rqst *monitoringpb.QueryRangeRequest, stream monitoringpb.MonitoringService_QueryRangeServer) error {
 
-	store := monitoring_server.stores[rqst.ConnectionId]
+	store := srv.stores[rqst.ConnectionId]
 	ctx := stream.Context()
 
 	if store == nil {
@@ -797,8 +797,8 @@ func (monitoring_server *server) QueryRange(rqst *monitoringpb.QueryRangeRequest
 }
 
 // Series finds series by label matchers.
-func (monitoring_server *server) Series(ctx context.Context, rqst *monitoringpb.SeriesRequest) (*monitoringpb.SeriesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Series(ctx context.Context, rqst *monitoringpb.SeriesRequest) (*monitoringpb.SeriesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -824,8 +824,8 @@ func (monitoring_server *server) Series(ctx context.Context, rqst *monitoringpb.
 
 // Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 // under the TSDB's data directory and returns the directory as response.
-func (monitoring_server *server) Snapshot(ctx context.Context, rqst *monitoringpb.SnapshotRequest) (*monitoringpb.SnapshotResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Snapshot(ctx context.Context, rqst *monitoringpb.SnapshotRequest) (*monitoringpb.SnapshotResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -847,8 +847,8 @@ func (monitoring_server *server) Snapshot(ctx context.Context, rqst *monitoringp
 }
 
 // Rules returns a list of alerting and recording rules that are currently loaded.
-func (monitoring_server *server) Rules(ctx context.Context, rqst *monitoringpb.RulesRequest) (*monitoringpb.RulesResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Rules(ctx context.Context, rqst *monitoringpb.RulesRequest) (*monitoringpb.RulesResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -870,8 +870,8 @@ func (monitoring_server *server) Rules(ctx context.Context, rqst *monitoringpb.R
 }
 
 // Targets returns an overview of the current state of the Prometheus target discovery.
-func (monitoring_server *server) Targets(ctx context.Context, rqst *monitoringpb.TargetsRequest) (*monitoringpb.TargetsResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) Targets(ctx context.Context, rqst *monitoringpb.TargetsRequest) (*monitoringpb.TargetsResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(
@@ -893,8 +893,8 @@ func (monitoring_server *server) Targets(ctx context.Context, rqst *monitoringpb
 }
 
 // TargetsMetadata returns metadata about metrics currently scraped by the target.
-func (monitoring_server *server) TargetsMetadata(ctx context.Context, rqst *monitoringpb.TargetsMetadataRequest) (*monitoringpb.TargetsMetadataResponse, error) {
-	store := monitoring_server.stores[rqst.ConnectionId]
+func (srv *server) TargetsMetadata(ctx context.Context, rqst *monitoringpb.TargetsMetadataRequest) (*monitoringpb.TargetsMetadataResponse, error) {
+	store := srv.stores[rqst.ConnectionId]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.ConnectionId)
 		return nil, status.Errorf(

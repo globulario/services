@@ -164,310 +164,310 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (sql_server *server) GetId() string {
-	return sql_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (sql_server *server) SetId(id string) {
-	sql_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (sql_server *server) GetName() string {
-	return sql_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (sql_server *server) SetName(name string) {
-	sql_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (sql_server *server) GetDescription() string {
-	return sql_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (sql_server *server) SetDescription(description string) {
-	sql_server.Description = description
-}
-
-func (sql_server *server) GetRepositories() []string {
-	return sql_server.Repositories
-}
-func (sql_server *server) SetRepositories(repositories []string) {
-	sql_server.Repositories = repositories
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (sql_server *server) GetDiscoveries() []string {
-	return sql_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (sql_server *server) SetDiscoveries(discoveries []string) {
-	sql_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // The list of keywords of the services.
-func (sql_server *server) GetKeywords() []string {
-	return sql_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (sql_server *server) SetKeywords(keywords []string) {
-	sql_server.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (sql_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, sql_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (sql_server *server) GetPath() string {
-	return sql_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (sql_server *server) SetPath(path string) {
-	sql_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (sql_server *server) GetProto() string {
-	return sql_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (sql_server *server) SetProto(proto string) {
-	sql_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (sql_server *server) GetPort() int {
-	return sql_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (sql_server *server) SetPort(port int) {
-	sql_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (sql_server *server) GetProxy() int {
-	return sql_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (sql_server *server) SetProxy(proxy int) {
-	sql_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (sql_server *server) GetProtocol() string {
-	return sql_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (sql_server *server) SetProtocol(protocol string) {
-	sql_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (sql_server *server) GetAllowAllOrigins() bool {
-	return sql_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (sql_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	sql_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (sql_server *server) GetAllowedOrigins() string {
-	return sql_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (sql_server *server) SetAllowedOrigins(allowedOrigins string) {
-	sql_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (sql_server *server) GetDomain() string {
-	return sql_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (sql_server *server) SetDomain(domain string) {
-	sql_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (sql_server *server) GetTls() bool {
-	return sql_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (sql_server *server) SetTls(hasTls bool) {
-	sql_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (sql_server *server) GetCertAuthorityTrust() string {
-	return sql_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (sql_server *server) SetCertAuthorityTrust(ca string) {
-	sql_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (sql_server *server) GetCertFile() string {
-	return sql_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (sql_server *server) SetCertFile(certFile string) {
-	sql_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (sql_server *server) GetKeyFile() string {
-	return sql_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (sql_server *server) SetKeyFile(keyFile string) {
-	sql_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (sql_server *server) GetVersion() string {
-	return sql_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (sql_server *server) SetVersion(version string) {
-	sql_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (sql_server *server) GetPublisherId() string {
-	return sql_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (sql_server *server) SetPublisherId(publisherId string) {
-	sql_server.PublisherId = publisherId
-}
-
-func (sql_server *server) GetKeepUpToDate() bool {
-	return sql_server.KeepUpToDate
-}
-func (sql_server *server) SetKeepUptoDate(val bool) {
-	sql_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (sql_server *server) GetKeepAlive() bool {
-	return sql_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (sql_server *server) SetKeepAlive(val bool) {
-	sql_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (sql_server *server) GetPermissions() []interface{} {
-	return sql_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (sql_server *server) SetPermissions(permissions []interface{}) {
-	sql_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (sql_server *server) Init() error {
+func (srv *server) Init() error {
 
-	err := globular.InitService(sql_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	sql_server.grpcServer, err = globular.InitGrpcServer(sql_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -477,28 +477,28 @@ func (sql_server *server) Init() error {
 }
 
 // Save the configuration values.
-func (sql_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(sql_server)
+	return globular.SaveService(srv)
 }
 
-func (sql_server *server) StartService() error {
-	return globular.StartService(sql_server, sql_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (sql_server *server) StopService() error {
-	return globular.StopService(sql_server, sql_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.StopResponse, error) {
-	return &sqlpb.StopResponse{}, sql_server.StopService()
+func (srv *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.StopResponse, error) {
+	return &sqlpb.StopResponse{}, srv.StopService()
 }
 
 //////////////////////// SQL Specific services /////////////////////////////////
 
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
 
 	// sqlpb
 	var c connection
@@ -534,10 +534,10 @@ func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.Crea
 	defer db.Close()
 
 	// set or update the connection and save it in json file.
-	sql_server.Connections[c.Id] = c
+	srv.Connections[c.Id] = c
 
 	// In that case I will save it in file.
-	err = sql_server.Save()
+	err = srv.Save()
 	if err != nil {
 		fmt.Println("fail to save connection ", err)
 		return nil, status.Errorf(
@@ -546,7 +546,7 @@ func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.Crea
 	}
 
 	// test if the connection is reacheable.
-	_, err = sql_server.ping(ctx, c.Id)
+	_, err = srv.ping(ctx, c.Id)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -561,18 +561,18 @@ func (sql_server *server) CreateConnection(ctx context.Context, rqst *sqlpb.Crea
 }
 
 // Remove a connection from the map and the file.
-func (sql_server *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConnectionRqst) (*sqlpb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConnectionRqst) (*sqlpb.DeleteConnectionRsp, error) {
 	id := rqst.GetId()
-	if _, ok := sql_server.Connections[id]; !ok {
+	if _, ok := srv.Connections[id]; !ok {
 		return &sqlpb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(sql_server.Connections, id)
+	delete(srv.Connections, id)
 
 	// In that case I will save it in file.
-	err := sql_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -586,12 +586,12 @@ func (sql_server *server) DeleteConnection(ctx context.Context, rqst *sqlpb.Dele
 }
 
 // local implementation.
-func (sql_server *server) ping(ctx context.Context, id string) (string, error) {
-	if _, ok := sql_server.Connections[id]; !ok {
+func (srv *server) ping(ctx context.Context, id string) (string, error) {
+	if _, ok := srv.Connections[id]; !ok {
 		return "", errors.New("connection with id " + id + " dosent exist.")
 	}
 
-	c := sql_server.Connections[id]
+	c := srv.Connections[id]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())
@@ -615,8 +615,8 @@ func (sql_server *server) ping(ctx context.Context, id string) (string, error) {
 }
 
 // Ping a sql connection.
-func (sql_server *server) Ping(ctx context.Context, rqst *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
-	pong, err := sql_server.ping(ctx, rqst.GetId())
+func (srv *server) Ping(ctx context.Context, rqst *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
+	pong, err := srv.ping(ctx, rqst.GetId())
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -635,18 +635,18 @@ func (sql_server *server) Ping(ctx context.Context, rqst *sqlpb.PingConnectionRq
 var maxSize = uint(16000) // Value in bytes...
 
 // Now the execute query.
-func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
+func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
 	// Get the connection charset...
 	var charset string
 	// Be sure the connection is there.
-	if conn, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
+	if conn, ok := srv.Connections[rqst.Query.ConnectionId]; !ok {
 		return errors.New("connection with id " + rqst.Query.ConnectionId + " dosent exist.")
 	} else {
 		charset = conn.Charset
 	}
 
 	// Now I will open the connection.
-	c := sql_server.Connections[rqst.Query.ConnectionId]
+	c := srv.Connections[rqst.Query.ConnectionId]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())
@@ -813,15 +813,15 @@ func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlp
 
 // Exec Query SQL CREATE and INSERT. Return the affected rows.
 // Now the execute query.
-func (sql_server *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst) (*sqlpb.ExecContextRsp, error) {
+func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst) (*sqlpb.ExecContextRsp, error) {
 
 	// Be sure the connection is there.
-	if _, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
+	if _, ok := srv.Connections[rqst.Query.ConnectionId]; !ok {
 		return nil, errors.New("connection with id " + rqst.Query.ConnectionId + " dosent exist.")
 	}
 
 	// Now I will open the connection.
-	c := sql_server.Connections[rqst.Query.ConnectionId]
+	c := srv.Connections[rqst.Query.ConnectionId]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())

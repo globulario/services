@@ -103,333 +103,333 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
 }
 
-func (svr *server) GetChecksum() string {
-
-	return svr.Checksum
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) GetChecksum() string {
+
+	return srv.Checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
+}
+
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Create a new local store.
-	svr.store = storage_store.NewBadger_store()
-	return svr.store.Open(`{"path":"` + svr.Root + `/blogs", "name":"blogs"}`)
+	srv.store = storage_store.NewBadger_store()
+	return srv.store.Open(`{"path":"` + srv.Root + `/blogs", "name":"blogs"}`)
 
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
 /**
@@ -463,35 +463,35 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
 /**
  * Get the log client.
  */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
+	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
-func (server *server) getEventClient() (*event_client.Event_Client, error) {
+func (srv *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
 
 	if err != nil {
 		return nil, err
@@ -499,22 +499,22 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	return client.(*event_client.Event_Client), nil
 }
 
-func (svr *server) publish(event string, data []byte) error {
-	eventClient, err := svr.getEventClient()
+func (srv *server) publish(event string, data []byte) error {
+	eventClient, err := srv.getEventClient()
 	if err != nil {
 		return err
 	}
 	return eventClient.Publish(event, data)
 }
 
-func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
-	eventClient, err := svr.getEventClient()
+func (srv *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := srv.getEventClient()
 	if err != nil {
 		return err
 	}
 
 	// register a listener...
-	return eventClient.Subscribe(evt, svr.Name, listener)
+	return eventClient.Subscribe(evt, srv.Name, listener)
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
@@ -529,8 +529,8 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	}
 	return client.(*rbac_client.Rbac_Client), nil
 }
-func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -538,16 +538,16 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.SetResourcePermissions(token, path, resource_type, permissions)
 }
 
-func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return false, false, err
 	}
@@ -556,16 +556,16 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
-func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -575,13 +575,13 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 // //////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
 // //////////////////////////////////////////////////////////////////////////////////////////////
-func (svr *server) deleteAccountListener(evt *eventpb.Event) {
+func (srv *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
-	blogs, err := svr.getBlogPostByAuthor(accountId)
+	blogs, err := srv.getBlogPostByAuthor(accountId)
 	if err == nil {
 		for i := 0; i < len(blogs); i++ {
 			// remove the post...
-			err := svr.deleteBlogPost(accountId, blogs[i].Uuid)
+			err := srv.deleteBlogPost(accountId, blogs[i].Uuid)
 			if err != nil {
 				fmt.Println("post ", blogs[i].Uuid, "was removed")
 			}
@@ -592,10 +592,10 @@ func (svr *server) deleteAccountListener(evt *eventpb.Event) {
 /**
  * Return a new blogPost
  */
-func (svr *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
+func (srv *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
 	// Delete a blog...
 	blog := new(blogpb.BlogPost)
-	jsonStr, err := svr.store.GetItem(uuid)
+	jsonStr, err := srv.store.GetItem(uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -608,10 +608,10 @@ func (svr *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
 	return blog, nil
 }
 
-func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
+func (srv *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
 
 	blog_posts := make([]*blogpb.BlogPost, 0)
-	blogs_, err := svr.store.GetItem(author)
+	blogs_, err := srv.store.GetItem(author)
 
 	ids := make([]string, 0)
 	if err == nil {
@@ -623,7 +623,7 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 
 	// Retreive the list of blogs.
 	for i := 0; i < len(ids); i++ {
-		jsonStr, err := svr.store.GetItem(ids[i])
+		jsonStr, err := srv.store.GetItem(ids[i])
 		instance := new(blogpb.BlogPost)
 		if err == nil {
 			err := jsonpb.UnmarshalString(string(jsonStr), instance)
@@ -639,7 +639,7 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 /**
  * Retreive a sub-comment in a comment.
  */
-func (svr *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
+func (srv *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
 	if comment.Comments == nil {
 		return nil, errors.New("no answer was found for that comment")
 	}
@@ -650,7 +650,7 @@ func (svr *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.
 			return comment, nil
 		}
 		if comment.Comments != nil {
-			comment_, err := svr.getSubComment(uuid, comment)
+			comment_, err := srv.getSubComment(uuid, comment)
 			if err == nil && comment != nil {
 				return comment_, nil
 			}
@@ -663,7 +663,7 @@ func (svr *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.
 /**
  * Retreive a comment inside a blog
  */
-func (svr *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*blogpb.Comment, error) {
+func (srv *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*blogpb.Comment, error) {
 	// Here I will try to find the comment...
 	for i := 0; i < len(blog.Comments); i++ {
 		comment := blog.Comments[i]
@@ -672,7 +672,7 @@ func (svr *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*bl
 		}
 
 		// try to get the comment in sub-comment (answer)
-		comment, err := svr.getSubComment(parentUuid, comment)
+		comment, err := srv.getSubComment(parentUuid, comment)
 		if err == nil && comment != nil {
 			return comment, nil
 		}
@@ -684,9 +684,9 @@ func (svr *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*bl
 /**
  * So here I will delete the
  */
-func (svr *server) deleteBlogPost(author, uuid string) error {
+func (srv *server) deleteBlogPost(author, uuid string) error {
 
-	blog, err := svr.getBlogPost(uuid)
+	blog, err := srv.getBlogPost(uuid)
 	if err != nil {
 		return err
 	}
@@ -696,7 +696,7 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 	}
 
 	// first I will remove it from it author indexation.
-	blogs_, err := svr.store.GetItem(blog.Author)
+	blogs_, err := srv.store.GetItem(blog.Author)
 	ids := make([]string, 0)
 	if err == nil {
 		err = json.Unmarshal(blogs_, &ids)
@@ -713,19 +713,19 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 		return err
 	}
 
-	err = svr.store.SetItem(blog.Author, []byte(blogs__))
+	err = srv.store.SetItem(blog.Author, []byte(blogs__))
 	if err != nil {
 		return err
 	}
 
 	// Now I will delete the blog.
-	return svr.store.RemoveItem(uuid)
+	return srv.store.RemoveItem(uuid)
 }
 
 /**
  * Save a blog post.
  */
-func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
+func (srv *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
 
 	// Set the domain
 	blogPost.Domain, _ = config.GetDomain()
@@ -740,13 +740,13 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 	}
 
 	// set the new one.
-	err = svr.store.SetItem(blogPost.Uuid, []byte(jsonStr))
+	err = srv.store.SetItem(blogPost.Uuid, []byte(jsonStr))
 	if err != nil {
 		return err
 	}
 
 	// I will asscociate the author with that post...
-	blogs_, err := svr.store.GetItem(author)
+	blogs_, err := srv.store.GetItem(author)
 	blogs := make([]string, 0)
 	if err == nil {
 		json.Unmarshal(blogs_, &blogs)
@@ -762,7 +762,7 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 		return err
 	}
 
-	err = svr.store.SetItem(author, []byte(blogs__))
+	err = srv.store.SetItem(author, []byte(blogs__))
 	if err != nil {
 		return err
 	}

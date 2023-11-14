@@ -32,7 +32,7 @@ var (
 )
 
 // * Validate a token *
-func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
+func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
 	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil {
@@ -47,7 +47,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 }
 
 // * Refresh token get a new token *
-func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
+func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
 	claims, err := security.ValidateToken(rqst.Token)
@@ -65,7 +65,6 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
 	}
 
-
 	// If the token is older than seven day without being refresh then I retrun an error.
 	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return nil, status.Errorf(
@@ -73,7 +72,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	tokenString, err := security.GenerateToken(server.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -81,7 +80,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	}
 
 	// get the active session.
-	session, err := server.getSession(claims.Id)
+	session, err := srv.getSession(claims.Id)
 	if err != nil {
 		session = new(resourcepb.Session)
 		session.AccountId = claims.Id + "@" + claims.UserDomain
@@ -95,9 +94,9 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	claims, _ = security.ValidateToken(tokenString)
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 
-	// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
+	// srv.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
 	// save the session in the backend.
-	err = server.updateSession(session)
+	err = srv.updateSession(session)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -111,8 +110,8 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 }
 
 // * Set the account password *
-func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
-	
+func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
+
 	// Get validated user id and token.
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -120,7 +119,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	}
 
 	// Here I will get the account info.
-	account, err := server.getAccount(rqst.AccountId)
+	account, err := srv.getAccount(rqst.AccountId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -139,7 +138,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 		}
 	} else {
 		// Now I will validate the password received with the one in the account
-		err = server.validatePassword(rqst.OldPassword, account.Password)
+		err = srv.validatePassword(rqst.OldPassword, account.Password)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -148,7 +147,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	}
 
 	// Now I will update the account...
-	err = server.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword)
+	err = srv.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -167,7 +166,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	}
 
 	// finaly I will call authenticate to generate the token string and set it at return...
-	tokenString, err := server.authenticate(account.Id, rqst.NewPassword, issuer)
+	tokenString, err := srv.authenticate(account.Id, rqst.NewPassword, issuer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -181,7 +180,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 }
 
 // Set the root password, the root password will be save in the configuration file.
-func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
+func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
 	// Get validated user id and token.
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -189,7 +188,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	}
 
 	domain, _ := config.GetDomain()
-	if clientId != "sa@" + domain {
+	if clientId != "sa@"+domain {
 		if !Utility.Exists(configPath) {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -232,7 +231,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	} else {
 
 		// Here I will get the account info.
-		account, err := server.getAccount("sa")
+		account, err := srv.getAccount("sa")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -240,7 +239,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 		}
 
 		// Now I will validate the password received with the one in the account
-		err = server.validatePassword(rqst.OldPassword, account.Password)
+		err = srv.validatePassword(rqst.OldPassword, account.Password)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -249,7 +248,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	}
 
 	// Now I will update the account...
-	err = server.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword)
+	err = srv.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -281,7 +280,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	localDomain, _ := config_.GetDomain()
 
 	// The token string
-	tokenString, err := security.GenerateToken(server.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), localDomain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), localDomain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -295,7 +294,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 }
 
 // Set the root email
-func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
+func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
 
 	// The root password will be
 	if !Utility.Exists(configPath) {
@@ -351,7 +350,7 @@ func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.S
  * This will set peer private and public key. The keys will by save
  * in the keypath.
  */
-func (server *server) setKey(mac string) error {
+func (srv *server) setKey(mac string) error {
 
 	// Get the mac address
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
@@ -368,7 +367,7 @@ func (server *server) setKey(mac string) error {
 }
 
 /* Authenticate a user */
-func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
+func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	// If the user is the root...
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
 
@@ -406,7 +405,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 		} else {
 			// Now I will validate the password received with the one in the account
-			err = server.validatePassword(pwd, password)
+			err = srv.validatePassword(pwd, password)
 			if err != nil {
 				return "", status.Errorf(
 					codes.Internal,
@@ -415,7 +414,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		localDomain, _ := config_.GetDomain()
-		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -426,12 +425,12 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			server.addResourceOwner(path, "file", "sa@" + localDomain, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner(path, "file", "sa@"+localDomain, rbacpb.SubjectType_ACCOUNT)
 		}
 
 		// Be sure the password is correct.
 		/*
-			err = server.changeAccountPassword(accountId, tokenString, pwd, pwd)
+			err = srv.changeAccountPassword(accountId, tokenString, pwd, pwd)
 			if err != nil {
 				return "", status.Errorf(
 					codes.Internal,
@@ -459,29 +458,29 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	}
 
 	// Here I will get the account info.
-	account, err := server.getAccount(accountId)
+	account, err := srv.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
 
-	err = server.validatePassword(pwd, account.Password)
+	err = srv.validatePassword(pwd, account.Password)
 	if err != nil {
-		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		// Now if the LDAP service is configure I will try to authenticate with it...
-		if len(server.LdapConnectionId) != 0 {
-			err := server.authenticateLdap(account.Name, pwd)
+		if len(srv.LdapConnectionId) != 0 {
+			err := srv.authenticateLdap(account.Name, pwd)
 			if err != nil {
 				fmt.Println("fail to authenticate with error ", err)
 				return "", err
 			}
 			// set back the password.
 			// the old password can be left blank if the token was generated for sa.
-			token, err := security.GetLocalToken(server.Mac)
+			token, err := security.GetLocalToken(srv.Mac)
 			if err != nil {
 				return "", err
 			}
 
-			err = server.changeAccountPassword(account.Id, token, "", pwd)
+			err = srv.changeAccountPassword(account.Id, token, "", pwd)
 			if err != nil {
 				fmt.Println("fail to change password: ", account.Id, err)
 				return "", err
@@ -496,9 +495,9 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	session.AccountId = account.Id + "@" + account.Domain
 
 	// The token string
-	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)
 	if err != nil {
-		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
@@ -507,23 +506,22 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 	owner := claims.Id
 	if !strings.Contains(owner, "@") {
-		owner += "@"+ claims.UserDomain
+		owner += "@" + claims.UserDomain
 	}
 
 	// Create the user file directory.
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
 
-
 	// be sure the user is the owner of that directory...
-	server.addResourceOwner("/users/"+account.Id + "@" + account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner("/users/"+account.Id+"@"+account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
 
-	err = server.updateSession(session)
+	err = srv.updateSession(session)
 	if err != nil {
-		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
@@ -531,7 +529,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 }
 
 // Process existing file...
-func (server *server) processFiles() {
+func (srv *server) processFiles() {
 
 }
 
@@ -554,7 +552,7 @@ func GetAuthenticationClient(address string) (*authentication_client.Authenticat
 }
 
 // * Authenticate a user *
-func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
+func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
 	mac, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
@@ -564,11 +562,11 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	var tokenString string
 
 	// The issuer is the mac address from where the request come from.
-	// If the issuer is empty then I will use the mac address of the server.
+	// If the issuer is empty then I will use the mac address of the srv.
 	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
 	if strings.Contains(rqst.Name, "@") {
-		domain:= strings.Split(rqst.Name, "@")[1]
-		if domain == server.Domain {
+		domain := strings.Split(rqst.Name, "@")[1]
+		if domain == srv.Domain {
 			rqst.Issuer = mac
 		}
 	}
@@ -578,7 +576,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 		rqst.Issuer = mac
 	} else if rqst.Issuer == mac {
 		// Try to authenticate on the server directly...
-		tokenString, err = server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
+		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 		if err == nil {
 			return &authenticationpb.AuthenticateRsp{
 				Token: tokenString,
@@ -588,18 +586,18 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 
 	// Now I will try each peer...
 	if err != nil {
-		peers, _ := server.getPeers()
+		peers, _ := srv.getPeers()
 		if len(peers) == 0 {
 			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
 
 			// no matter what happen the token must be remove...
-			defer Utility.RemoveString(server.authentications_, uuid)
-			if Utility.Contains(server.authentications_, uuid) {
+			defer Utility.RemoveString(srv.authentications_, uuid)
+			if Utility.Contains(srv.authentications_, uuid) {
 				return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
 			}
 
 			// append the string in the list to cut infinite recursion
-			server.authentications_ = append(server.authentications_, uuid)
+			srv.authentications_ = append(srv.authentications_, uuid)
 
 			// I will try to authenticate the peer on other resource service...
 			for i := 0; i < len(peers); i++ {
@@ -643,7 +641,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 }
 
 // * Generate a token for a peer with a given mac address *
-func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
+func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -654,7 +652,7 @@ func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticatio
 	userDomain := strings.Split(clientId, "@")[1]
 
 	// The generated token.
-	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, "", "", userDomain)
+	token, err := security.GenerateToken(srv.SessionTimeout, rqst.Mac, userId, "", "", userDomain)
 
 	return &authenticationpb.GeneratePeerTokenResponse{
 		Token: token,

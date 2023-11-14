@@ -113,324 +113,324 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (persistence_server *server) GetId() string {
-	return persistence_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (persistence_server *server) SetId(id string) {
-	persistence_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (persistence_server *server) GetName() string {
-	return persistence_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (persistence_server *server) SetName(name string) {
-	persistence_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (persistence_server *server) GetDescription() string {
-	return persistence_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
 
-func (persistence_server *server) SetDescription(description string) {
-	persistence_server.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (persistence_server *server) GetKeywords() []string {
-	return persistence_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (persistence_server *server) SetKeywords(keywords []string) {
-	persistence_server.Keywords = keywords
-}
-
-func (persistence_server *server) GetRepositories() []string {
-	return persistence_server.Repositories
-}
-func (persistence_server *server) SetRepositories(repositories []string) {
-	persistence_server.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (persistence_server *server) GetDiscoveries() []string {
-	return persistence_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (persistence_server *server) SetDiscoveries(discoveries []string) {
-	persistence_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (persistence_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, persistence_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (persistence_server *server) GetPath() string {
-	return persistence_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (persistence_server *server) SetPath(path string) {
-	persistence_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (persistence_server *server) GetProto() string {
-	return persistence_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (persistence_server *server) SetProto(proto string) {
-	persistence_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (persistence_server *server) GetPort() int {
-	return persistence_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (persistence_server *server) SetPort(port int) {
-	persistence_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (persistence_server *server) GetProxy() int {
-	return persistence_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (persistence_server *server) SetProxy(proxy int) {
-	persistence_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (persistence_server *server) GetProtocol() string {
-	return persistence_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (persistence_server *server) SetProtocol(protocol string) {
-	persistence_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (persistence_server *server) GetAllowAllOrigins() bool {
-	return persistence_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (persistence_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	persistence_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (persistence_server *server) GetAllowedOrigins() string {
-	return persistence_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (persistence_server *server) SetAllowedOrigins(allowedOrigins string) {
-	persistence_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (persistence_server *server) GetDomain() string {
-	return persistence_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (persistence_server *server) SetDomain(domain string) {
-	persistence_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (persistence_server *server) GetTls() bool {
-	return persistence_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (persistence_server *server) SetTls(hasTls bool) {
-	persistence_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (persistence_server *server) GetCertAuthorityTrust() string {
-	return persistence_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (persistence_server *server) SetCertAuthorityTrust(ca string) {
-	persistence_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (persistence_server *server) GetCertFile() string {
-	return persistence_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (persistence_server *server) SetCertFile(certFile string) {
-	persistence_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (persistence_server *server) GetKeyFile() string {
-	return persistence_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (persistence_server *server) SetKeyFile(keyFile string) {
-	persistence_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (persistence_server *server) GetVersion() string {
-	return persistence_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (persistence_server *server) SetVersion(version string) {
-	persistence_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (persistence_server *server) GetPublisherId() string {
-	return persistence_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (persistence_server *server) SetPublisherId(publisherId string) {
-	persistence_server.PublisherId = publisherId
-}
-
-func (persistence_server *server) GetKeepUpToDate() bool {
-	return persistence_server.KeepUpToDate
-}
-func (persistence_server *server) SetKeepUptoDate(val bool) {
-	persistence_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (persistence_server *server) GetKeepAlive() bool {
-	return persistence_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (persistence_server *server) SetKeepAlive(val bool) {
-	persistence_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (persistence_server *server) GetPermissions() []interface{} {
-	return persistence_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (persistence_server *server) SetPermissions(permissions []interface{}) {
-	persistence_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (persistence_server *server) Init() error {
+func (srv *server) Init() error {
 
 	// init the connections
-	persistence_server.connections = make(map[string]connection)
+	srv.connections = make(map[string]connection)
 
 	// initialyse store connection here.
-	persistence_server.stores = make(map[string]persistence_store.Store)
+	srv.stores = make(map[string]persistence_store.Store)
 
 	// Get the configuration path.
-	err := globular.InitService(persistence_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	persistence_server.grpcServer, err = globular.InitGrpcServer(persistence_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Here I will initialyse the connection.
-	for _, c := range persistence_server.Connections {
+	for _, c := range srv.Connections {
 
 		if c.Store == persistencepb.StoreType_MONGO {
 			// here I will create a new mongo data store.
@@ -440,7 +440,7 @@ func (persistence_server *server) Init() error {
 			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			// keep the store for futur call...
 			if err == nil {
-				persistence_server.stores[c.Id] = s
+				srv.stores[c.Id] = s
 			} else {
 				return err
 			}
@@ -448,7 +448,7 @@ func (persistence_server *server) Init() error {
 			s := new(persistence_store.SqlStore)
 			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			if err == nil {
-				persistence_server.stores[c.Id] = s
+				srv.stores[c.Id] = s
 			} else {
 				return err
 			}
@@ -459,17 +459,17 @@ func (persistence_server *server) Init() error {
 }
 
 // Save the configuration values.
-func (persistence_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(persistence_server)
+	return globular.SaveService(srv)
 }
 
-func (persistence_server *server) StartService() error {
-	return globular.StartService(persistence_server, persistence_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (persistence_server *server) StopService() error {
-	return globular.StopService(persistence_server, persistence_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
 // Singleton.
@@ -483,43 +483,43 @@ var (
 /**
  * Get the log client.
  */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
 	// validate the port has not change...
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
+	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
-func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
+func (srv *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
 
 	var c connection
 	var err error
 
 	// use existing connection as we can.
-	if _, ok := persistence_server.connections[id]; ok {
-		c = persistence_server.connections[id]
+	if _, ok := srv.connections[id]; ok {
+		c = srv.connections[id]
 		if c.Password != password {
 			return errors.New("a connection with id " + id + " already exist")
 		} else {
@@ -540,20 +540,20 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 		// If the connection need to save in the server configuration.
 		if save {
-			if persistence_server.Connections == nil {
-				persistence_server.Connections = make(map[string]connection)
+			if srv.Connections == nil {
+				srv.Connections = make(map[string]connection)
 			}
 
-			persistence_server.Connections[c.Id] = c
+			srv.Connections[c.Id] = c
 
 			// In that case I will save it in file.
-			err = persistence_server.Save()
+			err = srv.Save()
 			if err != nil {
 				return err
 			}
 
 		} else {
-			persistence_server.connections[c.Id] = c
+			srv.connections[c.Id] = c
 		}
 	}
 
@@ -569,7 +569,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		}
 
 		// keep the store for futur call...
-		persistence_server.stores[c.Id] = s
+		srv.stores[c.Id] = s
 	} else if c.Store == persistencepb.StoreType_SQL {
 		s := new(persistence_store.SqlStore)
 		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
@@ -578,7 +578,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			// codes.
 			return err
 		}
-		persistence_server.stores[c.Id] = s
+		srv.stores[c.Id] = s
 	} else if c.Store == persistencepb.StoreType_SCYLLA {
 		s := new(persistence_store.ScyllaStore)
 		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
@@ -587,18 +587,18 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			// codes.
 			return err
 		}
-		persistence_server.stores[c.Id] = s
+		srv.stores[c.Id] = s
 	} else {
 		return errors.New("unknown store type " + string(c.Store))
 	}
 
 	// test if the connection is reacheable.
-	err = persistence_server.stores[c.Id].Ping(ctx, c.Id)
+	err = srv.stores[c.Id].Ping(ctx, c.Id)
 
 	// fail to connect with error
 	if err != nil {
 		fmt.Println("fail to connect with error ", err)
-		persistence_server.stores[c.Id].Disconnect(c.Id)
+		srv.stores[c.Id].Disconnect(c.Id)
 		return err
 	}
 
@@ -608,7 +608,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 // Create a new Store connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
 
 	if rqst.Connection == nil {
 		err := errors.New("no connection provided")
@@ -616,7 +616,6 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
 
 	if len(rqst.Connection.Id) == 0 {
 		err := errors.New("no connection id provided")
@@ -625,7 +624,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save, rqst.Connection.Options)
+	err := srv.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save, rqst.Connection.Options)
 	if err != nil {
 		// codes.
 		return nil, status.Errorf(
@@ -639,7 +638,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 	}, nil
 }
 
-func (persistence_server *server) Connect(ctx context.Context, rqst *persistencepb.ConnectRqst) (*persistencepb.ConnectRsp, error) {
+func (srv *server) Connect(ctx context.Context, rqst *persistencepb.ConnectRqst) (*persistencepb.ConnectRsp, error) {
 	if len(rqst.GetConnectionId()) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -647,7 +646,7 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	store := persistence_server.stores[rqst.GetConnectionId()]
+	store := srv.stores[rqst.GetConnectionId()]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.GetConnectionId())
 		return nil, status.Errorf(
@@ -655,7 +654,7 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if c, ok := persistence_server.Connections[rqst.ConnectionId]; ok {
+	if c, ok := srv.Connections[rqst.ConnectionId]; ok {
 
 		// So here I will open the connection.
 		c.Password = rqst.Password
@@ -674,7 +673,7 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 			}
 
 			// keep the store for futur call...
-			persistence_server.stores[c.Id] = s
+			srv.stores[c.Id] = s
 		} else if c.Store == persistencepb.StoreType_SQL {
 
 			s := new(persistence_store.SqlStore)
@@ -689,7 +688,7 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 		}
 
 		// set or update the connection and save it in json file.
-		persistence_server.Connections[c.Id] = c
+		srv.Connections[c.Id] = c
 
 		return &persistencepb.ConnectRsp{
 			Result: true,
@@ -703,15 +702,15 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 }
 
 // Close connection.
-func (persistence_server *server) Disconnect(ctx context.Context, rqst *persistencepb.DisconnectRqst) (*persistencepb.DisconnectRsp, error) {
+func (srv *server) Disconnect(ctx context.Context, rqst *persistencepb.DisconnectRqst) (*persistencepb.DisconnectRsp, error) {
 	if len(rqst.GetConnectionId()) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[rqst.GetConnectionId()]
+
+	store := srv.stores[rqst.GetConnectionId()]
 	if store == nil {
 		err := errors.New("No store connection exist for id " + rqst.GetConnectionId())
 		return nil, status.Errorf(
@@ -733,7 +732,7 @@ func (persistence_server *server) Disconnect(ctx context.Context, rqst *persiste
 }
 
 // Create a database
-func (persistence_server *server) CreateDatabase(ctx context.Context, rqst *persistencepb.CreateDatabaseRqst) (*persistencepb.CreateDatabaseRsp, error) {
+func (srv *server) CreateDatabase(ctx context.Context, rqst *persistencepb.CreateDatabaseRqst) (*persistencepb.CreateDatabaseRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -747,8 +746,8 @@ func (persistence_server *server) CreateDatabase(ctx context.Context, rqst *pers
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("CreateDatabase No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -769,7 +768,7 @@ func (persistence_server *server) CreateDatabase(ctx context.Context, rqst *pers
 }
 
 // Delete a database
-func (persistence_server *server) DeleteDatabase(ctx context.Context, rqst *persistencepb.DeleteDatabaseRqst) (*persistencepb.DeleteDatabaseRsp, error) {
+func (srv *server) DeleteDatabase(ctx context.Context, rqst *persistencepb.DeleteDatabaseRqst) (*persistencepb.DeleteDatabaseRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -783,8 +782,8 @@ func (persistence_server *server) DeleteDatabase(ctx context.Context, rqst *pers
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteDatabase No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -805,7 +804,7 @@ func (persistence_server *server) DeleteDatabase(ctx context.Context, rqst *pers
 }
 
 // Create a Collection
-func (persistence_server *server) CreateCollection(ctx context.Context, rqst *persistencepb.CreateCollectionRqst) (*persistencepb.CreateCollectionRsp, error) {
+func (srv *server) CreateCollection(ctx context.Context, rqst *persistencepb.CreateCollectionRqst) (*persistencepb.CreateCollectionRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -819,8 +818,8 @@ func (persistence_server *server) CreateCollection(ctx context.Context, rqst *pe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("CreateCollection No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -841,7 +840,7 @@ func (persistence_server *server) CreateCollection(ctx context.Context, rqst *pe
 }
 
 // Delete collection
-func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *persistencepb.DeleteCollectionRqst) (*persistencepb.DeleteCollectionRsp, error) {
+func (srv *server) DeleteCollection(ctx context.Context, rqst *persistencepb.DeleteCollectionRqst) (*persistencepb.DeleteCollectionRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -855,8 +854,8 @@ func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *pe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteCollection No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -877,16 +876,15 @@ func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *pe
 }
 
 // Ping a sql connection.
-func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.PingConnectionRqst) (*persistencepb.PingConnectionRsp, error) {
+func (srv *server) Ping(ctx context.Context, rqst *persistencepb.PingConnectionRqst) (*persistencepb.PingConnectionRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("ping No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -907,7 +905,7 @@ func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.
 }
 
 // Get the number of entry in a collection
-func (persistence_server *server) Count(ctx context.Context, rqst *persistencepb.CountRqst) (*persistencepb.CountRsp, error) {
+func (srv *server) Count(ctx context.Context, rqst *persistencepb.CountRqst) (*persistencepb.CountRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -921,8 +919,8 @@ func (persistence_server *server) Count(ctx context.Context, rqst *persistencepb
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("Count No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -943,8 +941,8 @@ func (persistence_server *server) Count(ctx context.Context, rqst *persistencepb
 }
 
 // Implementation of the Persistence method.
-func (persistence_server *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOneRqst) (*persistencepb.InsertOneRsp, error) {
-	
+func (srv *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOneRqst) (*persistencepb.InsertOneRsp, error) {
+
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -958,8 +956,8 @@ func (persistence_server *server) InsertOne(ctx context.Context, rqst *persisten
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("InsertOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -994,7 +992,7 @@ func (persistence_server *server) InsertOne(ctx context.Context, rqst *persisten
 	}, nil
 }
 
-func (persistence_server *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
+func (srv *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
 
 	var buffer bytes.Buffer
 	var rqst *persistencepb.InsertManyRqst
@@ -1012,7 +1010,7 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-	
+
 		if len(rqst.Database) == 0 {
 			err := errors.New("no database provided")
 			return status.Errorf(
@@ -1056,7 +1054,7 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 	connectionId = strings.ReplaceAll(strings.ReplaceAll(connectionId, "@", "_"), ".", "_")
 	database = strings.ReplaceAll(strings.ReplaceAll(database, "@", "_"), ".", "_")
 
-	_, err = persistence_server.stores[connectionId].InsertMany(stream.Context(), connectionId, database, collection, entities, rqst.Options)
+	_, err = srv.stores[connectionId].InsertMany(stream.Context(), connectionId, database, collection, entities, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1067,7 +1065,7 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 }
 
 // Find many
-func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.PersistenceService_FindServer) error {
+func (srv *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.PersistenceService_FindServer) error {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return status.Errorf(
@@ -1083,7 +1081,7 @@ func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream pers
 	}
 
 	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
-	store := persistence_server.stores[connectionId]
+	store := srv.stores[connectionId]
 
 	if store == nil {
 		err := errors.New("Find No store connection exist for id " + connectionId)
@@ -1117,7 +1115,7 @@ func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream pers
 			rqst := &persistencepb.FindResp{
 				Data: data[0:bytesread],
 			}
-			// send the data to the server.
+			// send the data to the srv.
 			err = stream.Send(rqst)
 		}
 
@@ -1130,7 +1128,7 @@ func (persistence_server *server) Find(rqst *persistencepb.FindRqst, stream pers
 	return nil
 }
 
-func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, stream persistencepb.PersistenceService_AggregateServer) error {
+func (srv *server) Aggregate(rqst *persistencepb.AggregateRqst, stream persistencepb.PersistenceService_AggregateServer) error {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return status.Errorf(
@@ -1145,7 +1143,7 @@ func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, s
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 
 	if store == nil {
 		err := errors.New("Aggregate No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -1178,7 +1176,7 @@ func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, s
 			rqst := &persistencepb.AggregateResp{
 				Data: data[0:bytesread],
 			}
-			// send the data to the server.
+			// send the data to the srv.
 			err = stream.Send(rqst)
 		}
 
@@ -1193,7 +1191,7 @@ func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, s
 }
 
 // Find one
-func (persistence_server *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst) (*persistencepb.FindOneResp, error) {
+func (srv *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst) (*persistencepb.FindOneResp, error) {
 
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
@@ -1209,10 +1207,9 @@ func (persistence_server *server) FindOne(ctx context.Context, rqst *persistence
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
-	
-	store := persistence_server.stores[connectionId]
+
+	store := srv.stores[connectionId]
 	if store == nil {
 		err := errors.New("FindOne No store connection exist for id " + connectionId)
 		return nil, status.Errorf(
@@ -1248,7 +1245,7 @@ func (persistence_server *server) FindOne(ctx context.Context, rqst *persistence
 }
 
 // Update a single or many value depending of the query
-func (persistence_server *server) Update(ctx context.Context, rqst *persistencepb.UpdateRqst) (*persistencepb.UpdateRsp, error) {
+func (srv *server) Update(ctx context.Context, rqst *persistencepb.UpdateRqst) (*persistencepb.UpdateRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("FindOne No connection id provided")
 		return nil, status.Errorf(
@@ -1262,8 +1259,8 @@ func (persistence_server *server) Update(ctx context.Context, rqst *persistencep
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("Update No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -1282,7 +1279,7 @@ func (persistence_server *server) Update(ctx context.Context, rqst *persistencep
 }
 
 // Update a single docuemnt value(s)
-func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persistencepb.UpdateOneRqst) (*persistencepb.UpdateOneRsp, error) {
+func (srv *server) UpdateOne(ctx context.Context, rqst *persistencepb.UpdateOneRqst) (*persistencepb.UpdateOneRsp, error) {
 	if len(rqst.Id) == 0 {
 		err := errors.New("no connection id provided")
 		return nil, status.Errorf(
@@ -1296,8 +1293,8 @@ func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persisten
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("UpdateOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -1316,9 +1313,9 @@ func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persisten
 }
 
 // Replace one document by another.
-func (persistence_server *server) ReplaceOne(ctx context.Context, rqst *persistencepb.ReplaceOneRqst) (*persistencepb.ReplaceOneRsp, error) {
+func (srv *server) ReplaceOne(ctx context.Context, rqst *persistencepb.ReplaceOneRqst) (*persistencepb.ReplaceOneRsp, error) {
 
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("ReplaceOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_") + " collection: " + rqst.Collection + " query: " + rqst.Query)
 		return nil, status.Errorf(
@@ -1337,8 +1334,8 @@ func (persistence_server *server) ReplaceOne(ctx context.Context, rqst *persiste
 }
 
 // Delete many or one.
-func (persistence_server *server) Delete(ctx context.Context, rqst *persistencepb.DeleteRqst) (*persistencepb.DeleteRsp, error) {
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+func (srv *server) Delete(ctx context.Context, rqst *persistencepb.DeleteRqst) (*persistencepb.DeleteRsp, error) {
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("Delete No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -1357,9 +1354,9 @@ func (persistence_server *server) Delete(ctx context.Context, rqst *persistencep
 }
 
 // Delete one document at time
-func (persistence_server *server) DeleteOne(ctx context.Context, rqst *persistencepb.DeleteOneRqst) (*persistencepb.DeleteOneRsp, error) {
+func (srv *server) DeleteOne(ctx context.Context, rqst *persistencepb.DeleteOneRqst) (*persistencepb.DeleteOneRsp, error) {
 
-	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
+	store := srv.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
@@ -1377,19 +1374,19 @@ func (persistence_server *server) DeleteOne(ctx context.Context, rqst *persisten
 }
 
 // Remove a connection from the map and the file.
-func (persistence_server *server) DeleteConnection(ctx context.Context, rqst *persistencepb.DeleteConnectionRqst) (*persistencepb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *persistencepb.DeleteConnectionRqst) (*persistencepb.DeleteConnectionRsp, error) {
 
 	id := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
-	if _, ok := persistence_server.Connections[id]; !ok {
+	if _, ok := srv.Connections[id]; !ok {
 		return &persistencepb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(persistence_server.Connections, id)
+	delete(srv.Connections, id)
 
 	// In that case I will save it in file.
-	err := persistence_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1403,8 +1400,8 @@ func (persistence_server *server) DeleteConnection(ctx context.Context, rqst *pe
 }
 
 // Create a new user.
-func (persistence_server *server) RunAdminCmd(ctx context.Context, rqst *persistencepb.RunAdminCmdRqst) (*persistencepb.RunAdminCmdRsp, error) {
-	store := persistence_server.stores[rqst.GetConnectionId()]
+func (srv *server) RunAdminCmd(ctx context.Context, rqst *persistencepb.RunAdminCmdRqst) (*persistencepb.RunAdminCmdRsp, error) {
+	store := srv.stores[rqst.GetConnectionId()]
 	if store == nil {
 		err := errors.New("RunAdminCmd No store connection exist for id " + rqst.GetConnectionId())
 		return nil, status.Errorf(
@@ -1424,11 +1421,9 @@ func (persistence_server *server) RunAdminCmd(ctx context.Context, rqst *persist
 	}, nil
 }
 
-func (persistence_server *server) Stop(context.Context, *persistencepb.StopRequest) (*persistencepb.StopResponse, error) {
-	return &persistencepb.StopResponse{}, persistence_server.StopService()
+func (srv *server) Stop(context.Context, *persistencepb.StopRequest) (*persistencepb.StopResponse, error) {
+	return &persistencepb.StopResponse{}, srv.StopService()
 }
-
-
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.

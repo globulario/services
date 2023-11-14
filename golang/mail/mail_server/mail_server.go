@@ -122,310 +122,310 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -435,28 +435,28 @@ func (svr *server) Init() error {
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (svr *server) Stop(context.Context, *mailpb.StopRequest) (*mailpb.StopResponse, error) {
-	return &mailpb.StopResponse{}, svr.StopService()
+func (srv *server) Stop(context.Context, *mailpb.StopRequest) (*mailpb.StopResponse, error) {
+	return &mailpb.StopResponse{}, srv.StopService()
 }
 
 //////////////////////////// SMPT specific functions ///////////////////////////
 
 // Create a new connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConnectionRqst) (*mailpb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConnectionRqst) (*mailpb.CreateConnectionRsp, error) {
 
 	var c connection
 	var err error
@@ -469,10 +469,10 @@ func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConn
 	c.Password = rsqt.Connection.Password
 
 	// set or update the connection and save it in json file.
-	svr.Connections[c.Id] = c
+	srv.Connections[c.Id] = c
 
 	// In that case I will save it in file.
-	err = svr.Save()
+	err = srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -480,7 +480,7 @@ func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConn
 	}
 
 	// test if the connection is reacheable.
-	// _, err = svr.ping(ctx, c.Id)
+	// _, err = srv.ping(ctx, c.Id)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -494,18 +494,18 @@ func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConn
 }
 
 // Remove a connection from the map and the file.
-func (svr *server) DeleteConnection(ctx context.Context, rqst *mailpb.DeleteConnectionRqst) (*mailpb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *mailpb.DeleteConnectionRqst) (*mailpb.DeleteConnectionRsp, error) {
 	id := rqst.GetId()
-	if _, ok := svr.Connections[id]; !ok {
+	if _, ok := srv.Connections[id]; !ok {
 		return &mailpb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(svr.Connections, id)
+	delete(srv.Connections, id)
 
 	// In that case I will save it in file.
-	err := svr.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -542,7 +542,7 @@ type Attachment struct {
 /**
  * Send mail... The server id is the authentication id...
  */
-func (svr *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
+func (srv *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 
 	fmt.Println("mail_server sendEmail ", host, user, pwd, port)
 
@@ -573,7 +573,7 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 	dialer.Auth = smtp_.PlainAuth("", dialer.Username, dialer.Password, dialer.Host)
 
 	if port != 25 {
-		cer, err := tls.LoadX509KeyPair(svr.CertFile, svr.KeyFile)
+		cer, err := tls.LoadX509KeyPair(srv.CertFile, srv.KeyFile)
 		if err != nil {
 			return err
 		}
@@ -589,9 +589,9 @@ func (svr *server) sendEmail(host string, user string, pwd string, port int, fro
 }
 
 // Send a simple email whitout file.
-func (svr *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*mailpb.SendEmailRsp, error) {
+func (srv *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*mailpb.SendEmailRsp, error) {
 
-	if _, ok := svr.Connections[rqst.Id]; !ok {
+	if _, ok := srv.Connections[rqst.Id]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.Id)))
@@ -612,7 +612,7 @@ func (svr *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*
 		bodyType = "text/html"
 	}
 
-	err := svr.sendEmail(svr.Connections[rqst.Id].Host, svr.Connections[rqst.Id].User, svr.Connections[rqst.Id].Password, int(svr.Connections[rqst.Id].Port), rqst.Email.From, rqst.Email.To, cc, rqst.Email.Subject, rqst.Email.Body, []*Attachment{}, bodyType)
+	err := srv.sendEmail(srv.Connections[rqst.Id].Host, srv.Connections[rqst.Id].User, srv.Connections[rqst.Id].Password, int(srv.Connections[rqst.Id].Port), rqst.Email.From, rqst.Email.To, cc, rqst.Email.Subject, rqst.Email.Body, []*Attachment{}, bodyType)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -625,7 +625,7 @@ func (svr *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*
 }
 
 // Send email with file attachement attachements.
-func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmailWithAttachementsServer) error {
+func (srv *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmailWithAttachementsServer) error {
 
 	// that buffer will contain the file attachement data while data is transfert.
 	attachements := make([]*Attachment, 0)
@@ -640,7 +640,7 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 	// So here I will read the stream until it end...
 	for {
 		rqst, err := stream.Recv()
-		if _, ok := svr.Connections[rqst.Id]; !ok {
+		if _, ok := srv.Connections[rqst.Id]; !ok {
 			return status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.Id)))
@@ -648,8 +648,8 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 		if err == io.EOF {
 
 			// Here all data is read...
-			c := svr.Connections[id]
-			err := svr.sendEmail(c.Host, c.User, c.Password, int(c.Port), from, to, cc, subject, body, attachements, bodyType)
+			c := srv.Connections[id]
+			err := srv.sendEmail(c.Host, c.User, c.Password, int(c.Port), from, to, cc, subject, body, attachements, bodyType)
 
 			if err != nil {
 				return status.Errorf(
@@ -681,7 +681,7 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 		case *mailpb.SendEmailWithAttachementsRqst_Email:
 			cc = make([]*CarbonCopy, len(msg.Email.Cc))
 
-			// The email itsvr.
+			// The email itsrv.
 			for i := 0; i < len(msg.Email.Cc); i++ {
 				cc[i] = &CarbonCopy{Name: msg.Email.Cc[i].Name, EMail: msg.Email.Cc[i].Address}
 			}
@@ -774,7 +774,7 @@ func main() {
 	s_impl.Password = "adminadmin" // The default password for the admin.
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same server...
+	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same srv...
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -798,13 +798,13 @@ func main() {
 	mailpb.RegisterMailServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// Here I will start the local smtp server.
+	// Here I will start the local smtp srv.
 	go func() {
 		certFile := s_impl.CertFile
 
 		// Here in case of tls connection I will use the domain certificate instead of the server certificate.
 		if s_impl.TLS == true {
-			certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
+			certFile = certFile[0:strings.Index(certFile, "srv.crt")] + s_impl.Domain + ".crt"
 		}
 
 		// The backend connection.
@@ -842,7 +842,7 @@ func main() {
 			os.Exit(0)
 		}
 
-		// start imap server.
+		// start imap srv.
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
 		// start smtp server

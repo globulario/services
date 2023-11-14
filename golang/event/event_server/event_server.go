@@ -55,7 +55,7 @@ type server struct {
 	ModTime         int64
 	State           string
 
-	// event_server-signed X.509 public keys for distribution
+	// srv-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -82,339 +82,339 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (event_server *server) GetId() string {
-	return event_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (event_server *server) SetId(id string) {
-	event_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (event_server *server) GetName() string {
-	return event_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (event_server *server) SetName(name string) {
-	event_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (event_server *server) GetDescription() string {
-	return event_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (event_server *server) SetDescription(description string) {
-	event_server.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (event_server *server) GetKeywords() []string {
-	return event_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (event_server *server) SetKeywords(keywords []string) {
-	event_server.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (event_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, event_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (event_server *server) GetPath() string {
-	return event_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (event_server *server) SetPath(path string) {
-	event_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (event_server *server) GetProto() string {
-	return event_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (event_server *server) SetProto(proto string) {
-	event_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (event_server *server) GetPort() int {
-	return event_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (event_server *server) SetPort(port int) {
-	event_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (event_server *server) GetProxy() int {
-	return event_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (event_server *server) SetProxy(proxy int) {
-	event_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (event_server *server) GetProtocol() string {
-	return event_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (event_server *server) SetProtocol(protocol string) {
-	event_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (event_server *server) GetAllowAllOrigins() bool {
-	return event_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (event_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	event_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (event_server *server) GetAllowedOrigins() string {
-	return event_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (event_server *server) SetAllowedOrigins(allowedOrigins string) {
-	event_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (event_server *server) GetDomain() string {
-	return event_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (event_server *server) SetDomain(domain string) {
-	event_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (event_server *server) GetTls() bool {
-	return event_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (event_server *server) SetTls(hasTls bool) {
-	event_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (event_server *server) GetCertAuthorityTrust() string {
-	return event_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (event_server *server) SetCertAuthorityTrust(ca string) {
-	event_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (event_server *server) GetCertFile() string {
-	return event_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (event_server *server) SetCertFile(certFile string) {
-	event_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (event_server *server) GetKeyFile() string {
-	return event_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (event_server *server) SetKeyFile(keyFile string) {
-	event_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (event_server *server) GetVersion() string {
-	return event_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (event_server *server) SetVersion(version string) {
-	event_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (event_server *server) GetPublisherId() string {
-	return event_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (event_server *server) SetPublisherId(publisherId string) {
-	event_server.PublisherId = publisherId
-}
-
-func (event_server *server) GetRepositories() []string {
-	return event_server.Repositories
-}
-func (event_server *server) SetRepositories(repositories []string) {
-	event_server.Repositories = repositories
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (event_server *server) GetDiscoveries() []string {
-	return event_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (event_server *server) SetDiscoveries(discoveries []string) {
-	event_server.Discoveries = discoveries
-}
-
-func (event_server *server) GetKeepUpToDate() bool {
-	return event_server.KeepUpToDate
-}
-func (event_server *server) SetKeepUptoDate(val bool) {
-	event_server.KeepUpToDate = val
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
 }
 
-func (event_server *server) GetKeepAlive() bool {
-	return event_server.KeepAlive
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
 }
-func (event_server *server) SetKeepAlive(val bool) {
-	event_server.KeepAlive = val
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
-func (event_server *server) GetPermissions() []interface{} {
-	return event_server.Permissions
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (event_server *server) SetPermissions(permissions []interface{}) {
-	event_server.Permissions = permissions
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
+}
+
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
+}
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (event_server *server) Init() error {
+func (srv *server) Init() error {
 
-	err := globular.InitService(event_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	event_server.grpcServer, err = globular.InitGrpcServer(event_server /*interceptors.ServerUnaryInterceptor*/, nil /*interceptors.ServerStreamInterceptor*/, nil)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv /*interceptors.ServerUnaryInterceptor*/, nil /*interceptors.ServerStreamInterceptor*/, nil)
 	if err != nil {
 		return err
 	}
 
-	event_server.exit = make(chan bool)
+	srv.exit = make(chan bool)
 
 	return nil
 
 }
 
 // Save the configuration values.
-func (event_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(event_server)
+	return globular.SaveService(srv)
 }
 
-func (event_server *server) StartService() error {
-	return globular.StartService(event_server, event_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (event_server *server) StopService() error {
-	event_server.grpcServer.Stop()
-	return nil //globular.StopService(event_server, event_server.grpcServer)
+func (srv *server) StopService() error {
+	srv.grpcServer.Stop()
+	return nil //globular.StopService(srv, srv.grpcServer)
 }
 
-func (event_server *server) Stop(context.Context, *eventpb.StopRequest) (*eventpb.StopResponse, error) {
-	event_server.exit <- true
+func (srv *server) Stop(context.Context, *eventpb.StopRequest) (*eventpb.StopResponse, error) {
+	srv.exit <- true
 	fmt.Println(`Stop event server was called.`)
-	return &eventpb.StopResponse{}, event_server.StopService()
+	return &eventpb.StopResponse{}, srv.StopService()
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -422,7 +422,7 @@ func (event_server *server) Stop(context.Context, *eventpb.StopRequest) (*eventp
 //////////////////////////////////////////////////////////////////////////////
 
 // That function process channel operation and run in it own go routine.
-func (event_server *server) run() {
+func (srv *server) run() {
 
 	channels := make(map[string][]string)
 	streams := make(map[string]eventpb.EventService_OnEventServer)
@@ -430,7 +430,7 @@ func (event_server *server) run() {
 	ka := make(chan *eventpb.KeepAlive)
 
 	// Here will create the action channel.
-	event_server.actions = make(chan map[string]interface{})
+	srv.actions = make(chan map[string]interface{})
 
 	// validate stream at interval of 5 second
 	// it will prevent the stream to be close by grpc...
@@ -450,7 +450,7 @@ func (event_server *server) run() {
 
 	for {
 		select {
-		case <-event_server.exit:
+		case <-srv.exit:
 			break
 
 		case ka_ := <-ka:
@@ -472,7 +472,7 @@ func (event_server *server) run() {
 				}
 			}
 
-		case a := <-event_server.actions:
+		case a := <-srv.actions:
 
 			action := a["action"].(string)
 
@@ -575,12 +575,12 @@ func (event_server *server) run() {
 
 // Connect to an event channel or create it if it not already exist
 // and stay in that function until UnSubscribe is call.
-func (event_server *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventpb.QuitResponse, error) {
+func (srv *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventpb.QuitResponse, error) {
 	quit := make(map[string]interface{})
 	quit["action"] = "quit"
 	quit["uuid"] = rqst.Uuid
 
-	event_server.actions <- quit
+	srv.actions <- quit
 
 	return &eventpb.QuitResponse{
 		Result: true,
@@ -589,7 +589,7 @@ func (event_server *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest)
 
 // Connect to an event channel or create it if it not already exist
 // and stay in that function until UnSubscribe is call.
-func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
+func (srv *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
 
 	onevent := make(map[string]interface{})
 	onevent["action"] = "onevent"
@@ -597,7 +597,7 @@ func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb
 	onevent["uuid"] = rqst.Uuid
 	onevent["quit"] = make(chan bool)
 
-	event_server.actions <- onevent
+	srv.actions <- onevent
 
 	// wait util unsbscribe or connection is close.
 	<-onevent["quit"].(chan bool)
@@ -607,13 +607,13 @@ func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb
 	return nil
 }
 
-func (event_server *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeRequest) (*eventpb.SubscribeResponse, error) {
+func (srv *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeRequest) (*eventpb.SubscribeResponse, error) {
 	subscribe := make(map[string]interface{})
 	subscribe["action"] = "subscribe"
 	subscribe["name"] = rqst.Name
 	subscribe["uuid"] = rqst.Uuid
 
-	event_server.actions <- subscribe
+	srv.actions <- subscribe
 
 	return &eventpb.SubscribeResponse{
 		Result: true,
@@ -621,13 +621,13 @@ func (event_server *server) Subscribe(ctx context.Context, rqst *eventpb.Subscri
 }
 
 // Disconnect to an event channel.(Return from Subscribe)
-func (event_server *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeRequest) (*eventpb.UnSubscribeResponse, error) {
+func (srv *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeRequest) (*eventpb.UnSubscribeResponse, error) {
 	unsubscribe := make(map[string]interface{})
 	unsubscribe["action"] = "unsubscribe"
 	unsubscribe["name"] = rqst.Name
 	unsubscribe["uuid"] = rqst.Uuid
 
-	event_server.actions <- unsubscribe
+	srv.actions <- unsubscribe
 
 	return &eventpb.UnSubscribeResponse{
 		Result: true,
@@ -635,7 +635,7 @@ func (event_server *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSub
 }
 
 // Publish event on channel.
-func (event_server *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
+func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
 
 	publish := make(map[string]interface{})
 	publish["action"] = "publish"
@@ -643,7 +643,7 @@ func (event_server *server) Publish(ctx context.Context, rqst *eventpb.PublishRe
 	publish["data"] = rqst.Evt.Data
 
 	// publish the data.
-	event_server.actions <- publish
+	srv.actions <- publish
 	return &eventpb.PublishResponse{
 		Result: true,
 	}, nil

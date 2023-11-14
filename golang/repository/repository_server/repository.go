@@ -16,14 +16,14 @@ import (
 
 // Repository
 /** Download a service from a service directory **/
-func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stream repositorypb.PackageRepository_DownloadBundleServer) error {
+func (srv *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stream repositorypb.PackageRepository_DownloadBundleServer) error {
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = rqst.Plaform
 	bundle.PackageDescriptor = rqst.Descriptor_
 
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Plaform)
-	path := server.Root + "/packages-repository"
+	path := srv.Root + "/packages-repository"
 
 	var err error
 	// the file must be a zipped archive that contain a .proto, .config and executable.
@@ -32,7 +32,7 @@ func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, s
 		return err
 	}
 
-	checksum, err := server.getPackageBundleChecksum(id)
+	checksum, err := srv.getPackageBundleChecksum(id)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, s
 			rqst := &repositorypb.DownloadBundleResponse{
 				Data: data[0:bytesread],
 			}
-			// send the data to the server.
+			// send the data to the srv.
 			err = stream.Send(rqst)
 		}
 
@@ -72,16 +72,15 @@ func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, s
 }
 
 /** Upload a service to a service directory **/
-func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadBundleServer) error {
-	
+func (srv *server) UploadBundle(stream repositorypb.PackageRepository_UploadBundleServer) error {
+
 	// The bundle will cantain the necessary information to install the service.
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
-			err_:=stream.SendAndClose(&repositorypb.UploadBundleResponse{
-			})
+			err_ := stream.SendAndClose(&repositorypb.UploadBundleResponse{})
 			if err_ != nil {
 				fmt.Println("fail send response and close stream with error ", err_)
 				return err_
@@ -89,7 +88,7 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 			err = nil
 			break
 		} else if err != nil {
-			server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
+			srv.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 			return err
 		} else {
 			buffer.Write(msg.Data)
@@ -101,10 +100,9 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	bundle := new(resourcepb.PackageBundle)
 	err := dec.Decode(bundle)
 	if err != nil {
-		server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
+		srv.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
-
 
 	// Set the bundle descriptor id.
 	bundle.PackageDescriptor.Id = Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version)
@@ -112,23 +110,23 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
 
-	path := server.Root + "/packages-repository"
+	path := srv.Root + "/packages-repository"
 	Utility.CreateDirIfNotExist(path)
 
 	// the file must be a zipped archive that contain a .proto, .config and executable.
 	err = ioutil.WriteFile(path+"/"+id+".tar.gz", bundle.Binairies, 0644)
 
 	if err != nil {
-		server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
+		srv.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
 
-	server.logServiceInfo("UploadBundle", Utility.FileLine(),Utility.FunctionName(),"bundle was save at path "+ path+"/"+id+".tar.gz")
-	
+	srv.logServiceInfo("UploadBundle", Utility.FileLine(), Utility.FunctionName(), "bundle was save at path "+path+"/"+id+".tar.gz")
+
 	bundle.Checksum = string(Utility.CreateDataChecksum(bundle.Binairies))
 	bundle.Size = int32(len(bundle.Binairies))
 	bundle.Modified = time.Now().Unix()
 
 	// Save the bundle info...
-	return server.setPackageBundle(bundle.Checksum, bundle.Plaform, bundle.Size, bundle.Modified , bundle.PackageDescriptor)
+	return srv.setPackageBundle(bundle.Checksum, bundle.Plaform, bundle.Size, bundle.Modified, bundle.PackageDescriptor)
 }

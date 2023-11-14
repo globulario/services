@@ -12,8 +12,8 @@ type Store interface {
 	/**
 	 * Return the store type...
 	 */
-	 GetStoreType() string
-	 
+	GetStoreType() string
+
 	/**
 	 * Create a database
 	 */
@@ -103,7 +103,6 @@ type Store interface {
 	 * Remove one value depending of the query results.
 	 */
 	DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, options string) error
-
 
 	////////////////////////////////////////////////////////////////////////////
 	// Resource management functionality.

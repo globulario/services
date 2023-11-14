@@ -115,12 +115,12 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 /**
@@ -244,41 +244,41 @@ func (srv *server) Dist(path string) (string, error) {
 	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
@@ -427,7 +427,7 @@ func (srv *server) Init() error {
 		return err
 	}
 
-	// Initialyse GRPC server.
+	// Initialyse GRPC srv.
 	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
@@ -615,7 +615,6 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title id was given")))
 	}
-
 
 	// Now I will index the conversation to be retreivable for it creator...
 	clientId, _, err := security.GetClientId(ctx)
@@ -1574,7 +1573,7 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 
 // Delete a person...
 func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
-	
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -2849,9 +2848,9 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 }
 
 // /////////////////// rbac service functions ////////////////////////////////////
-func (server *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
+func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "NewRbacService_Client")
+	client, err := globular_client.GetClient(srv.Address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -2859,18 +2858,18 @@ func (server *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 // /////////////////// event service functions ////////////////////////////////////
-func (server *server) getEventClient() (*event_client.Event_Client, error) {
+func (srv *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
+	client, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
 }
 
-// Publish event on the event server.
-func (svr *server) publish(event string, data []byte) error {
-	eventClient, err := svr.getEventClient()
+// Publish event on the event srv.
+func (srv *server) publish(event string, data []byte) error {
+	eventClient, err := srv.getEventClient()
 	if err != nil {
 		return err
 	}
@@ -2944,7 +2943,7 @@ func main() {
 	if s_impl.Address == "" {
 		s_impl.Address, _ = config.GetAddress()
 	}
-	
+
 	// Register the title services
 	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)

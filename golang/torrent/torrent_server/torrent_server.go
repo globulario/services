@@ -110,317 +110,317 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
-	if svr.Address == "" {
-		svr.Address, _ = config.GetAddress()
+	if srv.Address == "" {
+		srv.Address, _ = config.GetAddress()
 	}
 
 	return nil
@@ -428,17 +428,17 @@ func (svr *server) Init() error {
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
 func IsUrl(str string) bool {
@@ -464,9 +464,9 @@ type TorrentLnk struct {
 	Owner string // the owner of this torrent
 }
 
-func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
+func (srv *server) saveTorrentLnks(lnks []TorrentLnk) error {
 	// create a file
-	dataFile, err := os.Create(svr.DownloadDir + "/lnks.gob")
+	dataFile, err := os.Create(srv.DownloadDir + "/lnks.gob")
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -483,10 +483,10 @@ func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
 /**
  * Read previous link's
  */
-func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
+func (srv *server) readTorrentLnks() ([]TorrentLnk, error) {
 
 	// open data file
-	dataFile, err := os.Open(svr.DownloadDir + "/lnks.gob")
+	dataFile, err := os.Open(srv.DownloadDir + "/lnks.gob")
 	lnks := make([]TorrentLnk, 0)
 
 	if err != nil {
@@ -518,8 +518,8 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
@@ -540,7 +540,7 @@ func getEventClient() (*event_client.Event_Client, error) {
  * Manage torrents here...
  */
 
-func (svr *server) processTorrent() {
+func (srv *server) processTorrent() {
 
 	pending := make([]*TorrentTransfer, 0)
 
@@ -556,13 +556,13 @@ func (svr *server) processTorrent() {
 	go func() {
 		for {
 			select {
-			case a := <-svr.actions:
+			case a := <-srv.actions:
 				if a["action"] == "setTorrentTransfer" {
 					t := a["torrentTransfer"].(*TorrentTransfer)
 					pending = append(pending, t)
 
 					// Keep the link...
-					lnks, err := svr.readTorrentLnks()
+					lnks, err := srv.readTorrentLnks()
 					exist := false
 					if err != nil {
 						lnks = make([]TorrentLnk, 0)
@@ -577,7 +577,7 @@ func (svr *server) processTorrent() {
 
 					if !exist {
 						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name(), Owner: t.owner})
-						err := svr.saveTorrentLnks(lnks)
+						err := srv.saveTorrentLnks(lnks)
 						if err != nil {
 							fmt.Println("fail to save torrent lnks with error ", err)
 						}
@@ -592,7 +592,7 @@ func (svr *server) processTorrent() {
 					for _, p := range pending {
 						if p.tor.Name() == a["name"].(string) {
 							p.tor.Drop()
-							os.RemoveAll(svr.DownloadDir + "/" + p.tor.Name())
+							os.RemoveAll(srv.DownloadDir + "/" + p.tor.Name())
 						} else {
 							pending_ = append(pending_, p)
 						}
@@ -602,7 +602,7 @@ func (svr *server) processTorrent() {
 					pending = pending_
 
 					// I will remove the lnk from the list...
-					lnks, err := svr.readTorrentLnks()
+					lnks, err := srv.readTorrentLnks()
 					if err == nil {
 						lnks_ := make([]TorrentLnk, 0)
 						for _, lnk := range lnks {
@@ -610,11 +610,11 @@ func (svr *server) processTorrent() {
 								lnks_ = append(lnks_, lnk)
 							}
 						}
-						svr.saveTorrentLnks(lnks_)
+						srv.saveTorrentLnks(lnks_)
 					}
 
 				} else if a["action"] == "getTorrentLnks" {
-					lnks, err := svr.readTorrentLnks()
+					lnks, err := srv.readTorrentLnks()
 					lnks_ := make([]*torrentpb.TorrentLnk, 0)
 
 					if err == nil {
@@ -637,7 +637,7 @@ func (svr *server) processTorrent() {
 					for _, file := range infos[pending[i].tor.Name()].Files {
 						// I will copy files when they are completes...
 						if file.Percent == 100 {
-							src := svr.DownloadDir + "/" + file.Path
+							src := srv.DownloadDir + "/" + file.Path
 							dst := pending[i].dst + "/" + file.Path
 							if Utility.Exists(src) && !Utility.Exists(dst) {
 
@@ -649,7 +649,7 @@ func (svr *server) processTorrent() {
 										dir = dir[strings.Index(dir, "/users/"):]
 									}
 									// add owner to the directory itself.
-									svr.addResourceOwner(dir, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
+									srv.addResourceOwner(dir, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
 									// so here the dir will be the parent of that dir
 									dir = filepath.Dir(dir) // this will be the dir to reload...
 								}
@@ -659,7 +659,7 @@ func (svr *server) processTorrent() {
 								if err != nil {
 									fmt.Println("fail to copy torrent file with error ", err)
 								} else {
-									svr.addResourceOwner(dst, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
+									srv.addResourceOwner(dst, "file", pending[i].owner, rbacpb.SubjectType_ACCOUNT)
 
 									// publish reload dir event.
 									// force client to reload their informations.
@@ -685,10 +685,10 @@ func (svr *server) processTorrent() {
 					}
 				}
 
-			case <-svr.done:
+			case <-srv.done:
 
 				// Stop the torrent client
-				svr.torrent_client_.Close()
+				srv.torrent_client_.Close()
 
 				// Close the action...
 				for _, action := range getTorrentsInfo_actions {
@@ -821,28 +821,28 @@ func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *tor
 
 // Set the torrent files... the torrent will be download in the
 // DownloadDir and moved to it destination when done.
-func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string, owner string) {
+func (srv *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string, owner string) {
 
 	a := make(map[string]interface{})
 	a["action"] = "setTorrentTransfer"
 	a["torrentTransfer"] = &TorrentTransfer{dst: dest, lnk: lnk, tor: t, seed: seed, owner: owner}
 
 	// Set the action.
-	svr.actions <- a
+	srv.actions <- a
 }
 
-func (svr *server) dropTorrent(name string) {
+func (srv *server) dropTorrent(name string) {
 
 	a := make(map[string]interface{})
 	a["action"] = "dropTorrent"
 	a["name"] = name
 
 	// Set the action.
-	svr.actions <- a
+	srv.actions <- a
 }
 
 // get torrents infos...
-func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInfosServer) chan bool {
+func (srv *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInfosServer) chan bool {
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})
@@ -854,14 +854,14 @@ func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInf
 	a["exit"] = exit
 
 	// Set the action.
-	svr.actions <- a
+	srv.actions <- a
 
 	// wait for the result and return
 	return exit // that channel will be call when the stream will be unavailable...
 }
 
 // get torrents infos...
-func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
+func (srv *server) getTorrentLnks() []*torrentpb.TorrentLnk {
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})
@@ -871,7 +871,7 @@ func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
 	a["lnks"] = make(chan []*torrentpb.TorrentLnk)
 
 	// Set the action and wait for it result...
-	svr.actions <- a
+	srv.actions <- a
 
 	// read the lnks...
 	lnks := <-a["lnks"].(chan []*torrentpb.TorrentLnk) // that channel will be call when the stream will be unavailable...
@@ -882,13 +882,13 @@ func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
 
 // NewClient creates a new torrent client based on a magnet or a torrent file.
 // If the torrent file is on http, we try downloading it.
-func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) error {
+func (srv *server) downloadTorrent(link, dest string, seed bool, owner string) error {
 	var t *torrent.Torrent
 	var err error
 
 	// Add as magnet url.
 	if strings.HasPrefix(link, "magnet:") {
-		if t, err = svr.torrent_client_.AddMagnet(link); err != nil {
+		if t, err = srv.torrent_client_.AddMagnet(link); err != nil {
 			return err
 		}
 	} else {
@@ -906,7 +906,7 @@ func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) e
 			return err
 		}
 
-		if t, err = svr.torrent_client_.AddTorrentFromFile(link); err != nil {
+		if t, err = srv.torrent_client_.AddTorrentFromFile(link); err != nil {
 			return err
 		}
 	}
@@ -919,7 +919,7 @@ func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) e
 		// Start download...
 		t.DownloadAll()
 
-		svr.setTorrentTransfer(t, seed, link, dest, owner)
+		srv.setTorrentTransfer(t, seed, link, dest, owner)
 
 	}()
 
@@ -927,17 +927,17 @@ func (svr *server) downloadTorrent(link, dest string, seed bool, owner string) e
 }
 
 // * Get the torrent links
-func (svr *server) GetTorrentLnks(ctx context.Context, rqst *torrentpb.GetTorrentLnksRequest) (*torrentpb.GetTorrentLnksResponse, error) {
+func (srv *server) GetTorrentLnks(ctx context.Context, rqst *torrentpb.GetTorrentLnksRequest) (*torrentpb.GetTorrentLnksResponse, error) {
 	// simply return the list of lnks found on the server...
-	lnks := svr.getTorrentLnks()
+	lnks := srv.getTorrentLnks()
 	return &torrentpb.GetTorrentLnksResponse{Lnks: lnks}, nil
 }
 
 // * Return all torrent info... *
-func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, stream torrentpb.TorrentService_GetTorrentInfosServer) error {
+func (srv *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, stream torrentpb.TorrentService_GetTorrentInfosServer) error {
 
 	// I will get all torrents from all clients...
-	<-svr.getTorrentsInfo(stream)
+	<-srv.getTorrentsInfo(stream)
 
 	// wait until the stream is close by the client...
 	return nil
@@ -945,7 +945,7 @@ func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, strea
 }
 
 // * Download a torrent file
-func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
+func (srv *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
@@ -953,7 +953,7 @@ func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.Download
 	}
 
 	// So here I will create a new client...
-	err = svr.downloadTorrent(rqst.Link, rqst.Dest, rqst.Seed, clientId)
+	err = srv.downloadTorrent(rqst.Link, rqst.Dest, rqst.Seed, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -964,10 +964,10 @@ func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.Download
 }
 
 // * Trop the torrent...
-func (svr *server) DropTorrent(ctx context.Context, rqst *torrentpb.DropTorrentRequest) (*torrentpb.DropTorrentResponse, error) {
+func (srv *server) DropTorrent(ctx context.Context, rqst *torrentpb.DropTorrentRequest) (*torrentpb.DropTorrentResponse, error) {
 
 	// simply trop the torrent file...
-	svr.dropTorrent(rqst.Name)
+	srv.dropTorrent(rqst.Name)
 
 	return &torrentpb.DropTorrentResponse{}, nil
 }

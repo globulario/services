@@ -289,7 +289,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(proxyPort))
 
 		/* in case of public domain server files **/
-		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/server.pem")
+		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/srv.pem")
 		proxyArgs = append(proxyArgs, "--server_tls_client_ca_files="+creds+"/"+certificateAuthorityBundle)
 		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+creds+"/"+certificate)
 

@@ -154,7 +154,7 @@ type server struct {
 	// the number of replication for the cache.
 	CacheReplicationFactor int
 
-	// Public contain a list of paths reachable by the file server.
+	// Public contain a list of paths reachable by the file srv.
 	Public []string
 
 	// This map will contain video conversion error so the server will not try
@@ -175,310 +175,310 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (file_server *server) GetId() string {
-	return file_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (file_server *server) SetId(id string) {
-	file_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (file_server *server) GetName() string {
-	return file_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (file_server *server) SetName(name string) {
-	file_server.Name = name
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
 // The description of the service
-func (file_server *server) GetDescription() string {
-	return file_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (file_server *server) SetDescription(description string) {
-	file_server.Description = description
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The list of keywords of the services.
-func (file_server *server) GetKeywords() []string {
-	return file_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (file_server *server) SetKeywords(keywords []string) {
-	file_server.Keywords = keywords
-}
-
-func (file_server *server) GetRepositories() []string {
-	return file_server.Repositories
-}
-func (file_server *server) SetRepositories(repositories []string) {
-	file_server.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (file_server *server) GetDiscoveries() []string {
-	return file_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (file_server *server) SetDiscoveries(discoveries []string) {
-	file_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (file_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, file_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (file_server *server) GetPath() string {
-	return file_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (file_server *server) SetPath(path string) {
-	file_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (file_server *server) GetProto() string {
-	return file_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (file_server *server) SetProto(proto string) {
-	file_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (file_server *server) GetPort() int {
-	return file_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (file_server *server) SetPort(port int) {
-	file_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (file_server *server) GetProxy() int {
-	return file_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (file_server *server) SetProxy(proxy int) {
-	file_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (file_server *server) GetProtocol() string {
-	return file_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (file_server *server) SetProtocol(protocol string) {
-	file_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (file_server *server) GetAllowAllOrigins() bool {
-	return file_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (file_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	file_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (file_server *server) GetAllowedOrigins() string {
-	return file_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (file_server *server) SetAllowedOrigins(allowedOrigins string) {
-	file_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (file_server *server) GetDomain() string {
-	return file_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (file_server *server) SetDomain(domain string) {
-	file_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (file_server *server) GetTls() bool {
-	return file_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (file_server *server) SetTls(hasTls bool) {
-	file_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (file_server *server) GetCertAuthorityTrust() string {
-	return file_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (file_server *server) SetCertAuthorityTrust(ca string) {
-	file_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (file_server *server) GetCertFile() string {
-	return file_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (file_server *server) SetCertFile(certFile string) {
-	file_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (file_server *server) GetKeyFile() string {
-	return file_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (file_server *server) SetKeyFile(keyFile string) {
-	file_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (file_server *server) GetVersion() string {
-	return file_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (file_server *server) SetVersion(version string) {
-	file_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (file_server *server) GetPublisherId() string {
-	return file_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (file_server *server) SetPublisherId(publisherId string) {
-	file_server.PublisherId = publisherId
-}
-
-func (file_server *server) GetKeepUpToDate() bool {
-	return file_server.KeepUpToDate
-}
-func (file_server *server) SetKeepUptoDate(val bool) {
-	file_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (file_server *server) GetKeepAlive() bool {
-	return file_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (file_server *server) SetKeepAlive(val bool) {
-	file_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (file_server *server) GetPermissions() []interface{} {
-	return file_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (file_server *server) SetPermissions(permissions []interface{}) {
-	file_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (file_server *server) Init() error {
+func (srv *server) Init() error {
 
-	err := globular.InitService(file_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	file_server.grpcServer, err = globular.InitGrpcServer(file_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -488,21 +488,21 @@ func (file_server *server) Init() error {
 }
 
 // Save the configuration values.
-func (file_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(file_server)
+	return globular.SaveService(srv)
 }
 
-func (file_server *server) StartService() error {
-	return globular.StartService(file_server, file_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (file_server *server) StopService() error {
-	return globular.StopService(file_server, file_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (file_server *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResponse, error) {
-	return &filepb.StopResponse{}, file_server.StopService()
+func (srv *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResponse, error) {
+	return &filepb.StopResponse{}, srv.StopService()
 }
 
 func (s *server) getThumbnail(path string, h, w int) (string, error) {
@@ -1020,25 +1020,25 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 }
 
 // return the icon address...
-func (file_server *server) getMimeTypesUrl(path string) (string, error) {
+func (srv *server) getMimeTypesUrl(path string) (string, error) {
 
 	// http link...
 
 	// data url...
-	image_url, err := file_server.getThumbnail(path, int(80), int(80))
+	image_url, err := srv.getThumbnail(path, int(80), int(80))
 	return image_url, err
 }
 
-func (file_server *server) formatPath(path string) string {
+func (srv *server) formatPath(path string) string {
 	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
-				if !file_server.isPublic(path) {
+				if !srv.isPublic(path) {
 					// Must be in the root path if it's not in public path.
-					if Utility.Exists(file_server.Root + path) {
-						path = file_server.Root + path
+					if Utility.Exists(srv.Root + path) {
+						path = srv.Root + path
 					} else if Utility.Exists(config.GetWebRootDir() + path) {
 						path = config.GetWebRootDir() + path
 
@@ -1047,11 +1047,11 @@ func (file_server *server) formatPath(path string) string {
 					}
 				}
 			} else {
-				path = file_server.Root + "/" + path
+				path = srv.Root + "/" + path
 			}
 		} else {
 			// '/' represent the root path
-			path = file_server.Root
+			path = srv.Root
 		}
 	}
 
@@ -1062,7 +1062,7 @@ func (file_server *server) formatPath(path string) string {
 // Directory operations
 // //////////////////////////////////////////////////////////////////////////////
 // Append public dir to the list of dir...
-func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
+func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	path := strings.ReplaceAll(rqst.Path, "\\", "/")
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
@@ -1071,17 +1071,17 @@ func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPub
 	}
 
 	// So here I will test if the path is already in the public path...
-	if Utility.Contains(file_server.Public, path) {
+	if Utility.Contains(srv.Public, path) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+path+" already exist in Pulbic paths")))
 	}
 
 	// Append the path in the list...
-	file_server.Public = append(file_server.Public, path)
+	srv.Public = append(srv.Public, path)
 
 	// save it in the configuration...
-	err := file_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1092,7 +1092,7 @@ func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPub
 }
 
 // Append public dir to the list of dir...
-func (file_server *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
+func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
 	if !Utility.Exists(rqst.Path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1100,17 +1100,17 @@ func (file_server *server) RemovePublicDir(ctx context.Context, rqst *filepb.Rem
 	}
 
 	// So here I will test if the path is already in the public path...
-	if !Utility.Contains(file_server.Public, rqst.Path) {
+	if !Utility.Contains(srv.Public, rqst.Path) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" dosen exist in Pulbic paths")))
 	}
 
 	// Append the path in the list...
-	file_server.Public = Utility.RemoveString(file_server.Public, rqst.Path)
+	srv.Public = Utility.RemoveString(srv.Public, rqst.Path)
 
 	// save it in the configuration...
-	err := file_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1120,17 +1120,17 @@ func (file_server *server) RemovePublicDir(ctx context.Context, rqst *filepb.Rem
 	return &filepb.RemovePublicDirResponse{}, nil
 }
 
-// Return the list of public path from a given file server...
-func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
-	return &filepb.GetPublicDirsResponse{Dirs: file_server.Public}, nil
+// Return the list of public path from a given file srv...
+func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
+	return &filepb.GetPublicDirsResponse{Dirs: srv.Public}, nil
 }
 
 // return the a list of all info
-func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo {
+func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo {
 
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
-		path_ := server.formatPath(info.Files[i].Path)
+		path_ := srv.formatPath(info.Files[i].Path)
 		if Utility.Exists(path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir == true {
@@ -1138,7 +1138,7 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 					info.Files[i].Thumbnail = "" // remove the icon  for dir
 				}
 			}
-			infos = getFileInfos(server, info.Files[i], infos)
+			infos = getFileInfos(srv, info.Files[i], infos)
 		} else {
 			cache.RemoveItem(info.Files[i].Path)
 		}
@@ -1146,7 +1146,7 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 
 	// empty the arrays...
 	if info.IsDir == true {
-		path_ := server.formatPath(info.Path)
+		path_ := srv.formatPath(info.Path)
 		if !Utility.Exists(path_ + "/playlist.m3u8") {
 			info.Files = make([]*filepb.FileInfo, 0)
 		}
@@ -1155,15 +1155,15 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 	return infos
 }
 
-func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
 	_, token, err := security.GetClientId(stream.Context())
 	if err != nil {
 		return err
 	}
 
-	path := file_server.formatPath(rqst.Path)
-	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
+	path := srv.formatPath(rqst.Path)
+	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 
 	if err != nil {
 
@@ -1175,7 +1175,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	infos := make([]*filepb.FileInfo, 0)
 
 	// Get info as array...
-	infos = getFileInfos(file_server, info, infos)
+	infos = getFileInfos(srv, info, infos)
 	for i := 0; i < len(infos); i++ {
 		err := stream.Send(&filepb.ReadDirResponse{
 
@@ -1199,8 +1199,8 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 }
 
 // Create a new directory
-func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
-	path := file_server.formatPath(rqst.GetPath())
+func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
+	path := srv.formatPath(rqst.GetPath())
 	err := Utility.CreateDirIfNotExist(path + "/" + rqst.GetName())
 	if err != nil {
 		return nil, status.Errorf(
@@ -1213,7 +1213,7 @@ func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDir
 		return nil, err
 	}
 
-	file_server.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
+	srv.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
@@ -1221,11 +1221,11 @@ func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDir
 }
 
 // Return true if the file is found in the public path...
-func (file_server *server) isPublic(path string) bool {
+func (srv *server) isPublic(path string) bool {
 	path = strings.ReplaceAll(path, "\\", "/")
 	if Utility.Exists(path) {
-		for i := 0; i < len(file_server.Public); i++ {
-			if strings.HasPrefix(path, file_server.Public[i]) {
+		for i := 0; i < len(srv.Public); i++ {
+			if strings.HasPrefix(path, srv.Public[i]) {
 				return true
 			}
 		}
@@ -1234,8 +1234,7 @@ func (file_server *server) isPublic(path string) bool {
 }
 
 // Create an archive from a given dir and set it with name.
-func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
-
+func (srv *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
 
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1249,9 +1248,9 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	// If there only one file no temps dir is required...
 	if len(rqst.Paths) == 1 {
 		path := rqst.Paths[0]
-		if !file_server.isPublic(path) {
+		if !srv.isPublic(path) {
 			// if the path is not in the Public list it must be in the path...
-			path = file_server.formatPath(path)
+			path = srv.formatPath(path)
 		}
 
 		// be sure the file exist.
@@ -1274,9 +1273,9 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 		defer os.RemoveAll(tmp)
 		for i := 0; i < len(rqst.Paths); i++ {
 			// The file or directory must be in the path.
-			if Utility.Exists(file_server.Root+rqst.Paths[i]) || file_server.isPublic(rqst.Paths[i]) {
+			if Utility.Exists(srv.Root+rqst.Paths[i]) || srv.isPublic(rqst.Paths[i]) {
 				path := rqst.Paths[i]
-				path = file_server.formatPath(path)
+				path = srv.formatPath(path)
 
 				info, _ := os.Stat(path)
 				fileName := path[strings.LastIndex(path, "/"):]
@@ -1291,13 +1290,13 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 	var buf bytes.Buffer
 	Utility.CompressDir(tmp, &buf)
-	dest := "/users/" +clientId + "/" + rqst.GetName() + ".tar.gz"
+	dest := "/users/" + clientId + "/" + rqst.GetName() + ".tar.gz"
 
 	// Set user as owner.
-	file_server.setOwner(token, dest)
+	srv.setOwner(token, dest)
 
 	// Now I will save the file to the destination.
-	err = ioutil.WriteFile(file_server.Root+dest, buf.Bytes(), 0644)
+	err = ioutil.WriteFile(srv.Root+dest, buf.Bytes(), 0644)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1311,7 +1310,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 }
 
-func (file_server *server) setOwner(token, path string) error {
+func (srv *server) setOwner(token, path string) error {
 	var clientId string
 
 	if len(token) > 0 {
@@ -1352,14 +1351,14 @@ func (file_server *server) setOwner(token, path string) error {
 }
 
 // Rename a file or a directory.
-func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
+func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	path := file_server.formatPath(rqst.GetPath())
+	path := srv.formatPath(rqst.GetPath())
 
 	if Utility.Exists(path + "/" + rqst.NewName) {
 		return nil, errors.New("file with name '" + rqst.NewName + "' already exist at path '" + path + "'")
@@ -1371,10 +1370,10 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	}
 
 	titles := make(map[string][]*titlepb.Title, 0)
-	file_server.getFileTitlesAssociation(client, rqst.GetPath()+"/"+rqst.OldName, titles)
+	srv.getFileTitlesAssociation(client, rqst.GetPath()+"/"+rqst.OldName, titles)
 
 	videos := make(map[string][]*titlepb.Video, 0)
-	file_server.getFileVideosAssociation(client, rqst.GetPath()+"/"+rqst.OldName, videos)
+	srv.getFileVideosAssociation(client, rqst.GetPath()+"/"+rqst.OldName, videos)
 
 	// Dissociates titles...
 	for f, titles_ := range titles {
@@ -1396,7 +1395,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	// Associate titles...
 	from := rqst.GetPath() + "/" + rqst.OldName
 	dest := rqst.GetPath() + "/" + rqst.NewName
-	info, _ := os.Stat(file_server.formatPath(from))
+	info, _ := os.Stat(srv.formatPath(from))
 
 	// So here I will get the list of all file permission and change the one with
 	// the old file prefix...
@@ -1528,8 +1527,8 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 }
 
 // Delete a directory
-func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
-	path := file_server.formatPath(rqst.GetPath())
+func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
+	path := srv.formatPath(rqst.GetPath())
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1545,10 +1544,10 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 	}
 
 	titles := make(map[string][]*titlepb.Title, 0)
-	file_server.getFileTitlesAssociation(client, rqst.GetPath(), titles)
+	srv.getFileTitlesAssociation(client, rqst.GetPath(), titles)
 
 	videos := make(map[string][]*titlepb.Video, 0)
-	file_server.getFileVideosAssociation(client, rqst.GetPath(), videos)
+	srv.getFileVideosAssociation(client, rqst.GetPath(), videos)
 
 	// Dissociates titles...
 	for f, titles_ := range titles {
@@ -1612,10 +1611,10 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 
 // Get file info, can be use to get file thumbnail or knowing that a file exist
 // or not.
-func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
-	path := file_server.formatPath(rqst.GetPath())
+func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
+	path := srv.formatPath(rqst.GetPath())
 
-	info, err := getFileInfo(file_server, path, int(rqst.GetThumnailHeight()), int(rqst.GetThumnailWidth()))
+	info, err := getFileInfo(srv, path, int(rqst.GetThumnailHeight()), int(rqst.GetThumnailWidth()))
 	if err != nil {
 		return nil, err
 	}
@@ -1627,7 +1626,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	}
 
 	infos := make([]*filepb.FileInfo, 0)
-	infos = getFileInfos(file_server, info, infos)
+	infos = getFileInfos(srv, info, infos)
 
 	return &filepb.GetFileInfoResponse{
 		Info: infos[0],
@@ -1635,8 +1634,8 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 }
 
 // Read file, can be use for small to medium file...
-func (file_server *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
-	path := file_server.formatPath(rqst.GetPath())
+func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
+	path := srv.formatPath(rqst.GetPath())
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -1670,7 +1669,7 @@ func (file_server *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.
 }
 
 // Save a file on the server...
-func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
+func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 	// Here I will receive the file
 	data := make([]byte, 0)
 	var path string
@@ -1706,8 +1705,8 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 		// Receive message informations.
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
-			// The root will be the Root specefied by the server.
-			path = file_server.formatPath(msg.Path)
+			// The root will be the Root specefied by the srv.
+			path = srv.formatPath(msg.Path)
 
 		case *filepb.SaveFileRequest_Data:
 			data = append(data, msg.Data...)
@@ -1716,7 +1715,7 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 }
 
 // Delete file
-func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
+func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
 	// return nil, errors.New("test phase...")
 	_, token, err := security.GetClientId(ctx)
@@ -1724,7 +1723,7 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 		return nil, err
 	}
 
-	path := file_server.formatPath(rqst.GetPath())
+	path := srv.formatPath(rqst.GetPath())
 
 	// Here I will remove the whole
 	cache.RemoveItem(path)
@@ -1757,7 +1756,7 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	}
 
 	// Now I will disscociate the file.
-	dissociateFileWithTitle(rqst.GetPath(), file_server.Domain)
+	dissociateFileWithTitle(rqst.GetPath(), srv.Domain)
 
 	// Refresh playlist...
 	dir := strings.ReplaceAll(filepath.Dir(path), "\\", "/")
@@ -1765,13 +1764,13 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	if Utility.Exists(dir + "/audio.m3u") {
 		cache.RemoveItem(dir + "/audio.m3u")
 		os.Remove(dir + "/audio.m3u")
-		file_server.generatePlaylist(dir, token)
+		srv.generatePlaylist(dir, token)
 	}
 
 	if Utility.Exists(dir + "/video.m3u") {
 		cache.RemoveItem(dir + "/video.m3u")
 		os.Remove(dir + "/video.m3u")
-		file_server.generatePlaylist(dir, token)
+		srv.generatePlaylist(dir, token)
 	}
 
 	err = os.Remove(path)
@@ -1789,7 +1788,7 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 }
 
 // Convert html to pdf.
-func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
+func (srv *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
 	pdfg, err := wkhtml.NewPDFGenerator()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1891,7 +1890,7 @@ func getAuticationClient(address string) (*authentication_client.Authentication_
 	return client.(*authentication_client.Authentication_Client), nil
 }
 
-func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
 	rbac_client_, err := getRbacClient()
 	if err != nil {
 		return err
@@ -1899,15 +1898,15 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
-func (file_server *server) updateAudioInformation(client *title_client.Title_Client, path string, metadata map[string]interface{}) error {
+func (srv *server) updateAudioInformation(client *title_client.Title_Client, path string, metadata map[string]interface{}) error {
 
 	return nil
 }
 
 // Recursively get all titles for a given path...
-func (file_server *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
+func (srv *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
 
-	path_ := file_server.formatPath(path)
+	path_ := srv.formatPath(path)
 
 	info, err := os.Stat(path_)
 	if err != nil {
@@ -1920,7 +1919,7 @@ func (file_server *server) getFileTitlesAssociation(client *title_client.Title_C
 			for _, f := range files {
 				path_ := path + "/" + f.Name()
 				if !strings.Contains(path_, ".hidden/") {
-					file_server.getFileTitlesAssociation(client, path_, titles)
+					srv.getFileTitlesAssociation(client, path_, titles)
 				}
 			}
 		}
@@ -1937,8 +1936,8 @@ func (file_server *server) getFileTitlesAssociation(client *title_client.Title_C
 /**
  * return the audios and file associations.
  */
-func (file_server *server) getFileAudiosAssociation(client *title_client.Title_Client, path string, audios map[string][]*titlepb.Audio) error {
-	path_ := file_server.formatPath(path)
+func (srv *server) getFileAudiosAssociation(client *title_client.Title_Client, path string, audios map[string][]*titlepb.Audio) error {
+	path_ := srv.formatPath(path)
 	audios_, err := client.GetFileAudios(config.GetDataDir()+"/search/audios", path_)
 	if err == nil {
 		audios[path] = audios_
@@ -1950,8 +1949,8 @@ func (file_server *server) getFileAudiosAssociation(client *title_client.Title_C
 /**
  * Return the list of videos description and file association
  */
-func (file_server *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
-	path_ := file_server.formatPath(path)
+func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
+	path_ := srv.formatPath(path)
 	info, err := os.Stat(path_)
 	if err != nil {
 		return err
@@ -1963,12 +1962,12 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 			for _, f := range files {
 				path_ := path + "/" + f.Name()
 				if !strings.Contains(path_, ".hidden/") {
-					file_server.getFileVideosAssociation(client, path_, videos)
+					srv.getFileVideosAssociation(client, path_, videos)
 				}
 			}
 		}
 	} else {
-		videos_, err := getFileVideos(path_, file_server.Domain)
+		videos_, err := getFileVideos(path_, srv.Domain)
 		if err == nil {
 			videos[path] = videos_
 		}
@@ -1978,7 +1977,7 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 }
 
 // Move a file/directory
-func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
+func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -1998,8 +1997,8 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 	for i := 0; i < len(rqst.Files); i++ {
 		// TODO test if rqst.Path is in the root path...
-		from := file_server.formatPath(rqst.Files[i])
-		dest := file_server.formatPath(rqst.Path)
+		from := srv.formatPath(rqst.Files[i])
+		dest := srv.formatPath(rqst.Path)
 		info, _ := os.Stat(from)
 
 		file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
@@ -2007,10 +2006,10 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 		if Utility.Exists(from) {
 
 			titles := make(map[string][]*titlepb.Title, 0)
-			file_server.getFileTitlesAssociation(client, rqst.Files[i], titles)
+			srv.getFileTitlesAssociation(client, rqst.Files[i], titles)
 
 			videos := make(map[string][]*titlepb.Video, 0)
-			file_server.getFileVideosAssociation(client, rqst.Files[i], videos)
+			srv.getFileVideosAssociation(client, rqst.Files[i], videos)
 
 			// Dissociates titles...
 			for f, titles_ := range titles {
@@ -2134,7 +2133,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 }
 
 // Copy a file/directory
-func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
+func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -2148,11 +2147,11 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 	}
 
 	// format the path to make it absolute on the server.
-	path := file_server.formatPath(rqst.Path)
+	path := srv.formatPath(rqst.Path)
 
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
-		f := file_server.formatPath(rqst.Files[i])
+		f := srv.formatPath(rqst.Files[i])
 
 		// So here I will try to retreive indexation for the file...
 		client, err := getTitleClient()
@@ -2164,10 +2163,10 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 		permissions, _ := rbac_client_.GetResourcePermissions(rqst.Files[i])
 
 		titles := make(map[string][]*titlepb.Title, 0)
-		file_server.getFileTitlesAssociation(client, rqst.Files[i], titles)
+		srv.getFileTitlesAssociation(client, rqst.Files[i], titles)
 
 		videos := make(map[string][]*titlepb.Video, 0)
-		file_server.getFileVideosAssociation(client, rqst.Files[i], videos)
+		srv.getFileVideosAssociation(client, rqst.Files[i], videos)
 
 		if Utility.Exists(f) {
 			info, err := os.Stat(f)
@@ -2285,8 +2284,8 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 ////////////////////////////////////////////////////////////////////////////////
 
 // Return the list of thumbnail for a given directory...
-func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
-	
+func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
+
 	_, token, err := security.GetClientId(stream.Context())
 	if err != nil {
 		return err
@@ -2294,14 +2293,14 @@ func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stre
 
 	path := rqst.GetPath()
 
-	// The root will be the Root specefied by the server.
+	// The root will be the Root specefied by the srv.
 	if strings.HasPrefix(path, "/") {
-		path = file_server.Root + path
+		path = srv.Root + path
 		// Set the path separator...
 		path = strings.Replace(path, "\\", "/", -1)
 	}
 
-	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true, token)
+	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true, token)
 	if err != nil {
 		return err
 	}
@@ -2334,10 +2333,10 @@ func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stre
 }
 
 // Create a link file
-func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
-	path := file_server.formatPath(rqst.Path)
+func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
+	path := srv.formatPath(rqst.Path)
 
-	// The root will be the Root specefied by the server.
+	// The root will be the Root specefied by the srv.
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2356,13 +2355,13 @@ func (file_server *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnk
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	file_server.setOwner(token, rqst.Path+"/"+rqst.Name)
+	srv.setOwner(token, rqst.Path+"/"+rqst.Name)
 
 	return &filepb.CreateLnkResponse{}, nil
 }
 
-func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
-	path := file_server.formatPath(rqst.Path)
+func (srv *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
+	path := srv.formatPath(rqst.Path)
 
 	if Utility.Exists(path) {
 		err := os.Remove(path)
@@ -2383,7 +2382,7 @@ func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.Writ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = file_server.writeExcelFile(path, sheets)
+	err = srv.writeExcelFile(path, sheets)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2400,7 +2399,7 @@ func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.Writ
  * Save excel file to a given destination.
  * The sheets must contain a with values map[pageName] [[], [], []] // 2D array.
  */
-func (file_server *server) writeExcelFile(path string, sheets map[string]interface{}) error {
+func (srv *server) writeExcelFile(path string, sheets map[string]interface{}) error {
 
 	xlFile, err_ := xlsx.OpenFile(path)
 	var xlSheet *xlsx.Sheet
@@ -2451,8 +2450,8 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 // ffmpeg and video conversion stuff...
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func (file_server *server) getStartTime() time.Time {
-	values := strings.Split(file_server.StartVideoConversionHour, ":")
+func (srv *server) getStartTime() time.Time {
+	values := strings.Split(srv.StartVideoConversionHour, ":")
 	var startTime time.Time
 	now := time.Now()
 	if len(values) == 2 {
@@ -2462,15 +2461,15 @@ func (file_server *server) getStartTime() time.Time {
 	return startTime
 }
 
-func (file_server *server) isExpired() bool {
-	values := strings.Split(file_server.MaximumVideoConversionDelay, ":")
+func (srv *server) isExpired() bool {
+	values := strings.Split(srv.MaximumVideoConversionDelay, ":")
 	if len(values) == 2 {
 		delay := time.Duration(Utility.ToInt(values[0]))*time.Hour + time.Duration(Utility.ToInt(values[1]))*time.Minute
 		if delay == 0 {
 			return false
 		}
 
-		startTime := file_server.getStartTime()
+		startTime := srv.getStartTime()
 		endTime := startTime.Add(delay)
 		now := time.Now()
 		//fmt.Println("no new conversion will be started after: ", endTime)
@@ -2480,7 +2479,7 @@ func (file_server *server) isExpired() bool {
 	return false
 }
 
-func (file_server *server) startProcessAudios() {
+func (srv *server) startProcessAudios() {
 	// Start feeding the time series...
 	ticker := time.NewTicker(4 * time.Hour)
 	dirs := make([]string, 0)
@@ -2490,19 +2489,19 @@ func (file_server *server) startProcessAudios() {
 
 	go func() {
 		// process one time...
-		processAudios(file_server, dirs)
+		processAudios(srv, dirs)
 
 		for {
 			select {
 			// process at given interval
 			case <-ticker.C:
-				processAudios(file_server, dirs)
+				processAudios(srv, dirs)
 			}
 		}
 	}()
 }
 
-func (file_server *server) startProcessVideos() {
+func (srv *server) startProcessVideos() {
 
 	// The dir to scan...
 	dirs := make([]string, 0)
@@ -2519,7 +2518,7 @@ func (file_server *server) startProcessVideos() {
 				/*mac, _ := Utility.MyMacAddr(Utility.MyIP())
 				token, _ := security.GetLocalToken(mac)*/
 				// get the list of info .info.json (generated by ytdl)
-				processVideos(file_server, "", dirs)
+				processVideos(srv, "", dirs)
 			}
 		}
 	}()
@@ -2527,29 +2526,29 @@ func (file_server *server) startProcessVideos() {
 	// get the local token...
 	/*mac, _ := Utility.MyMacAddr(Utility.MyIP())
 	token, _ := security.GetLocalToken(mac)*/
-	processVideos(file_server, "", dirs)
+	processVideos(srv, "", dirs)
 }
 
 /**
  * Create playlist and search informations.
  */
-func processAudios(file_server *server, dirs []string) {
+func processAudios(srv *server, dirs []string) {
 
-	if file_server.isProcessingAudio {
+	if srv.isProcessingAudio {
 		return
 	}
 
-	file_server.isProcessingAudio = true
+	srv.isProcessingAudio = true
 
 	// Process audio files...
 	audios := getAudioPaths(dirs)
 	for _, audio := range audios {
 		dir := filepath.Dir(audio)
 		if !Utility.Exists(dir + "/audio.m3u") {
-			file_server.generatePlaylist(dir, "")
+			srv.generatePlaylist(dir, "")
 		}
 	}
-	file_server.isProcessingAudio = false
+	srv.isProcessingAudio = false
 }
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
@@ -2763,7 +2762,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 /**
  * Process video info
  */
-func (file_server *server) processVideoInfo(token, info_path string) error {
+func (srv *server) processVideoInfo(token, info_path string) error {
 
 	media_info := make(map[string]interface{})
 	data, err := os.ReadFile(info_path)
@@ -2788,16 +2787,16 @@ func (file_server *server) processVideoInfo(token, info_path string) error {
 
 				if ext == "mp4" {
 					if Utility.Exists(media_path) {
-						err = file_server.createVideoInfo(token, dest, media_path, info_path)
+						err = srv.createVideoInfo(token, dest, media_path, info_path)
 						if err != nil {
 							return err
 						}
 
 						go func() {
 							fileName_ := strings.ReplaceAll(media_path, "/.hidden/", "/")
-							file_server.createVideoPreview(fileName_, 20, 128, false)
-							file_server.generateVideoPreview(fileName_, 10, 320, 30, true)
-							file_server.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
+							srv.createVideoPreview(fileName_, 20, 128, false)
+							srv.generateVideoPreview(fileName_, 10, 320, 30, true)
+							srv.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 						}()
 
 					}
@@ -2809,7 +2808,7 @@ func (file_server *server) processVideoInfo(token, info_path string) error {
 						}
 
 						// regenerate the playlist and also save the audio info...
-						err = file_server.generatePlaylist(dir, "")
+						err = srv.generatePlaylist(dir, "")
 						if err != nil {
 							return err
 						}
@@ -2818,7 +2817,7 @@ func (file_server *server) processVideoInfo(token, info_path string) error {
 				}
 
 				if err == nil {
-					err = file_server.setOwner(token, dest+"/"+filepath.Base(media_path))
+					err = srv.setOwner(token, dest+"/"+filepath.Base(media_path))
 					return err
 				}
 
@@ -2834,21 +2833,21 @@ func (file_server *server) processVideoInfo(token, info_path string) error {
 	return err
 }
 
-func processVideos(file_server *server, token string, dirs []string) {
+func processVideos(srv *server, token string, dirs []string) {
 
 	video_infos := getVideoInfoPaths(dirs)
 
-	if file_server.isProcessing {
+	if srv.isProcessing {
 		return
 	}
 
-	file_server.isProcessing = true
+	srv.isProcessing = true
 
 	// This will be execute in case the server was stop when it process file.
 	// Step 1 convert .info.json to video and audio info and move downloaded media file from hidden to the final destination...
 	for i := 0; i < len(video_infos); i++ {
 		info_path := video_infos[i]
-		err := file_server.processVideoInfo(token, info_path)
+		err := srv.processVideoInfo(token, info_path)
 		if err != nil {
 			fmt.Println("fail to process video information with error ", err)
 		}
@@ -2904,7 +2903,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 
 		// Restore information as needed...
 		for i := 0; i < len(video_paths); i++ {
-			err := restoreVideoInfos(client, token, video_paths[i], file_server.Domain)
+			err := restoreVideoInfos(client, token, video_paths[i], srv.Domain)
 			if err != nil {
 				fmt.Println("fail to restore video infos with error: ", err)
 			}
@@ -2918,18 +2917,18 @@ func processVideos(file_server *server, token string, dirs []string) {
 		createVideoPreviewLog.Msg = "Create video preview"
 		createVideoPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 		createVideoPreviewLog.Status = "running"
-		file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
-		file_server.publishConvertionLogEvent(createVideoPreviewLog)
+		srv.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
+		srv.publishConvertionLogEvent(createVideoPreviewLog)
 
-		err := file_server.createVideoPreview(video, 20, 128, false)
+		err := srv.createVideoPreview(video, 20, 128, false)
 		if err != nil {
 			createVideoPreviewLog.Status = "fail"
-			file_server.publishConvertionLogEvent(createVideoPreviewLog)
-			file_server.publishConvertionLogError(createVideoPreviewLog.Path, err)
+			srv.publishConvertionLogEvent(createVideoPreviewLog)
+			srv.publishConvertionLogError(createVideoPreviewLog.Path, err)
 			err = nil
 		} else {
 			createVideoPreviewLog.Status = "done"
-			file_server.publishConvertionLogEvent(createVideoPreviewLog)
+			srv.publishConvertionLogEvent(createVideoPreviewLog)
 		}
 
 		generateVideoPreviewLog := new(filepb.VideoConversionLog)
@@ -2937,18 +2936,18 @@ func processVideos(file_server *server, token string, dirs []string) {
 		generateVideoPreviewLog.Msg = "Generate video Gif image"
 		generateVideoPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 		generateVideoPreviewLog.Status = "running"
-		file_server.videoConversionLogs.Store(generateVideoPreviewLog.LogTime, generateVideoPreviewLog)
-		file_server.publishConvertionLogEvent(generateVideoPreviewLog)
+		srv.videoConversionLogs.Store(generateVideoPreviewLog.LogTime, generateVideoPreviewLog)
+		srv.publishConvertionLogEvent(generateVideoPreviewLog)
 
-		err = file_server.generateVideoPreview(video, 10, 320, 30, false)
+		err = srv.generateVideoPreview(video, 10, 320, 30, false)
 		if err != nil {
 			generateVideoPreviewLog.Status = "fail"
-			file_server.publishConvertionLogEvent(generateVideoPreviewLog)
-			file_server.publishConvertionLogError(generateVideoPreviewLog.Path, err)
+			srv.publishConvertionLogEvent(generateVideoPreviewLog)
+			srv.publishConvertionLogError(generateVideoPreviewLog.Path, err)
 			err = nil
 		} else {
 			generateVideoPreviewLog.Status = "done"
-			file_server.publishConvertionLogEvent(generateVideoPreviewLog)
+			srv.publishConvertionLogEvent(generateVideoPreviewLog)
 		}
 
 		createVideoTimeLineLog := new(filepb.VideoConversionLog)
@@ -2956,18 +2955,18 @@ func processVideos(file_server *server, token string, dirs []string) {
 		createVideoTimeLineLog.Msg = "Generate video time line"
 		createVideoTimeLineLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 		createVideoTimeLineLog.Status = "running"
-		file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
-		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+		srv.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
+		srv.publishConvertionLogEvent(createVideoTimeLineLog)
 
-		err = file_server.createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
+		err = srv.createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
 		if err != nil {
 			createVideoTimeLineLog.Status = "fail"
-			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
-			file_server.publishConvertionLogError(createVideoTimeLineLog.Path, err)
+			srv.publishConvertionLogEvent(createVideoTimeLineLog)
+			srv.publishConvertionLogError(createVideoTimeLineLog.Path, err)
 			err = nil
 		} else {
 			createVideoTimeLineLog.Status = "done"
-			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+			srv.publishConvertionLogEvent(createVideoTimeLineLog)
 		}
 	}
 
@@ -2979,7 +2978,7 @@ func processVideos(file_server *server, token string, dirs []string) {
 			dir := video[0:strings.LastIndex(video, ".")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 				var err error
-				_, hasAlreadyFail := file_server.videoConversionErrors.Load(video)
+				_, hasAlreadyFail := srv.videoConversionErrors.Load(video)
 
 				// TODO test if delay was busted...
 
@@ -2991,24 +2990,24 @@ func processVideos(file_server *server, token string, dirs []string) {
 						createVideoMpeg4H264Log.Msg = "Convert video to mp4 h.264"
 						createVideoMpeg4H264Log.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 						createVideoMpeg4H264Log.Status = "running"
-						file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-						file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+						srv.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+						srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 						// To scketchy... wait for attoption of the audioTracks https://caniuse.com/?search=audioTracks
 						// extract the video track
 
-						video_, err := file_server.createVideoMpeg4H264(video)
+						video_, err := srv.createVideoMpeg4H264(video)
 						if err != nil {
 							if err != nil {
 								createVideoMpeg4H264Log.Status = "fail"
-								file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+								srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 								fmt.Println("fail with error", err.Error())
 
-								file_server.publishConvertionLogError(video_, err)
+								srv.publishConvertionLogError(video_, err)
 							}
 						} else {
 							video = video_
 							createVideoMpeg4H264Log.Status = "done"
-							file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+							srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 						}
 					}
 
@@ -3054,24 +3053,24 @@ func processVideos(file_server *server, token string, dirs []string) {
 					}
 
 					// Convert to stream...
-					if err == nil && file_server.AutomaticStreamConversion {
+					if err == nil && srv.AutomaticStreamConversion {
 						createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
 						createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
 						createHlsStreamFromMpeg4H264Log.Msg = "Convert video to mp4"
 						createHlsStreamFromMpeg4H264Log.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 						createHlsStreamFromMpeg4H264Log.Status = "running"
-						file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
-						file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
-						err := file_server.createHlsStreamFromMpeg4H264(video)
+						srv.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+						srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+						err := srv.createHlsStreamFromMpeg4H264(video)
 						if err != nil {
 							fmt.Println("fail with error", err.Error())
 							createHlsStreamFromMpeg4H264Log.Status = "fail"
-							file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
-							file_server.publishConvertionLogError(video, err)
+							srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+							srv.publishConvertionLogError(video, err)
 
 						} else {
 							createHlsStreamFromMpeg4H264Log.Status = "done"
-							file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+							srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 						}
 					}
 				}
@@ -3083,13 +3082,13 @@ func processVideos(file_server *server, token string, dirs []string) {
 		}
 
 		// exit if the server was stop or the time is expired...
-		if !file_server.isProcessing || file_server.isExpired() {
+		if !srv.isProcessing || srv.isExpired() {
 			break // exit
 		}
 
 	}
 
-	file_server.isProcessing = false
+	srv.isProcessing = false
 
 }
 
@@ -3250,7 +3249,7 @@ func getStreamFrameRateInterval(path string) (int, error) {
 /**
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
-func (server *server) createVideoMpeg4H264(path string) (string, error) {
+func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 
 	cache.RemoveItem(path)
 
@@ -3304,7 +3303,7 @@ func (server *server) createVideoMpeg4H264(path string) (string, error) {
 	//  also install sudo apt-get install libnvidia-encode-525 // replace by your driver version.
 	args = []string{"-i", path, "-c:v"}
 
-	if server.hasEnableCudaNvcc() {
+	if srv.hasEnableCudaNvcc() {
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
 			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
@@ -3397,7 +3396,7 @@ func getFileVideos(path string, domain string) ([]*titlepb.Video, error) {
 		return nil, err
 	}
 
-	// get from the title server.
+	// get from the title srv.
 	videos.Videos, err = client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
 	if err != nil {
 		return nil, err
@@ -3487,10 +3486,10 @@ func reassociatePath(path, new_path, domain string) error {
 	return nil
 }
 
-func (svr *server) hasEnableCudaNvcc() bool {
+func (srv *server) hasEnableCudaNvcc() bool {
 
 	// Here I will check if the server has enable cuda...
-	if !svr.HasEnableGPU {
+	if !srv.HasEnableGPU {
 		return false
 	}
 
@@ -3514,7 +3513,7 @@ func getCodec(path string) string {
 // segment_target_duration  	try to create a new segment every X seconds
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
-func (svr *server) createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
+func (srv *server) createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
 
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
@@ -3544,7 +3543,7 @@ func (svr *server) createHlsStream(src, dest string, segment_target_duration int
 	args := []string{"-hide_banner", "-y", "-i", src, "-c:v"}
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
-	if svr.hasEnableCudaNvcc() {
+	if srv.hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
@@ -4277,8 +4276,8 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 
 }
 
-func (file_server *server) publishConvertionLogError(path string, err error) {
-	file_server.videoConversionErrors.Store(path, err.Error())
+func (srv *server) publishConvertionLogError(path string, err error) {
+	srv.videoConversionErrors.Store(path, err.Error())
 	client, err := getEventClient()
 	if err != nil {
 		var marshaler jsonpb.Marshaler
@@ -4289,7 +4288,7 @@ func (file_server *server) publishConvertionLogError(path string, err error) {
 	}
 }
 
-func (file_server *server) publishConvertionLogEvent(convertionLog *filepb.VideoConversionLog) {
+func (srv *server) publishConvertionLogEvent(convertionLog *filepb.VideoConversionLog) {
 	client, err := getEventClient()
 	if err != nil {
 		var marshaler jsonpb.Marshaler
@@ -4301,9 +4300,9 @@ func (file_server *server) publishConvertionLogEvent(convertionLog *filepb.Video
 }
 
 // Create a viedeo Preview...
-func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.CreateVideoPreviewRequest) (*filepb.CreateVideoPreviewResponse, error) {
+func (srv *server) CreateVideoPreview(ctx context.Context, rqst *filepb.CreateVideoPreviewRequest) (*filepb.CreateVideoPreviewResponse, error) {
 
-	path := file_server.formatPath(rqst.Path)
+	path := srv.formatPath(rqst.Path)
 
 	if !Utility.Exists(path) {
 		return nil, errors.New("no file found at path " + rqst.Path)
@@ -4316,19 +4315,19 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 	createVideoPreviewLog.Status = "running"
 
 	// Store the conversion log...
-	file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
-	file_server.publishConvertionLogEvent(createVideoPreviewLog)
+	srv.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
+	srv.publishConvertionLogEvent(createVideoPreviewLog)
 
-	err := file_server.createVideoPreview(path, int(rqst.Nb), int(rqst.Height), true)
+	err := srv.createVideoPreview(path, int(rqst.Nb), int(rqst.Height), true)
 	if err != nil {
 		createVideoPreviewLog.Status = "fail"
-		file_server.publishConvertionLogEvent(createVideoPreviewLog)
+		srv.publishConvertionLogEvent(createVideoPreviewLog)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	createVideoPreviewLog.Status = "done"
-	file_server.publishConvertionLogEvent(createVideoPreviewLog)
+	srv.publishConvertionLogEvent(createVideoPreviewLog)
 
 	generateVideoGifLog := new(filepb.VideoConversionLog)
 	generateVideoGifLog.LogTime = time.Now().Unix()
@@ -4337,31 +4336,31 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 	generateVideoGifLog.Status = "running"
 
 	// Store the conversion log...
-	file_server.videoConversionLogs.Store(generateVideoGifLog.LogTime, generateVideoGifLog)
-	file_server.publishConvertionLogEvent(generateVideoGifLog)
-	err = file_server.generateVideoPreview(path, 10, 320, 30, true)
+	srv.videoConversionLogs.Store(generateVideoGifLog.LogTime, generateVideoGifLog)
+	srv.publishConvertionLogEvent(generateVideoGifLog)
+	err = srv.generateVideoPreview(path, 10, 320, 30, true)
 	if err != nil {
 		generateVideoGifLog.Status = "fail"
-		file_server.publishConvertionLogEvent(generateVideoGifLog)
-		file_server.publishConvertionLogError(rqst.Path, err)
+		srv.publishConvertionLogEvent(generateVideoGifLog)
+		srv.publishConvertionLogError(rqst.Path, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	generateVideoGifLog.Status = "done"
-	file_server.publishConvertionLogEvent(generateVideoGifLog)
+	srv.publishConvertionLogEvent(generateVideoGifLog)
 
 	return &filepb.CreateVideoPreviewResponse{}, nil
 
 }
 
 // Create an audio info if not exist and reassociate path with the title.
-func (file_server *server) createAudio(client *title_client.Title_Client, path string, duration int, metadata map[string]interface{}) error {
-	// here I will create the info in the title server...
+func (srv *server) createAudio(client *title_client.Title_Client, path string, duration int, metadata map[string]interface{}) error {
+	// here I will create the info in the title srv...
 	audios := make(map[string][]*titlepb.Audio, 0)
 	fmt.Println("get file audio association: ", path)
-	err := file_server.getFileAudiosAssociation(client, path, audios)
+	err := srv.getFileAudiosAssociation(client, path, audios)
 	if err != nil {
 		if err.Error() == "no audios found" {
 			// so here I will create the information from the metadata...
@@ -4414,7 +4413,7 @@ func (file_server *server) createAudio(client *title_client.Title_Client, path s
 }
 
 // Generate an audio playlist
-func (file_server *server) generateAudioPlaylist(path, token string, paths []string) error {
+func (srv *server) generateAudioPlaylist(path, token string, paths []string) error {
 
 	if len(paths) == 0 {
 		return errors.New("no paths was given")
@@ -4429,7 +4428,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
 
 	for i := 0; i < len(paths); i++ {
-		metadata, err := readAudioMetadata(file_server, paths[i], 300, 300)
+		metadata, err := readAudioMetadata(srv, paths[i], 300, 300)
 		duration := Utility.GetVideoDuration(paths[i])
 		if duration > 0 && err == nil {
 
@@ -4468,7 +4467,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 			url_ += path_
 			playlist += url_ + "\n\n"
 
-			file_server.createAudio(client, paths[i], duration, metadata)
+			srv.createAudio(client, paths[i], duration, metadata)
 
 		}
 	}
@@ -4482,7 +4481,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 }
 
 // Generate an audio playlist
-func (file_server *server) generateVideoPlaylist(path, token string, paths []string) error {
+func (srv *server) generateVideoPlaylist(path, token string, paths []string) error {
 	if len(paths) == 0 {
 		return errors.New("no paths was given")
 	}
@@ -4503,7 +4502,7 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 			path__ = filepath.Dir(paths[i])
 		}
 
-		file_server.getFileVideosAssociation(client, path__, videos)
+		srv.getFileVideosAssociation(client, path__, videos)
 
 		if len(videos[path__]) > 0 {
 
@@ -4555,10 +4554,10 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 }
 
 // Generate video and audio playlist for a given directory.
-func (file_server *server) generatePlaylist(path, token string) error {
+func (srv *server) generatePlaylist(path, token string) error {
 
 	// first of all I will retreive media files from the folder...
-	infos, err := Utility.ReadDir(path) // getFileInfo(file_server, path)
+	infos, err := Utility.ReadDir(path) // getFileInfo(srv, path)
 
 	if err != nil {
 		return err
@@ -4569,7 +4568,7 @@ func (file_server *server) generatePlaylist(path, token string) error {
 
 	for i := 0; i < len(infos); i++ {
 		filename := filepath.Join(path, infos[i].Name())
-		info, err := getFileInfo(file_server, filename, -1, -1)
+		info, err := getFileInfo(srv, filename, -1, -1)
 
 		if err == nil {
 
@@ -4580,9 +4579,9 @@ func (file_server *server) generatePlaylist(path, token string) error {
 				if err == nil {
 					info_ := make(map[string]interface{})
 					json.Unmarshal(data, &info_)
-					path := file_server.formatPath(info_["path"].(string))
+					path := srv.formatPath(info_["path"].(string))
 					if Utility.Exists(path) {
-						info, _ = getFileInfo(file_server, path, -1, -1)
+						info, _ = getFileInfo(srv, path, -1, -1)
 						filename = path
 					}
 				}
@@ -4606,23 +4605,23 @@ func (file_server *server) generatePlaylist(path, token string) error {
 
 	// here I will generate the audio playlist
 	if len(audios) > 0 {
-		file_server.generateAudioPlaylist(path, token, file_server.orderedPlayList(path, audios))
+		srv.generateAudioPlaylist(path, token, srv.orderedPlayList(path, audios))
 	}
 
 	// Here I will generate video playlist.
 	if len(videos) > 0 {
 
-		file_server.generateVideoPlaylist(path, token, file_server.orderedPlayList(path, videos))
+		srv.generateVideoPlaylist(path, token, srv.orderedPlayList(path, videos))
 	}
 
 	// tell client that something new append!!!
-	file_server.publishReloadDirEvent(path)
+	srv.publishReloadDirEvent(path)
 
 	return nil
 }
 
 // Try to get playlist from playlist.json...
-func (file_server *server) orderedPlayList(path string, files []string) []string {
+func (srv *server) orderedPlayList(path string, files []string) []string {
 	if Utility.Exists(path + "/.hidden/playlist.json") {
 
 		playlist := make(map[string]interface{})
@@ -4648,15 +4647,15 @@ func (file_server *server) orderedPlayList(path string, files []string) []string
 }
 
 // Generate the playlists for a directory...
-func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.GeneratePlaylistRequest) (*filepb.GeneratePlaylistResponse, error) {
-	
+func (srv *server) GeneratePlaylist(ctx context.Context, rqst *filepb.GeneratePlaylistRequest) (*filepb.GeneratePlaylistResponse, error) {
+
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// retreive the path...
-	path := file_server.formatPath(rqst.Dir)
+	path := srv.formatPath(rqst.Dir)
 	if !Utility.Exists(path) {
 		return nil, errors.New("no file found at path " + rqst.Dir)
 	}
@@ -4665,7 +4664,7 @@ func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.Ge
 	os.Remove(path + "/audio.mu3")
 	os.Remove(path + "/video.mu3")
 
-	err = file_server.generatePlaylist(path, token)
+	err = srv.generatePlaylist(path, token)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -4677,7 +4676,7 @@ func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.Ge
 }
 
 // Create video time line
-func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb.CreateVideoTimeLineRequest) (*filepb.CreateVideoTimeLineResponse, error) {
+func (srv *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb.CreateVideoTimeLineRequest) (*filepb.CreateVideoTimeLineResponse, error) {
 	if !Utility.Exists(rqst.Path) {
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
@@ -4688,36 +4687,36 @@ func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb
 	createVideoTimeLineLog.Path = rqst.Path
 	createVideoTimeLineLog.Status = "running"
 
-	file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
-	file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+	srv.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
+	srv.publishConvertionLogEvent(createVideoTimeLineLog)
 
-	err := file_server.createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps, true)
+	err := srv.createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps, true)
 	if err != nil {
 		createVideoTimeLineLog.Status = "fail"
-		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
-		file_server.publishConvertionLogError(rqst.Path, err)
+		srv.publishConvertionLogEvent(createVideoTimeLineLog)
+		srv.publishConvertionLogError(rqst.Path, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	createVideoTimeLineLog.Status = "done"
-	file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+	srv.publishConvertionLogEvent(createVideoTimeLineLog)
 
 	return &filepb.CreateVideoTimeLineResponse{}, nil
 }
 
 // Convert a file from mkv, avi or other format to MPEG-4 AVC
-func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *filepb.ConvertVideoToMpeg4H264Request) (*filepb.ConvertVideoToMpeg4H264Response, error) {
+func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *filepb.ConvertVideoToMpeg4H264Request) (*filepb.ConvertVideoToMpeg4H264Response, error) {
 
-	path_ := file_server.formatPath(rqst.Path)
+	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
 
-	info, err := getFileInfo(file_server, path_, -1, -1)
+	info, err := getFileInfo(srv, path_, -1, -1)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4731,14 +4730,14 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		createVideoMpeg4H264Log.Path = rqst.Path
 		createVideoMpeg4H264Log.Status = "running"
 
-		file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+		srv.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+		srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
-		_, err := file_server.createVideoMpeg4H264(path_)
+		_, err := srv.createVideoMpeg4H264(path_)
 		if err != nil {
-			file_server.publishConvertionLogError(rqst.Path, err)
+			srv.publishConvertionLogError(rqst.Path, err)
 			createVideoMpeg4H264Log.Status = "fail"
-			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
 			return nil, status.Errorf(
 				codes.Internal,
@@ -4746,7 +4745,7 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		}
 
 		createVideoMpeg4H264Log.Status = "done"
-		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+		srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 	} else {
 		files := Utility.GetFilePathsByExtension(path_, ".mkv")
 		files = append(files, Utility.GetFilePathsByExtension(path_, ".avi")...)
@@ -4757,14 +4756,14 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 			createVideoMpeg4H264Log.Path = files[i]
 			createVideoMpeg4H264Log.Status = "running"
 
-			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			srv.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+			srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
-			_, err := file_server.createVideoMpeg4H264(files[i])
+			_, err := srv.createVideoMpeg4H264(files[i])
 			if err != nil {
-				file_server.publishConvertionLogError(files[i], err)
+				srv.publishConvertionLogError(files[i], err)
 				createVideoMpeg4H264Log.Status = "fail"
-				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+				srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
 				return nil, status.Errorf(
 					codes.Internal,
@@ -4772,7 +4771,7 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 			}
 
 			createVideoMpeg4H264Log.Status = "done"
-			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 		}
 	}
 
@@ -4781,9 +4780,9 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 
 // Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the
 // the streams for various resolutions. (see script create-vod-hls.sh for more info)
-func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
+func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
 
-	path_ := file_server.formatPath(rqst.Path)
+	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4793,7 +4792,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 	if !Utility.Exists(path_) {
 		return nil, errors.New("no file found at path " + path_)
 	}
-	info, err := getFileInfo(file_server, path_, -1, -1)
+	info, err := getFileInfo(srv, path_, -1, -1)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4810,20 +4809,20 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 			createVideoMpeg4H264Log.Path = rqst.Path
 			createVideoMpeg4H264Log.Status = "running"
 
-			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-			rqst.Path, err = file_server.createVideoMpeg4H264(path_)
+			srv.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+			srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			rqst.Path, err = srv.createVideoMpeg4H264(path_)
 			if err != nil {
-				file_server.publishConvertionLogError(rqst.Path, err)
+				srv.publishConvertionLogError(rqst.Path, err)
 				createVideoMpeg4H264Log.Status = "fail"
-				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+				srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			createVideoMpeg4H264Log.Status = "done"
-			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 		}
 
 		// Create the hls stream from MPEG-4 H264 file.
@@ -4832,21 +4831,21 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 		createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
 		createHlsStreamFromMpeg4H264Log.Path = rqst.Path
 		createHlsStreamFromMpeg4H264Log.Status = "running"
-		file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
-		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+		srv.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+		srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 
-		err := file_server.createHlsStreamFromMpeg4H264(rqst.Path)
+		err := srv.createHlsStreamFromMpeg4H264(rqst.Path)
 		if err != nil {
-			file_server.publishConvertionLogError(rqst.Path, err)
+			srv.publishConvertionLogError(rqst.Path, err)
 			createHlsStreamFromMpeg4H264Log.Status = "fail"
-			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+			srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		createHlsStreamFromMpeg4H264Log.Status = "done"
-		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+		srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 	} else {
 		files := Utility.GetFilePathsByExtension(path_, ".mkv")
 		files = append(files, Utility.GetFilePathsByExtension(path_, ".avi")...)
@@ -4861,20 +4860,20 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 				createVideoMpeg4H264Log.Path = files[i]
 				createVideoMpeg4H264Log.Status = "running"
 
-				file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-				rqst.Path, err = file_server.createVideoMpeg4H264(path_)
+				srv.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+				srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
+				rqst.Path, err = srv.createVideoMpeg4H264(path_)
 				if err != nil {
-					file_server.publishConvertionLogError(files[i], err)
+					srv.publishConvertionLogError(files[i], err)
 					createVideoMpeg4H264Log.Status = "fail"
-					file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+					srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
 					return nil, status.Errorf(
 						codes.Internal,
 						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 				createVideoMpeg4H264Log.Status = "done"
-				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+				srv.publishConvertionLogEvent(createVideoMpeg4H264Log)
 			}
 
 			// Create the hls stream from MPEG-4 H264 file.
@@ -4883,21 +4882,21 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 			createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
 			createHlsStreamFromMpeg4H264Log.Path = files[i]
 			createHlsStreamFromMpeg4H264Log.Status = "running"
-			file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
-			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+			srv.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+			srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 
-			err := file_server.createHlsStreamFromMpeg4H264(files[i])
+			err := srv.createHlsStreamFromMpeg4H264(files[i])
 			if err != nil {
-				file_server.publishConvertionLogError(files[i], err)
+				srv.publishConvertionLogError(files[i], err)
 				createHlsStreamFromMpeg4H264Log.Status = "fail"
-				file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+				srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			createHlsStreamFromMpeg4H264Log.Status = "done"
-			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+			srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 		}
 
 	}
@@ -4925,7 +4924,7 @@ func (srv *server) publishReloadDirEvent(path string) {
 	}
 }
 
-func (file_server *server) createVideoInfo(token, path, file_path, info_path string) error {
+func (srv *server) createVideoInfo(token, path, file_path, info_path string) error {
 	if strings.Contains(path, ".hidden") {
 		return nil
 	}
@@ -5038,7 +5037,7 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 
 // Use yt-dlp to get channel or video information...
 // https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
-func (file_server *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
+func (srv *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
 
 	// wait := make(chan error)
 	//Utility.RunCmd("yt-dlp", path, []string{"-j", "--flat-playlist", "--skip-download", url},  wait)
@@ -5084,7 +5083,7 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 
 }
 
-func (file_server *server) getVideoInfo(url string) (map[string]interface{}, error) {
+func (srv *server) getVideoInfo(url string) (map[string]interface{}, error) {
 	cmd := exec.Command("yt-dlp", "-j", "--dump-json", "--skip-download", url)
 	cmd.Dir = os.TempDir()
 
@@ -5094,14 +5093,14 @@ func (file_server *server) getVideoInfo(url string) (map[string]interface{}, err
 
 }
 
-func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.Title_Client) func(evt *eventpb.Event) {
+func cancelUploadVideoHandeler(srv *server, title_client_ *title_client.Title_Client) func(evt *eventpb.Event) {
 
 	return func(evt *eventpb.Event) {
 		data := make(map[string]interface{})
 		err := json.Unmarshal(evt.Data, &data)
 		if err == nil {
 			pid := Utility.ToInt(data["pid"])
-			path_ := file_server.formatPath(data["path"].(string))
+			path_ := srv.formatPath(data["path"].(string))
 
 			// So here I will the process...
 			proc, err := os.FindProcess(pid)
@@ -5135,9 +5134,9 @@ func cancelUploadVideoHandeler(file_server *server, title_client_ *title_client.
 						videos := make(map[string][]*titlepb.Video, 0)
 						mac, _ := Utility.MyMacAddr(Utility.MyIP())
 						token, _ := security.GetLocalToken(mac)
-						err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), file_server.Domain)
+						err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), srv.Domain)
 						if err != nil {
-							err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+							err := srv.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
 							if err != nil {
 								os.Remove(path_ + "/" + f.Name())
 							} else if len(videos) == 0 {
@@ -5199,10 +5198,10 @@ func printDownloadPercent(done chan int64, path string, total int64, stream file
 	}
 }
 
-func (file_server *server) uploadFile(token, url, dest, name string, stream filepb.FileService_UploadFileServer) error {
+func (srv *server) uploadFile(token, url, dest, name string, stream filepb.FileService_UploadFileServer) error {
 	var err error
 
-	path := file_server.formatPath(dest)
+	path := srv.formatPath(dest)
 	if !Utility.Exists(path) {
 		return errors.New("no folder found with path " + path)
 	}
@@ -5259,9 +5258,9 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 	)
 
 	// Now I will set the file permission.
-	file_server.setOwner(token, dest+"/"+name)
+	srv.setOwner(token, dest+"/"+name)
 
-	info, err := getFileInfo(file_server, path+"/"+name, -1, -1)
+	info, err := getFileInfo(srv, path+"/"+name, -1, -1)
 	if err == nil {
 		if strings.HasPrefix(info.Mime, "video/") {
 			// Here I will resfresh generate video related files...
@@ -5272,7 +5271,7 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 					Info:     fmt.Sprintf("Process video information..."),
 				},
 			)
-			processVideos(file_server, token, []string{path})
+			processVideos(srv, token, []string{path})
 
 		} else if strings.HasSuffix(info.Name, ".pdf") {
 			stream.Send(
@@ -5282,7 +5281,7 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 					Info:     fmt.Sprintf("Index text information..."),
 				},
 			)
-			file_server.indexPdfFile(path+"/"+name, info)
+			srv.indexPdfFile(path+"/"+name, info)
 		}
 	}
 
@@ -5300,7 +5299,7 @@ func (file_server *server) uploadFile(token, url, dest, name string, stream file
 /**
  * Get a file client for a given domain.
  */
-func (server *server) GetFileClient(address string) (*file_client.File_Client, error) {
+func (srv *server) GetFileClient(address string) (*file_client.File_Client, error) {
 	// validate the port has not change...
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
 	client, err := globular_client.GetClient(address, "file.FileService", "NewFileService_Client")
@@ -5311,8 +5310,8 @@ func (server *server) GetFileClient(address string) (*file_client.File_Client, e
 }
 
 // Upload a video from a given url, it use youtube-dl.
-func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.FileService_UploadFileServer) error {
-	
+func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.FileService_UploadFileServer) error {
+
 	_, token, err := security.GetClientId(stream.Context())
 	if err != nil {
 		return err
@@ -5320,7 +5319,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 
 	if rqst.IsDir {
 
-		file_client_, err := file_server.GetFileClient(rqst.Domain)
+		file_client_, err := srv.GetFileClient(rqst.Domain)
 		if err != nil {
 			return err
 		}
@@ -5334,7 +5333,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 			},
 		)
 
-		// create temporary archive on the remote server.
+		// create temporary archive on the remote srv.
 		__name__ := Utility.RandomUUID()
 		archive_path_, err := file_client_.CreateAchive(token, []string{u.Path}, __name__)
 		if err != nil {
@@ -5343,7 +5342,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 
 		archive_url_ := u.Scheme + "://" + u.Host + archive_path_ + "?token=" + token
 
-		err = file_server.uploadFile(token, archive_url_, rqst.Dest, __name__+".tar.gz", stream)
+		err = srv.uploadFile(token, archive_url_, rqst.Dest, __name__+".tar.gz", stream)
 		if err != nil {
 			return err
 		}
@@ -5351,7 +5350,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 		// I can now remove the created archived file...
 		file_client_.DeleteFile(token, archive_path_)
 
-		path := file_server.formatPath(rqst.Dest)
+		path := srv.formatPath(rqst.Dest)
 
 		stream.Send(
 			&filepb.UploadFileResponse{
@@ -5396,18 +5395,18 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 					Info:     fmt.Sprintf("Process video information..."),
 				},
 			)
-			processVideos(file_server, token, []string{path + "/" + rqst.Name})
+			processVideos(srv, token, []string{path + "/" + rqst.Name})
 
 		}
 
 		// Set the file owner.
-		file_server.setOwner(token, rqst.Dest+"/"+rqst.Name)
+		srv.setOwner(token, rqst.Dest+"/"+rqst.Name)
 
-		file_server.publishReloadDirEvent(path)
+		srv.publishReloadDirEvent(path)
 	} else {
 
 		// Start upload video...
-		err = file_server.uploadFile(token, rqst.Url, rqst.Dest, rqst.Name, stream)
+		err = srv.uploadFile(token, rqst.Url, rqst.Dest, rqst.Name, stream)
 
 		// display the error...
 		if err != nil {
@@ -5422,7 +5421,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 			}
 		} else {
 			// Reload the
-			file_server.publishReloadDirEvent(rqst.Dest)
+			srv.publishReloadDirEvent(rqst.Dest)
 		}
 	}
 
@@ -5430,7 +5429,7 @@ func (file_server *server) UploadFile(rqst *filepb.UploadFileRequest, stream fil
 }
 
 // Upload a video from a given url, it use youtube-dl.
-func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.FileService_UploadVideoServer) error {
+func (srv *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.FileService_UploadVideoServer) error {
 	var err error
 
 	// Done with upload now I will porcess videos
@@ -5439,7 +5438,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 		return err
 	}
 
-	path := file_server.formatPath(rqst.Dest)
+	path := srv.formatPath(rqst.Dest)
 	if !Utility.Exists(path) {
 		return status.Errorf(
 			codes.Internal,
@@ -5450,7 +5449,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	Utility.CreateDirIfNotExist(path)
 
 	// First of all I will test if the url is a playlist or not...
-	path_, playlist, infos, err := file_server.getVideoInfos(rqst.Url, path, rqst.Format)
+	path_, playlist, infos, err := srv.getVideoInfos(rqst.Url, path, rqst.Format)
 
 	if err != nil {
 		return status.Errorf(
@@ -5475,17 +5474,17 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				info_path := path_ + "/" + f.Name()
 				fileName := path_ + "/" + strings.ReplaceAll(f.Name(), ".info.json", ".mp4")
 				if Utility.Exists(fileName) {
-					err = file_server.createVideoInfo(token, dest, fileName, info_path)
+					err = srv.createVideoInfo(token, dest, fileName, info_path)
 					if err == nil {
-						file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
+						srv.setOwner(token, dest+"/"+filepath.Base(fileName))
 					}
 					os.Remove(info_path)
 				}
 			}
 		}
 
-		file_server.generatePlaylist(path, "")
-		authentication_client_, err := getAuticationClient(file_server.GetAddress())
+		srv.generatePlaylist(path, "")
+		authentication_client_, err := getAuticationClient(srv.GetAddress())
 		if err != nil {
 			return err
 		}
@@ -5500,9 +5499,9 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			// remove file with no asscociation...
 			if strings.HasSuffix(f.Name(), ".mp4") {
 				videos := make(map[string][]*titlepb.Video, 0)
-				err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), file_server.Domain)
+				err := restoreVideoInfos(title_client_, token, path_+"/"+f.Name(), srv.Domain)
 				if err != nil {
-					err := file_server.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+					err := srv.getFileVideosAssociation(title_client_, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
 					if err != nil {
 						os.Remove(path_ + "/" + f.Name())
 					} else if len(videos) == 0 {
@@ -5527,7 +5526,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				}
 
 				// Start upload video...
-				pid, err := file_server.uploadedVideo(token, item["url"].(string), rqst.Dest+"/"+item["playlist"].(string), rqst.Format, path_+"/"+item["id"].(string)+"."+rqst.Format, stream)
+				pid, err := srv.uploadedVideo(token, item["url"].(string), rqst.Dest+"/"+item["playlist"].(string), rqst.Format, path_+"/"+item["id"].(string)+"."+rqst.Format, stream)
 
 				// display the error...
 				if err != nil {
@@ -5542,14 +5541,14 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 
 					}
 				} else {
-					file_server.publishReloadDirEvent(path_)
+					srv.publishReloadDirEvent(path_)
 				}
 
 			}
 
 		}
 	} else if infos != nil {
-		pid, err := file_server.uploadedVideo(token, rqst.Url, rqst.Dest, rqst.Format, path+"/"+infos["id"].(string)+"."+rqst.Format, stream)
+		pid, err := srv.uploadedVideo(token, rqst.Url, rqst.Dest, rqst.Format, path+"/"+infos["id"].(string)+"."+rqst.Format, stream)
 
 		// display the error...
 		if err != nil {
@@ -5562,7 +5561,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 
 			return errors.New("fail to upload video " + infos["id"].(string) + " with error " + err.Error())
 		} else {
-			file_server.publishReloadDirEvent(path_)
+			srv.publishReloadDirEvent(path_)
 		}
 	}
 
@@ -5571,10 +5570,10 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 }
 
 // That function is use to upload video...
-func (file_server *server) uploadedVideo(token, url, dest, format, fileName string, stream filepb.FileService_UploadVideoServer) (int, error) {
+func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stream filepb.FileService_UploadVideoServer) (int, error) {
 	var err error
 
-	path := file_server.formatPath(dest)
+	path := srv.formatPath(dest)
 	pid := -1
 
 	if !Utility.Exists(path) {
@@ -5653,7 +5652,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 				},
 			)
 
-			err = file_server.createVideoInfo(token, dest, fileName, info_path)
+			err = srv.createVideoInfo(token, dest, fileName, info_path)
 			if err != nil {
 				stream.Send(
 					&filepb.UploadVideoResponse{
@@ -5664,7 +5663,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			}
 
 			// create the file permission...
-			err = file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
+			err = srv.setOwner(token, dest+"/"+filepath.Base(fileName))
 			stream.Send(
 				&filepb.UploadVideoResponse{
 					Pid:    int32(pid),
@@ -5702,7 +5701,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			}
 
 			// regenerate the playlist and also save the audio info...
-			err = file_server.generatePlaylist(path, "")
+			err = srv.generatePlaylist(path, "")
 			if err != nil {
 				fmt.Println("fail to generate playlist with error ", err)
 			}
@@ -5710,9 +5709,9 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			// call videos processing and return...
 			go func() {
 				fileName_ := strings.ReplaceAll(fileName, "/.hidden/", "/")
-				file_server.createVideoPreview(fileName_, 20, 128, false)
-				file_server.generateVideoPreview(fileName_, 10, 320, 30, true)
-				file_server.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
+				srv.createVideoPreview(fileName_, 20, 128, false)
+				srv.generateVideoPreview(fileName_, 10, 320, 30, true)
+				srv.createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 
 			}()
 		}
@@ -5723,7 +5722,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 		if Utility.Exists(info_path) {
 			needRefresh = true
 			// create the file permission...
-			err = file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
+			err = srv.setOwner(token, dest+"/"+filepath.Base(fileName))
 			if err != nil {
 				fmt.Println("fail to create video permission with error ", err)
 			}
@@ -5739,7 +5738,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 				os.Remove(path + "/audio.m3u")
 			}
 			// regenerate the playlist and also save the audio info...
-			err = file_server.generatePlaylist(path, "")
+			err = srv.generatePlaylist(path, "")
 			if err != nil {
 				fmt.Println("fail to generate playlist with error ", err)
 			}
@@ -5758,20 +5757,20 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 }
 
 // Start process audio file inside a directory...
-func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
+func (srv *server) StartProcessAudio(ctx context.Context, rqst *filepb.StartProcessAudioRequest) (*filepb.StartProcessAudioResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	path := file_server.formatPath(rqst.Path)
+	path := srv.formatPath(rqst.Path)
 
 	// return nil, errors.New("not implemented")
 	audios := Utility.GetFilePathsByExtension(path, ".mp3")
 	audios = append(audios, Utility.GetFilePathsByExtension(path, ".flac")...)
 
-	err = file_server.generateAudioPlaylist(path, token, audios)
+	err = srv.generateAudioPlaylist(path, token, audios)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5782,7 +5781,7 @@ func (file_server *server) StartProcessAudio(ctx context.Context, rqst *filepb.S
 }
 
 // Start process video on the server.
-func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.StartProcessVideoRequest) (*filepb.StartProcessVideoResponse, error) {
+func (srv *server) StartProcessVideo(ctx context.Context, rqst *filepb.StartProcessVideoRequest) (*filepb.StartProcessVideoResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -5790,7 +5789,7 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 	}
 
 	// Convert video file, set permissions...
-	if file_server.isProcessing {
+	if srv.isProcessing {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("conversion is already runnig")))
@@ -5803,14 +5802,14 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 		dirs = append(dirs, config.GetDataDir()+"/files/users")
 		dirs = append(dirs, config.GetDataDir()+"/files/applications")
 	} else {
-		path := file_server.formatPath(rqst.Path)
+		path := srv.formatPath(rqst.Path)
 		dirs = append(dirs, path)
 	}
 
 	// start conversion.
 	go func() {
 		// get the list of info .info.json (generated by ytdl)
-		processVideos(file_server, token, dirs) // Process files...
+		processVideos(srv, token, dirs) // Process files...
 
 		for i := 0; i < len(dirs); i++ {
 			path := dirs[i]
@@ -5822,7 +5821,7 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 			}
 
 			// generate the playlist...
-			file_server.generatePlaylist(path, token)
+			srv.generatePlaylist(path, token)
 
 			// Now I will refresh the .vtt files...
 			// vtt file contain list of url who can change if the server address change.
@@ -5843,14 +5842,14 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 }
 
 // Return true if video processing is running.
-func (file_server *server) IsProcessVideo(ctx context.Context, rqst *filepb.IsProcessVideoRequest) (*filepb.IsProcessVideoResponse, error) {
-	return &filepb.IsProcessVideoResponse{IsProcessVideo: file_server.isProcessing}, nil
+func (srv *server) IsProcessVideo(ctx context.Context, rqst *filepb.IsProcessVideoRequest) (*filepb.IsProcessVideoResponse, error) {
+	return &filepb.IsProcessVideoResponse{IsProcessVideo: srv.isProcessing}, nil
 }
 
 // Stop process video on the server.
-func (file_server *server) StopProcessVideo(ctx context.Context, rqst *filepb.StopProcessVideoRequest) (*filepb.StopProcessVideoResponse, error) {
+func (srv *server) StopProcessVideo(ctx context.Context, rqst *filepb.StopProcessVideoRequest) (*filepb.StopProcessVideoResponse, error) {
 
-	file_server.isProcessing = false
+	srv.isProcessing = false
 
 	// kill current procession...
 	err := Utility.KillProcessByName("ffmpeg")
@@ -5864,18 +5863,18 @@ func (file_server *server) StopProcessVideo(ctx context.Context, rqst *filepb.St
 }
 
 // Set video processing.
-func (file_server *server) SetVideoConversion(ctx context.Context, rqst *filepb.SetVideoConversionRequest) (*filepb.SetVideoConversionResponse, error) {
+func (srv *server) SetVideoConversion(ctx context.Context, rqst *filepb.SetVideoConversionRequest) (*filepb.SetVideoConversionResponse, error) {
 
-	file_server.AutomaticVideoConversion = rqst.Value
+	srv.AutomaticVideoConversion = rqst.Value
 	// remove process video...
-	file_server.scheduler.Remove(processVideos)
+	srv.scheduler.Remove(processVideos)
 
-	if file_server.AutomaticVideoConversion {
-		file_server.scheduler.Every(1).Day().At(file_server.StartVideoConversionHour).Do(processVideos, file_server)
-		file_server.scheduler.Start()
+	if srv.AutomaticVideoConversion {
+		srv.scheduler.Every(1).Day().At(srv.StartVideoConversionHour).Do(processVideos, srv)
+		srv.scheduler.Start()
 	}
 
-	err := file_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5885,9 +5884,9 @@ func (file_server *server) SetVideoConversion(ctx context.Context, rqst *filepb.
 }
 
 // Set video stream conversion.
-func (file_server *server) SetVideoStreamConversion(ctx context.Context, rqst *filepb.SetVideoStreamConversionRequest) (*filepb.SetVideoStreamConversionResponse, error) {
-	file_server.AutomaticStreamConversion = rqst.Value
-	err := file_server.Save()
+func (srv *server) SetVideoStreamConversion(ctx context.Context, rqst *filepb.SetVideoStreamConversionRequest) (*filepb.SetVideoStreamConversionResponse, error) {
+	srv.AutomaticStreamConversion = rqst.Value
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5898,18 +5897,18 @@ func (file_server *server) SetVideoStreamConversion(ctx context.Context, rqst *f
 }
 
 // Set the hour when the video conversion must start.
-func (file_server *server) SetStartVideoConversionHour(ctx context.Context, rqst *filepb.SetStartVideoConversionHourRequest) (*filepb.SetStartVideoConversionHourResponse, error) {
-	file_server.StartVideoConversionHour = rqst.Value
+func (srv *server) SetStartVideoConversionHour(ctx context.Context, rqst *filepb.SetStartVideoConversionHourRequest) (*filepb.SetStartVideoConversionHourResponse, error) {
+	srv.StartVideoConversionHour = rqst.Value
 
 	// remove actual process video...
-	file_server.scheduler.Remove(processVideos)
+	srv.scheduler.Remove(processVideos)
 
-	if file_server.AutomaticVideoConversion {
-		file_server.scheduler.Every(1).Day().At(file_server.StartVideoConversionHour).Do(processVideos, file_server)
-		file_server.scheduler.Start()
+	if srv.AutomaticVideoConversion {
+		srv.scheduler.Every(1).Day().At(srv.StartVideoConversionHour).Do(processVideos, srv)
+		srv.scheduler.Start()
 	}
 
-	err := file_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5919,9 +5918,9 @@ func (file_server *server) SetStartVideoConversionHour(ctx context.Context, rqst
 }
 
 // Set the maximum delay when conversion can run, it will finish actual conversion but it will not begin new conversion past this delay.
-func (file_server *server) SetMaximumVideoConversionDelay(ctx context.Context, rqst *filepb.SetMaximumVideoConversionDelayRequest) (*filepb.SetMaximumVideoConversionDelayResponse, error) {
-	file_server.MaximumVideoConversionDelay = rqst.Value
-	err := file_server.Save()
+func (srv *server) SetMaximumVideoConversionDelay(ctx context.Context, rqst *filepb.SetMaximumVideoConversionDelayRequest) (*filepb.SetMaximumVideoConversionDelayResponse, error) {
+	srv.MaximumVideoConversionDelay = rqst.Value
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5931,10 +5930,10 @@ func (file_server *server) SetMaximumVideoConversionDelay(ctx context.Context, r
 }
 
 // Return the list of failed video conversion.
-func (file_server *server) GetVideoConversionErrors(ctx context.Context, rqst *filepb.GetVideoConversionErrorsRequest) (*filepb.GetVideoConversionErrorsResponse, error) {
+func (srv *server) GetVideoConversionErrors(ctx context.Context, rqst *filepb.GetVideoConversionErrorsRequest) (*filepb.GetVideoConversionErrorsResponse, error) {
 	video_conversion_errors := make([]*filepb.VideoConversionError, 0)
 
-	file_server.videoConversionErrors.Range(func(key, value interface{}) bool {
+	srv.videoConversionErrors.Range(func(key, value interface{}) bool {
 		video_conversion_errors = append(video_conversion_errors, &filepb.VideoConversionError{Path: key.(string), Error: value.(string)})
 		return true
 	})
@@ -5943,9 +5942,9 @@ func (file_server *server) GetVideoConversionErrors(ctx context.Context, rqst *f
 }
 
 // Clear the video conversion errors
-func (file_server *server) ClearVideoConversionErrors(ctx context.Context, rqst *filepb.ClearVideoConversionErrorsRequest) (*filepb.ClearVideoConversionErrorsResponse, error) {
-	file_server.videoConversionErrors.Range(func(key, value interface{}) bool {
-		file_server.videoConversionErrors.Delete(key)
+func (srv *server) ClearVideoConversionErrors(ctx context.Context, rqst *filepb.ClearVideoConversionErrorsRequest) (*filepb.ClearVideoConversionErrorsResponse, error) {
+	srv.videoConversionErrors.Range(func(key, value interface{}) bool {
+		srv.videoConversionErrors.Delete(key)
 		return true
 	})
 
@@ -5953,16 +5952,16 @@ func (file_server *server) ClearVideoConversionErrors(ctx context.Context, rqst 
 }
 
 // Clear a specific video conversion error
-func (file_server *server) ClearVideoConversionError(ctx context.Context, rqst *filepb.ClearVideoConversionErrorRequest) (*filepb.ClearVideoConversionErrorResponse, error) {
-	file_server.videoConversionErrors.Delete(rqst.Path)
+func (srv *server) ClearVideoConversionError(ctx context.Context, rqst *filepb.ClearVideoConversionErrorRequest) (*filepb.ClearVideoConversionErrorResponse, error) {
+	srv.videoConversionErrors.Delete(rqst.Path)
 	return &filepb.ClearVideoConversionErrorResponse{}, nil
 }
 
 // Clear a specific video conversion log
-func (file_server *server) ClearVideoConversionLogs(ctx context.Context, rqst *filepb.ClearVideoConversionLogsRequest) (*filepb.ClearVideoConversionLogsResponse, error) {
+func (srv *server) ClearVideoConversionLogs(ctx context.Context, rqst *filepb.ClearVideoConversionLogsRequest) (*filepb.ClearVideoConversionLogsResponse, error) {
 
-	file_server.videoConversionLogs.Range(func(key, value interface{}) bool {
-		file_server.videoConversionLogs.Delete(key)
+	srv.videoConversionLogs.Range(func(key, value interface{}) bool {
+		srv.videoConversionLogs.Delete(key)
 		return true
 	})
 
@@ -5970,10 +5969,10 @@ func (file_server *server) ClearVideoConversionLogs(ctx context.Context, rqst *f
 }
 
 // Return the list of log messages
-func (file_server *server) GetVideoConversionLogs(ctx context.Context, rqst *filepb.GetVideoConversionLogsRequest) (*filepb.GetVideoConversionLogsResponse, error) {
+func (srv *server) GetVideoConversionLogs(ctx context.Context, rqst *filepb.GetVideoConversionLogsRequest) (*filepb.GetVideoConversionLogsResponse, error) {
 	logs := make([]*filepb.VideoConversionLog, 0)
 
-	file_server.videoConversionLogs.Range(func(key, value interface{}) bool {
+	srv.videoConversionLogs.Range(func(key, value interface{}) bool {
 		logs = append(logs, value.(*filepb.VideoConversionLog))
 		return true
 	})
@@ -5982,8 +5981,8 @@ func (file_server *server) GetVideoConversionLogs(ctx context.Context, rqst *fil
 }
 
 // Return the file metadata, more specific infos store in the file itself.
-func (file_server *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
-	path := file_server.formatPath(rqst.Path)
+func (srv *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
+	path := srv.formatPath(rqst.Path)
 	metadata, err := ExtractMetada(path)
 	if err != nil {
 		return nil, status.Errorf(
@@ -6018,7 +6017,7 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 }
 
 // Index text contain in a pdf file
-func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
+func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 
 	// The hidden folder path...
 	path_ := path[0:strings.LastIndex(path, "/")]
@@ -6135,32 +6134,32 @@ func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo)
 }
 
 // Index text contain in a pdf file
-func (file_server *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
+func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
 	return nil
 }
 
 // That function is use to index file at given path so the user will be able to
 // search
-func (file_server *server) indexFile(path string) error {
+func (srv *server) indexFile(path string) error {
 
 	// from the mime type I will choose how the document must be indexed.
-	fileInfos, err := getFileInfo(file_server, path, -1, -1)
+	fileInfos, err := getFileInfo(srv, path, -1, -1)
 
 	if err != nil {
 		return err
 	}
 
 	if fileInfos.Mime == "application/pdf" {
-		return file_server.indexPdfFile(path, fileInfos)
+		return srv.indexPdfFile(path, fileInfos)
 	} else if strings.HasPrefix(fileInfos.Mime, "text") {
-		return file_server.indexTextFile(path, fileInfos)
+		return srv.indexTextFile(path, fileInfos)
 	}
 
 	return errors.New("no indexation exist for file type " + fileInfos.Mime)
 }
 
 // Remove file indexation
-func (file_server *server) removeIndexation(path string) error {
+func (srv *server) removeIndexation(path string) error {
 
 	return nil
 }

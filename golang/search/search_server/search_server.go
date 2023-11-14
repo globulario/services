@@ -54,7 +54,7 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 	ProxyProcess    int
-	// search_server-signed X.509 public keys for distribution
+	// srv-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -78,358 +78,358 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
-	// Specific to file server.
+	// Specific to file srv.
 	Root string
 
 	search_engine search_engine.SearchEngine
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (search_server *server) GetId() string {
-	return search_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (search_server *server) SetId(id string) {
-	search_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (search_server *server) GetName() string {
-	return search_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (search_server *server) SetName(name string) {
-	search_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (search_server *server) GetDescription() string {
-	return search_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (search_server *server) SetDescription(description string) {
-	search_server.Description = description
-}
-
-func (search_server *server) GetRepositories() []string {
-	return search_server.Repositories
-}
-func (search_server *server) SetRepositories(repositories []string) {
-	search_server.Repositories = repositories
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (search_server *server) GetDiscoveries() []string {
-	return search_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (search_server *server) SetDiscoveries(discoveries []string) {
-	search_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // The list of keywords of the services.
-func (search_server *server) GetKeywords() []string {
-	return search_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (search_server *server) SetKeywords(keywords []string) {
-	search_server.Keywords = keywords
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
 // Dist
-func (search_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, search_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (search_server *server) GetPath() string {
-	return search_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (search_server *server) SetPath(path string) {
-	search_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (search_server *server) GetProto() string {
-	return search_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (search_server *server) SetProto(proto string) {
-	search_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (search_server *server) GetPort() int {
-	return search_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (search_server *server) SetPort(port int) {
-	search_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (search_server *server) GetProxy() int {
-	return search_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (search_server *server) SetProxy(proxy int) {
-	search_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (search_server *server) GetProtocol() string {
-	return search_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (search_server *server) SetProtocol(protocol string) {
-	search_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (search_server *server) GetAllowAllOrigins() bool {
-	return search_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (search_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	search_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (search_server *server) GetAllowedOrigins() string {
-	return search_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (search_server *server) SetAllowedOrigins(allowedOrigins string) {
-	search_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (search_server *server) GetDomain() string {
-	return search_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (search_server *server) SetDomain(domain string) {
-	search_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (search_server *server) GetTls() bool {
-	return search_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (search_server *server) SetTls(hasTls bool) {
-	search_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (search_server *server) GetCertAuthorityTrust() string {
-	return search_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (search_server *server) SetCertAuthorityTrust(ca string) {
-	search_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (search_server *server) GetCertFile() string {
-	return search_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (search_server *server) SetCertFile(certFile string) {
-	search_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (search_server *server) GetKeyFile() string {
-	return search_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (search_server *server) SetKeyFile(keyFile string) {
-	search_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (search_server *server) GetVersion() string {
-	return search_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (search_server *server) SetVersion(version string) {
-	search_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (search_server *server) GetPublisherId() string {
-	return search_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (search_server *server) SetPublisherId(publisherId string) {
-	search_server.PublisherId = publisherId
-}
-
-func (search_server *server) GetKeepUpToDate() bool {
-	return search_server.KeepUpToDate
-}
-func (search_server *server) SetKeepUptoDate(val bool) {
-	search_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (search_server *server) GetKeepAlive() bool {
-	return search_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (search_server *server) SetKeepAlive(val bool) {
-	search_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (search_server *server) GetPermissions() []interface{} {
-	return search_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (search_server *server) SetPermissions(permissions []interface{}) {
-	search_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (search_server *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(search_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	search_server.grpcServer, err = globular.InitGrpcServer(search_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Init the seach engine.
-	search_server.search_engine = new(search_engine.BleveSearchEngine)
+	srv.search_engine = new(search_engine.BleveSearchEngine)
 
 	return nil
 
 }
 
 // Save the configuration values.
-func (search_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(search_server)
+	return globular.SaveService(srv)
 }
 
-func (search_server *server) StartService() error {
-	return globular.StartService(search_server, search_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (search_server *server) StopService() error {
-	return globular.StopService(search_server, search_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (search_server *server) Stop(context.Context, *searchpb.StopRequest) (*searchpb.StopResponse, error) {
-	return &searchpb.StopResponse{}, search_server.StopService()
+func (srv *server) Stop(context.Context, *searchpb.StopRequest) (*searchpb.StopResponse, error) {
+	return &searchpb.StopResponse{}, srv.StopService()
 }
 
 // Return the underlying engine version.
-func (search_server *server) GetEngineVersion(ctx context.Context, rqst *searchpb.GetEngineVersionRequest) (*searchpb.GetEngineVersionResponse, error) {
+func (srv *server) GetEngineVersion(ctx context.Context, rqst *searchpb.GetEngineVersionRequest) (*searchpb.GetEngineVersionResponse, error) {
 
 	return &searchpb.GetEngineVersionResponse{
-		Message: search_server.search_engine.GetVersion(),
+		Message: srv.search_engine.GetVersion(),
 	}, nil
 }
 
 // Remove a document from the db
-func (search_server *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
-	err := search_server.search_engine.DeleteDocument(rqst.Path, rqst.Id)
+func (srv *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
+	err := srv.search_engine.DeleteDocument(rqst.Path, rqst.Id)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -441,20 +441,20 @@ func (search_server *server) DeleteDocument(ctx context.Context, rqst *searchpb.
 }
 
 // Return the number of document in a database.
-func (search_server *server) Count(ctx context.Context, rqst *searchpb.CountRequest) (*searchpb.CountResponse, error) {
+func (srv *server) Count(ctx context.Context, rqst *searchpb.CountRequest) (*searchpb.CountResponse, error) {
 
 	return &searchpb.CountResponse{
-		Result: search_server.search_engine.Count(rqst.Path),
+		Result: srv.search_engine.Count(rqst.Path),
 	}, nil
 
 }
 
 // Search documents
-func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
+func (srv *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
 	results := new(searchpb.SearchResults)
 	var err error
 
-	results, err = search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
+	results, err = srv.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 	if err != nil {
 		return err
 	}
@@ -468,9 +468,9 @@ func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsReque
 }
 
 // That function is use to index JSON object/array of object
-func (search_server *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJsonObjectRequest) (*searchpb.IndexJsonObjectResponse, error) {
+func (srv *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJsonObjectRequest) (*searchpb.IndexJsonObjectResponse, error) {
 
-	err := search_server.search_engine.IndexJsonObject(rqst.Path, rqst.JsonStr, rqst.Language, rqst.Id, rqst.Indexs, rqst.Data)
+	err := srv.search_engine.IndexJsonObject(rqst.Path, rqst.JsonStr, rqst.Language, rqst.Id, rqst.Indexs, rqst.Data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

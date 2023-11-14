@@ -222,23 +222,23 @@ func (srv *server) Dist(path string) (string, error) {
 	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
@@ -416,7 +416,7 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 }
 
 // when services state change that publish
-func (server *server) publishEvent(evt string, data []byte, domain string) error {
+func (srv *server) publishEvent(evt string, data []byte, domain string) error {
 
 	client, err := GetEventClient(domain)
 	if err != nil {
@@ -428,7 +428,7 @@ func (server *server) publishEvent(evt string, data []byte, domain string) error
 }
 
 // Public event to a peer other than the default one...
-func (server *server) publishRemoteEvent(address, evt string, data []byte) error {
+func (srv *server) publishRemoteEvent(address, evt string, data []byte) error {
 
 	client, err := GetEventClient(address)
 	if err != nil {
@@ -439,7 +439,7 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 }
 
 // ///////////////////////////////////// return the peers infos from a given peer /////////////////////////////
-func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
+func (srv *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 
 	client, err := GetResourceClient(address)
 	if err != nil {
@@ -461,7 +461,7 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 }
 
 /** Retreive the peer public key */
-func (server *server) getPeerPublicKey(address, mac string) (string, error) {
+func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
 
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
@@ -490,9 +490,9 @@ func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 }
 
 /** Set the host if it's part of the same local network. */
-func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
+func (srv *server) setLocalHosts(peer *resourcepb.Peer) error {
 	fmt.Println("try to set ip and domain in /etc/host with value ip:", peer.LocalIpAddress, " domain:", peer.GetDomain())
-	
+
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
@@ -519,7 +519,7 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 }
 
 /** Set the host if it's part of the same local network. */
-func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
+func (srv *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
@@ -593,7 +593,7 @@ func (srv *server) Init() error {
 		return err
 	}
 
-	// Initialyse GRPC server.
+	// Initialyse GRPC srv.
 	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
@@ -622,29 +622,29 @@ func (srv *server) StopService() error {
 /**
  * Get the log client.
  */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
+	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
@@ -706,8 +706,6 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		}
 
 		srv.isReady = true
-
-		
 
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
@@ -795,7 +793,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			}
 
 			// Create the sessions table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource",  "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
 			if err != nil {
 				fmt.Println("fail to create table Sessions with error ", err)
 			}
@@ -822,7 +820,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 /**
  *  hashPassword return the bcrypt hash of the password.
  */
-func (resource_server *server) hashPassword(password string) (string, error) {
+func (srv *server) hashPassword(password string) (string, error) {
 	haspassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash password: %w", err)
@@ -833,14 +831,14 @@ func (resource_server *server) hashPassword(password string) (string, error) {
 /**
  * Return the hash password.
  */
-func (resource_server *server) validatePassword(password string, hash string) error {
+func (srv *server) validatePassword(password string, hash string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
 
 /**
  * Register an Account.
  */
-func (resource_server *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
+func (srv *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
 
 	localDomain, err := config.GetDomain()
 	if err != nil {
@@ -852,7 +850,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -868,14 +866,13 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return errors.New("account with name " + name + " already exist!")
 	}
 
-	
 	// set the account object and set it basic roles.
 	account := make(map[string]interface{})
 	account["_id"] = id
 	account["name"] = name
 	account["email"] = email
 	account["domain"] = domain
-	account["password"], _ = resource_server.hashPassword(password) // hide the password...
+	account["password"], _ = srv.hashPassword(password) // hide the password...
 
 	// List of aggregation.
 	account["roles"] = make([]interface{}, 0)
@@ -910,7 +907,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 			organizations[i] = organizations[i] + "@" + localDomain
 		}
 
-		resource_server.createCrossReferences(organizations[i], "Organizations", "accounts", id, "Accounts", "organizations")
+		srv.createCrossReferences(organizations[i], "Organizations", "accounts", id, "Accounts", "organizations")
 	}
 
 	// Roles
@@ -918,7 +915,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		if !strings.Contains(roles[i], "@") {
 			roles[i] = roles[i] + "@" + localDomain
 		}
-		resource_server.createCrossReferences(roles[i], "Roles", "members", id, "Accounts", "roles")
+		srv.createCrossReferences(roles[i], "Roles", "members", id, "Accounts", "roles")
 	}
 
 	// Groups
@@ -926,15 +923,13 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		if !strings.Contains(groups[i], "@") {
 			groups[i] = groups[i] + "@" + localDomain
 		}
-		resource_server.createCrossReferences(groups[i], "Groups", "members", id, "Accounts", "groups")
+		srv.createCrossReferences(groups[i], "Groups", "members", id, "Accounts", "groups")
 	}
 
-	
 	// Create the user file directory.
 	path := "/users/" + id + "@" + localDomain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	err = resource_server.addResourceOwner(path, "file", id + "@" + localDomain, rbacpb.SubjectType_ACCOUNT)
-
+	err = srv.addResourceOwner(path, "file", id+"@"+localDomain, rbacpb.SubjectType_ACCOUNT)
 
 	// I will execute the sript with the admin function.
 	// TODO implement the admin function for scylla and sql.
@@ -942,14 +937,14 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	if p.GetStoreType() == "MONGO" {
 
 		createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
-		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
 			return err
 		}
 
 	} else if p.GetStoreType() == "SCYLLA" {
-		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, resource_server.Backend_replication_factor, name, name, id, email)
-		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, srv.Backend_replication_factor, name, name, id, email)
+		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
 			return err
 		}
@@ -958,7 +953,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	return err
 }
 
-func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
+func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
 
 	if strings.Contains(targetId, "@") {
 		domain := strings.Split(targetId, "@")[1]
@@ -993,7 +988,6 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 
 	target := values.(map[string]interface{})
 
-
 	if target[targetField] == nil {
 		return errors.New("No field named " + targetField + " was found in object with id " + targetId + "!")
 	}
@@ -1024,7 +1018,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	return nil
 }
 
-func (resource_server *server) getRemoteAccount(id string, domain string) (*resourcepb.Account, error) {
+func (srv *server) getRemoteAccount(id string, domain string) (*resourcepb.Account, error) {
 	fmt.Println("get account ", id, "from", domain)
 	client, err := GetResourceClient(domain)
 	if err != nil {
@@ -1034,7 +1028,7 @@ func (resource_server *server) getRemoteAccount(id string, domain string) (*reso
 	return client.GetAccount(id)
 }
 
-func (resource_server *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
+func (srv *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
 
 	var err error
 	var source map[string]interface{}
@@ -1053,7 +1047,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	if strings.Contains(id, "@") {
 		domain = strings.Split(id, "@")[1]
 		id = strings.Split(id, "@")[0]
-		// if the domain is not the same as the local domain then I will redirect the call to the remote resource server.
+		// if the domain is not the same as the local domain then I will redirect the call to the remote resource srv.
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
 			client, err := GetResourceClient(domain)
@@ -1075,7 +1069,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	// Get the source object.
 	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
-		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at domain "+ domain + " err: " + err.Error())
+		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at domain " + domain + " err: " + err.Error())
 	}
 
 	// append the account.
@@ -1148,7 +1142,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
-	
+
 		if count == 0 {
 			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_id, target_id) VALUES (?,?)`
 
@@ -1176,18 +1170,18 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 	return nil
 }
 
-func (resource_server *server) createCrossReferences(sourceId, sourceCollection, sourceField, targetId, targetCollection, targetField string) error {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) createCrossReferences(sourceId, sourceCollection, sourceField, targetId, targetCollection, targetField string) error {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
-	err = resource_server.createReference(p, targetId, targetCollection, targetField, sourceId, sourceCollection)
+	err = srv.createReference(p, targetId, targetCollection, targetField, sourceId, sourceCollection)
 	if err != nil {
 		return err
 	}
 
-	err = resource_server.createReference(p, sourceId, sourceCollection, sourceField, targetId, targetCollection)
+	err = srv.createReference(p, sourceId, sourceCollection, sourceField, targetId, targetCollection)
 
 	return err
 
@@ -1214,7 +1208,7 @@ func serialyseObject(obj map[string]interface{}) string {
 	return jsonStr
 }
 
-func (resource_server *server) createGroup(id, name, owner, description string, members []string) error {
+func (srv *server) createGroup(id, name, owner, description string, members []string) error {
 
 	localDomain, err := config.GetDomain()
 	if err != nil {
@@ -1231,7 +1225,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	}
 
 	// Get the persistence connection
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1266,7 +1260,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 			members[i] = members[i] + "@" + localDomain
 		}
 
-		err := resource_server.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
+		err := srv.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
 		if err != nil {
 			return err
 		}
@@ -1274,7 +1268,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 
 	// Now create the resource permission.
 
-	resource_server.addResourceOwner(id+"@"+resource_server.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
 	fmt.Println("group ", id, "was create with owner ", owner)
 	return nil
 }
@@ -1282,8 +1276,8 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 /**
  * Create account dir for all account in the database if not already exist.
  */
-func (resource_server *server) CreateAccountDir() error {
-	p, err := resource_server.getPersistenceStore()
+func (srv *server) CreateAccountDir() error {
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1308,14 +1302,14 @@ func (resource_server *server) CreateAccountDir() error {
 		path := "/users/" + id + "@" + domain
 		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
 			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-			resource_server.addResourceOwner(path, "file", id + "@" + domain, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner(path, "file", id+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 		}
 	}
 
 	return nil
 }
 
-func (resource_server *server) createRole(id, name, owner string, description string, actions []string) error {
+func (srv *server) createRole(id, name, owner string, description string, actions []string) error {
 	localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
@@ -1331,7 +1325,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1359,7 +1353,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 	}
 
 	if name != "guest" && name != "admin" {
-		resource_server.addResourceOwner(id+"@"+resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+		srv.addResourceOwner(id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	}
 
 	return nil
@@ -1368,7 +1362,7 @@ func (resource_server *server) createRole(id, name, owner string, description st
 /**
  * Delete application Data from the backend.
  */
-func (resource_server *server) deleteApplication(applicationId string) error {
+func (srv *server) deleteApplication(applicationId string) error {
 
 	if strings.Contains(applicationId, "@") {
 		domain := strings.Split(applicationId, "@")[1]
@@ -1385,7 +1379,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	}
 
 	// That service made user of persistence service.
-	p, err := resource_server.getPersistenceStore()
+	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
@@ -1398,8 +1392,8 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	}
 
 	// I will remove all the access to the application, before removing the application.
-	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
-	resource_server.deleteResourcePermissions(applicationId)
+	srv.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
+	srv.deleteResourcePermissions(applicationId)
 
 	application := values.(map[string]interface{})
 
@@ -1415,7 +1409,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 		}
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
+			srv.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
 		}
 	}
 
@@ -1455,7 +1449,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	// I will execute the sript with the admin function.
 	// TODO implement drop user for scylla and sql
 	if p.GetStoreType() == "MONGO" {
-		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, dropUserScript)
+		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, dropUserScript)
 		if err != nil {
 			return err
 		}
@@ -1464,8 +1458,8 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	// set back the domain part
 	applicationId = application["_id"].(string) + "@" + application["domain"].(string)
 
-	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
-	resource_server.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
+	srv.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
 
 	return nil
 }

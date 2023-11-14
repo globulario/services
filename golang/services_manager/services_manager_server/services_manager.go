@@ -29,14 +29,14 @@ import (
 )
 
 // Uninstall a service...
-func (server *server) UninstallService(ctx context.Context, rqst *services_managerpb.UninstallServiceRequest) (*services_managerpb.UninstallServiceResponse, error) {
+func (srv *server) UninstallService(ctx context.Context, rqst *services_managerpb.UninstallServiceRequest) (*services_managerpb.UninstallServiceResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = server.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
+	err = srv.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -59,7 +59,7 @@ func GetRepositoryClient(address string) (*repository_client.Repository_Service_
 
 // Install/Update a service on globular instance.
 // file postinst, postrm, preinst, postinst
-func (server *server) installService(token string, descriptor *resourcepb.PackageDescriptor) error {
+func (srv *server) installService(token string, descriptor *resourcepb.PackageDescriptor) error {
 	// repository must exist...
 	if len(descriptor.Repositories) == 0 {
 		return errors.New("No service repository was found for service " + descriptor.Id)
@@ -75,10 +75,10 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 
 		if err == nil {
 
-			previous, _ := config.GetServiceConfigurationById(server.Mac, descriptor.Id)
+			previous, _ := config.GetServiceConfigurationById(srv.Mac, descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
-				server.uninstallService(token, descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
+				srv.uninstallService(token, descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
 			}
 
 			// Create the file.
@@ -91,14 +91,14 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 			defer os.RemoveAll(_extracted_path_)
 
 			// I will save the binairy in file...
-			Utility.CreateDirIfNotExist(server.Root + "/services/")
-			err = Utility.CopyDir(_extracted_path_+"/"+descriptor.PublisherId, server.Root+"/services/")
+			Utility.CreateDirIfNotExist(srv.Root + "/services/")
+			err = Utility.CopyDir(_extracted_path_+"/"+descriptor.PublisherId, srv.Root+"/services/")
 
 			if err != nil {
 				return err
 			}
 
-			path := server.Root + "/services/" + descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Version + "/" + descriptor.Id
+			path := srv.Root + "/services/" + descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Version + "/" + descriptor.Id
 
 			// before I will start the service I will get a look if preinst script must be run...
 			if Utility.Exists(path + "/preinst") {
@@ -127,7 +127,7 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 				return err
 			}
 
-			protos, _ := Utility.FindFileByName(server.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
+			protos, _ := Utility.FindFileByName(srv.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
 			if len(protos) == 0 {
 				return errors.New("no service was found")
 			}
@@ -154,8 +154,8 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 			// Append to the list of service discoveries.
 			needSave := false
 			for i := 0; i < len(descriptor.Discoveries); i++ {
-				if !Utility.Contains(server.Discoveries, descriptor.Discoveries[i]) {
-					server.Discoveries = append(server.Discoveries, descriptor.Discoveries[i])
+				if !Utility.Contains(srv.Discoveries, descriptor.Discoveries[i]) {
+					srv.Discoveries = append(srv.Discoveries, descriptor.Discoveries[i])
 					needSave = true
 				}
 			}
@@ -172,7 +172,7 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 
 			if needSave {
 				// save the service manager configuration itself.
-				server.Save()
+				srv.Save()
 			}
 
 			break
@@ -194,7 +194,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 }
 
 // Install/Update a service on globular instance.
-func (server *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
+func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 
 	// The first element in the array is the most recent descriptor
 	// so if no version is given the most recent will be taken.
-	err = server.installService(token, descriptor)
+	err = srv.installService(token, descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -231,30 +231,30 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 
 }
 
-func (server *server) stopServiceInstance(serviceId string) error {
-	if serviceId == server.GetId() {
+func (srv *server) stopServiceInstance(serviceId string) error {
+	if serviceId == srv.GetId() {
 		return errors.New("The service manager could not stop itself!")
 	}
-	s, err := config.GetServiceConfigurationById(server.Mac, serviceId)
+	s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
 	if err != nil {
 		return err
 	}
 
 	if s != nil {
-		err := server.stopService(s)
+		err := srv.stopService(s)
 		if err != nil {
 			return err
 		}
 	} else {
 		// Close all services with a given name.
-		services, err := config.GetServicesConfigurationsByName(server.Mac, serviceId)
+		services, err := config.GetServicesConfigurationsByName(srv.Mac, serviceId)
 		if err != nil {
 			return err
 		}
 
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
-			s, err := config.GetServiceConfigurationById(server.Mac, serviceId)
+			s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
 			if err != nil {
 				return err
 			}
@@ -263,7 +263,7 @@ func (server *server) stopServiceInstance(serviceId string) error {
 				return errors.New("No service found with id " + serviceId)
 			}
 
-			err = server.stopService(s)
+			err = srv.stopService(s)
 			if err != nil {
 				return err
 			}
@@ -275,9 +275,9 @@ func (server *server) stopServiceInstance(serviceId string) error {
 }
 
 // Stop a service
-func (server *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
+func (srv *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
 
-	err := server.stopServiceInstance(rqst.ServiceId)
+	err := srv.stopServiceInstance(rqst.ServiceId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -289,8 +289,8 @@ func (server *server) StopServiceInstance(ctx context.Context, rqst *services_ma
 	}, nil
 }
 
-func (server *server) startServiceInstance(serviceId string) error {
-	if serviceId == server.GetId() {
+func (srv *server) startServiceInstance(serviceId string) error {
+	if serviceId == srv.GetId() {
 		return errors.New("the service manager could not start itself")
 	}
 
@@ -307,20 +307,18 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	s, err := config.GetServiceConfigurationById(server.Mac, serviceId)
+	s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
 	if err != nil {
 		return err
 	}
 
-	
 	port := Utility.ToInt(s["Port"])
-	proxyPort  := Utility.ToInt(s["ProxyPort"])
+	proxyPort := Utility.ToInt(s["ProxyPort"])
 
 	processPid, err := process.StartServiceProcess(s, port, proxyPort)
 	if err != nil {
 		return err
 	}
-
 
 	s["Process"] = processPid
 	s["ProxyProcess"], err = process.StartServiceProxyProcess(s, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), proxyPort, processPid)
@@ -328,12 +326,12 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	return server.publishUpdateServiceConfigEvent(s)
+	return srv.publishUpdateServiceConfigEvent(s)
 }
 
 // Start a service
-func (server *server) StartServiceInstance(ctx context.Context, rqst *services_managerpb.StartServiceInstanceRequest) (*services_managerpb.StartServiceInstanceResponse, error) {
-	err := server.startServiceInstance(rqst.ServiceId)
+func (srv *server) StartServiceInstance(ctx context.Context, rqst *services_managerpb.StartServiceInstanceRequest) (*services_managerpb.StartServiceInstanceResponse, error) {
+	err := srv.startServiceInstance(rqst.ServiceId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -344,8 +342,8 @@ func (server *server) StartServiceInstance(ctx context.Context, rqst *services_m
 }
 
 // Restart all Services also the http(s)
-func (server *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
-	services, err := config.GetServicesConfigurations(server.Address)
+func (srv *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
+	services, err := config.GetServicesConfigurations(srv.Address)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -354,8 +352,8 @@ func (server *server) RestartAllServices(ctx context.Context, rqst *services_man
 
 	// stop all serives...
 	for i := 0; i < len(services); i++ {
-		if services[i]["Id"].(string) != server.GetId() {
-			err := server.stopServiceInstance(services[i]["Id"].(string))
+		if services[i]["Id"].(string) != srv.GetId() {
+			err := srv.stopServiceInstance(services[i]["Id"].(string))
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -365,8 +363,8 @@ func (server *server) RestartAllServices(ctx context.Context, rqst *services_man
 	}
 
 	for i := 0; i < len(services); i++ {
-		if services[i]["Id"].(string) != server.GetId() {
-			err := server.startServiceInstance(services[i]["Id"].(string))
+		if services[i]["Id"].(string) != srv.GetId() {
+			err := srv.startServiceInstance(services[i]["Id"].(string))
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -378,8 +376,8 @@ func (server *server) RestartAllServices(ctx context.Context, rqst *services_man
 	return &services_managerpb.RestartAllServicesResponse{}, nil
 }
 
-func (server *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
-	services, err := config.GetServicesConfigurations(server.Address)
+func (srv *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
+	services, err := config.GetServicesConfigurations(srv.Address)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -401,7 +399,7 @@ func (server *server) GetServicesConfiguration(ctx context.Context, rqst *servic
 /**
  * Save service configuration.
  */
-func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
+func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
 
 	s := make(map[string]interface{})
 	err := json.Unmarshal([]byte(rqst.Config), &s)
@@ -422,21 +420,21 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 
 	// Stop and start the services
 	// here I will use brut force by restarting the service itself...
-	err = server.stopServiceInstance(s["Id"].(string))
+	err = srv.stopServiceInstance(s["Id"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = server.startServiceInstance(s["Id"].(string))
+	err = srv.startServiceInstance(s["Id"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = server.publishUpdateServiceConfigEvent(s)
+	err = srv.publishUpdateServiceConfigEvent(s)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -449,10 +447,10 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 /**
  * That function return the list of all actions.
  */
-func (server *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
+func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
 
 	// first of all I will retreive the list of all services configuration.
-	services, err := config.GetServicesConfigurations(server.Address)
+	services, err := config.GetServicesConfigurations(srv.Address)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -29,16 +29,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (server *server) uninstallApplication(token, id string) error {
+func (srv *server) uninstallApplication(token, id string) error {
 
 	// I will retrieve the application from the database.
-	application, err := server.getApplication(id)
+	application, err := srv.getApplication(id)
 	if err != nil {
 		return err
 	}
 
 	// Same as delete applicaitons.
-	err = server.deleteApplication(token, id)
+	err = srv.deleteApplication(token, id)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (server *server) uninstallApplication(token, id string) error {
 }
 
 // Uninstall application...
-func (server *server) UninstallApplication(ctx context.Context, rqst *applications_managerpb.UninstallApplicationRequest) (*applications_managerpb.UninstallApplicationResponse, error) {
+func (srv *server) UninstallApplication(ctx context.Context, rqst *applications_managerpb.UninstallApplicationRequest) (*applications_managerpb.UninstallApplicationResponse, error) {
 
 	// Here I will also remove the application permissions...
 	if rqst.DeletePermissions {
@@ -61,7 +61,7 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 		return nil, err
 	}
 
-	err = server.uninstallApplication(token, rqst.ApplicationId)
+	err = srv.uninstallApplication(token, rqst.ApplicationId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -74,7 +74,7 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 }
 
 // Install local package. found in the local directory...
-func (server *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
+func (srv *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
 
 	// in case of local package I will try to find the package in the local directory...
 	path := config.GetGlobularExecPath() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
@@ -185,7 +185,7 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 		}
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
+		err = srv.installApplication(token, domain, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
 		if err != nil {
 			return err
 		}
@@ -219,7 +219,7 @@ func GetRepositoryClient(address string) (*repository_client.Repository_Service_
 }
 
 // Install web Application
-func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
+func (srv *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -227,7 +227,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 	}
 
 	// Here I will try to install the application from the local directory...
-	err = server.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
+	err = srv.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
 	if err == nil {
 		fmt.Println("application", rqst.ApplicationId, "was install localy...")
 		return &applications_managerpb.InstallApplicationResponse{
@@ -281,7 +281,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		r := bytes.NewReader(bundle.Binairies)
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
+		err = srv.installApplication(token, rqst.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -297,7 +297,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 }
 
 // Intall
-func (server *server) installApplication(token, domain, id, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
+func (srv *server) installApplication(token, domain, id, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
@@ -320,7 +320,7 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 	}
 
 	// Copy the files to it final destination
-	abosolutePath := server.WebRoot + "/" + name
+	abosolutePath := srv.WebRoot + "/" + name
 
 	// Remove the existing files.
 	if Utility.Exists(abosolutePath) {
@@ -350,7 +350,7 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 		return errors.New("no application version was given")
 	}
 
-	err = server.createApplication(token, id, name, domain, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
+	err = srv.createApplication(token, id, name, domain, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 	// Now I will create/update roles define in the application descriptor...
 	for i := 0; i < len(roles); i++ {
 		role := roles[i]
-		err = server.createRole(token, role.Id, role.Name, role.Actions)
+		err = srv.createRole(token, role.Id, role.Name, role.Actions)
 		if err != nil {
 			log.Println("fail to create role "+role.Id, "with error:", err)
 		}
@@ -366,7 +366,7 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 
 	for i := 0; i < len(groups); i++ {
 		group := groups[i]
-		err = server.createGroup(token, group.Id, group.Name, group.Description)
+		err = srv.createGroup(token, group.Id, group.Name, group.Description)
 		if err != nil {
 			log.Println("fail to create group "+group.Id, "with error:", err)
 		}
@@ -380,10 +380,10 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 
 	owner := id
 	if !strings.Contains(owner, "@") {
-		owner += "@"+domain
+		owner += "@" + domain
 	}
 
-	err = server.addResourceOwner("/applications/"+name, "file", owner, rbacpb.SubjectType_APPLICATION)
+	err = srv.addResourceOwner("/applications/"+name, "file", owner, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}
@@ -412,7 +412,7 @@ func (server *server) installApplication(token, domain, id, name, publisherId, v
 
 	if set_as_default {
 		// TODO keep track of the starting appliation...
-		// server.IndexApplication = name
+		// srv.IndexApplication = name
 	}
 
 	return err

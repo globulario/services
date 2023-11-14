@@ -9,10 +9,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
-	"os/exec"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
@@ -121,7 +121,7 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -138,8 +138,7 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 		return errors.New("Wrong executable platform to update from get " + platform + " want " + platform_)
 	}
 
-	path :=  config.GetGlobularExecPath()
-
+	path := config.GetGlobularExecPath()
 
 	if !Utility.Exists(path) {
 		return errors.New("fail to retreive exec at path: " + path)
@@ -162,7 +161,7 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 			rqst := &adminpb.DownloadGlobularResponse{
 				Data: data[0:bytesread],
 			}
-			// send the data to the server.
+			// send the data to the srv.
 			err = stream.Send(rqst)
 		}
 
@@ -374,7 +373,7 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 
 	// set missing fileds...
 	alternateDomains := make([]interface{}, len(rqst.AlternateDomains))
-	for i:=0; i < len(rqst.AlternateDomains); i++ {
+	for i := 0; i < len(rqst.AlternateDomains); i++ {
 		alternateDomains[i] = rqst.AlternateDomains[i]
 	}
 

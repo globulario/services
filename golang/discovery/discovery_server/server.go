@@ -91,311 +91,311 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (server *server) GetId() string {
-	return server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (server *server) SetId(id string) {
-	server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (server *server) GetName() string {
-	return server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (server *server) SetName(name string) {
-	server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (server *server) GetDescription() string {
-	return server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (server *server) SetDescription(description string) {
-	server.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (server *server) GetKeywords() []string {
-	return server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (server *server) SetKeywords(keywords []string) {
-	server.Keywords = keywords
-}
-
-func (server *server) GetRepositories() []string {
-	return server.Repositories
-}
-func (server *server) SetRepositories(repositories []string) {
-	server.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (server *server) GetDiscoveries() []string {
-	return server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (server *server) SetDiscoveries(discoveries []string) {
-	server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (server *server) GetPath() string {
-	return server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (server *server) SetPath(path string) {
-	server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (server *server) GetProto() string {
-	return server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (server *server) SetProto(proto string) {
-	server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (server *server) GetPort() int {
-	return server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (server *server) SetPort(port int) {
-	server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (server *server) GetProxy() int {
-	return server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (server *server) SetProxy(proxy int) {
-	server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (server *server) GetProtocol() string {
-	return server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (server *server) SetProtocol(protocol string) {
-	server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (server *server) GetAllowAllOrigins() bool {
-	return server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (server *server) GetAllowedOrigins() string {
-	return server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (server *server) SetAllowedOrigins(allowedOrigins string) {
-	server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (server *server) GetDomain() string {
-	return server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (server *server) SetDomain(domain string) {
-	server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (server *server) GetTls() bool {
-	return server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (server *server) SetTls(hasTls bool) {
-	server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (server *server) GetCertAuthorityTrust() string {
-	return server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (server *server) SetCertAuthorityTrust(ca string) {
-	server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (server *server) GetCertFile() string {
-	return server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (server *server) SetCertFile(certFile string) {
-	server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (server *server) GetKeyFile() string {
-	return server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (server *server) SetKeyFile(keyFile string) {
-	server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (server *server) GetVersion() string {
-	return server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (server *server) SetVersion(version string) {
-	server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (server *server) GetPublisherId() string {
-	return server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (server *server) SetPublisherId(publisherId string) {
-	server.PublisherId = publisherId
-}
-
-func (server *server) GetKeepUpToDate() bool {
-	return server.KeepUpToDate
-}
-func (server *server) SetKeepUptoDate(val bool) {
-	server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (server *server) GetKeepAlive() bool {
-	return server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (server *server) SetKeepAlive(val bool) {
-	server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (server *server) GetPermissions() []interface{} {
-	return server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (server *server) SetPermissions(permissions []interface{}) {
-	server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (server *server) Init() error {
+func (srv *server) Init() error {
 
 	// Get the configuration path.
-	err := globular.InitService(server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	server.grpcServer, err = globular.InitGrpcServer(server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -405,17 +405,17 @@ func (server *server) Init() error {
 }
 
 // Save the configuration values.
-func (server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(server)
+	return globular.SaveService(srv)
 }
 
-func (server *server) StartService() error {
-	return globular.StartService(server, server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (server *server) StopService() error {
-	return globular.StopService(server, server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
 //////////////////////// RBAC function //////////////////////////////////////////////
@@ -431,8 +431,8 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -440,16 +440,16 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.SetResourcePermissions(token, path, resource_type, permissions)
 }
 
-func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	rbac_client_, err := GetRbacClient(server.Address)
+func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return false, false, err
 	}
@@ -458,15 +458,15 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Address)
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
-func (svr *server) getEventClient(address string) (*event_client.Event_Client, error) {
+func (srv *server) getEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
@@ -476,14 +476,14 @@ func (svr *server) getEventClient(address string) (*event_client.Event_Client, e
 	return client.(*event_client.Event_Client), nil
 }
 
-func (svr *server) publish(domain, event string, data []byte) error {
-	eventClient, err := svr.getEventClient(domain)
+func (srv *server) publish(domain, event string, data []byte) error {
+	eventClient, err := srv.getEventClient(domain)
 	if err != nil {
 		return err
 	}
 	err = eventClient.Publish(event, data)
 	if err != nil {
-		fmt.Println("fail to publish event", event, svr.Domain, "with error", err)
+		fmt.Println("fail to publish event", event, srv.Domain, "with error", err)
 	}
 	return err
 }
@@ -491,7 +491,7 @@ func (svr *server) publish(domain, event string, data []byte) error {
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
-func (server *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
+func (srv *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
@@ -501,7 +501,7 @@ func (server *server) getResourceClient(address string) (*resource_client.Resour
 }
 
 // ///////////////////// Resource function ///////////////////////////////////////////
-func (server *server) isOrganizationMember(user, organization string) (bool, error) {
+func (srv *server) isOrganizationMember(user, organization string) (bool, error) {
 
 	address, _ := config.GetAddress()
 	if strings.Contains(user, "@") {
@@ -509,7 +509,7 @@ func (server *server) isOrganizationMember(user, organization string) (bool, err
 		user = strings.Split(user, "@")[0]
 	}
 
-	resourceClient, err := server.getResourceClient(address)
+	resourceClient, err := srv.getResourceClient(address)
 	if err != nil {
 		return false, err
 	}
@@ -518,9 +518,9 @@ func (server *server) isOrganizationMember(user, organization string) (bool, err
 }
 
 // Create/Update the package descriptor.
-func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
+func (srv *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
 	address, _ := config.GetAddress()
-	resourceClient, err := server.getResourceClient(address)
+	resourceClient, err := srv.getResourceClient(address)
 	if err != nil {
 		return err
 	}
@@ -534,35 +534,35 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 	var marshaler jsonpb.Marshaler
 	str, _ := marshaler.MarshalToString(descriptor)
 
-	return server.publish(address, descriptor.PublisherId+":"+descriptor.Id, []byte(str))
+	return srv.publish(address, descriptor.PublisherId+":"+descriptor.Id, []byte(str))
 }
 
 /**
  * Get the log client.
  */
-func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
+	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
-	log_client_, err := server.GetLogClient()
+func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
+	log_client_, err := srv.GetLogClient()
 	if err != nil {
 		return err
 	}
-	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 /////////////////////// Discovery specific function /////////////////////////////////

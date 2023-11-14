@@ -73,7 +73,7 @@ type server struct {
 	State           string
 	ModTime         int64
 
-	// storage_server-signed X.509 public keys for distribution
+	// srv-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -100,312 +100,312 @@ type server struct {
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (storage_server *server) GetId() string {
-	return storage_server.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (storage_server *server) SetId(id string) {
-	storage_server.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (storage_server *server) GetName() string {
-	return storage_server.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (storage_server *server) SetName(name string) {
-	storage_server.Name = name
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The description of the service
-func (storage_server *server) GetDescription() string {
-	return storage_server.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (storage_server *server) SetDescription(description string) {
-	storage_server.Description = description
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
 // The list of keywords of the services.
-func (storage_server *server) GetKeywords() []string {
-	return storage_server.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (storage_server *server) SetKeywords(keywords []string) {
-	storage_server.Keywords = keywords
-}
-
-func (storage_server *server) GetRepositories() []string {
-	return storage_server.Repositories
-}
-func (storage_server *server) SetRepositories(repositories []string) {
-	storage_server.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (storage_server *server) GetDiscoveries() []string {
-	return storage_server.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (storage_server *server) SetDiscoveries(discoveries []string) {
-	storage_server.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (storage_server *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, storage_server)
+	return globular.Dist(path, srv)
 }
 
-func (server *server) GetDependencies() []string {
+func (srv *server) GetDependencies() []string {
 
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
-	return server.Dependencies
+	return srv.Dependencies
 }
 
-func (server *server) SetDependency(dependency string) {
-	if server.Dependencies == nil {
-		server.Dependencies = make([]string, 0)
+func (srv *server) SetDependency(dependency string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
 	}
 
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency) {
-		server.Dependencies = append(server.Dependencies, dependency)
+	if !Utility.Contains(srv.Dependencies, dependency) {
+		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-func (svr *server) GetChecksum() string {
+func (srv *server) GetChecksum() string {
 
-	return svr.Checksum
+	return srv.Checksum
 }
 
-func (svr *server) SetChecksum(checksum string) {
-	svr.Checksum = checksum
+func (srv *server) SetChecksum(checksum string) {
+	srv.Checksum = checksum
 }
 
-func (svr *server) GetPlatform() string {
-	return svr.Plaform
+func (srv *server) GetPlatform() string {
+	return srv.Plaform
 }
 
-func (svr *server) SetPlatform(platform string) {
-	svr.Plaform = platform
+func (srv *server) SetPlatform(platform string) {
+	srv.Plaform = platform
 }
 
 // The path of the executable.
-func (storage_server *server) GetPath() string {
-	return storage_server.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (storage_server *server) SetPath(path string) {
-	storage_server.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (storage_server *server) GetProto() string {
-	return storage_server.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (storage_server *server) SetProto(proto string) {
-	storage_server.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (storage_server *server) GetPort() int {
-	return storage_server.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (storage_server *server) SetPort(port int) {
-	storage_server.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (storage_server *server) GetProxy() int {
-	return storage_server.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (storage_server *server) SetProxy(proxy int) {
-	storage_server.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (storage_server *server) GetProtocol() string {
-	return storage_server.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (storage_server *server) SetProtocol(protocol string) {
-	storage_server.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (storage_server *server) GetAllowAllOrigins() bool {
-	return storage_server.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (storage_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	storage_server.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (storage_server *server) GetAllowedOrigins() string {
-	return storage_server.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (storage_server *server) SetAllowedOrigins(allowedOrigins string) {
-	storage_server.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (storage_server *server) GetDomain() string {
-	return storage_server.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (storage_server *server) SetDomain(domain string) {
-	storage_server.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (storage_server *server) GetTls() bool {
-	return storage_server.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (storage_server *server) SetTls(hasTls bool) {
-	storage_server.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (storage_server *server) GetCertAuthorityTrust() string {
-	return storage_server.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (storage_server *server) SetCertAuthorityTrust(ca string) {
-	storage_server.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (storage_server *server) GetCertFile() string {
-	return storage_server.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (storage_server *server) SetCertFile(certFile string) {
-	storage_server.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (storage_server *server) GetKeyFile() string {
-	return storage_server.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (storage_server *server) SetKeyFile(keyFile string) {
-	storage_server.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (storage_server *server) GetVersion() string {
-	return storage_server.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (storage_server *server) SetVersion(version string) {
-	storage_server.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (storage_server *server) GetPublisherId() string {
-	return storage_server.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (storage_server *server) SetPublisherId(publisherId string) {
-	storage_server.PublisherId = publisherId
-}
-
-func (storage_server *server) GetKeepUpToDate() bool {
-	return storage_server.KeepUpToDate
-}
-func (storage_server *server) SetKeepUptoDate(val bool) {
-	storage_server.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (storage_server *server) GetKeepAlive() bool {
-	return storage_server.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (storage_server *server) SetKeepAlive(val bool) {
-	storage_server.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (storage_server *server) GetPermissions() []interface{} {
-	return storage_server.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (storage_server *server) SetPermissions(permissions []interface{}) {
-	storage_server.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (storage_server *server) Init() error {
+func (srv *server) Init() error {
 
-	storage_server.stores = make(map[string]storage_store.Store)
-	storage_server.Connections = make(map[string]connection)
+	srv.stores = make(map[string]storage_store.Store)
+	srv.Connections = make(map[string]connection)
 
-	err := globular.InitService(storage_server)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
-	// Initialyse GRPC server.
-	storage_server.grpcServer, err = globular.InitGrpcServer(storage_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	// Initialyse GRPC srv.
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -415,42 +415,42 @@ func (storage_server *server) Init() error {
 }
 
 // Save the configuration values.
-func (storage_server *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(storage_server)
+	return globular.SaveService(srv)
 }
 
-func (storage_server *server) StartService() error {
-	return globular.StartService(storage_server, storage_server.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (storage_server *server) StopService() error {
-	return globular.StopService(storage_server, storage_server.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-func (storage_server *server) Stop(context.Context, *storagepb.StopRequest) (*storagepb.StopResponse, error) {
-	return &storagepb.StopResponse{}, storage_server.StopService()
+func (srv *server) Stop(context.Context, *storagepb.StopRequest) (*storagepb.StopResponse, error) {
+	return &storagepb.StopResponse{}, srv.StopService()
 }
 
 //////////////////////// Storage specific functions ////////////////////////////
 
 // Create a new KV connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (storage_server *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
+func (srv *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
 	if rqst.Connection == nil {
 		return nil, errors.New("The request dosent contain connection object!")
 	}
 
-	if storage_server.stores == nil {
-		storage_server.stores = make(map[string]storage_store.Store)
+	if srv.stores == nil {
+		srv.stores = make(map[string]storage_store.Store)
 	}
 
-	if storage_server.Connections == nil {
-		storage_server.Connections = make(map[string]connection)
+	if srv.Connections == nil {
+		srv.Connections = make(map[string]connection)
 	} else {
-		if _, ok := storage_server.Connections[rqst.Connection.Id]; ok {
-			if storage_server.stores[rqst.Connection.Id] != nil {
-				storage_server.stores[rqst.Connection.Id].Close() // close the previous connection.
+		if _, ok := srv.Connections[rqst.Connection.Id]; ok {
+			if srv.stores[rqst.Connection.Id] != nil {
+				srv.stores[rqst.Connection.Id].Close() // close the previous connection.
 			}
 		}
 	}
@@ -464,7 +464,7 @@ func (storage_server *server) CreateConnection(ctx context.Context, rqst *storag
 	c.Type = rqst.Connection.Type
 
 	// set or update the connection and save it in json file.
-	storage_server.Connections[c.Id] = c
+	srv.Connections[c.Id] = c
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -473,7 +473,7 @@ func (storage_server *server) CreateConnection(ctx context.Context, rqst *storag
 	}
 
 	// In that case I will save it in file.
-	err = storage_server.Save()
+	err = srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -492,19 +492,19 @@ func (storage_server *server) CreateConnection(ctx context.Context, rqst *storag
 }
 
 // Remove a connection from the map and the file.
-func (storage_server *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
+func (srv *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
 
 	id := rqst.GetId()
-	if _, ok := storage_server.Connections[id]; !ok {
+	if _, ok := srv.Connections[id]; !ok {
 		return &storagepb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(storage_server.Connections, id)
+	delete(srv.Connections, id)
 
 	// In that case I will save it in file.
-	err := storage_server.Save()
+	err := srv.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -519,15 +519,15 @@ func (storage_server *server) DeleteConnection(ctx context.Context, rqst *storag
 }
 
 // Open the store and set options...
-func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storagepb.OpenRsp, error) {
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storagepb.OpenRsp, error) {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
 	var store storage_store.Store
-	conn := storage_server.Connections[rqst.GetId()]
+	conn := srv.Connections[rqst.GetId()]
 
 	// Create the store object.
 	if conn.Type == storagepb.StoreType_LEVEL_DB {
@@ -554,7 +554,7 @@ func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	storage_server.stores[rqst.GetId()] = store
+	srv.stores[rqst.GetId()] = store
 
 	return &storagepb.OpenRsp{
 		Result: true,
@@ -562,20 +562,20 @@ func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst
 }
 
 // Close the data store.
-func (storage_server *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*storagepb.CloseRsp, error) {
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+func (srv *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*storagepb.CloseRsp, error) {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	if storage_server.stores[rqst.GetId()] == nil {
+	if srv.stores[rqst.GetId()] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no store found for connection with id "+rqst.GetId())))
 	}
 
-	err := storage_server.stores[rqst.GetId()].Close()
+	err := srv.stores[rqst.GetId()].Close()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -588,15 +588,15 @@ func (storage_server *server) Close(ctx context.Context, rqst *storagepb.CloseRq
 }
 
 // Save an item in the kv store
-func (storage_server *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) (*storagepb.SetItemResponse, error) {
+func (srv *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) (*storagepb.SetItemResponse, error) {
 
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -616,7 +616,7 @@ func (storage_server *server) SetItem(ctx context.Context, rqst *storagepb.SetIt
 }
 
 // Save an item in the kv store
-func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServer) error {
+func (srv *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServer) error {
 
 	var rqst *storagepb.SetLargeItemRequest
 	var buffer bytes.Buffer
@@ -639,13 +639,13 @@ func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLa
 		}
 	}
 
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return status.Errorf(
 			codes.Internal,
@@ -663,15 +663,15 @@ func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLa
 }
 
 // Retreive a value with a given key
-func (storage_server *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
+func (srv *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
 
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return status.Errorf(
 			codes.Internal,
@@ -694,7 +694,7 @@ func (storage_server *server) GetItem(rqst *storagepb.GetItemRequest, stream sto
 			rqst := &storagepb.GetItemResponse{
 				Result: data[0:bytesread],
 			}
-			// send the data to the server.
+			// send the data to the srv.
 			err = stream.Send(rqst)
 		}
 
@@ -708,14 +708,14 @@ func (storage_server *server) GetItem(rqst *storagepb.GetItemRequest, stream sto
 }
 
 // Remove an item with a given key
-func (storage_server *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRequest) (*storagepb.RemoveItemResponse, error) {
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+func (srv *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRequest) (*storagepb.RemoveItemResponse, error) {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -742,14 +742,14 @@ func (storage_server *server) RemoveItem(ctx context.Context, rqst *storagepb.Re
 }
 
 // Remove all items
-func (storage_server *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*storagepb.ClearResponse, error) {
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+func (srv *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*storagepb.ClearResponse, error) {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -769,14 +769,14 @@ func (storage_server *server) Clear(ctx context.Context, rqst *storagepb.ClearRe
 }
 
 // Drop a store
-func (storage_server *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*storagepb.DropResponse, error) {
-	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
+func (srv *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*storagepb.DropResponse, error) {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := storage_server.stores[rqst.GetId()]
+	store := srv.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -845,7 +845,7 @@ func main() {
 	if s_impl.Address == "" {
 		s_impl.Address, _ = config.GetAddress()
 	}
-	
+
 	// Register the echo services
 	storagepb.RegisterStorageServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)

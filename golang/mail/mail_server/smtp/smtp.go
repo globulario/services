@@ -66,7 +66,7 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		}
 
 		for _, mx := range mxs {
-			fmt.Println("-------------> 63 dial ", mx.Host + ":25")
+			fmt.Println("-------------> 63 dial ", mx.Host+":25")
 			c, err := smtp.Dial(mx.Host + ":25")
 			if err != nil {
 				if err != nil {
@@ -169,7 +169,7 @@ func rcptHandler(remoteAddr net.Addr, from string, to string) bool {
 
 func startSmtp(domain string, port int, keyFile string, certFile string) {
 	go func() {
-	
+
 		srv := &smtpd.Server{
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
@@ -189,7 +189,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			AuthMechs:    map[string]bool{},
 			AuthRequired: false,
 			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error {
-				
+
 				// push message in to incomming...
 				for i := 0; i < len(to); i++ {
 
@@ -197,7 +197,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 						fmt.Println("------------> 190", to[i])
 						incomming <- map[string]interface{}{"msg": data, "from": from, "to": to[i]}
 					}
-					
+
 					if hasAccount(from) {
 						fmt.Println("------------> 195", to[i])
 						outgoing <- map[string]interface{}{"msg": data, "from": from, "to": to[i]}
@@ -209,10 +209,10 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			HandlerRcpt: rcptHandler,
 			Hostname:    domain,
 			LogRead: func(remoteIP string, verb string, line string) {
-			
+
 			},
 			LogWrite: func(remoteIP string, verb string, line string) {
-			
+
 			},
 			MaxSize:     0,
 			Timeout:     0,
@@ -254,7 +254,6 @@ func saveMessage(email string, mailBox string, body []byte, flags []string) erro
 	data["Body"] = body
 	data["Uid"] = now.Unix() // I will use the unix time as Uid
 
-
 	// TODO Insert large one...
 
 	// Now I will insert the message into the inbox of the user.
@@ -275,7 +274,7 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 	// authenticate to send (or optinaly receive) user email
 	authenticate = make(chan map[string]interface{})
 
-	// Validate that the email is manage by the server.
+	// Validate that the email is manage by the srv.
 	validateRcpt = make(chan map[string]interface{})
 
 	go func() {
