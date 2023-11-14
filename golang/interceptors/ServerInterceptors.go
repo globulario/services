@@ -434,7 +434,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		//address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], ""))) 
 	}
 
-	fmt.Println("-------------> address:", address)
 	var clientId string
 	var issuer string
 	hasAccess := true

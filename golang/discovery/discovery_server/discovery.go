@@ -28,7 +28,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 	}
 
 	if clientId != rqst.User {
-		return nil, errors.New("the user id dosent match the token id")
+		return nil, errors.New("the user id "+ rqst.User +"dosent match the token id " + clientId)
 	}
 
 	// Make sure the user is part of the organization if one is given.
@@ -79,7 +79,7 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 	}
 
 	if clientId != rqst.User {
-		return nil, errors.New("the user id dosent match the token id")
+		return nil, errors.New("the user id "+rqst.User + " dosent match the token id " + clientId)
 	}
 
 	publisherId := rqst.User

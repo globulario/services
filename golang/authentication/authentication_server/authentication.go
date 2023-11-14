@@ -277,10 +277,9 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config_.GetDomain()
 
 	// The token string
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), localDomain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), srv.Domain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -413,8 +412,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			}
 		}
 
-		localDomain, _ := config_.GetDomain()
-		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), srv.Domain)
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -425,7 +423,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			srv.addResourceOwner(path, "file", "sa@"+localDomain, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner(path, "file", "sa@"+srv.Domain, rbacpb.SubjectType_ACCOUNT)
 		}
 
 		// Be sure the password is correct.

@@ -624,11 +624,28 @@ func isEtcdRunning() bool {
 	return true
 }
 
+// Here I will store the local configuration.
+var localConfig map[string]interface{}
+var mu sync.RWMutex
+
+func copyMap(originalMap map[string]interface{}) map[string]interface{} {
+	newMap := make(map[string]interface{})
+
+	for key, value := range originalMap {
+		newMap[key] = value
+	}
+
+	return newMap
+}
+
 /**
  * Return the server local configuration if one exist.
  * if lazy is set to true service will not be set in the configuration.
  */
 func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
+
+	mu.Lock()
+	defer mu.Unlock()
 
 	// Here I will get the local configuration.
 	// Here I will get the address from the local configuration.
@@ -657,27 +674,36 @@ func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
 
 		config := make(map[string]interface{})
 
-		// Here I will lock the file.
-		file, err := lockFile(ConfigPath)
-		if err != nil {
-			return nil, err
-		}
+		if localConfig != nil {
+			config = copyMap(localConfig)
+		} else {
 
-		data, err := os.ReadFile(ConfigPath)
-		if err != nil {
+			// Here I will lock the file.
+			file, err := lockFile(ConfigPath)
+			if err != nil {
+				return nil, err
+			}
+
+			data, err := os.ReadFile(ConfigPath)
+			if err != nil {
+				unlockFile(file)
+				return nil, err
+			}
+
+			// Here I will unlock the file.
 			unlockFile(file)
-			return nil, err
-		}
 
-		// Here I will unlock the file.
-		unlockFile(file)
-
-		err = json.Unmarshal(data, &config)
-		if err != nil {
-			return nil, err
+			err = json.Unmarshal(data, &config)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		config["Mac"] = mac
+
+		if localConfig == nil {
+			localConfig = config
+		}
 
 		if lazy {
 			return config, nil
@@ -745,7 +771,7 @@ func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
 
 			// I will get the service configuration from the cache.
 			if value, ok := cache.Load(files[i]); ok {
-				services = append(services, value.(map[string]interface{}))
+				services = append(services, copyMap(value.(map[string]interface{})))
 				continue
 			}
 
