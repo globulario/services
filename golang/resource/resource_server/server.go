@@ -975,7 +975,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 			if err != nil {
 				return err
 			}
-			fmt.Println("remote call from ", localDomain, "to", domain)
+
 			err = client.DeleteReference(refId, targetId, targetField, targetCollection)
 			if err != nil {
 				return err

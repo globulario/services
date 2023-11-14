@@ -434,51 +434,29 @@ func (svr *server) getResourceClient(address string) (*resource_client.Resource_
 }
 
 func (svr *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-	localDomain, _ := config.GetDomain()
-	var domain string
-
+	
 	if strings.Contains(applicationId, "@") {
-		if len(strings.Split(applicationId, "@")[1]) > 0 {
-			domain = strings.Split(applicationId, "@")[1]
+		if strings.Split(applicationId, "@")[1] != svr.Domain {
+			return nil, errors.New("you can only get application in your own domain")
 		}
-
 		applicationId = strings.Split(applicationId, "@")[0]
-
 	}
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the account from it domain resource manager.
-		resource_, err := svr.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
-		if err != nil || len(applications) != 1 {
-			return nil, err
-		}
-
-		// In that case I will
-		return applications[0], nil
-
-	} else {
-		resourceClient, err := svr.getResourceClient(localDomain)
-		if err != nil {
-			return nil, err
-		}
-
-		applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(applications) == 0 {
-			return nil, errors.New("no application found with name or _id " + applicationId)
-		}
-
-		return applications[0], nil
+	resourceClient, err := svr.getResourceClient(svr.Address)
+	if err != nil {
+		return nil, err
 	}
+
+	applications, err := resourceClient.GetApplications(`{"_id":"` + applicationId + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(applications) == 0 {
+		return nil, errors.New("no application found with name or _id " + applicationId)
+	}
+
+	return applications[0], nil
 }
 
 

@@ -765,7 +765,6 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 			}, nil
 
 		}
-
 	}
 
 	q := `{"_id":"` + accountId + `"}`
