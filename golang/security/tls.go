@@ -139,6 +139,7 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 }
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
+
 	certificate, err := signCaCertificate_(address, csr, port, "http")
 	if err == nil {
 		return certificate, nil
@@ -154,6 +155,7 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 
 func signCaCertificate_(address string, csr string, port int, protocol string) (string, error) {
 
+	// try to sign the certificate with http
 	if len(address) == 0 {
 		return "", errors.New("no address was given")
 	}

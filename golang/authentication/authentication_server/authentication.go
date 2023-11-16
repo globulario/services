@@ -15,7 +15,6 @@ import (
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
-	config_ "github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"

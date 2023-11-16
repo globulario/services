@@ -54,7 +54,6 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 
 	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
 
-
 	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
 		return "", err
@@ -80,7 +79,6 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 			return "", err
 		}
 	}
-
 
 	domain, err := config.GetDomain()
 	if err != nil {
@@ -111,10 +109,8 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		},
 	}
 
-
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
 
 	// Create the JWT string
 	tokenString, err := token.SignedString(jwtKey)
@@ -142,7 +138,7 @@ func ValidateToken(token string) (*Claims, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		
+
 		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 		if err != nil {
 			return "", err
@@ -179,10 +175,34 @@ func ValidateToken(token string) (*Claims, error) {
 	return claims, nil
 }
 
+func GetClientAddress(ctx context.Context) (string, error) {
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := ValidateToken(token)
+			if err != nil {
+				return "", err
+			}
+
+			if len(claims.Address) == 0 {
+				return "", errors.New("no address found in the token")
+			}
+
+			return claims.Address, nil
+
+		} else {
+			return "", errors.New("no token found in the request")
+		}
+	}
+
+	return "", errors.New("fail to validate the token")
+}
+
 func GetClientId(ctx context.Context) (string, string, error) {
 	var username string
 	var token string
-	
+
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
@@ -264,9 +284,9 @@ func getLocalToken(mac string) (string, error) {
 	// if the token is not in the local map I will try to read it from file...
 	// ex /etc/globular/config/tokens/globule-ryzen.globular.cloud_token
 	mac = strings.ReplaceAll(mac, ":", "_")
-	path := config.GetConfigDir() +"/tokens/"+mac+"_token"
+	path := config.GetConfigDir() + "/tokens/" + mac + "_token"
 
-	if Utility.Exists(path){
+	if Utility.Exists(path) {
 		data, err := os.ReadFile(path)
 		if err == nil {
 			token := string(data)
@@ -277,17 +297,17 @@ func getLocalToken(mac string) (string, error) {
 	return "", errors.New("no token found")
 }
 
-func SetLocalToken(mac, domain, id, name, email string, timeout int) error{
+func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
 	mac = strings.ReplaceAll(mac, ":", "_")
-	os.Remove(config.GetConfigDir() +"/tokens/"+mac+"_token")
+	os.Remove(config.GetConfigDir() + "/tokens/" + mac + "_token")
 
-	tokenString, err :=  GenerateToken(timeout, mac, id, name, email, domain)
+	tokenString, err := GenerateToken(timeout, mac, id, name, email, domain)
 	if err != nil {
 		fmt.Println("fail to generate token with error: ", err)
 		return err
 	}
 
-	err = ioutil.WriteFile(config.GetConfigDir() +"/tokens/"+mac+"_token", []byte(tokenString), 0644)
+	err = ioutil.WriteFile(config.GetConfigDir()+"/tokens/"+mac+"_token", []byte(tokenString), 0644)
 	if err != nil {
 		fmt.Println("fail to save local token with error: ", err)
 		return err

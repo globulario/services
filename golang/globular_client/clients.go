@@ -156,6 +156,8 @@ type Client interface {
  */
 func InitClient(client Client, address string, id string) error {
 
+	fmt.Println("initialyse client ", id, "with address", address)
+	
 	if len(address) == 0 {
 		return errors.New("no address was given for client id " + id)
 	}

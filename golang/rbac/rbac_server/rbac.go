@@ -2876,8 +2876,7 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
 		// If the user is the super admin i will return true.
-		localDomain, _ := config.GetDomain()
-		if subject == "sa@"+localDomain {
+		if subject == "sa@"+srv.Domain {
 			return true, false, nil
 		}
 
@@ -2889,14 +2888,13 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 		// call the rpc method.
 		if account.Roles != nil {
-			localDomain, _ := config.GetDomain()
+			
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
 				// if the role id is local admin
-				if roleId == "admin@"+localDomain {
+				if roleId == "admin@"+srv.Domain {
 					return true, false, nil
-				} else if strings.HasSuffix(roleId, "@"+localDomain) {
-
+				} else if strings.HasSuffix(roleId, "@"+srv.Domain) {
 					hasAccess, _, _ = srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 					if hasAccess {
 						break

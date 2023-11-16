@@ -497,6 +497,10 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
  */
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 
+	if !strings.Contains(accountId, "@") {
+		accountId = accountId + "@" + srv.Domain
+	}
+
 	data, err := srv.cache.GetItem(accountId)
 	if err == nil {
 		a := new(resourcepb.Account)
@@ -506,71 +510,26 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 		}
 	}
 
-	localDomain, _ := config.GetDomain()
-	var domain string
-
-	if strings.Contains(accountId, "@") {
-		if len(strings.Split(accountId, "@")[1]) > 0 {
-			domain = strings.Split(accountId, "@")[1]
-
-			// that can happen when the globule domain has change after configurations...
-			// the domain was empty when first install, so the
-			hostname, _ := os.Hostname()
-			if domain == hostname {
-				if strings.HasPrefix(localDomain, domain) {
-					// in that particular case the domain has been change...
-					domain = localDomain
-				}
-			}
-		}
-		accountId = strings.Split(accountId, "@")[0]
-	} else {
-		domain = localDomain
+	resourceClient, err := srv.getResourceClient(srv.Address)
+	if err != nil {
+		fmt.Println("fail to get account ", accountId)
+		return nil, err
 	}
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the account from it domain resource manager.
-		resource_, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		account, err := resource_.GetAccount(accountId)
-		if err != nil {
-			return nil, err
-		}
-
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(account)
-		if err == nil {
-			srv.cache.SetItem(accountId+"@"+domain, []byte(jsonStr))
-		}
-
-		// In that case I will
-		return account, nil
-
-	} else {
-		resourceClient, err := srv.getResourceClient(srv.Address)
-		if err != nil {
-			fmt.Println("fail to get account ", accountId)
-			return nil, err
-		}
-
-		account, err := resourceClient.GetAccount(accountId)
-		if err != nil {
-			return nil, err
-		}
-
-		// here I will set save the group in the cache for further use...
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(account)
-		if err == nil {
-			srv.cache.SetItem(accountId+"@"+domain, []byte(jsonStr))
-		}
-
-		return account, nil
+	account, err := resourceClient.GetAccount(accountId)
+	if err != nil {
+		return nil, err
 	}
+
+	// here I will set save the group in the cache for further use...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(account)
+	if err == nil {
+		srv.cache.SetItem(accountId, []byte(jsonStr))
+	}
+
+	return account, nil
+
 }
 
 func (srv *server) accountExist(id string) (bool, string) {
@@ -589,6 +548,11 @@ func (srv *server) accountExist(id string) (bool, string) {
  */
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
+	// I will add the domain if it is not already there...
+	if !strings.Contains(groupId, "@") {
+		groupId = groupId + "@" + srv.Domain
+	}
+
 	// I will try to get the information from the cache to save time...
 	data, err := srv.cache.GetItem(groupId)
 	if err == nil {
@@ -599,65 +563,29 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		}
 	}
 
-	localDomain, _ := config.GetDomain()
-	var domain string
-
-	if strings.Contains(groupId, "@") {
-		if len(strings.Split(groupId, "@")[1]) > 0 {
-			domain = strings.Split(groupId, "@")[1]
-		}
-		groupId = strings.Split(groupId, "@")[0]
-	} else {
-		domain = localDomain
+	resourceClient, err := srv.getResourceClient(srv.Address)
+	if err != nil {
+		return nil, err
 	}
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the group from it domain resource manager.
-		resource_, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
-		if err != nil {
-			return nil, err
-		}
-
-		// here I will set save the group in the cache for further use...
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(groups[0])
-		if err == nil {
-			srv.cache.SetItem(groupId+"@"+domain, []byte(jsonStr))
-		}
-
-		// In that case I will
-		return groups[0], nil
-
-	} else {
-		resourceClient, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		groups, err := resourceClient.GetGroups(`{"_id":"` + groupId + `"}`)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(groups) == 0 {
-			return nil, errors.New("no group found wiht name or _id " + groupId)
-		}
-
-		// here I will set save the group in the cache for further use...
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(groups[0])
-		if err == nil {
-			srv.cache.SetItem(groupId+"@"+domain, []byte(jsonStr))
-		}
-
-		return groups[0], nil
+	groups, err := resourceClient.GetGroups(`{"_id":"` + groupId + `"}`)
+	if err != nil {
+		return nil, err
 	}
+
+	if len(groups) == 0 {
+		return nil, errors.New("no group found wiht name or _id " + groupId)
+	}
+
+	// here I will set save the group in the cache for further use...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(groups[0])
+	if err == nil {
+		srv.cache.SetItem(groupId, []byte(jsonStr))
+	}
+
+	return groups[0], nil
+
 }
 
 /**
@@ -678,63 +606,34 @@ func (srv *server) groupExist(id string) (bool, string) {
  * Return an application with a given id
  */
 func (srv *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-
-	localDomain, _ := config.GetDomain()
-	var domain string
-
-	if strings.Contains(applicationId, "@") {
-		if len(strings.Split(applicationId, "@")[1]) > 0 {
-			domain = strings.Split(applicationId, "@")[1]
-		}
-
-		applicationId = strings.Split(applicationId, "@")[0]
-
+	// I will add the domain if it is not already there...
+	if !strings.Contains(applicationId, "@") {
+		applicationId = applicationId + "@" + srv.Domain
 	}
 
 	// Try to get the application with the _id or the name.
 	q0 := `{"_id":"` + applicationId + `"}`
 	q1 := `{"name":"` + applicationId + `"}`
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the account from it domain resource manager.
-		resource_, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		applications, err := resource_.GetApplications(q0)
-		if err != nil || len(applications) != 1 {
-			applications, err = resource_.GetApplications(q1)
-			if err != nil || len(applications) != 1 {
-				return nil, err
-			}
-			return nil, err
-		}
-
-		// In that case I will
-		return applications[0], nil
-
-	} else {
-		resourceClient, err := srv.getResourceClient(localDomain)
-		if err != nil {
-			return nil, err
-		}
-
-		applications, err := resourceClient.GetApplications(q0)
-		if err != nil || len(applications) == 0 {
-			applications, err = resourceClient.GetApplications(q1)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if len(applications) == 0 {
-			return nil, errors.New("no application found with name or _id " + applicationId)
-		}
-
-		return applications[0], nil
+	resourceClient, err := srv.getResourceClient(srv.Address)
+	if err != nil {
+		return nil, err
 	}
+
+	applications, err := resourceClient.GetApplications(q0)
+	if err != nil || len(applications) == 0 {
+		applications, err = resourceClient.GetApplications(q1)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(applications) == 0 {
+		return nil, errors.New("no application found with name or _id " + applicationId)
+	}
+
+	return applications[0], nil
+
 }
 
 /**
@@ -787,51 +686,26 @@ func (srv *server) peerExist(id string) bool {
  */
 func (srv *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
 
-	localDomain, _ := config.GetDomain()
-	var domain string
-
-	if strings.Contains(organizationId, "@") {
-		if len(strings.Split(organizationId, "@")[1]) > 0 {
-			domain = strings.Split(organizationId, "@")[1]
-		}
-		organizationId = strings.Split(organizationId, "@")[0]
-
+	if !strings.Contains(organizationId, "@") {
+		organizationId = organizationId + "@" + srv.Domain
 	}
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the account from it domain resource manager.
-		resource_, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		organizations, err := resource_.GetOrganizations(`{"_id":"` + organizationId + `"}`)
-		if err != nil || len(organizations) != 1 {
-			return nil, err
-		}
-
-		// In that case I will
-		return organizations[0], nil
-
-	} else {
-
-		resourceClient, err := srv.getResourceClient(localDomain)
-		if err != nil {
-			return nil, err
-		}
-
-		organizations, err := resourceClient.GetOrganizations(`{"_id":"` + organizationId + `"}`)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(organizations) == 0 {
-			return nil, errors.New("no organization found wiht name or _id " + organizationId)
-		}
-
-		return organizations[0], nil
+	resourceClient, err := srv.getResourceClient(organizationId)
+	if err != nil {
+		return nil, err
 	}
+
+	organizations, err := resourceClient.GetOrganizations(`{"_id":"` + organizationId + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(organizations) == 0 {
+		return nil, errors.New("no organization found wiht name or _id " + organizationId)
+	}
+
+	return organizations[0], nil
+
 }
 
 /**
@@ -849,9 +723,9 @@ func (srv *server) organizationExist(id string) (bool, string) {
 }
 
 func (srv *server) getRoles() ([]*resourcepb.Role, error) {
-	localDomain, _ := config.GetDomain()
+
 	// so here I will get the role from it domain resource manager.
-	resource_, err := srv.getResourceClient(localDomain)
+	resource_, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -865,9 +739,9 @@ func (srv *server) getRoles() ([]*resourcepb.Role, error) {
 }
 
 func (srv *server) getGroups() ([]*resourcepb.Group, error) {
-	localDomain, _ := config.GetDomain()
+
 	// so here I will get the role from it domain resource manager.
-	resource_, err := srv.getResourceClient(localDomain)
+	resource_, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -881,9 +755,9 @@ func (srv *server) getGroups() ([]*resourcepb.Group, error) {
 }
 
 func (srv *server) getOrganizations() ([]*resourcepb.Organization, error) {
-	localDomain, _ := config.GetDomain()
+
 	// so here I will get the role from it domain resource manager.
-	resource_, err := srv.getResourceClient(localDomain)
+	resource_, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -901,49 +775,26 @@ func (srv *server) getOrganizations() ([]*resourcepb.Organization, error) {
  */
 func (srv *server) getRole(roleId string) (*resourcepb.Role, error) {
 
-	localDomain, _ := config.GetDomain()
-	var domain string
-	if strings.Contains(roleId, "@") {
-		if len(strings.Split(roleId, "@")[1]) > 0 {
-			domain = strings.Split(roleId, "@")[1]
-		}
-
-		roleId = strings.Split(roleId, "@")[0]
+	if !strings.Contains(roleId, "@") {
+		roleId = roleId + "@" + srv.Domain
 	}
 
-	if localDomain != domain && len(domain) > 0 {
-
-		// so here I will get the role from it domain resource manager.
-		resource_, err := srv.getResourceClient(domain)
-		if err != nil {
-			return nil, err
-		}
-
-		roles, err := resource_.GetRoles(`{"_id":"` + roleId + `"}`)
-		if err != nil || len(roles) == 1 {
-			return nil, err
-		}
-
-		// In that case I will
-		return roles[0], nil
-
-	} else {
-		resourceClient, err := srv.getResourceClient(localDomain)
-		if err != nil {
-			return nil, err
-		}
-
-		roles, err := resourceClient.GetRoles(`{"_id":"` + roleId + `"}`)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(roles) == 0 {
-			return nil, errors.New("no role found wiht name or _id " + roleId)
-		}
-
-		return roles[0], nil
+	resourceClient, err := srv.getResourceClient(srv.Address)
+	if err != nil {
+		return nil, err
 	}
+
+	roles, err := resourceClient.GetRoles(`{"_id":"` + roleId + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(roles) == 0 {
+		return nil, errors.New("no role found wiht name or _id " + roleId)
+	}
+
+	return roles[0], nil
+
 }
 
 /**
