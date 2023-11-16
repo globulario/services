@@ -128,7 +128,7 @@ func (client *Repository_Service_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -429,7 +429,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
-		
+
 		if !strings.Contains(user, "@") {
 			if len(claims.UserDomain) == 0 {
 				return -1, errors.New("no user domain was found in the token")
@@ -477,7 +477,6 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		}
 	}
 
-	
 	applicationId := Utility.GenerateUUID(publisherId + "%" + name + "%" + version)
 	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 
@@ -495,7 +494,6 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		// Retreive the actual application installed version.
 		previousVersion, _ := resource_client_.GetApplicationVersion(name)
 
-		
 		event_client_.Publish("update_"+applicationId+"_evt", []byte(version))
 
 		fmt.Println("previous version ", previousVersion, " current version ", version)

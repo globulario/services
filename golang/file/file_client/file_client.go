@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"context"
+
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -80,14 +81,14 @@ func (client *File_Client) Reconnect() error {
 
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = filepb.NewFileServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -113,7 +114,7 @@ func (client *File_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -284,7 +285,6 @@ func (client *File_Client) CreateDir(token, path, name string) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-
 	rqst := &filepb.CreateDirRequest{
 		Path: Utility.ToString(path),
 		Name: Utility.ToString(name),
@@ -312,7 +312,6 @@ func (client *File_Client) ReadFile(token string, path interface{}) ([]byte, err
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-
 
 	rqst := &filepb.ReadFileRequest{
 		Path: Utility.ToString(path),
@@ -486,7 +485,6 @@ func (client *File_Client) DeleteFile(token, path string) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-
 	_, err := client.c.DeleteFile(ctx, rqst)
 	if err != nil {
 		return err
@@ -547,7 +545,7 @@ func (client *File_Client) HtmlToPdf(html string) ([]byte, error) {
  * Create an archive containing files listed by paths.
  * Return the address of the created archive on the server.
  */
-func  (client *File_Client) CreateAchive(token string, paths []string, name string) (string, error) {
+func (client *File_Client) CreateAchive(token string, paths []string, name string) (string, error) {
 	rqst := &filepb.CreateArchiveRequest{Paths: paths, Name: name}
 	ctx := client.GetCtx()
 	if len(token) > 0 {

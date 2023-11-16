@@ -122,7 +122,7 @@ func (client *Admin_Client) GetCtx() context.Context {
 	// refresh the client as needed...
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 

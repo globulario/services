@@ -4,7 +4,6 @@ import (
 	"io"
 	"time"
 
-
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 	"github.com/globulario/services/golang/security"
@@ -80,14 +79,14 @@ func (client *Monitoring_Client) Reconnect() error {
 
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = monitoringpb.NewMonitoringServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -113,7 +112,7 @@ func (client *Monitoring_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx

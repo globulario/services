@@ -100,12 +100,9 @@ func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectTyp
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, bool, error) {
 
 	// Here I will test if the subject is the super admin...
-	localDomain, _ := config.GetAddress()
-	if strings.Contains(localDomain, ":") {
-		localDomain = strings.Split(localDomain, ":")[0]
-	}
+	domain, _ := config.GetDomain()
 
-	if subject == "sa@"+localDomain {
+	if subject == "sa@"+domain {
 		return true, false, nil
 	}
 

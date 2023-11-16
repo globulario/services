@@ -113,7 +113,7 @@ func (client *Title_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -457,7 +457,7 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 func (client *Title_Client) GetPersonById(indexPath, id string) (*titlepb.Person, error) {
 	rqst := &titlepb.GetPersonByIdRequest{
 		IndexPath: indexPath,
-		PersonId: id,
+		PersonId:  id,
 	}
 
 	rsp, err := client.c.GetPersonById(client.GetCtx(), rqst)
@@ -491,7 +491,7 @@ func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video
 		err = client.CreatePerson(token, path, person)
 		if err == nil {
 			casting = append(casting, person)
-		}else{
+		} else {
 			fmt.Println("fail to create person with error: ", err)
 		}
 	}

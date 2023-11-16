@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Torrent Client Service
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 type Torrent_Client struct {
 	cc *grpc.ClientConn
 	c  torrentpb.TorrentServiceClient
@@ -73,12 +73,12 @@ func NewTorrentService_Client(address string, id string) (*Torrent_Client, error
 	return client, nil
 }
 
-func (client *Torrent_Client) Reconnect () error{
+func (client *Torrent_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = torrentpb.NewTorrentServiceClient(client.cc)
@@ -103,7 +103,7 @@ func (client *Torrent_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -224,10 +224,10 @@ func (client *Torrent_Client) SetCaFile(caFile string) {
  * Append a link to list of file to be downloaded... It return the uuid
  * of the torrent.
  */
-func (client *Torrent_Client) DowloadTorrent(link, dest string, seed bool ) (error) {
+func (client *Torrent_Client) DowloadTorrent(link, dest string, seed bool) error {
 
-	if !Utility.Exists(dest){
-		return  errors.New("dir " + dest + " not exist")
+	if !Utility.Exists(dest) {
+		return errors.New("dir " + dest + " not exist")
 	}
 
 	rqst := new(torrentpb.DownloadTorrentRequest)
@@ -241,11 +241,11 @@ func (client *Torrent_Client) DowloadTorrent(link, dest string, seed bool ) (err
 
 /**
  * Return the list of all active torrent on the server.
- */ 
-func (client *Torrent_Client) GetTorrentInfos(callback func([]*torrentpb.TorrentInfo)) (error){
-	
+ */
+func (client *Torrent_Client) GetTorrentInfos(callback func([]*torrentpb.TorrentInfo)) error {
+
 	rqst := new(torrentpb.GetTorrentInfosRequest)
-	
+
 	stream, err := client.c.GetTorrentInfos(client.GetCtx(), rqst)
 	if err != nil {
 		return err

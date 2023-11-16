@@ -115,7 +115,7 @@ func (client *Dicovery_Client) GetCtx() context.Context {
 
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -284,7 +284,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 			if len(claims.UserDomain) == 0 {
 				return errors.New("no user domain was found in the token")
 			}
-			
+
 			user += "@" + claims.UserDomain
 		}
 	}
@@ -339,14 +339,13 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 		if len(claims.UserDomain) == 0 {
 			return errors.New("no user domain was found in the token")
 		}
-		
+
 		if len(claims.UserDomain) == 0 {
 			return errors.New("no user domain was found in the token")
 		}
 
 		user += "@" + claims.UserDomain
 	}
-
 
 	rqst := &discoverypb.PublishApplicationRequest{
 		User:         user,

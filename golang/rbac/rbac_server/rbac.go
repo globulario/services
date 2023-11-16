@@ -2800,6 +2800,7 @@ func (srv *server) GetActionResourceInfos(ctx context.Context, rqst *rbacpb.GetA
  */
 func (srv *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
 
+	fmt.Println("validate action ", action, " for subject ", subject, " of type ", subjectType.String(), " with resources ", resources)
 	// Exception
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") ||

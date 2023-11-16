@@ -74,7 +74,7 @@ func (srv *server) UninstallApplication(ctx context.Context, rqst *applications_
 }
 
 // Install local package. found in the local directory...
-func (srv *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
+func (srv *server) installLocalApplicationPackage(token, address, applicationId, publisherId, version string) error {
 
 	// in case of local package I will try to find the package in the local directory...
 	path := config.GetGlobularExecPath() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
@@ -185,7 +185,8 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 		}
 
 		// Now I will install the applicaiton.
-		err = srv.installApplication(token, domain, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
+		fmt.Println("----------------> 188 try to install application ", descriptor["name"].(string), "with id ", descriptor["id"].(string), "and version ", descriptor["version"].(string))
+		err = srv.installApplication(token, address, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
 		if err != nil {
 			return err
 		}
@@ -221,6 +222,7 @@ func GetRepositoryClient(address string) (*repository_client.Repository_Service_
 // Install web Application
 func (srv *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
+	fmt.Println("225 try to install application ", rqst.ApplicationId, "with version ", rqst.Version)
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err

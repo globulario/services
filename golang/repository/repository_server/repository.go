@@ -78,7 +78,10 @@ func (srv *server) UploadBundle(stream repositorypb.PackageRepository_UploadBund
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF || len(msg.Data) == 0 {
+		if msg == nil {
+			srv.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), "the message is nil")
+			return errors.New("the message is nil")
+		} else if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
 			err_ := stream.SendAndClose(&repositorypb.UploadBundleResponse{})
 			if err_ != nil {
@@ -90,7 +93,7 @@ func (srv *server) UploadBundle(stream repositorypb.PackageRepository_UploadBund
 		} else if err != nil {
 			srv.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 			return err
-		} else {
+		} else if msg != nil {
 			buffer.Write(msg.Data)
 		}
 	}

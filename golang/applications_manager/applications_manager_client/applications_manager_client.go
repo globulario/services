@@ -2,10 +2,12 @@ package applications_manager_client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"strconv"
 	"strings"
+
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -114,9 +116,10 @@ func (client *Applications_Manager_Client) GetCtx() context.Context {
 	// refresh the client as needed...
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(client.ctx, md)
 	}
+	
 	return client.ctx
 }
 
@@ -236,13 +239,15 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
  */
 func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
 
+	fmt.Println("InstallApplication: ", domain, user, discoveryId, publisherId, applicationId)
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
-	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
+	rqst.Domain =  domain
 	rqst.SetAsDefault = set_as_default
 	ctx := client.GetCtx()
+	
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
