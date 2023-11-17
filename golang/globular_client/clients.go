@@ -156,8 +156,6 @@ type Client interface {
  */
 func InitClient(client Client, address string, id string) error {
 
-	fmt.Println("initialyse client ", id, "with address", address)
-	
 	if len(address) == 0 {
 		return errors.New("no address was given for client id " + id)
 	}
@@ -349,6 +347,7 @@ func clientInterceptor(client_ Client) func(
 			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) || strings.HasPrefix(err.Error(), `rpc error: code = Unimplemented desc = unknown service`) {
 
 				// Here I will test if the process his the same...
+				//fmt.Println("fail to connect to client ", client_.GetName()+":"+client_.GetId(), "at address", client_.GetAddress(), "with error", err)
 				err := InitClient(client_, client_.GetAddress(), client_.GetId())
 				if err == nil {
 					nbTry := 10

@@ -209,6 +209,7 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
+	
 	// The token and the application id.
 	var token string
 	var application string
@@ -238,8 +239,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	hasAccess := true
 	accessDenied := false
 
-	//fmt.Println("ServerUnaryInterceptor", method, application, token, domain)
-
 	// Set the list of restricted method here...
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {
 		hasAccess = false
@@ -261,6 +260,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
+
+
+	//fmt.Println("---------> ServerUnaryInterceptor", method, application, token, address)
+
 
 	// Test if peer has access
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
@@ -453,6 +456,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
+
+
+	//fmt.Println("---------> ServerStreamInterceptor", method, application, token, address)
+
 
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()

@@ -35,6 +35,7 @@ export interface IServiceConfig {
   Mac: string;
   State: string;
   Domain: string;
+  Address: string;
   Port: number;
   Proxy: number;
   TLS: boolean;
@@ -51,8 +52,6 @@ export interface IServiceConfig {
   CertAuthorityTrust: string;
   CertFile: string;
   KeyFile: string;
-
-
 }
 
 /**
@@ -65,6 +64,7 @@ export interface IServices {
 
 export interface IPeer {
   Domain: string;
+  Address: string;
   Mac: string;
   Port: number;
 }
@@ -499,7 +499,7 @@ export class Globular {
   }
 
   // Return the domain of a globule from it configuration.
-  public get domain(): string {
+  public get address(): string {
     let domain = this._config.Name
     if (domain.length > 0 && !this._config.Domain.startsWith(this._config.Name)) {
       if (this._config.Domain.length > 0) {
@@ -509,6 +509,11 @@ export class Globular {
       domain = this._config.Domain;
     }
     return domain;
+  }
+
+  // Return the domain of a globule from it configuration.
+  public get domain(): string {
+    return this._config.Domain;
   }
 
   /** The admin service to access to other configurations. */
@@ -521,7 +526,7 @@ export class Globular {
         this._adminService = new AdminServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -543,7 +548,7 @@ export class Globular {
         this._servicesManagerService = new ServicesManagerServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -565,7 +570,7 @@ export class Globular {
         this._applicationsManagerService = new ApplicationManagerServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -587,7 +592,7 @@ export class Globular {
         this._authenticationService = new AuthenticationServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -609,7 +614,7 @@ export class Globular {
         this._resourceService = new ResourceServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -630,7 +635,7 @@ export class Globular {
         this._logService = new LogServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -651,7 +656,7 @@ export class Globular {
         this._blogService = new BlogServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -668,11 +673,12 @@ export class Globular {
     // refresh the config.
     if (this._conversationService == null) {
       let configs = this.getConfigs('conversation.ConversationService')
+      
       configs.forEach((config: IServiceConfig) => {
         this._conversationService = new ConversationServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -693,7 +699,7 @@ export class Globular {
         this._rbacService = new RbacServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -714,7 +720,7 @@ export class Globular {
         this._packagesDicovery = new PackageDiscoveryPromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -735,7 +741,7 @@ export class Globular {
         this._servicesRepository = new PackageRepositoryPromiseClient(
           this.config.Protocol +
           '://' +
-          config.Domain +
+          config.Address.split(":")[0] +
           ':' +
           config.Proxy,
           null,
@@ -757,7 +763,7 @@ export class Globular {
           this._catalogService = new CatalogServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -779,7 +785,7 @@ export class Globular {
           this._echoService = new EchoServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -801,7 +807,7 @@ export class Globular {
           this._eventService = new EventServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -827,7 +833,7 @@ export class Globular {
           this._fileService = new FileServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -850,7 +856,7 @@ export class Globular {
           this._ldapService = new LdapServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -872,7 +878,7 @@ export class Globular {
           this._persistenceService = new PersistenceServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -894,7 +900,7 @@ export class Globular {
           this._mailService = new MailServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -917,7 +923,7 @@ export class Globular {
           this._sqlService = new SqlServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -939,7 +945,7 @@ export class Globular {
           this._storageService = new StorageServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -962,7 +968,7 @@ export class Globular {
           this._monitoringService = new MonitoringServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -984,7 +990,7 @@ export class Globular {
           this._spcService = new SpcServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -1005,7 +1011,7 @@ export class Globular {
           this._titleService = new TitleServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -1026,7 +1032,7 @@ export class Globular {
           this._torrentService = new TorrentServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,
@@ -1047,7 +1053,7 @@ export class Globular {
           this._searchService = new SearchServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Domain +
+            config.Address.split(":")[0] +
             ':' +
             config.Proxy,
             null,

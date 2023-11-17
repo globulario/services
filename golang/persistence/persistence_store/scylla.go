@@ -866,6 +866,10 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 		for key, value := range parameters {
 			if key == "_id" {
 				key = "id"
+				if strings.Contains(value.(string), "@")	{
+					fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
+					value = strings.Split(value.(string), "@")[0]
+				}
 			}
 
 			key = camelToSnake(key)

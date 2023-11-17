@@ -514,6 +514,8 @@ func (srv *server) logServiceError(method, fileLine, functionName, infos string)
 // //////////////////////////////////////////////////////////////////////////////////////
 func (srv *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
 
+	fmt.Println("createConnection", id, name, host, port, store, save, options)
+	
 	var c connection
 	var err error
 
@@ -1208,7 +1210,6 @@ func (srv *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst)
 	}
 
 	connectionId := strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")
-
 	store := srv.stores[connectionId]
 	if store == nil {
 		err := errors.New("FindOne No store connection exist for id " + connectionId)

@@ -2,10 +2,7 @@ package applications_manager_client
 
 import (
 	"context"
-	"fmt"
 	"time"
-
-	"strconv"
 	"strings"
 
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
@@ -119,7 +116,7 @@ func (client *Applications_Manager_Client) GetCtx() context.Context {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
 		client.ctx = metadata.NewOutgoingContext(client.ctx, md)
 	}
-	
+
 	return client.ctx
 }
 
@@ -130,7 +127,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) GetDomain() stri
 
 // Return the address
 func (Applications_Manager_Client *Applications_Manager_Client) GetAddress() string {
-	return Applications_Manager_Client.domain + ":" + strconv.Itoa(Applications_Manager_Client.port)
+	return Applications_Manager_Client.address
 }
 
 // Return the id of the service instance
@@ -239,7 +236,6 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
  */
 func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
 
-	fmt.Println("InstallApplication: ", domain, user, discoveryId, publisherId, applicationId)
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
@@ -255,6 +251,7 @@ func (client *Applications_Manager_Client) InstallApplication(token, domain, use
 		}
 		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
+
 	_, err := client.c.InstallApplication(ctx, rqst)
 	return err
 }

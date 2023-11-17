@@ -416,9 +416,9 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 }
 
 // when services state change that publish
-func (srv *server) publishEvent(evt string, data []byte, domain string) error {
+func (srv *server) publishEvent(evt string, data []byte, address string) error {
 
-	client, err := GetEventClient(domain)
+	client, err := GetEventClient(address)
 	if err != nil {
 		return err
 	}
@@ -840,6 +840,7 @@ func (srv *server) validatePassword(password string, hash string) error {
  */
 func (srv *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
 
+	fmt.Println("try to register account with name ", name, " and email ", email, " and domain ", domain)
 	localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
@@ -861,6 +862,7 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 	// first of all the Persistence service must be active.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 
+	fmt.Println("count ", count)
 	// one account already exist for the name.
 	if count == 1 {
 		return errors.New("account with name " + name + " already exist!")

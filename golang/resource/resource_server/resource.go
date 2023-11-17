@@ -103,9 +103,7 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	domain, _ := config.GetDomain()
-
-	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, domain)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
 	// Return the token.
 	return &resourcepb.SetEmailResponse{}, nil
@@ -157,13 +155,11 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	domain, _ := config.GetDomain()
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Account)
 	if err == nil {
-		srv.publishEvent("create_account_evt", []byte(jsonStr), domain)
+		srv.publishEvent("create_account_evt", []byte(jsonStr), srv.Address)
 	}
-
 	// Now I will
 	return &resourcepb.RegisterAccountRsp{
 		Result: tokenString, // Return the token string.
@@ -706,23 +702,8 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// send event.
-	var contact_domain string
-	if strings.Contains(rqst.Contact.Id, "@") {
-		contact_domain = strings.Split(rqst.Contact.Id, "@")[1]
-	} else {
-		contact_domain = srv.Domain
-	}
-
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, contact_domain)
-	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.SetAccountContactRsp{Result: true}, nil
 }
@@ -882,12 +863,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
-
-			if strings.Contains(organizationId, "@") {
-				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
-			} else {
-				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
-			}
+			srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, srv.Address)
 		}
 	}
 
@@ -905,11 +881,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, rqst.Id, groupId, "members", "Groups")
-			if strings.Contains(groupId, "@") {
-				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
-			} else {
-				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
-			}
+			srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, srv.Address)
 		}
 	}
 
@@ -927,12 +899,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, rqst.Id, roleId, "members", "Roles")
-
-			if strings.Contains(roleId, "@") {
-				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
-			} else {
-				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
-			}
+			srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, srv.Address)
 		}
 
 	}
@@ -967,9 +934,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 			if err == nil {
 				// Here I will send delete contact event.
-
-				srv.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, domain)
-				srv.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, contact["domain"].(string))
+				srv.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{}, srv.Address)
 			}
 
 		}
@@ -1013,8 +978,8 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
 	// Publish delete account event.
-	srv.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{}, domain)
-	srv.publishEvent("delete_account_evt", []byte(name+"@"+domain), domain)
+	srv.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("delete_account_evt", []byte(name+"@"+domain), srv.Address)
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,
@@ -1134,14 +1099,7 @@ func (srv *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRq
 		}
 	}
 
-	var role_domain string
-	if strings.Contains(rqst.RoleId, "@") {
-		role_domain = strings.Split(rqst.RoleId, "@")[1]
-	} else {
-		role_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.UpdateRoleRsp{
 		Result: true,
@@ -1431,11 +1389,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 		for i := 0; i < len(accounts); i++ {
 			accountId := accounts[i].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, accountId, roleId, "roles", "Accounts")
-			if strings.Contains(accountId, "@") {
-				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, strings.Split(accountId, "@")[1])
-			} else {
-				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, localDomain)
-			}
+			srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, srv.Address)
 		}
 	}
 
@@ -1454,11 +1408,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, rqst.RoleId, organizationId, "roles", "Roles")
-			if strings.Contains(organizationId, "@") {
-				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
-			} else {
-				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
-			}
+			srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, srv.Address)
 		}
 	}
 
@@ -1473,8 +1423,8 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 	srv.deleteResourcePermissions(rqst.RoleId)
 	srv.deleteAllAccess(rqst.RoleId, rbacpb.SubjectType_ROLE)
 
-	srv.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
-	srv.publishEvent("delete_role_evt", []byte(rqst.RoleId), localDomain)
+	srv.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("delete_role_evt", []byte(rqst.RoleId), srv.Address)
 
 	return &resourcepb.DeleteRoleRsp{Result: true}, nil
 }
@@ -1564,20 +1514,13 @@ func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleA
 		}
 	}
 
-	if strings.Contains(rqst.RoleId, "@") {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
-	} else {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
-	}
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddRoleActionsRsp{Result: true}, nil
 }
 
 // * Remove an action to existing role. *
 func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
-
-	localDomain, _ := config.GetDomain()
-
 	// That service made user of persistence service.
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -1640,11 +1583,7 @@ func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.Remov
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			if strings.Contains(role["_id"].(string), "@") {
-				srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, role["domain"].(string))
-			} else {
-				srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, localDomain)
-			}
+			srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, srv.Address)
 
 		}
 	}
@@ -1738,11 +1677,7 @@ func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.Remove
 		}
 	}
 
-	if strings.Contains(rqst.RoleId, "@") {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
-	} else {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
-	}
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveRoleActionRsp{Result: true}, nil
 }
@@ -1766,11 +1701,7 @@ func (srv *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccou
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if strings.Contains(rqst.RoleId, "@") {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
-	} else {
-		srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Domain)
-	}
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddAccountRoleRsp{Result: true}, nil
 }
@@ -1799,23 +1730,9 @@ func (srv *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.Remov
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var role_domain string
-	if strings.Contains(rqst.RoleId, "@") {
-		role_domain = strings.Split(rqst.RoleId, "@")[1]
-	} else {
-		role_domain = srv.Domain
-	}
 
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
-
-	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
@@ -1929,7 +1846,7 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	srv.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
-	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, app.Domain)
+	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, srv.Address)
 
 	// Now I will create the application connection.
 	address, _ := config.GetAddress()
@@ -2001,11 +1918,7 @@ func (srv *server) UpdateApplication(ctx context.Context, rqst *resourcepb.Updat
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if strings.Contains(rqst.ApplicationId, "@") {
-		srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, strings.Split(rqst.ApplicationId, "@")[1])
-	} else {
-		srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Domain)
-	}
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.UpdateApplicationRsp{}, nil
 }
@@ -2172,7 +2085,7 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 		}
 	}
 
-	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddApplicationActionsRsp{Result: true}, nil
 }
@@ -2243,7 +2156,7 @@ func (srv *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb
 		}
 	}
 
-	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveApplicationActionRsp{Result: true}, nil
 }
@@ -2313,7 +2226,7 @@ func (srv *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcep
 			jsonStr := serialyseObject(application)
 			q = `{"_id":"` + application["_id"].(string) + `"}`
 			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
-			srv.publishEvent("update_application_"+application["_id"].(string)+"_evt", []byte{}, application["domain"].(string))
+			srv.publishEvent("update_application_"+application["_id"].(string)+"_evt", []byte{}, srv.Address)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -2630,8 +2543,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		}
 
 		// Update peer event.
-		localDomain, _ := config.GetDomain()
-		srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
 		address := rqst.Peer.Domain
 		if rqst.Peer.Protocol == "https" {
@@ -2807,8 +2719,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	}
 
 	// signal peers changes...
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2855,8 +2766,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	}
 
 	// signal peers changes...
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -3077,14 +2987,15 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config.GetDomain()
-
 	// signal peers changes...
-	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, localDomain)
-	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.Domain)
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, srv.Address)
+
+	// TODO see if the peers domain it's it address...
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.ExternalIpAddress)
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.LocalIpAddress)
 
 	// give the peer information...
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), localDomain)
+	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
@@ -3144,11 +3055,12 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	// signal peers changes...
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, localDomain)
-	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.Domain)
-	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), localDomain)
-	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.Domain)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.ExternalIpAddress)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.LocalIpAddress)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), srv.Address)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.ExternalIpAddress)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.LocalIpAddress)
 
 	address_ := peer.Domain
 	if peer.Protocol == "https" {
@@ -3231,8 +3143,7 @@ func (srv *server) addPeerActions(mac string, actions_ []string) error {
 	}
 
 	// signal peers changes...
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("update_peer_"+mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+mac+"_evt", []byte{}, srv.Address)
 
 	return nil
 }
@@ -3247,8 +3158,7 @@ func (srv *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerA
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddPeerActionsRsp{Result: true}, nil
 
@@ -3314,10 +3224,8 @@ func (srv *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.Remove
 		}
 	}
 
-	localDomain, _ := config.GetDomain()
-
 	// signal peers changes...
-	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, localDomain)
+	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemovePeerActionRsp{Result: true}, nil
 }
@@ -3362,11 +3270,10 @@ func (srv *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.Remov
 		}
 
 		if needSave {
-			localDomain, _ := config.GetDomain()
 			q = `{"_id":"` + peer["_id"].(string) + `"}`
 			jsonStr := serialyseObject(peer)
 			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, string(jsonStr), ``)
-			srv.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{}, localDomain)
+			srv.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{}, srv.Address)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -3479,8 +3386,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Organization)
 	if err == nil {
-		localDomain, _ := config.GetDomain()
-		srv.publishEvent("create_organization_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("create_organization_evt", []byte(jsonStr), srv.Address)
 	}
 
 	// create the resource owner.
@@ -3520,11 +3426,7 @@ func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.Upda
 		}
 	}
 
-	if strings.Contains(rqst.OrganizationId, "@") {
-		srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, rqst.OrganizationId[strings.Index(rqst.OrganizationId, "@")+1:])
-	} else {
-		srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Domain)
-	}
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.UpdateOrganizationRsp{
 		Result: true,
@@ -3699,22 +3601,8 @@ func (srv *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationAccountRsp{Result: true}, nil
 }
@@ -3737,22 +3625,8 @@ func (srv *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.Ad
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var group_domain string
-	if strings.Contains(rqst.GroupId, "@") {
-		group_domain = strings.Split(rqst.GroupId, "@")[1]
-	} else {
-		group_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationGroupRsp{Result: true}, nil
 }
@@ -3775,22 +3649,8 @@ func (srv *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.Add
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var role_domain string
-	if strings.Contains(rqst.RoleId, "@") {
-		role_domain = strings.Split(rqst.RoleId, "@")[1]
-	} else {
-		role_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationRoleRsp{Result: true}, nil
 }
@@ -3813,22 +3673,8 @@ func (srv *server) AddOrganizationApplication(ctx context.Context, rqst *resourc
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var application_domain string
-	if strings.Contains(rqst.ApplicationId, "@") {
-		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
-	} else {
-		application_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, application_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationApplicationRsp{Result: true}, nil
 }
@@ -3850,22 +3696,8 @@ func (srv *server) RemoveOrganizationAccount(ctx context.Context, rqst *resource
 		return nil, err
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveOrganizationAccountRsp{Result: true}, nil
 }
@@ -3887,22 +3719,8 @@ func (srv *server) RemoveOrganizationGroup(ctx context.Context, rqst *resourcepb
 		return nil, err
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var group_domain string
-	if strings.Contains(rqst.GroupId, "@") {
-		group_domain = strings.Split(rqst.GroupId, "@")[1]
-	} else {
-		group_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveOrganizationGroupRsp{Result: true}, nil
 }
@@ -3924,22 +3742,8 @@ func (srv *server) RemoveOrganizationRole(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var role_domain string
-	if strings.Contains(rqst.RoleId, "@") {
-		role_domain = strings.Split(rqst.RoleId, "@")[1]
-	} else {
-		role_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, role_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveOrganizationRoleRsp{Result: true}, nil
 }
@@ -3961,22 +3765,8 @@ func (srv *server) RemoveOrganizationApplication(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	var organization_domain string
-	if strings.Contains(rqst.OrganizationId, "@") {
-		organization_domain = strings.Split(rqst.OrganizationId, "@")[1]
-	} else {
-		organization_domain = srv.Domain
-	}
-
-	var application_domain string
-	if strings.Contains(rqst.ApplicationId, "@") {
-		application_domain = strings.Split(rqst.ApplicationId, "@")[1]
-	} else {
-		application_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, organization_domain)
-	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application_domain)
+	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveOrganizationApplicationRsp{Result: true}, nil
 }
@@ -4041,14 +3831,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 					fmt.Println(err)
 				}
 
-				var group_domain string
-				if strings.Contains(groupId, "@") {
-					group_domain = strings.Split(groupId, "@")[1]
-				} else {
-					group_domain = srv.Domain
-				}
-
-				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, group_domain)
+				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, srv.Address)
 			}
 		}
 	}
@@ -4071,14 +3854,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 					fmt.Println(err)
 				}
 
-				var role_domain string
-				if strings.Contains(roleId, "@") {
-					role_domain = strings.Split(roleId, "@")[1]
-				} else {
-					role_domain = srv.Domain
-				}
-
-				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, role_domain)
+				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, srv.Address)
 			}
 		}
 	}
@@ -4101,14 +3877,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 					fmt.Println(err)
 				}
 
-				var application_domain string
-				if strings.Contains(applicationId, "@") {
-					application_domain = strings.Split(applicationId, "@")[1]
-				} else {
-					application_domain = srv.Domain
-				}
-
-				srv.publishEvent("update_application_"+applicationId+"_evt", []byte{}, application_domain)
+				srv.publishEvent("update_application_"+applicationId+"_evt", []byte{}, srv.Address)
 			}
 		}
 	}
@@ -4131,14 +3900,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 					fmt.Println(err)
 				}
 
-				var account_domain string
-				if strings.Contains(accountId, "@") {
-					account_domain = strings.Split(accountId, "@")[1]
-				} else {
-					account_domain = srv.Domain
-				}
-
-				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
+				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, srv.Address)
 			}
 		}
 	}
@@ -4158,8 +3920,8 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 	srv.deleteResourcePermissions(organizationId)
 	srv.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
 
-	srv.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, localDomain)
-	srv.publishEvent("delete_organization_evt", []byte(organizationId), localDomain)
+	srv.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("delete_organization_evt", []byte(organizationId), srv.Address)
 
 	return &resourcepb.DeleteOrganizationRsp{Result: true}, nil
 }
@@ -4194,14 +3956,7 @@ func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroup
 		}
 	}
 
-	var group_domain string
-	if strings.Contains(rqst.GroupId, "@") {
-		group_domain = strings.Split(rqst.GroupId, "@")[1]
-	} else {
-		group_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.UpdateGroupRsp{
 		Result: true,
@@ -4481,13 +4236,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 		for j := 0; j < len(members); j++ {
 			accountId := members[j].(map[string]interface{})["$id"].(string)
 			srv.deleteReference(p, rqst.Group, accountId, "groups", "Accounts")
-			var account_domain string
-			if strings.Contains(accountId, "@") {
-				account_domain = strings.Split(accountId, "@")[1]
-			} else {
-				account_domain = srv.Domain
-			}
-			srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, account_domain)
+			srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, srv.Address)
 		}
 	}
 
@@ -4506,13 +4255,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 			for i := 0; i < len(organizations); i++ {
 				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 				srv.deleteReference(p, rqst.Group, organizationId, "groups", "Organizations")
-				var organization_domain string
-				if strings.Contains(organizationId, "@") {
-					organization_domain = strings.Split(organizationId, "@")[1]
-				} else {
-					organization_domain = srv.Domain
-				}
-				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, organization_domain)
+				srv.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, srv.Address)
 			}
 		}
 	}
@@ -4529,9 +4272,9 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 	srv.deleteResourcePermissions(rqst.Group)
 	srv.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
 
-	srv.publishEvent("delete_group_"+groupId+"_evt", []byte{}, localDomain)
+	srv.publishEvent("delete_group_"+groupId+"_evt", []byte{}, srv.Address)
 
-	srv.publishEvent("delete_group_evt", []byte(groupId), localDomain)
+	srv.publishEvent("delete_group_evt", []byte(groupId), srv.Address)
 
 	return &resourcepb.DeleteGroupRsp{
 		Result: true,
@@ -4557,22 +4300,8 @@ func (srv *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.A
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var group_domain string
-	if strings.Contains(rqst.GroupId, "@") {
-		group_domain = strings.Split(rqst.GroupId, "@")[1]
-	} else {
-		group_domain = srv.Domain
-	}
-
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
-	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddGroupMemberAccountRsp{Result: true}, nil
 }
@@ -4599,22 +4328,8 @@ func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcep
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var group_domain string
-	if strings.Contains(rqst.GroupId, "@") {
-		group_domain = strings.Split(rqst.GroupId, "@")[1]
-	} else {
-		group_domain = srv.Domain
-	}
-
-	var account_domain string
-	if strings.Contains(rqst.AccountId, "@") {
-		account_domain = strings.Split(rqst.AccountId, "@")[1]
-	} else {
-		account_domain = srv.Domain
-	}
-
-	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, group_domain)
-	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, account_domain)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.RemoveGroupMemberAccountRsp{Result: true}, nil
 }
@@ -4683,9 +4398,8 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Notification)
-	localDomain, _ := config.GetDomain()
 	if err == nil {
-		srv.publishEvent("create_notification_evt", []byte(jsonStr), localDomain)
+		srv.publishEvent("create_notification_evt", []byte(jsonStr), srv.GetAddress())
 	}
 
 	return &resourcepb.CreateNotificationRsp{}, nil
@@ -4810,9 +4524,8 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("delete_notification_"+rqst.Id+"_evt", []byte{}, localDomain)
-	srv.publishEvent("delete_notification_evt", []byte(rqst.Id), localDomain)
+	srv.publishEvent("delete_notification_"+rqst.Id+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("delete_notification_evt", []byte(rqst.Id), srv.Address)
 
 	return &resourcepb.DeleteNotificationRsp{}, nil
 }
@@ -4861,8 +4574,7 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _ := config.GetDomain()
-	srv.publishEvent("clear_notification_evt", []byte{}, localDomain)
+	srv.publishEvent("clear_notification_evt", []byte{}, srv.Address)
 
 	return &resourcepb.ClearAllNotificationsRsp{}, nil
 }
@@ -5487,7 +5199,6 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 	}
 
 	// send update_session event
-	//srv.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
 	var q string
 	if p.GetStoreType() == "MONGO" {
 		q = `{"accountId":"` + accountId + `"}`

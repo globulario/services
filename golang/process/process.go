@@ -289,7 +289,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(proxyPort))
 
 		/* in case of public domain server files **/
-		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/srv.pem")
+		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/server.pem")
 		proxyArgs = append(proxyArgs, "--server_tls_client_ca_files="+creds+"/"+certificateAuthorityBundle)
 		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+creds+"/"+certificate)
 
@@ -307,7 +307,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// browser client connection maximum life.
 	proxyArgs = append(proxyArgs, "--server_http_max_read_timeout=48h")
 	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
-	proxyArgs = append(proxyArgs, "--use_websockets=true")
+	proxyArgs = append(proxyArgs, "--use_websockets=false")
 
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
@@ -317,23 +317,40 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
+	cmd_ := s["Name"].(string) + ": " +cmd + " "
+	for i := 0; i < len(proxyArgs); i++ {
+		cmd_ +=  proxyArgs[i] + " "
+	}
+/*
+	fmt.Println()
+	fmt.Println(cmd_)
+	fmt.Println()
+*/
 	err := proxyProcess.Start()
 	if err != nil {
-		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
+		
+		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` || strings.Contains(err.Error(), "no such file or directory") {
+
 			if Utility.Exists(config.GetGlobularExecPath() + "/bin/" + cmd) {
+
 				proxyProcess = exec.Command(config.GetGlobularExecPath()+"/bin/"+cmd, proxyArgs...)
 				proxyProcess.Dir = config.GetGlobularExecPath() + "/bin/"
 				err = proxyProcess.Start()
 				if err != nil {
+
 					return -1, err
 				}
 			} else {
+
 				ex, err := os.Executable()
 				if err != nil {
+
 					return -1, err
 				}
+
 				exPath := filepath.Dir(ex)
 				if Utility.Exists(exPath + "/bin/" + cmd) {
+
 					proxyProcess = exec.Command(exPath+"/bin/"+cmd, proxyArgs...)
 					proxyProcess.Dir = exPath + "/bin/"
 					err = proxyProcess.Start()
@@ -341,7 +358,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 						return -1, err
 					}
 				} else {
-					return -1, err
+					return -1, errors.New("the program grpcwebproxy is not install on the system")
 				}
 			}
 		} else {

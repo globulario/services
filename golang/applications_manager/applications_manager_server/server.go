@@ -485,7 +485,9 @@ func (srv *server) createApplication(token, id, name, domain, password, path, pu
 		return err
 	}
 
-	return resourceClient.CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
+	err = resourceClient.CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
+
+	return err
 
 }
 
@@ -536,20 +538,20 @@ func (srv *server) getEventClient(address string) (*event_client.Event_Client, e
 	return client.(*event_client.Event_Client), nil
 }
 
-func (srv *server) publish(domain, event string, data []byte) error {
-	eventClient, err := srv.getEventClient(domain)
+func (srv *server) publish(address, event string, data []byte) error {
+	eventClient, err := srv.getEventClient(address)
 	if err != nil {
 		return err
 	}
 	err = eventClient.Publish(event, data)
 	if err != nil {
-		fmt.Println("fail to publish event", event, srv.Domain, "with error", err)
+		fmt.Println("fail to publish event", event, srv.Address, "with error", err)
 	}
 	return err
 }
 
-func (srv *server) subscribe(domain, evt string, listener func(evt *eventpb.Event)) error {
-	eventClient, err := srv.getEventClient(domain)
+func (srv *server) subscribe(address, evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := srv.getEventClient(address)
 	if err != nil {
 		fmt.Println("fail to get event client with error: ", err)
 		return err
@@ -690,10 +692,7 @@ func main() {
 				for i := 0; i < len(applications); i++ {
 					application := applications[i]
 					evt := application.Publisherid + ":" + application.Name
-					values := strings.Split(application.Publisherid, "@")
-					if len(values) == 2 {
-						s_impl.subscribe(values[1], evt, updateApplication(s_impl, application))
-					}
+					s_impl.subscribe(s_impl.Address, evt, updateApplication(s_impl, application))
 				}
 			}
 		}
