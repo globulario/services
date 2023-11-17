@@ -1034,7 +1034,9 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 
 	var err error
 	var source map[string]interface{}
-	localDomain, err := config.GetDomain()
+
+	// TODO see how to handle the case where the target id is not on the same domain as the source id.
+	/*localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
 	}
@@ -1063,7 +1065,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 			}
 			return nil // exit...
 		}
-	}
+	}*/
 
 	// I will first check if the reference already exist.
 	q := `{"_id":"` + id + `"}`
@@ -1071,7 +1073,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 	// Get the source object.
 	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
-		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at domain " + domain + " err: " + err.Error())
+		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at address " + srv.Address + " err: " + err.Error())
 	}
 
 	// append the account.
@@ -1083,10 +1085,6 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 
 	// append the domain to the id.
 	if p.GetStoreType() == "MONGO" {
-		if !strings.Contains(targetId, "@") {
-			targetId += "@" + localDomain
-		}
-
 		var references []interface{}
 		if source[field] != nil {
 			switch source[field].(type) {

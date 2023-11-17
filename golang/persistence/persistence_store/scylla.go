@@ -516,7 +516,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 	if data["domain"] != nil {
 		query += fmt.Sprintf(" AND domain='%s'", data["domain"])
 	}
-	
+
 	values_, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, "")
 	if err == nil {
 		return values_.(map[string]interface{}), nil
@@ -558,10 +558,11 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						// be sure that the first letter is upper case.
 						typeName = strings.Title(typeName)
 
-						// set the entity domain...
+						// set the domain in case is define with localhost value.
+						localDomain, _ := config.GetDomain()
 						if entity["domain"] == nil {
-							localDomain, _ := config.GetDomain()
-							// be sure the domain is set...
+							entity["domain"] = localDomain
+						} else if entity["domain"] == "localhost" {
 							entity["domain"] = localDomain
 						}
 
@@ -857,7 +858,7 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 		parameters := make(map[string]interface{}, 0)
 		err := json.Unmarshal([]byte(q), &parameters)
 		if err != nil {
-			fmt.Println("Error unmarshalling query: ", 	q, "with error", err)
+			fmt.Println("Error unmarshalling query: ", q, "with error", err)
 			return "", err
 		}
 
@@ -866,7 +867,7 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 		for key, value := range parameters {
 			if key == "_id" {
 				key = "id"
-				if strings.Contains(value.(string), "@")	{
+				if strings.Contains(value.(string), "@") {
 					fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
 					value = strings.Split(value.(string), "@")[0]
 				}

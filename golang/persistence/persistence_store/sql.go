@@ -638,8 +638,11 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							if entity["typeName"] != nil {
 								typeName := entity["typeName"].(string)
 
+								// set the domain in case is define with localhost value.
+								localDomain, _ := config.GetDomain()
 								if entity["domain"] == nil {
-									localDomain, _ := config.GetDomain()
+									entity["domain"] = localDomain
+								} else if entity["domain"] == "localhost" {
 									entity["domain"] = localDomain
 								}
 
