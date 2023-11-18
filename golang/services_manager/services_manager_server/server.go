@@ -614,7 +614,7 @@ func (srv *server) stopService(s map[string]interface{}) error {
 	s["Process"] = -1
 	s["ProxyProcess"] = -1
 
-	err = config.SaveServiceConfiguration(s["Mac"].(string), s)
+	err = config.SaveServiceConfiguration( s)
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func (srv *server) stopService(s map[string]interface{}) error {
 // uninstall service
 func (srv *server) uninstallService(token, publisherId, serviceId, version string, deletePermissions bool) error {
 	// First of all I will stop the running service(s) instance.
-	services, err := config.GetServicesConfigurations(srv.Address)
+	services, err := config.GetServicesConfigurations()
 	if err != nil {
 		return err
 	}
@@ -636,7 +636,7 @@ func (srv *server) uninstallService(token, publisherId, serviceId, version strin
 			srv.stopService(s)
 
 			// Get the list of method to remove from the list of actions.
-			toDelete, err := config.GetServiceMethods(s["Mac"].(string), s["Name"].(string), publisherId, version)
+			toDelete, err := config.GetServiceMethods(s["Name"].(string), publisherId, version)
 			if err != nil {
 				return err
 			}
@@ -804,7 +804,7 @@ func main() {
 	go func() {
 
 		// retreive all services configuations.
-		services, err := config.GetServicesConfigurations(s_impl.Address)
+		services, err := config.GetServicesConfigurations()
 		if err == nil {
 			for i := 0; i < len(services); i++ {
 				service := services[i]

@@ -32,6 +32,25 @@ var (
 // Factory method.
 func GetClient(address, name, fct string) (Client, error) {
 
+	// so here I will test if the domain is contain in peers...
+	localAddress, _ := config.GetAddress()
+	if localAddress != address {
+		// Here I will test if the domain is contain in peers...
+		localConfig, _ := config.GetLocalConfig( true)
+		peers, _ := localConfig["Peers"].([]interface{})
+		for i := 0; i < len(peers); i++ {
+			p := peers[i].(map[string]interface{})
+			if p["Domain"].(string) == address {
+				if p["ExternalIpAddress"] == Utility.MyIP() {
+					address = p["ExternalIpAddress"].(string)
+				} else {
+					address = p["LocalIpAddress"].(string)
+				}
+				break
+			}
+		}
+	}
+
 	if clients == nil {
 		clients = new(sync.Map)
 	}
@@ -156,6 +175,8 @@ type Client interface {
  */
 func InitClient(client Client, address string, id string) error {
 
+	fmt.Println("--->try to initialyse client", id, "at address", address)
+
 	if len(address) == 0 {
 		return errors.New("no address was given for client id " + id)
 	}
@@ -168,11 +189,10 @@ func InitClient(client Client, address string, id string) error {
 	var err error
 
 	// Here the address must contain the port where the configuration can be found on the
-	// http server. If not given that mean if it's local (on the same domain) I will retreive
+	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
-	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-	localConfig, _ := config.GetConfig(mac, true)
+	localConfig, _ := config.GetLocalConfig(true)
 
 	if !strings.Contains(address, ":") {
 		if strings.HasPrefix(address_, address) {
@@ -191,8 +211,6 @@ func InitClient(client Client, address string, id string) error {
 					p := peers[i].(map[string]interface{})
 					if p["Domain"].(string) == address {
 						address += ":" + Utility.ToString(p["Port"])
-						// I will set the mac address of the client to the mac address of the peer.
-						mac = p["Mac"].(string)
 						break
 					}
 				}
@@ -216,26 +234,57 @@ func InitClient(client Client, address string, id string) error {
 	var san_organization string
 	san_alternateDomains := make([]interface{}, 0)
 
-	// get san values from the globule itself...
-	globule_config, _ := config.GetConfig(mac, true)
-	if globule_config["Country"] != nil {
-		san_country = globule_config["Country"].(string)
-	}
-	if globule_config["State"] != nil {
-		san_state = globule_config["State"].(string)
-	}
-	if globule_config["City"] != nil {
-		san_city = globule_config["City"].(string)
-	}
-	if globule_config["Organization"] != nil {
-		san_organization = globule_config["Organization"].(string)
-	}
-	if globule_config["AlternateDomains"] != nil {
-		san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
+	if isLocal {
+
+		// get san values from the globule itself...
+		globule_config, _ := config.GetLocalConfig(true)
+		if globule_config["Country"] != nil {
+			san_country = globule_config["Country"].(string)
+		}
+		if globule_config["State"] != nil {
+			san_state = globule_config["State"].(string)
+		}
+		if globule_config["City"] != nil {
+			san_city = globule_config["City"].(string)
+		}
+		if globule_config["Organization"] != nil {
+			san_organization = globule_config["Organization"].(string)
+		}
+		if globule_config["AlternateDomains"] != nil {
+			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
+		}
+
+		// Local client configuration
+		config_, err = config.GetServiceConfigurationById(id)
+		
+	} else {
+		// so here I try to get more information from peers...
+		var globule_config map[string]interface{}
+		globule_config, err = config.GetRemoteConfig(domain, port)
+		if err == nil {
+			config_, err = config.GetRemoteServiceConfig(domain, port, id)
+		}
+
+		// set san values
+		if globule_config["Country"] != nil {
+			san_country = globule_config["Country"].(string)
+		}
+		if globule_config["State"] != nil {
+			san_state = globule_config["State"].(string)
+		}
+		if globule_config["City"] != nil {
+			san_city = globule_config["City"].(string)
+		}
+		if globule_config["Organization"] != nil {
+			san_organization = globule_config["Organization"].(string)
+		}
+		if globule_config["AlternateDomains"] != nil {
+			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
+		}
+
 	}
 
-	// Get the service configuration
-	config_, err = config.GetServiceConfigurationById(mac, id)
+	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
 		fmt.Println("fail to initialyse client", id, "with error", err)
 		return err

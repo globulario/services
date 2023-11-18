@@ -1083,6 +1083,15 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 		// I will build the query here.
 		query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
 		for key, value := range parameters {
+
+			if key == "_id" {
+				key = "id"
+				if strings.Contains(value.(string), "@") {
+					fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
+					value = strings.Split(value.(string), "@")[0]
+				}
+			}
+			
 			if reflect.TypeOf(value).Kind() == reflect.String {
 				query += fmt.Sprintf("%s = '%v' AND ", key, value)
 			} else if reflect.TypeOf(value).Kind() == reflect.Slice {

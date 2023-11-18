@@ -2338,7 +2338,7 @@ func getLocalPeer() *resourcepb.Peer {
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
 	domain, _ := config.GetDomain()
-	localConfig, _ := config.GetConfig("", true)
+	localConfig, _ := config.GetLocalConfig(true)
 
 	local_peer_ := new(resourcepb.Peer)
 	local_peer_.TypeName = "Peer"
@@ -2381,7 +2381,6 @@ func (srv *server) registerPeer(token, address string) (*resourcepb.Peer, string
 	// Connect to remote server and call Register peer on it...
 	client, err := GetResourceClient(address)
 	if err != nil {
-		fmt.Println("1896 fail to connect with client with error ", err)
 		return nil, "", err
 	}
 
@@ -2404,7 +2403,7 @@ func (srv *server) registerPeer(token, address string) (*resourcepb.Peer, string
 		return nil, "", err
 	}
 
-	localConfig, err := config.GetConfig("", true)
+	localConfig, err := config.GetLocalConfig(true)
 	httpPort := Utility.ToInt(localConfig["PortHttp"])
 	httpsPort := Utility.ToInt(localConfig["PortHttps"])
 	protocol := localConfig["Protocol"].(string)
@@ -2476,8 +2475,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
 	if len(rqst.Peer.Mac) == 0 {
-
-		address_ := rqst.Peer.Domain
+		// In that case I will use the hostname and the domain to set the address
+		address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 		if rqst.Peer.Protocol == "https" {
 			address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 		} else {

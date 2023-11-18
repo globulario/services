@@ -423,22 +423,15 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 /**
  *  Create the application bundle and push it on the server
  */
-func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
+func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, address, name, version string) (int, error) {
 
 	path = strings.ReplaceAll(path, "\\", "/")
 
-	if len(token) > 0 {
-		claims, _ := security.ValidateToken(token)
-
-		if !strings.Contains(user, "@") {
-			if len(claims.UserDomain) == 0 {
-				return -1, errors.New("no user domain was found in the token")
-			}
-			user += "@" + claims.UserDomain
-		}
+	if !strings.Contains(user, "@") {
+		user += "@" + client.GetDomain()
 	}
 
-	resource_client_, err := GetResourceClient(domain)
+	resource_client_, err := GetResourceClient(address)
 	if err != nil {
 		return -1, err
 	}
@@ -457,7 +450,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 
 	defer os.RemoveAll(packagePath)
 
-	rbac_client_, err := GetRbacClient(domain)
+	rbac_client_, err := GetRbacClient(address)
 	if err != nil {
 		return -1, err
 	}
@@ -483,7 +476,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	if len(applications) > 0 {
 
 		// If the version has change I will notify current users and undate the applications.
-		event_client_, err := GetEventClient(domain)
+		event_client_, err := GetEventClient(address)
 		if err != nil {
 			return -1, err
 		}
@@ -537,7 +530,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	// Upload the bundle to the repository server.
-	return client.UploadBundle(token, domain, name, publisherId, version, "webapp", packagePath)
+	return client.UploadBundle(token, address, name, publisherId, version, "webapp", packagePath)
 
 }
 

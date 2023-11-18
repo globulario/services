@@ -431,7 +431,7 @@ func InitService(s Service) error {
 	if Utility.Exists(s.GetConfigurationPath()) {
 		// Here I will get the configuration from the Configuration srv...
 		if len(s.GetId()) > 0 {
-			config_, err := config.GetServiceConfigurationById("", s.GetId())
+			config_, err := config.GetServiceConfigurationById(s.GetId())
 			if err != nil {
 				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
 				return err
@@ -497,7 +497,7 @@ func SaveService(s Service) error {
 		return err
 	}
 
-	return config.SaveServiceConfiguration(s.GetMac(), config_)
+	return config.SaveServiceConfiguration(config_)
 }
 
 /**
@@ -741,7 +741,7 @@ func StartService(s Service, srv *grpc.Server) error {
 				}
 				if event.Op == fsnotify.Write {
 					// reinit the service...
-					config, err := config.GetServiceConfigurationById(s.GetMac(), s.GetId())
+					config, err := config.GetServiceConfigurationById(s.GetId())
 					if err != nil {
 						data, err := json.Marshal(config)
 						if err == nil {

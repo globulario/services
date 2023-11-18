@@ -366,6 +366,9 @@ func (srv *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
+
+	fmt.Println("authenticate: ", accountId, issuer)
+
 	// If the user is the root...
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
 
@@ -561,6 +564,18 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 	// The issuer is the mac address from where the request come from.
 	// If the issuer is empty then I will use the mac address of the srv.
 	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
+	if rqst.Name == "sa" {
+		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, mac)
+		if err != nil {
+			return nil, err
+		}
+
+		return &authenticationpb.AuthenticateRsp{
+			Token: tokenString,
+		}, nil
+
+	}
+	
 	if strings.Contains(rqst.Name, "@") {
 		domain := strings.Split(rqst.Name, "@")[1]
 		if domain == srv.Domain {

@@ -24,8 +24,7 @@ import (
  * Return the local address.
  */
 func GetAddress() (string, error) {
-
-	address, err := GetName()
+	address, err  := GetName()
 	if err != nil {
 		return "", err
 	}
@@ -40,11 +39,13 @@ func GetAddress() (string, error) {
 	}
 
 	// I need the local configuration to get info about the address.
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return "", err
 	}
 
+	// Return the address where to grab the configuration.
+	//address := domain
 	if Utility.ToString(localConfig["Protocol"]) == "https" {
 		address += ":" + Utility.ToString(localConfig["PortHttps"])
 	} else {
@@ -58,8 +59,7 @@ func GetAddress() (string, error) {
  * Return the computer name.
  */
 func GetName() (string, error) {
-
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if len(localConfig["Name"].(string)) != 0 {
 			return strings.ToLower(localConfig["Name"].(string)), nil
@@ -78,14 +78,16 @@ func GetName() (string, error) {
  * Return the Domain.
  */
 func GetDomain() (string, error) {
-
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err == nil {
-		return localConfig["Domain"].(string), nil
+		domain := localConfig["Domain"].(string)
+		return strings.ToLower(domain), nil
 	}
-
+		
+	fmt.Println("fail to retreive local configuration with error ", err)
+	
 	// if not configuration already exist on the server I will return it hostname...
-	return "", nil
+	return "", errors.New("no local configuration found")
 }
 
 // Those function are use to get the correct
@@ -101,7 +103,7 @@ func GetRootDir() string {
  * Return the location of globular executable.
  */
 func GetGlobularExecPath() string {
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if localConfig["Path"] != nil {
 			if len(localConfig["Path"].(string)) != 0 {
@@ -116,10 +118,8 @@ func GetGlobularExecPath() string {
 func GetPublicDirs() []string {
 
 	public := make([]string, 0)
-	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-
 	// Retreive all configurations
-	services, err := GetServicesConfigurationsByName(mac, "file.FileService")
+	services, err := GetServicesConfigurationsByName("file.FileService")
 	if err == nil {
 		for i := 0; i < len(services); i++ {
 			s := services[i]
@@ -184,7 +184,7 @@ func GetServicesDir() string {
 
 // Force service to be read from a specific directory.
 func GetServicesRoot() string {
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if localConfig["ServicesRoot"] != nil {
 			return localConfig["ServicesRoot"].(string)
@@ -311,6 +311,34 @@ func GetToken(mac string) (string, error) {
 	return string(token), nil
 }
 
+/**
+ * Insert an object to an array at a given index
+ */
+func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
+	return append(array[:index], append([]map[string]interface{}{value}, array[index:]...)...)
+}
+
+func removeObject(array []map[string]interface{}, index int) []map[string]interface{} {
+	return append(array[:index], array[index+1:]...)
+}
+
+func moveObject(array []map[string]interface{}, srcIndex int, dstIndex int) []map[string]interface{} {
+	value := array[srcIndex]
+	return insertObject(removeObject(array, srcIndex), value, dstIndex)
+}
+
+/**
+ * Return the services index in a slice.
+ */
+func getObjectIndex(value, name string, objects []map[string]interface{}) int {
+	for i := 0; i < len(objects); i++ {
+		if objects[i][name].(string) == value {
+			return i
+		}
+	}
+	return -1
+}
+
 // OrderDependencies orders the services based on their dependencies.
 func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 
@@ -328,6 +356,7 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 			return nil
 		}
 
+
 		service, exists := serviceMap[serviceName]
 		if !exists {
 			return fmt.Errorf("service not found: %s", serviceName)
@@ -343,8 +372,8 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 				}
 			}
 		}
-
-		if !Utility.Contains(orderedServices, serviceName) {
+		
+		if !Utility.Contains(orderedServices, serviceName){
 			orderedServices = append(orderedServices, serviceName)
 		}
 
@@ -363,9 +392,9 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 }
 
 // That function can be call by globular directly.
-func GetOrderedServicesConfigurations(mac string) ([]map[string]interface{}, error) {
+func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 
-	services, err := GetServicesConfigurations(mac)
+	services, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +460,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
-
+	
 	// set back the error to nil
 	err = nil
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
@@ -471,11 +500,10 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 }
 
 /**
- * Get the remote globular configuration, made use of http request to do so.
+ * Get the remote client configuration, made use of http request to do so.
  */
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
-	// Here I will get the configuration information from http...
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -542,18 +570,7 @@ var config_ map[string]interface{}
  * Return the server local configuration if one exist.
  * if lazy is set to true service will not be set in the configuration.
  */
-func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
-
-	// test if the mac address is the same...
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return nil, err
-	}
-
-	if len(mac) == 0 {
-		mac = macAddress
-	}
-
+func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if lazy && config_ != nil {
 		return config_, nil
 	}
@@ -579,62 +596,46 @@ func GetConfig(mac string, lazy bool) (map[string]interface{}, error) {
 	}
 
 	// Set the mac address
-	config["Mac"] = macAddress
-
-	if mac == macAddress {
-
-		if lazy {
-			config_ = config
-			return config, nil
-		}
-
-		// Now I will read the services configurations...
-		config["Services"] = make(map[string]interface{})
-
-		// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
-		services_config, err := GetServicesConfigurations(mac)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := 0; i < len(services_config); i++ {
-			config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
-		}
-
-		// if the Globule name is not set I will use the name of the computer hostname itself.
-		if len(config["Name"].(string)) == 0 {
-			config["Name"], _ = GetName()
-		}
-
-		return config, nil
-
-	}else {
-		
-		// So here I will use the peer's for get the configuration.
-		peers := config["Peers"].([]interface{})
-		if len(peers) == 0 {
-			return nil, errors.New("no peers found in the configuration")
-		}
-
-		for i := 0; i < len(peers); i++ {
-			peer := peers[i].(map[string]interface{})
-			if peer["Mac"] == mac {
-				return GetRemoteConfig(peer["Address"].(string), 0)
-			}
-		}
-
-		return nil, errors.New("no peer found with mac address " + mac)
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
 	}
 
+	config["Mac"] = macAddress
+
+	if lazy {
+		config_ = config
+		return config, nil
+	}
+
+	// Now I will read the services configurations...
+	config["Services"] = make(map[string]interface{})
+
+	// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
+	services_config, err := GetServicesConfigurations()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < len(services_config); i++ {
+		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
+	}
+
+	// if the Globule name is not set I will use the name of the computer hostname itself.
+	if len(config["Name"].(string)) == 0 {
+		config["Name"], _ = GetName()
+	}
+
+	return config, nil
 }
 
 /**
  * Return the list of method's for a given service.
  */
-func GetServiceMethods(mac, name, publisherId, version string) ([]string, error) {
+func GetServiceMethods(name string, publisherId string, version string) ([]string, error) {
 	methods := make([]string, 0)
 
-	configs, err := GetServicesConfigurationsByName(mac, name)
+	configs, err := GetServicesConfigurationsByName(name)
 	if err != nil {
 		return nil, err
 	}
@@ -744,7 +745,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	info, _ := os.Stat(path)
 	s["ModTime"] = info.ModTime().Unix()
 
-	localConfig, err := GetConfig("", true)
+	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return nil, err
 	}
@@ -1241,7 +1242,7 @@ func Exit() {
 /**
  * Return the list of services all installed serverices on a server.
  */
-func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
+func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	initConfig()
 
@@ -1265,7 +1266,7 @@ func GetServicesConfigurations(mac string) ([]map[string]interface{}, error) {
 /**
  * Save a service configuration.
  */
-func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
+func SaveServiceConfiguration(s map[string]interface{}) error {
 
 	initConfig()
 
@@ -1286,7 +1287,7 @@ func SaveServiceConfiguration(mac string, s map[string]interface{}) error {
 /**
  * Return the list of service that match a given name.
  */
-func GetServicesConfigurationsByName(mac, name string) ([]map[string]interface{}, error) {
+func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
 
 	initConfig()
 
@@ -1310,7 +1311,7 @@ func GetServicesConfigurationsByName(mac, name string) ([]map[string]interface{}
 /**
  * Return a service with a given configuration id.
  */
-func GetServiceConfigurationById(mac, id string) (map[string]interface{}, error) {
+func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 
 	initConfig()
 

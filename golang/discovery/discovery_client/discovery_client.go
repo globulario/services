@@ -235,7 +235,7 @@ func (client *Dicovery_Client) SetCaFile(caFile string) {
 /**
  * Publish a service from a runing globular server.
  */
-func (Services_Manager_Client *Dicovery_Client) PublishService(user, organization, token, domain, configPath, platform string) error {
+func (client *Dicovery_Client) PublishService(user, organization, token, domain, configPath, platform string) error {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(configPath, "config.json")
@@ -278,15 +278,8 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 	discoveries := []interface{}{domain}
 	repositories := []interface{}{domain}
 
-	if len(token) > 0 {
-		claims, _ := security.ValidateToken(token)
-		if !strings.Contains(user, "@") {
-			if len(claims.UserDomain) == 0 {
-				return errors.New("no user domain was found in the token")
-			}
-
-			user += "@" + claims.UserDomain
-		}
+	if !strings.Contains(user, "@") {
+		user += "@" +  client.GetDomain()
 	}
 
 	for i := 0; i < len(discoveries); i++ {
@@ -303,17 +296,16 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 		rqst.Platform = platform
 
 		// Set the token into the context and send the request.
-		ctx := Services_Manager_Client.GetCtx()
+		ctx := client.GetCtx()
 		if len(token) > 0 {
 			md, _ := metadata.FromOutgoingContext(ctx)
 			if len(md.Get("token")) != 0 {
 				md.Set("token", token)
 			}
-
 			ctx = metadata.NewOutgoingContext(context.Background(), md)
 		}
 
-		Services_Manager_Client.c.PublishService(ctx, rqst)
+		client.c.PublishService(ctx, rqst)
 	}
 
 	return nil
@@ -328,30 +320,15 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 		return errors.New("no token was provided")
 	}
 
-	claims, err := security.ValidateToken(token)
-	if err != nil {
-		return err
-	}
-
-	domain := claims.Domain
-
 	if !strings.Contains(user, "@") {
-		if len(claims.UserDomain) == 0 {
-			return errors.New("no user domain was found in the token")
-		}
-
-		if len(claims.UserDomain) == 0 {
-			return errors.New("no user domain was found in the token")
-		}
-
-		user += "@" + claims.UserDomain
+		user += "@" +  client.GetDomain()
 	}
 
 	rqst := &discoverypb.PublishApplicationRequest{
 		User:         user,
 		Organization: organization,
 		Name:         name,
-		Domain:       domain,
+		Domain:       client.GetDomain(),
 		Version:      version,
 		Description:  description,
 		Icon:         icon,
@@ -375,7 +352,7 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err = client.c.PublishApplication(ctx, rqst)
+	_, err := client.c.PublishApplication(ctx, rqst)
 
 	if err != nil {
 		return err

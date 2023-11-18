@@ -3957,7 +3957,7 @@ func createVttFile(output string, fps float32) error {
 	time_ := 0
 	index := 1
 	address, _ := config.GetAddress()
-	localConfig, _ := config.GetConfig("", true)
+	localConfig, _ := config.GetLocalConfig(true)
 
 	for _, thumbnail := range thumbnails {
 		if strings.HasSuffix(thumbnail.Name(), ".jpg") {
@@ -4438,7 +4438,7 @@ func (srv *server) generateAudioPlaylist(path, token string, paths []string) err
 			playlist += "\n"
 
 			// now I will generate the url...
-			localConfig, _ := config.GetConfig("", true)
+			localConfig, _ := config.GetLocalConfig(true)
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {
@@ -4514,7 +4514,7 @@ func (srv *server) generateVideoPlaylist(path, token string, paths []string) err
 			playlist += "\n"
 
 			// now I will generate the url...
-			localConfig, _ := config.GetConfig("", true)
+			localConfig, _ := config.GetLocalConfig(true)
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {

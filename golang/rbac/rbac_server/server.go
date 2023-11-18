@@ -645,6 +645,7 @@ func (srv *server) applicationExist(id string) (bool, string) {
 	if err != nil || a == nil {
 		return false, ""
 	}
+
 	return true, a.Id + "@" + a.Domain
 }
 

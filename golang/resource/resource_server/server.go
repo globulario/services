@@ -1035,24 +1035,20 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 	var err error
 	var source map[string]interface{}
 
-	// TODO see how to handle the case where the target id is not on the same domain as the source id.
-	/*localDomain, err := config.GetDomain()
-	if err != nil {
-		return err
-	}
-
-	domain := localDomain
-
 	// the must contain the domain in the id.
 	if !strings.Contains(targetId, "@") {
 		return errors.New("target id must be a valid id with domain")
 	}
 
+	// TODO see how to handle the case where the target id is not on the same domain as the source id.
+
+
 	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
+		domain := strings.Split(id, "@")[1]
 		id = strings.Split(id, "@")[0]
+		
 		// if the domain is not the same as the local domain then I will redirect the call to the remote resource srv.
-		if localDomain != domain {
+		if srv.Domain != domain {
 			// so here I will redirect the call to the resource server at remote location.
 			client, err := GetResourceClient(domain)
 			if err != nil {
@@ -1065,7 +1061,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 			}
 			return nil // exit...
 		}
-	}*/
+	}
 
 	// I will first check if the reference already exist.
 	q := `{"_id":"` + id + `"}`

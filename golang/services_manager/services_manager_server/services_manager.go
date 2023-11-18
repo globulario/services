@@ -75,7 +75,7 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 
 		if err == nil {
 
-			previous, _ := config.GetServiceConfigurationById(srv.Mac, descriptor.Id)
+			previous, _ := config.GetServiceConfigurationById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
 				srv.uninstallService(token, descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
@@ -235,7 +235,7 @@ func (srv *server) stopServiceInstance(serviceId string) error {
 	if serviceId == srv.GetId() {
 		return errors.New("The service manager could not stop itself!")
 	}
-	s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return err
 	}
@@ -247,14 +247,14 @@ func (srv *server) stopServiceInstance(serviceId string) error {
 		}
 	} else {
 		// Close all services with a given name.
-		services, err := config.GetServicesConfigurationsByName(srv.Mac, serviceId)
+		services, err := config.GetServicesConfigurationsByName(serviceId)
 		if err != nil {
 			return err
 		}
 
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
-			s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
+			s, err := config.GetServiceConfigurationById(serviceId)
 			if err != nil {
 				return err
 			}
@@ -307,7 +307,7 @@ func (srv *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	s, err := config.GetServiceConfigurationById(srv.Mac, serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func (srv *server) StartServiceInstance(ctx context.Context, rqst *services_mana
 
 // Restart all Services also the http(s)
 func (srv *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
-	services, err := config.GetServicesConfigurations(srv.Address)
+	services, err := config.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -377,7 +377,7 @@ func (srv *server) RestartAllServices(ctx context.Context, rqst *services_manage
 }
 
 func (srv *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
-	services, err := config.GetServicesConfigurations(srv.Address)
+	services, err := config.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -411,7 +411,7 @@ func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_manager
 	}
 
 	// Save the service configuration
-	err = config.SaveServiceConfiguration(s["Mac"].(string), s)
+	err = config.SaveServiceConfiguration(s)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -450,7 +450,7 @@ func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_manager
 func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
 
 	// first of all I will retreive the list of all services configuration.
-	services, err := config.GetServicesConfigurations(srv.Address)
+	services, err := config.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

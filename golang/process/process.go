@@ -118,7 +118,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	s["Process"] = -1
 
 	// save the port and ProxyProcess
-	err = config.SaveServiceConfiguration(s["Mac"].(string), s)
+	err = config.SaveServiceConfiguration(s)
 	if err != nil {
 		fmt.Println("fail to save service configuration", err)
 		return -1, err
@@ -148,7 +148,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		s["Process"] = p.Process.Pid
 		s["State"] = "running"
 		s["LastError"] = ""
-		err = config.SaveServiceConfiguration(s["Mac"].(string), s)
+		err = config.SaveServiceConfiguration(s)
 		if err != nil {
 			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
 		}
@@ -182,7 +182,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 						return // fail to restart the process...
 					}
 
-					localConfig, _ := config.GetConfig("", true)
+					localConfig, _ := config.GetLocalConfig(true)
 
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
@@ -211,7 +211,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
-		config.SaveServiceConfiguration(s["Mac"].(string), s)
+		config.SaveServiceConfiguration(s)
 
 	}(s["Id"].(string))
 
@@ -421,7 +421,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcessPid
 
-	return proxyProcessPid, config.SaveServiceConfiguration(s["Mac"].(string), s)
+	return proxyProcessPid, config.SaveServiceConfiguration(s)
 
 }
 
@@ -508,7 +508,7 @@ scrape_configs:
     
 `
 
-		logServiceConfig, err := config.GetServiceConfigurationById("", "log.LogService")
+		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
 		if err == nil {
 			config_ += `
   - job_name: 'log_entries_metrics'
@@ -615,7 +615,7 @@ inhibit_rules:
 					}
 				}
 
-				services, err := config.GetServicesConfigurations("")
+				services, err := config.GetServicesConfigurations()
 				if err == nil {
 					for i := 0; i < len(services); i++ {
 
