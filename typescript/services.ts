@@ -446,7 +446,16 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
 
   // Create a URL object
   var url_ = new URL(url);
-  xmlhttp.open("GET", `/config?host=${url_.hostname}&port=${url_.port}`, true);
+  var port = url_.port;
+  if (port == ""){
+    if(url_.protocol == "https:") {
+      port = "443"
+    } else {
+      port = "80"
+    }
+  }
+
+  xmlhttp.open("GET", `/config?host=${url_.hostname}&port=${port}`, true);
   xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
   xmlhttp.send();
 }
