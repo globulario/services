@@ -1278,6 +1278,11 @@ func generateUpdateTableQuery(tableName string, fields []interface{}, whereClaus
 	// Build the SQL query
 	updateQuery := "UPDATE " + tableName + " SET "
 	for i, field := range fields {
+		
+		if field.(string) == "_id" {
+			field = "id"
+		}
+
 		updateQuery += field.(string) + " = ?"
 		if i < len(fields)-1 {
 			updateQuery += ", "

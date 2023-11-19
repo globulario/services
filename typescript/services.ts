@@ -446,7 +446,7 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
 
   // Create a URL object
   var url_ = new URL(url);
-  xmlhttp.open("GET", `/config?host=${url_.hostname}, port ${url_.port}`, true);
+  xmlhttp.open("GET", `/config?host=${url_.hostname}&port=${url_.port}`, true);
   xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
   xmlhttp.send();
 }

@@ -315,6 +315,7 @@ func snakeToCamel(input string) string {
 
 	var result bytes.Buffer
 	upper := false
+
 	for _, runeValue := range input {
 		if runeValue == '_' {
 			upper = true
@@ -819,6 +820,14 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 		for _, v := range values {
 			value := v.(map[string]interface{})
 			for key, v := range value {
+				if key == "_id" {
+					key = "id"
+					if strings.Contains(v.(string), "@") {
+						fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
+						v = strings.Split(v.(string), "@")[0]
+					}
+				}
+
 				key = camelToSnake(key)
 				if reflect.TypeOf(v).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' AND ", key, v)
@@ -833,6 +842,13 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 		for _, v := range values {
 			value := v.(map[string]interface{})
 			for key, v := range value {
+				if key == "_id" {
+					key = "id"
+					if strings.Contains(v.(string), "@") {
+						fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
+						v = strings.Split(v.(string), "@")[0]
+					}
+				}
 				key = camelToSnake(key)
 				if reflect.TypeOf(v).Kind() == reflect.String {
 					query += fmt.Sprintf("%s = '%v' OR ", key, v)
@@ -1240,12 +1256,14 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
+		
 		return err
 	}
 
 	values_ := make(map[string]interface{}, 0)
 	err = json.Unmarshal([]byte(value), &values_)
 	if err != nil {
+		fmt.Println("Error unmarshalling value: ", value, err)
 		return err
 	}
 
@@ -1264,6 +1282,7 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 	entities, err := store.find(connectionId, keyspace, table, query)
 
 	if err != nil {
+		fmt.Println("fail to find entities with error: ", err)
 		return err
 	}
 
@@ -1314,7 +1333,6 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 
 	query, err = store.formatQuery(keyspace, table, query)
 	if err != nil {
-
 		return err
 	}
 
@@ -1337,8 +1355,13 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 		return err
 	}
 
+	fmt.Println("query: ", q)
+
 	// Execute the query
 	err = session.Query(q, values...).Exec()
+	if err != nil {
+		fmt.Println("Error executing query: ", q, err)
+	}
 
 	return err
 }

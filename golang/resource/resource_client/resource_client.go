@@ -952,22 +952,13 @@ func (client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (client *Resource_Client) RegisterPeer(token, key string, peer *resourcepb.Peer) (*resourcepb.Peer, string, error) {
+func (client *Resource_Client) RegisterPeer(key string, peer *resourcepb.Peer) (*resourcepb.Peer, string, error) {
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer:      peer,
 		PublicKey: string(key),
 	}
 
-	ctx := client.GetCtx()
-	if len(token) > 0 {
-		md, _ := metadata.FromOutgoingContext(ctx)
-		if len(md.Get("token")) != 0 {
-			md.Set("token", token)
-		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-
-	rsp, err := client.c.RegisterPeer(ctx, rqst)
+	rsp, err := client.c.RegisterPeer(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, "", err
 	}

@@ -1730,7 +1730,6 @@ func (srv *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.Remov
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
@@ -2377,7 +2376,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
-func (srv *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
+func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
 	client, err := GetResourceClient(address)
 	if err != nil {
@@ -2413,7 +2412,7 @@ func (srv *server) registerPeer(token, address string) (*resourcepb.Peer, string
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
+	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 }
 
 // * Connect tow peer toggether on the network.
@@ -2432,7 +2431,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+
 
 	// set the remote peer in /etc/hosts
 	srv.setLocalHosts(rqst.Peer)
@@ -2462,13 +2462,10 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	peer := make(map[string]interface{})
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
+	peer["protocol"] = rqst.Peer.Protocol
+	
 
 	var marshaler jsonpb.Marshaler
-
-	clientId, token, err := security.GetClientId(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	// If no mac address was given it mean the request came from a web application
 	// so the intention is to register the server itself on another srv...
@@ -2484,7 +2481,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		}
 
 		// In that case I want to register the server to another srv.
-		peer_, public_key, err := srv.registerPeer(token, address_)
+		peer_, public_key, err := srv.registerPeer(address_)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -2544,7 +2541,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// Update peer event.
 		srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
-		address := rqst.Peer.Domain
+		address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 		if rqst.Peer.Protocol == "https" {
 			address += ":" + Utility.ToString(rqst.Peer.PortHttps)
 		} else {
@@ -2576,6 +2573,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// Here I will keep the peer info until it will be accepted by the admin of the other peer.
 	peer["_id"] = Utility.GenerateUUID(rqst.Peer.Mac)
 	peer["mac"] = rqst.Peer.Mac
+	peer["hostname"] = rqst.Peer.Hostname
+	peer["domain"] = rqst.Peer.Domain
 	peer["protocol"] = rqst.Peer.Protocol
 	peer["portHttps"] = rqst.Peer.PortHttps
 	peer["portHttp"] = rqst.Peer.PortHttp
@@ -2585,20 +2584,21 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	peer["actions"] = []interface{}{}
 
 	// if the token is generate by the sa and it has permission i will accept the peer directly
-	localDomain, _ := config.GetDomain()
-	if clientId == "sa@"+localDomain {
-		peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
-		peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
-		peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
-		peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
-		peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
-		peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
-		domain := rqst.Peer.Hostname
-		if len(rqst.Peer.Domain) > 0 {
-			domain += "." + rqst.Peer.Domain
-		}
-		srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	/*
+	peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+	peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+	peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
+	peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
+	peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
+	peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
+	*/
+
+	domain := rqst.Peer.Hostname
+	if len(rqst.Peer.Domain) > 0 {
+		domain += "." + rqst.Peer.Domain
 	}
+
+	srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Insert the peer into the local resource database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
@@ -2632,7 +2632,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.GetAddress())
 
-	address_ := rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2676,7 +2676,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
 
 	// Now I will retreive the peer informations.
 	setState := map[string]interface{}{"$set": map[string]interface{}{"state": resourcepb.PeerApprovalState_PEER_ACCETEP}}
@@ -2720,7 +2720,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
-	address_ := rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2748,7 +2748,8 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+
 	setState := `{ "$set":{"state":2}}`
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setState, "")
@@ -2767,7 +2768,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
 
-	address_ := rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2828,10 +2829,22 @@ func initPeer(values interface{}) *resourcepb.Peer {
 
 	hostname := values_["hostname"].(string)
 	domain := values_["domain"].(string)
-	externalIpAddress := values_["external_ip_address"].(string)
-	localIpAddress := values_["local_ip_address"].(string)
-	mac := values_["mac"].(string)
 
+	externalIpAddress := ""
+	if values_["external_ip_address"] != nil {
+		externalIpAddress = values_["external_ip_address"].(string)
+	} else if values_["externalIpAddress"] != nil {
+		externalIpAddress = values_["externalIpAddress"].(string)
+	}
+
+	localIpAddress := ""
+	if values_["local_ip_address"] != nil {
+		localIpAddress = values_["local_ip_address"].(string)
+	} else if values_["localIpAddress"] != nil {
+		localIpAddress = values_["localIpAddress"].(string)
+	}
+
+	mac := values_["mac"].(string)
 	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHttp: portHttp, PortHttps: portHttps, Hostname: hostname, Domain: domain, ExternalIpAddress: externalIpAddress, LocalIpAddress: localIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
 
 	var actions_ []interface{}
@@ -2876,7 +2889,9 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 
 	for i := 0; i < len(peers); i++ {
 		p := initPeer(peers[i])
-		values = append(values, p)
+		if p.Mac != srv.Mac {
+			values = append(values, p)
+		}
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetPeersRsp{
@@ -2932,7 +2947,8 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 		return nil, err
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+
 
 	values, err := p.FindOne(ctx, "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -2960,7 +2976,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	}
 
 	// update peer values.
-	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
+	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
 
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...
@@ -2990,8 +3006,13 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, srv.Address)
 
 	// TODO see if the peers domain it's it address...
-	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.ExternalIpAddress)
-	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, rqst.Peer.LocalIpAddress)
+	address := rqst.Peer.Hostname+"."+rqst.Peer.Domain
+	if rqst.Peer.Protocol == "https" {
+		address += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	} else {
+		address += ":" + Utility.ToString(rqst.Peer.PortHttp)
+	}
+	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, address)
 
 	// give the peer information...
 	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
@@ -3007,7 +3028,8 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 		return nil, err
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
+	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+
 
 	// try to get the peer from the database.
 	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
