@@ -650,7 +650,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								var err error
 								entity, err = store.insertData(connectionId, db, typeName+"s", entity)
 								if err != nil {
-									fmt.Printf("error inserting data into %s table with error: %s", typeName + "s", err.Error())
+									fmt.Printf("error inserting data into %s table with error: %s", typeName+"s", err.Error())
 								}
 
 								// I will get the entity id.
@@ -676,19 +676,19 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								parameters = append(parameters, _id)
 								_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 								if err != nil {
-									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
+									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection+"_"+field+"s", err.Error())
 								}
 
-							}else if entity["$ref"] != nil {
-							
+							} else if entity["$ref"] != nil {
+
 								// I will get the entity id.
-								
+
 								sourceCollection := tableName
 								targetCollection := entity["$ref"].(string)
 								_id := entity["$id"].(string)
 
 								field := columnName
-															// He I will create the reference table.
+								// He I will create the reference table.
 								// I will create the table if not already exist.
 								createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
 								fmt.Println("createTableSQL: ", createTableSQL)
@@ -707,7 +707,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 								parameters = append(parameters, _id)
 								_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 								if err != nil {
-									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
+									fmt.Printf("error inserting data into %s table with error: %s", sourceCollection+"_"+field+"s", err.Error())
 								}
 							}
 
@@ -780,11 +780,11 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						parameters = append(parameters, _id)
 						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 						if err != nil {
-							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
+							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection+"_"+field+"s", err.Error())
 						}
 
 					} else if entity["$ref"] != nil {
-					 
+
 						// I will get the entity id.
 						sourceCollection := tableName
 						targetCollection := entity["$ref"].(string)
@@ -808,8 +808,8 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						parameters = append(parameters, _id)
 						_, err = store.ExecContext("local_resource", db, insertSQL, parameters, 0)
 						if err != nil {
-							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection + "_" + field + "s", err.Error())
-						}	
+							fmt.Printf("error inserting data into %s table with error: %s", sourceCollection+"_"+field+"s", err.Error())
+						}
 					}
 				}
 			}
@@ -1016,7 +1016,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 							value := values.([]interface{})[0] // the value is the second element of the array.
 							object[field] = append(object[field].([]interface{}), value)
 						}
-						
+
 					} else {
 
 						// Query to retrieve the data from the array table
@@ -1091,12 +1091,19 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 					value = strings.Split(value.(string), "@")[0]
 				}
 			}
-			
+
 			if reflect.TypeOf(value).Kind() == reflect.String {
 				query += fmt.Sprintf("%s = '%v' AND ", key, value)
 			} else if reflect.TypeOf(value).Kind() == reflect.Slice {
 				if key == "$and" || key == "$or" {
 					query += store.getParameters(key, value.([]interface{}))
+				}
+			} else if reflect.TypeOf(value).Kind() == reflect.Map {
+				// is not really a regex but is the only way to do it.
+				for k, v := range value.(map[string]interface{}) {
+					if k == "$regex" {
+						query += fmt.Sprintf("%s LIKE '%v%%' AND ", key, v)
+					}
 				}
 			}
 
@@ -1263,7 +1270,6 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 	// delete entry if it exist.
 	store.deleteOneSqlEntry(connectionId, db, table, query)
 
-
 	_, err = store.insertData(connectionId, db, table, entity)
 	if err != nil {
 		fmt.Printf("error inserting data into %s table with error: %s", table, err.Error())
@@ -1278,7 +1284,7 @@ func generateUpdateTableQuery(tableName string, fields []interface{}, whereClaus
 	// Build the SQL query
 	updateQuery := "UPDATE " + tableName + " SET "
 	for i, field := range fields {
-		
+
 		if field.(string) == "_id" {
 			field = "id"
 		}

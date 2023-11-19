@@ -858,7 +858,7 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 		}
 		query = strings.TrimSuffix(query, " OR ")
 
-	}
+	} 
 
 	return query
 }
@@ -894,8 +894,15 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 			if reflect.TypeOf(value).Kind() == reflect.String {
 				query += fmt.Sprintf("%s = '%v' AND ", key, value)
 			} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-				if key == "$and" || key == "$or" {
+				if key == "$and" || key == "$or"  || key == "$regex"{
 					query += store.getParameters(key, value.([]interface{}))
+				}
+			} else if reflect.TypeOf(value).Kind() == reflect.Map {
+				// is not really a regex but is the only way to do it.
+				for k, v := range value.(map[string]interface{}) {
+					if k == "$regex" {
+						query += fmt.Sprintf("%s LIKE '%v%%' AND ", key, v)
+					}
 				}
 			}
 

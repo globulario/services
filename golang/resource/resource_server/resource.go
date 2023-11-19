@@ -3005,7 +3005,6 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, srv.Address)
 
-	// TODO see if the peers domain it's it address...
 	address := rqst.Peer.Hostname+"."+rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
 		address += ":" + Utility.ToString(rqst.Peer.PortHttps)
@@ -3076,12 +3075,18 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	// signal peers changes...
+	address := peer.Hostname + "." + peer.Domain
+	if peer.Protocol == "https" {
+		address += ":" + Utility.ToString(peer.PortHttps)
+	} else {
+		address += ":" + Utility.ToString(peer.PortHttp)
+	}
+
 	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, srv.Address)
-	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.ExternalIpAddress)
-	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, peer.LocalIpAddress)
+	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, address)
+	
 	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), srv.Address)
-	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.ExternalIpAddress)
-	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), peer.LocalIpAddress)
+	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), address)
 
 	address_ := peer.Domain
 	if peer.Protocol == "https" {
