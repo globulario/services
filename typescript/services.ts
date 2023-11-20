@@ -430,8 +430,7 @@ export class EventHub {
 }
 
 // Get the configuration from url
-function getFileConfig(url: string, callback: (obj: any) => void, errorcallback: (err: any) => void) {
-
+function getFileConfig(url, callback, errorcallback) {
   // so I will try to get the configuration from the server...
   var xmlhttp = new XMLHttpRequest();
   xmlhttp.timeout = 1500;
@@ -439,23 +438,54 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
     if (this.readyState == 4 && this.status == 201) {
       var obj = JSON.parse(this.responseText);
       callback(obj);
-    } else if (this.readyState == 4) {
-      errorcallback("fail to get the configuration file at url " + url + " status " + this.status)
+    }
+    else if (this.readyState == 4) {
+      // so I will try to get the configuration from the server...
+      var xmlhttp = new XMLHttpRequest();
+      xmlhttp.timeout = 1500;
+      xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 201) {
+          var obj = JSON.parse(this.responseText);
+          callback(obj);
+        }
+        else if (this.readyState == 4) {
+          errorcallback("fail to get the configuration file at url " + url + " status " + this.status);
+        }
+      };
+      // Create a URL object
+      var url_ = new URL(url);
+      var port = url_.port;
+      if (port == "") {
+        if (url_.protocol == "https:") {
+          port = "443";
+        }
+        else {
+          port = "80";
+        }
+      }
+      
+      // try to get config from the actual server with the host and port.
+      xmlhttp.open("GET", "/config?host=".concat(url_.hostname, "&port=").concat(port), true);
+
+      xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+      xmlhttp.send();
     }
   };
 
   // Create a URL object
   var url_ = new URL(url);
   var port = url_.port;
-  if (port == ""){
-    if(url_.protocol == "https:") {
-      port = "443"
-    } else {
-      port = "80"
+  if (port == "") {
+    if (url_.protocol == "https:") {
+      port = "443";
+    }
+    else {
+      port = "80";
     }
   }
 
-  xmlhttp.open("GET", `/config?host=${url_.hostname}&port=${port}`, true);
+  // try to get the url directly...
+  xmlhttp.open("GET", url, true);
   xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
   xmlhttp.send();
 }
@@ -682,7 +712,7 @@ export class Globular {
     // refresh the config.
     if (this._conversationService == null) {
       let configs = this.getConfigs('conversation.ConversationService')
-      
+
       configs.forEach((config: IServiceConfig) => {
         this._conversationService = new ConversationServicePromiseClient(
           this.config.Protocol +

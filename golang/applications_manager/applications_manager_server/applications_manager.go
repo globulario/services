@@ -11,9 +11,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"regexp"
+	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
@@ -297,6 +296,114 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 
 }
 
+func isValidHTML(filePath string) bool {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return false
+	}
+	defer file.Close()
+
+	// Parse the HTML content
+	tokenizer := html.NewTokenizer(file)
+
+	for {
+		tokenType := tokenizer.Next()
+
+		switch tokenType {
+		case html.ErrorToken:
+			// End of the file
+			return true
+		case html.StartTagToken, html.SelfClosingTagToken:
+			// Continue parsing
+		default:
+			// If an unexpected token is encountered, it's not valid HTML
+			return false
+		}
+	}
+}
+
+func appendBaseTag(filePath, base string) error {
+	// Read the content of the HTML file
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Parse the HTML content
+	doc, err := html.Parse(bytes.NewReader(content))
+	if err != nil {
+		return err
+	}
+
+	// Check if the base tag is already present
+	if !containsBaseTag(doc) {
+		// If not present, append the base tag to the head
+		baseTag := createBaseTag(base)
+		head := findHead(doc)
+		if head != nil {
+			head.AppendChild(baseTag)
+		} else {
+			return fmt.Errorf("head tag not found in HTML document")
+		}
+
+		// Serialize the modified HTML
+		var buffer bytes.Buffer
+		if err := html.Render(&buffer, doc); err != nil {
+			return err
+		}
+
+		// Write the modified content back to the file
+		if err := ioutil.WriteFile(filePath, buffer.Bytes(), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func containsBaseTag(n *html.Node) bool {
+	// Check if the HTML document already contains a base tag
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && c.Data == "base" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func createBaseTag(base string) *html.Node {
+	// Create a new base tag
+	baseTag := &html.Node{
+		Type: html.ElementNode,
+		Data: "base",
+		Attr: []html.Attribute{
+			{Key: "href", Val: "/" + base + "/"},
+		},
+	}
+
+	return baseTag
+}
+
+func findHead(n *html.Node) *html.Node {
+	// Find the head tag in the HTML document
+	var head *html.Node
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "head" {
+			head = n
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(n)
+
+	return head
+}
+
 // Intall
 func (srv *server) installApplication(token, domain, id, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
@@ -309,15 +416,22 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 	// remove temporary files.
 	defer os.RemoveAll(__extracted_path__)
 
-	// Here I will test that the index.html file is not corrupted...
-	__indexHtml__, err := ioutil.ReadFile(__extracted_path__ + "/index.html")
+	files, err := Utility.FindFileByName(__extracted_path__, "index.html")
 	if err != nil {
 		return err
 	}
 
+	// Here I will test that the index.html file is not corrupted...
+
 	// The file must contain a linq to a bundle.js file.
-	if !strings.Contains(string(__indexHtml__), "./bundle.js") {
-		return errors.New("something wrong append the index.html file does not contain the bundle.js file... " + string(__indexHtml__))
+	/*if !isValidHTML(files[0])  {
+		return errors.New("something wrong append the index.html at path it content is not valid " + files[0])
+	}*/
+
+	if err := appendBaseTag(files[0], name); err != nil {
+		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("Operation completed successfully.")
 	}
 
 	// Copy the files to it final destination
@@ -334,7 +448,8 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 		return err
 	}
 
-	err = Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
+	
+	err = Utility.CopyDir(filepath.Dir(files[0])+"/.", abosolutePath)
 	if err != nil {
 		return err
 	}
@@ -390,26 +505,11 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 	}
 
 	// here is a little workaround to be sure the bundle.js file will not be cached in the brower...
-	indexHtml, err := ioutil.ReadFile(abosolutePath + "/index.html")
+	_, err = ioutil.ReadFile(abosolutePath + "/index.html")
 	if err != nil {
 		return err
 	}
 
-	// Parse the index html file to be sure the file is valid.
-	_, err = html.Parse(strings.NewReader(string(indexHtml)))
-	if err != nil {
-		return err
-	}
-
-	if err == nil {
-		var re = regexp.MustCompile(`\/bundle\.js(\?updated=\d*)?`)
-		indexHtml_ := re.ReplaceAllString(string(indexHtml), "/bundle.js?updated="+Utility.ToString(time.Now().Unix()))
-		if !strings.Contains(indexHtml_, "/bundle.js?updated=") {
-			return errors.New("651 something wrong append the index.html file does not contain the bundle.js file... " + indexHtml_)
-		}
-		// save it back.
-		ioutil.WriteFile(abosolutePath+"/index.html", []byte(indexHtml_), 0644)
-	}
 
 	if set_as_default {
 		// TODO keep track of the starting appliation...
