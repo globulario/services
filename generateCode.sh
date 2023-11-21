@@ -34,9 +34,6 @@ protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_server
 protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang  --go_out=./golang 
 
 # TypeScript grpc files generation.
-mkdir typescript/config_manager
-protoc --js_out=import_style=commonjs:typescript/config_manager  -I ./proto/ config.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/config_manager -I ./proto/ config.proto
 mkdir typescript/applications_manager
 protoc --js_out=import_style=commonjs:typescript/applications_manager  -I ./proto/ applications_manager.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/applications_manager -I ./proto/ applications_manager.proto
@@ -112,6 +109,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/titl
 mkdir typescript/torrent
 protoc --js_out=import_style=commonjs:typescript/torrent  -I ./proto/ torrent.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/torrent -I ./proto/ torrent.proto
+mkdir typescript/dns
+protoc --js_out=import_style=commonjs:typescript/dns  -I ./proto/ dns.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/dns -I ./proto/ dns.proto
 
 # CSharp grpc files generation
 # on window use C:\Users\account_name\Documents\exec\grpc_dist\bin\grpc_csharp_plugin.exe

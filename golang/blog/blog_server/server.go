@@ -414,7 +414,7 @@ func (srv *server) Init() error {
 
 	// Create a new local store.
 	srv.store = storage_store.NewBadger_store()
-	return srv.store.Open(`{"path":"` + srv.Root + `/blogs", "name":"blogs"}`)
+	return srv.store.Open(`{"path":"` + srv.Root + `", "name":"blogs"}`)
 
 }
 

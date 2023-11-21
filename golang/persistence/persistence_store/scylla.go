@@ -188,13 +188,11 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
-		fmt.Println("187 ----------> error creating keyspace: ", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		fmt.Println("193 ----------> fail to create session: ", err)
 		return err
 	}
 
@@ -823,7 +821,7 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 				if key == "_id" {
 					key = "id"
 					if strings.Contains(v.(string), "@") {
-						fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
+						//fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
 						v = strings.Split(v.(string), "@")[0]
 					}
 				}
@@ -845,7 +843,7 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 				if key == "_id" {
 					key = "id"
 					if strings.Contains(v.(string), "@") {
-						fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
+						//fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
 						v = strings.Split(v.(string), "@")[0]
 					}
 				}
@@ -884,7 +882,7 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 			if key == "_id" {
 				key = "id"
 				if strings.Contains(value.(string), "@") {
-					fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
+					//fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
 					value = strings.Split(value.(string), "@")[0]
 				}
 			}

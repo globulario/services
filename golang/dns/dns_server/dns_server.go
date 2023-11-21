@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -88,17 +87,25 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
+	Root               string
 
 	// The grpc server.
 	grpcServer *grpc.Server
 
 	// Contain the configuration of the storage service use to store
 	// the actual values.
-	DnsPort         int      // the dns port
-	Domains         []string // The list of domains managed by this dns.
-	StorageDataPath string
+	DnsPort int      // the dns port
+	Domains []string // The list of domains managed by this dns.
 
-	store *storage_store.LevelDB_store
+	// The type of storage to use.
+	StoreType string
+	// The address of the storage service.
+	StoreAddress string
+	// The replication factor, only use by scylla.
+	ReplicationFactor int
+
+	// The storage store.
+	store storage_store.Store
 
 	connection_is_open bool
 }
@@ -443,7 +450,7 @@ func (srv *server) Init() error {
 		return err
 	}
 
-	if len(srv.StorageDataPath) == 0 {
+	if len(srv.Root) == 0 {
 		fmt.Println("The value StorageDataPath in the configuration must be given. You can use /tmp (on linux) if you don't want to keep values indefilnely on the storage srv.")
 	}
 
@@ -480,9 +487,22 @@ func (srv *server) openConnection() error {
 	}
 
 	// Open store.
-	srv.store = storage_store.NewLevelDB_store()
-	err := srv.store.Open(`{"path":"` + srv.StorageDataPath + `", "name":"dns_data_store"}`)
+	if srv.StoreType == "BADGER" {
+		srv.store = storage_store.NewBadger_store()
+	} else if srv.StoreType == "SCYLLA" {
+		// set the default storage.
+		srv.store = storage_store.NewScylla_store(srv.StoreAddress, "dns", srv.ReplicationFactor)
+	} else if srv.StoreType == "LEVELDB" {
+		// set the default storage.
+		srv.store = storage_store.NewLevelDB_store()
+	} else {
+		// set in memory store
+		srv.store = storage_store.NewBigCache_store()
+	}
+
+	err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"dns"}`)
 	if err != nil {
+		fmt.Println("fail to open store with error:", err)
 		return err
 	}
 
@@ -518,9 +538,37 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
-	err = srv.store.SetItem(uuid, []byte(rqst.A))
+
+	values := make([]string, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	if !Utility.Contains(values, rqst.A) {
+		values = append(values, rqst.A)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -537,7 +585,7 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 }
 
 func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
-	fmt.Println("Try remove dns entry ", rqst.Domain)
+	//fmt.Println("Try remove dns entry ", rqst.Domain)
 	srv.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try remove dns entry "+rqst.Domain)
 
 	if !srv.isManaged(rqst.Domain) {
@@ -553,19 +601,59 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	// remove the permission
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(domain)
+	values := make([]string, 0)
+	err = json.Unmarshal(data, &values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// I will remove the value.
+	if Utility.Contains(values, rqst.A) {
+		values = Utility.RemoveString(values, rqst.A)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(values) == 0 {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		// remove the permission
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(domain)
+		}
+	} else {
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return &dnspb.RemoveAResponse{
@@ -573,27 +661,37 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 	}, nil
 }
 
-func (srv *server) get_ipv4(domain string) (string, uint32, error) {
+func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	domain = strings.ToLower(domain)
 	if strings.HasSuffix(domain, ".") {
 		domain = domain[:len(domain)-1]
 	}
+
 	err := srv.openConnection()
 	if err != nil {
-		return "", 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-	domain = strings.ToLower(domain)
-	uuid := Utility.GenerateUUID("A:" + domain)
-	ipv4, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return "", 0, status.Errorf(
+		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return string(ipv4), srv.getTtl(uuid), nil
+	domain = strings.ToLower(domain)
+	uuid := Utility.GenerateUUID("A:" + domain)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	values := make([]string, 0)
+	err = json.Unmarshal(data, &values)
+	if err != nil {
+		return nil, 0, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return values, srv.getTtl(uuid), nil
 }
 
 func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
@@ -603,21 +701,26 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	domain := strings.ToLower(rqst.Domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
-	srv.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try to get ipv4 address for "+rqst.Domain)
 
-	ipv4, err := srv.store.GetItem(uuid)
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]string, 0)
+	err = json.Unmarshal(data, &values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	srv.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "ipv4 for "+domain+" is "+string(ipv4))
-
 	return &dnspb.GetAResponse{
-		A: string(ipv4), // return the full domain.
+		A: values, // return the full domain.
 	}, nil
 }
 
@@ -625,7 +728,6 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dnspb.SetAAAAResponse, error) {
 
 	srv.logServiceInfo("SetAAAA", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Domain)
-
 	if !srv.isManaged(rqst.Domain) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -640,10 +742,36 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
+	values := make([]string, 0)
 
-	err = srv.store.SetItem(uuid, []byte(rqst.Aaaa))
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	if !Utility.Contains(values, rqst.Aaaa) {
+		values = append(values, rqst.Aaaa)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -659,7 +787,6 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 
 func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest) (*dnspb.RemoveAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
-	fmt.Println("Try remove dns entry ", domain)
 	if !srv.isManaged(rqst.Domain) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -674,16 +801,45 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 	}
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will remove the value.
+	if Utility.Contains(values, rqst.Aaaa) {
+		values = Utility.RemoveString(values, rqst.Aaaa)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(domain)
+	if len(values) == 0 {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(domain)
+		}
+
 	}
 
 	return &dnspb.RemoveAAAAResponse{
@@ -691,35 +847,46 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 	}, nil
 }
 
-func (srv *server) get_ipv6(domain string) (string, uint32, error) {
+func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 	domain = strings.ToLower(domain)
 	if strings.HasSuffix(domain, ".") {
 		domain = domain[:len(domain)-1]
 	}
-	fmt.Println("Try get dns entry ", domain)
+
 	err := srv.openConnection()
 	if err != nil {
-		return "", 0, status.Errorf(
+		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	address, err := srv.store.GetItem(uuid)
 
-	if err != nil {
-		return "", 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
-	return string(address), srv.getTtl(uuid), nil
+
+	if len(values) == 0 {
+		return nil, 0, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+domain)))
+	}
+
+	return values, srv.getTtl(uuid), nil
 }
 
 func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
-	fmt.Println("Try get dns entry ", domain)
-
 	err := srv.openConnection()
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -728,23 +895,33 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	ipv6, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]string, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	fmt.Println("ipv6 for", domain, "is", string(ipv6))
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+domain)))
+	}
+
 	return &dnspb.GetAAAAResponse{
-		Aaaa: string(ipv6), // return the full domain.
+		Aaaa: values, // return the full domain.
 	}, nil
 }
 
 // Set a text entry.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
-	fmt.Println("Try set dns TXT with key: ", rqst.Id, " and values: ", rqst.Values)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -777,7 +954,6 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 
 // return the text.
 func (srv *server) getText(id string) ([]string, uint32, error) {
-	fmt.Println("Try get dns text ", id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
@@ -787,26 +963,22 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, 0, err
-	}
+
 	values := make([]string, 0)
-
-	err = json.Unmarshal(data, &values)
-	if err != nil {
-		return nil, 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
-
-	fmt.Println("values retreive: ", values)
 
 	return values, srv.getTtl(uuid), nil
 }
 
 // Retreive a text value
 func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
-	fmt.Println("Try get dns text ", rqst.Id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -817,18 +989,15 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	values := make([]string, 0)
-	err = json.Unmarshal(data, &values)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return &dnspb.GetTextResponse{
@@ -838,8 +1007,6 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 
 // Remove a text entry
 func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
-	fmt.Println("Try remove dns text ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -867,17 +1034,45 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 
 // Set a NS entry.
 func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
-	fmt.Println("Try set dns ns ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("NS:" + id)
-	err = srv.store.SetItem(uuid, []byte(rqst.Ns))
+
+	// because it can be more than one NS, we store the value as json that contain aa list of string.
+	values := make([]string, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	if !Utility.Contains(values, rqst.Ns) {
+		values = append(values, rqst.Ns)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// I will save the new value.
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -892,21 +1087,27 @@ func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.
 }
 
 // return the text.
-func (srv *server) getNs(id string) (string, uint32, error) {
-	fmt.Println("Try get dns ns ", id)
+func (srv *server) getNs(id string) ([]string, uint32, error) {
 	err := srv.openConnection()
 	if err != nil {
-		return "", 0, err
+		return nil, 0, err
 	}
+
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return "", 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	values := make([]string, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
-	return string(data), srv.getTtl(uuid), err
+
+	return values, srv.getTtl(uuid), nil
 }
 
 // Retreive a text value
@@ -920,22 +1121,26 @@ func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("NS:" + id)
+
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	values := make([]string, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return &dnspb.GetNsResponse{
-		Ns: string(data), // return the full domain.
+		Ns: values, // return the full domain.
 	}, nil
 }
 
 // Remove a text entry
 func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*dnspb.RemoveNsResponse, error) {
-	fmt.Println("Try remove dns text ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -944,16 +1149,58 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("NS:" + id)
-	err = srv.store.RemoveItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]string, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+id)))
+	}
+
+	// I will remove the value.
+	if Utility.Contains(values, rqst.Ns) {
+		values = Utility.RemoveString(values, rqst.Ns)
+	}
+
+	if len(values) == 0 {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(rqst.Id)
+		}
+	} else {
+		// I will save the new value.
+		data, err = json.Marshal(values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return &dnspb.RemoveNsResponse{
@@ -963,8 +1210,6 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 
 // Set a CName entry.
 func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
-	fmt.Println("Try set dns CName ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -989,7 +1234,6 @@ func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*
 
 // return the CName.
 func (srv *server) getCName(id string) (string, uint32, error) {
-	fmt.Println("Try get CName ", id)
 	err := srv.openConnection()
 	if err != nil {
 		return "", 0, status.Errorf(
@@ -1032,8 +1276,6 @@ func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*
 
 // Remove a text entry
 func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
-	fmt.Println("Try remove dns CName ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1061,8 +1303,6 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 
 // Set a text entry.
 func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
-	fmt.Println("Try set dns mx ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1070,15 +1310,47 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := json.Marshal(rqst.Mx)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("MX:" + id)
+
+	// because it can be more than one NS, we store the value as json that contain aa list of string.
+
+	values := make([]*dnspb.MX, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Mx == rqst.Mx.Mx {
+			values[i] = rqst.Mx
+			rqst.Mx = nil
+			break
+		}
+	}
+
+	if rqst.Mx != nil {
+		values = append(values, rqst.Mx)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	id := strings.ToLower(rqst.Id)
-	uuid := Utility.GenerateUUID("MX:" + id)
-	err = srv.store.SetItem(uuid, values)
+
+	// I will save the new value.
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1093,8 +1365,7 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 }
 
 // return the text.
-func (srv *server) getMx(id string) (map[string]interface{}, uint32, error) {
-	fmt.Println("Try get dns text ", id)
+func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
@@ -1104,59 +1375,71 @@ func (srv *server) getMx(id string) (map[string]interface{}, uint32, error) {
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, 0, err
+	values := make([]*dnspb.MX, 0) // use a map instead of Mx struct.
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	values := make(map[string]interface{}) // use a map instead of Mx struct.
-	err = json.Unmarshal(data, &values)
-	if err != nil {
-		return nil, 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// I will return the value if any.
+	if len(mx) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Mx == mx {
+
+				return []*dnspb.MX{values[i]}, srv.getTtl(uuid), nil
+			}
+		}
 	}
+
 	return values, srv.getTtl(uuid), nil
 }
 
 // Retreive a text value
 func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
-	domain, _ := config.GetDomain()
-	fmt.Println("Try get dns mx ", domain)
+
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	values := make([]*dnspb.MX, 0)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	values := make(map[string]interface{})
-	err = json.Unmarshal(data, &values)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(rqst.Mx) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Mx == rqst.Mx {
+				return &dnspb.GetMxResponse{
+					Result: []*dnspb.MX{values[i]}, // return the mx.
+				}, nil
+			}
+		}
 	}
 
 	return &dnspb.GetMxResponse{
-		Result: &dnspb.MX{
-			Preference: values["Preference"].(int32),
-			Mx:         values["Mx"].(string),
-		}, // return the full domain.
+		Result: values, // return the full domain.
 	}, nil
 }
 
 // Remove a text entry
 func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*dnspb.RemoveMxResponse, error) {
-	fmt.Println("Try remove dns text ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1166,16 +1449,60 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("MX:" + id)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]*dnspb.MX, 0)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+id)))
+	}
+
+	// I will remove the value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Mx == rqst.Mx {
+			values = append(values[:i], values[i+1:]...)
+			break
+		}
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	if len(values) > 0 {
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(rqst.Id)
+		}
 	}
 
 	return &dnspb.RemoveMxResponse{
@@ -1185,8 +1512,6 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 
 // Set a text entry.
 func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
-	fmt.Println("Try set dns Soa ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1194,15 +1519,45 @@ func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnsp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := json.Marshal(rqst.Soa)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("SOA:" + id)
+
+	// because it can be more than one NS, we store the value as json that contain aa list of string.
+	values := make([]*dnspb.SOA, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Ns == rqst.Soa.Ns {
+			values[i] = rqst.Soa
+			rqst.Soa = nil
+			break
+		}
+	}
+
+	if rqst.Soa != nil {
+		values = append(values, rqst.Soa)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	id := strings.ToLower(rqst.Id)
-	uuid := Utility.GenerateUUID("SOA:" + id)
-	err = srv.store.SetItem(uuid, values)
+
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1217,35 +1572,41 @@ func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnsp
 }
 
 // return the text.
-func (srv *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
-	fmt.Println("Try get dns soa ", id)
+func (srv *server) getSoa(id, ns string) ([]*dnspb.SOA, uint32, error) {
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, 0, err
+	values := make([]*dnspb.SOA, 0) // use a map instead of Mx struct.
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	soa := new(dnspb.SOA) // use a map instead of Mx struct.
-	err = json.Unmarshal(data, soa)
-	if err != nil {
-		return nil, 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(ns) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Ns == ns {
+				return []*dnspb.SOA{values[i]}, srv.getTtl(uuid), nil
+			}
+		}
 	}
-	return soa, srv.getTtl(uuid), nil
+
+	return values, srv.getTtl(uuid), nil
 }
 
 // Retreive a text value
 func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
-	domain, _ := config.GetDomain()
-	fmt.Println("Try get dns soa ", domain)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1255,47 +1616,98 @@ func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnsp
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	values := make([]*dnspb.SOA, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	soa := new(dnspb.SOA)
-	err = json.Unmarshal(data, soa)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(rqst.Ns) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Ns == rqst.Ns {
+				return &dnspb.GetSoaResponse{
+					Result: []*dnspb.SOA{values[i]}, // return the mx.
+				}, nil
+			}
+		}
 	}
 
 	return &dnspb.GetSoaResponse{
-		Result: soa, // return the full domain.
+		Result: values, // return the full domain.
 	}, nil
 }
 
-// Remove a text entry
+// Remove a soa entry
 func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
-	fmt.Println("Try remove dns text ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]*dnspb.SOA, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+id)))
+	}
+
+	// I will remove the value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Ns == rqst.Ns {
+			values = append(values[:i], values[i+1:]...)
+			break
+		}
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	if len(values) > 0 {
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(rqst.Id)
+		}
 	}
 
 	return &dnspb.RemoveSoaResponse{
@@ -1305,7 +1717,6 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
 
 // Set a text entry.
 func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnspb.SetUriResponse, error) {
-	fmt.Println("Try set dns uri ", rqst.Id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1313,15 +1724,45 @@ func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnsp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := json.Marshal(rqst.Uri)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("URI:" + id)
+
+	// because it can be more than one NS, we store the value as json that contain aa list of string.
+	values := make([]*dnspb.URI, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Target == rqst.Uri.Target {
+			values[i] = rqst.Uri
+			rqst.Uri = nil
+			break
+		}
+	}
+
+	if rqst.Uri != nil {
+		values = append(values, rqst.Uri)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	id := strings.ToLower(rqst.Id)
-	uuid := Utility.GenerateUUID("URI:" + id)
-	err = srv.store.SetItem(uuid, values)
+
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1336,35 +1777,43 @@ func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnsp
 }
 
 // return the text.
-func (srv *server) getUri(id string) (*dnspb.URI, uint32, error) {
-	fmt.Println("Try get dns uri ", id)
+func (srv *server) getUri(id, target string) ([]*dnspb.URI, uint32, error) {
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("URI:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, 0, err
+
+	values := make([]*dnspb.URI, 0) // use a map instead of Mx struct.
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	uri := new(dnspb.URI) // use a map instead of Mx struct.
-	err = json.Unmarshal(data, uri)
-	if err != nil {
-		return nil, 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// I will return the value if any.
+	if len(target) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Target == target {
+				return []*dnspb.URI{values[i]}, srv.getTtl(uuid), nil
+			}
+		}
 	}
-	return uri, srv.getTtl(uuid), nil
+
+	return values, srv.getTtl(uuid), nil
 }
 
 // Retreive a text value
 func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
-	domain, _ := config.GetDomain()
-	fmt.Println("Try get dns uri ", domain)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1374,29 +1823,35 @@ func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnsp
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	values := make([]*dnspb.URI, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	uri := new(dnspb.URI)
-	err = json.Unmarshal(data, uri)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(rqst.Target) > 0 {
+		for i := 0; i < len(values); i++ {
+			if values[i].Target == rqst.Target {
+				return &dnspb.GetUriResponse{
+					Result: []*dnspb.URI{values[i]}, // return the uri.
+				}, nil
+			}
+		}
 	}
 
 	return &dnspb.GetUriResponse{
-		Result: uri, // return the full domain.
+		Result: values, // return the full domain.
 	}, nil
 }
 
 // Remove AFSDB
 func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) (*dnspb.RemoveUriResponse, error) {
-	fmt.Println("Try remove dns uri ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1405,16 +1860,61 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	values := make([]*dnspb.URI, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+id)))
+	}
+
+	// I will remove the value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Target == rqst.Target {
+			values = append(values[:i], values[i+1:]...)
+			break
+		}
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	if len(values) > 0 {
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(rqst.Id)
+		}
 	}
 
 	return &dnspb.RemoveUriResponse{
@@ -1424,7 +1924,6 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 
 // Set a AFSDB entry.
 func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
-	fmt.Println("Try set dns afsdb ", rqst.Id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1456,7 +1955,6 @@ func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*
 
 // return the AFSDB.
 func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
-	fmt.Println("Try get dns AFSDB ", id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
@@ -1482,8 +1980,6 @@ func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 
 // Retreive a AFSDB value
 func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
-	domain, _ := config.GetDomain()
-	fmt.Println("Try get dns AFSDB ", domain)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1514,8 +2010,6 @@ func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*
 
 // Remove AFSDB
 func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequest) (*dnspb.RemoveAfsdbResponse, error) {
-	fmt.Println("Try remove dns Afsdb ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1543,7 +2037,6 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
 
 // Set a CAA entry.
 func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
-	fmt.Println("Try set dns caa ", rqst.Id)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1551,15 +2044,45 @@ func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnsp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := json.Marshal(rqst.Caa)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CAA:" + id)
+
+	// because it can be more than one NS, we store the value as json that contain aa list of string.
+	values := make([]*dnspb.CAA, 0)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+	if err == nil {
+		err = json.Unmarshal(data, &values)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will add the new value.
+	for i := 0; i < len(values); i++ {
+		if values[i].Domain == rqst.Caa.Domain {
+			values[i] = rqst.Caa
+			rqst.Caa = nil
+			break
+		}
+	}
+
+	if rqst.Caa != nil {
+		values = append(values, rqst.Caa)
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	id := strings.ToLower(rqst.Id)
-	uuid := Utility.GenerateUUID("CAA:" + id)
-	err = srv.store.SetItem(uuid, values)
+
+	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1574,35 +2097,43 @@ func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnsp
 }
 
 // return the CAA.
-func (srv *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
-	fmt.Println("Try get dns CAA ", id)
+func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 	err := srv.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, 0, err
+
+	caa := make([]*dnspb.CAA, 0) // use a map instead of Mx struct.
+
+	if err == nil {
+		err = json.Unmarshal(data, &caa)
+		if err != nil {
+			return nil, 0, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	caa := new(dnspb.CAA) // use a map instead of Mx struct.
-	err = json.Unmarshal(data, caa)
-	if err != nil {
-		return nil, 0, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// I will return the value if any.
+	if len(domain) > 0 {
+		for i := 0; i < len(caa); i++ {
+			if caa[i].Domain == domain {
+				return []*dnspb.CAA{caa[i]}, srv.getTtl(uuid), nil
+			}
+		}
 	}
+
 	return caa, srv.getTtl(uuid), nil
 }
 
 // Retreive a AFSDB value
 func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
-	domain, _ := config.GetDomain()
-	fmt.Println("Try get dns CAA ", domain)
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1612,18 +2143,27 @@ func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnsp
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
 	data, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	// I will return the value if any.
+	caa := make([]*dnspb.CAA, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &caa)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
-	caa := new(dnspb.CAA)
-	err = json.Unmarshal(data, caa)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(rqst.Domain) > 0 {
+		for i := 0; i < len(caa); i++ {
+			if caa[i].Domain == rqst.Domain {
+				return &dnspb.GetCaaResponse{
+					Result: []*dnspb.CAA{caa[i]}, // return the uri.
+				}, nil
+			}
+		}
 	}
 
 	return &dnspb.GetCaaResponse{
@@ -1633,26 +2173,71 @@ func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnsp
 
 // Remove CAA
 func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) (*dnspb.RemoveCaaResponse, error) {
-	fmt.Println("Try remove dns Afsdb ", rqst.Id)
-
 	err := srv.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
-	err = srv.store.RemoveItem(uuid)
+
+	// I will retreive the current value if any.
+	data, err := srv.store.GetItem(uuid)
+
+	caa := make([]*dnspb.CAA, 0)
+
+	if err == nil {
+		err = json.Unmarshal(data, &caa)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if len(caa) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No value found for domain "+id)))
+	}
+
+	// I will remove the value.
+	for i := 0; i < len(caa); i++ {
+		if caa[i].Domain == rqst.Domain {
+			caa = append(caa[:i], caa[i+1:]...)
+			break
+		}
+	}
+
+	// I will save the new value.
+	data, err = json.Marshal(caa)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err := srv.GetRbacClient()
-	if err == nil {
-		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	if len(caa) > 0 {
+		err = srv.store.SetItem(uuid, data)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+		err = srv.store.RemoveItem(uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		rbac_client_, err := srv.GetRbacClient()
+		if err == nil {
+			rbac_client_.DeleteResourcePermissions(rqst.Id)
+		}
 	}
 
 	return &dnspb.RemoveCaaResponse{
@@ -1664,41 +2249,54 @@ func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) 
 type handler struct{}
 
 func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	msg := dns.Msg{}
-	msg.SetReply(r)
 
 	switch r.Question[0].Qtype {
 	case dns.TypeA:
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		domain := msg.Question[0].Name
 		msg.Authoritative = true
-		address, ttl, err := s.get_ipv4(domain) // get the address name from the
-		fmt.Println("---> look for A ", domain)
+		addresses, ttl, err := s.get_ipv4(domain) // get the address name from the
+
 		if err == nil {
-			fmt.Println("---> ask for domain: ", domain, " address to redirect is ", address)
-			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: ttl},
-				A:   net.ParseIP(address),
-			})
+			for _, address := range addresses {
+				msg.Answer = append(msg.Answer, &dns.A{
+					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: ttl},
+					A:   net.ParseIP(address),
+				})
+			}
 		} else {
 			fmt.Println("fail to retreive ipv4 address for "+domain, err)
 		}
 
+		w.WriteMsg(&msg)
+
 	case dns.TypeAAAA:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		msg.Authoritative = true
 		domain := msg.Question[0].Name
-		address, ttl, err := s.get_ipv6(domain) // get the address name from the
-		fmt.Println("---> look for AAAA ", domain)
+		addresses, ttl, err := s.get_ipv6(domain) // get the address name from the
 		if err == nil {
-			fmt.Println("---> ask for domain: ", domain, " address to redirect is ", address)
-			msg.Answer = append(msg.Answer, &dns.AAAA{
-				Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: ttl},
-				AAAA: net.ParseIP(address),
-			})
+			for _, address := range addresses {
+				msg.Answer = append(msg.Answer, &dns.AAAA{
+					Hdr:  dns.RR_Header{Name: domain, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: ttl},
+					AAAA: net.ParseIP(address),
+				})
+			}
 		} else {
 			fmt.Println(err)
 		}
 
+		w.WriteMsg(&msg)
+
 	case dns.TypeAFSDB:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
 
 		msg.Authoritative = true
 		id := msg.Question[0].Name
@@ -1714,24 +2312,41 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			fmt.Println(err)
 		}
 
+		w.WriteMsg(&msg)
+
 	case dns.TypeCAA:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		msg.Authoritative = true
 		name := msg.Question[0].Name
-		fmt.Println("---> look for CAA ", name)
-		caa, ttl, err := s.getCaa(name)
+		domain := ""
+		if len(msg.Question) > 1 {
+			domain = msg.Question[1].Name
+		}
 
+		values, ttl, err := s.getCaa(name, domain)
 		if err == nil {
-			msg.Answer = append(msg.Answer, &dns.CAA{
-				Hdr:   dns.RR_Header{Name: name, Rrtype: dns.TypeCAA, Class: dns.ClassINET, Ttl: ttl},
-				Flag:  uint8(caa.Flag),
-				Tag:   caa.Tag,
-				Value: caa.Value,
-			})
+			for _, caa := range values {
+				msg.Answer = append(msg.Answer, &dns.CAA{
+					Hdr:   dns.RR_Header{Name: name, Rrtype: dns.TypeCAA, Class: dns.ClassINET, Ttl: ttl},
+					Flag:  uint8(caa.Flag),
+					Tag:   caa.Tag,
+					Value: caa.Domain,
+				})
+			}
 		} else {
 			fmt.Println(err)
 		}
 
+		w.WriteMsg(&msg)
+
 	case dns.TypeCNAME:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		id := msg.Question[0].Name
 		cname, ttl, err := s.getCName(id)
 		if err == nil {
@@ -1743,83 +2358,128 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			})
 		}
 
+		w.WriteMsg(&msg)
+
 	case dns.TypeTXT:
-		id := msg.Question[0].Name
-		fmt.Println("---> look for txt ", id)
+
+		id := r.Question[0].Name
 		values, ttl, err := s.getText(id)
 		if err == nil {
-			// in case of empty string I will return the certificate validation key.
-			msg.Answer = append(msg.Answer, &dns.TXT{
-				// keep text values.
-				Hdr: dns.RR_Header{Name: id, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: ttl},
-				Txt: values,
-			})
-			log.Println("txt values found ", values)
-		} else {
-			fmt.Println("fail to retreive txt!", err)
+			msg := new(dns.Msg)
+			msg.SetReply(r)
+			// Create and add multiple TXT records to the Answer section.
+			for _, txtValue := range values {
+				msg.Answer = append(msg.Answer, &dns.TXT{
+					Hdr: dns.RR_Header{Name: id, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: ttl},
+					Txt: []string{txtValue},
+				})
+			}
+			// Send the response.
+			w.WriteMsg(msg)
 		}
 
 	case dns.TypeNS:
-		id := msg.Question[0].Name
-		ns, ttl, err := s.getNs(id)
+		id := r.Question[0].Name
+
+		values, ttl, err := s.getNs(id)
+		msg := new(dns.Msg)
+		msg.SetReply(r)
+
 		if err == nil {
-			// in case of empty string I will return the certificate validation key.
-			msg.Answer = append(msg.Answer, &dns.NS{
-				// keep text values.
-				Hdr: dns.RR_Header{Name: id, Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: ttl},
-				Ns:  ns,
-			})
+			// Create and add multiple NS records to the Answer section.
+			for _, ns := range values {
+				msg.Answer = append(msg.Answer, &dns.NS{
+					Hdr: dns.RR_Header{Name: id, Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: ttl},
+					Ns:  ns,
+				})
+			}
+			// Send the response.
+			w.WriteMsg(msg)
 		}
 
 	case dns.TypeMX:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		id := msg.Question[0].Name // the id where the values is store.
-		mx, ttl, err := s.getMx(id)
+		mx := ""
+		if len(msg.Question) > 1 {
+			mx = msg.Question[1].Name
+		}
+
+		values, ttl, err := s.getMx(id, mx)
 
 		if err == nil {
 			// in case of empty string I will return the certificate validation key.
-			msg.Answer = append(msg.Answer, &dns.MX{
-				// keep text values.
-				Hdr:        dns.RR_Header{Name: id, Rrtype: dns.TypeMX, Class: dns.ClassINET, Ttl: ttl},
-				Preference: uint16(mx["Preference"].(int32)),
-				Mx:         mx["Mx"].(string),
-			})
+			for _, mx := range values {
+				msg.Answer = append(msg.Answer, &dns.MX{
+					// keep text values.
+					Hdr:        dns.RR_Header{Name: id, Rrtype: dns.TypeMX, Class: dns.ClassINET, Ttl: ttl},
+					Preference: uint16(mx.Preference),
+					Mx:         mx.Mx,
+				})
+			}
 		}
+		w.WriteMsg(&msg)
 
 	case dns.TypeSOA:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
 		id := msg.Question[0].Name
-		fmt.Println("---> look for soa ", id)
-		soa, ttl, err := s.getSoa(id)
-		if err == nil {
-			// in case of empty string I will return the certificate validation key.
-			msg.Answer = append(msg.Answer, &dns.SOA{
-				// keep text values.
-				Hdr:     dns.RR_Header{Name: id, Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: ttl},
-				Ns:      soa.Ns,
-				Mbox:    soa.Mbox,
-				Serial:  soa.Serial,
-				Refresh: soa.Refresh,
-				Retry:   soa.Retry,
-				Expire:  soa.Expire,
-				Minttl:  soa.Minttl,
-			})
+		ns := ""
+		if len(msg.Question) > 1 {
+			ns = msg.Question[1].Name
 		}
 
-	case dns.TypeURI:
-		id := msg.Question[0].Name
-		fmt.Println("---> look for uri ", id)
-		uri, ttl, err := s.getUri(id)
+		values, ttl, err := s.getSoa(id, ns)
 		if err == nil {
 			// in case of empty string I will return the certificate validation key.
-			msg.Answer = append(msg.Answer, &dns.URI{
-				// keep text values.
-				Hdr:      dns.RR_Header{Name: id, Rrtype: dns.TypeURI, Class: dns.ClassINET, Ttl: ttl},
-				Priority: uint16(uri.Priority),
-				Weight:   uint16(uri.Weight),
-				Target:   uri.Target,
-			})
+			for _, soa := range values {
+				msg.Answer = append(msg.Answer, &dns.SOA{
+					// keep text values.
+					Hdr:     dns.RR_Header{Name: id, Rrtype: dns.TypeSOA, Class: dns.ClassINET, Ttl: ttl},
+					Ns:      soa.Ns,
+					Mbox:    soa.Mbox,
+					Serial:  soa.Serial,
+					Refresh: soa.Refresh,
+					Retry:   soa.Retry,
+					Expire:  soa.Expire,
+					Minttl:  soa.Minttl,
+				})
+			}
 		}
+		w.WriteMsg(&msg)
+
+	case dns.TypeURI:
+
+		msg := dns.Msg{}
+		msg.SetReply(r)
+
+		id := msg.Question[0].Name
+		target := ""
+		if len(msg.Question) > 1 {
+			target = msg.Question[1].Name
+		}
+
+		values, ttl, err := s.getUri(id, target)
+		if err == nil {
+			// in case of empty string I will return the certificate validation key.
+			for _, uri := range values {
+				msg.Answer = append(msg.Answer, &dns.URI{
+					// keep text values.
+					Hdr:      dns.RR_Header{Name: id, Rrtype: dns.TypeURI, Class: dns.ClassINET, Ttl: ttl},
+					Priority: uint16(uri.Priority),
+					Weight:   uint16(uri.Weight),
+					Target:   uri.Target,
+				})
+			}
+		}
+		w.WriteMsg(&msg)
 	}
-	w.WriteMsg(&msg)
+
 }
 
 func ServeDns(port int) error {
@@ -1923,8 +2583,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.DnsPort = 5353 // The default dns port.
-	s_impl.StorageDataPath = os.TempDir() + "/dns"
+	s_impl.DnsPort = 5353                                         // The default dns port.
 	s_impl.PublisherId = "globulario@globule-dell.globular.cloud" // value by default.
 	s_impl.Permissions = make([]interface{}, 6)
 	s_impl.AllowAllOrigins = allow_all_origins
@@ -1937,6 +2596,17 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+
+	// storage default value.
+	s_impl.StoreType = "BADGER"
+	s_impl.ReplicationFactor = 3
+	s_impl.StoreAddress, _ = config.GetAddress()
+
+	// Set the root path if is pass as argument.
+	s_impl.Root = config.GetDataDir()
+
+	// Create the root directory if not exist.
+	Utility.CreateDirIfNotExist(s_impl.Root)
 
 	// DNS operation on a given domain.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/dns.DnsService/SetA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}

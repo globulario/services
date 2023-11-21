@@ -240,7 +240,7 @@ func (client *Dns_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &dnspb.StopRequest{})
 }
 
-func (client *Dns_Client) GetA(domain string) (string, error) {
+func (client *Dns_Client) GetA(domain string) ([]string, error) {
 
 	rqst := &dnspb.GetARequest{
 		Domain: domain,
@@ -248,7 +248,7 @@ func (client *Dns_Client) GetA(domain string) (string, error) {
 
 	rsp, err := client.c.GetA(client.GetCtx(), rqst)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return rsp.A, nil
@@ -305,7 +305,7 @@ func (client *Dns_Client) RemoveA(token, domain string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetAAAA(domain string) (string, error) {
+func (client *Dns_Client) GetAAAA(domain string) ([]string, error) {
 
 	rqst := &dnspb.GetAAAARequest{
 		Domain: domain,
@@ -313,7 +313,7 @@ func (client *Dns_Client) GetAAAA(domain string) (string, error) {
 
 	rsp, err := client.c.GetAAAA(client.GetCtx(), rqst)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return rsp.Aaaa, nil
 }
@@ -425,7 +425,7 @@ func (client *Dns_Client) RemoveText(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetNs(id string) (string, error) {
+func (client *Dns_Client) GetNs(id string) ([]string, error) {
 
 	rqst := &dnspb.GetNsRequest{
 		Id: id,
@@ -433,7 +433,7 @@ func (client *Dns_Client) GetNs(id string) (string, error) {
 
 	rsp, err := client.c.GetNs(client.GetCtx(), rqst)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return rsp.GetNs(), nil
@@ -541,7 +541,7 @@ func (client *Dns_Client) RemoveCName(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetMx(token, id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetMx(token, id string) ([]*dnspb.MX, error) {
 
 	rqst := &dnspb.GetMxRequest{
 		Id: id,
@@ -552,11 +552,7 @@ func (client *Dns_Client) GetMx(token, id string) (map[string]interface{}, error
 		return nil, err
 	}
 
-	mx := make(map[string]interface{})
-	mx["Preference"] = uint16(rsp.GetResult().Preference)
-	mx["Mx"] = rsp.GetResult().Mx
-
-	return mx, nil
+	return rsp.Result, nil
 }
 
 func (client *Dns_Client) SetMx(token, id string, preference uint16, mx string, ttl uint32) error {
@@ -607,7 +603,7 @@ func (client *Dns_Client) RemoveMx(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetSoa(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetSoa(id string) ([]*dnspb.SOA, error) {
 
 	rqst := &dnspb.GetSoaRequest{
 		Id: id,
@@ -618,16 +614,7 @@ func (client *Dns_Client) GetSoa(id string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	soa := make(map[string]interface{})
-	soa["Ns"] = rsp.GetResult().Ns
-	soa["Mbox"] = rsp.GetResult().Mbox
-	soa["Serial"] = rsp.GetResult().Serial
-	soa["Refresh"] = rsp.GetResult().Refresh
-	soa["Retry"] = rsp.GetResult().Retry
-	soa["Expire"] = rsp.GetResult().Expire
-	soa["Minttl"] = rsp.GetResult().Minttl
-
-	return soa, nil
+	return rsp.Result, nil
 }
 
 func (client *Dns_Client) SetSoa(token, id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32) error {
@@ -683,7 +670,7 @@ func (client *Dns_Client) RemoveSoa(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetUri(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetUri(id string) ([]*dnspb.URI, error) {
 
 	rqst := &dnspb.GetUriRequest{
 		Id: id,
@@ -694,12 +681,8 @@ func (client *Dns_Client) GetUri(id string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	uri := make(map[string]interface{})
-	uri["Priority"] = rsp.GetResult().Priority
-	uri["Weight"] = rsp.GetResult().Weight
-	uri["Target"] = rsp.GetResult().Target
 
-	return uri, nil
+	return rsp.Result, nil
 }
 
 func (client *Dns_Client) SetUri(token, id string, priority, weight uint32, target string, ttl uint32) error {
@@ -751,7 +734,7 @@ func (client *Dns_Client) RemoveUri(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client) GetCaa(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetCaa(id string) ([]*dnspb.CAA, error) {
 
 	rqst := &dnspb.GetCaaRequest{
 		Id: id,
@@ -762,22 +745,17 @@ func (client *Dns_Client) GetCaa(id string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	caa := make(map[string]interface{})
-	caa["Flag"] = rsp.GetResult().Flag
-	caa["Tag"] = rsp.GetResult().Tag
-	caa["Value"] = rsp.GetResult().Value
-
-	return caa, nil
+	return rsp.Result, nil
 }
 
-func (client *Dns_Client) SetCaa(token, id string, flag uint32, tag string, value string, ttl uint32) error {
+func (client *Dns_Client) SetCaa(token, id string, flag uint32, tag string, domain string, ttl uint32) error {
 
 	rqst := &dnspb.SetCaaRequest{
 		Id: id,
 		Caa: &dnspb.CAA{
 			Flag:  flag,
 			Tag:   tag,
-			Value: value,
+			Domain: domain,
 		},
 		Ttl: ttl,
 	}
