@@ -123,7 +123,7 @@ func TestTextValue(t *testing.T) {
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
-	id := "globular.cloud."
+	id := "globular.app."
 	ns := "ns1.globular.io."
 	ttl := uint32(11200)
 
@@ -146,7 +146,7 @@ func TestNsValue(t *testing.T) {
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 	
-	id := "globular.cloud."
+	id := "globular.io."
 
 	client.RemoveSoa(token, id)
 
