@@ -32,7 +32,7 @@ func TestSetA(t *testing.T) {
 		log.Println(err)
 	}
 
-	_, err = client.SetA(token, "globular.cloud", ipv4, 60)
+	_, err = client.SetA(token, "globular.cloud", "192.168.0.166", 60)
 	if err != nil {
 		log.Println(err)
 	}
@@ -123,7 +123,7 @@ func TestTextValue(t *testing.T) {
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
-	id := "globular.app."
+	id := "globular.cloud."
 	ns := "ns1.globular.io."
 	ttl := uint32(11200)
 
@@ -146,7 +146,7 @@ func TestNsValue(t *testing.T) {
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 	
-	id := "globular.io."
+	id := ".globular.cloud."
 
 	client.RemoveSoa(token, id)
 

@@ -6,6 +6,19 @@ package admin;
 
 option go_package="admin/adminpb";
 
+message HostInfo {
+   string ip = 1;
+   string mac = 2;
+   string name = 3;
+}
+
+message getAvailableHostsRequest {
+}
+
+message getAvailableHostsResponse {
+   repeated HostInfo hosts = 1;
+}
+
 message FileInfo {
    string name = 1;
    string path = 2;
@@ -204,5 +217,8 @@ service AdminService {
 
   // Retrun file info from the server (absolute path)
   rpc GetFileInfo(GetFileInfoRequest) returns(GetFileInfoResponse);
+
+   // Return the list of available host.
+   rpc GetAvailableHosts(getAvailableHostsRequest) returns(getAvailableHostsResponse);
 
 }

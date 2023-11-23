@@ -561,3 +561,15 @@ func (client *Admin_Client) GetPids(token string, name string) ([]int32, error) 
 	}
 	return rsp.Pids, err
 }
+
+func (client *Admin_Client) GetAvailableHosts() ([]*adminpb.HostInfo, error) {
+	rqst := &adminpb.GetAvailableHostsRequest{}
+	ctx := client.GetCtx()
+
+	rsp, err := client.c.GetAvailableHosts(ctx, rqst)
+	if err != nil {
+		return nil, err
+	}
+	
+	return rsp.Hosts, err
+}

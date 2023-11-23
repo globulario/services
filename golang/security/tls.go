@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -541,63 +540,7 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 	return nil
 }
 
-/*func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
-
-	config := fmt.Sprintf(`
-[req]
-distinguished_name = req_distinguished_name
-req_extensions = v3_req
-prompt = no
-
-[req_distinguished_name]
-C = %s
-ST =  %s
-L =  %s
-O	=  %s
-
-[v3_req]
-# Extensions to add to a certificate request
-basicConstraints = CA:FALSE
-keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-subjectAltName = @alt_names
-
-[alt_names]
-`, country, state, city, organization)
-	// TODO filter wild card domains here ...
-	if !Utility.Contains(alternateDomains, domain) {
-		alternateDomains = append(alternateDomains, domain)
-	}
-
-	// set alternate domain
-	for i := 0; i < len(alternateDomains); i++ {
-		config += fmt.Sprintf("DNS.%d = %s \n", i, alternateDomains[i])
-	}
-
-	if Utility.Exists(path + "/san.conf") {
-		return nil
-	}
-
-	f, err := os.Create(path + "/san.conf")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(config)
-
-	return err
-}*/
-
-// GenerateSanConfig generates a SAN certificate configuration.
 func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
-	// Check if the CN is already in alternateDomains, if not, add it
-	if !Utility.Contains(alternateDomains, domain) {
-		alternateDomains = append(alternateDomains, domain)
-	}
-
-	// Create a regular expression pattern for the wildcard domain
-	wildcardPattern := fmt.Sprintf(`^(\*\.)?%s$`, regexp.QuoteMeta(domain))
-	wildcardRegex := regexp.MustCompile(wildcardPattern)
 
 	config := fmt.Sprintf(`
 [req]
@@ -620,18 +563,14 @@ subjectAltName = @alt_names
 
 [alt_names]
 `, country, state, city, organization, domain)
-
-	// Set alternate domains
-	var sanitizedAlternateDomains []string
-	for _, altDomain := range alternateDomains {
-		if !wildcardRegex.MatchString(altDomain) {
-			sanitizedAlternateDomains = append(sanitizedAlternateDomains, altDomain)
-		}
+	// TODO filter wild card domains here ...
+	if !Utility.Contains(alternateDomains, domain) {
+		alternateDomains = append(alternateDomains, domain)
 	}
 
-	// Add sanitized alternate domains to the config
-	for i, altDomain := range sanitizedAlternateDomains {
-		config += fmt.Sprintf("DNS.%d = %s \n", i, altDomain)
+	// set alternate domain
+	for i := 0; i < len(alternateDomains); i++ {
+		config += fmt.Sprintf("DNS.%d = %s \n", i, alternateDomains[i])
 	}
 
 	if Utility.Exists(path + "/san.conf") {
@@ -781,8 +720,17 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 		return nil // certificate are already created.
 	}
 
+	fmt.Println("Generate Services Certificates for ", domain, alternateDomains)
 	alternateDomains_ := make([]string, 0)
 	for i := 0; i < len(alternateDomains); i++ {
+		// I will test if the domain is part of a wild card domain. if so I will change the domain to the wild card domain.
+		// without the "*"
+		if strings.Contains(alternateDomains[i].(string), "*") {
+			wildcard := alternateDomains[i].(string)[2:]
+			if strings.HasSuffix(domain, wildcard) {
+				domain = wildcard
+			}
+		}
 		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
 	}
 

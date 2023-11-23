@@ -8,13 +8,13 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
-	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
+	"github.com/schollz/progressbar/v3"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
@@ -78,7 +78,7 @@ type Repository_Service_Client struct {
 // Create a connection to the service.
 func NewRepositoryService_Client(address string, id string) (*Repository_Service_Client, error) {
 	client := new(Repository_Service_Client)
-	err := globular.InitClient(client, address, id)
+	err := globular_client.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (client *Repository_Service_Client) Reconnect() error {
 	nb_try_connect := 10
 
 	for i := 0; i < nb_try_connect; i++ {
-		client.cc, err = globular.GetClientConnection(client)
+		client.cc, err = globular_client.GetClientConnection(client)
 		if err == nil {
 			client.c = repositorypb.NewPackageRepositoryClient(client.cc)
 			break
@@ -119,12 +119,12 @@ func (client *Repository_Service_Client) Invoke(method string, rqst interface{},
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+	return globular_client.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
 func (client *Repository_Service_Client) GetCtx() context.Context {
 	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
+		client.ctx = globular_client.GetClientContext(client)
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
@@ -363,7 +363,9 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 	if err != nil {
 		return -1, err
 	}
+	
 	percent_ := 0
+	bar := progressbar.Default(100)
 	for {
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
@@ -378,7 +380,7 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 		size += bytesread
 		if percent_ != int(float64(size)/float64(total)*100) {
 			percent_ = int(float64(size) / float64(total) * 100)
-			fmt.Println("transfert ", size, "of", total, " ", percent_, "%")
+			bar.Set(percent_)
 		}
 
 		if err == io.EOF {

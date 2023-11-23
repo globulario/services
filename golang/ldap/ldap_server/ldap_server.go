@@ -2,17 +2,21 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -23,7 +27,9 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 	globular "github.com/globulario/services/golang/globular_service"
-	LDAP "github.com/go-ldap/ldap/v3"
+	"github.com/go-ldap/ldap/v3"
+	"github.com/vjeantet/ldapserver"
+
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
@@ -46,7 +52,7 @@ type connection struct {
 	User     string
 	Password string
 	Port     int32
-	conn     *LDAP.Conn
+	conn     *ldap.Conn
 }
 
 type server struct {
@@ -423,12 +429,12 @@ func (srv *server) Stop(context.Context, *ldappb.StopRequest) (*ldappb.StopRespo
 /**
  * Connect to a ldap srv...
  */
-func (srv *server) connect(id string, userId string, pwd string) (*LDAP.Conn, error) {
+func (srv *server) connect(id string, userId string, pwd string) (*ldap.Conn, error) {
 
 	// The info must be set before that function is call.
 	info := srv.Connections[id]
 
-	conn, err := LDAP.Dial("tcp", fmt.Sprintf("%s:%d", info.Host, info.Port))
+	conn, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", info.Host, info.Port))
 	if err != nil {
 		// handle error
 		return nil, err
@@ -894,6 +900,262 @@ func (srv *server) synchronize() error {
 	return nil
 }
 
+// The path of the configuration.
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
+}
+
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
+}
+
+/**
+ * Search for a list of value over the ldap srv. if the base_dn is
+ * not specify the default base is use. It return a list of values. This can
+ * be interpret as a tow dimensional array.
+ */
+func (srv *server) search(id string, base_dn string, filter string, attributes []string) ([][]interface{}, error) {
+
+	if _, ok := srv.Connections[id]; !ok {
+		return nil, errors.New("Connection " + id + " dosent exist!")
+	}
+
+	// create the connection.
+	c := srv.Connections[id]
+	conn, err := srv.connect(id, srv.Connections[id].User, srv.Connections[id].Password)
+	if err != nil {
+		return nil, err
+	}
+
+	c.conn = conn
+	srv.Connections[id] = c
+
+	// close connection after search.
+	defer c.conn.Close()
+
+	//Now I will execute the query...
+	search_request := ldap.NewSearchRequest(
+		base_dn,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		filter,
+		attributes,
+		nil)
+
+	// Create simple search.
+	sr, err := srv.Connections[id].conn.Search(search_request)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Store the founded values in results...
+	var results [][]interface{}
+	for i := 0; i < len(sr.Entries); i++ {
+		entry := sr.Entries[i]
+		var row []interface{}
+		for j := 0; j < len(attributes); j++ {
+			attributeName := attributes[j]
+			attributeValues := entry.GetAttributeValues(attributeName)
+			row = append(row, attributeValues)
+		}
+		results = append(results, row)
+	}
+
+	return results, nil
+}
+
+// Search over LDAP srv.
+func (srv *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb.SearchResp, error) {
+	id := rqst.Search.GetId()
+	if _, ok := srv.Connections[id]; !ok {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
+	}
+
+	results, err := srv.search(id, rqst.Search.BaseDN, rqst.Search.Filter, rqst.Search.Attributes)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Here I got the results.
+	str, err := Utility.ToJson(results)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &ldappb.SearchResp{
+		Result: string(str),
+	}, nil
+}
+
+///////////////////////////////////////////////////////////////
+// LDAP server handler
+///////////////////////////////////////////////////////////////
+
+// handleBind return Success
+func handleBind(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetBindRequest()
+	res := ldapserver.NewBindResponse(ldapserver.LDAPResultSuccess)
+
+	if string(r.Name()) == "myLogin" {
+		w.Write(res)
+		return
+	}
+
+	// Parse the DN string
+	parsedDN, err := ldap.ParseDN(string(r.Name()))
+	if err != nil {
+		fmt.Println("Error parsing DN:", err)
+		return
+	}
+
+	// Access individual components of the DN
+	for _, val := range parsedDN.RDNs {
+		for _, av := range val.Attributes {
+			fmt.Printf("DN: %s = %s\n", av.Type, av.Value)
+		}
+	}
+
+	fmt.Printf("Bind failed User=%s, Pass=%s", string(r.Name()), string(r.AuthenticationSimple()))
+
+	res.SetResultCode(ldap.LDAPResultInvalidCredentials)
+	res.SetDiagnosticMessage("invalid credentials")
+	w.Write(res)
+}
+
+// handleSearch return Success
+func handleSearch(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetSearchRequest()
+
+	res := ldapserver.NewSearchResultDoneResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Printf("Search: BaseDN=%s, Filter=%s", r.BaseObject(), r.Filter())
+
+	w.Write(res)
+}
+
+// handleAdd return Success
+func handleAdd(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetAddRequest()
+
+	res := ldapserver.NewAddResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("Add: DN=%s, Attributes=%v", r.Entry(), r.Attributes())
+
+	w.Write(res)
+}
+
+// handleModify return Success
+func handleModify(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetModifyRequest()
+
+	res := ldapserver.NewModifyResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("Modify: DN=%s, Changes=%v", r.Object(), r.Changes())
+
+	w.Write(res)
+}
+
+// handleDelete return Success
+func handleDelete(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetDeleteRequest()
+
+	res := ldapserver.NewDeleteResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("Delete: DN=%s", r)
+
+	w.Write(res)
+}
+
+// handleAbandon return Success
+func handleAbandon(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetAbandonRequest()
+
+	res := ldapserver.NewResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("Abandon: MessageID=%d", r)
+
+	w.Write(res)
+}
+
+
+// handleExtendedRequest return Success
+func handleExtendedRequest(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetExtendedRequest()
+
+	res := ldapserver.NewExtendedResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("ExtendedRequest: OID=%s, Value=%s", r.RequestName(), r.RequestValue())
+
+	w.Write(res)
+}
+
+// handleCompare return Success
+func handleCompare(w ldapserver.ResponseWriter, m *ldapserver.Message) {
+	r := m.GetCompareRequest()
+
+	res := ldapserver.NewCompareResponse(ldapserver.LDAPResultSuccess)
+
+	fmt.Println("Compare response", r)
+
+	w.Write(res)
+}
+
+
+// Start the ldap server.
+func (srv *server) startLdapServer() {
+
+	//ldap logger
+	ldapserver.Logger = log.New(os.Stdout, "[server] ", log.LstdFlags)
+
+	//Create a new LDAP Server
+	server := ldapserver.NewServer()
+
+	routes := ldapserver.NewRouteMux()
+
+	// Attach routes to server
+	routes.Bind(handleBind)
+	routes.Search(handleSearch)
+	routes.Add(handleAdd)
+	routes.Modify(handleModify)
+	routes.Delete(handleDelete)
+	routes.Abandon(handleAbandon)
+	routes.Extended(handleExtendedRequest)
+	routes.Compare(handleCompare)
+
+
+	// Attach route mux to LDAP Server
+	server.Handle(routes)
+
+	// if TLS is enabled
+	if srv.TLS {
+
+		secureConn := func(s *ldapserver.Server) {
+			config := globular_service.GetTLSConfig(srv.GetKeyFile(), srv.GetCertFile(), srv.GetCertAuthorityTrust())
+			s.Listener = tls.NewListener(s.Listener, config)
+		}
+
+		go server.ListenAndServe("0.0.0.0:636", secureConn)
+
+	} else {
+		go server.ListenAndServe("0.0.0.0:389")
+	}
+
+	// When CTRL+C, SIGINT and SIGTERM signal occurs
+	// Then stop server gracefully
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	<-ch
+	close(ch)
+
+	server.Stop()
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -950,105 +1212,19 @@ func main() {
 	// Register the echo services
 	ldappb.RegisterLdapServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
 	/*
 		go func() {
 			s_impl.synchronize()
 		}()
 	*/
+
+	// Start the ldap server.
+	go func() {
+		s_impl.startLdapServer()
+	}()
+
 	// Start the service.
 	s_impl.StartService()
 
-}
-
-// The path of the configuration.
-func (srv *server) GetConfigurationPath() string {
-	return srv.ConfigPath
-}
-
-func (srv *server) SetConfigurationPath(path string) {
-	srv.ConfigPath = path
-}
-
-/**
- * Search for a list of value over the ldap srv. if the base_dn is
- * not specify the default base is use. It return a list of values. This can
- * be interpret as a tow dimensional array.
- */
-func (srv *server) search(id string, base_dn string, filter string, attributes []string) ([][]interface{}, error) {
-
-	if _, ok := srv.Connections[id]; !ok {
-		return nil, errors.New("Connection " + id + " dosent exist!")
-	}
-
-	// create the connection.
-	c := srv.Connections[id]
-	conn, err := srv.connect(id, srv.Connections[id].User, srv.Connections[id].Password)
-	if err != nil {
-		return nil, err
-	}
-
-	c.conn = conn
-	srv.Connections[id] = c
-
-	// close connection after search.
-	defer c.conn.Close()
-
-	//Now I will execute the query...
-	search_request := LDAP.NewSearchRequest(
-		base_dn,
-		LDAP.ScopeWholeSubtree, LDAP.NeverDerefAliases, 0, 0, false,
-		filter,
-		attributes,
-		nil)
-
-	// Create simple search.
-	sr, err := srv.Connections[id].conn.Search(search_request)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Store the founded values in results...
-	var results [][]interface{}
-	for i := 0; i < len(sr.Entries); i++ {
-		entry := sr.Entries[i]
-		var row []interface{}
-		for j := 0; j < len(attributes); j++ {
-			attributeName := attributes[j]
-			attributeValues := entry.GetAttributeValues(attributeName)
-			row = append(row, attributeValues)
-		}
-		results = append(results, row)
-	}
-
-	return results, nil
-}
-
-// Search over LDAP srv.
-func (srv *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb.SearchResp, error) {
-	id := rqst.Search.GetId()
-	if _, ok := srv.Connections[id]; !ok {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
-	}
-
-	results, err := srv.search(id, rqst.Search.BaseDN, rqst.Search.Filter, rqst.Search.Attributes)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Here I got the results.
-	str, err := Utility.ToJson(results)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &ldappb.SearchResp{
-		Result: string(str),
-	}, nil
 }

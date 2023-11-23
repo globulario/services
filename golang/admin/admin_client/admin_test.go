@@ -14,10 +14,10 @@ import (
 
 var (
 	// Connect to the admin client.
-	domain = "globular.cloud"
-	client, _   = NewAdminService_Client(domain, "admin.AdminService")
-	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	log_client_ ,_ = log_client.NewLogService_Client(domain, "log.LogService")
+	address = "globule-ryzen.globular.cloud"
+	client, _   = NewAdminService_Client(address, "admin.AdminService")
+	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
+	log_client_ ,_ = log_client.NewLogService_Client(address, "log.LogService")
 )
 
 
@@ -38,7 +38,7 @@ func TestRunCmd(t *testing.T) {
 	// results, err := client.RunCmd(token, "ffmpeg", []string{"-version"}, true)
 
 	// Here I will get the content of the tmp directory.
-	results, err := client.RunCmd(token, "ls", []string{"-a", "/tmp"}, true)
+	results, err := client.RunCmd(token, "ls", "", []string{"-a", "/tmp"}, true)
 
 	if err != nil {
 		log.Println(err)
@@ -47,6 +47,17 @@ func TestRunCmd(t *testing.T) {
 	}
 
 	// So here I will set message into the logger...
+	log.Println(results)
+}
+
+func TestGetAvailableHosts(t *testing.T) {
+	log.Println("call authenticate")
+	results, err := client.GetAvailableHosts()
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+
 	log.Println(results)
 }
 

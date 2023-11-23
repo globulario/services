@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -421,11 +421,53 @@ func clientInterceptor(client_ Client) func(
 	}
 }
 
-/*
-func withClientUnaryInterceptor() grpc.DialOption {
-	return grpc.WithUnaryInterceptor(clientInterceptor)
+/**
+ * Get the client tls configuration.
+ */
+func GetClientTlsConfig(client Client) (*tls.Config, error) {
+
+	var err error
+
+	// Load client certificate and private key
+	certFile := client.GetCertFile()
+	if len(certFile) == 0 {
+		err = errors.New("no certificate file is available for client")
+		fmt.Println(err)
+		return nil, err
+	}
+
+	keyFile := client.GetKeyFile()
+
+	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		err = errors.New("fail to load client certificate with error: " + err.Error())
+		return nil, err
+	}
+
+	// Create a certificate pool from the certificate authority
+	certPool := x509.NewCertPool()
+	ca, err := os.ReadFile(client.GetCaFile())
+	if err != nil {
+		fmt.Println("fail to read ca certificate" + err.Error())
+		return nil, err
+	}
+
+	// Append the certificates from the CA
+	if ok := certPool.AppendCertsFromPEM(ca); !ok {
+		fmt.Println("failed to append ca certs to cert pool with error: " + err.Error())
+		return nil, err
+	}
+
+	return &tls.Config{
+		ServerName:   strings.Split(client.GetAddress(), ":")[0], // NOTE: this is required!
+		Certificates: []tls.Certificate{certificate},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    certPool,
+		RootCAs:      certPool,
+	}, nil
+
 }
-*/
+
 
 /**
  * Get the client connection. The token is require to control access to resource
@@ -445,60 +487,14 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 	//fmt.Println("get client connection ", address)
 	if client.HasTLS() {
-		//fmt.Println("client connection use tls")
-		// Setup the login/pass simple test...
-		if len(client.GetKeyFile()) == 0 {
-			err := errors.New("no key file is available for client ")
-			fmt.Println(err)
-			return nil, err
-		}
-
-		certFile := client.GetCertFile()
-		if len(certFile) == 0 {
-			err = errors.New("no certificate file is available for client")
-			fmt.Println(err)
-			return nil, errors.New("no certificate file is available for client")
-		}
-
-		keyFile := client.GetKeyFile()
-
-		certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
+		
+		tlsConfig, err := GetClientTlsConfig(client)
 		if err != nil {
 			return nil, err
 		}
-
-		// Create a certificate pool from the certificate authority
-		certPool := x509.NewCertPool()
-
-		ca, err := ioutil.ReadFile(client.GetCaFile())
-		if err != nil {
-			err = errors.New("fail to read ca certificate")
-			fmt.Println(err)
-			return nil, err
-		}
-
-		// Append the certificates from the CA
-		if ok := certPool.AppendCertsFromPEM(ca); !ok {
-			err = errors.New("failed to append ca certs")
-			fmt.Println(err)
-			return nil, err
-		}
-
-		domain := address
-		if strings.Contains(address, ":") {
-			domain = strings.Split(address, ":")[0]
-		}
-
-		creds := credentials.NewTLS(&tls.Config{
-			ServerName:   domain, // NOTE: this is required!
-			Certificates: []tls.Certificate{certificate},
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			ClientCAs:    certPool,
-			RootCAs:      certPool,
-		})
 
 		// Create a connection with the TLS credentials
-		cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(clientInterceptor(client)))
+		cc, err = grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithUnaryInterceptor(clientInterceptor(client)))
 		if err != nil {
 			fmt.Println("fail to dial address ", err)
 			return nil, err

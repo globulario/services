@@ -1,15 +1,56 @@
 package ldap_client
 
 import (
-	"fmt"
-	"log"
+
 	"testing"
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
+	"github.com/go-ldap/ldap/v3"
+
 )
 
 var (
 	// Connect to the plc client.
-	client = ldap_client.NewLdap_Client("localhost", "ldap_server")
+	address = "globule-ryzen.globular.cloud"
+	client, _ = NewLdapService_Client("globule-ryzen.globular.cloud", "ldap.LdapService")
+	ldapAddress = address+":636"
+	localConfig, _ = config.GetLocalConfig(true)
+	certPath = config.GetConfigDir() + "/" + localConfig["Certificate"].(string)
+
 )
+
+// Test ldap server via ldap protocol via tls.
+
+func TestLDAPBind(t *testing.T) {
+	// Replace these values with your LDAP server details
+	bindUsername := "cn=sa,dc=globular,dc=cloud"
+	bindPassword := "adminadmin"
+
+	// get the tls client config
+	tlsConfig, err := globular_client.GetClientTlsConfig(client)
+	if err != nil {
+		t.Fatalf("Failed to get client TLS config: %v", err)
+	}
+
+	// Create an LDAP connection with TLS
+	l, err := ldap.DialTLS("tcp", ldapAddress, 	tlsConfig)
+
+	if err != nil {
+		t.Fatalf("Failed to connect to the LDAP server: %v", err)
+	}
+	defer l.Close()
+
+	// Bind to the LDAP server with the provided username and password
+	err = l.Bind(bindUsername, bindPassword)
+	if err != nil {
+		t.Fatalf("LDAP bind failed: %v", err)
+	}
+
+	// If the bind is successful, you can perform additional LDAP operations here
+
+	// Output a success message
+	t.Logf("LDAP bind successful for user %s", bindUsername)
+}
 
 // First test create a fresh new connection...
 /*

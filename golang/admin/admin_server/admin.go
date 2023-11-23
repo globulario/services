@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"github.com/jackpal/gateway"
 )
 
 /**
@@ -538,4 +540,93 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	}
 
 	return &adminpb.GetFileInfoResponse{Info: result}, nil
+}
+
+
+// Get the list of available host on the network.
+func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvailableHostsRequest) (*adminpb.GetAvailableHostsResponse, error) {
+	// Run the arp -a command
+	cmd := exec.Command("arp", "-a")
+
+	// Capture the command output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error running arp -a: %v\n", err)
+		return nil, err
+	}
+
+
+
+	gateway, err := gateway.DiscoverGateway()
+    if err != nil {
+        fmt.Println("fail to get gateway with error ", err)
+		return nil, err
+    }
+
+	// Process the output if needed
+    hostInfos:=	parseArpOutput(string(output), gateway.String())
+
+	// I will append the current host to the list of host.
+	
+	mustAppend := true
+	for i := 0; i < len(hostInfos); i++ {
+		if hostInfos[i].Mac == srv.GetMac() {
+			mustAppend = false
+			break
+		}
+	}
+
+	if mustAppend {
+		hostInfos = append(hostInfos, &adminpb.HostInfo{ Ip: Utility.MyLocalIP(), Mac: srv.GetMac(), Name: srv.Address })
+	}
+
+	return &adminpb.GetAvailableHostsResponse{
+		Hosts: hostInfos,
+	}, nil
+}
+
+
+func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
+	var arpEntries []*adminpb.HostInfo
+
+
+
+	// Define regular expressions for IPv4, MAC address, and domain name
+	ipRegex := regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+	macRegex := regexp.MustCompile(`([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})`)
+	domainNameRegex := regexp.MustCompile(`\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b`)
+
+	// Split the output into lines
+	lines := strings.Split(output, "\n")
+	
+
+	// Process each line
+	for _, line := range lines {
+		// Match IPv4 address
+		ipMatches := ipRegex.FindAllString(line, -1)
+		if len(ipMatches) > 0 {
+			ip := ipMatches[0]
+
+			// Match MAC address
+			macMatches := macRegex.FindAllString(line, -1)
+			var mac string
+			if len(macMatches) > 0 {
+				mac = macMatches[0]
+			}
+
+			// Match domain name
+			domainMatches := domainNameRegex.FindAllString(line, -1)
+			var hostname string
+			if len(domainMatches) > 0 {
+				hostname = domainMatches[0]
+			}
+
+			// Append the parsed entry to the result
+			if ip != gateway && len(mac) > 0 {
+				arpEntries = append(arpEntries, &adminpb.HostInfo{ Ip: ip, Mac: mac, Name: hostname })
+			}
+		}
+	}
+
+	return arpEntries
 }
