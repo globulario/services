@@ -852,5 +852,66 @@ proto.admin.AdminServicePromiseClient.prototype.getFileInfo =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.getAvailableHostsRequest,
+ *   !proto.admin.getAvailableHostsResponse>}
+ */
+const methodDescriptor_AdminService_GetAvailableHosts = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/GetAvailableHosts',
+  grpc.web.MethodType.UNARY,
+  proto.admin.getAvailableHostsRequest,
+  proto.admin.getAvailableHostsResponse,
+  /**
+   * @param {!proto.admin.getAvailableHostsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.getAvailableHostsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.getAvailableHostsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.admin.getAvailableHostsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.getAvailableHostsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.getAvailableHosts =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/GetAvailableHosts',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetAvailableHosts,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.getAvailableHostsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.getAvailableHostsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.getAvailableHosts =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/GetAvailableHosts',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetAvailableHosts);
+};
+
+
 module.exports = proto.admin;
 

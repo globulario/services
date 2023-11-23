@@ -456,7 +456,7 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 /**
  * Start prometheus.
  */
-func StartProcessMonitoring(httpPort int, exit chan bool) error {
+func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error {
 	// Be sure only one instance is running at time.
 	ids, err := Utility.GetProcessIdsByName("prometheus")
 	if err == nil {
@@ -508,7 +508,7 @@ scrape_configs:
     
 `
 
-		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
+logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
 		if err == nil {
 			config_ += `
   - job_name: 'log_entries_metrics'
@@ -538,7 +538,7 @@ route:
 receivers:
 - name: 'web.hook'
   webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
+  - url: 'http://0.0.0.0:5001/'
 inhibit_rules:
   - source_match:
       severity: 'critical'
@@ -552,7 +552,36 @@ inhibit_rules:
 		}
 	}
 
-	prometheusCmd := exec.Command("prometheus", "--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir()+"/prometheus.yml", "--storage.tsdb.path", dataPath)
+
+	args := []string{"--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir()+"/prometheus.yml", "--storage.tsdb.path", dataPath}
+	if protocol == "https" {
+		args = append(args, "--web.config.file")
+
+		// Here I will create the config file for prometheus.
+		if !Utility.Exists(config.GetConfigDir() + "/prometheus_tls.yml") {
+
+			address, _ := config.GetAddress()
+			if strings.Contains(address, ":") {
+				address = strings.Split(address, ":")[0]
+			}
+
+			config_ := `tls_server_config:
+ cert_file: ` + config.GetConfigDir() + `/tls/`+ address + `.crt
+ key_file: ` + config.GetConfigDir() + `/tls/server.pem`
+
+			err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus_tls.yml", []byte(config_), 0644)
+			if err != nil {
+				return err
+			}
+
+		}
+
+		// add the tls config file.
+		args = append(args, config.GetConfigDir()+"/prometheus_tls.yml")
+	}
+		
+	prometheusCmd := exec.Command("prometheus", args...)
+
 	prometheusCmd.Dir = os.TempDir()
 
 	err = prometheusCmd.Start()

@@ -589,8 +589,6 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
 	var arpEntries []*adminpb.HostInfo
 
-
-
 	// Define regular expressions for IPv4, MAC address, and domain name
 	ipRegex := regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
 	macRegex := regexp.MustCompile(`([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})`)
