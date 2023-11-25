@@ -551,19 +551,14 @@ func GetAuthenticationClient(address string) (*authentication_client.Authenticat
 // * Authenticate a user *
 func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
-	// Get the mac address of the server.
-	macAddress, err := config.GetMacAddress()
-	if err != nil {
-		return  nil, err
-	}
-
 	var tokenString string
+	var err error
 
 	// The issuer is the mac address from where the request come from.
 	// If the issuer is empty then I will use the mac address of the srv.
 	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
 	if rqst.Name == "sa" {
-		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, macAddress)
+		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, srv.Mac)
 		if err != nil {
 			return nil, err
 		}
@@ -577,14 +572,14 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 	if strings.Contains(rqst.Name, "@") {
 		domain := strings.Split(rqst.Name, "@")[1]
 		if domain == srv.Domain {
-			rqst.Issuer = mac
+			rqst.Issuer = srv.Mac
 		}
 	}
 
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
-		rqst.Issuer = mac
-	} else if rqst.Issuer == mac {
+		rqst.Issuer = srv.Mac
+	} else if rqst.Issuer == srv.Mac {
 		// Try to authenticate on the server directly...
 		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 		if err == nil {

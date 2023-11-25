@@ -19,18 +19,54 @@ import (
 //////////////////////////////////////////////////////////////////////////////////////
 // Globular Configurations
 //////////////////////////////////////////////////////////////////////////////////////
+func GetLocalIP() string {
 
+	mac, err := GetMacAddress()
+	if err != nil {
+		fmt.Println("----------> fail to retreive mac address with error: ", err)
+		return "127.0.0.1" // default value
+	}
+
+	fmt.Println("----------> mac address: ", mac)
+	ip, err := Utility.MyLocalIP(mac)
+
+	if err != nil {
+		fmt.Println("----------> fail to retreive local ip with error: ", err)
+		return "127.0.0.1"
+	}
+
+	return ip
+}
+
+/**
+ * Return the local mac address from the local configuration.
+ */
 func GetMacAddress() (string, error) {
+
 	localConfig, err := GetLocalConfig(true)
 	if err != nil {
-		// I will try to get the mac address from the system.
-		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		return "", err
+	}
+
+	if localConfig["Mac"] == nil {
+		
+		// Get the primary ip address.
+		ip, err := Utility.GetPrimaryIPAddress()
 		if err != nil {
+			err = errors.New("fail to retreive mac address with error: " + err.Error())
 			return "", err
 		}
 
-		return macAddress, nil
+		// Get the mac address from the ip address.
+		mac, err := Utility.MyMacAddr(ip)
+		if err != nil {
+			err = errors.New("fail to retreive mac address with error: " + err.Error())
+			return "", err
+		}
+
+		return mac, nil
 	}
+
 	return localConfig["Mac"].(string), nil
 }
 

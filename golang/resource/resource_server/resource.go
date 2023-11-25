@@ -2340,7 +2340,7 @@ func getLocalPeer() *resourcepb.Peer {
 	local_peer_.Hostname = hostname
 	local_peer_.Domain = domain
 	local_peer_.ExternalIpAddress = Utility.MyIP()
-	local_peer_.LocalIpAddress = Utility.MyLocalIP()
+	local_peer_.LocalIpAddress = config.GetLocalIP()
 	local_peer_.Mac, _ = config.GetMacAddress()
 	local_peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
@@ -2405,7 +2405,7 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
+	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: config.GetLocalIP()})
 }
 
 // * Connect tow peer toggether on the network.

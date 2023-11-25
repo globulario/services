@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 )
 
@@ -22,7 +23,7 @@ func NewScylla_store(address string, keySpace string, replicationFactor int) *Sc
 
 	// If no address is provided, get the local IP address.
 	if len(address) == 0 {
-		address = Utility.MyLocalIP() // Get your local IP address.
+		address = config.GetLocalIP() // Get your local IP address.
 	}
 
 	// If no keyspace is provided, use "cache".

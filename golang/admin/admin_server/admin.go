@@ -18,13 +18,12 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	ps "github.com/shirou/gopsutil/process"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 
+	"github.com/jackpal/gateway"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/jackpal/gateway"
 )
 
 /**
@@ -577,7 +576,8 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 	}
 
 	if mustAppend {
-		hostInfos = append(hostInfos, &adminpb.HostInfo{ Ip: Utility.MyLocalIP(), Mac: srv.GetMac(), Name: srv.Address })
+
+		hostInfos = append(hostInfos, &adminpb.HostInfo{ Ip: config.GetLocalIP(), Mac: srv.Mac, Name: srv.Address })
 	}
 
 	return &adminpb.GetAvailableHostsResponse{

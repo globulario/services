@@ -694,7 +694,7 @@ func StartService(s Service, srv *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
-	address := "0.0.0.0" //Utility.MyLocalIP() //
+	address := "0.0.0.0"
 
 	lis, err = net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
