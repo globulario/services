@@ -133,14 +133,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Generate a token to identify the user.
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	tokenString, _ := security.GenerateToken(srv.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
+	tokenString, _ := security.GenerateToken(srv.SessionTimeout, srv.Mac, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2348,7 +2341,7 @@ func getLocalPeer() *resourcepb.Peer {
 	local_peer_.Domain = domain
 	local_peer_.ExternalIpAddress = Utility.MyIP()
 	local_peer_.LocalIpAddress = Utility.MyLocalIP()
-	local_peer_.Mac, _ = Utility.MyMacAddr(local_peer_.LocalIpAddress)
+	local_peer_.Mac, _ = config.GetMacAddress()
 	local_peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
 	return local_peer_
@@ -2397,7 +2390,7 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 		return nil, "", err
 	}
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
 		return nil, "", err
 	}
@@ -2791,7 +2784,7 @@ func (srv *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.Ge
 	mac := rqst.Mac
 	if len(mac) == 0 {
 		var err error
-		mac, err = Utility.MyMacAddr(Utility.MyLocalIP())
+		mac, err = config.GetMacAddress()
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -2930,12 +2923,7 @@ func (srv *server) deletePeer(token, address string) error {
 		return err
 	}
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return err
-	}
-
-	return client.DeletePeer(token, macAddress)
+	return client.DeletePeer(token, srv.Mac)
 
 }
 

@@ -231,8 +231,7 @@ func (client *Event_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": macAddress})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.mac})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx

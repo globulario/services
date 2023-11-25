@@ -20,6 +20,21 @@ import (
 // Globular Configurations
 //////////////////////////////////////////////////////////////////////////////////////
 
+func GetMacAddress() (string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err != nil {
+		// I will try to get the mac address from the system.
+		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return "", err
+		}
+
+		return macAddress, nil
+	}
+	return localConfig["Mac"].(string), nil
+}
+
+
 /**
  * Return the local address.
  */
@@ -594,14 +609,6 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Set the mac address
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return nil, err
-	}
-
-	config["Mac"] = macAddress
 
 	if lazy {
 		config_ = config

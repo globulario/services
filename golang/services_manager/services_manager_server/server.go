@@ -702,15 +702,11 @@ func updateService(srv *server, service map[string]interface{}) func(evt *eventp
 	return func(evt *eventpb.Event) {
 		fmt.Println("update service received", string(evt.Name))
 		if service["KeepUpToDate"].(bool) {
-
 			descriptor := new(resourcepb.PackageDescriptor)
 			err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
-
 			if err == nil {
 				fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
-				ip := Utility.MyLocalIP()
-				mac, _ := Utility.MyMacAddr(ip)
-				token, err := security.GetLocalToken(mac)
+				token, err := security.GetLocalToken(srv.Mac)
 				if err != nil {
 					fmt.Println(err)
 					return

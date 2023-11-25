@@ -239,8 +239,10 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 // Authenticate a user.
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	// Get the mac address of the server.
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
+		log.Println("fail to get mac address with error ", err)
 		return "", err
 	}
 

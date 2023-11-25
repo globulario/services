@@ -463,16 +463,11 @@ func (srv *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 /** Retreive the peer public key */
 func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return "", err
-	}
-
 	if len(mac) == 0 {
-		mac = macAddress
+		mac = srv.Mac
 	}
 
-	if mac == macAddress {
+	if mac ==  srv.Mac {
 		key, err := security.GetPeerKey(mac)
 		if err != nil {
 			return "", err

@@ -580,9 +580,7 @@ func updateApplication(srv *server, application *resourcepb.Application) func(ev
 		descriptor.Id = application.Id
 
 		if err == nil {
-			ip := Utility.MyLocalIP()
-			mac, _ := Utility.MyMacAddr(ip)
-			token, err := security.GetLocalToken(mac)
+			token, err := security.GetLocalToken(srv.Mac)
 			if err != nil {
 				fmt.Println(err)
 				return

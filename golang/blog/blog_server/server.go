@@ -728,10 +728,10 @@ func (srv *server) deleteBlogPost(author, uuid string) error {
 func (srv *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
 
 	// Set the domain
-	blogPost.Domain, _ = config.GetDomain()
+	blogPost.Domain = srv.Domain
 
 	// set the mac address to...
-	blogPost.Mac, _ = Utility.MyMacAddr(Utility.MyIP())
+	blogPost.Mac = srv.Mac
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(blogPost)

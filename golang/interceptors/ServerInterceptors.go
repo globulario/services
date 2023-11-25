@@ -280,7 +280,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess && len(issuer) > 0 && !accessDenied {
-		macAddress, _ := Utility.MyMacAddr(Utility.MyIP())
+		macAddress, _ := config.GetMacAddress()
 		if issuer != macAddress {
 			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
 		}

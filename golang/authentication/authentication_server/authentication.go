@@ -153,7 +153,7 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	issuer, err := config.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +209,8 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	config := make(map[string]interface{})
-	err = json.Unmarshal(data, &config)
+	srvConfig := make(map[string]interface{})
+	err = json.Unmarshal(data, &srvConfig)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -218,7 +218,7 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 	}
 
 	// Now I go Globular config file I will get the password.
-	password := config["RootPassword"].(string)
+	password := srvConfig["RootPassword"].(string)
 
 	// adminadmin is the default password...
 	if password == "adminadmin" {
@@ -254,8 +254,8 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	config["RootPassword"] = rqst.NewPassword
-	jsonStr, err := Utility.ToJson(config)
+	srvConfig["RootPassword"] = rqst.NewPassword
+	jsonStr, err := Utility.ToJson(srvConfig)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -269,16 +269,13 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, err
 	}
 
-
 	// The token string
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), srv.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", srvConfig["AdminEmail"].(string), srv.Domain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -351,9 +348,9 @@ func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetR
 func (srv *server) setKey(mac string) error {
 
 	// Get the mac address
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
-		return err
+		return  err
 	}
 
 	// Now I will generate keys if not already exist.
@@ -554,9 +551,10 @@ func GetAuthenticationClient(address string) (*authentication_client.Authenticat
 // * Authenticate a user *
 func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
-	mac, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	// Get the mac address of the server.
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
-		return nil, err
+		return  nil, err
 	}
 
 	var tokenString string
@@ -565,7 +563,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 	// If the issuer is empty then I will use the mac address of the srv.
 	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
 	if rqst.Name == "sa" {
-		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, mac)
+		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, macAddress)
 		if err != nil {
 			return nil, err
 		}

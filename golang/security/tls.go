@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	config_ "github.com/globulario/services/golang/config"
 )
 
@@ -909,7 +910,7 @@ func GetLocalKey() ([]byte, error) {
 		return localKey, nil
 	}
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}
@@ -1009,7 +1010,7 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	id = strings.ReplaceAll(id, ":", "_")
 
-	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}

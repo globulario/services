@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -14,8 +15,8 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"github.com/schollz/progressbar/v3"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
 
 	"bytes"
@@ -509,7 +510,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			notification.Message = message
 			notification.Recipient = application.Name
 			notification.Date = time.Now().Unix()
-			notification.Mac, _ = Utility.MyMacAddr(Utility.MyIP())
+			notification.Mac, _ = config.GetMacAddress()
 
 			notification.Sender = `{"_id":"` + application.Id + `", "name":"` + application.Name + `","icon":"` + application.Icon + `", "alias":"` + application.Alias + `"}`
 

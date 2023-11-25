@@ -531,19 +531,18 @@ func GetClientContext(client Client) context.Context {
 
 	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
-	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
 
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": macAddress})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": client.GetMac()})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": macAddress})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": client.GetMac()})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 
 	return ctx

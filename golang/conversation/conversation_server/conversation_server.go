@@ -633,8 +633,6 @@ func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 		rqst.Language = "en"
 	}
 
-	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-
 	conversation := &conversationpb.Conversation{
 		Uuid:            uuid,
 		Name:            rqst.Name,
@@ -643,7 +641,7 @@ func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 		LastMessageTime: 0,
 		Language:        rqst.Language,
 		Participants:    []string{clientId},
-		Mac:             mac,
+		Mac:             srv.Mac,
 	}
 
 	err = srv.saveConversation(conversation)
@@ -1267,8 +1265,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		}
 	}
 
-	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
-	rqst.Invitation.Mac = mac
+	rqst.Invitation.Mac = srv.Mac
 
 	// I will save the invitation into the clientId invitation.
 	sent_invitations.Invitations = append(sent_invitations.Invitations, rqst.Invitation)

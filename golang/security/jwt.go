@@ -54,7 +54,7 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 
 	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
 
-	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	issuer, err := config.GetMacAddress()
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +139,7 @@ func ValidateToken(token string) (*Claims, error) {
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
-		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		macAddress, err := config.GetMacAddress()
 		if err != nil {
 			return "", err
 		}
@@ -232,7 +232,7 @@ func GetClientId(ctx context.Context) (string, string, error) {
 func refreshLocalToken(token string) (string, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		macAddress, err := config.GetMacAddress()
 		if err != nil {
 			return "", err
 		}
