@@ -209,7 +209,6 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 
-	
 	// The token and the application id.
 	var token string
 	var application string
@@ -229,7 +228,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	method := info.FullMethod
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-
 		// The application...
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
@@ -261,11 +259,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		issuer = claims.Issuer
 	}
 
-
-	//fmt.Println("---------> ServerUnaryInterceptor", method, application, token, address)
-
-
-	// Test if peer has access
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
 		infos, err := getActionResourceInfos(address, method)
 		if err == nil && infos != nil {
@@ -360,6 +353,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	hasAccess := false
 	accessDenied := false
 
+	// Here I will test if the method is in the list of method that don't need access validation.
 	if l.method == "/resource.ResourceService/GetRoles" ||
 		l.method == "/resource.ResourceService/GetAccounts" ||
 		l.method == "/resource.ResourceService/GetOrganizations" ||
@@ -367,6 +361,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetPeers" ||
 		l.method == "/resource.ResourceService/GetGroups" ||
 		l.method == "/admin.AdminService/DownloadGlobular" ||
+		l.method == "/admin.AdminService/GetProcessInfos" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" {
 		return nil
 	}

@@ -317,18 +317,18 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
-	cmd_ := s["Name"].(string) + ": " +cmd + " "
+	cmd_ := s["Name"].(string) + ": " + cmd + " "
 	for i := 0; i < len(proxyArgs); i++ {
-		cmd_ +=  proxyArgs[i] + " "
+		cmd_ += proxyArgs[i] + " "
 	}
-/*
-	fmt.Println()
-	fmt.Println(cmd_)
-	fmt.Println()
-*/
+	/*
+		fmt.Println()
+		fmt.Println(cmd_)
+		fmt.Println()
+	*/
 	err := proxyProcess.Start()
 	if err != nil {
-		
+
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` || strings.Contains(err.Error(), "no such file or directory") {
 
 			if Utility.Exists(config.GetGlobularExecPath() + "/bin/" + cmd) {
@@ -495,28 +495,27 @@ scrape_configs:
     # scheme defaults to 'http'.
     static_configs:
     - targets: ['localhost:9090']
-  
+
   - job_name: 'globular_internal_services_metrics'
     scrape_interval: 5s
     static_configs:
     - targets: ['localhost:` + Utility.ToString(httpPort) + `']
-    
+
   - job_name: 'node_exporter_metrics'
     scrape_interval: 5s
     static_configs:
     - targets: ['localhost:9100']
-    
 `
 
-logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
+		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
 		if err == nil {
 			config_ += `
   - job_name: 'log_entries_metrics'
     scrape_interval: 5s
     static_configs:
-	metrics_path: /metrics
-	scheme: http
     - targets: ['localhost:` + Utility.ToString(logServiceConfig["Monitoring_Port"]) + `']
+    metrics_path: /metrics
+    scheme: http
 `
 		}
 
@@ -552,8 +551,7 @@ inhibit_rules:
 		}
 	}
 
-
-	args := []string{"--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir()+"/prometheus.yml", "--storage.tsdb.path", dataPath}
+	args := []string{"--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir() + "/prometheus.yml", "--storage.tsdb.path", dataPath}
 	if protocol == "https" {
 		args = append(args, "--web.config.file")
 
@@ -566,7 +564,7 @@ inhibit_rules:
 			}
 
 			config_ := `tls_server_config:
- cert_file: ` + config.GetConfigDir() + `/tls/`+ address + `.crt
+ cert_file: ` + config.GetConfigDir() + `/tls/` + address + `.crt
  key_file: ` + config.GetConfigDir() + `/tls/server.pem`
 
 			err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus_tls.yml", []byte(config_), 0644)
@@ -579,7 +577,7 @@ inhibit_rules:
 		// add the tls config file.
 		args = append(args, config.GetConfigDir()+"/prometheus_tls.yml")
 	}
-		
+
 	prometheusCmd := exec.Command("prometheus", args...)
 
 	prometheusCmd.Dir = os.TempDir()
