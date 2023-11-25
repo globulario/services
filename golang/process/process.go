@@ -494,17 +494,17 @@ scrape_configs:
     # metrics_path defaults to '/metrics'
     # scheme defaults to 'http'.
     static_configs:
-    - targets: ['localhost:9090']
+    - targets: ['0.0.0.0:9090']
 
   - job_name: 'globular_internal_services_metrics'
     scrape_interval: 5s
     static_configs:
-    - targets: ['localhost:` + Utility.ToString(httpPort) + `']
+    - targets: ['0.0.0.0:` + Utility.ToString(httpPort) + `']
 
   - job_name: 'node_exporter_metrics'
     scrape_interval: 5s
     static_configs:
-    - targets: ['localhost:9100']
+    - targets: ['0.0.0.0:9100']
 `
 
 		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
@@ -513,7 +513,7 @@ scrape_configs:
   - job_name: 'log_entries_metrics'
     scrape_interval: 5s
     static_configs:
-    - targets: ['localhost:` + Utility.ToString(logServiceConfig["Monitoring_Port"]) + `']
+    - targets: ['0.0.0.0:` + Utility.ToString(logServiceConfig["Monitoring_Port"]) + `']
     metrics_path: /metrics
     scheme: http
 `

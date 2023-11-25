@@ -530,7 +530,7 @@ func main() {
 	// start publishing log info to prometheus
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
-		http.ListenAndServe(":"+Utility.ToString(s_impl.Monitoring_Port), nil)
+		http.ListenAndServe("0.0.0.0:"+Utility.ToString(s_impl.Monitoring_Port), nil)
 	}()
 
 	// Start the service.

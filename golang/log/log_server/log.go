@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -109,6 +110,7 @@ func (srv *server) log(info *logpb.LogInfo) error {
 	srv.publish("new_log_evt", []byte(jsonStr))
 
 	// Inc the counter
+	fmt.Println("Log: ", level, info.Application, info.Method)
 	srv.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
 
 	return nil
