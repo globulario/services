@@ -1410,8 +1410,16 @@ func (srv *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
+	// Set the database name.
+	db := application["Name"].(string)
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+	db+="_db"
+
 	// Now I will remove the database create for the application.
-	err = p.DeleteDatabase(context.Background(), "local_resource", applicationId+"_db")
+	err = p.DeleteDatabase(context.Background(), "local_resource", db)
 	if err != nil {
 		return err
 	}
