@@ -184,7 +184,6 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 		}
 
 		// Now I will install the applicaiton.
-		fmt.Println("----------------> 188 try to install application ", descriptor["name"].(string), "with id ", descriptor["id"].(string), "and version ", descriptor["version"].(string))
 		err = srv.installApplication(token, domain, descriptor["id"].(string), descriptor["name"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
 		if err != nil {
 			return err

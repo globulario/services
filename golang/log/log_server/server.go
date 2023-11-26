@@ -529,8 +529,13 @@ func main() {
 
 	// start publishing log info to prometheus
 	http.Handle("/metrics", promhttp.Handler())
+
+	// Start the monitoring server.
 	go func() {
-		http.ListenAndServe("0.0.0.0:"+Utility.ToString(s_impl.Monitoring_Port), nil)
+		err := http.ListenAndServe("0.0.0.0:"+Utility.ToString(s_impl.Monitoring_Port), nil)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	// Start the service.

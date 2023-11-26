@@ -506,7 +506,6 @@ scrape_configs:
     static_configs:
     - targets: ['0.0.0.0:9100']
 `
-
 		logServiceConfig, err := config.GetServiceConfigurationById("log.LogService")
 		if err == nil {
 			config_ += `

@@ -23,15 +23,12 @@ func GetLocalIP() string {
 
 	mac, err := GetMacAddress()
 	if err != nil {
-		fmt.Println("----------> fail to retreive mac address with error: ", err)
 		return "127.0.0.1" // default value
 	}
 
-	fmt.Println("----------> mac address: ", mac)
 	ip, err := Utility.MyLocalIP(mac)
 
 	if err != nil {
-		fmt.Println("----------> fail to retreive local ip with error: ", err)
 		return "127.0.0.1"
 	}
 
@@ -139,6 +136,38 @@ func GetDomain() (string, error) {
 	
 	// if not configuration already exist on the server I will return it hostname...
 	return "", errors.New("no local configuration found")
+}
+
+func GetLocalServerCerificateKeyPath() string {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if len(localConfig["ServerPublicKey"].(string)) != 0 {
+			return  GetConfigDir()+ "/tls/server.pem"
+		}
+	}
+	return ""
+}
+
+func GetLocalClientCerificateKeyPath() string {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if len(localConfig["ClientPublicKey"].(string)) != 0 {
+			return  GetConfigDir()+ "/tls/client.pem"
+		}
+	}
+	return ""
+}
+
+func GetLocalCertificatePath() string {
+	localConfig, err := GetLocalConfig(true)
+
+	if err == nil {
+		if len(localConfig["Certificate"].(string)) != 0 {
+			return  GetConfigDir()+ "/tls/" + localConfig["Certificate"].(string)
+		}
+	}
+
+	return ""
 }
 
 // Those function are use to get the correct

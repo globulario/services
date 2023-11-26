@@ -298,7 +298,7 @@ export function uploadFiles(globule: Globular, token: string, path: string, file
   };
 
   // path to server would be where you'd normally post the form to  
-  let url = globule.config.Protocol + "://" + globule.domain
+  let url = globule.config.Protocol + "://"+ globule.config.Name + "." + globule.domain
   if (globule.config.Protocol == "https") {
       if (globule.config.PortHttps != 443)
           url += ":" + globule.config.PortHttps

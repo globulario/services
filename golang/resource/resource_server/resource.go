@@ -269,6 +269,10 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	// set the caller id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	q = `{"$and":[{"_id":"` + accountId + `", "domain":"` + a.Domain + `"}]}`
@@ -427,6 +431,10 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 	// Set values from the accound db itself.
 	db := rqst.Account.Id
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	q = `{"_id":"` + rqst.Account.Id + `"}`
@@ -587,6 +595,10 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 		// set the caller id.
 		db := a.Id
 		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+		db = strings.ReplaceAll(db, "-", "_")
+		db = strings.ReplaceAll(db, ".", "_")
+		db = strings.ReplaceAll(db, " ", "_")
+
 		db += "_db"
 
 		q := `{"_id":"` + a.Id + `"}`
@@ -682,6 +694,10 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 	// set the account id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	q := `{"_id":"` + rqst.Contact.Id + `"}`
@@ -909,6 +925,9 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
+	name = strings.ReplaceAll(name, "-", "_")
+	name = strings.ReplaceAll(name, ".", "_")
+	name = strings.ReplaceAll(name, " ", "_")
 
 	get_contacts := `{}`
 
@@ -921,6 +940,9 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 			contact := contacts[i].(map[string]interface{})
 			name := contact["name"].(string)
 			name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
+			name = strings.ReplaceAll(name, "-", "_")
+			name = strings.ReplaceAll(name, ".", "_")
+			name = strings.ReplaceAll(name, " ", "_")
 
 			// So here I will call delete on the db...
 			err = p.DeleteOne(context.Background(), "local_resource", name+"_db", "Contacts", q, "")
@@ -1774,17 +1796,22 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	// Save the actual time.
 	application["last_deployed"] = time.Now().Unix() // save it as unix time.
 
+	db := app.Name + "_db"
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
+
 	// Here I will set the resource to manage the applicaiton access permission.
 	if err != nil || count == 0 {
 
 		var createApplicationDbScript string
-
 		if p.GetStoreType() == "MONGO" {
 			createApplicationDbScript = fmt.Sprintf(
-				"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", app.Name, app.Name, app.Name, app.Name)
+				"db=db.getSiblingDB('%s');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s' }]});", db, app.Name, app.Name, db)
 		} else if p.GetStoreType() == "SCYLLA" {
 			createApplicationDbScript = fmt.Sprintf(
-				"CREATE KEYSPACE %s_db WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s_db.application_data (id text PRIMARY KEY, data text);", app.Name, srv.Backend_replication_factor, app.Name)
+				"CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s.application_data (id text PRIMARY KEY, data text);", db, srv.Backend_replication_factor, db)
 		} else if p.GetStoreType() == "SQL" {
 			q = `` // TODO sql query string here...
 		} else {
@@ -1800,7 +1827,9 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 		} else if p.GetStoreType() == "SCYLLA" {
 			err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createApplicationDbScript)
 			if err != nil {
-				return err
+				if !strings.Contains(err.Error(), "existing keyspace") {
+					return err
+				}
 			}
 		}
 
@@ -1857,8 +1886,10 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 		storeType = 2.0
 	}
 
+	// I will replace all special characters by underscore.
+
 	// Now I will create the application connection.
-	err = persistenceClient.CreateConnection(app.Name, app.Name+"_db", address, float64(srv.Backend_port), storeType, srv.Backend_user, srv.Backend_password, 500, "", false)
+	err = persistenceClient.CreateConnection(app.Name, db, address, float64(srv.Backend_port), storeType, srv.Backend_user, srv.Backend_password, 500, "", false)
 	if err != nil {
 		return err
 	}
@@ -4366,7 +4397,11 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	// so the recipient here is the id of the user...
 	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
 
-	count, _ := p.Count(context.Background(), "local_resource", recipient+"_db", "Notifications", q, "")
+	name := strings.ReplaceAll(recipient, "-", "_")
+	name = strings.ReplaceAll(name, ".", "_")
+	name = strings.ReplaceAll(name, " ", "_")
+
+	count, _ := p.Count(context.Background(), "local_resource", name+"_db", "Notifications", q, "")
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4403,7 +4438,7 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	}
 
 	// insert notification into recipient database
-	_, err = p.InsertOne(context.Background(), "local_resource", recipient+"_db", "Notifications", rqst.Notification, "")
+	_, err = p.InsertOne(context.Background(), "local_resource", name+"_db", "Notifications", rqst.Notification, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4432,7 +4467,13 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
+
 
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + srv.Domain
@@ -4516,6 +4557,11 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
@@ -4557,6 +4603,11 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
@@ -4608,6 +4659,11 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 	if strings.Contains(db, "@") {
 		db = strings.Split(db, "@")[0]
 	}
+
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	var query string
@@ -5412,6 +5468,10 @@ func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallH
 	// set the caller id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	var query string
@@ -5455,6 +5515,10 @@ func (srv *server) setCall(accountId string, call *resourcepb.Call) error {
 	// set the caller id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	// rename the uuid to _id (for mongo identifier)
@@ -5538,6 +5602,10 @@ func (srv *server) deleteCall(account_id, uuid string) error {
 	// set the caller id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	q := `{"_id":"` + uuid + `"}`
@@ -5590,6 +5658,10 @@ func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRq
 	// set the caller id.
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+
 	db += "_db"
 
 	query := rqst.Filter
