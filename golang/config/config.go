@@ -39,13 +39,18 @@ func GetLocalIP() string {
  * Return the local mac address from the local configuration.
  */
 func GetMacAddress() (string, error) {
-
+	
 	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return "", err
 	}
 
-	if localConfig["Mac"] == nil {
+	var mac string
+	if localConfig["Mac"] != nil {
+		mac = localConfig["Mac"].(string)
+	}
+
+	if len(mac) == 0 {
 		
 		// Get the primary ip address.
 		ip, err := Utility.GetPrimaryIPAddress()
@@ -64,7 +69,7 @@ func GetMacAddress() (string, error) {
 		return mac, nil
 	}
 
-	return localConfig["Mac"].(string), nil
+	return mac, nil
 }
 
 

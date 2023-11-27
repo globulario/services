@@ -97,8 +97,8 @@ require (
 	github.com/anacrolix/confluence v1.9.0 // indirect
 	github.com/anacrolix/dht/v2 v2.15.2-0.20220123034220-0538803801cb // indirect
 	github.com/anacrolix/envpprof v1.1.1 // indirect
-	github.com/anacrolix/go-libutp v1.2.0 // indirect
-	github.com/anacrolix/log v0.10.1-0.20220123034749-3920702c17f8 // indirect
+	github.com/anacrolix/go-libutp v1.3.1 // indirect
+	github.com/anacrolix/log v0.13.1 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
 	github.com/anacrolix/missinggo/v2 v2.5.2 // indirect

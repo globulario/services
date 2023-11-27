@@ -101,6 +101,9 @@ func validateAction(token, application, address, organization, method, subject s
 
 	// Here I will test if the subject is the super admin...
 	domain, _ := config.GetDomain()
+	if !strings.Contains(subject, "@") {
+		subject = subject + "@" + domain
+	}
 
 	if subject == "sa@"+domain {
 		return true, false, nil

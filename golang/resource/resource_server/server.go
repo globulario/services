@@ -857,7 +857,6 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 	// first of all the Persistence service must be active.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 
-	fmt.Println("count ", count)
 	// one account already exist for the name.
 	if count == 1 {
 		return errors.New("account with name " + name + " already exist!")
@@ -888,10 +887,6 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 		fmt.Printf("fail to create account %s with error %s", name, err.Error())
 		return err
 	}
-
-	/*if name == "sa"{
-		return nil // no directory and user_data are created for the sa account.
-	}*/
 
 	// replace @ and . by _  * active directory
 	name = strings.ReplaceAll(strings.ReplaceAll(name, "@", "_"), ".", "_")
@@ -930,15 +925,12 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 
 	// I will execute the sript with the admin function.
 	// TODO implement the admin function for scylla and sql.
-
 	if p.GetStoreType() == "MONGO" {
-
 		createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
 		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
 			return err
 		}
-
 	} else if p.GetStoreType() == "SCYLLA" {
 		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, srv.Backend_replication_factor, name, name, id, email)
 		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
@@ -946,6 +938,8 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 			return err
 		}
 	}
+
+	// Here I will set user data in the database.
 
 	return err
 }

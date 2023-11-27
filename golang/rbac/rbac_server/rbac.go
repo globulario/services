@@ -2814,11 +2814,12 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 	// Guest role.
 	guest, err := srv.getRole("guest")
 	if err != nil {
+		fmt.Println("fail to retreive guest role with error ", err)
 		return false, false, err
 	}
 
 	// Test if the guest role contain the action...
-	if Utility.Contains(guest.Actions, action) == true && len(resources) == 0 {
+	if Utility.Contains(guest.Actions, action) && len(resources) == 0 {
 		return true, false, nil
 	}
 
@@ -2836,13 +2837,16 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
+
 		application, err := srv.getApplication(subject)
 		if err != nil {
+
 			srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
 			return false, false, err
 		}
 
 		actions = application.Actions
+		fmt.Println("--------------------> application ", application, " actions ", actions)
 
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
@@ -2889,7 +2893,7 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 		// call the rpc method.
 		if account.Roles != nil {
-			
+
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
 				// if the role id is local admin

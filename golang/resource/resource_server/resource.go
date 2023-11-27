@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -173,7 +172,6 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	if strings.Contains(accountId, "@") {
 		domain := strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
-
 		_domain, err := config.GetDomain()
 		if err != nil {
 			return nil, status.Errorf(
@@ -198,7 +196,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	q := `{"_id":"` + accountId + `"}`
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
-		fmt.Println("fail to retreive account: ", accountId)
+		fmt.Println("fail to retreive account:", accountId, " from database with error:", err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -458,12 +456,6 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 			}
 
 		}
-	} else {
-		err := errors.New("fail to retreive user data " + db + " " + rqst.Account.Id)
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-
 	}
 
 	return &resourcepb.SetAccountRsp{}, nil
@@ -481,42 +473,7 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	query := rqst.Query
-	if len(query) == 0 {
-		query = "{}"
-	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
-
-			parameters := make(map[string]interface{})
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			if p.GetStoreType() == "SQL" {
-				query = `SELECT * FROM Accounts`
-
-				if len(parameters) > 0 {
-					query = query + " WHERE "
-
-					for key, value := range parameters {
-						if reflect.TypeOf(value).Kind() == reflect.String {
-							query = query + key + "='" + value.(string) + "' AND "
-						} else if reflect.TypeOf(value).Kind() == reflect.Map {
-							if value.(map[string]interface{})["$regex"] != nil {
-								query = query + key + " LIKE '" + value.(map[string]interface{})["$regex"].(string) + "%' AND "
-							}
-						}
-					}
-					query = query[:len(query)-4] // Remove the last AND
-				}
-			}
-		}
-	}
-
-	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", rqst.Query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -621,12 +578,6 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 					a.Middle = user_data_["middle_name"].(string)
 				}
 			}
-		} else {
-			err := errors.New("fail to retreive user data " + db + " " + a.Id + " " + err.Error())
-
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		values = append(values, a)
@@ -1208,35 +1159,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 		return err
 	}
 
-	query := rqst.Query
-	if len(query) == 0 {
-		query = "{}"
-	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
-			parameters := make(map[string]interface{})
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			if p.GetStoreType() == "SQL" {
-				query = `SELECT * FROM Roles`
-
-				if len(parameters) > 0 {
-					query = query + " WHERE "
-
-					for key, value := range parameters {
-						query = query + key + "='" + value.(string) + "' AND "
-					}
-					query = query[:len(query)-4] // Remove the last AND
-				}
-			}
-		}
-	}
-
-	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", query, rqst.Options)
+	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", rqst.Query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2895,12 +2818,7 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 		return err
 	}
 
-	query := rqst.Query
-	if len(query) == 0 {
-		query = "{}"
-	}
-
-	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
+	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", rqst.Query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -4109,35 +4027,7 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 		return err
 	}
 
-	query := rqst.Query
-	if len(query) == 0 {
-		query = "{}"
-	} else {
-		if strings.HasPrefix(query, "{") && p.GetStoreType() != "MONGO" {
-			parameters := make(map[string]interface{})
-			err := json.Unmarshal([]byte(query), &parameters)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			if p.GetStoreType() == "SQL" {
-				query = `SELECT * FROM Groups`
-
-				if len(parameters) > 0 {
-					query = query + " WHERE "
-
-					for key, value := range parameters {
-						query = query + key + "='" + value.(string) + "' AND "
-					}
-					query = query[:len(query)-4] // Remove the last AND
-				}
-			}
-		}
-	}
-
-	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", query, rqst.Options)
+	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", rqst.Query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

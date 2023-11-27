@@ -510,9 +510,9 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 		}
 	}
 
+
 	resourceClient, err := srv.getResourceClient(srv.Address)
 	if err != nil {
-		fmt.Println("fail to get account ", accountId)
 		return nil, err
 	}
 
@@ -533,6 +533,8 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (srv *server) accountExist(id string) (bool, string) {
+
+	fmt.Println("accountExist ", id)
 
 	a, err := srv.getAccount(id)
 	if err != nil {
