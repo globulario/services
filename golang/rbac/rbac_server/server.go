@@ -533,9 +533,7 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (srv *server) accountExist(id string) (bool, string) {
-
-	fmt.Println("accountExist ", id)
-
+\
 	a, err := srv.getAccount(id)
 	if err != nil {
 		return false, ""
