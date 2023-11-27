@@ -51,6 +51,10 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 		return nil, errors.New("the database is required")
 	}
 
+	keyspace = strings.ToLower(keyspace)
+	keyspace = strings.ReplaceAll(keyspace, "-", "_")
+	
+
 	// Get the connection.
 	store.lock.Lock()
 	connection := store.connections[connectionId]

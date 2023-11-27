@@ -473,7 +473,13 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", rqst.Query, rqst.Options)
+	query := rqst.Query
+	if query == "" {
+		query = "{}"
+	}
+
+
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1159,7 +1165,12 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 		return err
 	}
 
-	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", rqst.Query, rqst.Options)
+	query := rqst.Query
+	if query == "" {
+		query = `{}`
+	}
+
+	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2818,7 +2829,12 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 		return err
 	}
 
-	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", rqst.Query, rqst.Options)
+	query := rqst.Query
+	if len(query) == 0 {
+		query = "{}"
+	}
+
+	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -4027,7 +4043,12 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 		return err
 	}
 
-	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", rqst.Query, rqst.Options)
+	query := rqst.Query
+	if len(query) == 0 {
+		query = "{}"
+	}
+
+	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -4375,18 +4396,12 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 		return err
 	}
 
-	var query string
 
-	if p.GetStoreType() == "MONGO" {
-		query = `{"recipient":"` + rqst.Recipient + `"}`
-	} else if p.GetStoreType() == "SCYLLA" {
-		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `' ALLOW FILTERING`
-	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `'`
-	} else {
-		return errors.New("unknown database type " + p.GetStoreType())
+	query := `{"recipient":"` + rqst.Recipient + `"}`
+	if len(query) == 0 {
+		query = "{}"
 	}
-
+	
 	notifications, err := p.Find(context.Background(), "local_resource", db, "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
@@ -5555,6 +5570,9 @@ func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRq
 	db += "_db"
 
 	query := rqst.Filter
+	if len(query) == 0 {
+		query = "{}"
+	}
 
 	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
 	if err != nil {
