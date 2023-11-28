@@ -30,6 +30,7 @@ import (
 	"github.com/kardianos/osext"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/keepalive"
 
 	//"github.com/globulario/services/golang/config"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -628,6 +629,14 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 	}
 }
 
+// Here I will initilise the grpc server.
+const (
+	grpcKeepaliveTime        = 30 * time.Second
+	grpcKeepaliveTimeout     = 5 * time.Second
+	grpcKeepaliveMinTime     = 30 * time.Second
+	grpcMaxConcurrentStreams = 1000000
+)
+
 /**
  * Initilalsyse the grpc server that will run the service.
  * ** Here is an exemple how to use prometheus for monitoring and the websocket as proxy
@@ -635,14 +644,27 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
  */
 func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) (*grpc.Server, error) {
 	var server *grpc.Server
+	var opts []grpc.ServerOption
+
+	// Connection management options
+	opts = append(opts,
+		grpc.MaxConcurrentStreams(grpcMaxConcurrentStreams),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time:    grpcKeepaliveTime,
+			Timeout: grpcKeepaliveTimeout,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             grpcKeepaliveMinTime,
+			PermitWithoutStream: true,
+		}),
+	)
 
 	if s.GetTls() {
-
 		// Create the TLS credentials
 		creds := credentials.NewTLS(GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust()))
 
 		// Create the gRPC server with the credentials
-		opts := []grpc.ServerOption{grpc.Creds(creds)}
+		opts = append(opts, grpc.Creds(creds))
 		if unaryInterceptor != nil {
 			opts = append(opts, grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)))
 		}
@@ -651,17 +673,20 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 			opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
 		}
 
-		server = grpc.NewServer(opts...)
-
 	} else {
 		if unaryInterceptor != nil && streamInterceptor != nil {
-			server = grpc.NewServer(
-				grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)),
-				grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
+			opts = append(opts, grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)))
+			opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
+
 		} else {
-			server = grpc.NewServer(grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor), grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+			opts = append(opts, grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
+			opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+
 		}
 	}
+
+	// Here I will create the server.
+	server = grpc.NewServer(opts...)
 
 	// display server health info...
 	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
