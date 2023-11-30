@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -177,24 +176,9 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 				if s["KeepAlive"].(bool) {
 
 					// give ti some time to free resources like port files... etc.
-					pid, err := StartServiceProcess(s, port, proxyPort)
+					/*pid*/_, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
 						return // fail to restart the process...
-					}
-
-					localConfig, _ := config.GetLocalConfig(true)
-
-					// so here I need to restart it proxy process...
-					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
-					if proxyProcessPid != -1 {
-						_, err = os.FindProcess(proxyProcessPid)
-						if err != nil {
-							StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
-						}
-
-					} else {
-						// restart the proxy process.
-						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
 					}
 				}
 			}
@@ -236,193 +220,6 @@ func getEventClient(address string) (*event_client.Event_Client, error) {
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
-}
-
-// Start a service process.
-func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string, proxyPort, processPid int) (int, error) {
-
-	if processPid == -1 {
-		return -1, errors.New("process pid must no be -1")
-	}
-
-	// Get the service port.
-	servicePort := Utility.ToInt(s["Port"])
-	pid := Utility.ToInt(s["ProxyProcess"])
-	if pid != -1 {
-		return -1, errors.New("proxy already exist for service " + s["Name"].(string))
-	}
-
-	// Now I will start the proxy that will be use by javascript client.
-	cmd := "grpcwebproxy"
-	if !strings.HasSuffix(cmd, ".exe") && runtime.GOOS == "windows" {
-		cmd += ".exe" // in case of windows.
-	}
-
-	address := s["Address"].(string)
-	if strings.Contains(address, ":") {
-		address = strings.Split(address, ":")[0]
-	}
-
-	proxyBackendAddress := address + ":" + strconv.Itoa(servicePort)
-	proxyAllowAllOrgins := "true"
-	proxyArgs := make([]string, 0)
-
-	// Use in a local network or in test.
-	proxyArgs = append(proxyArgs, "--backend_addr="+proxyBackendAddress)
-	proxyArgs = append(proxyArgs, "--allow_all_origins="+proxyAllowAllOrgins)
-	hasTls := s["TLS"].(bool)
-	creds := config.GetConfigDir() + "/tls"
-
-	s["Proxy"] = proxyPort
-	if hasTls {
-		certAuthorityTrust := creds + "/ca.crt"
-
-		/* Services gRpc backend. */
-		proxyArgs = append(proxyArgs, "--backend_tls=true")
-		proxyArgs = append(proxyArgs, "--backend_tls_ca_files="+certAuthorityTrust)
-		proxyArgs = append(proxyArgs, "--backend_client_tls_cert_file="+creds+"/client.crt")
-		proxyArgs = append(proxyArgs, "--backend_client_tls_key_file="+creds+"/client.pem")
-
-		/* http2 parameters between the browser and the proxy.*/
-		proxyArgs = append(proxyArgs, "--run_http_server=false")
-		proxyArgs = append(proxyArgs, "--run_tls_server=true")
-		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(proxyPort))
-
-		/* in case of public domain server files **/
-		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/server.pem")
-		proxyArgs = append(proxyArgs, "--server_tls_client_ca_files="+creds+"/"+certificateAuthorityBundle)
-		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+creds+"/"+certificate)
-
-	} else {
-
-		// Now I will save the file with those new information in it.
-		proxyArgs = append(proxyArgs, "--run_http_server=true")
-		proxyArgs = append(proxyArgs, "--run_tls_server=false")
-		proxyArgs = append(proxyArgs, "--server_http_debug_port="+strconv.Itoa(proxyPort))
-		proxyArgs = append(proxyArgs, "--backend_tls=false")
-	}
-
-	// Keep connection open for longer exchange between client/service. Event Subscribe function
-	// is a good example of long lasting connection. (48 hours) seam to be more than enought for
-	// browser client connection maximum life.
-	proxyArgs = append(proxyArgs, "--server_http_max_read_timeout=48h")
-	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
-	proxyArgs = append(proxyArgs, "--use_websockets=false")
-
-	// start the proxy service one time
-	//fmt.Println(proxyPath, proxyArgs)
-	proxyProcess := exec.Command(cmd, proxyArgs...)
-	proxyProcess.Dir = filepath.Dir(cmd)
-	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
-		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
-
-	cmd_ := s["Name"].(string) + ": " + cmd + " "
-	for i := 0; i < len(proxyArgs); i++ {
-		cmd_ += proxyArgs[i] + " "
-	}
-	/*
-		fmt.Println()
-		fmt.Println(cmd_)
-		fmt.Println()
-	*/
-	err := proxyProcess.Start()
-	if err != nil {
-
-		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` || strings.Contains(err.Error(), "no such file or directory") {
-
-			if Utility.Exists(config.GetGlobularExecPath() + "/bin/" + cmd) {
-
-				proxyProcess = exec.Command(config.GetGlobularExecPath()+"/bin/"+cmd, proxyArgs...)
-				proxyProcess.Dir = config.GetGlobularExecPath() + "/bin/"
-				err = proxyProcess.Start()
-				if err != nil {
-
-					return -1, err
-				}
-			} else {
-
-				ex, err := os.Executable()
-				if err != nil {
-
-					return -1, err
-				}
-
-				exPath := filepath.Dir(ex)
-				if Utility.Exists(exPath + "/bin/" + cmd) {
-
-					proxyProcess = exec.Command(exPath+"/bin/"+cmd, proxyArgs...)
-					proxyProcess.Dir = exPath + "/bin/"
-					err = proxyProcess.Start()
-					if err != nil {
-						return -1, err
-					}
-				} else {
-					return -1, errors.New("the program grpcwebproxy is not install on the system")
-				}
-			}
-		} else {
-			return -1, err
-		}
-	}
-
-	str, _ := Utility.ToJson(s)
-
-	wait := make(chan int)
-
-	// Get the process id...
-	go func() {
-
-		// finaly i will send event to give change of connected globule to update their service configurations with the new values...
-		address, _ := config.GetAddress()
-		event_client_, err := getEventClient(address)
-		if err == nil {
-			// Here I will publish the start service event
-			//str, _ := Utility.ToJson(s)
-			event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
-		}
-
-		// create copy from the string...
-		s := make(map[string]interface{})
-		json.Unmarshal([]byte(str), &s)
-
-		fmt.Println("Service", s["Name"].(string)+":"+s["Id"].(string), "is running pid", processPid, "and lisen at port", s["Port"], "with proxy pid", proxyProcess.Process.Pid, "lisen at port port", proxyPort)
-
-		wait <- proxyProcess.Process.Pid // ok the proxy pid must be other than -1
-
-		// wait to proxy
-		proxyProcess.Wait()
-
-		// reload the config directly from the file...
-		data, err := os.ReadFile(s["ConfigPath"].(string))
-		if err != nil {
-			fmt.Println("proxy prcess fail with error:  ", err)
-			return
-		}
-
-		json.Unmarshal(data, &s)
-		processPid = Utility.ToInt(s["Process"])
-		if processPid != -1 && s["KeepAlive"].(bool) {
-			exist, err := Utility.PidExists(processPid)
-			if err == nil && exist {
-				StartServiceProxyProcess(s, certificateAuthorityBundle, certificate, proxyPort, processPid)
-			} else if err != nil {
-				fmt.Println("proxy prcess fail with error:  ", err)
-				return
-			}
-		}
-
-	}()
-
-	// wait for proxy to start...
-	proxyProcessPid := <-wait
-
-	// be sure the service
-	s["State"] = "running"
-	s["ProxyProcess"] = proxyProcessPid
-
-	return proxyProcessPid, config.SaveServiceConfiguration(s)
-
 }
 
 // check if the process is actually running

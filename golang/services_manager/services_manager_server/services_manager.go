@@ -321,7 +321,9 @@ func (srv *server) startServiceInstance(serviceId string) error {
 	}
 
 	s["Process"] = processPid
-	s["ProxyProcess"], err = process.StartServiceProxyProcess(s, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), proxyPort, processPid)
+
+	// save the service configuration
+	s["ProxyProcess"], err = Utility.GetProcessIdsByName("envoy")
 	if err != nil {
 		return err
 	}

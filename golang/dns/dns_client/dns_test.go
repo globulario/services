@@ -27,10 +27,7 @@ func TestSetA(t *testing.T) {
 
 	// Set ip address
 	ipv4 := Utility.MyIP()
-	_, err := client.SetA(token, "globular.app", ipv4, 60)
-	if err != nil {
-		log.Println(err)
-	}
+
 
 	_, err = client.SetA(token, "globular.cloud", "192.168.0.166", 60)
 	if err != nil {
@@ -53,7 +50,7 @@ func TestSetA(t *testing.T) {
 		log.Println(err)
 	}
 
-	_, err = client.SetAAAA(token, "globular.app", ipv6, 60)
+	_, err = client.SetAAAA(token, "globule-ryzen.globular.cloud", ipv6, 60)
 	if err != nil {
 		log.Println("----------> fail to set AAAA globular.app with error", err)
 	}
@@ -123,7 +120,8 @@ func TestTextValue(t *testing.T) {
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
-	id := "globular.cloud."
+	id := ".globular.cloud."
+
 	ns := "ns1.globular.io."
 	ttl := uint32(11200)
 

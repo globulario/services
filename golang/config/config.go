@@ -163,12 +163,24 @@ func GetLocalClientCerificateKeyPath() string {
 	return ""
 }
 
-func GetLocalCertificatePath() string {
+func GetLocalCertificate() string {
 	localConfig, err := GetLocalConfig(true)
 
 	if err == nil {
 		if len(localConfig["Certificate"].(string)) != 0 {
 			return  GetConfigDir()+ "/tls/" + localConfig["Certificate"].(string)
+		}
+	}
+
+	return ""
+}
+
+func GetLocalCertificateAuthorityBundle() string {
+	localConfig, err := GetLocalConfig(true)
+
+	if err == nil {
+		if len(localConfig["CertificateAuthorityBundle"].(string)) != 0 {
+			return  GetConfigDir()+ "/tls/" + localConfig["CertificateAuthorityBundle"].(string)
 		}
 	}
 
