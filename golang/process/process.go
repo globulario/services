@@ -176,7 +176,8 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 				if s["KeepAlive"].(bool) {
 
 					// give ti some time to free resources like port files... etc.
-					/*pid*/_, err := StartServiceProcess(s, port, proxyPort)
+					/*pid*/
+					_, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
 						return // fail to restart the process...
 					}
@@ -248,6 +249,82 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
+// /////////////////////////// Envoy proxy /////////////////////////////////////////////////
+func StartEnvoyProxy() error {
+
+	configPath := config.GetConfigDir() + "/envoy.yaml"
+	if !Utility.Exists(configPath) {
+		// Here I will create the config file for envoy.
+
+		config_ := `
+node:
+  cluster: globular-cluster
+  id: globular-xds
+
+dynamic_resources:
+  ads_config:
+    api_type: GRPC
+    transport_api_version: V3
+    grpc_services:
+    - envoy_grpc:
+        cluster_name: xds_cluster
+  cds_config:
+    resource_api_version: V3
+    ads: {}
+  lds_config:
+    resource_api_version: V3
+    ads: {}
+
+static_resources:
+  clusters:
+  - type: STRICT_DNS
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    name: xds_cluster
+    load_assignment:
+      cluster_name: xds_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 0.0.0.0
+                port_value: 9900
+
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+`
+		// Read the content of the YAML file
+		err := os.WriteFile(configPath, []byte(config_), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Here I will start envoy proxy.
+	envoy := exec.Command("envoy", "-c", configPath)
+	envoy.Dir = os.TempDir()
+
+	envoy.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err := envoy.Start()
+	if err != nil {
+		log.Println("fail to start envoy proxy", err)
+		return err
+	}
+
+	return nil
+}
+
 ///////////////////////////// Monitoring //////////////////////////////////////////////////
 
 /**
@@ -297,6 +374,14 @@ scrape_configs:
     scrape_interval: 5s
     static_configs:
     - targets: ['0.0.0.0:` + Utility.ToString(httpPort) + `']
+
+  - job_name: "envoy"
+    scrape_interval: 1s
+    metrics_path: /stats
+    params:
+      format: ['prometheus']
+    static_configs:
+    - targets: ['0.0.0.0:9901']
 
   - job_name: 'node_exporter_metrics'
     scrape_interval: 5s

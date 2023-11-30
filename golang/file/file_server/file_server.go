@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"image/jpeg"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"mime"
@@ -47,7 +46,6 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -596,6 +594,10 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			}
 
 			info.Mime, err = Utility.GetFileContentType(f_)
+			if err != nil {
+				return nil, err
+			}
+
 			defer f_.Close()
 		}
 
@@ -771,10 +773,6 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 	return thumbnails
 }
 
-func toBase64(b []byte) string {
-	return base64.StdEncoding.EncodeToString(b)
-}
-
 func fileNameWithoutExtension(fileName string) string {
 	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
@@ -874,7 +872,7 @@ func readAudioMetadata(s *server, path string, thumnailHeight, thumbnailWidth in
 					imagePath = images[0]
 					for i := 0; i < len(images); i++ {
 						imagePath_ := images[i]
-						if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
+						if strings.Contains(strings.ToLower(imagePath_), "front") || strings.Contains(strings.ToLower(imagePath_), "folder") || strings.Contains(strings.ToLower(imagePath_), "cover") {
 
 							imagePath = imagePath_
 							if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
@@ -888,7 +886,7 @@ func readAudioMetadata(s *server, path string, thumnailHeight, thumbnailWidth in
 						imagePath = images[0]
 						for i := 0; i < len(images); i++ {
 							imagePath_ := images[i]
-							if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
+							if strings.Contains(strings.ToLower(imagePath_), "front") || strings.Contains(strings.ToLower(imagePath_), "folder") || strings.Contains(strings.ToLower(imagePath_), "cover") {
 								imagePath = imagePath_
 								if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
 									break
@@ -913,7 +911,7 @@ func readAudioMetadata(s *server, path string, thumnailHeight, thumbnailWidth in
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string) (*filepb.FileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string, fileInfos_chan chan *filepb.FileInfo) (*filepb.FileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
@@ -921,14 +919,19 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		return nil, err
 	}
 
+
 	if !info.IsDir {
 		return nil, errors.New(path + " is not a directory")
 	}
 
 	// read list of files...
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
+	}
+
+	if fileInfos_chan != nil {
+		fileInfos_chan <- info
 	}
 
 	for _, f := range files {
@@ -942,13 +945,19 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
 
 			if recursive && !isHls && f.Name() != ".hidden" {
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token, fileInfos_chan)
 				if err != nil {
 					return nil, err
 				}
-				info.Files = append(info.Files, info_)
+				
+				if fileInfos_chan != nil {
+					fileInfos_chan <- info_
+				}else{
+					info.Files = append(info.Files, info_)
+				}
+
 			} else if f.Name() != ".hidden" { // I will not read sub-dir hidden files...
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token, fileInfos_chan)
 				if err != nil {
 					return nil, err
 				}
@@ -956,7 +965,11 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					info_.Mime = "video/hls-stream"
 				}
 
-				info.Files = append(info.Files, info_)
+				if fileInfos_chan != nil {
+					fileInfos_chan <- info_
+				}else{
+					info.Files = append(info.Files, info_)
+				}
 			}
 
 		} else if readFiles {
@@ -1011,11 +1024,16 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					}
 				}
 
-				info.Files = append(info.Files, info_)
+				if fileInfos_chan != nil {
+					fileInfos_chan <- info_
+				}else{
+					info.Files = append(info.Files, info_)
+				}
 			}
 		}
 
 	}
+
 	return info, err
 }
 
@@ -1133,7 +1151,7 @@ func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) 
 		path_ := srv.formatPath(info.Files[i].Path)
 		if Utility.Exists(path_) {
 			// do not send Thumbnail...
-			if info.Files[i].IsDir == true {
+			if info.Files[i].IsDir {
 				if !Utility.Exists(path_ + "/playlist.m3u8") {
 					info.Files[i].Thumbnail = "" // remove the icon  for dir
 				}
@@ -1145,7 +1163,7 @@ func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) 
 	}
 
 	// empty the arrays...
-	if info.IsDir == true {
+	if info.IsDir {
 		path_ := srv.formatPath(info.Path)
 		if !Utility.Exists(path_ + "/playlist.m3u8") {
 			info.Files = make([]*filepb.FileInfo, 0)
@@ -1163,28 +1181,21 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	}
 
 	path := srv.formatPath(rqst.Path)
-	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
+	filesInfoChan := make(chan *filepb.FileInfo)
+	go func() {
+		defer close(filesInfoChan) // Close the channel when the goroutine exits
+		readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token, filesInfoChan)
+	}()
 
-	if err != nil {
+	// Continuously read from the channel and send FileInfo to the client
+	for fileInfo := range filesInfoChan {
 
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	infos := make([]*filepb.FileInfo, 0)
-
-	// Get info as array...
-	infos = getFileInfos(srv, info, infos)
-	for i := 0; i < len(infos); i++ {
 		err := stream.Send(&filepb.ReadDirResponse{
-
-			Info: infos[i],
+			Info: fileInfo,
 		})
 
 		if err != nil {
-
-			fmt.Println("fail to send file info ", infos[i].Path+"/"+infos[i].Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
+			fmt.Println("fail to send file info ", fileInfo.Path+"/"+fileInfo.Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
 			fmt.Println("error: ", err)
 
 			if err.Error() == "rpc error: code = Canceled desc = context canceled" {
@@ -1296,7 +1307,7 @@ func (srv *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveR
 	srv.setOwner(token, dest)
 
 	// Now I will save the file to the destination.
-	err = ioutil.WriteFile(srv.Root+dest, buf.Bytes(), 0644)
+	err = os.WriteFile(srv.Root+dest, buf.Bytes(), 0644)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1678,7 +1689,7 @@ func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 		if err != nil {
 			if err == io.EOF {
 				// Here all data is read...
-				err := ioutil.WriteFile(path, data, 0644)
+				err := os.WriteFile(path, data, 0644)
 
 				if err != nil {
 					return status.Errorf(
@@ -1817,7 +1828,7 @@ func (srv *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1828,19 +1839,6 @@ func (srv *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*
 	return &filepb.HtmlToPdfResponse{
 		Pdf: data,
 	}, nil
-}
-
-/**
- * Return the search service.
- */
-func getSearchClient() (*search_client.Search_Client, error) {
-	address, _ := config.GetAddress()
-	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
-	client, err := globular_client.GetClient(address, "search.SearchService", "NewSearchService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*search_client.Search_Client), nil
 }
 
 /**
@@ -1890,19 +1888,6 @@ func getAuticationClient(address string) (*authentication_client.Authentication_
 	return client.(*authentication_client.Authentication_Client), nil
 }
 
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := getRbacClient()
-	if err != nil {
-		return err
-	}
-	return rbac_client_.SetActionResourcesPermissions(permissions)
-}
-
-func (srv *server) updateAudioInformation(client *title_client.Title_Client, path string, metadata map[string]interface{}) error {
-
-	return nil
-}
-
 // Recursively get all titles for a given path...
 func (srv *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
 
@@ -1914,7 +1899,7 @@ func (srv *server) getFileTitlesAssociation(client *title_client.Title_Client, p
 	}
 
 	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
-		files, err := ioutil.ReadDir(path_)
+		files, err := os.ReadDir(path_)
 		if err == nil {
 			for _, f := range files {
 				path_ := path + "/" + f.Name()
@@ -1957,7 +1942,7 @@ func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, p
 	}
 
 	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
-		files, err := ioutil.ReadDir(path_)
+		files, err := os.ReadDir(path_)
 		if err == nil {
 			for _, f := range files {
 				path_ := path + "/" + f.Name()
@@ -2228,8 +2213,8 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 					// Associate titles...
 					for f, title_ := range titles {
 						for _, t := range title_ {
-							var f_ string
-							f_ = rqst.Path + "/" + filepath.Base(f)
+
+							f_ := rqst.Path + "/" + filepath.Base(f)
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f_)
 							if err != nil {
 								fmt.Println("fail to asscociate file ", err)
@@ -2240,8 +2225,8 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 					// Associate videos...
 					for f, video_ := range videos {
 						for _, video := range video_ {
-							var f_ string
-							f_ = rqst.Path + "/" + filepath.Base(f)
+
+							f_ := rqst.Path + "/" + filepath.Base(f)
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f_)
 							if err != nil {
 								fmt.Println("fail to asscociate file ", err)
@@ -2300,7 +2285,7 @@ func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filep
 		path = strings.Replace(path, "\\", "/", -1)
 	}
 
-	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true, token)
+	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true, token, nil)
 	if err != nil {
 		return err
 	}
@@ -2490,13 +2475,8 @@ func (srv *server) startProcessAudios() {
 	go func() {
 		// process one time...
 		processAudios(srv, dirs)
-
-		for {
-			select {
-			// process at given interval
-			case <-ticker.C:
-				processAudios(srv, dirs)
-			}
+		for range ticker.C {
+			processAudios(srv, dirs)
 		}
 	}()
 }
@@ -2512,13 +2492,9 @@ func (srv *server) startProcessVideos() {
 	// Start feeding the time series...
 	ticker := time.NewTicker(4 * time.Hour)
 	go func() {
-		for {
-			select {
-			case <-ticker.C:
-
-				// get the list of info .info.json (generated by ytdl)
-				processVideos(srv, "", dirs)
-			}
+		for range ticker.C {
+			// get the list of info .info.json (generated by ytdl)
+			processVideos(srv, "", dirs)
 		}
 	}()
 
@@ -3974,7 +3950,7 @@ func createVttFile(output string, fps float32) error {
 	os.Remove(output + "/thumbnails.vtt")
 
 	// Now  I will write the file...
-	return os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
+	return os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 0644)
 }
 
 // Here I will create the small viedeo video
@@ -3982,7 +3958,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 
 	path = s.formatPath(path)
 	if !Utility.Exists(path) {
-		errors.New("no file found at path " + path)
+		return errors.New("no file found at path " + path)
 	}
 
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
@@ -4127,9 +4103,6 @@ func (s *server) createVideoPreview(path string, nb int, height int, force bool)
 		return err
 	}
 
-	path_ = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
-	path_ = path_[0:strings.LastIndex(path_, "/")]
-
 	client, err := getEventClient()
 	if err == nil {
 		dir := filepath.Dir(path)
@@ -4166,7 +4139,7 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 
 	path = strings.ReplaceAll(path, "\\", "/")
 
-	if strings.Contains(path, ".hidden") == true {
+	if strings.Contains(path, ".hidden") {
 		return nil, errors.New("no info found for hidden file at path " + path)
 	}
 
@@ -4176,6 +4149,10 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 		path_ := path[0:strings.LastIndex(path, "/")]
 		if Utility.Exists(path_ + "/infos.json") {
 			data, err := os.ReadFile(path_ + "/infos.json")
+			if err != nil {
+				return nil, err
+			}
+
 			title := make(map[string]interface{})
 			err = json.Unmarshal(data, &title)
 			if err != nil {
@@ -4901,17 +4878,6 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVi
 	return &filepb.ConvertVideoToHlsResponse{}, nil
 }
 
-func shortDur(d time.Duration) string {
-	s := d.String()
-	if strings.HasSuffix(s, "m0s") {
-		s = s[:len(s)-2]
-	}
-	if strings.HasSuffix(s, "h0m") {
-		s = s[:len(s)-2]
-	}
-	return s
-}
-
 func (srv *server) publishReloadDirEvent(path string) {
 	client, err := getEventClient()
 	path = strings.ReplaceAll(path, "\\", "/")
@@ -4926,7 +4892,7 @@ func (srv *server) createVideoInfo(token, path, file_path, info_path string) err
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(info_path)
+	data, err := os.ReadFile(info_path)
 	if err == nil {
 		info := make(map[string]interface{})
 		err = json.Unmarshal(data, &info)
@@ -5077,16 +5043,6 @@ func (srv *server) getVideoInfos(url, path, format string) (string, []map[string
 	} else {
 		return "", nil, playlist[0], nil
 	}
-
-}
-
-func (srv *server) getVideoInfo(url string) (map[string]interface{}, error) {
-	cmd := exec.Command("yt-dlp", "-j", "--dump-json", "--skip-download", url)
-	cmd.Dir = os.TempDir()
-
-	infos := make(map[string]interface{})
-
-	return infos, nil
 
 }
 
@@ -5264,7 +5220,7 @@ func (srv *server) uploadFile(token, url, dest, name string, stream filepb.FileS
 				&filepb.UploadFileResponse{
 					Uploaded: 100,
 					Total:    100,
-					Info:     fmt.Sprintf("Process video information..."),
+					Info:     "Process video information...",
 				},
 			)
 			processVideos(srv, token, []string{path})
@@ -5274,7 +5230,7 @@ func (srv *server) uploadFile(token, url, dest, name string, stream filepb.FileS
 				&filepb.UploadFileResponse{
 					Uploaded: 100,
 					Total:    100,
-					Info:     fmt.Sprintf("Index text information..."),
+					Info:     "Index text information...",
 				},
 			)
 			srv.indexPdfFile(path+"/"+name, info)
@@ -5285,7 +5241,7 @@ func (srv *server) uploadFile(token, url, dest, name string, stream filepb.FileS
 		&filepb.UploadFileResponse{
 			Uploaded: 100,
 			Total:    100,
-			Info:     fmt.Sprintf("Done"),
+			Info:     "Done",
 		},
 	)
 
@@ -5321,6 +5277,10 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 		}
 
 		u, err := url.Parse(rqst.Url)
+		if err != nil {
+			return err
+		}
+
 		stream.Send(
 			&filepb.UploadFileResponse{
 				Uploaded: 100,
@@ -5388,7 +5348,7 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 				&filepb.UploadFileResponse{
 					Uploaded: 100,
 					Total:    100,
-					Info:     fmt.Sprintf("Process video information..."),
+					Info:     "Process video information...",
 				},
 			)
 			processVideos(srv, token, []string{path + "/" + rqst.Name})
@@ -5459,7 +5419,7 @@ func (srv *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.Fi
 	}
 
 	// Upload channel...
-	if playlist != nil && len(playlist) > 0 {
+	if  len(playlist) > 0 {
 		files, _ := Utility.ReadDir(path_)
 
 		// finish processing already downloaded files...
@@ -5606,7 +5566,7 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 		for {
 			select {
 			case <-done:
-				break
+				return;
 
 			case result := <-output:
 				if cmd.Process != nil {
@@ -6152,12 +6112,6 @@ func (srv *server) indexFile(path string) error {
 	}
 
 	return errors.New("no indexation exist for file type " + fileInfos.Mime)
-}
-
-// Remove file indexation
-func (srv *server) removeIndexation(path string) error {
-
-	return nil
 }
 
 // That service is use to give access to SQL.
