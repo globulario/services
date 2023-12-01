@@ -10,9 +10,10 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,18 +61,17 @@ func (srv *server) log(info *logpb.LogInfo) error {
 	// I will retreive the previous items...
 	data, err := srv.logs.GetItem(info.Id)
 	if err == nil {
-		jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
-		for jsonDecoder.More() {
 
-			previousInfo := logpb.LogInfo{}
-			err := jsonpb.UnmarshalNext(jsonDecoder, &previousInfo)
-			if err != nil {
-				return err
-			}
+		previousInfo := logpb.LogInfo{}
 
-			// I will set the previous id...
-			info.Occurences = previousInfo.Occurences + 1
+		// Unmarshal JSON data into the LogInfo instance
+		if err := protojson.Unmarshal(data, info); err != nil {
+			return err
 		}
+
+		// I will set the previous id...
+		info.Occurences = previousInfo.Occurences + 1
+
 	}
 
 	// I will index the log info...
@@ -97,8 +97,7 @@ func (srv *server) log(info *logpb.LogInfo) error {
 	}
 
 	// Marshal the log info into a json string.
-	marshaler := new(jsonpb.Marshaler)
-	jsonStr, err := marshaler.MarshalToString(info)
+	jsonStr, err := protojson.Marshal(info)
 	if err != nil {
 		return err
 	}
@@ -159,7 +158,7 @@ func (srv *server) getLogs(application string, level string) ([]*logpb.LogInfo, 
 		if err == nil {
 
 			info := logpb.LogInfo{}
-			err = jsonpb.UnmarshalString(string(data), &info)
+			err = protojson.Unmarshal(data, &info)
 			if err != nil {
 				return nil, err
 			}

@@ -17,7 +17,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1627,7 +1627,7 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 	chached, err := srv.cache.GetItem(path)
 	if err == nil && chached != nil {
 		permissions := new(rbacpb.Permissions)
-		err := jsonpb.UnmarshalString(string(chached), permissions)
+		err := protojson.Unmarshal(chached, permissions)
 		if err == nil {
 			return permissions, nil
 		}
@@ -1655,8 +1655,7 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 		srv.setResourcePermissions(path, permissions.ResourceType, permissions)
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(permissions)
+	jsonStr, err := protojson.Marshal(permissions)
 	if err == nil {
 		srv.cache.SetItem(path, []byte(jsonStr))
 	}
@@ -3058,8 +3057,7 @@ func (srv *server) shareResource(share *rbacpb.Share) error {
 	srv.unshareResource(share.Domain, share.Path)
 
 	// set the new record.
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(share)
+	jsonStr, err := protojson.Marshal(share)
 	if err != nil {
 		return err
 	}
@@ -3144,7 +3142,7 @@ func (srv *server) unshareResource(domain, path string) error {
 	data, err := srv.getItem(uuid)
 	if err == nil {
 		share = new(rbacpb.Share)
-		err := jsonpb.UnmarshalString(string(data), share)
+		err := protojson.Unmarshal(data, share)
 		if err != nil {
 			return err
 		}
@@ -3252,7 +3250,7 @@ func (srv *server) getSharedResource(subject string, subjectType rbacpb.SubjectT
 		data, err := srv.getItem(shared[i])
 		if err == nil {
 			share := new(rbacpb.Share)
-			err := jsonpb.UnmarshalString(string(data), share)
+			err := protojson.Unmarshal(data, share)
 			if err == nil {
 
 				if len(share.Accounts) > 0 || len(share.Applications) > 0 || len(share.Groups) > 0 || len(share.Organizations) > 0 {
@@ -3403,7 +3401,7 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 	}
 
 	share := new(rbacpb.Share)
-	err = jsonpb.UnmarshalString(string(data), share)
+	err = protojson.Unmarshal(data, share)
 	if err != nil {
 		return err
 	}

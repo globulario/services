@@ -23,7 +23,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/storage/storage_store"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -600,7 +600,7 @@ func (srv *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
 		return nil, err
 	}
 
-	err = jsonpb.UnmarshalString(string(jsonStr), blog)
+	err = protojson.Unmarshal(jsonStr, blog)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +626,7 @@ func (srv *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 		jsonStr, err := srv.store.GetItem(ids[i])
 		instance := new(blogpb.BlogPost)
 		if err == nil {
-			err := jsonpb.UnmarshalString(string(jsonStr), instance)
+			err := protojson.Unmarshal(jsonStr, instance)
 			if err == nil {
 				blog_posts = append(blog_posts, instance)
 			}
@@ -733,8 +733,7 @@ func (srv *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 	// set the mac address to...
 	blogPost.Mac = srv.Mac
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(blogPost)
+	jsonStr, err := protojson.Marshal(blogPost)
 	if err != nil {
 		return err
 	}

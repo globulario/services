@@ -7,12 +7,12 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Set the correct addresse here as needed.
 var (
-	client = catalog_client.NewCatalog_Client("localhost", "catalog_server")
+	client, _ = NewCatalogService_Client("localhost", "catalog_server")
 )
 
 func TestCreatePersistenceConnection(t *testing.T) {
@@ -75,9 +75,8 @@ func TestSaveItemDefintion(t *testing.T) {
 		},
 	}
 
-	var marshaler jsonpb.Marshaler
-	properties_ids_en_str, _ := marshaler.MarshalToString(properties_ids_en)
-	properties_ids_fr_str, _ := marshaler.MarshalToString(properties_ids_fr)
+	properties_ids_en_str, _ := protojson.Marshal(properties_ids_en)
+	properties_ids_fr_str, _ :=  protojson.Marshal(properties_ids_fr)
 
 	// Create item definition from predefined properties.
 	client.SaveItemDefinition("catalogue_2_db", "PIPE", "en", "pipe", ``, `A pipe is a tubular section or hollow cylinder, usually but not necessarily of circular cross-section, used mainly to convey substances which can flow — liquids and gases (fluids), slurries, powders and masses of small solids. It can also be used for structural applications; hollow pipe is far stiffer per unit weight than solid members.`, "", properties_ids_en_str)
@@ -114,8 +113,7 @@ func TestSaveItemInstance(t *testing.T) {
 		},
 	}
 
-	var marshaler jsonpb.Marshaler
-	pipe_instance_str, _ := marshaler.MarshalToString(pipe_instance)
+	pipe_instance_str, _ := protojson.Marshal(pipe_instance)
 
 	client.SaveItemInstance("catalogue_2_db", pipe_instance_str)
 }
@@ -166,10 +164,9 @@ func TestSavePackageSupplier(t *testing.T) {
 		Currency: catalogpb.Currency_can,
 	}
 
-	var marshaler jsonpb.Marshaler
-	price_str, _ := marshaler.MarshalToString(price)
-	packageRef_str, _ := marshaler.MarshalToString(packageRef)
-	supplierRef_str, _ := marshaler.MarshalToString(supplierRef)
+	price_str, _ := protojson.Marshal(price)
+	packageRef_str, _ :=  protojson.Marshal(packageRef)
+	supplierRef_str, _ :=  protojson.Marshal(supplierRef)
 
 	err := client.SavePackageSupplier("catalogue_2_db", "000123254", supplierRef_str, packageRef_str, price_str, time.Now().Unix(), 1)
 	if err != nil {
@@ -192,9 +189,8 @@ func TestSaveItemManufacturer(t *testing.T) {
 		RefColId:  "Manufacturer",
 	}
 
-	var marshaler jsonpb.Marshaler
-	itemRef_str, _ := marshaler.MarshalToString(itemRef)
-	manufacturerRef_str, _ := marshaler.MarshalToString(manufacturerRef)
+	itemRef_str, _ :=  protojson.Marshal(itemRef)
+	manufacturerRef_str, _ :=  protojson.Marshal(manufacturerRef)
 
 	err := client.SaveItemManufacturer("catalogue_2_db", "3M_011002", manufacturerRef_str, itemRef_str)
 	if err != nil {

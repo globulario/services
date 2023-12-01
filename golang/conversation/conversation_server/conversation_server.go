@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 
 	"google.golang.org/grpc/codes"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -986,7 +985,7 @@ func (srv *server) FindConversations(ctx context.Context, rqst *conversationpb.F
 	conversations := make([]*conversationpb.Conversation, 0)
 	for i := 0; i < len(results.Results); i++ {
 		conversation := new(conversationpb.Conversation)
-		err := jsonpb.UnmarshalString(results.Results[i].Data, conversation)
+		err := protojson.Unmarshal([]byte(results.Results[i].Data), conversation)
 		if err == nil {
 			conversations = append(conversations, conversation)
 		}
@@ -1257,7 +1256,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	if err != nil {
 		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
 	} else {
-		err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+		err = protojson.Unmarshal(sent_invitations_, sent_invitations)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1271,8 +1270,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	sent_invitations.Invitations = append(sent_invitations.Invitations, rqst.Invitation)
 
 	// Now I will save it back in the bd.
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(sent_invitations)
+	jsonStr, err := protojson.Marshal(sent_invitations)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1292,7 +1290,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	if err != nil {
 		received_invitations.Invitations = make([]*conversationpb.Invitation, 0)
 	} else {
-		err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+		err = protojson.Unmarshal(received_invitations_, received_invitations)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1304,7 +1302,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	received_invitations.Invitations = append(received_invitations.Invitations, rqst.Invitation)
 
 	// Now I will save it back in the bd.
-	jsonStr, err = marshaler.MarshalToString(received_invitations)
+	jsonStr, err = protojson.Marshal(received_invitations)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1340,7 +1338,7 @@ func (srv *server) getConversation(uuid string) (*conversationpb.Conversation, e
 		return nil, err
 	}
 
-	err = jsonpb.UnmarshalString(string(data), conversation)
+	err = protojson.Unmarshal(data, conversation)
 	if err != nil {
 		return nil, err
 	}
@@ -1366,8 +1364,8 @@ func (srv *server) GetConversation(ctx context.Context, rqst *conversationpb.Get
  * Save a conversations.
  */
 func (srv *server) saveConversation(conversation *conversationpb.Conversation) error {
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(conversation)
+
+	jsonStr, err := protojson.Marshal(conversation)
 	if err != nil {
 		return err
 	}
@@ -1379,7 +1377,7 @@ func (srv *server) saveConversation(conversation *conversationpb.Conversation) e
 	}
 
 	// Now I will set the search information for conversations...
-	err = srv.search_engine.IndexJsonObject(srv.Root+"/conversations/search_data", jsonStr, conversation.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	err = srv.search_engine.IndexJsonObject(srv.Root+"/conversations/search_data", string(jsonStr), conversation.Language, "uuid", []string{"name", "keywords"}, string(jsonStr))
 	if err != nil {
 		return err
 	}
@@ -1399,7 +1397,7 @@ func (srv *server) removeInvitation(invitation *conversationpb.Invitation) error
 		return err
 	}
 
-	err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+	err = protojson.Unmarshal(sent_invitations_, sent_invitations)
 	if err != nil {
 		return err
 	}
@@ -1415,13 +1413,12 @@ func (srv *server) removeInvitation(invitation *conversationpb.Invitation) error
 	sent_invitations.Invitations = sent_invitations__
 
 	// Now I will save it back in the bd.
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(sent_invitations)
+	jsonStr, err := protojson.Marshal(sent_invitations)
 	if err != nil {
 		return err
 	}
 
-	err = srv.store.SetItem(invitation.From+"_sent_invitations", []byte(jsonStr))
+	err = srv.store.SetItem(invitation.From+"_sent_invitations", jsonStr)
 	if err != nil {
 		return err
 	}
@@ -1433,7 +1430,7 @@ func (srv *server) removeInvitation(invitation *conversationpb.Invitation) error
 		return err
 	}
 
-	err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+	err = protojson.Unmarshal(received_invitations_, received_invitations)
 	if err != nil {
 		return err
 	}
@@ -1449,7 +1446,7 @@ func (srv *server) removeInvitation(invitation *conversationpb.Invitation) error
 	received_invitations.Invitations = received_invitations__
 
 	// Now I will save it back in the bd.
-	jsonStr, err = marshaler.MarshalToString(received_invitations)
+	jsonStr, err = protojson.Marshal(received_invitations)
 	if err != nil {
 		return err
 	}
@@ -1575,7 +1572,7 @@ func (srv *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+	err = protojson.Unmarshal(received_invitations_, received_invitations)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1607,7 +1604,7 @@ func (srv *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 	if err != nil {
 		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
 	} else {
-		err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+		err = protojson.Unmarshal(sent_invitations_, sent_invitations)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1631,8 +1628,7 @@ func (srv *server) sendMessage(msg *conversationpb.Message) error {
 	}
 
 	// Here I will save the message.
-	var marshaler jsonpb.Marshaler
-	jsonStr_, err := marshaler.MarshalToString(msg)
+	jsonStr_, err := protojson.Marshal(msg)
 	if err != nil {
 		return err
 	}
@@ -1645,7 +1641,7 @@ func (srv *server) sendMessage(msg *conversationpb.Message) error {
 
 	// Now I will index the message in the search engine...
 	Utility.CreateDirIfNotExist(srv.Root + "/conversations/" + msg.Conversation + "/search_data")
-	srv.search_engine.IndexJsonObject(srv.Root+"/conversations/"+msg.Conversation+"/search_data", jsonStr_, msg.Language, "uuid", []string{"text"}, jsonStr_)
+	srv.search_engine.IndexJsonObject(srv.Root+"/conversations/"+msg.Conversation+"/search_data", string(jsonStr_), msg.Language, "uuid", []string{"text"}, string(jsonStr_))
 
 	// set the conversation time...
 	conversation, err := srv.getConversation(msg.Conversation)
@@ -1718,7 +1714,7 @@ func (srv *server) getMessage(conversation string, uuid string) (*conversationpb
 		return nil, err
 	}
 
-	err = jsonpb.UnmarshalString(string(data), msg)
+	err = protojson.Unmarshal(data, msg)
 	if err != nil {
 		return nil, err
 	}

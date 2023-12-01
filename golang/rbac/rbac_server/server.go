@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -20,7 +22,8 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
+	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -72,7 +75,6 @@ type server struct {
 	State           string
 	ModTime         int64
 	CacheAddress    string
-	CacheType       string
 
 	TLS bool
 
@@ -95,11 +97,11 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
-	// RBAC store.
-	permissions storage_store.Store
-
 	// Here I will keep files info in memory...
-	cache *storage_store.BigCache_store // todo use cache instead of memory...
+	cache *storage_store.BigCache_store // Keep permission in cache for faster access.
+
+	// The permission store.
+	etcdClient *clientv3.Client
 
 }
 
@@ -109,7 +111,10 @@ func (srv *server) setItem(key string, val []byte) error {
 	// set item in the cache...
 	srv.cache.SetItem(key, val)
 
-	return srv.permissions.SetItem(key, val)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err := srv.etcdClient.Put(ctx, key, string(val))
+	cancel()
+	return err
 }
 
 // Retreive item
@@ -121,13 +126,22 @@ func (srv *server) getItem(key string) ([]byte, error) {
 		return val, nil
 	}
 
-	// Try with the store...
-	val, err = srv.permissions.GetItem(key)
-	if err == nil {
-		srv.cache.SetItem(key, val)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	resp, err := srv.etcdClient.Get(ctx, key)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("key '%s' not found", key)
 	}
 
-	return val, err
+	if err == nil {
+		srv.cache.SetItem(key, resp.Kvs[0].Value)
+	}
+
+	return resp.Kvs[0].Value, nil
 }
 
 // Remove item.
@@ -136,7 +150,11 @@ func (srv *server) removeItem(key string) error {
 	// remove item from the store...
 	srv.cache.RemoveItem(key)
 
-	return srv.permissions.RemoveItem(key)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err := srv.etcdClient.Delete(ctx, key)
+	cancel()
+	return err
+
 }
 
 // The path of the configuration.
@@ -504,7 +522,7 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	data, err := srv.cache.GetItem(accountId)
 	if err == nil {
 		a := new(resourcepb.Account)
-		err = jsonpb.UnmarshalString(string(data), a)
+		err := protojson.Unmarshal(data, a)
 		if err == nil {
 			return a, nil
 		}
@@ -522,10 +540,9 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	}
 
 	// here I will set save the group in the cache for further use...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(account)
+	jsonStr, err := protojson.Marshal(account)
 	if err == nil {
-		srv.cache.SetItem(accountId, []byte(jsonStr))
+		srv.cache.SetItem(accountId, jsonStr)
 	}
 
 	return account, nil
@@ -557,7 +574,7 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 	data, err := srv.cache.GetItem(groupId)
 	if err == nil {
 		g := new(resourcepb.Group)
-		err = jsonpb.UnmarshalString(string(data), g)
+		err = protojson.Unmarshal(data, g)
 		if err == nil {
 			return g, nil
 		}
@@ -578,8 +595,7 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 	}
 
 	// here I will set save the group in the cache for further use...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(groups[0])
+	jsonStr, err := protojson.Marshal(groups[0])
 	if err == nil {
 		srv.cache.SetItem(groupId, []byte(jsonStr))
 	}
@@ -889,7 +905,6 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.CacheAddress = s_impl.Address
-	s_impl.CacheType = "BADGER"
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -911,19 +926,6 @@ func main() {
 
 	if s_impl.CacheAddress == "localhost" {
 		s_impl.CacheAddress = s_impl.Address
-	}
-
-	// The rbac storage.
-	//s_impl.permissions = storage_store.NewBadger_store()
-	if s_impl.CacheType == "SCYLLA" {
-		s_impl.permissions = storage_store.NewScylla_store(s_impl.CacheAddress, `permissions`, 3)
-	} else {
-		s_impl.permissions = storage_store.NewBadger_store()
-	}
-
-	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
-	if err != nil {
-		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
 	}
 
 	if len(s_impl.Root) == 0 {
@@ -948,14 +950,25 @@ func main() {
 		fmt.Println("Fail to connect to event channel generate_video_preview_event")
 	}
 
+	// Here I will create the etcd client. This client will be use to store the permissions.
+	// TODO get address from etcd configuration file.
+	s_impl.etcdClient, err = clientv3.New(clientv3.Config{
+		Endpoints:   []string{"http://globule-ryzen.globular.cloud:2380"},
+		DialTimeout: 5 * 1000 * 1000 * 1000,
+	})
+
+	if err != nil {
+		log.Fatalf("fail to create etcd client: %s", err.Error())
+	}
+
 	// I will remove used space values for the data base so It will be recalculated each time the server start...
-	ids_, err := s_impl.permissions.GetItem("USED_SPACE")
+	ids_, err := s_impl.getItem("USED_SPACE")
 	ids := make([]string, 0)
 	if err == nil {
 		err := json.Unmarshal(ids_, &ids)
 		if err == nil {
 			for i := 0; i < len(ids); i++ {
-				s_impl.permissions.RemoveItem(ids[i])
+				s_impl.removeItem(ids[i])
 			}
 		}
 	}

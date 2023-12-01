@@ -511,7 +511,7 @@ func main() {
 		fmt.Println(err)
 	}
 
-	// Register the echo services
+	// Register the service.
 	logpb.RegisterLogServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 

@@ -22,7 +22,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -572,7 +572,7 @@ func updateApplication(srv *server, application *resourcepb.Application) func(ev
 	return func(evt *eventpb.Event) {
 
 		descriptor := new(resourcepb.PackageDescriptor)
-		err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+		err := protojson.Unmarshal(evt.Data, descriptor)
 		applicationId := Utility.GenerateUUID(application.Publisherid + "%" + application.Name + "%" + application.Version)
 
 		// be sure the Id is set correctly.

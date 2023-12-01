@@ -14,7 +14,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -148,9 +148,9 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Account)
+	jsonStr, err := json.Marshal(rqst.Account)
 	if err == nil {
-		srv.publishEvent("create_account_evt", []byte(jsonStr), srv.Address)
+		srv.publishEvent("create_account_evt", jsonStr, srv.Address)
 	}
 	// Now I will
 	return &resourcepb.RegisterAccountRsp{
@@ -1030,11 +1030,10 @@ func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRq
 		srv.createCrossReferences(rqst.Role.Organizations[i], "Organizations", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "organizations")
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Role)
+	jsonStr, err := protojson.Marshal(rqst.Role)
 
 	if err == nil {
-		srv.publishEvent("create_role_evt", []byte(jsonStr), srv.GetAddress())
+		srv.publishEvent("create_role_evt", jsonStr, srv.GetAddress())
 	}
 
 	return &resourcepb.CreateRoleRsp{Result: true}, nil
@@ -1848,10 +1847,9 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Application)
+	jsonStr, err := protojson.Marshal(rqst.Application)
 	if err == nil {
-		srv.publishEvent("create_application_evt", []byte(jsonStr), srv.GetAddress())
+		srv.publishEvent("create_application_evt", jsonStr, srv.GetAddress())
 	}
 
 	return &resourcepb.CreateApplicationRsp{}, nil
@@ -2421,9 +2419,6 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 	peer["protocol"] = rqst.Peer.Protocol
-	
-
-	var marshaler jsonpb.Marshaler
 
 	// If no mac address was given it mean the request came from a web application
 	// so the intention is to register the server itself on another srv...
@@ -2491,13 +2486,13 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// but no other peer will be able to do it...
 		srv.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
 
-		jsonStr, err := marshaler.MarshalToString(peer_)
+		jsonStr, err := protojson.Marshal(peer_)
 		if err != nil {
 			return nil, err
 		}
 
 		// Update peer event.
-		srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
+		srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
 		address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 		if rqst.Peer.Protocol == "https" {
@@ -2509,12 +2504,12 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// So here I need to publish my information as a pee
 
 		// Publish local peer information...
-		jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+		jsonStr, err = protojson.Marshal(getLocalPeer())
 		if err != nil {
 			return nil, err
 		}
 
-		srv.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
+		srv.publishRemoteEvent(address, "update_peers_evt", jsonStr)
 
 		// Set peer action
 		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
@@ -2582,13 +2577,13 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
 	}
 
 	// signal peers changes...
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.GetAddress())
+	srv.publishEvent("update_peers_evt", jsonStr, srv.GetAddress())
 
 	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2597,11 +2592,11 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
 
-	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	jsonStr, err = protojson.Marshal(getLocalPeer())
 	if err != nil {
 		return nil, err
 	}
-	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", jsonStr)
 
 	// set the remote peer in /etc/hosts
 	srv.setLocalHosts(getLocalPeer())
@@ -2669,14 +2664,13 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
 	srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
 	}
 
 	// signal peers changes...
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
+	srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
 	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2685,11 +2679,11 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
 
-	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	jsonStr, err = protojson.Marshal(getLocalPeer())
 	if err != nil {
 		return nil, err
 	}
-	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", jsonStr)
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -2717,14 +2711,13 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
 	}
 
 	// signal peers changes...
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
+	srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
 	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -2733,11 +2726,11 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
 
-	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	jsonStr, err = protojson.Marshal(getLocalPeer())
 	if err != nil {
 		return nil, err
 	}
-	srv.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
+	srv.publishRemoteEvent(address_, "update_peers_evt", jsonStr)
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
 }
@@ -2920,8 +2913,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	peer.LocalIpAddress = rqst.Peer.LocalIpAddress
 	peer.ExternalIpAddress = rqst.Peer.ExternalIpAddress
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	jsonStr, err := json.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2967,7 +2959,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, address)
 
 	// give the peer information...
-	srv.publishEvent("update_peers_evt", []byte(jsonStr), srv.Address)
+	srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
@@ -3362,10 +3354,9 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 		srv.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications")
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Organization)
+	jsonStr, err := json.Marshal(rqst.Organization)
 	if err == nil {
-		srv.publishEvent("create_organization_evt", []byte(jsonStr), srv.Address)
+		srv.publishEvent("create_organization_evt", jsonStr, srv.Address)
 	}
 
 	// create the resource owner.
@@ -3959,10 +3950,9 @@ func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroup
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Group)
+	jsonStr, err := json.Marshal(rqst.Group)
 	if err == nil {
-		srv.publishEvent("create_group_evt", []byte(jsonStr), srv.GetAddress())
+		srv.publishEvent("create_group_evt", jsonStr, srv.GetAddress())
 	}
 
 	return &resourcepb.CreateGroupRsp{
@@ -4356,10 +4346,9 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Notification)
+	jsonStr, err := json.Marshal(rqst.Notification)
 	if err == nil {
-		srv.publishEvent("create_notification_evt", []byte(jsonStr), srv.GetAddress())
+		srv.publishEvent("create_notification_evt", jsonStr, srv.GetAddress())
 	}
 
 	return &resourcepb.CreateNotificationRsp{}, nil
@@ -5056,8 +5045,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 		rqst.PackageDescriptor.Roles[i].TypeName = "Role"
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.PackageDescriptor)
+	jsonStr, err := json.Marshal(rqst.PackageDescriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -5065,10 +5053,10 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	}
 
 	// little fix...
-	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
+	jsonStr_ := strings.ReplaceAll(string(jsonStr), "publisherId", "publisherid")
 
 	// Always create a new if not already exist.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr, `[{"upsert": true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr_, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

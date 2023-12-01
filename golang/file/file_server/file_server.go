@@ -51,7 +51,7 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/jasonlvhit/gocron"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -549,7 +549,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	// Here I will try to get the info from the cache...
 	data, err_ := cache.GetItem(path + "@" + s.Domain)
 	if err_ == nil {
-		err := jsonpb.UnmarshalString(string(data), info)
+		err := protojson.Unmarshal(data, info)
 		if err == nil {
 			// change the mime type to stream if the dir contain a playlist.
 			if info.IsDir {
@@ -745,10 +745,9 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		}
 	}
 
-	var marshaler jsonpb.Marshaler
-	data_, err := marshaler.MarshalToString(info)
+	data_, err := protojson.Marshal(info)
 	if err == nil {
-		cache.SetItem(path, []byte(data_))
+		cache.SetItem(path, data_)
 	}
 
 	return info, nil
@@ -2600,7 +2599,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 
 						if strings.Contains(string(jsonStr), "{") {
 							title := new(titlepb.Title)
-							err = jsonpb.UnmarshalString(string(jsonStr), title)
+							err = protojson.Unmarshal(jsonStr, title)
 
 							if err == nil {
 								t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
@@ -2671,7 +2670,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 							} else {
 
 								video := new(titlepb.Video)
-								err := jsonpb.UnmarshalString(string(jsonStr), video)
+								err := protojson.Unmarshal(jsonStr, video)
 
 								if err == nil && video != nil {
 
@@ -2845,7 +2844,7 @@ func processVideos(srv *server, token string, dirs []string) {
 					if infos["Type"] != nil {
 						if infos["Type"].(string) == "TVSeries" {
 							title := new(titlepb.Title)
-							err = jsonpb.UnmarshalString(string(data), title)
+							err = protojson.Unmarshal(data, title)
 							if err == nil {
 								t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
 								if err != nil {
@@ -3356,7 +3355,7 @@ func getFileVideos(path string, domain string) ([]*titlepb.Video, error) {
 	videos := new(titlepb.Videos)
 
 	if err == nil && data != nil {
-		err = jsonpb.UnmarshalString(string(data), videos)
+		err = protojson.Unmarshal(data, videos)
 		if err == nil {
 			return videos.Videos, err
 		}
@@ -3376,9 +3375,8 @@ func getFileVideos(path string, domain string) ([]*titlepb.Video, error) {
 	}
 
 	// keep to cache...
-	var marshaler jsonpb.Marshaler
-	str, _ := marshaler.MarshalToString(videos)
-	cache.SetItem(id, []byte(str))
+	str, _ := protojson.Marshal(videos)
+	cache.SetItem(id, str)
 
 	return videos.Videos, nil
 
@@ -3392,7 +3390,7 @@ func getFileTitles(path string) ([]*titlepb.Title, error) {
 	titles := new(titlepb.Titles)
 
 	if err == nil && data != nil {
-		err = jsonpb.UnmarshalString(string(data), titles)
+		err = protojson.Unmarshal(data, titles)
 		if err == nil {
 			return titles.Titles, err
 		}
@@ -3410,9 +3408,8 @@ func getFileTitles(path string) ([]*titlepb.Title, error) {
 		return nil, err
 	}
 	// keep to cache...
-	var marshaler jsonpb.Marshaler
-	str, _ := marshaler.MarshalToString(titles)
-	cache.SetItem(id, []byte(str))
+	str, _ := protojson.Marshal(titles)
+	cache.SetItem(id, str)
 
 	return titles.Titles, nil
 }
@@ -4254,8 +4251,7 @@ func (srv *server) publishConvertionLogError(path string, err error) {
 	srv.videoConversionErrors.Store(path, err.Error())
 	client, err := getEventClient()
 	if err != nil {
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(&filepb.VideoConversionError{Path: path, Error: err.Error()})
+		jsonStr, err := protojson.Marshal(&filepb.VideoConversionError{Path: path, Error: err.Error()})
 		if err != nil {
 			client.Publish("conversion_error_event", []byte(jsonStr))
 		}
@@ -4265,8 +4261,7 @@ func (srv *server) publishConvertionLogError(path string, err error) {
 func (srv *server) publishConvertionLogEvent(convertionLog *filepb.VideoConversionLog) {
 	client, err := getEventClient()
 	if err != nil {
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(convertionLog)
+		jsonStr, err := protojson.Marshal(convertionLog)
 		if err != nil {
 			client.Publish("conversion_log_event", []byte(jsonStr))
 		}

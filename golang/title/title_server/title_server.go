@@ -27,7 +27,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -494,7 +494,7 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 	}
 
 	title := new(titlepb.Title)
-	err = jsonpb.UnmarshalString(string(raw), title)
+	err = protojson.Unmarshal(raw, title)
 	if err != nil {
 		return nil, err
 	}
@@ -687,10 +687,9 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Title)
+	jsonStr, err := protojson.Marshal(rqst.Title)
 	if err == nil {
-		index.SetInternal([]byte(rqst.Title.UUID), []byte(jsonStr))
+		index.SetInternal([]byte(rqst.Title.UUID), jsonStr)
 	} else {
 		fmt.Println("fail to marshall title", rqst.Title.ID, "with error: ", err)
 	}
@@ -703,7 +702,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_title_infos_evt", []byte(jsonStr))
+	event_client.Publish("update_title_infos_evt", jsonStr)
 	return &titlepb.CreateTitleResponse{}, nil
 }
 
@@ -867,15 +866,14 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		return err
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(title)
+	jsonStr, err := protojson.Marshal(title)
 	if err != nil {
 		return err
 	}
 
-	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	encoded := base64.StdEncoding.EncodeToString(jsonStr)
 	if fileInfo.IsDir() {
-		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		err = os.WriteFile(absolutefilePath+"/infos.json", jsonStr, 0664)
 		if err != nil {
 			return err
 		}
@@ -938,15 +936,14 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 		return err
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(video)
-	encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+	jsonStr, err := protojson.Marshal(video)
+	encoded := base64.StdEncoding.EncodeToString(jsonStr)
 	if err != nil {
 		return err
 	}
 
 	if fileInfo.IsDir() {
-		err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+		err = os.WriteFile(absolutefilePath+"/infos.json", jsonStr, 0664)
 		if err != nil {
 			return err
 		}
@@ -1423,11 +1420,10 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	}
 
 	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Publisher)
+	jsonStr, err := protojson.Marshal(rqst.Publisher)
 
 	if err == nil {
-		err = index.SetInternal([]byte(uuid), []byte(jsonStr))
+		err = index.SetInternal([]byte(uuid), jsonStr)
 	}
 
 	return &titlepb.CreatePublisherResponse{}, nil
@@ -1493,7 +1489,7 @@ func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 			return nil, err
 		}
 		publisher = new(titlepb.Publisher)
-		err = jsonpb.UnmarshalString(string(raw), publisher)
+		err = protojson.Unmarshal(raw, publisher)
 		if err != nil {
 			return nil, err
 		}
@@ -1544,13 +1540,12 @@ func (srv *server) createPerson(indexPath string, person *titlepb.Person) error 
 	}
 
 	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(person)
+	jsonStr, err := protojson.Marshal(person)
 	if err != nil {
 		return err
 	}
 
-	err = index.SetInternal([]byte(uuid), []byte(jsonStr))
+	err = index.SetInternal([]byte(uuid), jsonStr)
 	if err != nil {
 		return err
 	}
@@ -1638,7 +1633,7 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 	}
 
 	person := new(titlepb.Person)
-	err = jsonpb.UnmarshalString(string(raw), person)
+	err = protojson.Unmarshal(raw, person)
 	if err != nil {
 		return nil, err
 	}
@@ -1698,11 +1693,10 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 	}
 
 	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(video)
+	jsonStr, err := protojson.Marshal(video)
 
 	if err == nil {
-		err = index.SetInternal([]byte(video.UUID), []byte(jsonStr))
+		err = index.SetInternal([]byte(video.UUID), jsonStr)
 		if err != nil {
 			return err
 		}
@@ -1716,7 +1710,7 @@ func (srv *server) createVideo(indexpath, clientId string, video *titlepb.Video)
 	}
 
 	// send event to update the video infos
-	return event_client_.Publish("update_video_infos_evt", []byte(jsonStr))
+	return event_client_.Publish("update_video_infos_evt", jsonStr)
 }
 
 /**
@@ -1801,7 +1795,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	}
 
 	video := new(titlepb.Video)
-	err = jsonpb.UnmarshalString(string(raw), video)
+	err = protojson.Unmarshal(raw, video)
 	if err != nil {
 		return nil, err
 	}
@@ -2179,7 +2173,7 @@ func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titl
 		raw, err := index.GetInternal([]byte(id))
 		if err == nil {
 			person := new(titlepb.Person)
-			err = jsonpb.UnmarshalString(string(raw), person)
+			err = protojson.Unmarshal(raw, person)
 			if err == nil {
 				hit_.Result = &titlepb.SearchHit_Person{
 					Person: person,
@@ -2286,7 +2280,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		if err == nil {
 			// the title must contain file association...
 			title := new(titlepb.Title)
-			err = jsonpb.UnmarshalString(string(raw), title)
+			err = protojson.Unmarshal(raw, title)
 			if err == nil {
 
 				// Actors
@@ -2347,7 +2341,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 				// Here I will try with a video...
 				video := new(titlepb.Video)
-				err := jsonpb.UnmarshalString(string(raw), video)
+				err := protojson.Unmarshal(raw, video)
 				if err == nil {
 
 					// Here I will init the casting from to be sure I got the last version...
@@ -2389,7 +2383,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 				} else {
 
 					audio := new(titlepb.Audio)
-					err := jsonpb.UnmarshalString(string(raw), audio)
+					err := protojson.Unmarshal(raw, audio)
 					if err == nil {
 						hit_.Result = &titlepb.SearchHit_Audio{
 							Audio: audio,
@@ -2530,10 +2524,9 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	}
 
 	// Associated original object here...
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Audio)
+	jsonStr, err := protojson.Marshal(rqst.Audio)
 	if err == nil {
-		err = index.SetInternal([]byte(generateUUID(rqst.Audio.ID)), []byte(jsonStr))
+		err = index.SetInternal([]byte(generateUUID(rqst.Audio.ID)), jsonStr)
 	}
 
 	// Now I will create the album from the track info...
@@ -2541,9 +2534,9 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	if err != nil {
 		// In that case the album dosent exist... so I will create it.
 		album := &titlepb.Album{ID: rqst.Audio.Album, Artist: rqst.Audio.AlbumArtist, Year: rqst.Audio.Year, Genres: rqst.Audio.Genres, Poster: rqst.Audio.Poster}
-		jsonStr, err := marshaler.MarshalToString(album)
+		jsonStr, err := protojson.Marshal(album)
 		if err == nil {
-			err = index.SetInternal([]byte(generateUUID(album.ID)), []byte(jsonStr))
+			err = index.SetInternal([]byte(generateUUID(album.ID)), jsonStr)
 		}
 	}
 
@@ -2555,7 +2548,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_audio_infos_evt", []byte(jsonStr))
+	event_client.Publish("update_audio_infos_evt", jsonStr)
 
 	return &titlepb.CreateAudioResponse{}, nil
 }
@@ -2577,7 +2570,7 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 	}
 
 	audio := new(titlepb.Audio)
-	err = jsonpb.UnmarshalString(string(raw), audio)
+	err = protojson.Unmarshal(raw, audio)
 	if err != nil {
 		return nil, err
 	}
@@ -2652,12 +2645,12 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 			}
 
 			album_ := new(titlepb.Album)
-			err_ := jsonpb.UnmarshalString(string(raw), album_)
+			err_ := protojson.Unmarshal(raw, album_)
 			if err_ == nil {
 				album = album_
 			} else {
 				track := new(titlepb.Audio)
-				err_ := jsonpb.UnmarshalString(string(raw), track)
+				err_ := protojson.Unmarshal(raw, track)
 
 				if err_ == nil {
 					if track.Album == id {

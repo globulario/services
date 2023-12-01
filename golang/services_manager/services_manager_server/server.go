@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -703,7 +703,7 @@ func updateService(srv *server, service map[string]interface{}) func(evt *eventp
 		fmt.Println("update service received", string(evt.Name))
 		if service["KeepUpToDate"].(bool) {
 			descriptor := new(resourcepb.PackageDescriptor)
-			err := jsonpb.UnmarshalString(string(evt.Data), descriptor)
+			err := protojson.Unmarshal(evt.Data, descriptor)
 			if err == nil {
 				fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
 				token, err := security.GetLocalToken(srv.Mac)

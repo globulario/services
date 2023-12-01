@@ -20,7 +20,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -531,10 +531,9 @@ func (srv *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescri
 	}
 
 	// publish event to notify client that the application was published...
-	var marshaler jsonpb.Marshaler
-	str, _ := marshaler.MarshalToString(descriptor)
+	str, _ := protojson.Marshal(descriptor)
 
-	return srv.publish(address, descriptor.PublisherId+":"+descriptor.Id, []byte(str))
+	return srv.publish(address, descriptor.PublisherId+":"+descriptor.Id, str)
 }
 
 /**

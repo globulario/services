@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/struCoder/pidusage"
+	"gopkg.in/yaml.v3"
 )
 
 /**
@@ -249,10 +250,74 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
+///////////////////////////// Etcd ditributed Key-value store ///////////////////////////////
+func StartEtcdServer() error {
+	configPath := config.GetConfigDir() + "/etcd.yml"
+
+	// Here I will create the config file for etcd.
+	node_config := make(map[string]interface{})
+
+	local_config, err := config.GetLocalConfig(true)
+	if err != nil {
+		return err
+	}
+
+	// set the node config.
+	address := local_config["Name"].(string) + "." + local_config["Domain"].(string)
+	node_config["name"] = local_config["Name"]
+	node_config["data-dir"] = config.GetDataDir() + "/etcd-data"
+	node_config["listen-peer-urls"] = "http://" + address + ":2380"
+	node_config["listen-client-urls"] = "http://" + address + ":2379"
+	node_config["advertise-client-urls"] = "http://" + address + ":2379"
+	node_config["initial-advertise-peer-urls"] = "http://" + address + ":2380"
+	node_config["initial-cluster"] = []string{local_config["Name"].(string) + "=" + "http://" + address + ":2380"}
+	node_config["initial-cluster-token"] = "etcd-cluster-1"
+	node_config["initial-cluster-state"] = "new"
+
+	// Now I will append the other nodes.
+	if local_config["Peers"] != nil {
+		peers := local_config["Peers"].([]interface{})
+		for i := 0; i < len(peers); i++ {
+			peer := peers[i].(map[string]interface{})
+			node_config["initial-cluster"] = append(node_config["initial-cluster"].([]string), peer["Hostname"].(string)+"="+"http://"+peer["Hostname"].(string)+"."+peer["Domain"].(string)+":2380")
+		}
+	}
+
+	// I will save the config file.
+	str, err := yaml.Marshal(node_config)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(configPath, str, 0644)
+	if err != nil {
+		return err
+	}
+
+	// Here I will start etcd.
+	etcd := exec.Command("etcd", "--config-file", configPath)
+	etcd.Dir = os.TempDir()
+
+	etcd.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err = etcd.Start()
+	if err != nil {
+		log.Println("fail to start etcd", err)
+		return err
+	}
+
+	fmt.Println("etcd is running at ", address)
+
+	return nil
+}
+
+
 // /////////////////////////// Envoy proxy /////////////////////////////////////////////////
 func StartEnvoyProxy() error {
 
-	configPath := config.GetConfigDir() + "/envoy.yaml"
+	configPath := config.GetConfigDir() + "/envoy.yml"
 	if !Utility.Exists(configPath) {
 		// Here I will create the config file for envoy.
 
@@ -321,6 +386,8 @@ admin:
 		log.Println("fail to start envoy proxy", err)
 		return err
 	}
+
+	fmt.Println("envoy proxy is running")
 
 	return nil
 }

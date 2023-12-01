@@ -19,7 +19,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -534,9 +534,15 @@ func (srv *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 	_id := Utility.GenerateUUID(unitOfMeasure.Id + unitOfMeasure.LanguageCode)
 	srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", `{ "_id" : "`+_id+`" }`, "")
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(unitOfMeasure)
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	data, err := protojson.Marshal(unitOfMeasure)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	}
+
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -574,9 +580,15 @@ func (srv *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.S
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(propertyDefinition.Id + propertyDefinition.LanguageCode)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(propertyDefinition)
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	data, err := protojson.Marshal(propertyDefinition)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	}
+
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -614,9 +626,15 @@ func (srv *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(itemDefinition.Id + itemDefinition.LanguageCode)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(itemDefinition)
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	data, err := protojson.Marshal(itemDefinition)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	}
+
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refColId", "$ref", -1)
@@ -655,13 +673,15 @@ func (srv *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	var marshaler jsonpb.Marshaler
+	data, err := protojson.Marshal(inventory)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
-	jsonStr, err := marshaler.MarshalToString(inventory)
-
-	// Here I will generate the _id key
+	}
 	_id := Utility.GenerateUUID(inventory.LocalisationId + inventory.PacakgeId)
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refColId", "$ref", -1)
@@ -700,16 +720,18 @@ func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	var marshaler jsonpb.Marshaler
+	data, err := protojson.Marshal(instance)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
-	jsonStr, err := marshaler.MarshalToString(instance)
-	if len(instance.Id) == 0 {
-		instance.Id = Utility.RandomUUID()
 	}
 
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(instance.Id)
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
+
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refColId", "$ref", -1)
@@ -753,15 +775,16 @@ func (srv *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(manufacturer.Id)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(manufacturer)
+	data, err := protojson.Marshal(manufacturer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// Always create a new
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Manufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
@@ -795,15 +818,16 @@ func (srv *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(supplier.Id)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(supplier)
+	data, err := protojson.Marshal(supplier)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// Always create a new
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
@@ -846,15 +870,16 @@ func (srv *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(localisation.Id + localisation.LanguageCode)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(localisation)
+	data, err := protojson.Marshal(localisation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// set the object references...
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -920,15 +945,16 @@ func (srv *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(package_.Id + package_.LanguageCode)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(package_)
+	data, err := protojson.Marshal(package_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// set the object references...
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -992,15 +1018,17 @@ func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(packageSupplier.Id)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(packageSupplier)
+	data, err := protojson.Marshal(packageSupplier)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
+	
 
 	// set the object references...
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1055,15 +1083,16 @@ func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(itemManafacturer.Id)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(itemManafacturer)
+	data, err := protojson.Marshal(itemManafacturer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// set the object references...
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1101,15 +1130,17 @@ func (srv *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(category.Id + category.LanguageCode)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(category)
+
+	data, err := protojson.Marshal(category)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
 
-	jsonStr = `{ "_id" : "` + _id + `",` + jsonStr[1:]
+	// Here I will generate the _id key
+	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
 	// Always create a new
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Category", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
@@ -1138,13 +1169,16 @@ func (srv *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Category)
+	data, err := protojson.Marshal(rqst.Category)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
+
+	// Here I will generate the _id key
+	jsonStr := string(data)
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1180,13 +1214,16 @@ func (srv *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Category)
+	data, err := protojson.Marshal(rqst.Category)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
 	}
+
+	// Here I will generate the _id key
+	jsonStr := string(data)
 
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1249,7 +1286,7 @@ func (srv *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemI
 	}
 
 	instance := new(catalogpb.ItemInstance)
-	err = jsonpb.UnmarshalString(jsonStr, instance)
+	err = protojson.Unmarshal([]byte(jsonStr), instance)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1315,7 +1352,7 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 
 	// unmarshall object
 	instances := new(catalogpb.ItemInstances)
-	err = jsonpb.UnmarshalString(string(jsonStr), instances)
+	err = protojson.Unmarshal([]byte(jsonStr), instances)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1364,7 +1401,7 @@ func (srv *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIte
 	}
 
 	definition := new(catalogpb.ItemDefinition)
-	err = jsonpb.UnmarshalString(jsonStr, definition)
+	err = protojson.Unmarshal([]byte(jsonStr), definition)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1429,7 +1466,7 @@ func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 
 	// unmarshall object
 	inventories := new(catalogpb.Inventories)
-	err = jsonpb.UnmarshalString(string(jsonStr), inventories)
+	err = protojson.Unmarshal([]byte(jsonStr), inventories)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1500,7 +1537,7 @@ func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 
 	// unmarshall object
 	definitions := new(catalogpb.ItemDefinitions)
-	err = jsonpb.UnmarshalString(string(jsonStr), definitions)
+	err = protojson.Unmarshal([]byte(jsonStr), definitions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1548,7 +1585,7 @@ func (srv *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierR
 	}
 
 	supplier := new(catalogpb.Supplier)
-	err = jsonpb.UnmarshalString(jsonStr, supplier)
+	err = protojson.Unmarshal([]byte(jsonStr), supplier)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1612,7 +1649,7 @@ func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 
 	// unmarshall object
 	suppliers := new(catalogpb.Suppliers)
-	err = jsonpb.UnmarshalString(string(jsonStr), suppliers)
+	err = protojson.Unmarshal([]byte(jsonStr), suppliers)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1689,7 +1726,7 @@ func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 		}
 
 		packageSupplier := new(catalogpb.PackageSupplier)
-		err = jsonpb.UnmarshalString(jsonStr, packageSupplier)
+		err = protojson.Unmarshal([]byte(jsonStr), packageSupplier)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1743,7 +1780,7 @@ func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 	}
 
 	package_ := new(catalogpb.Package)
-	err = jsonpb.UnmarshalString(jsonStr, package_)
+	err = protojson.Unmarshal([]byte(jsonStr), package_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1804,7 +1841,7 @@ func (srv *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesR
 
 	// unmarshall object
 	packages := new(catalogpb.Packages)
-	err = jsonpb.UnmarshalString(jsonStr, packages)
+	err = protojson.Unmarshal([]byte(jsonStr), packages)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1850,7 +1887,7 @@ func (srv *server) getLocalisation(localisationId string, connectionId string) (
 	}
 
 	localisation := new(catalogpb.Localisation)
-	err = jsonpb.UnmarshalString(jsonStr, localisation)
+	err = protojson.Unmarshal([]byte(jsonStr), localisation)
 	if err != nil {
 		return nil, err
 	}
@@ -1916,7 +1953,7 @@ func (srv *server) getLocalisations(query string, options string, connectionId s
 
 	// unmarshall object
 	localisations := new(catalogpb.Localisations)
-	err = jsonpb.UnmarshalString(jsonStr, localisations)
+	err = protojson.Unmarshal([]byte(jsonStr), localisations)
 
 	if err != nil {
 		return nil, err
@@ -1979,7 +2016,7 @@ func (srv *server) getCategory(categoryId string, connectionId string) (*catalog
 	}
 
 	category := new(catalogpb.Category)
-	err = jsonpb.UnmarshalString(jsonStr, category)
+	err = protojson.Unmarshal([]byte(jsonStr), category)
 	if err != nil {
 		return nil, err
 	}
@@ -2044,7 +2081,7 @@ func (srv *server) getCategories(query string, options string, connectionId stri
 
 	// unmarshall object
 	categories := new(catalogpb.Categories)
-	err = jsonpb.UnmarshalString(jsonStr, categories)
+	err = protojson.Unmarshal([]byte(jsonStr), categories)
 
 	if err != nil {
 		return nil, err
@@ -2108,7 +2145,7 @@ func (srv *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManuf
 	}
 
 	manufacturer := new(catalogpb.Manufacturer)
-	err = jsonpb.UnmarshalString(jsonStr, manufacturer)
+	err = protojson.Unmarshal([]byte(jsonStr), manufacturer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2203,7 +2240,7 @@ func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 
 	// unmarshall object
 	manufacturers := new(catalogpb.Manufacturers)
-	err = jsonpb.UnmarshalString(jsonStr, manufacturers)
+	err = protojson.Unmarshal([]byte(jsonStr), manufacturers)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2268,7 +2305,7 @@ func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 
 	// unmarshall object
 	unitOfMeasures := new(catalogpb.UnitOfMeasures)
-	err = jsonpb.UnmarshalString(string(jsonStr), unitOfMeasures)
+	err = protojson.Unmarshal([]byte(jsonStr), unitOfMeasures)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2325,7 +2362,7 @@ func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 	}
 
 	unitOfMeasure := new(catalogpb.UnitOfMeasure)
-	err = jsonpb.UnmarshalString(jsonStr, unitOfMeasure)
+	err = protojson.Unmarshal([]byte(jsonStr), unitOfMeasure)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -8,7 +8,7 @@ import (
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -307,8 +307,8 @@ func (client *Catalog_Client) SaveItemDefinition(connectionId string, id string,
 
 	properties := new(catalogpb.References)
 
-	jsonpb.UnmarshalString(properties_str, properties)
-	jsonpb.UnmarshalString(properties_ids_str, properties)
+	protojson.Unmarshal([]byte(properties_str), properties)
+	protojson.Unmarshal([]byte(properties_ids_str), properties)
 
 	rqst := &catalogpb.SaveItemDefinitionRequest{
 		ConnectionId: connectionId,
@@ -337,7 +337,7 @@ func (client *Catalog_Client) SaveItemInstance(connectionId string, jsonStr stri
 
 	instance := new(catalogpb.ItemInstance)
 
-	err := jsonpb.UnmarshalString(jsonStr, instance)
+	err := protojson.Unmarshal([]byte(jsonStr), instance)
 	if err != nil {
 		return err
 	}
@@ -420,20 +420,20 @@ func (client *Catalog_Client) SavePackageSupplier(connectionId string, id string
 
 	// Supplier Ref.
 	supplierRef := new(catalogpb.Reference)
-	err := jsonpb.UnmarshalString(supplier_ref_str, supplierRef)
+	err := protojson.Unmarshal([]byte(supplier_ref_str), supplierRef)
 	if err != nil {
 		return err
 	}
 
 	// Pacakge Ref.
 	packageRef := new(catalogpb.Reference)
-	err = jsonpb.UnmarshalString(packege_ref_str, packageRef)
+	err = protojson.Unmarshal([]byte(packege_ref_str), packageRef)
 	if err != nil {
 		return err
 	}
 
 	price := new(catalogpb.Price)
-	err = jsonpb.UnmarshalString(price_str, price)
+	err = protojson.Unmarshal([]byte(price_str), price)
 	if err != nil {
 		return err
 	}
@@ -453,14 +453,14 @@ func (client *Catalog_Client) SaveItemManufacturer(connectionId string, id strin
 
 	// Supplier Ref.
 	manufacturerRef := new(catalogpb.Reference)
-	err := jsonpb.UnmarshalString(manufacturer_ref_str, manufacturerRef)
+	err := protojson.Unmarshal([]byte(manufacturer_ref_str), manufacturerRef)
 	if err != nil {
 		return err
 	}
 
 	// Item Ref.
 	itemRef := new(catalogpb.Reference)
-	err = jsonpb.UnmarshalString(item_ref_str, itemRef)
+	err = protojson.Unmarshal([]byte(item_ref_str), itemRef)
 	if err != nil {
 		return err
 	}
@@ -478,7 +478,7 @@ func (client *Catalog_Client) SaveItemManufacturer(connectionId string, id strin
  */
 func (client *Catalog_Client) SaveCategory(connectionId string, id string, name string, languageCode string, categories_str string) error {
 	categories := new(catalogpb.References)
-	jsonpb.UnmarshalString(categories_str, categories)
+	protojson.Unmarshal([]byte(categories_str), categories)
 
 	rqst := &catalogpb.SaveCategoryRequest{
 		ConnectionId: connectionId,
@@ -500,14 +500,14 @@ func (client *Catalog_Client) SaveCategory(connectionId string, id string, name 
 func (client *Catalog_Client) AppendItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
-	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
+	err := protojson.Unmarshal([]byte(item_definition_ref_str), itemDefinitionRef)
 	if err != nil {
 		return err
 	}
 
 	// The category reference.
 	categoryRef := new(catalogpb.Reference)
-	err = jsonpb.UnmarshalString(category_ref_str, categoryRef)
+	err = protojson.Unmarshal([]byte(category_ref_str), categoryRef)
 	if err != nil {
 		return err
 	}
@@ -529,14 +529,14 @@ func (client *Catalog_Client) AppendItemDefinitionCategory(connectionId string, 
 func (client *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
-	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
+	err :=protojson.Unmarshal([]byte(item_definition_ref_str), itemDefinitionRef)
 	if err != nil {
 		return err
 	}
 
 	// The category reference.
 	categoryRef := new(catalogpb.Reference)
-	err = jsonpb.UnmarshalString(category_ref_str, categoryRef)
+	err = protojson.Unmarshal([]byte(category_ref_str), categoryRef)
 	if err != nil {
 		return err
 	}

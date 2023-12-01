@@ -15,9 +15,7 @@ import (
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
-
-	//"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -90,8 +88,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	text := blogPost.Text
 	blogPost.Text = "" // empty the text to save in the search engine...
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(blogPost)
+	jsonStr, err := protojson.Marshal(blogPost)
 
 	if err == nil {
 		err = index.SetInternal([]byte(uuid), []byte(jsonStr))
@@ -140,8 +137,7 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 	// Associated original object here...
 	rqst.BlogPost.Text = "" // emoty the text for the internal object...
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.BlogPost)
+	jsonStr, err := protojson.Marshal(rqst.BlogPost)
 
 	if err == nil {
 		err = index.SetInternal([]byte(rqst.BlogPost.Uuid), []byte(jsonStr))
@@ -204,7 +200,7 @@ func (srv *server) GetBlogPosts(rqst *blogpb.GetBlogPostsRequest, stream blogpb.
 		data, err := srv.store.GetItem(rqst.Uuids[i])
 		if err == nil {
 			b := new(blogpb.BlogPost)
-			err := jsonpb.UnmarshalString(string(data), b)
+			err := protojson.Unmarshal(data, b)
 
 			if err != nil {
 				fmt.Println("fail to unmarchal blog with uuid:", rqst.Uuids[i])
@@ -290,7 +286,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 		raw, err := index.GetInternal([]byte(id))
 		if err == nil {
 			blogPost := new(blogpb.BlogPost)
-			err = jsonpb.UnmarshalString(string(raw), blogPost)
+			err = protojson.Unmarshal(raw, blogPost)
 			if err == nil {
 				hit_.Blog = blogPost
 				// Here I will send the search result...

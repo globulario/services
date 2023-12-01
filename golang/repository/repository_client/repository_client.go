@@ -15,7 +15,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
 
@@ -519,8 +519,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 				return -1, err
 			}
 
-			var marshaler jsonpb.Marshaler
-			jsonStr, err := marshaler.MarshalToString(notification)
+			jsonStr, err := protojson.Marshal(notification)
 			if err != nil {
 				return -1, err
 			}
