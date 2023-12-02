@@ -614,7 +614,7 @@ func (srv *server) stopService(s map[string]interface{}) error {
 	s["Process"] = -1
 	s["ProxyProcess"] = -1
 
-	err = config.SaveServiceConfiguration( s)
+	err = config.SaveServiceConfiguration(s)
 	if err != nil {
 		return err
 	}
@@ -746,7 +746,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Description = "Mircoservice manager service"
 	s_impl.Keywords = []string{"Manager", "Service"}
 	s_impl.Repositories = make([]string, 0)

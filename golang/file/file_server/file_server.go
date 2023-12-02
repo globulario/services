@@ -51,8 +51,8 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
-	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/jasonlvhit/gocron"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/tealeg/xlsx"
@@ -918,7 +918,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		return nil, err
 	}
 
-
 	if !info.IsDir {
 		return nil, errors.New(path + " is not a directory")
 	}
@@ -948,10 +947,10 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				if err != nil {
 					return nil, err
 				}
-				
+
 				if fileInfos_chan != nil {
 					fileInfos_chan <- info_
-				}else{
+				} else {
 					info.Files = append(info.Files, info_)
 				}
 
@@ -966,7 +965,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 				if fileInfos_chan != nil {
 					fileInfos_chan <- info_
-				}else{
+				} else {
 					info.Files = append(info.Files, info_)
 				}
 			}
@@ -1025,7 +1024,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 				if fileInfos_chan != nil {
 					fileInfos_chan <- info_
-				}else{
+				} else {
 					info.Files = append(info.Files, info_)
 				}
 			}
@@ -5414,7 +5413,7 @@ func (srv *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream filepb.Fi
 	}
 
 	// Upload channel...
-	if  len(playlist) > 0 {
+	if len(playlist) > 0 {
 		files, _ := Utility.ReadDir(path_)
 
 		// finish processing already downloaded files...
@@ -5561,7 +5560,7 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 		for {
 			select {
 			case <-done:
-				return;
+				return
 
 			case result := <-output:
 				if cmd.Process != nil {
@@ -6129,7 +6128,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Permissions = make([]interface{}, 15)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

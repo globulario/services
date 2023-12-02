@@ -77,6 +77,8 @@ func GetMacAddress() (string, error) {
  * Return the local address.
  */
 func GetAddress() (string, error) {
+
+
 	address, err  := GetName()
 	if err != nil {
 		return "", err
@@ -88,6 +90,12 @@ func GetAddress() (string, error) {
 	}
 
 	if len(domain) > 0 {
+
+		// no domain was set.
+		if domain == "localhost" {
+			return "localhost", nil
+		}
+
 		address += "." + domain
 	}
 
@@ -134,11 +142,14 @@ func GetDomain() (string, error) {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		domain := localConfig["Domain"].(string)
+		if len(domain) != 0 {
 		return strings.ToLower(domain), nil
+		} else {
+			return "localhost", nil
+		}
 	}
 		
-	fmt.Println("fail to retreive local configuration with error ", err)
-	
+
 	// if not configuration already exist on the server I will return it hostname...
 	return "", errors.New("no local configuration found")
 }

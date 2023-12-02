@@ -460,7 +460,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Description = "The Hello world of gRPC service!"
 	s_impl.Keywords = []string{"Example", "Echo", "Test", "Service"}
 	s_impl.Repositories = make([]string, 0)

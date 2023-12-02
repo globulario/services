@@ -10,7 +10,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
-	"github.com/gogo/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"

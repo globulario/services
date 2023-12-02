@@ -26,7 +26,7 @@ func (store *Badger_store) run() {
 		case action := <-store.actions:
 			if action["name"].(string) == "Open" {
 				// action["result"].(chan error) <- store.open( `{ "path":"` +action["path"].(string) + `"}`)
-				action["result"].(chan error) <- store.open( action["path"].(string))
+				action["result"].(chan error) <- store.open(action["path"].(string))
 			} else if action["name"].(string) == "SetItem" {
 				if action["val"] != nil {
 					action["result"].(chan error) <- store.setItem(action["key"].(string), action["val"].([]byte))
@@ -66,20 +66,20 @@ func NewBadger_store() *Badger_store {
 // Open the store
 func (store *Badger_store) open(optionsStr string) error {
 
-	options := make(map[string] interface{})
+	options := make(map[string]interface{})
 	err := json.Unmarshal([]byte(optionsStr), &options)
-    if err != nil {
+	if err != nil {
 		return err
 	}
 
 	path := options["path"].(string)
 	if options["name"] != nil {
-		path += "/" +  options["name"].(string)
+		path += "/" + options["name"].(string)
 	}
 
-	path =strings.ReplaceAll(path, "\\", "/")
+	path = strings.ReplaceAll(path, "\\", "/")
 
-	// TODO give access to more option at the moment 
+	// TODO give access to more option at the moment
 	// Open the Badger database located in the optionsStr directory.
 	// It will be created if it doesn't exist.
 	store.db, err = badger.Open(badger.DefaultOptions(path))
@@ -88,7 +88,7 @@ func (store *Badger_store) open(optionsStr string) error {
 	}
 
 	//fmt.Println("store at path ", options["path"], "is now open")
-	
+
 	return nil
 }
 
@@ -101,11 +101,10 @@ func (store *Badger_store) close() error {
 	return store.db.Close()
 }
 
-
 // Set item
 func (store *Badger_store) setItem(key string, val []byte) error {
 	if store.db == nil {
-		return  errors.New("db is not open")
+		return errors.New("db is not open")
 	}
 
 	err := store.db.Update(func(txn *badger.Txn) error {
@@ -127,10 +126,10 @@ func (store *Badger_store) getItem(key string) (val []byte, err error) {
 		return nil, errors.New("db is not open")
 	}
 
-	err = store.db.View(func (txn *badger.Txn) error{
-		
+	err = store.db.View(func(txn *badger.Txn) error {
+
 		entry, err := txn.Get([]byte(key))
-		if err != nil{
+		if err != nil {
 			return err
 		}
 
@@ -139,12 +138,12 @@ func (store *Badger_store) getItem(key string) (val []byte, err error) {
 		return err
 	})
 
-	return 
+	return
 }
 
 // Remove an item
 func (store *Badger_store) removeItem(key string) (err error) {
-	err = store.db.Update(func (txn *badger.Txn) error{
+	err = store.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
 	return

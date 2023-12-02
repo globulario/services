@@ -819,7 +819,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)

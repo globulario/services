@@ -27,9 +27,9 @@ go build  -buildvcs=false -o ./torrent/torrent_server ./torrent/torrent_server
 go build  -buildvcs=false -o ./search/search_server ./search/search_server
 
 # start services...
-export ServicesRoot=/home/dave/globulario/services
-./admin/admin_server/admin_server &
+export ServicesRoot=/home/dave/Documents/globulario/services &
 ./authentication/authentication_server/authentication_server &
+./dns/dns_server/dns_server &
 ./blog/blog_server/blog_server &
 ./applications_manager/applications_manager_server/applications_manager_server &
 ./services_manager/services_manager_server/services_manager_server &
@@ -50,7 +50,6 @@ export ServicesRoot=/home/dave/globulario/services
 ./title/title_server/title_server &
 ./torrent/torrent_server/torrent_server
 ./catalog/catalog_server/catalog_server &
-./dns/dns_server/dns_server &
 ./ldap/ldap_server/ldap_server &
 ./mail/mail_server/mail_server
 # publish services, that trigger executable update on globule who run that services.

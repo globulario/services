@@ -755,7 +755,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.SMTP_Port = 25      // non encrypted
 	s_impl.SMTPS_Port = 465    // encrypted

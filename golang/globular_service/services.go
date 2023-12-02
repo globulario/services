@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"syscall"
 
 	//"runtime/pprof"
 	"strconv"
@@ -739,7 +740,7 @@ func StartService(s Service, srv *grpc.Server) error {
 
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 
 	/**
 	Every breath you take

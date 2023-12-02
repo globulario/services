@@ -147,8 +147,8 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := json.Marshal(rqst.Account)
+
+	jsonStr, err := protojson.Marshal(rqst.Account)
 	if err == nil {
 		srv.publishEvent("create_account_evt", jsonStr, srv.Address)
 	}

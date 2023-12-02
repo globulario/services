@@ -1082,7 +1082,6 @@ func handleAbandon(w ldapserver.ResponseWriter, m *ldapserver.Message) {
 	w.Write(res)
 }
 
-
 // handleExtendedRequest return Success
 func handleExtendedRequest(w ldapserver.ResponseWriter, m *ldapserver.Message) {
 	r := m.GetExtendedRequest()
@@ -1105,7 +1104,6 @@ func handleCompare(w ldapserver.ResponseWriter, m *ldapserver.Message) {
 	w.Write(res)
 }
 
-
 // Start the ldap server.
 func (srv *server) startLdapServer() {
 
@@ -1126,7 +1124,6 @@ func (srv *server) startLdapServer() {
 	routes.Abandon(handleAbandon)
 	routes.Extended(handleExtendedRequest)
 	routes.Compare(handleCompare)
-
 
 	// Attach route mux to LDAP Server
 	server.Handle(routes)
@@ -1179,7 +1176,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

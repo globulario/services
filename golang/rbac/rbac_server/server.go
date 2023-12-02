@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -19,16 +17,13 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
-	"google.golang.org/protobuf/encoding/protojson"
-	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
-
-	//"google.golang.org/grpc/grpclog"
-	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // The default values.
@@ -101,20 +96,20 @@ type server struct {
 	cache *storage_store.BigCache_store // Keep permission in cache for faster access.
 
 	// The permission store.
-	etcdClient *clientv3.Client
-
+	permissions *storage_store.Etcd_store
 }
 
 // Set item value
 func (srv *server) setItem(key string, val []byte) error {
 
-	// set item in the cache...
-	srv.cache.SetItem(key, val)
+	// I will set the value in the cache first.
+	err := srv.cache.SetItem(key, val)
+	if err != nil {
+		return err
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := srv.etcdClient.Put(ctx, key, string(val))
-	cancel()
-	return err
+	// I will set the value in the store.
+	return srv.permissions.SetItem(key, val)
 }
 
 // Retreive item
@@ -126,35 +121,21 @@ func (srv *server) getItem(key string) ([]byte, error) {
 		return val, nil
 	}
 
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	resp, err := srv.etcdClient.Get(ctx, key)
-	cancel()
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.Kvs) == 0 {
-		return nil, fmt.Errorf("key '%s' not found", key)
-	}
-
-	if err == nil {
-		srv.cache.SetItem(key, resp.Kvs[0].Value)
-	}
-
-	return resp.Kvs[0].Value, nil
+	// I will use the store.
+	return srv.permissions.GetItem(key)
 }
 
 // Remove item.
 func (srv *server) removeItem(key string) error {
 
-	// remove item from the store...
-	srv.cache.RemoveItem(key)
+	// I will remove the value from the cache first.
+	err := srv.cache.RemoveItem(key)
+	if err != nil {
+		return err
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := srv.etcdClient.Delete(ctx, key)
-	cancel()
-	return err
-
+	// I will remove the value from the store.
+	return srv.permissions.RemoveItem(key)
 }
 
 // The path of the configuration.
@@ -528,7 +509,6 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 		}
 	}
 
-
 	resourceClient, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return nil, err
@@ -891,7 +871,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Description = "The authencation server, validate user authentity"
 	s_impl.Keywords = []string{"Example", "rbac", "Test", "Service"}
 	s_impl.Repositories = make([]string, 0)
@@ -943,22 +923,18 @@ func main() {
 	rbacpb.RegisterRbacServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	// I will create the permission store.
+	s_impl.permissions = storage_store.NewEtcd_store()
+	err = s_impl.permissions.Open("")
+	if err != nil {
+		fmt.Println("fail to open permission store with error: ", err)
+	}
+
 	// Need to be the owner in order to change permissions
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/rbac.RbacService/SetResourcePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
 
 	if err != nil {
 		fmt.Println("Fail to connect to event channel generate_video_preview_event")
-	}
-
-	// Here I will create the etcd client. This client will be use to store the permissions.
-	// TODO get address from etcd configuration file.
-	s_impl.etcdClient, err = clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://globule-ryzen.globular.cloud:2380"},
-		DialTimeout: 5 * 1000 * 1000 * 1000,
-	})
-
-	if err != nil {
-		log.Fatalf("fail to create etcd client: %s", err.Error())
 	}
 
 	// I will remove used space values for the data base so It will be recalculated each time the server start...

@@ -3,6 +3,7 @@ package process
 import (
 	//"encoding/json"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -73,6 +75,8 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	}
 
 	s["Port"] = port
+	s["Proxy"] = proxyPort
+
 	if s["Path"] == nil {
 		err := errors.New("no service path was found for service " + s["Name"].(string) + s["Id"].(string))
 		fmt.Println(err)
@@ -175,9 +179,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) {
-
 					// give ti some time to free resources like port files... etc.
-					/*pid*/
 					_, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
 						return // fail to restart the process...
@@ -250,36 +252,72 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
-///////////////////////////// Etcd ditributed Key-value store ///////////////////////////////
+// /////////////////////////// Etcd ditributed Key-value store ///////////////////////////////
 func StartEtcdServer() error {
-	configPath := config.GetConfigDir() + "/etcd.yml"
-
-	// Here I will create the config file for etcd.
-	node_config := make(map[string]interface{})
 
 	local_config, err := config.GetLocalConfig(true)
 	if err != nil {
 		return err
 	}
 
+	protocol := local_config["Protocol"].(string)
+
+	// Here I will create the config file for etcd.
+	node_config := make(map[string]interface{})
+
+	configPath := config.GetConfigDir() + "/etcd.yml"
+
+	// if the config file already exist I will read it.
+	if Utility.Exists(configPath) {
+		// Here I will read the config file.
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+
+		err = yaml.Unmarshal(data, &node_config)
+		if err != nil {
+			return err
+		}
+
+		if protocol == "https" {	
+			if node_config["tls"] != nil {
+				return nil // nothing to do here...
+			}
+		}
+	}
+
 	// set the node config.
-	address := local_config["Name"].(string) + "." + local_config["Domain"].(string)
+	address, _ :=  config.GetAddress()
+	if strings.Contains(address, ":") {
+		address = strings.Split(address, ":")[0]
+	}
+
 	node_config["name"] = local_config["Name"]
 	node_config["data-dir"] = config.GetDataDir() + "/etcd-data"
-	node_config["listen-peer-urls"] = "http://" + address + ":2380"
-	node_config["listen-client-urls"] = "http://" + address + ":2379"
-	node_config["advertise-client-urls"] = "http://" + address + ":2379"
-	node_config["initial-advertise-peer-urls"] = "http://" + address + ":2380"
-	node_config["initial-cluster"] = []string{local_config["Name"].(string) + "=" + "http://" + address + ":2380"}
+	node_config["listen-peer-urls"] = protocol + "://" + address + ":2380"
+	node_config["listen-client-urls"] = protocol + "://" + address + ":2379"
+	node_config["advertise-client-urls"] = protocol + "://" + address + ":2379"
+	node_config["initial-advertise-peer-urls"] = protocol + "://" + address + ":2380"
+	node_config["initial-cluster"] =local_config["Name"].(string) + "=" + protocol + "://" + address + ":2380"
 	node_config["initial-cluster-token"] = "etcd-cluster-1"
 	node_config["initial-cluster-state"] = "new"
+
+	// Here I will add the tls configuration.
+	if protocol == "https" {
+		node_config["tls"] = make(map[string]interface{})
+		node_config["tls"].(map[string]interface{})["cert-file"] = config.GetConfigDir() + "/tls/server.crt"
+		node_config["tls"].(map[string]interface{})["key-file"] = config.GetConfigDir() + "/tls/server.pem"
+		node_config["tls"].(map[string]interface{})["client-cert-auth"] = true
+		node_config["tls"].(map[string]interface{})["trusted-ca-file"] = config.GetConfigDir() + "/tls/ca.crt"
+	}
 
 	// Now I will append the other nodes.
 	if local_config["Peers"] != nil {
 		peers := local_config["Peers"].([]interface{})
 		for i := 0; i < len(peers); i++ {
 			peer := peers[i].(map[string]interface{})
-			node_config["initial-cluster"] = append(node_config["initial-cluster"].([]string), peer["Hostname"].(string)+"="+"http://"+peer["Hostname"].(string)+"."+peer["Domain"].(string)+":2380")
+			node_config["initial-cluster"] = node_config["initial-cluster"].(string) + "," +  peer["Hostname"].(string)+"="+protocol+"://"+peer["Hostname"].(string)+"."+peer["Domain"].(string)+":2380"
 		}
 	}
 
@@ -298,9 +336,24 @@ func StartEtcdServer() error {
 	etcd := exec.Command("etcd", "--config-file", configPath)
 	etcd.Dir = os.TempDir()
 
-	etcd.SysProcAttr = &syscall.SysProcAttr{
-		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+	// Set up a context to allow for graceful shutdown
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a signal handler to gracefully stop etcd on interrupt signal
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case sig := <-sigCh:
+			fmt.Printf("Received signal %v. Shutting down gracefully...\n", sig)
+			cancel() // Cancel the context to signal graceful shutdown
+		}
+	}()
+
+	etcd.Stdout = os.Stdout
+	etcd.Stderr = os.Stderr
 
 	err = etcd.Start()
 	if err != nil {
@@ -308,11 +361,17 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	fmt.Println("etcd is running at ", address)
+	// Wait for the etcd process to finish or for the context to be canceled
+	err = etcd.Wait()
+	if err != nil {
+		log.Println("etcd process terminated with error:", err)
+		return err
+	}
+
+	fmt.Println("etcd has been shut down gracefully.")
 
 	return nil
 }
-
 
 // /////////////////////////// Envoy proxy /////////////////////////////////////////////////
 func StartEnvoyProxy() error {
@@ -377,9 +436,24 @@ admin:
 	envoy := exec.Command("envoy", "-c", configPath)
 	envoy.Dir = os.TempDir()
 
-	envoy.SysProcAttr = &syscall.SysProcAttr{
-		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+	// Set up a context to allow for graceful shutdown
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a signal handler to gracefully stop envoy on interrupt signal
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case sig := <-sigCh:
+			fmt.Printf("Received signal %v. Shutting down envoy gracefully...\n", sig)
+			cancel() // Cancel the context to signal graceful shutdown
+		}
+	}()
+
+	envoy.Stdout = os.Stdout
+	envoy.Stderr = os.Stderr
 
 	err := envoy.Start()
 	if err != nil {
@@ -387,7 +461,14 @@ admin:
 		return err
 	}
 
-	fmt.Println("envoy proxy is running")
+	// Wait for the envoy process to finish or for the context to be canceled
+	err = envoy.Wait()
+	if err != nil {
+		log.Println("envoy process terminated with error:", err)
+		return err
+	}
+
+	fmt.Println("envoy proxy has been shut down gracefully.")
 
 	return nil
 }

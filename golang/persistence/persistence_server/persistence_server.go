@@ -515,7 +515,7 @@ func (srv *server) logServiceError(method, fileLine, functionName, infos string)
 func (srv *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool, options string) error {
 
 	fmt.Println("createConnection", id, name, host, port, store, save, options)
-	
+
 	var c connection
 	var err error
 
@@ -1443,7 +1443,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

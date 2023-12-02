@@ -97,10 +97,6 @@ type server struct {
 	DnsPort int      // the dns port
 	Domains []string // The list of domains managed by this dns.
 
-	// The type of storage to use.
-	StoreType string
-	// The address of the storage service.
-	StoreAddress string
 	// The replication factor, only use by scylla.
 	ReplicationFactor int
 
@@ -487,20 +483,9 @@ func (srv *server) openConnection() error {
 	}
 
 	// Open store.
-	if srv.StoreType == "BADGER" {
-		srv.store = storage_store.NewBadger_store()
-	} else if srv.StoreType == "SCYLLA" {
-		// set the default storage.
-		srv.store = storage_store.NewScylla_store(srv.StoreAddress, "dns", srv.ReplicationFactor)
-	} else if srv.StoreType == "LEVELDB" {
-		// set the default storage.
-		srv.store = storage_store.NewLevelDB_store()
-	} else {
-		// set in memory store
-		srv.store = storage_store.NewBigCache_store()
-	}
+	srv.store = &storage_store.Etcd_store{}
 
-	err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"dns"}`)
+	err := srv.store.Open(``)
 	if err != nil {
 		fmt.Println("fail to open store with error:", err)
 		return err
@@ -2583,8 +2568,8 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.DnsPort = 5353                                         // The default dns port.
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud" // value by default.
+	s_impl.DnsPort = 5353            // The default dns port.
+	s_impl.PublisherId = "localhost" // value by default.
 	s_impl.Permissions = make([]interface{}, 6)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -2596,11 +2581,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-
-	// storage default value.
-	s_impl.StoreType = "BADGER"
-	s_impl.ReplicationFactor = 3
-	s_impl.StoreAddress, _ = config.GetAddress()
 
 	// Set the root path if is pass as argument.
 	s_impl.Root = config.GetDataDir()

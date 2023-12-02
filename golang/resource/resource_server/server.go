@@ -467,7 +467,7 @@ func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
 		mac = srv.Mac
 	}
 
-	if mac ==  srv.Mac {
+	if mac == srv.Mac {
 		key, err := security.GetPeerKey(mac)
 		if err != nil {
 			return "", err
@@ -1031,11 +1031,10 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 
 	// TODO see how to handle the case where the target id is not on the same domain as the source id.
 
-
 	if strings.Contains(id, "@") {
 		domain := strings.Split(id, "@")[1]
 		id = strings.Split(id, "@")[0]
-		
+
 		// if the domain is not the same as the local domain then I will redirect the call to the remote resource srv.
 		if srv.Domain != domain {
 			// so here I will redirect the call to the resource server at remote location.
@@ -1410,7 +1409,7 @@ func (srv *server) deleteApplication(applicationId string) error {
 	db = strings.ReplaceAll(db, "@", "_")
 	db = strings.ReplaceAll(db, "-", "_")
 	db = strings.ReplaceAll(db, " ", "_")
-	db+="_db"
+	db += "_db"
 
 	// Now I will remove the database create for the application.
 	err = p.DeleteDatabase(context.Background(), "local_resource", db)
@@ -1476,7 +1475,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "globulario@globule-dell.globular.cloud"
+	s_impl.PublisherId = "localhost"
 	s_impl.Description = "Resource manager service. Resources are Group, Account, Role, Organization and Peer."
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
