@@ -741,13 +741,13 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			}
 
 			// Create the sessions table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
 			if err != nil {
 				fmt.Println("fail to create table Sessions with error ", err)
 			}
 
 			// Create the notifications table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date REAL", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date REAL", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
 			if err != nil {
 				fmt.Println("fail to create table Notifications with error ", err)
 			}
@@ -1319,7 +1319,7 @@ func (srv *server) createRole(id, name, owner string, description string, action
 
 	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
 	if err == nil {
-		return errors.New("Role named " + name + " already exist!")
+		return errors.New("role named " + name + " already exist!")
 	}
 
 	// Here will create the new role.

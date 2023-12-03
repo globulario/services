@@ -16,9 +16,9 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
-//////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////
 // Globular Configurations
-//////////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////////
 func GetLocalIP() string {
 
 	mac, err := GetMacAddress()
@@ -39,7 +39,7 @@ func GetLocalIP() string {
  * Return the local mac address from the local configuration.
  */
 func GetMacAddress() (string, error) {
-	
+
 	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return "", err
@@ -51,7 +51,7 @@ func GetMacAddress() (string, error) {
 	}
 
 	if len(mac) == 0 {
-		
+
 		// Get the primary ip address.
 		ip, err := Utility.GetPrimaryIPAddress()
 		if err != nil {
@@ -72,14 +72,12 @@ func GetMacAddress() (string, error) {
 	return mac, nil
 }
 
-
 /**
  * Return the local address.
  */
 func GetAddress() (string, error) {
 
-
-	address, err  := GetName()
+	address, err := GetName()
 	if err != nil {
 		return "", err
 	}
@@ -143,12 +141,11 @@ func GetDomain() (string, error) {
 	if err == nil {
 		domain := localConfig["Domain"].(string)
 		if len(domain) != 0 {
-		return strings.ToLower(domain), nil
+			return strings.ToLower(domain), nil
 		} else {
 			return "localhost", nil
 		}
 	}
-		
 
 	// if not configuration already exist on the server I will return it hostname...
 	return "", errors.New("no local configuration found")
@@ -158,7 +155,7 @@ func GetLocalServerCerificateKeyPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if len(localConfig["ServerPublicKey"].(string)) != 0 {
-			return  GetConfigDir()+ "/tls/server.pem"
+			return GetConfigDir() + "/tls/server.pem"
 		}
 	}
 	return ""
@@ -168,7 +165,7 @@ func GetLocalClientCerificateKeyPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if len(localConfig["ClientPublicKey"].(string)) != 0 {
-			return  GetConfigDir()+ "/tls/client.pem"
+			return GetConfigDir() + "/tls/client.pem"
 		}
 	}
 	return ""
@@ -179,7 +176,7 @@ func GetLocalCertificate() string {
 
 	if err == nil {
 		if len(localConfig["Certificate"].(string)) != 0 {
-			return  GetConfigDir()+ "/tls/" + localConfig["Certificate"].(string)
+			return GetConfigDir() + "/tls/" + localConfig["Certificate"].(string)
 		}
 	}
 
@@ -191,7 +188,7 @@ func GetLocalCertificateAuthorityBundle() string {
 
 	if err == nil {
 		if len(localConfig["CertificateAuthorityBundle"].(string)) != 0 {
-			return  GetConfigDir()+ "/tls/" + localConfig["CertificateAuthorityBundle"].(string)
+			return GetConfigDir() + "/tls/" + localConfig["CertificateAuthorityBundle"].(string)
 		}
 	}
 
@@ -464,7 +461,6 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 			return nil
 		}
 
-
 		service, exists := serviceMap[serviceName]
 		if !exists {
 			return fmt.Errorf("service not found: %s", serviceName)
@@ -480,8 +476,8 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 				}
 			}
 		}
-		
-		if !Utility.Contains(orderedServices, serviceName){
+
+		if !Utility.Contains(orderedServices, serviceName) {
 			orderedServices = append(orderedServices, serviceName)
 		}
 
@@ -502,11 +498,12 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 // That function can be call by globular directly.
 func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 
+	fmt.Println("505")
 	services, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Println("510")
 	// Order the services based on their dependencies.
 	orderedServices, err := OrderDependencies(services)
 	if err != nil {
@@ -568,7 +565,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
-	
+
 	// set back the error to nil
 	err = nil
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
@@ -1039,8 +1036,10 @@ func removeAllLocks() {
 func initConfig() error {
 
 	if isInit {
+
 		return nil
 	}
+
 
 	// get sure all files are unlock
 	if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") {
@@ -1049,6 +1048,8 @@ func initConfig() error {
 
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
+
+	fmt.Println("init config from path: ", serviceConfigDir)
 
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
 	services := make([]map[string]interface{}, 0)
@@ -1132,9 +1133,6 @@ func initConfig() error {
 		return errors.New("no services configuration was found at path " + serviceConfigDir)
 	}
 
-	// configuration was found so I will set init to true
-	isInit = true
-
 	// The service dir.
 	serviceDir := GetServicesDir()
 
@@ -1171,6 +1169,8 @@ func initConfig() error {
 							jsonStr, err := Utility.ToJson(s)
 							if err == nil {
 								os.WriteFile(path, []byte(jsonStr), 0644)
+							}else {
+								fmt.Println("fail to save service configuration with error: ", err)
 							}
 						}
 					}
@@ -1180,6 +1180,10 @@ func initConfig() error {
 	}
 
 	// start the loop.
+
+	// configuration was found so I will set init to true
+	isInit = true
+
 	go accesServiceConfigurationFile(services)
 
 	return nil
@@ -1355,9 +1359,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	infos := make(map[string]interface{})
 	infos["return"] = make(chan map[string]interface{})
 
-	// Wait\
+	// Wait
 	getServicesConfigChan <- infos
-
 	results_chan := infos["return"].(chan map[string]interface{})
 
 	results := <-results_chan

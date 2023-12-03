@@ -124,7 +124,9 @@ func (srv *server) GetProcess() int {
 func (srv *server) SetProcess(pid int) {
 	// I will close all stores...
 	for _, store := range srv.stores {
-		store.Close()
+		if store != nil {
+			store.Close()
+		}
 	}
 	srv.Process = pid
 }
@@ -542,7 +544,7 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 		store = storage_store.NewBadger_store()
 	} else if conn.Type == storagepb.StoreType_SCYLLA_DB {
 		store = storage_store.NewScylla_store("127.0.0.1", "", 3)
-	}else if conn.Type == storagepb.StoreType_ETCD {
+	} else if conn.Type == storagepb.StoreType_ETCD {
 		store = storage_store.NewEtcd_store()
 	}
 

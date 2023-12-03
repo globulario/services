@@ -196,7 +196,9 @@ func (srv *server) GetProcess() int {
 
 func (srv *server) SetProcess(pid int) {
 	if pid == -1 {
-		cache.Close()
+		if cache != nil {
+			cache.Close()
+		}
 	}
 	srv.Process = pid
 }

@@ -574,7 +574,8 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 	}
 
 	if len(id) == 0 {
-		return nil, errors.New("the id is required")
+		fmt.Println("the id is required to insert data into the database", data)
+		return nil, errors.New("the id is required to insert data into the database")
 	}
 
 	// test if the data already exist.

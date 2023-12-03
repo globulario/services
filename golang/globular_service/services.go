@@ -777,6 +777,7 @@ func StartService(s Service, srv *grpc.Server) error {
 					return
 				}
 				if event.Op == fsnotify.Write {
+
 					// reinit the service...
 					config, err := config.GetServiceConfigurationById(s.GetId())
 					if err != nil {
