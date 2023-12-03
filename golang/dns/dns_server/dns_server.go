@@ -129,6 +129,11 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+		// I will close the connection.
+		srv.store.Close()
+		srv.connection_is_open = false
+	}
 	srv.Process = pid
 }
 

@@ -161,6 +161,15 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+
+		// I will clear the cache.
+		srv.cache.Clear()
+
+		// I will close the permissions.
+		srv.permissions.Close()
+
+	}
 	srv.Process = pid
 }
 

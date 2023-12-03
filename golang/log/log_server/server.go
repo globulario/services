@@ -118,6 +118,10 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+		srv.logs.Close()
+	}
+
 	srv.Process = pid
 }
 

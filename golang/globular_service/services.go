@@ -727,6 +727,10 @@ func StartService(s Service, srv *grpc.Server) error {
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
 		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)
+		
+		s.SetLastError(err_.Error())
+		StopService(s, srv)
+
 		return err_
 	}
 
@@ -735,6 +739,12 @@ func StartService(s Service, srv *grpc.Server) error {
 		// no web-rpc srv.
 		if err := srv.Serve(lis); err != nil {
 			fmt.Println("service", s.GetName(), "exit with error", err)
+
+			s.SetLastError(err.Error())
+
+			// Stop the service.
+			StopService(s, srv)
+
 			return
 		}
 	}()
@@ -782,6 +792,10 @@ func StartService(s Service, srv *grpc.Server) error {
 							}
 
 							if s.GetState() == "stopped" {
+
+								// Stop the service.
+								StopService(s, srv)
+
 								// exit program.
 								os.Exit(0)
 							}
@@ -806,11 +820,8 @@ func StartService(s Service, srv *grpc.Server) error {
 
 	<-ch
 
-	srv.Stop() // I kill it but not softly...
-
-	s.SetState("stopped")
-	s.SetProcess(-1)
-	s.SetLastError("")
+	// Stop the service.
+	StopService(s, srv)
 
 	// managed by globular.
 	return SaveService(s)
@@ -818,6 +829,10 @@ func StartService(s Service, srv *grpc.Server) error {
 }
 
 func StopService(s Service, srv *grpc.Server) error {
+
+	s.SetState("stopped")
+	s.SetProcess(-1)
+	s.SetLastError("")
 
 	// Stop the service.
 	srv.Stop()

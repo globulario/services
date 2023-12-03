@@ -122,6 +122,10 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	// I will close all stores...
+	for _, store := range srv.stores {
+		store.Close()
+	}
 	srv.Process = pid
 }
 

@@ -195,6 +195,9 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+		cache.Close()
+	}
 	srv.Process = pid
 }
 
@@ -2479,6 +2482,41 @@ func (srv *server) startProcessAudios() {
 	}()
 }
 
+func removeTempFiles(rootDir string) error {
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		// Check if it's a regular file and its name ends with ".temp.mp4"
+		if err == nil && !info.IsDir() && strings.HasSuffix(info.Name(), ".temp.mp4") {
+			fmt.Printf("Removing file: %s\n", path)
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("error removing file %s: %v", path, err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error walking directory: %v", err)
+	}
+
+	return nil
+}
+
+// Start the process of removing temp files...
+func (srv *server) startRemoveTempFiles() {
+
+	go func() {
+		// The dir to scan...
+		dirs := make([]string, 0)
+		dirs = append(dirs, config.GetPublicDirs()...)
+		dirs = append(dirs, config.GetDataDir()+"/files/users")
+		dirs = append(dirs, config.GetDataDir()+"/files/applications")
+		for _, dir := range dirs {
+			removeTempFiles(dir)
+		}
+	}()
+}
+
+// Start the processing of videos...
 func (srv *server) startProcessVideos() {
 
 	// The dir to scan...
@@ -2998,6 +3036,9 @@ func processVideos(srv *server, token string, dirs []string) {
 								// sudo ffmpeg -i Andor\ S01E01.mp4 -c:v copy -ac 2 -c:a aac -b:a 192k Andor\ S01E01.acc.mp4
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
+
+								defer os.Remove(output) // remove the temp file...
+
 								wait := make(chan error)
 								args := []string{"-i", video, "-c:v", "copy"}
 								args = append(args, "-c:a", "copy", "-c:s", "mov_text", "-map", "0")
@@ -3006,9 +3047,9 @@ func processVideos(srv *server, token string, dirs []string) {
 								err := <-wait
 								// if error...
 								if err == nil {
-									err := os.Remove(video)
+									err := os.Remove(video) // remove the original file...
 									if err == nil {
-										err = os.Rename(output, video)
+										err = os.Rename(output, video) // rename the temp file...
 										if err != nil {
 											fmt.Println("fail to rename ", video, err)
 										}
@@ -6335,6 +6376,9 @@ func main() {
 
 	// use the scheduler instead, this is for development
 	//go processVideos(s_impl)
+
+	// Clean temp files...
+	s_impl.startRemoveTempFiles()
 
 	// Start the service.
 	s_impl.StartService()

@@ -146,6 +146,18 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+		// I will close all index...
+		for _, index := range srv.indexs {
+			index.Close()
+		}
+
+		// I will close all associations...
+		srv.associations.Range(func(key, value interface{}) bool {
+			value.(storage_store.Store).Close()
+			return true
+		})
+	}
 	srv.Process = pid
 }
 
