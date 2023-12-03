@@ -96,7 +96,7 @@ type server struct {
 	cache *storage_store.BigCache_store // Keep permission in cache for faster access.
 
 	// The permission store.
-	permissions *storage_store.Etcd_store
+	permissions storage_store.Store
 }
 
 // Set item value
@@ -923,11 +923,11 @@ func main() {
 	rbacpb.RegisterRbacServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// I will create the permission store.
-	s_impl.permissions = storage_store.NewEtcd_store()
-	err = s_impl.permissions.Open("")
+	// Set the permission store.
+	s_impl.permissions = storage_store.NewBadger_store()
+	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
 	if err != nil {
-		fmt.Println("fail to open permission store with error: ", err)
+		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
 	}
 
 	// Need to be the owner in order to change permissions

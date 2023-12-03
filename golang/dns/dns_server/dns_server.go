@@ -483,12 +483,10 @@ func (srv *server) openConnection() error {
 	}
 
 	// Open store.
-	srv.store = &storage_store.Etcd_store{}
-
-	err := srv.store.Open(``)
+	srv.store = storage_store.NewBadger_store()
+	err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"dns"}`)
 	if err != nil {
-		fmt.Println("fail to open store with error:", err)
-		return err
+		fmt.Println("fail to read/create permissions folder with error: ", srv.Root+"/dns", err)
 	}
 
 	srv.connection_is_open = true
