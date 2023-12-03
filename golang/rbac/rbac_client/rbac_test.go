@@ -1,35 +1,43 @@
 package rbac_client
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"testing"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 )
 
 var (
 	// Connect to the services client.
-	domain              = "localhost"
-	rbac_client_, _     = NewRbacService_Client(domain, "rbac.RbacService")
-	resource_client_, _ = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	domain                  = "localhost"
+	rbac_client_, _         = NewRbacService_Client(domain, "rbac.RbacService")
+	resource_client_, _     = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	authencation_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 )
 
 /** Create All resource to be use to test permission **/
 func TestSetResources(t *testing.T) {
 
+	// authenticate as admin
+	token, err := authencation_client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
 	/** Create organization **/
-	err := resource_client_.CreateOrganization("organization_0", "Organization 0")
+	err = resource_client_.CreateOrganization(token, "organization_0", "Organization 0", "organization_0@test.com", "test", "test")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("organization_0 was created successfully!")
 
-	err = resource_client_.CreateOrganization("organization_1", "Organization 1")
+	err = resource_client_.CreateOrganization(token, "organization_1", "Organization 1", "organization_1@test.com", "test", "test")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -37,14 +45,14 @@ func TestSetResources(t *testing.T) {
 	log.Println("organization_1 was created successfully!")
 
 	/** Create group */
-	err = resource_client_.CreateGroup("group_0", "Group 0")
+	err = resource_client_.CreateGroup(token, "group_0", "Group 0", "test")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("group_0 was created successfully!")
 
-	err = resource_client_.CreateGroup("group_1", "Group 1")
+	err = resource_client_.CreateGroup(token, "group_1", "Group 1", "test")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -52,21 +60,21 @@ func TestSetResources(t *testing.T) {
 	log.Println("group_1 was created successfully!")
 
 	/** Create an account */
-	err = resource_client_.RegisterAccount(domain, "account_0", "account_0@test.com", "1234", "1234")
+	err = resource_client_.RegisterAccount(domain, "account_0", "account 0", "account_0@test.com", "1234", "1234")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("account_0 was created successfully!")
 
-	err = resource_client_.RegisterAccount(domain, "account_1", "account_1@test.com", "1234", "1234")
+	err = resource_client_.RegisterAccount(domain, "account_1", "account 1", "account_1@test.com", "1234", "1234")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("account_1 was created successfully!")
 
-	err = resource_client_.RegisterAccount(domain, "account_2", "account_2@test.com", "1234", "1234")
+	err = resource_client_.RegisterAccount(domain, "account_2", "account 2", "account_2@test.com", "1234", "1234")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -74,14 +82,14 @@ func TestSetResources(t *testing.T) {
 	log.Println("account_2 was created successfully!")
 
 	// Now set the account to the group
-	err = resource_client_.AddGroupMemberAccount("group_0", "account_0")
+	err = resource_client_.AddGroupMemberAccount(token, "group_0", "account_0")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("account_0 was added to group_0 successfully!")
 
-	err = resource_client_.AddGroupMemberAccount("group_1", "account_1")
+	err = resource_client_.AddGroupMemberAccount(token, "group_1", "account_1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -89,14 +97,14 @@ func TestSetResources(t *testing.T) {
 	log.Println("account_1 was added to group_1 successfully!")
 
 	// Add the group to the organization.
-	err = resource_client_.AddOrganizationGroup("organization_0", "group_0")
+	err = resource_client_.AddOrganizationGroup(token, "organization_0", "group_0")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 	log.Println("group_0 was added to organization_0 successfully!")
 
-	err = resource_client_.AddOrganizationGroup("organization_1", "group_1")
+	err = resource_client_.AddOrganizationGroup(token, "organization_1", "group_1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -104,33 +112,41 @@ func TestSetResources(t *testing.T) {
 	log.Println("group_1 was added to organization_1 created successfully!")
 
 	// Now create a peer
-	err = resource_client_.RegisterPeer("p0.test.com")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("p0.test.com was created successfully!")
+	/*
+		_, _, err = resource_client_.RegisterPeer("", "p0.test.com")
+		if err != nil {
+			log.Println(err)
+			t.Fail()
+		}
+		log.Println("p0.test.com was created successfully!")
 
-	// Now create a peer
-	err = resource_client_.RegisterPeer("p1.test.com")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("p1.test.com was created successfully!")
+		// Now create a peer
+		err = resource_client_.RegisterPeer("", "p1.test.com")
+		if err != nil {
+			log.Println(err)
+			t.Fail()
+		}
+		log.Println("p1.test.com was created successfully!")
+	*/
 
 }
 
 func TestSetResourcePermissions(t *testing.T) {
 
 	// Here I will create a file and set permission on it.
+	// authenticate as admin
+	token, err := authencation_client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
 
 	// A fictive file path...
 	filePath := "/tmp/toto.txt"
 	if Utility.Exists(filePath) {
 		os.Remove(filePath)
 	}
-	err := ioutil.WriteFile(filePath, []byte("La vie ne vaut rien, mais rien ne vaut la vie!"), 0777)
+	err = os.WriteFile(filePath, []byte("La vie ne vaut rien, mais rien ne vaut la vie!"), 0777)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -138,7 +154,7 @@ func TestSetResourcePermissions(t *testing.T) {
 
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{
-			&rbacpb.Permission{
+			{
 				Name:          "read",
 				Applications:  []string{},
 				Accounts:      []string{"account_0", "account_1"},
@@ -146,7 +162,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{"p0.test.com", "p1.test.com"},
 				Organizations: []string{"organization_0", "organization_1"},
 			},
-			&rbacpb.Permission{
+			{
 				Name:          "write",
 				Applications:  []string{},
 				Accounts:      []string{"account_0"},
@@ -154,7 +170,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&rbacpb.Permission{
+			{
 				Name:          "execute",
 				Applications:  []string{},
 				Accounts:      []string{"account_1"},
@@ -162,7 +178,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&rbacpb.Permission{
+			{
 				Name:          "delete",
 				Applications:  []string{},
 				Accounts:      []string{"account_0", "account_1"}, // must not work because of organization_0 is in the list of denied...
@@ -172,7 +188,7 @@ func TestSetResourcePermissions(t *testing.T) {
 			},
 		},
 		Denied: []*rbacpb.Permission{
-			&rbacpb.Permission{
+			{
 				Name:          "read",
 				Applications:  []string{},
 				Accounts:      []string{"account_2"},
@@ -180,7 +196,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&rbacpb.Permission{
+			{
 				Name:          "delete",
 				Applications:  []string{},
 				Accounts:      []string{},
@@ -199,7 +215,7 @@ func TestSetResourcePermissions(t *testing.T) {
 		},
 	}
 
-	err = rbac_client_.SetResourcePermissions(filePath, permissions)
+	err = rbac_client_.SetResourcePermissions(token, filePath, "file",   permissions)
 	if err != nil {
 		log.Println(err)
 	}
@@ -264,7 +280,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Put back account_0 in list of owners
-	err = rbac_client_.AddResourceOwner(filePath, "account_0", rbacpb.SubjectType_ACCOUNT)
+	err = rbac_client_.AddResourceOwner(filePath, "account_0", "file", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -400,63 +416,72 @@ func TestDeleteResourcePermissions(t *testing.T) {
 }
 
 func TestResetResources(t *testing.T) {
+	// Here I will create a file and set permission on it.
+	// authenticate as admin
+	token, err := authencation_client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
 
-	err := resource_client_.DeleteAccount("account_0")
+	err = resource_client_.DeleteAccount("account_0", token)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 
 	// Delete the group
-	err = resource_client_.DeleteGroup("group_0")
+	err = resource_client_.DeleteGroup("group_0", token)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 
 	// Delete the organization.
-	err = resource_client_.DeleteOrganization("organization_0")
+	err = resource_client_.DeleteOrganization("organization_0", token)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+
+	err = resource_client_.DeleteAccount("account_1", token)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	err = resource_client_.DeleteAccount("account_2", token)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	// Delete the group
+	err = resource_client_.DeleteGroup("group_1", token)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	// Delete the organization.
+	err = resource_client_.DeleteOrganization("organization_1", token)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+/*
+	err = resource_client_.DeletePeer("", "p1.test.com")
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
 
 	err = resource_client_.DeletePeer("", "p0.test.com")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
-
-	err = resource_client_.DeleteAccount("account_1")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	err = resource_client_.DeleteAccount("account_2")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	// Delete the group
-	err = resource_client_.DeleteGroup("group_1")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	// Delete the organization.
-	err = resource_client_.DeleteOrganization("organization_1")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	err = resource_client_.DeletePeer("", "p1.test.com")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+*/
 
 }

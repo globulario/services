@@ -538,6 +538,8 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 		store = storage_store.NewBadger_store()
 	} else if conn.Type == storagepb.StoreType_SCYLLA_DB {
 		store = storage_store.NewScylla_store("127.0.0.1", "", 3)
+	}else if conn.Type == storagepb.StoreType_ETCD {
+		store = storage_store.NewEtcd_store()
 	}
 
 	if store == nil {

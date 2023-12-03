@@ -1036,9 +1036,10 @@ func removeAllLocks() {
 /**
  * Read all existing configuration and keep it in memory...
  */
-func initConfig() {
+func initConfig() error {
+
 	if isInit {
-		return
+		return nil
 	}
 
 	// get sure all files are unlock
@@ -1109,7 +1110,7 @@ func initConfig() {
 								path := dir + "/var/globular/applications/" + applications[i].Name()
 								err := Utility.Move(path, "/var/globular/applications")
 								if err != nil {
-									fmt.Println("-------------> ", path, err)
+									fmt.Println("fail to create dir application at path ", path, err)
 								}
 							}
 						}
@@ -1119,7 +1120,7 @@ func initConfig() {
 				files, err = Utility.FindFileByName(GetServicesConfigDir(), "config.json")
 				if err != nil {
 					fmt.Println("fail to retreive service configurations file with error: ", err)
-					os.Exit(0)
+					return errors.New("fail to retreive service configurations file with error: " + err.Error())
 				}
 			}
 		}
@@ -1128,7 +1129,7 @@ func initConfig() {
 	// In that case I will exit
 	if len(files) == 0 {
 		fmt.Println("no services configuration was found at path ", serviceConfigDir)
-		os.Exit(0)
+		return errors.New("no services configuration was found at path " + serviceConfigDir)
 	}
 
 	// configuration was found so I will set init to true
@@ -1148,6 +1149,7 @@ func initConfig() {
 
 		if err != nil {
 			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
+			return errors.New("fail to initialyse service configuration from file " + path + " with error " + err.Error())
 		} else {
 
 			// save back the file...
@@ -1180,6 +1182,7 @@ func initConfig() {
 	// start the loop.
 	go accesServiceConfigurationFile(services)
 
+	return nil
 }
 
 // Test if the service configuration has change and if so
@@ -1344,7 +1347,10 @@ func Exit() {
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
-	initConfig()
+	err := initConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	infos := make(map[string]interface{})
 	infos["return"] = make(chan map[string]interface{})
@@ -1368,7 +1374,31 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
 
-	initConfig()
+	config_path := s["ConfigPath"].(string)
+	if len(config_path) == 0 {
+		return errors.New("no configuration path was given")
+	}
+
+	// if the configuration file does not exist I will create it and save the configuration.
+	// otherwise I will update the configuration.
+	if !Utility.Exists(config_path) {
+		jsonStr, err := Utility.ToJson(s)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(config_path, []byte(jsonStr), 0644)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	err := initConfig()
+	if err != nil {
+		return err
+	}
 
 	infos := make(map[string]interface{})
 	data, _ := Utility.ToJson(s)
@@ -1389,7 +1419,10 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
  */
 func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
 
-	initConfig()
+	err := initConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	infos := make(map[string]interface{})
 	infos["name"] = name
@@ -1413,7 +1446,10 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 
-	initConfig()
+	err := initConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	infos := make(map[string]interface{})
 	infos["id"] = id

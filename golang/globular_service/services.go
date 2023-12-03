@@ -393,6 +393,7 @@ func InitService(s Service) error {
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 
+
 	s.SetPath(execPath)
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])

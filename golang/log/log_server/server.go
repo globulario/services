@@ -483,7 +483,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.Monitoring_Port = 10031
+	s_impl.Monitoring_Port = 9092
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

@@ -246,7 +246,9 @@ func (client *Storage_Client) CreateConnection(id string, name string, connectio
 		connectionType = storagepb.StoreType_BIG_CACHE
 	} else if connectionType_ == 2 {
 		connectionType = storagepb.StoreType_BADGER_DB
-	} else {
+	}else if connectionType_ == 3 {
+		connectionType = storagepb.StoreType_ETCD
+	}  else {
 		return errors.New("no store found for the given storage type")
 	}
 	rqst := &storagepb.CreateConnectionRqst{

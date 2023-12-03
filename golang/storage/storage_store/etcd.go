@@ -100,7 +100,7 @@ func (s *Etcd_store) open(address string) error {
 
 
 	s.client, err = clientv3.New(clientv3.Config{
-		Endpoints: []string{s.address},
+		Endpoints: []string{address},
 	})
 
 	if err != nil {
@@ -108,13 +108,18 @@ func (s *Etcd_store) open(address string) error {
 	}
 
 	fmt.Println("Connected to etcd server:", address)
-	
+
+	s.address = address
+
 	return nil
 }
 
 func (s *Etcd_store) setItem(key string, val []byte) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	ctx, cancel :=  context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	fmt.Println("Set item:", key, string(val))
 
 	rsp, err := s.client.Put(ctx, key, string(val))
 	if err != nil {
