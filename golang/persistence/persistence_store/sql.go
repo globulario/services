@@ -986,6 +986,9 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 			return nil, err
 		}
 
+		// Get the domain.
+		domain, _ := config.GetDomain()
+
 		// Loop through the tables
 		for _, values := range tables["data"].([]interface{}) {
 
@@ -1026,6 +1029,8 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 						parameters = append(parameters, object["_id"]) // append the object id...
 						parameters_, _ := Utility.ToJson(parameters)
 
+
+
 						// Execute the query
 						str, err := store.QueryContext(connectionId, db, query, parameters_)
 						if err == nil {
@@ -1039,9 +1044,12 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 
 									ref_id := Utility.ToString(values.([]interface{})[1]) // the value is the second element of the array.
 
-									if !strings.Contains(ref_id, "@") {
-										domain, _ := config.GetDomain()
-										ref_id = ref_id + "@" + domain
+									if strings.Contains(ref_id, "@") {
+										// Only if the domain is the same.
+										ref_id = strings.Split(ref_id, "@")[0]
+										if strings.Split(ref_id, "@")[0] != domain {
+											continue
+										}
 									}
 
 									// The type name will be the field name with the first letter in upper case.
@@ -1312,7 +1320,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 	}
 
 	if values_["$set"] == nil {
-		return errors.New("no $set operator allowed in UpdateOne")
+		return errors.New("no $set operator allowed in Update")
 	}
 
 	query, err = store.formatQuery(table, query)
@@ -1356,6 +1364,12 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 	}
 
 	query, err = store.formatQuery(table, query)
+	if err != nil {
+		return err
+	}
+
+	// Here I will retreive the current entity.
+	_, err = store.FindOne(context.Background(), connectionId, db, table, query, "")
 	if err != nil {
 		return err
 	}

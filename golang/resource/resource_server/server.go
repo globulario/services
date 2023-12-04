@@ -1029,7 +1029,15 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 		return errors.New("target id must be a valid id with domain")
 	}
 
+	// Here I will check if the target id is on the same domain as the source id.
+	if strings.Split(targetId, "@")[1] !=  srv.Domain {
+
+		// TODO create a remote reference... (not implemented yet)
+		return errors.New("target id must be on the same domain as the source id")
+	}
+
 	// TODO see how to handle the case where the target id is not on the same domain as the source id.
+	targetId = strings.Split(targetId, "@")[0] // remove the domain from the id.
 
 	if strings.Contains(id, "@") {
 		domain := strings.Split(id, "@")[1]

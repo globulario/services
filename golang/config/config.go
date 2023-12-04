@@ -498,12 +498,11 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 // That function can be call by globular directly.
 func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 
-	fmt.Println("505")
 	services, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("510")
+
 	// Order the services based on their dependencies.
 	orderedServices, err := OrderDependencies(services)
 	if err != nil {

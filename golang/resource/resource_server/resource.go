@@ -147,7 +147,6 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	jsonStr, err := protojson.Marshal(rqst.Account)
 	if err == nil {
 		srv.publishEvent("create_account_evt", jsonStr, srv.Address)
@@ -411,11 +410,10 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 	}
 
 	// Set the query.
-
-	q := `{"$and":[{"_id":"` + rqst.Account.Id + `", "domain":"` + rqst.Account.Domain + `"}]}`
+	q := `{"_id":"` + rqst.Account.Id + `"}`
 
 	// Set the field and the values to update.
-	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email, "domain": rqst.Account.Domain}}
+	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email, "domain": srv.Domain}}
 	setAccount_, _ := Utility.ToJson(setAccount)
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount_, "")
@@ -477,7 +475,6 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 	if query == "" {
 		query = "{}"
 	}
-
 
 	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
 	if err != nil {
@@ -1734,7 +1731,6 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	db = strings.ReplaceAll(db, ".", "_")
 	db = strings.ReplaceAll(db, " ", "_")
 
-
 	// Here I will set the resource to manage the applicaiton access permission.
 	if err != nil || count == 0 {
 
@@ -2389,7 +2385,6 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 
 	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
 
-
 	// set the remote peer in /etc/hosts
 	srv.setLocalHosts(rqst.Peer)
 
@@ -2538,12 +2533,12 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 
 	// if the token is generate by the sa and it has permission i will accept the peer directly
 	/*
-	peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
-	peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
-	peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
-	peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
-	peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
-	peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
+		peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+		peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
+		peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
+		peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
 	*/
 
 	domain := rqst.Peer.Hostname
@@ -2895,7 +2890,6 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 
 	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
 
-
 	values, err := p.FindOne(ctx, "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -2950,7 +2944,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, srv.Address)
 
-	address := rqst.Peer.Hostname+"."+rqst.Peer.Domain
+	address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
 		address += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2973,7 +2967,6 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
-
 
 	// try to get the peer from the database.
 	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
@@ -3029,7 +3022,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 
 	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, address)
-	
+
 	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), srv.Address)
 	srv.publishEvent("delete_peer_evt", []byte(peer.Mac), address)
 
@@ -4374,7 +4367,6 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 
 	db += "_db"
 
-
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + srv.Domain
 	}
@@ -4385,12 +4377,11 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 		return err
 	}
 
-
 	query := `{"recipient":"` + rqst.Recipient + `"}`
 	if len(query) == 0 {
 		query = "{}"
 	}
-	
+
 	notifications, err := p.Find(context.Background(), "local_resource", db, "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
