@@ -167,7 +167,7 @@ func (srv *server) getSubjectResourcePermissions(subject, resource_type string, 
 		if exist {
 			id += a
 		} else {
-			return nil, errors.New("171 no application found with id " + subject)
+			return nil, errors.New("no application found with id " + subject)
 		}
 	} else if subject_type == rbacpb.SubjectType_GROUP {
 		id += "GROUPS/"
@@ -2522,6 +2522,9 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 							if account.Groups != nil && err == nil {
 								for i := 0; i < len(account.Groups); i++ {
 									groupId := account.Groups[i]
+									if !strings.Contains(groupId, "@") {
+										groupId = groupId + "@" + srv.Domain
+									}
 									isAllowed := srv.validateAccessAllowed(groupId, rbacpb.SubjectType_GROUP, name, path)
 									if isAllowed {
 										return true
@@ -2533,6 +2536,10 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 							if account.Organizations != nil && err == nil {
 								for i := 0; i < len(account.Organizations); i++ {
 									organizationId := account.Organizations[i]
+									if !strings.Contains(organizationId, "@") {
+										organizationId = organizationId + "@" + srv.Domain
+									}
+
 									isAllowed := srv.validateAccessAllowed(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
 									if isAllowed {
 										return true
@@ -2845,7 +2852,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		}
 
 		actions = application.Actions
-		fmt.Println("--------------------> application ", application, " actions ", actions)
 
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
@@ -2895,6 +2901,12 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
+
+				// Here I will add the domain to the role id if it's not already set.
+				if !strings.Contains(roleId, "@") {
+					roleId = roleId + "@" + srv.Domain
+				}
+
 				// if the role id is local admin
 				if roleId == "admin@"+srv.Domain {
 					return true, false, nil
@@ -2914,7 +2926,9 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 			if err == nil {
 				for i := 0; i < len(roles); i++ {
 					roleId := roles[i].Id + "@" + roles[i].Domain
+
 					if Utility.Contains(roles[i].Members, subject) {
+
 						// if the role id is local admin
 						hasAccess, _, _ = srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 						if hasAccess {

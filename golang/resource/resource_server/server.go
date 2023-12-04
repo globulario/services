@@ -971,6 +971,31 @@ func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, t
 		}
 	}
 
+	if strings.Contains(refId, "@") {
+		domain := strings.Split(refId, "@")[1]
+		refId = strings.Split(refId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return err
+		}
+
+		if localDomain != domain {
+			// so here I will redirect the call to the resource server at remote location.
+			client, err := GetResourceClient(domain)
+			if err != nil {
+				return err
+			}
+
+			err = client.DeleteReference(refId, targetId, targetField, targetCollection)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}
+	}
+
 	q := `{"_id":"` + targetId + `"}`
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
 	if err != nil {
