@@ -11,7 +11,7 @@ import (
 
 var (
 	// Try to connect to a nameserver.
-	domain                    = "globule-dell.globular.cloud"
+	domain                    = "globule-ryzen.globular.cloud"
 	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	token, err = authentication_client_.Authenticate("sa", "adminadmin")
@@ -29,7 +29,12 @@ func TestSetA(t *testing.T) {
 	ipv4 := Utility.MyIP()
 
 
-	_, err = client.SetA(token, "globular.cloud", "192.168.0.166", 60)
+	_, err = client.SetA(token, "globular.cloud", ipv4, 60)
+	if err != nil {
+		log.Println(err)
+	}
+
+	_, err = client.SetA(token, "globular.io", ipv4, 60)
 	if err != nil {
 		log.Println(err)
 	}
