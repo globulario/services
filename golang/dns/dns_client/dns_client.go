@@ -61,6 +61,7 @@ func NewDnsService_Client(address string, id string) (*Dns_Client, error) {
 	client := new(Dns_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
+		
 		return nil, err
 	}
 
@@ -75,7 +76,7 @@ func NewDnsService_Client(address string, id string) (*Dns_Client, error) {
 func (client *Dns_Client) Reconnect() error {
 
 	var err error
-	nb_try_connect := 10
+	nb_try_connect := 50
 
 	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
@@ -681,7 +682,6 @@ func (client *Dns_Client) GetUri(id string) ([]*dnspb.URI, error) {
 		return nil, err
 	}
 
-
 	return rsp.Result, nil
 }
 
@@ -753,8 +753,8 @@ func (client *Dns_Client) SetCaa(token, id string, flag uint32, tag string, doma
 	rqst := &dnspb.SetCaaRequest{
 		Id: id,
 		Caa: &dnspb.CAA{
-			Flag:  flag,
-			Tag:   tag,
+			Flag:   flag,
+			Tag:    tag,
 			Domain: domain,
 		},
 		Ttl: ttl,

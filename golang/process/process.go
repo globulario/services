@@ -382,7 +382,7 @@ func StartEnvoyProxy() error {
 	}
 
 	// Here I will start envoy proxy.
-	envoy := exec.Command("envoy", "-c", configPath)
+	envoy := exec.Command("envoy", "-c", configPath, "-l", "warn")
 	envoy.Dir = os.TempDir()
 
 	// Set up a context to allow for graceful shutdown

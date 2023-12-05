@@ -29,15 +29,11 @@ func TestSetA(t *testing.T) {
 	ipv4 := Utility.MyIP()
 
 
-	_, err = client.SetA(token, "globular.cloud", ipv4, 60)
+	ipv6, err  := Utility.MyIPv6()
 	if err != nil {
 		log.Println(err)
 	}
 
-	_, err = client.SetA(token, "globular.io", ipv4, 60)
-	if err != nil {
-		log.Println(err)
-	}
 
 	// not I will set a subdomain
 	_, err = client.SetA(token, "ns1.globular.io", ipv4, 60)
@@ -50,16 +46,6 @@ func TestSetA(t *testing.T) {
 		log.Println("----------> fail to set A ns2.globular.io with error", err)
 	}
 
-	ipv6, err  := Utility.MyIPv6()
-	if err != nil {
-		log.Println(err)
-	}
-
-	_, err = client.SetAAAA(token, "globule-ryzen.globular.cloud", ipv6, 60)
-	if err != nil {
-		log.Println("----------> fail to set AAAA globular.app with error", err)
-	}
-
 	_, err = client.SetAAAA(token, "ns2.globular.io", ipv6, 60)
 	if err != nil {
 		log.Println("----------> fail to set AAAA ns2.globular.io with error", err)
@@ -69,6 +55,18 @@ func TestSetA(t *testing.T) {
 	if err != nil {
 		log.Println("----------> fail to set AAAA ns1.globular.io with error", err)
 	}
+
+
+	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv4, 60)
+	if err != nil {
+		log.Println("----------> fail to set AAAA globular.app with error", err)
+	}
+
+	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv6, 60)
+	if err != nil {
+		log.Println("----------> fail to set AAAA globular.app with error", err)
+	}
+
 
 }
 
@@ -125,7 +123,7 @@ func TestTextValue(t *testing.T) {
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
-	id := ".globular.cloud."
+	id := "globule-ryzen.globular.cloud."
 
 	ns := "ns1.globular.io."
 	ttl := uint32(11200)
@@ -149,7 +147,7 @@ func TestNsValue(t *testing.T) {
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 	
-	id := ".globular.cloud."
+	id := "globule-ryzen.globular.cloud."
 
 	client.RemoveSoa(token, id)
 
