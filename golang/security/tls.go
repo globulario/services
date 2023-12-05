@@ -543,6 +543,7 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 
 func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
 
+
 	config := fmt.Sprintf(`
 [req]
 distinguished_name = req_distinguished_name
@@ -564,7 +565,18 @@ subjectAltName = @alt_names
 
 [alt_names]
 `, country, state, city, organization, domain)
-	// TODO filter wild card domains here ...
+
+
+	// I will test if the domain is part of a wild card domain. if so I will change the domain to the wild card domain.
+	for i := 0; i < len(alternateDomains); i++ {
+		if strings.Contains(alternateDomains[i], "*") {
+			if strings.HasSuffix(domain, alternateDomains[i][2:]) {
+				domain = alternateDomains[i] // I will use the wild card domain.
+			}
+		}
+	}
+
+	// I will add the domain to the alternate domains.
 	if !Utility.Contains(alternateDomains, domain) {
 		alternateDomains = append(alternateDomains, domain)
 	}

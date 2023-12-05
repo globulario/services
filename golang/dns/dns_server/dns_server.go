@@ -921,7 +921,6 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("-------> SetText: ", rqst.Id, " with value: ", rqst.Values)
 	srv.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetTextResponse{
