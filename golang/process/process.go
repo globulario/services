@@ -148,17 +148,14 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
 
-		// Set the pid...
-		s["Process"] = p.Process.Pid
-		s["State"] = "running"
-		s["LastError"] = ""
-		err = config.SaveServiceConfiguration(s)
-		if err != nil {
-			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
-		}
+		// The service is responsible to set the process id and the state.
+		// and to save the configuration.
+		// I will wait until the service is started.
+
 
 		// give back the process id.
 		waitUntilStart <- p.Process.Pid
+		
 		err = p.Wait() // wait util the process exit.
 
 		// Here I will read the configuration to get more information about the process.

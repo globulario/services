@@ -216,11 +216,15 @@ func (s *WrapperedGRPCWebServer) Serve() error {
 	m := cmux.New(listener)
 	grpcListener := m.Match(cmux.HTTP2())
 	httpListener := m.Match(cmux.HTTP1Fast())
+
 	g := new(errgroup.Group)
 	g.Go(func() error { return s.GRPCServer.Serve(grpcListener) })
 	g.Go(func() error { return httpServer.Serve(httpListener) })
 	g.Go(m.Serve)
 
+	s.GRPCServer.GracefulStop()
+
+	
 	err := g.Wait()
 	if err != nil {
 		fmt.Println("service error ", err)
@@ -479,7 +483,7 @@ func InitService(s Service) error {
 	s.SetDomain(domain)
 
 	// here the service is runing...
-	s.SetState("running")
+	s.SetState("starting")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
@@ -818,6 +822,17 @@ func StartService(s Service, srv *grpc.Server) error {
 	if err != nil {
 		log.Fatal("Add failed:", err)
 	}
+
+	// wait for the service to start.
+	time.Sleep(2500 * time.Millisecond) // wait for the service to start.
+
+	// Here I will set the service state to running.
+	s.SetState("running")
+	s.SetLastError("")
+	s.SetProcess(os.Getpid())
+
+	// managed by globular.
+	SaveService(s)
 
 	<-ch
 
