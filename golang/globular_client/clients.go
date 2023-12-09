@@ -202,7 +202,7 @@ func InitClient(client Client, address string, id string) error {
 			}
 		} else {
 
-			// so here I will test if the domain is contain in peers...
+			// so here I will test if the domain is contain in peers if so i will get the port from it...
 			if localConfig["Peers"] != nil {
 				peers := localConfig["Peers"].([]interface{})
 				for i := 0; i < len(peers); i++ {
@@ -213,15 +213,20 @@ func InitClient(client Client, address string, id string) error {
 					}
 				}
 			}
-
+			// No port was found so I will take the default port.
 			if !strings.Contains(address, ":") {
-				address += ":80"
+				if localConfig["Protocol"].(string) == "https" {
+					address += ":" + Utility.ToString(localConfig["PortHttps"])
+				} else {
+					address += ":" + Utility.ToString(localConfig["PortHttp"])
+				}
 			}
 		}
 	}
 
 	values := strings.Split(address, ":")
 	domain := values[0]
+	
 	port := Utility.ToInt(values[1])
 	isLocal := address_ == address
 
@@ -256,6 +261,7 @@ func InitClient(client Client, address string, id string) error {
 		config_, err = config.GetServiceConfigurationById(id)
 		
 	} else {
+
 		// so here I try to get more information from peers...
 		var globule_config map[string]interface{}
 		globule_config, err = config.GetRemoteConfig(domain, port)
@@ -346,7 +352,7 @@ func InitClient(client Client, address string, id string) error {
 			path := config.GetConfigDir() + "/tls/" + domain
 
 			// install tls certificates if needed.
-			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path, san_country, san_state, san_city, san_organization, san_alternateDomains)
+			keyFile, certificateFile, caFile, err := security.InstallClientCertificates(domain, port, path, san_country, san_state, san_city, san_organization, san_alternateDomains)
 			if err != nil {
 				return err
 			}
@@ -440,7 +446,7 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		err = errors.New("fail to load client certificate with error: " + err.Error())
+		err = errors.New("fail to load client certificate cert file: "+ certFile + " kefile: " + keyFile + err.Error())
 		return nil, err
 	}
 

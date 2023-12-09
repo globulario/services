@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -584,7 +585,6 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 		domain = domain + "."
 	}
 
-
 	uuid := Utility.GenerateUUID("A:" + domain)
 
 	// I will retreive the current value if any.
@@ -669,6 +669,27 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
+func orderIPsByPrivacy(ips []string) []string {
+	// Define a custom sorting function
+	sort.Slice(ips, func(i, j int) bool {
+		ip1 := net.ParseIP(ips[i])
+		ip2 := net.ParseIP(ips[j])
+
+		// Check if either IP is private
+		isPrivate1 := ip1 != nil && ip1.IsPrivate()
+		isPrivate2 := ip2 != nil && ip2.IsPrivate()
+
+		// Order private IPs first
+		if isPrivate1 == isPrivate2 {
+			// If both are private or both are public, maintain the original order
+			return i < j
+		}
+		return isPrivate1 // Private IPs come first
+	})
+
+	return ips
+}
+
 func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
 
 	domain := strings.ToLower(rqst.Domain)
@@ -693,6 +714,9 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// I will order the ips by privacy.
+	values = orderIPsByPrivacy(values)
+
 	return &dnspb.GetAResponse{
 		A: values, // return the full domain.
 	}, nil
@@ -712,7 +736,6 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	if !strings.HasSuffix(domain, ".") {
 		domain = domain + "."
 	}
-
 
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	values := make([]string, 0)
@@ -905,7 +928,7 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 		}
 
 		values_ = append(values_, rqst.Values...)
-		
+
 		values, err = json.Marshal(values_)
 		if err != nil {
 			return nil, status.Errorf(
@@ -1444,7 +1467,6 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 // Set a text entry.
 func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
 
-
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
 		id = id + "."
@@ -1596,7 +1618,6 @@ func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnsp
 
 // Remove a soa entry
 func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
-
 
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -2023,7 +2044,7 @@ func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-	}else{
+	} else {
 		fmt.Println("fail to retreive CAA for domain ", id, " with uuid ", uuid, " with error ", err)
 		return nil, 0, err
 	}
@@ -2226,7 +2247,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		msg.Authoritative = true
 		name := msg.Question[0].Name
-		
+
 		domain := ""
 		if len(msg.Question) > 1 {
 			domain = msg.Question[1].Name
@@ -2349,7 +2370,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		values, ttl, err := s.getSoa(msg.Question[0].Name, ns)
 		if err == nil {
-			
+
 			// The response must contain a fully qualified domain name (FQDN) that is the primary name server for the domain that was queried.
 			// so I will remove the dot at the end.
 			domain := msg.Question[0].Name
@@ -2362,7 +2383,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			for _, soa := range values {
 
 				// Also try for the Mbox field.
-				if !strings.HasSuffix( soa.Mbox, ".") {
+				if !strings.HasSuffix(soa.Mbox, ".") {
 					soa.Mbox = soa.Mbox + "."
 				}
 
@@ -2504,8 +2525,6 @@ func main() {
 	// set the logger.
 	// grpclog.SetLogger(log.New(os.Stdout, "dns_service: ", log.LstdFlags))
 
-	// Set the log information in case of crash...
-
 	// The actual server implementation.
 	s_impl := new(server)
 	Utility.RegisterType(s_impl) // must be call dynamically
@@ -2572,7 +2591,6 @@ func main() {
 	// Register the echo services
 	dnspb.RegisterDnsServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
 
 	err = s_impl.openConnection()
 	if err != nil {

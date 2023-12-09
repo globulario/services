@@ -26,6 +26,7 @@ func (srv *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stre
 	path := srv.Root + "/packages-repository"
 
 	var err error
+	
 	// the file must be a zipped archive that contain a .proto, .config and executable.
 	bundle.Binairies, err = ioutil.ReadFile(path + "/" + id + ".tar.gz")
 	if err != nil {

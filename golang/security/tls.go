@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	config_ "github.com/globulario/services/golang/config"
 )
 
@@ -92,6 +91,23 @@ func runCmd(name string, args []string, wait chan bool) error {
  * Get the ca certificate
  */
 func getCaCertificate(address string, port int) (string, error) {
+
+	// if a DNS is I will use it as CA.
+	local_config, err := config_.GetLocalConfig(true)
+	if err == nil && local_config != nil {
+		// I will use the DNS as authority for the certificate.
+		if local_config["DNS"] != nil {
+			if len(local_config["DNS"].([]interface{})) > 0 {
+				address = local_config["DNS"].([]interface{})[0].(string)
+				port = 443
+				if strings.Contains(address, ":") {
+					port = Utility.ToInt(strings.Split(address, ":")[1])
+					address = strings.Split(address, ":")[0]
+				}
+			}
+		}
+	}
+
 	// try with http
 	certificate, err := getCaCertificate_(address, port, "http")
 	if err == nil {
@@ -141,6 +157,25 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
 
+	// if a DNS is I will use it as CA.
+	local_config, err := config_.GetLocalConfig(true)
+	if err == nil && local_config != nil {
+
+		if local_config["DNS"] != nil {
+			// I will use the DNS as authority for the certificate.
+			if len(local_config["DNS"].([]interface{})) > 0 {
+
+				address = local_config["DNS"].([]interface{})[0].(string)
+				port = 443
+
+				if strings.Contains(address, ":") {
+					port = Utility.ToInt(strings.Split(address, ":")[1])
+					address = strings.Split(address, ":")[0]
+				}
+			}
+		}
+	}
+
 	certificate, err := signCaCertificate_(address, csr, port, "http")
 	if err == nil {
 		return certificate, nil
@@ -186,14 +221,18 @@ func signCaCertificate_(address string, csr string, port int, protocol string) (
 }
 
 // ////////////////////////////// Certificate Authority /////////////////////////
-func InstallCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
-	return getCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+func InstallClientCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+	return getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+}
+
+func InstallServerCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+	return getServerCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
 }
 
 /**
- * Return the credential configuration.
+ * Return the client credential configuration.
  */
-func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
+func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
@@ -203,10 +242,24 @@ func getCredentialConfig(path string, domain string, country string, state strin
 		return "", "", "", err
 	}
 
+	alternateDomains_ := make([]string, 0)
+	for i := 0; i < len(alternateDomains); i++ {
+		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
+	}
+
+	for i := 0; i < len(alternateDomains_); i++ {
+		if strings.Contains(alternateDomains_[i], "*") {
+			wildcard := alternateDomains_[i]
+			if strings.HasSuffix(domain, wildcard[2:]) {
+				domain = wildcard[2:] // trim the first part of CN...
+			}
+		}
+	}
+
 	// I will connect to the certificate authority of the server where the application must
 	// be deployed. Certificate autority run wihtout tls.
 
-	// Get the ca.crt certificate.
+	// Get the ca.crt certificate from the server.
 	ca_crt, err := getCaCertificate(domain, port)
 	if err != nil {
 		return "", "", "", err
@@ -252,11 +305,6 @@ func getCredentialConfig(path string, domain string, country string, state strin
 		return "", "", "", err
 	}
 
-	alternateDomains_ := make([]string, 0)
-	for i := 0; i < len(alternateDomains); i++ {
-		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
-	}
-
 	// generate the SAN file
 	err = GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
 	if err != nil {
@@ -268,16 +316,19 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	if err != nil {
 		return "", "", "", err
 	}
+
 	// Step 3: Generate client signed certificate.
 	client_csr, err := ioutil.ReadFile(path + "/client.csr")
 	if err != nil {
 		return "", "", "", err
 	}
+
 	// Sign the certificate from the server ca...
 	client_crt, err := signCaCertificate(domain, string(client_csr), Utility.ToInt(port))
 	if err != nil {
 		return "", "", "", err
 	}
+
 	// Write bact the client certificate in file on the disk
 	err = ioutil.WriteFile(path+"/client.crt", []byte(client_crt), 0444)
 	if err != nil {
@@ -296,7 +347,132 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	keyPath = path + "/client.pem"
 	certPath = path + "/client.crt"
 	caPath = path + "/ca.crt"
+
 	fmt.Println("Certificate was succefully install for ", domain)
+	return
+}
+
+/**
+ * Return the server credential configuration.
+ */
+func getServerCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
+
+	// TODO Clarify the use of the password here.
+	pwd := "1111"
+
+	err = Utility.CreateDirIfNotExist(path)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	alternateDomains_ := make([]string, 0)
+	for i := 0; i < len(alternateDomains); i++ {
+		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
+	}
+
+	for i := 0; i < len(alternateDomains_); i++ {
+		if strings.Contains(alternateDomains_[i], "*") {
+			wildcard := alternateDomains_[i]
+			if strings.HasSuffix(domain, wildcard[2:]) {
+				domain = wildcard[2:] // trim the first part of CN...
+			}
+		}
+	}
+
+	// I will connect to the certificate authority of the server where the application must
+	// be deployed. Certificate autority run wihtout tls.
+
+	// Get the ca.crt certificate.
+	ca_crt, err := getCaCertificate(domain, port)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Return the existing paths...
+	if Utility.Exists(path) &&
+		Utility.Exists(path+"/server.pem") &&
+		Utility.Exists(path+"/server.crt") &&
+		Utility.Exists(path+"/ca.crt") {
+
+		local_ca_crt_checksum := Utility.CreateFileChecksum(path + "/ca.crt")
+		remote_ca_crt_checksum := Utility.CreateDataChecksum([]byte(ca_crt))
+
+		if local_ca_crt_checksum != remote_ca_crt_checksum {
+			// Remove local and recreate new certificate...
+			os.RemoveAll(path)
+			err = Utility.CreateDirIfNotExist(path)
+			if err != nil {
+				log.Println(err)
+				return "", "", "", err
+			}
+		} else {
+
+			keyPath = path + "/server.pem"
+			certPath = path + "/server.crt"
+			caPath = path + "/ca.crt"
+			return
+		}
+	}
+
+	// Write the ca.crt file on the disk
+	err = ioutil.WriteFile(path+"/ca.crt", []byte(ca_crt), 0444)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Now I will generate the certificate for the client...
+	// Step 1: Generate client private key.
+	err = GenerateSeverPrivateKey(path, pwd)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// generate the SAN file
+	err = GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Step 2: Generate the server signing request.
+	err = GenerateServerCertificateSigningRequest(path, pwd, domain)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Step 3: Generate server signed certificate.
+	csr, err := ioutil.ReadFile(path + "/server.csr")
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Sign the certificate from the server ca...
+	crt, err := signCaCertificate(domain, string(csr), Utility.ToInt(port))
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Write bact the client certificate in file on the disk
+	err = ioutil.WriteFile(path+"/server.crt", []byte(crt), 0444)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// Now ask the ca to sign the certificate.
+
+	// Step 4: Convert to pem format.
+	err = KeyToPem("server", path, pwd)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// set the credential paths.
+	keyPath = path + "/server.pem"
+	certPath = path + "/server.crt"
+	caPath = path + "/ca.crt"
+
+	// Remove the server.csr file.
+	fmt.Println("Certificate was succefully install for ", domain)
+
 	return
 }
 
@@ -543,7 +719,6 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 
 func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
 
-
 	config := fmt.Sprintf(`
 [req]
 distinguished_name = req_distinguished_name
@@ -566,7 +741,6 @@ subjectAltName = @alt_names
 [alt_names]
 `, country, state, city, organization, domain)
 
-
 	// I will test if the domain is part of a wild card domain. if so I will change the domain to the wild card domain.
 	for i := 0; i < len(alternateDomains); i++ {
 		if strings.Contains(alternateDomains[i], "*") {
@@ -580,6 +754,8 @@ subjectAltName = @alt_names
 	if !Utility.Contains(alternateDomains, domain) {
 		alternateDomains = append(alternateDomains, domain)
 	}
+
+	fmt.Println("700 ----------------> ", alternateDomains)
 
 	// set alternate domain
 	for i := 0; i < len(alternateDomains); i++ {
@@ -729,6 +905,7 @@ func KeyToPem(name string, path string, pwd string) error {
  * Share ca.crt (needed by the client), server.csr (needed by the CA)
  */
 func GenerateServicesCertificates(pwd string, expiration_delay int, domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) error {
+
 	if Utility.Exists(path + "/client.crt") {
 		return nil // certificate are already created.
 	}
@@ -736,73 +913,128 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	fmt.Println("Generate Services Certificates for ", domain, alternateDomains)
 	alternateDomains_ := make([]string, 0)
 	for i := 0; i < len(alternateDomains); i++ {
-		// I will test if the domain is part of a wild card domain. if so I will change the domain to the wild card domain.
-		// without the "*"
-		if strings.Contains(alternateDomains[i].(string), "*") {
-			wildcard := alternateDomains[i].(string)[2:]
-			if strings.HasSuffix(domain, wildcard) {
-				domain = wildcard
-			}
-		}
 		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
 	}
 
+	for i := 0; i < len(alternateDomains_); i++ {
+		if strings.Contains(alternateDomains_[i], "*") {
+			wildcard := alternateDomains_[i]
+			if strings.HasSuffix(domain, wildcard[2:]) {
+				domain = wildcard[2:] // trim the first part of CN...
+			}
+		}
+	}
+
+	// First of all I will test if a DNS exist in the configuration file. If so I will use it to generate the certificate.
+	local_config, err := config_.GetLocalConfig(true)
+	if err == nil && local_config != nil {
+
+		// I will use the DNS as authority for the certificate.
+		if len(local_config["DNS"].([]interface{})) > 0 {
+			dns_address := local_config["DNS"].([]interface{})[0].(string)
+			port := 443
+			if strings.Contains(dns_address, ":") {
+				port = Utility.ToInt(strings.Split(dns_address, ":")[1])
+				dns_address = strings.Split(dns_address, ":")[0]
+			}
+
+			// Be sure that the dns address is not the same as the domain.
+			if dns_address != local_config["Name"].(string)+"."+local_config["Domain"].(string) {
+				// Here I will generate the certificate for the server.
+				_, _, _, err := getServerCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
+				if err != nil {
+					return err
+				}
+
+				// Here I will generate the certificate for the client.
+				_, _, _, err = getClientCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+		}
+	}
+
 	// Generate the SAN configuration.
-	err := GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
+	err = GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
+	/////////////////////////////////////////////////////////////
+	// Generate the certificate authority.
+	/////////////////////////////////////////////////////////////
 	err = GenerateAuthorityPrivateKey(path, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = GenerateAuthorityTrustCertificate(path, pwd, expiration_delay, domain)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
+	/////////////////////////////////////////////////////////////
+	// Generate the server certificate.
+	/////////////////////////////////////////////////////////////
 	err = GenerateSeverPrivateKey(path, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = GenerateServerCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = GenerateSignedServerCertificate(path, pwd, expiration_delay)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = KeyToPem("server", path, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
+	/////////////////////////////////////////////////////////////
+	// Generate the client certificate.
+	/////////////////////////////////////////////////////////////
+
 	err = GenerateClientPrivateKey(path, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = GenerateClientCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = GenerateSignedClientCertificate(path, pwd, expiration_delay)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	err = KeyToPem("client", path, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
 	return nil
 }
 
@@ -820,7 +1052,6 @@ func DeletePublicKey(id string) error {
 	}
 
 	fmt.Println("delete public key", keyPath+"/"+id+"_public")
-
 	return os.Remove(keyPath + "/" + id + "_public")
 }
 
@@ -922,7 +1153,7 @@ func GetLocalKey() ([]byte, error) {
 		return localKey, nil
 	}
 
-	macAddress, err := config.GetMacAddress()
+	macAddress, err := config_.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}
@@ -1022,7 +1253,7 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	id = strings.ReplaceAll(id, ":", "_")
 
-	macAddress, err := config.GetMacAddress()
+	macAddress, err := config_.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}

@@ -410,4 +410,5 @@ service DnsService {
 
   // Remove a AFSDB entry
   rpc RemoveAfsdb(RemoveAfsdbRequest) returns (RemoveAfsdbResponse);
+
 }

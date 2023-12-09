@@ -379,7 +379,7 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 	}
 
 	// Create the certificate at the given path.
-	key, cert, ca, err := security.InstallCertificates(rqst.Domain, port, path, rqst.Country, rqst.State, rqst.City, rqst.Organization, alternateDomains)
+	key, cert, ca, err := security.InstallClientCertificates(rqst.Domain, port, path, rqst.Country, rqst.State, rqst.City, rqst.Organization, alternateDomains)
 
 	if err != nil {
 		return nil, status.Errorf(

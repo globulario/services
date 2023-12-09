@@ -303,10 +303,11 @@ func StartEtcdServer() error {
 	// Here I will add the tls configuration.
 	if protocol == "https" {
 		node_config["tls"] = make(map[string]interface{})
-		node_config["tls"].(map[string]interface{})["cert-file"] = config.GetConfigDir() + "/tls/server.crt"
-		node_config["tls"].(map[string]interface{})["key-file"] = config.GetConfigDir() + "/tls/server.pem"
+		certificatePath := config.GetConfigDir() + "/tls/" + strings.Split(address, ":")[0]
+		node_config["tls"].(map[string]interface{})["cert-file"] = certificatePath + "/server.crt"
+		node_config["tls"].(map[string]interface{})["key-file"] = certificatePath + "/server.pem"
 		node_config["tls"].(map[string]interface{})["client-cert-auth"] = true
-		node_config["tls"].(map[string]interface{})["trusted-ca-file"] = config.GetConfigDir() + "/tls/ca.crt"
+		node_config["tls"].(map[string]interface{})["trusted-ca-file"] = certificatePath + "/ca.crt"
 	}
 
 	// Now I will append the other nodes.
@@ -436,6 +437,9 @@ func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
 
+	domain, _ := config.GetAddress()
+	domain = strings.Split(domain, ":")[0]
+
 	// Here I will start promethus.
 	dataPath := config.GetDataDir() + "/prometheus-data"
 	Utility.CreateDirIfNotExist(dataPath)
@@ -533,14 +537,9 @@ inhibit_rules:
 		// Here I will create the config file for prometheus.
 		if !Utility.Exists(config.GetConfigDir() + "/prometheus_tls.yml") {
 
-			address, _ := config.GetAddress()
-			if strings.Contains(address, ":") {
-				address = strings.Split(address, ":")[0]
-			}
-
 			config_ := `tls_server_config:
- cert_file: ` + config.GetConfigDir() + `/tls/` + address + `.crt
- key_file: ` + config.GetConfigDir() + `/tls/server.pem`
+ cert_file: ` + config.GetConfigDir()+ "/tls/" + domain + "/" + config.GetLocalCertificate() + `
+ key_file: ` + config.GetConfigDir()+ "/tls/" + domain + "/" +  config.GetLocalServerCerificateKeyPath() 
 
 			err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus_tls.yml", []byte(config_), 0644)
 			if err != nil {

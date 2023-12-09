@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/davecourtois/Utility"
@@ -422,7 +423,9 @@ func (srv *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopRespo
 
 // Implementation of the Echo method.
 func (srv *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
-	fmt.Println("Try echo a value ", time.Now().Unix())
+
+	// Display message to the console.
+	fmt.Println("---> ", strings.Split(srv.Address, ".")[0], " echo: ", rsqt.Message, time.Now().Local().Format("2006-01-02 15:04:05"))
 
 	// In that case I will save it in file.
 	err := srv.Save()

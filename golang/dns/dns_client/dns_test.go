@@ -3,6 +3,7 @@ package dns_client
 import (
 	//"encoding/json"
 	"log"
+	"os"
 	"testing"
 
 	"github.com/davecourtois/Utility"
@@ -66,9 +67,37 @@ func TestSetA(t *testing.T) {
 	if err != nil {
 		log.Println("----------> fail to set AAAA globular.app with error", err)
 	}
-
-
 }
+
+func TestGetClusterCertificatesBundle(t *testing.T) {
+	// Connect to the client.
+	data, err := client.GetClusterCertificatesBundle("globular.cloud")
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	// Now I will save it to a file.
+	err = os.WriteFile(os.TempDir() + "/certificates.tar.gz", data, 0644)
+
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	log.Println("certificates bundle was save to ", os.TempDir() + "/certificates.tar.gz")
+}
+
+func TestGetA(t *testing.T) {
+	
+	// Connect to the plc client.
+	log.Println("---> test resolve A")
+	ipv4, err := client.GetA("globular.cloud")
+	if err == nil {
+		log.Println("--> your ip is ", ipv4)
+	} else {
+		log.Panicln(err)
+	}
+}
+
 
 /*
 func TestResolve(t *testing.T) {

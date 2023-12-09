@@ -2509,7 +2509,10 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// Set peer action
 		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
 		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
-		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCaa"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetNs"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetMx"})
+		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetSoa"})
 		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
 		srv.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
 

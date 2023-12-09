@@ -154,9 +154,12 @@ func GetDomain() (string, error) {
 func GetLocalServerCerificateKeyPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
-		if len(localConfig["ServerPublicKey"].(string)) != 0 {
-			return GetConfigDir() + "/tls/server.pem"
+		if !Utility.Exists(GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/server.pem") {
+			return ""
 		}
+
+		return GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/server.pem"
+
 	}
 	return ""
 }
@@ -164,9 +167,11 @@ func GetLocalServerCerificateKeyPath() string {
 func GetLocalClientCerificateKeyPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
-		if len(localConfig["ClientPublicKey"].(string)) != 0 {
-			return GetConfigDir() + "/tls/client.pem"
+		if !Utility.Exists(GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/client.pem") {
+			return ""
 		}
+		
+		return GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/client.pem"
 	}
 	return ""
 }
@@ -176,7 +181,7 @@ func GetLocalCertificate() string {
 
 	if err == nil {
 		if len(localConfig["Certificate"].(string)) != 0 {
-			return GetConfigDir() + "/tls/" + localConfig["Certificate"].(string)
+			return localConfig["Certificate"].(string)
 		}
 	}
 
@@ -188,7 +193,7 @@ func GetLocalCertificateAuthorityBundle() string {
 
 	if err == nil {
 		if len(localConfig["CertificateAuthorityBundle"].(string)) != 0 {
-			return GetConfigDir() + "/tls/" + localConfig["CertificateAuthorityBundle"].(string)
+			return localConfig["CertificateAuthorityBundle"].(string)
 		}
 	}
 
@@ -940,9 +945,9 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			if len(localConfig["Certificate"].(string)) > 0 && localConfig["Protocol"].(string) == "https" {
 				// set tls file...
 				s["TLS"] = true
-				s["KeyFile"] = GetConfigDir() + "/tls/server.pem"
-				s["CertFile"] = GetConfigDir() + "/tls/server.crt"
-				s["CertAuthorityTrust"] = GetConfigDir() + "/tls/ca.crt"
+				s["KeyFile"] = GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/server.pem"
+				s["CertFile"] = GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/server.crt"
+				s["CertAuthorityTrust"] = GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/ca.crt"
 
 				if s["CertificateAuthorityBundle"] != nil {
 					s["CertificateAuthorityBundle"] = localConfig["CertificateAuthorityBundle"]
@@ -1038,7 +1043,6 @@ func initConfig() error {
 
 		return nil
 	}
-
 
 	// get sure all files are unlock
 	if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") {
@@ -1168,7 +1172,7 @@ func initConfig() error {
 							jsonStr, err := Utility.ToJson(s)
 							if err == nil {
 								os.WriteFile(path, []byte(jsonStr), 0644)
-							}else {
+							} else {
 								fmt.Println("fail to save service configuration with error: ", err)
 							}
 						}
