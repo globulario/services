@@ -84,7 +84,6 @@ export interface IConfig {
   SessionTimeout: number;
   Protocol: string;
   Discoveries: string[];
-  DNS: string[];
   CertExpirationDelay: number;
   CertStableURL: string;
   CertURL: string;
@@ -102,6 +101,12 @@ export interface IConfig {
 
   // The map of service object.
   Services: IServices;
+
+  // Domain name server address.
+  DNS: string;
+
+  // List of name server.
+  NS: Array<string>;
 
   // The array of Peers.
   Peers: IPeer[];
@@ -440,18 +445,6 @@ function getFileConfig(url, callback, errorcallback) {
       callback(obj);
     }
     else if (this.readyState == 4) {
-      // so I will try to get the configuration from the server...
-      var xmlhttp = new XMLHttpRequest();
-      xmlhttp.timeout = 1500;
-      xmlhttp.onreadystatechange = function () {
-        if (this.readyState == 4 && this.status == 201) {
-          var obj = JSON.parse(this.responseText);
-          callback(obj);
-        }
-        else if (this.readyState == 4) {
-          errorcallback("fail to get the configuration file at url " + url + " status " + this.status);
-        }
-      };
       // Create a URL object
       var url_ = new URL(url);
       var port = url_.port;
@@ -463,7 +456,47 @@ function getFileConfig(url, callback, errorcallback) {
           port = "80";
         }
       }
-      
+
+      // so I will try to get the configuration from the server...
+      var xmlhttp = new XMLHttpRequest();
+      xmlhttp.timeout = 1500;
+      xmlhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 201) {
+          var obj = JSON.parse(this.responseText);
+          callback(obj);
+        }
+        else if (this.readyState == 4) {
+
+          // will try to get the config at host level...
+          // Extract the hostname (domain) from the URL
+          var hostname = url_.hostname;
+
+          // Split the hostname by dots
+          var parts = hostname.split('.');
+
+          // Get the last two parts to form the top-level domain
+          var topLevelDomain = parts.slice(-2).join('.');
+
+          var xmlhttp = new XMLHttpRequest();
+          xmlhttp.timeout = 1500;
+          xmlhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 201) {
+              var obj = JSON.parse(this.responseText);
+              callback(obj);
+            }
+            else if (this.readyState == 4) {
+              errorcallback("fail to get the configuration file at url " + url + " status " + this.status);
+            }
+          };
+
+          // try to get config from the actual server with the host and port.
+          xmlhttp.open("GET", url_.protocol + "//" + topLevelDomain + "/config?host=".concat(url_.hostname, "&port=").concat(port), true);
+
+          xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+          xmlhttp.send();
+        }
+      };
+
       // try to get config from the actual server with the host and port.
       xmlhttp.open("GET", "/config?host=".concat(url_.hostname, "&port=").concat(port), true);
 

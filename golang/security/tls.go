@@ -97,14 +97,13 @@ func getCaCertificate(address string, port int) (string, error) {
 	if err == nil && local_config != nil {
 		// I will use the DNS as authority for the certificate.
 		if local_config["DNS"] != nil {
-			if len(local_config["DNS"].([]interface{})) > 0 {
-				address = local_config["DNS"].([]interface{})[0].(string)
-				port = 443
-				if strings.Contains(address, ":") {
-					port = Utility.ToInt(strings.Split(address, ":")[1])
-					address = strings.Split(address, ":")[0]
-				}
+			address = local_config["DNS"].(string)
+			port = 443
+			if strings.Contains(address, ":") {
+				port = Utility.ToInt(strings.Split(address, ":")[1])
+				address = strings.Split(address, ":")[0]
 			}
+
 		}
 	}
 
@@ -163,16 +162,14 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 
 		if local_config["DNS"] != nil {
 			// I will use the DNS as authority for the certificate.
-			if len(local_config["DNS"].([]interface{})) > 0 {
+			address = local_config["DNS"].(string)
+			port = 443
 
-				address = local_config["DNS"].([]interface{})[0].(string)
-				port = 443
-
-				if strings.Contains(address, ":") {
-					port = Utility.ToInt(strings.Split(address, ":")[1])
-					address = strings.Split(address, ":")[0]
-				}
+			if strings.Contains(address, ":") {
+				port = Utility.ToInt(strings.Split(address, ":")[1])
+				address = strings.Split(address, ":")[0]
 			}
+
 		}
 	}
 
@@ -930,8 +927,8 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	if err == nil && local_config != nil {
 
 		// I will use the DNS as authority for the certificate.
-		if len(local_config["DNS"].([]interface{})) > 0 {
-			dns_address := local_config["DNS"].([]interface{})[0].(string)
+		if local_config["DNS"] != nil {
+			dns_address := local_config["DNS"].(string)
 			port := 443
 			if strings.Contains(dns_address, ":") {
 				port = Utility.ToInt(strings.Split(dns_address, ":")[1])
