@@ -4,7 +4,7 @@
 syntax = "proto3";
 package conversation;
 
-option go_package="conversation/conversationpb";
+option go_package="github.com/globulario/services/golang/conversation/conversationpb";
 
 /** The conversation state. **/
 enum ConversationState{

@@ -5,7 +5,7 @@ syntax = "proto3";
 package resource;
 
 // import "google/protobuf/struct.proto";
-option go_package = "resource/resourcepb";
+option go_package = "github.com/globulario/services/golang/resource/resourcepb";
 
 /////////////////////////////////////////////////////////////////
 // Package Bundle

@@ -5,7 +5,7 @@ syntax = "proto3";
 
 package spc;
 
-option go_package="spc/spcpb";
+option go_package="github.com/globulario/services/golang/spc/spcpb";
 
 message CreateAnalyseRqst {
 	string data = 1; // JSON array string

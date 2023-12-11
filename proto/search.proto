@@ -4,7 +4,7 @@
 syntax = "proto3";
 package search;
 
-option go_package="search/searchpb";
+option go_package="github.com/globulario/services/golang/search/searchpb";
 
 
 message GetEngineVersionRequest {

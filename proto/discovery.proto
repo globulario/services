@@ -6,7 +6,7 @@ package discovery;
 
 import "resource.proto";
 
-option go_package="discovery/discoverypb";
+option go_package="github.com/globulario/services/golang/discovery/discoverypb";
 
 message PublishServiceRequest{
 	string serviceId = 1;

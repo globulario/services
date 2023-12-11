@@ -5,7 +5,7 @@
 syntax = "proto3";
 package title;
 
-option go_package="title/titlepb";
+option go_package="github.com/globulario/services/golang/title/titlepb";
 
 ///////////////////////////////////////////
 // Movie information taken from IMDB

@@ -5,7 +5,7 @@ syntax = "proto3";
 
 package persistence;
 
-option go_package="persistence/persistencepb";
+option go_package="github.com/globulario/services/golang/persistence/persistencepb";
 import "google/protobuf/struct.proto";
 
 enum StoreType{

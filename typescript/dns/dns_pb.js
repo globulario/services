@@ -10203,7 +10203,8 @@ proto.dns.RemoveUriRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.dns.RemoveUriRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    target: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -10244,6 +10245,10 @@ proto.dns.RemoveUriRequest.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readString());
       msg.setId(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTarget(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -10280,6 +10285,13 @@ proto.dns.RemoveUriRequest.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getTarget();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -10298,6 +10310,24 @@ proto.dns.RemoveUriRequest.prototype.getId = function() {
  */
 proto.dns.RemoveUriRequest.prototype.setId = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string target = 2;
+ * @return {string}
+ */
+proto.dns.RemoveUriRequest.prototype.getTarget = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.dns.RemoveUriRequest} returns this
+ */
+proto.dns.RemoveUriRequest.prototype.setTarget = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

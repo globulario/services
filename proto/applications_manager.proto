@@ -1,7 +1,7 @@
 syntax = "proto3";
 package applications_manager;
 
-option go_package="applications_manager/applications_managerpb";
+option go_package="github.com/globulario/services/golang/applications_manager/applications_managerpb";
 
 message InstallApplicationRequest{
 	string dicorveryId = 1;

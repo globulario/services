@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package sql;
 
-option go_package="sql/sqlpb";
+option go_package="github.com/globulario/services/golang/sql/sqlpb";
 
 message Connection {
 	string id = 1;

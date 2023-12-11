@@ -3,7 +3,7 @@ package repository;
 
 import "resource.proto";
 
-option go_package="repository/repositorypb";
+option go_package="github.com/globulario/services/golang/repository/repositorypb";
 
 message UploadBundleRequest {
 	string user = 1;

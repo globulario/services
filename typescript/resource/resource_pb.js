@@ -3794,7 +3794,8 @@ proto.resource.PackageBundle.toObject = function(includeInstance, msg) {
     size: jspb.Message.getFieldWithDefault(msg, 4, 0),
     modified: jspb.Message.getFieldWithDefault(msg, 5, 0),
     binairies: msg.getBinairies_asB64(),
-    mac: jspb.Message.getFieldWithDefault(msg, 7, "")
+    mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -3859,6 +3860,10 @@ proto.resource.PackageBundle.deserializeBinaryFromReader = function(msg, reader)
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setMac(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -3936,6 +3941,13 @@ proto.resource.PackageBundle.serializeBinaryToWriter = function(message, writer)
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -4108,6 +4120,24 @@ proto.resource.PackageBundle.prototype.getMac = function() {
  */
 proto.resource.PackageBundle.prototype.setMac = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string typeName = 8;
+ * @return {string}
+ */
+proto.resource.PackageBundle.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.PackageBundle} returns this
+ */
+proto.resource.PackageBundle.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
@@ -4706,7 +4736,8 @@ proto.resource.PackageDescriptor.toObject = function(includeInstance, msg) {
     groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
     proto.resource.Group.toObject, includeInstance),
     icon: jspb.Message.getFieldWithDefault(msg, 14, ""),
-    alias: jspb.Message.getFieldWithDefault(msg, 15, "")
+    alias: jspb.Message.getFieldWithDefault(msg, 15, ""),
+    typename: jspb.Message.getFieldWithDefault(msg, 16, "")
   };
 
   if (includeInstance) {
@@ -4800,6 +4831,10 @@ proto.resource.PackageDescriptor.deserializeBinaryFromReader = function(msg, rea
     case 15:
       var value = /** @type {string} */ (reader.readString());
       msg.setAlias(value);
+      break;
+    case 16:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -4927,6 +4962,13 @@ proto.resource.PackageDescriptor.serializeBinaryToWriter = function(message, wri
   if (f.length > 0) {
     writer.writeString(
       15,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      16,
       f
     );
   }
@@ -5298,6 +5340,24 @@ proto.resource.PackageDescriptor.prototype.getAlias = function() {
  */
 proto.resource.PackageDescriptor.prototype.setAlias = function(value) {
   return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional string typeName = 16;
+ * @return {string}
+ */
+proto.resource.PackageDescriptor.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.PackageDescriptor} returns this
+ */
+proto.resource.PackageDescriptor.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 16, value);
 };
 
 
@@ -6583,7 +6643,8 @@ proto.resource.Role.toObject = function(includeInstance, msg) {
     description: jspb.Message.getFieldWithDefault(msg, 4, ""),
     actionsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
     membersList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -6647,6 +6708,10 @@ proto.resource.Role.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -6723,6 +6788,13 @@ proto.resource.Role.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeRepeatedString(
       7,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -6909,6 +6981,24 @@ proto.resource.Role.prototype.addOrganizations = function(value, opt_index) {
  */
 proto.resource.Role.prototype.clearOrganizationsList = function() {
   return this.setOrganizationsList([]);
+};
+
+
+/**
+ * optional string typeName = 8;
+ * @return {string}
+ */
+proto.resource.Role.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Role} returns this
+ */
+proto.resource.Role.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
@@ -7828,7 +7918,8 @@ proto.resource.Account.toObject = function(includeInstance, msg) {
     middle: jspb.Message.getFieldWithDefault(msg, 9, ""),
     organizationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
     groupsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 13, "")
   };
 
   if (includeInstance) {
@@ -7912,6 +8003,10 @@ proto.resource.Account.deserializeBinaryFromReader = function(msg, reader) {
     case 12:
       var value = /** @type {string} */ (reader.readString());
       msg.addRoles(value);
+      break;
+    case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -8023,6 +8118,13 @@ proto.resource.Account.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeRepeatedString(
       12,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      13,
       f
     );
   }
@@ -8299,6 +8401,24 @@ proto.resource.Account.prototype.addRoles = function(value, opt_index) {
  */
 proto.resource.Account.prototype.clearRolesList = function() {
   return this.setRolesList([]);
+};
+
+
+/**
+ * optional string typeName = 13;
+ * @return {string}
+ */
+proto.resource.Account.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Account} returns this
+ */
+proto.resource.Account.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 13, value);
 };
 
 
@@ -12912,7 +13032,8 @@ proto.resource.Application.toObject = function(includeInstance, msg) {
     alias: jspb.Message.getFieldWithDefault(msg, 11, ""),
     publisherid: jspb.Message.getFieldWithDefault(msg, 12, ""),
     creationDate: jspb.Message.getFieldWithDefault(msg, 13, 0),
-    lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0)
+    lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0),
+    typename: jspb.Message.getFieldWithDefault(msg, 15, "")
   };
 
   if (includeInstance) {
@@ -13004,6 +13125,10 @@ proto.resource.Application.deserializeBinaryFromReader = function(msg, reader) {
     case 14:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setLastDeployed(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -13129,6 +13254,13 @@ proto.resource.Application.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt64(
       14,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
       f
     );
   }
@@ -13422,6 +13554,24 @@ proto.resource.Application.prototype.getLastDeployed = function() {
  */
 proto.resource.Application.prototype.setLastDeployed = function(value) {
   return jspb.Message.setProto3IntField(this, 14, value);
+};
+
+
+/**
+ * optional string typeName = 15;
+ * @return {string}
+ */
+proto.resource.Application.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Application} returns this
+ */
+proto.resource.Application.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
 };
 
 
@@ -16237,7 +16387,8 @@ proto.resource.Group.toObject = function(includeInstance, msg) {
     domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
     description: jspb.Message.getFieldWithDefault(msg, 4, ""),
     membersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -16297,6 +16448,10 @@ proto.resource.Group.deserializeBinaryFromReader = function(msg, reader) {
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -16366,6 +16521,13 @@ proto.resource.Group.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeRepeatedString(
       6,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
       f
     );
   }
@@ -16515,6 +16677,24 @@ proto.resource.Group.prototype.addOrganizations = function(value, opt_index) {
  */
 proto.resource.Group.prototype.clearOrganizationsList = function() {
   return this.setOrganizationsList([]);
+};
+
+
+/**
+ * optional string typeName = 7;
+ * @return {string}
+ */
+proto.resource.Group.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Group} returns this
+ */
+proto.resource.Group.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 
@@ -18297,7 +18477,8 @@ proto.resource.Organization.toObject = function(includeInstance, msg) {
     accountsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
     groupsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
     rolesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
+    applicationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -18373,6 +18554,10 @@ proto.resource.Organization.deserializeBinaryFromReader = function(msg, reader) 
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addApplications(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -18470,6 +18655,13 @@ proto.resource.Organization.serializeBinaryToWriter = function(message, writer) 
   if (f.length > 0) {
     writer.writeRepeatedString(
       10,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
       f
     );
   }
@@ -18729,6 +18921,24 @@ proto.resource.Organization.prototype.addApplications = function(value, opt_inde
  */
 proto.resource.Organization.prototype.clearApplicationsList = function() {
   return this.setApplicationsList([]);
+};
+
+
+/**
+ * optional string typeName = 11;
+ * @return {string}
+ */
+proto.resource.Organization.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 
@@ -22541,7 +22751,8 @@ proto.resource.Peer.toObject = function(includeInstance, msg) {
     porthttps: jspb.Message.getFieldWithDefault(msg, 7, 0),
     protocol: jspb.Message.getFieldWithDefault(msg, 8, ""),
     state: jspb.Message.getFieldWithDefault(msg, 9, 0),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -22617,6 +22828,10 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addActions(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -22714,6 +22929,13 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeRepeatedString(
       10,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
       f
     );
   }
@@ -22916,6 +23138,24 @@ proto.resource.Peer.prototype.addActions = function(value, opt_index) {
  */
 proto.resource.Peer.prototype.clearActionsList = function() {
   return this.setActionsList([]);
+};
+
+
+/**
+ * optional string typeName = 11;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Peer} returns this
+ */
+proto.resource.Peer.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 
@@ -26207,7 +26447,8 @@ proto.resource.Call.toObject = function(includeInstance, msg) {
     caller: jspb.Message.getFieldWithDefault(msg, 2, ""),
     callee: jspb.Message.getFieldWithDefault(msg, 3, ""),
     starttime: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    endtime: jspb.Message.getFieldWithDefault(msg, 5, 0)
+    endtime: jspb.Message.getFieldWithDefault(msg, 5, 0),
+    typename: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -26263,6 +26504,10 @@ proto.resource.Call.deserializeBinaryFromReader = function(msg, reader) {
     case 5:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setEndtime(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -26325,6 +26570,13 @@ proto.resource.Call.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt64(
       5,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -26418,6 +26670,24 @@ proto.resource.Call.prototype.getEndtime = function() {
  */
 proto.resource.Call.prototype.setEndtime = function(value) {
   return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+/**
+ * optional string typeName = 6;
+ * @return {string}
+ */
+proto.resource.Call.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Call} returns this
+ */
+proto.resource.Call.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
@@ -27523,7 +27793,8 @@ proto.resource.Notification.toObject = function(includeInstance, msg) {
     recipient: jspb.Message.getFieldWithDefault(msg, 4, ""),
     sender: jspb.Message.getFieldWithDefault(msg, 5, ""),
     notificationType: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    mac: jspb.Message.getFieldWithDefault(msg, 7, "")
+    mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -27587,6 +27858,10 @@ proto.resource.Notification.deserializeBinaryFromReader = function(msg, reader) 
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setMac(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -27663,6 +27938,13 @@ proto.resource.Notification.serializeBinaryToWriter = function(message, writer) 
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -27792,6 +28074,24 @@ proto.resource.Notification.prototype.getMac = function() {
  */
 proto.resource.Notification.prototype.setMac = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string typeName = 8;
+ * @return {string}
+ */
+proto.resource.Notification.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Notification} returns this
+ */
+proto.resource.Notification.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
@@ -29125,7 +29425,8 @@ proto.resource.Session.toObject = function(includeInstance, msg) {
     accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     state: jspb.Message.getFieldWithDefault(msg, 2, 0),
     lastStateTime: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    expireAt: jspb.Message.getFieldWithDefault(msg, 4, 0)
+    expireAt: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    typename: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -29177,6 +29478,10 @@ proto.resource.Session.deserializeBinaryFromReader = function(msg, reader) {
     case 4:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setExpireAt(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTypename(value);
       break;
     default:
       reader.skipField();
@@ -29232,6 +29537,13 @@ proto.resource.Session.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt64(
       4,
+      f
+    );
+  }
+  f = message.getTypename();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
       f
     );
   }
@@ -29307,6 +29619,24 @@ proto.resource.Session.prototype.getExpireAt = function() {
  */
 proto.resource.Session.prototype.setExpireAt = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional string typeName = 5;
+ * @return {string}
+ */
+proto.resource.Session.prototype.getTypename = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Session} returns this
+ */
+proto.resource.Session.prototype.setTypename = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

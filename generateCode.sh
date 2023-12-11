@@ -5,33 +5,32 @@
 # day of my life just like that. But at then end I learn something...
 
 # GO grpc file generation
-protoc proto/admin.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/resource.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/rbac.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/log.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/dns.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/echo.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/search.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/event.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/storage.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/file.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/sql.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/ldap.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/mail.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/persistence.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/monitoring.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/spc.proto -I proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/catalog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/conversation.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/blog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/applications_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/config.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/title.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/torrent.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang  --go_out=./golang 
-protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang  --go_out=./golang 
+protoc proto/admin.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/resource.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/rbac.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/log.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/dns.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/echo.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/search.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/event.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/storage.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/file.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/sql.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/ldap.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/mail.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/persistence.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/monitoring.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/spc.proto -I proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/catalog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/conversation.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/blog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/applications_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/title.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/torrent.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../  --go_out=../../../ 
+protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../  --go_out=../../../ 
 
 # TypeScript grpc files generation.
 mkdir typescript/applications_manager

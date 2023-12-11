@@ -5,7 +5,7 @@
 syntax = "proto3";
 package blog;
 
-option go_package="blog/blogpb";
+option go_package="github.com/globulario/services/golang/blog/blogpb";
 
 /**
  * You emoji it...

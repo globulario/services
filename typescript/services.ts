@@ -485,13 +485,27 @@ function getFileConfig(url, callback, errorcallback) {
               callback(obj);
             }
             else if (this.readyState == 4) {
-              errorcallback("fail to get the configuration file at url " + url + " status " + this.status);
+              var xmlhttp = new XMLHttpRequest();
+              xmlhttp.timeout = 1500;
+              xmlhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 201) {
+                  var obj = JSON.parse(this.responseText);
+                  callback(obj);
+                }
+                else if (this.readyState == 4) {
+                  errorcallback("fail to get the configuration file at url " + url + " status " + this.status);
+                }
+              };
+
+              // try to get config from the actual server with the host and port.
+              xmlhttp.open("GET",  "http://" + topLevelDomain + "/config?host=".concat(url_.hostname, "&port=").concat("80"), true);
+              xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+              xmlhttp.send();
             }
           };
 
           // try to get config from the actual server with the host and port.
           xmlhttp.open("GET", url_.protocol + "//" + topLevelDomain + "/config?host=".concat(url_.hostname, "&port=").concat(port), true);
-
           xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
           xmlhttp.send();
         }

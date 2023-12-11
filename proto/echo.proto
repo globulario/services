@@ -5,7 +5,7 @@
 syntax = "proto3";
 package echo;
 
-option go_package="echo/echopb";
+option go_package="github.com/globulario/services/golang/echo/echopb";
 
 message EchoRequest {
   string message = 1;

@@ -5,7 +5,7 @@
 syntax = "proto3";
 package torrent;
 
-option go_package="torrent/torrentpb";
+option go_package="github.com/globulario/services/golang/torrent/torrentpb";
 
 message TorrentLnk {
 	string Lnk = 1;

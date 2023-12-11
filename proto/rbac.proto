@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package rbac;
 
-option go_package="rbac/rbacpb";
+option go_package="github.com/globulario/services/golang/rbac/rbacpb";
 import "google/protobuf/struct.proto";
 
 

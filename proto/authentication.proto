@@ -5,7 +5,7 @@
 syntax = "proto3";
 package authentication;
 
-option go_package = "authentication/authenticationpb";
+option go_package = "github.com/globulario/services/golang/authentication/authenticationpb";
 
 
 /** Authenticate the user **/

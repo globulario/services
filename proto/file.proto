@@ -5,7 +5,7 @@ syntax = "proto3";
 
 package file;
 
-option go_package="file/filepb";
+option go_package="github.com/globulario/services/golang/file/filepb";
 import "google/protobuf/struct.proto";
 
 message Empty {}
