@@ -498,7 +498,7 @@ function getFileConfig(url, callback, errorcallback) {
               };
 
               // try to get config from the actual server with the host and port.
-              xmlhttp.open("GET",  "http://" + topLevelDomain + "/config?host=".concat(url_.hostname, "&port=").concat("80"), true);
+              xmlhttp.open("GET", "http://" + topLevelDomain + "/config?host=".concat(url_.hostname, "&port=").concat("80"), true);
               xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
               xmlhttp.send();
             }
@@ -587,13 +587,18 @@ export class Globular {
   // Return the domain of a globule from it configuration.
   public get address(): string {
     let domain = this._config.Name
-    if (domain.length > 0 && !this._config.Domain.startsWith(this._config.Name)) {
-      if (this._config.Domain.length > 0) {
-        domain += "." + this._config.Domain;
+
+    // if the domain is localhost i will use the hostname as address.
+    if (this._config.Domain != "localhost") {
+      if (domain.length > 0 && !this._config.Domain.startsWith(this._config.Name)) {
+        if (this._config.Domain.length > 0) {
+          domain += "." + this._config.Domain;
+        }
+      } else {
+        domain = this._config.Domain;
       }
-    } else {
-      domain = this._config.Domain;
     }
+
     return domain;
   }
 
@@ -609,10 +614,16 @@ export class Globular {
     if (this._adminService == null) {
       let configs = this.getConfigs('admin.AdminService')
       configs.forEach((config: IServiceConfig) => {
+
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
+
         this._adminService = new AdminServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -631,10 +642,15 @@ export class Globular {
     if (this._servicesManagerService == null) {
       let configs = this.getConfigs('services_manager.ServicesManagerService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
+
         this._servicesManagerService = new ServicesManagerServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -653,10 +669,14 @@ export class Globular {
     if (this._applicationsManagerService == null) {
       let configs = this.getConfigs('applications_manager.ApplicationManagerService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._applicationsManagerService = new ApplicationManagerServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -675,10 +695,14 @@ export class Globular {
     if (this._authenticationService == null) {
       let configs = this.getConfigs('authentication.AuthenticationService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._authenticationService = new AuthenticationServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -697,10 +721,15 @@ export class Globular {
     if (this._resourceService == null) {
       let configs = this.getConfigs('resource.ResourceService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
+
         this._resourceService = new ResourceServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -718,10 +747,14 @@ export class Globular {
     if (this._logService == null) {
       let configs = this.getConfigs('log.LogService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._logService = new LogServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -739,10 +772,14 @@ export class Globular {
     if (this._blogService == null) {
       let configs = this.getConfigs('blog.BlogService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._blogService = new BlogServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -761,10 +798,14 @@ export class Globular {
       let configs = this.getConfigs('conversation.ConversationService')
 
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._conversationService = new ConversationServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -782,10 +823,14 @@ export class Globular {
     if (this._rbacService == null) {
       let configs = this.getConfigs('rbac.RbacService')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._rbacService = new RbacServicePromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -803,10 +848,14 @@ export class Globular {
     if (this._packagesDicovery == null) {
       let configs = this.getConfigs('discovery.PackageDiscovery')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._packagesDicovery = new PackageDiscoveryPromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -824,10 +873,14 @@ export class Globular {
     if (this._servicesRepository == null) {
       let configs = this.getConfigs('repository.PackageRepository')
       configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
         this._servicesRepository = new PackageRepositoryPromiseClient(
           this.config.Protocol +
           '://' +
-          config.Address.split(":")[0] +
+          serviceAddress +
           ':' +
           config.Proxy,
           null,
@@ -845,11 +898,16 @@ export class Globular {
     if (this._catalogService == null) {
       let configs = this.getConfigs('catalog.CatalogService')
       configs.forEach((config: IServiceConfig) => {
+
         if (this._catalogService == null) {
+          let serviceAddress = config.Address.split(":")[0]
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._catalogService = new CatalogServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -868,10 +926,14 @@ export class Globular {
       let configs = this.getConfigs('echo.EchoService')
       configs.forEach((config: IServiceConfig) => {
         if (this._echoService == null) {
+          let serviceAddress = config.Address.split(":")[0]
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._echoService = new EchoServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -890,10 +952,14 @@ export class Globular {
       let configs = this.getConfigs('event.EventService')
       configs.forEach((config: IServiceConfig) => {
         if (this._eventService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._eventService = new EventServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -916,10 +982,14 @@ export class Globular {
       let configs = this.getConfigs('file.FileService')
       configs.forEach((config: IServiceConfig) => {
         if (this._fileService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._fileService = new FileServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -939,10 +1009,14 @@ export class Globular {
       let configs = this.getConfigs('ldap.LdapService')
       configs.forEach((config: IServiceConfig) => {
         if (this._ldapService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._ldapService = new LdapServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -961,10 +1035,14 @@ export class Globular {
       let configs = this.getConfigs('persistence.PersistenceService')
       configs.forEach((config: IServiceConfig) => {
         if (this._persistenceService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._persistenceService = new PersistenceServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -983,10 +1061,14 @@ export class Globular {
       let configs = this.getConfigs('mail.MailService')
       configs.forEach((config: IServiceConfig) => {
         if (this._mailService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._mailService = new MailServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1006,10 +1088,14 @@ export class Globular {
       let configs = this.getConfigs('sql.SqlService')
       configs.forEach((config: IServiceConfig) => {
         if (this._sqlService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._sqlService = new SqlServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1028,10 +1114,14 @@ export class Globular {
       let configs = this.getConfigs('storage.StorageService')
       configs.forEach((config: IServiceConfig) => {
         if (this._storageService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._storageService = new StorageServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1051,10 +1141,15 @@ export class Globular {
       let configs = this.getConfigs('monitoring.MonitoringService')
       configs.forEach((config: IServiceConfig) => {
         if (this._monitoringService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
+
           this._monitoringService = new MonitoringServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1073,10 +1168,14 @@ export class Globular {
       let configs = this.getConfigs('spc.SpcService')
       configs.forEach((config: IServiceConfig) => {
         if (this._spcService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._spcService = new SpcServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1094,10 +1193,14 @@ export class Globular {
       let configs = this.getConfigs('title.TitleService')
       configs.forEach((config: IServiceConfig) => {
         if (this._titleService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._titleService = new TitleServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1115,10 +1218,14 @@ export class Globular {
       let configs = this.getConfigs('torrent.TorrentService')
       configs.forEach((config: IServiceConfig) => {
         if (this._torrentService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._torrentService = new TorrentServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,
@@ -1136,10 +1243,14 @@ export class Globular {
       let configs = this.getConfigs('search.SearchService')
       configs.forEach((config: IServiceConfig) => {
         if (this._searchService == null) {
+          let serviceAddress = config.Address.split(":")[0] 
+          if (serviceAddress == "localhost") {
+            serviceAddress = this.address
+          }
           this._searchService = new SearchServicePromiseClient(
             this.config.Protocol +
             '://' +
-            config.Address.split(":")[0] +
+            serviceAddress +
             ':' +
             config.Proxy,
             null,

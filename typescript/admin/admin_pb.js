@@ -772,7 +772,8 @@ proto.admin.HostInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
     ip: jspb.Message.getFieldWithDefault(msg, 1, ""),
     mac: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 3, "")
+    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    infos: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -821,6 +822,10 @@ proto.admin.HostInfo.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {string} */ (reader.readString());
       msg.setName(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setInfos(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -868,6 +873,13 @@ proto.admin.HostInfo.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getInfos();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -925,6 +937,24 @@ proto.admin.HostInfo.prototype.getName = function() {
  */
 proto.admin.HostInfo.prototype.setName = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string infos = 4;
+ * @return {string}
+ */
+proto.admin.HostInfo.prototype.getInfos = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.HostInfo} returns this
+ */
+proto.admin.HostInfo.prototype.setInfos = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 

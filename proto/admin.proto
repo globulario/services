@@ -10,6 +10,7 @@ message HostInfo {
    string ip = 1;
    string mac = 2;
    string name = 3;
+   string infos = 4; // additional informations to help identify the host.
 }
 
 message getAvailableHostsRequest {
@@ -218,7 +219,7 @@ service AdminService {
   // Retrun file info from the server (absolute path)
   rpc GetFileInfo(GetFileInfoRequest) returns(GetFileInfoResponse);
 
-   // Return the list of available host.
-   rpc GetAvailableHosts(getAvailableHostsRequest) returns(getAvailableHostsResponse);
+  // Return the list of available host.
+  rpc GetAvailableHosts(getAvailableHostsRequest) returns(getAvailableHostsResponse);
 
 }

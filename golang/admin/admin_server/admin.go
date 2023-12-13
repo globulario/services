@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	ps "github.com/shirou/gopsutil/process"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/admin/adminpb"
 
 	"github.com/jackpal/gateway"
 	"google.golang.org/grpc/codes"
@@ -541,11 +541,10 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	return &adminpb.GetFileInfoResponse{Info: result}, nil
 }
 
-
 // Get the list of available host on the network.
 func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvailableHostsRequest) (*adminpb.GetAvailableHostsResponse, error) {
 	// Run the arp -a command
-	cmd := exec.Command("arp", "-a")
+	cmd := exec.Command("arp-scan", "--localnet")
 
 	// Capture the command output
 	output, err := cmd.CombinedOutput()
@@ -554,30 +553,28 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 		return nil, err
 	}
 
-
-
 	gateway, err := gateway.DiscoverGateway()
-    if err != nil {
-        fmt.Println("fail to get gateway with error ", err)
+	if err != nil {
+		fmt.Println("fail to get gateway with error ", err)
 		return nil, err
-    }
-
-	// Process the output if needed
-    hostInfos:=	parseArpOutput(string(output), gateway.String())
-
-	// I will append the current host to the list of host.
-	
-	mustAppend := true
-	for i := 0; i < len(hostInfos); i++ {
-		if hostInfos[i].Mac == srv.GetMac() {
-			mustAppend = false
-			break
-		}
 	}
 
-	if mustAppend {
+	// Process the output if needed
+	hostInfos := parseArpOutput(string(output), gateway.String())
+	ipHostnameMap := Utility.GetHostnameIPMap()
 
-		hostInfos = append(hostInfos, &adminpb.HostInfo{ Ip: config.GetLocalIP(), Mac: srv.Mac, Name: srv.Address })
+	// I will append the current host to the list of host.
+	for i := 0; i < len(hostInfos); i++ {
+		hostInfo := hostInfos[i]
+		if hostInfo.Mac == srv.Mac {
+			hostInfo.Name, _ = os.Hostname()
+			hostInfo.Infos, _ = getComputerModel()
+		}
+		
+		if hostname, ok := ipHostnameMap[hostInfo.Ip]; ok {
+			hostInfo.Name = hostname
+		}
+
 	}
 
 	return &adminpb.GetAvailableHostsResponse{
@@ -586,17 +583,30 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 }
 
 
+
+func getComputerModel() (string, error) {
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.Command("dmidecode", "-s", "baseboard-manufacturer")
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.String()), nil
+
+}
+
 func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
 	var arpEntries []*adminpb.HostInfo
 
 	// Define regular expressions for IPv4, MAC address, and domain name
 	ipRegex := regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
 	macRegex := regexp.MustCompile(`([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})`)
-	domainNameRegex := regexp.MustCompile(`\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b`)
 
 	// Split the output into lines
 	lines := strings.Split(output, "\n")
-	
 
 	// Process each line
 	for _, line := range lines {
@@ -613,15 +623,17 @@ func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
 			}
 
 			// Match domain name
-			domainMatches := domainNameRegex.FindAllString(line, -1)
-			var hostname string
-			if len(domainMatches) > 0 {
-				hostname = domainMatches[0]
+			infos := ""
+
+			if len(mac) > 0 && len(ip) > 0 {
+				infos = strings.ReplaceAll(line, ip, "")
+				infos = strings.ReplaceAll(infos, mac, "")
+				infos = strings.TrimSpace(infos)
 			}
 
 			// Append the parsed entry to the result
 			if ip != gateway && len(mac) > 0 {
-				arpEntries = append(arpEntries, &adminpb.HostInfo{ Ip: ip, Mac: mac, Name: hostname })
+				arpEntries = append(arpEntries, &adminpb.HostInfo{Ip: ip, Mac: mac, Infos: infos, Name: ""})
 			}
 		}
 	}
