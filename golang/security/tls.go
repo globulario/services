@@ -97,13 +97,14 @@ func getCaCertificate(address string, port int) (string, error) {
 	if err == nil && local_config != nil {
 		// I will use the DNS as authority for the certificate.
 		if local_config["DNS"] != nil {
-			address = local_config["DNS"].(string)
-			port = 443
-			if strings.Contains(address, ":") {
-				port = Utility.ToInt(strings.Split(address, ":")[1])
-				address = strings.Split(address, ":")[0]
+			if len(local_config["DNS"].(string)) > 0 {
+				address = local_config["DNS"].(string)
+				port = 443
+				if strings.Contains(address, ":") {
+					port = Utility.ToInt(strings.Split(address, ":")[1])
+					address = strings.Split(address, ":")[0]
+				}
 			}
-
 		}
 	}
 
@@ -119,7 +120,7 @@ func getCaCertificate(address string, port int) (string, error) {
 		return certificate, nil
 	}
 
-	return "", nil
+	return "", err
 }
 
 /**
@@ -128,7 +129,7 @@ func getCaCertificate(address string, port int) (string, error) {
 func getCaCertificate_(address string, port int, protocol string) (string, error) {
 
 	if len(address) == 0 {
-		return "", errors.New("no address was given")
+		return "", errors.New("fail to get CA certificate no address was given")
 	}
 
 	// Here I will get the configuration information from http...
@@ -156,20 +157,19 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
 
-	// if a DNS is I will use it as CA.
+	// if a DNS is defined CA.
 	local_config, err := config_.GetLocalConfig(true)
 	if err == nil && local_config != nil {
-
 		if local_config["DNS"] != nil {
-			// I will use the DNS as authority for the certificate.
-			address = local_config["DNS"].(string)
-			port = 443
-
-			if strings.Contains(address, ":") {
-				port = Utility.ToInt(strings.Split(address, ":")[1])
-				address = strings.Split(address, ":")[0]
+			if len(local_config["DNS"].(string)) > 0 {
+				// I will use the DNS as authority for the certificate.
+				address = local_config["DNS"].(string)
+				port = 443
+				if strings.Contains(address, ":") {
+					port = Utility.ToInt(strings.Split(address, ":")[1])
+					address = strings.Split(address, ":")[0]
+				}
 			}
-
 		}
 	}
 
@@ -190,7 +190,7 @@ func signCaCertificate_(address string, csr string, port int, protocol string) (
 
 	// try to sign the certificate with http
 	if len(address) == 0 {
-		return "", errors.New("no address was given")
+		return "", errors.New("fail to sign certificate no address was given")
 	}
 
 	csr_str := base64.StdEncoding.EncodeToString([]byte(csr))
@@ -231,6 +231,9 @@ func InstallServerCertificates(domain string, port int, path string, country str
  */
 func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
+	// keep it as address for now.
+	address := domain
+
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
@@ -257,7 +260,7 @@ func getClientCredentialConfig(path string, domain string, country string, state
 	// be deployed. Certificate autority run wihtout tls.
 
 	// Get the ca.crt certificate from the server.
-	ca_crt, err := getCaCertificate(domain, port)
+	ca_crt, err := getCaCertificate(address, port)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -290,7 +293,7 @@ func getClientCredentialConfig(path string, domain string, country string, state
 	}
 
 	// Write the ca.crt file on the disk
-	err = ioutil.WriteFile(path+"/ca.crt", []byte(ca_crt), 0444)
+	err = os.WriteFile(path+"/ca.crt", []byte(ca_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -315,19 +318,19 @@ func getClientCredentialConfig(path string, domain string, country string, state
 	}
 
 	// Step 3: Generate client signed certificate.
-	client_csr, err := ioutil.ReadFile(path + "/client.csr")
+	client_csr, err := os.ReadFile(path + "/client.csr")
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Sign the certificate from the server ca...
-	client_crt, err := signCaCertificate(domain, string(client_csr), Utility.ToInt(port))
+	client_crt, err := signCaCertificate(address, string(client_csr), Utility.ToInt(port))
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Write bact the client certificate in file on the disk
-	err = ioutil.WriteFile(path+"/client.crt", []byte(client_crt), 0444)
+	err = os.WriteFile(path+"/client.crt", []byte(client_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -437,7 +440,7 @@ func getServerCredentialConfig(path string, domain string, country string, state
 	}
 
 	// Step 3: Generate server signed certificate.
-	csr, err := ioutil.ReadFile(path + "/server.csr")
+	csr, err := os.ReadFile(path + "/server.csr")
 	if err != nil {
 		return "", "", "", err
 	}
@@ -449,7 +452,7 @@ func getServerCredentialConfig(path string, domain string, country string, state
 	}
 
 	// Write bact the client certificate in file on the disk
-	err = ioutil.WriteFile(path+"/server.crt", []byte(crt), 0444)
+	err = os.WriteFile(path+"/server.crt", []byte(crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -752,8 +755,6 @@ subjectAltName = @alt_names
 		alternateDomains = append(alternateDomains, domain)
 	}
 
-	fmt.Println("700 ----------------> ", alternateDomains)
-
 	// set alternate domain
 	for i := 0; i < len(alternateDomains); i++ {
 		config += fmt.Sprintf("DNS.%d = %s \n", i, alternateDomains[i])
@@ -928,28 +929,30 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 
 		// I will use the DNS as authority for the certificate.
 		if local_config["DNS"] != nil {
-			dns_address := local_config["DNS"].(string)
-			port := 443
-			if strings.Contains(dns_address, ":") {
-				port = Utility.ToInt(strings.Split(dns_address, ":")[1])
-				dns_address = strings.Split(dns_address, ":")[0]
-			}
-
-			// Be sure that the dns address is not the same as the domain.
-			if dns_address != local_config["Name"].(string)+"."+local_config["Domain"].(string) {
-				// Here I will generate the certificate for the server.
-				_, _, _, err := getServerCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
-				if err != nil {
-					return err
+			if len(local_config["DNS"].(string)) > 0 {
+				dns_address := local_config["DNS"].(string)
+				port := 443
+				if strings.Contains(dns_address, ":") {
+					port = Utility.ToInt(strings.Split(dns_address, ":")[1])
+					dns_address = strings.Split(dns_address, ":")[0]
 				}
 
-				// Here I will generate the certificate for the client.
-				_, _, _, err = getClientCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
-				if err != nil {
-					return err
-				}
+				// Be sure that the dns address is not the same as the domain.
+				if dns_address != local_config["Name"].(string)+"."+local_config["Domain"].(string) {
+					// Here I will generate the certificate for the server.
+					_, _, _, err := getServerCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
+					if err != nil {
+						return err
+					}
 
-				return nil
+					// Here I will generate the certificate for the client.
+					_, _, _, err = getClientCredentialConfig(path, dns_address, country, state, city, organization, alternateDomains, port)
+					if err != nil {
+						return err
+					}
+
+					return nil
+				}
 			}
 
 		}
@@ -1159,6 +1162,7 @@ func GetLocalKey() ([]byte, error) {
 	// That token will be valid on the peer itself.
 	id := strings.ReplaceAll(macAddress, ":", "_")
 	if !Utility.Exists(keyPath + "/" + id + "_public") {
+		fmt.Println("no public key found at path ", keyPath+"/"+id+"_public")
 		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
 	}
 
@@ -1192,6 +1196,7 @@ func readPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 	//2, pem decryption
 	block, _ := pem.Decode(buf)
 	if block == nil {
+		fmt.Println("delete private key ", keyPath+"/"+id+"_private")
 		os.Remove(keyPath + "/" + id + "_private")
 		return nil, errors.New("Corrupted local keys was found for peer " + id + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
 	}
@@ -1224,6 +1229,7 @@ func readPublicKey(id string) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode(buf)
 	if block == nil {
 		os.Remove(keyPath + "/" + id + "_public")
+		fmt.Println("delete public key ", keyPath+"/"+id+"_public")
 		return nil, errors.New("Corrupted local keys was found for peer " + id + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
 	}
 

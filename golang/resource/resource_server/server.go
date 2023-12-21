@@ -486,29 +486,30 @@ func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
 
 /** Set the host if it's part of the same local network. */
 func (srv *server) setLocalHosts(peer *resourcepb.Peer) error {
-	fmt.Println("try to set ip and domain in /etc/host with value ip:", peer.LocalIpAddress, " domain:", peer.GetDomain())
 
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
+	address := peer.GetHostname()
+	if peer.GetDomain() != "localhost" {
+		address = address + "." + peer.GetDomain()
+	}
+
 	if err != nil {
-		fmt.Println("fail to set host entry ", peer.LocalIpAddress, peer.GetDomain(), " with error ", err)
+		fmt.Println("fail to set host entry ", address, " with error ", err)
 		return err
 	}
 
 	if peer.ExternalIpAddress == Utility.MyIP() {
-		hosts.AddHost(peer.LocalIpAddress, peer.GetDomain())
+		hosts.AddHost(peer.LocalIpAddress, address)
 	} else {
-		fmt.Println("528 peer is not on the same network...")
-		return errors.New("the peer is not on the same local network")
+		hosts.AddHost(peer.ExternalIpAddress, address)
 	}
 
 	err = hosts.Save()
 	if err != nil {
-		fmt.Println("fail to save hosts ", peer.LocalIpAddress, peer.GetDomain(), " with error ", err)
+		fmt.Println("fail to save hosts ", peer.LocalIpAddress, address, " with error ", err)
 		return err
 	}
-
-	fmt.Println("peer whit address ", peer.LocalIpAddress, " was added to /etc/hosts with domain: ", peer.GetDomain())
 
 	return nil
 }

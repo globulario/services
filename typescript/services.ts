@@ -78,6 +78,8 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
+  ExternalIpAddress: string;
+  LocalIpAddress: string;
   BackendPort: number;
   BackendStore: number;
   AdminEmail: string;

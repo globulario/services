@@ -702,7 +702,7 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 	// I will retreive the current value if any.
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
-		fmt.Println("fail to retreive A (address) for domain ", domain, " with error: ", err)
+		//fmt.Println("fail to retreive A (address) for domain ", domain, " with error: ", err)
 		return nil, err
 	}
 
@@ -856,7 +856,7 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
-		fmt.Println("fail to retreive AAAA (address) for domain ", domain, " with error: ", err)
+		//fmt.Println("fail to retreive AAAA (address) for domain ", domain, " with error: ", err)
 		return nil, 0, err
 	}
 
@@ -1082,9 +1082,7 @@ func (srv *server) getNs(id string) ([]string, uint32, error) {
 	if !strings.HasSuffix(id, ".") {
 		id = id + "."
 	}
-
-	fmt.Println("getNs id: ", id)
-
+	
 	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := srv.store.GetItem(uuid)
 	values := make([]string, 0)
@@ -2184,8 +2182,6 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					A:   net.ParseIP(address),
 				})
 			}
-		} else {
-			fmt.Println("fail to retreive ipv4 address for "+domain, err)
 		}
 
 		err = w.WriteMsg(&msg)
@@ -2207,9 +2203,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					AAAA: net.ParseIP(address),
 				})
 			}
-		} else {
-			fmt.Println(err)
-		}
+		} 
 
 		err = w.WriteMsg(&msg)
 		if err != nil {
@@ -2231,8 +2225,6 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Subtype:  uint16(afsdb.Subtype), //
 				Hostname: afsdb.Hostname,
 			})
-		} else {
-			fmt.Println(err)
 		}
 
 		err = w.WriteMsg(&msg)
@@ -2401,7 +2393,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					})
 			}
 		}
-		fmt.Println("SOA: ", msg.Answer)
+
 		err = w.WriteMsg(&msg)
 		if err != nil {
 			fmt.Println("fail to write message: ", err)

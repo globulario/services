@@ -177,6 +177,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) {
 					// give ti some time to free resources like port files... etc.
+					time.Sleep(5 * time.Second)
 					_, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
 						return // fail to restart the process...
@@ -436,6 +437,7 @@ func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error
 
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
+	
 
 	domain, _ := config.GetAddress()
 	domain = strings.Split(domain, ":")[0]

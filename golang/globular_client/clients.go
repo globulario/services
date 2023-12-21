@@ -41,11 +41,11 @@ func GetClient(address, name, fct string) (Client, error) {
 		for i := 0; i < len(peers); i++ {
 			p := peers[i].(map[string]interface{})
 			if p["Domain"].(string) == address {
-				if p["ExternalIpAddress"] == Utility.MyIP() {
-					address = p["ExternalIpAddress"].(string)
-				} else {
-					address = p["LocalIpAddress"].(string)
+				address = p["Hostname"].(string)
+				if p["Domain"].(string) != "localhost" {
+					address += "." + p["Domain"].(string)
 				}
+				address += ":" + Utility.ToString(p["Port"])
 				break
 			}
 		}
@@ -226,7 +226,7 @@ func InitClient(client Client, address string, id string) error {
 
 	values := strings.Split(address, ":")
 	domain := values[0]
-	
+
 	port := Utility.ToInt(values[1])
 	isLocal := address_ == address
 
@@ -443,7 +443,6 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	}
 
 	keyFile := client.GetKeyFile()
-
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		err = errors.New("fail to load client certificate cert file: "+ certFile + " kefile: " + keyFile + err.Error())
@@ -455,13 +454,12 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	ca, err := os.ReadFile(client.GetCaFile())
 	if err != nil {
 		fmt.Println("fail to read ca certificate" + err.Error())
-		return nil, err
+		return nil, errors.New("fail to read ca certificate" + err.Error())
 	}
 
 	// Append the certificates from the CA
 	if ok := certPool.AppendCertsFromPEM(ca); !ok {
-		fmt.Println("failed to append ca certs to cert pool with error: " + err.Error())
-		return nil, err
+		return nil, errors.New("fail to append ca certificate")
 	}
 
 	return &tls.Config{
@@ -490,12 +488,11 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 	// The grpc address
 	address += ":" + Utility.ToString(client.GetPort())
-
-	//fmt.Println("get client connection ", address)
 	if client.HasTLS() {
 		
 		tlsConfig, err := GetClientTlsConfig(client)
 		if err != nil {
+			fmt.Println("fail to get tls config ", err)
 			return nil, err
 		}
 
@@ -511,6 +508,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		//fmt.Println("client connection not use tls")
 		cc, err = grpc.Dial(address, grpc.WithInsecure(), grpc.WithUnaryInterceptor(clientInterceptor(client)))
 		if err != nil {
+			fmt.Println("fail to dial address ", err)
 			return nil, err
 		} else if cc != nil {
 			return cc, nil

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -533,34 +534,53 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 /**
  * Get the remote client configuration, made use of http request to do so.
  */
+// GetRemoteServiceConfig retrieves remote service configuration.
 func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
-
 	if len(address) == 0 {
-		return nil, errors.New("no address was given")
+		return nil, errors.New("fail to get remote service Config: no address was given")
 	}
 
 	if len(id) == 0 {
-		return nil, errors.New("no service id was given")
+		return nil, errors.New("no service ID was given")
 	}
 
-	// Here I will get the configuration information from http...
-	var resp *http.Response
-	var err error
+	// Set a timeout for the HTTP request
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create an HTTP client with the specified timeout
+	client := &http.Client{
+		Timeout: 5 * time.Second, // wait 1 second seconds before timing out
+	}
+
 	// The default port address.
 	if port == 0 {
 		port = 80
 	}
 
-	// Try over
-	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
+	// Try HTTP first
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s:%d/config", address, port), nil)
 	if err != nil {
-		fmt.Println("fail to retreive remote config at url: ", "http://"+address+":"+Utility.ToString(port)+"/config", err)
-		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("failed to retrieve remote config at url:", "http://"+address+":"+Utility.ToString(port)+"/config", err)
+
+		// If HTTP fails, try HTTPS
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://%s:%d/config", address, port), nil)
 		if err != nil {
-			fmt.Println("fail to retreive remote config at url: ", "https://"+address+":"+Utility.ToString(port)+"/config", err)
 			return nil, err
 		}
+		req = req.WithContext(ctx)
 
+		resp, err = client.Do(req)
+		if err != nil {
+			fmt.Println("failed to retrieve remote config at url:", "https://"+address+":"+Utility.ToString(port)+"/config", err)
+			return nil, err
+		}
 	}
 
 	defer resp.Body.Close()
@@ -570,14 +590,20 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 		return nil, err
 	}
 
-	// set back the error to nil
+	// Set back the error to nil
 	err = nil
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
-
 		if port == 0 {
 			port = 443
 		}
-		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		// Retry with HTTPS
+		req, err := http.NewRequest("GET", fmt.Sprintf("https://%s:%d/config", address, port), nil)
+		if err != nil {
+			return nil, err
+		}
+		req = req.WithContext(ctx)
+
+		resp, err = client.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -597,7 +623,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	}
 
 	if len(id) > 0 {
-		// get service by id or by name... (take the first service with a given name in case of name.
+		// Get service by ID or by name (take the first service with a given name in case of name).
 		for _, s := range config["Services"].(map[string]interface{}) {
 			if s.(map[string]interface{})["Name"].(string) == id || s.(map[string]interface{})["Id"].(string) == id {
 				return s.(map[string]interface{}), nil
@@ -614,7 +640,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
 	if len(address) == 0 {
-		return nil, errors.New("no address was given")
+		return nil, errors.New("fail to get remote config no address was given")
 	}
 
 	// Here I will get the configuration information from http...

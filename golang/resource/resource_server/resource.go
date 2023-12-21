@@ -2370,6 +2370,22 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 // * Connect tow peer toggether on the network.
 func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
+	fmt.Println("Register peer request received:  ", rqst)
+	if rqst.Peer == nil {
+		return nil, errors.New("no peer object was given in the request")
+	}
+
+	if rqst.Peer.LocalIpAddress == "" {
+		return nil, errors.New("no local ip address was given in the request")
+	}
+
+	if rqst.Peer.ExternalIpAddress == "" {
+		return nil, errors.New("no external ip address was given in the request")
+	}
+
+	// set the remote peer in /etc/hosts
+	srv.setLocalHosts(rqst.Peer)
+
 	// Here I will first look if a peer with a same name already exist on the
 	if srv.Mac == rqst.Peer.Mac {
 		return nil, errors.New("can not register peer to itself")
@@ -2383,10 +2399,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
-
-	// set the remote peer in /etc/hosts
-	srv.setLocalHosts(rqst.Peer)
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +  `"}`
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
@@ -2627,7 +2640,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	// Now I will retreive the peer informations.
 	setState := map[string]interface{}{"$set": map[string]interface{}{"state": resourcepb.PeerApprovalState_PEER_ACCETEP}}
@@ -2698,7 +2711,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +`"}`
 
 	setState := `{ "$set":{"state":2}}`
 
@@ -2891,7 +2904,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 		return nil, err
 	}
 
-	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	values, err := p.FindOne(ctx, "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -2918,7 +2931,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	}
 
 	// update peer values.
-	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
+	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
 
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...
@@ -2969,7 +2982,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 		return nil, err
 	}
 
-	q := `{"$and":[{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `", "domain":"` + rqst.Peer.Domain + `"}]}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +`"}`
 
 	// try to get the peer from the database.
 	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")

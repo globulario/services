@@ -797,7 +797,6 @@ func StartService(s Service, srv *grpc.Server) error {
 							}
 
 							if s.GetState() == "stopped" {
-
 								// Stop the service.
 								StopService(s, srv)
 
