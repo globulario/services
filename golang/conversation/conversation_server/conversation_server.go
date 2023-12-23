@@ -578,6 +578,7 @@ func (srv *server) StopService() error {
 
 func (srv *server) Stop(context.Context, *conversationpb.StopRequest) (*conversationpb.StopResponse, error) {
 	srv.exit <- true
+
 	return &conversationpb.StopResponse{}, srv.StopService()
 }
 

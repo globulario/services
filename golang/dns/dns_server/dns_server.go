@@ -572,7 +572,7 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 
 func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
 	//fmt.Println("Try remove dns entry ", rqst.Domain)
-	srv.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try remove dns entry "+rqst.Domain)
+	srv.logServiceInfo("Remove", Utility.FileLine(), Utility.FunctionName(), "Try remove dns entry "+rqst.Domain)
 
 	if !srv.isManaged(rqst.Domain) {
 		return nil, status.Errorf(

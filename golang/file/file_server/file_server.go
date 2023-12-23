@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/StalkR/httpcache"
@@ -5108,7 +5109,7 @@ func cancelUploadVideoHandeler(srv *server, title_client_ *title_client.Title_Cl
 					return // only yt-dlp must be kill...
 				}
 
-				proc.Kill()
+				proc.Signal(syscall.SIGTERM)
 				time.Sleep(1 * time.Second) // give time to process to stop...
 				files, _ := Utility.ReadDir(path_)
 
