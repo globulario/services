@@ -632,7 +632,7 @@ func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
 			}
 
 			// Append the parsed entry to the result
-			if ip != gateway && len(mac) > 0 {
+			if ip != gateway && len(mac) > 0  && !strings.Contains(line, "(DUP:"){
 				arpEntries = append(arpEntries, &adminpb.HostInfo{Ip: ip, Mac: mac, Infos: infos, Name: ""})
 			}
 		}

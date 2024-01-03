@@ -28,7 +28,6 @@ func GetLocalIP() string {
 	}
 
 	ip, err := Utility.MyLocalIP(mac)
-
 	if err != nil {
 		return "127.0.0.1"
 	}
