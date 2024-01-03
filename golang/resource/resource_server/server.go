@@ -501,8 +501,6 @@ func (srv *server) setLocalHosts(peer *resourcepb.Peer) error {
 
 	if peer.ExternalIpAddress == Utility.MyIP() {
 		hosts.AddHost(peer.LocalIpAddress, address)
-	} else {
-		hosts.AddHost(peer.ExternalIpAddress, address)
 	}
 
 	err = hosts.Save()

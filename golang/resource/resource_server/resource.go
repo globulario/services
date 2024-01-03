@@ -2370,7 +2370,6 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 // * Connect tow peer toggether on the network.
 func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
-	fmt.Println("Register peer request received:  ", rqst)
 	if rqst.Peer == nil {
 		return nil, errors.New("no peer object was given in the request")
 	}
@@ -2432,9 +2431,16 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// so the intention is to register the server itself on another srv...
 	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
+
 	if len(rqst.Peer.Mac) == 0 {
+
+
 		// In that case I will use the hostname and the domain to set the address
-		address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+		address_ := rqst.Peer.Hostname 
+		if rqst.Peer.Domain != "localhost" {
+			address_ += "." + rqst.Peer.Domain
+		}
+
 		if rqst.Peer.Protocol == "https" {
 			address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 		} else {
@@ -2502,7 +2508,11 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// Update peer event.
 		srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
-		address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+		address := rqst.Peer.Hostname
+		if rqst.Peer.Domain != "localhost" {
+			address += "." + rqst.Peer.Domain
+		}
+
 		if rqst.Peer.Protocol == "https" {
 			address += ":" + Utility.ToString(rqst.Peer.PortHttps)
 		} else {
@@ -2580,6 +2590,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+
 	// actions will need to be set by admin latter...
 	pubKey, err := security.GetPeerKey(getLocalPeer().Mac)
 	if err != nil {
@@ -2587,6 +2598,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 
 	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
@@ -2596,7 +2608,11 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", jsonStr, srv.GetAddress())
 
-	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname 
+	if rqst.Peer.Domain != "localhost" {
+		address_ += "." + rqst.Peer.Domain
+	}
+
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2607,9 +2623,9 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	if err != nil {
 		return nil, err
 	}
+
 	srv.publishRemoteEvent(address_, "update_peers_evt", jsonStr)
 
-	// set the remote peer in /etc/hosts
 	srv.setLocalHosts(getLocalPeer())
 
 	return &resourcepb.RegisterPeerRsp{
@@ -2668,7 +2684,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 
 	// Here I will append the resource owner...
 	domain := rqst.Peer.Hostname
-	if len(rqst.Peer.Domain) > 0 {
+	if rqst.Peer.Domain != "localhost" {
 		domain += "." + rqst.Peer.Domain
 	}
 
@@ -2683,7 +2699,11 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
-	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname
+	if rqst.Peer.Domain != "localhost" {
+		address_ += "." + rqst.Peer.Domain
+	}
+
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2730,7 +2750,11 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", jsonStr, srv.Address)
 
-	address_ := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+	address_ := rqst.Peer.Hostname
+	if rqst.Peer.Domain != "localhost" {
+		address_ += "." + rqst.Peer.Domain
+	}
+
 	if rqst.Peer.Protocol == "https" {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -2960,7 +2984,11 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	// signal peers changes...
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, srv.Address)
 
-	address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+	address := rqst.Peer.Hostname
+	if len(rqst.Peer.Domain) > 0 {
+		address += "." + rqst.Peer.Domain
+	}
+
 	if rqst.Peer.Protocol == "https" {
 		address += ":" + Utility.ToString(rqst.Peer.PortHttps)
 	} else {
@@ -3029,7 +3057,11 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	// signal peers changes...
-	address := peer.Hostname + "." + peer.Domain
+	address := peer.Hostname
+	if peer.Domain != "localhost" {
+		address += "." + peer.Domain
+	}
+
 	if peer.Protocol == "https" {
 		address += ":" + Utility.ToString(peer.PortHttps)
 	} else {

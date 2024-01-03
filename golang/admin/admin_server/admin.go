@@ -561,7 +561,7 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 
 	// Process the output if needed
 	hostInfos := parseArpOutput(string(output), gateway.String())
-	ipHostnameMap := Utility.GetHostnameIPMap()
+	ipHostnameMap := Utility.GetHostnameIPMap(gateway.String())
 
 	// I will append the current host to the list of host.
 	for i := 0; i < len(hostInfos); i++ {
