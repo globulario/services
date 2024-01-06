@@ -50,7 +50,6 @@ namespace Globular
         public int Process { get; set; }
         public int ProxyProcess { get; set; }
         public string LastError { get; set; }
-
     }
 
     public class Client

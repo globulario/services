@@ -389,11 +389,7 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 	}
 
 	// Add the primary key
-	if data["domain"] != nil {
-		createTableQuery += "PRIMARY KEY (id, domain));"
-	} else {
-		createTableQuery += "PRIMARY KEY (id));"
-	}
+	createTableQuery += "PRIMARY KEY (id));"
 
 	// Execute the CREATE TABLE query
 	err := session.Query(createTableQuery).Exec()
