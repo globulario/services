@@ -364,12 +364,12 @@ func (client *Event_Client) StopService() {
 }
 
 // Publish and event over the network
-func (client *Event_Client) Publish(name string, data interface{}) error {
+func (client *Event_Client) Publish(name string, data []byte) error {
 
 	rqst := &eventpb.PublishRequest{
 		Evt: &eventpb.Event{
 			Name: name,
-			Data: data.([]byte),
+			Data: data,
 		},
 	}
 

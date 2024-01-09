@@ -1284,7 +1284,6 @@ func (srv *server) createGroup(id, name, owner, description string, members []st
 	}
 
 	// Now create the resource permission.
-
 	srv.addResourceOwner(id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
 	fmt.Println("group ", id, "was create with owner ", owner)
 	return nil
@@ -1436,8 +1435,16 @@ func (srv *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
+
+	var name string
+	if  application["name"] != nil {
+		name = application["name"].(string)
+	} else if application["Name"] != nil {
+		name = application["Name"].(string)
+	}
+
 	// Set the database name.
-	db := application["Name"].(string)
+	db := name
 	db = strings.ReplaceAll(db, ".", "_")
 	db = strings.ReplaceAll(db, "@", "_")
 	db = strings.ReplaceAll(db, "-", "_")

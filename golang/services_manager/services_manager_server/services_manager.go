@@ -321,6 +321,7 @@ func (srv *server) startServiceInstance(serviceId string) error {
 	}
 
 	s["Process"] = processPid
+	s["State"] = "running"
 
 	// save the service configuration
 	s["ProxyProcess"], err = Utility.GetProcessIdsByName("envoy")

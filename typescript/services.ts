@@ -52,6 +52,7 @@ export interface IServiceConfig {
   CertAuthorityTrust: string;
   CertFile: string;
   KeyFile: string;
+  Pid: number;
 }
 
 /**
