@@ -1,39 +1,43 @@
 syntax = "proto3";
 package applications_manager;
 
-option go_package="github.com/globulario/services/golang/applications_manager/applications_managerpb";
+option go_package = "github.com/globulario/services/golang/applications_manager/applications_managerpb";
 
-message InstallApplicationRequest{
-	string dicorveryId = 1;
-	string applicationId = 2;
-	string publisherId = 3;
-	string version = 4;
-	string domain = 5; // optional usefull if your server serve multiple domain.
-	bool set_as_default = 6;
+// InstallApplicationRequest represents a request to install a specific application.
+message InstallApplicationRequest {
+    string discoveryId = 1;      // Identifier for discovery service.
+    string applicationId = 2;    // Unique identifier for the application to be installed.
+    string publisherId = 3;      // Identifier of the application's publisher.
+    string version = 4;          // Version of the application to be installed.
+    string domain = 5;           // Optional. Useful if the server serves multiple domains.
+    bool set_as_default = 6;     // If true, sets the application as the default for its type.
 }
 
-message InstallApplicationResponse{
-	bool result = 1;
+// InstallApplicationResponse represents the response after attempting an application installation.
+message InstallApplicationResponse {
+    bool result = 1;             // True if the installation was successful, false otherwise.
 }
 
-message UninstallApplicationRequest{
-	string applicationId = 1;
-	string publisherId = 2;
-	string version = 3;
-	bool deletePermissions = 4;
-	string domain = 5; // optional usefull if your server serve multiple domain.
+// UninstallApplicationRequest represents a request to uninstall a specific application.
+message UninstallApplicationRequest {
+    string applicationId = 1;    // Unique identifier for the application to be uninstalled.
+    string publisherId = 2;      // Identifier of the application's publisher.
+    string version = 3;          // Version of the application to be uninstalled.
+    bool deletePermissions = 4;  // If true, also deletes all permissions associated with the application.
+    string domain = 5;           // Optional. Useful if the server serves multiple domains.
 }
 
-message UninstallApplicationResponse{
-	bool result = 1;
+// UninstallApplicationResponse represents the response after attempting an application uninstallation.
+message UninstallApplicationResponse {
+    bool result = 1;             // True if the uninstallation was successful, false otherwise.
 }
 
+// ApplicationManagerService defines RPC methods for managing applications.
 service ApplicationManagerService {
 
-  // Install application...
-  rpc InstallApplication(InstallApplicationRequest) returns (InstallApplicationResponse);
+    // Installs an application based on provided details.
+    rpc InstallApplication(InstallApplicationRequest) returns (InstallApplicationResponse);
 
-  // Uninstall application...
-  rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
-
+    // Uninstalls an application based on provided details.
+    rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
 }

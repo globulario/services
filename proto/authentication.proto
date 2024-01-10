@@ -1,115 +1,110 @@
-
 /**
  * Authentication service
  */
-syntax = "proto3";
-package authentication;
+ syntax = "proto3";
+ package authentication;
+ 
+ option go_package = "github.com/globulario/services/golang/authentication/authenticationpb";
+ 
+ // AuthenticateRqst is a request for user authentication.
+ message AuthenticateRqst {
+	 string name = 1;
+	 string password = 2;
+	 string issuer = 3; // The MAC address where the token will be validated. If empty, the MAC address of the current server will be used.
+ }
+ 
+ // AuthenticateRsp is the response to an authentication request.
+ message AuthenticateRsp {
+	 string token = 1;
+ }
+ 
+ // ValidateTokenRqst is a request to validate an authentication token.
+ message ValidateTokenRqst {
+	 string token = 1;
+ }
+ 
+ // ValidateTokenRsp is the response to a token validation request.
+ message ValidateTokenRsp {
+	 string clientId = 1;
+	 int64 expired = 2;
+ }
+ 
+ // RefreshTokenRqst is a request to refresh an authentication token.
+ message RefreshTokenRqst {
+	 string token = 1;
+ }
+ 
+ // RefreshTokenRsp is the response to a token refresh request.
+ message RefreshTokenRsp {
+	 string token = 1;
+ }
+ 
+ // SetPasswordRequest is a request to set or change a user's password.
+ message SetPasswordRequest {
+	 string accountId = 1;
+	 string oldPassword = 2;
+	 string newPassword = 3;
+ }
+ 
+ // SetPasswordResponse is the response to a password change request.
+ message SetPasswordResponse {
+	 string token = 1;
+ }
+ 
+ // SetRootPasswordRequest is a request to set or change the root password.
+ message SetRootPasswordRequest {
+	 string oldPassword = 1;
+	 string newPassword = 2;
+ }
+ 
+ // SetRootPasswordResponse is the response to a root password change request.
+ message SetRootPasswordResponse {
+	 string token = 1;
+ }
+ 
+ // SetRootEmailRequest is a request to set or change the root email address.
+ message SetRootEmailRequest {
+	 string oldEmail = 1;
+	 string newEmail = 2;
+ }
+ 
+ // SetRootEmailResponse is the response to a root email change request.
+ message SetRootEmailResponse {
+	 string token = 1;
+ }
+ 
+ // GeneratePeerTokenRequest is a request to generate a token for a peer with a specified MAC address.
+ message GeneratePeerTokenRequest {
+	 string mac = 2;
+ }
+ 
+ // GeneratePeerTokenResponse is the response containing a token for a peer.
+ message GeneratePeerTokenResponse {
+	 string token = 1;
+ }
 
-option go_package = "github.com/globulario/services/golang/authentication/authenticationpb";
-
-
-/** Authenticate the user **/
-message AuthenticateRqst{
-	string name = 1;
-	string password =2;
-	string issuer = 3; // The mac address where the token will be validate. if  emtpty the mac address of the current server will be use.
-}
-
-message AuthenticateRsp {
-	string token = 1;
-}
-
-/** Refresh token **/
-message RefreshTokenRqst{
-	string token = 1;
-}
-
-message RefreshTokenRsp {
-	string token = 1;
-}
-
-message ValidateTokenRqst{
-	string token = 1;
-}
-
-message ValidateTokenRsp{
-	string clientId = 1;
-	int64 expired = 2;
-}
-
-// TODO reset password.
-
-message SetPasswordRequest{
-	string accountId = 1;
-	string oldPassword = 2;
-	string newPassword = 3;
-}
-
-message SetPasswordResponse {
-	string token = 1;
-}
-
-message SetRootPasswordRequest{
-	string oldPassword = 1;
-	string newPassword = 2;
-}
-
-message SetRootPasswordResponse {
-	string token = 1;
-}
-
-message SetRootEmailRequest{
-	string oldEmail = 1;
-	string newEmail = 2;
-}
-
-message SetRootEmailResponse {
-	string token = 1;
-}
-
-/**
- * Generate a token for a given mac... must be one of peer...
- */
-message GeneratePeerTokenRequest {
-	string mac = 2;
-}
-
-/**
- * Get the token back...
- */
-message GeneratePeerTokenResponse {
-	string token = 1;
-}
-
-/**
- * That service must be use to authencate user.
- * to see...
- * https://youtu.be/B3xnJI2lHmc
- */
+ 
+// AuthenticationService provides functionalities related to user authentication and token management.
 service AuthenticationService {
-	
-	/** Validate a token **/
-	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);	
-		
-	/** Refresh token get a new token **/
-	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
 
-	/** Generate a token for a peer with a given mac address **/
-	rpc GeneratePeerToken(GeneratePeerTokenRequest) returns(GeneratePeerTokenResponse);
+    // Authenticate allows users to log in by validating their credentials and returning an authentication token.
+    rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
 
-	/** Set the account password **/
-  	rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse);
+    // ValidateToken checks the validity of a provided authentication token, returning details like the associated client ID and expiration time.
+    rpc ValidateToken(ValidateTokenRqst) returns(ValidateTokenRsp);
 
-	//Set the root password
-	rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse);
+    // RefreshToken renews an existing authentication token, issuing a new token for continued access.
+    rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
 
-	//Set the root email
-	rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse);
+    // GeneratePeerToken creates an authentication token for a peer device, identified by its MAC address.
+    rpc GeneratePeerToken(GeneratePeerTokenRequest) returns(GeneratePeerTokenResponse);
 
-	////////////////////////////////////////////////////////////////////////////
-	// Authentication
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Authenticate a user **/
-	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
+    // SetPassword allows users to set or update their account password.
+    rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse);
+
+    // SetRootPassword allows changing the root password, typically used by administrators for high-level access control.
+    rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse);
+
+    // SetRootEmail allows changing the root email address, which is essential for receiving critical system notifications and for account recovery purposes.
+    rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse);
 }

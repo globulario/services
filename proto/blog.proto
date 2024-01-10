@@ -1,309 +1,330 @@
-/**
- * You can use echo as starter project.
- */
-
 syntax = "proto3";
 package blog;
 
 option go_package="github.com/globulario/services/golang/blog/blogpb";
 
 /**
- * You emoji it...
+ * Represents an emoji reaction to a blog post or a comment.
  */
 message Emoji {
-
-  /** The account id you set the like */
+  /** The ID of the account that set the emoji */
   string Account_id = 1;
-
-  /** The creation time. */
+  /** Timestamp of emoji creation */
   int64 CreationTime = 2;
-
-  /** The post or the comment */
+  /** ID of the parent post or comment this emoji is associated with */
   string Parent = 3;
-
-  /** The emoji json string */
+  /** The actual emoji, stored as a JSON string */
   string emoji = 4;
 }
 
 /**
- * Comment about what...
+ * Represents a comment on a blog post or on another comment.
  */
 message Comment {
-  /** Help to track comment **/
+  /** Unique identifier for the comment */
   string Uuid = 1;
-
-  /** can be the blog or other comment */
+  /** ID of the parent entity (post or another comment) to which this comment belongs */
   string Parent = 2;
-
-  /** The account id you set the like */
+  /** ID of the account that made the comment */
   string Account_id = 3;
-
-  /** The creation time. */
+  /** Timestamp when the comment was created */
   int64 CreationTime = 4;
-
-  /** The language ex. en, es, fr*/
-	string Language = 5;
-
-  /** The comment text */
+  /** Language of the comment, e.g., 'en', 'es', 'fr' */
+  string Language = 5;
+  /** Actual text content of the comment */
   string Text = 6;
-
-  /** If there is answer's */
+  /** Replies to this comment, if any */
   repeated Comment Comments = 7;
-
-  /** The list of pepole's reation */
+  /** Emoji reactions to this comment */
   repeated Emoji Emotions = 8;
 }
 
 /**
- * The blog state.
+ * Enum for the status of a blog post.
  */
-enum BogPostStatus{
+enum BogPostStatus {
   DRAFT = 0;
   PUBLISHED = 1;
   ARCHIVED = 2;
 }
 
+/**
+ * Represents a blog post.
+ */
 message BlogPost {
-  /** A unique identifier */
+  /** Unique identifier for the blog post */
   string Uuid = 1;
-
-  /** The author of the post */
+  /** Author of the blog post */
   string Author = 2;
-
-  /** The text will be a json object that contain the Blog text */
+  /** Content of the blog post in JSON format */
   string Text = 3;
-
-  /** A title **/
+  /** Title of the blog post */
   string Title = 4;
-
-    /** A subtitle **/
+  /** Subtitle of the blog post */
   string Subtitle = 5;
-
-	/** The language ex. en, es, fr*/
-	string Language = 6;
-
-  /** Keywords Can be use by the search engine **/
-	repeated  string Keywords = 7;
-
-  /** The creation time. */
+  /** Language of the blog post */
+  string Language = 6;
+  /** Keywords for search optimization */
+  repeated string Keywords = 7;
+  /** Timestamp when the blog post was created */
   int64 CreationTime = 8;
-
-  /** Th list of unlike's */
+  /** Emoji reactions to the blog post */
   repeated Emoji Emotions = 9;
-
-  /** The list of comment's */
+  /** Comments on the blog post */
   repeated Comment Comments = 10;
-
-  /** A thumbnail to display quickly **/
+  /** URL of the thumbnail image for the blog post */
   string Thumbnail = 11;
-
-  /** The satus of the blog */
+  /** Current status of the blog post (Draft, Published, Archived) */
   BogPostStatus Status = 12;
-
-  /** The mac address of the peer where the blog is publish */
+  /** MAC address of the peer where the blog post is published */
   string Mac = 13;
-
-  /** The domain where the blog is publish */
+  /** Domain where the blog post is published */
   string Domain = 14;
 }
 
+/**
+ * Request message for creating a blog post.
+ */
 message CreateBlogPostRequest {
-  /** Where the search indexation will be store**/
+  /** Path where the search index will be stored */
   string indexPath = 1;
-
-  /** The author of the post */
+  /** ID of the account creating the post */
   string account_id = 2;
-
-  /** The blog post language */
-	string language = 3;
-
-  /** List of keywords */
-  repeated  string keywords = 4;
-
-  /** A title **/
+  /** Language of the blog post */
+  string language = 3;
+  /** List of keywords associated with the post */
+  repeated string keywords = 4;
+  /** Title of the blog post */
   string title = 5;
-
-  /** A subtitle **/
+  /** Subtitle of the blog post */
   string subtitle = 6;
-
-  /** A image url */
+  /** URL of the image thumbnail for the blog post */
   string thumbnail = 7;
-
-  /** The text */
+  /** Actual text content of the blog post */
   string text = 8;
-
 }
 
+/**
+ * Response message for creating a blog post.
+ */
 message CreateBlogPostResponse {
+  /** The created blog post */
   BlogPost blog_post = 1;
-
 }
 
-/** Update a blog post */
+/**
+ * Request message for saving/updating a blog post.
+ */
 message SaveBlogPostRequest {
+  /** Unique identifier for the blog post to be updated */
   string uuid = 1;
+  /** The blog post with updated information */
   BlogPost blog_post = 2;
+  /** Path to the search index */
   string indexPath = 3;
 }
 
+/**
+ * Response message for saving a blog post.
+ */
 message SaveBlogPostResponse {
-   /* nothing here */
+  // This message is intentionally left empty as no specific response data is needed.
 }
 
-message GetBlogPostsByAuthorsRequest{
-  /** List of accounts */
+/**
+ * Request message for retrieving blog posts by authors.
+ */
+message GetBlogPostsByAuthorsRequest {
+  /** List of author account IDs */
   repeated string authors = 1;
-  /** The maximum number of results */
+  /** Maximum number of results to retrieve */
   int32 max = 2;
-
 }
 
-message GetBlogPostsByAuthorsResponse{
-  /** The list of post */
- BlogPost blog_post = 1;
-}
-
-/** Get blogs by uuids */
-message GetBlogPostsRequest{
-  repeated string uuids = 1;
-}
-
-message GetBlogPostsResponse{
-  /** Return post one by one... */
+/**
+ * Response message for retrieving blog posts by authors.
+ */
+message GetBlogPostsByAuthorsResponse {
+  /** The retrieved blog post */
   BlogPost blog_post = 1;
 }
 
-/** Delete a post */
-message DeleteBlogPostRequest{
+/**
+ * Request message for retrieving blog posts by UUIDs.
+ */
+message GetBlogPostsRequest {
+  /** List of UUIDs of the blog posts to retrieve */
+  repeated string uuids = 1;
+}
+
+/**
+ * Response message for retrieving blog posts.
+ */
+message GetBlogPostsResponse {
+  /** The retrieved blog post */
+  BlogPost blog_post = 1;
+}
+
+/**
+ * Request message for deleting a blog post.
+ */
+message DeleteBlogPostRequest {
+  /** UUID of the blog post to be deleted */
   string uuid = 1;
+  /** Path to the search index */
   string indexPath = 2;
 }
 
+/**
+ * Response message for deleting a blog post.
+ */
 message DeleteBlogPostResponse{
 
 }
 
+// Request to add an emoji to a blog post or comment.
 message AddEmojiRequest {
-  string uuid = 1; // The target uuid.
-  Emoji emoji = 2; // info about the emoji.
+  string uuid = 1; // The target UUID of the blog post or comment.
+  Emoji emoji = 2; // Information about the emoji being added.
 }
 
+// Response for adding an emoji to a post or comment.
 message AddEmojiResponse{
-   Emoji emoji = 1; // info about the emoji.
+   Emoji emoji = 1; // Information about the added emoji.
 }
 
+// Request to remove an emoji from a blog post or comment.
 message RemoveEmojiRequest {
-  string uuid = 1; // The target uuid.
-  Emoji emoji = 2; // info about the emoji.
+  string uuid = 1; // The target UUID of the blog post or comment.
+  Emoji emoji = 2; // Information about the emoji being removed.
 }
 
+// Response for removing an emoji from a post or comment.
 message RemoveEmojiResponse{
-  Emoji emoji = 1; // info about the emoji.
+  Emoji emoji = 1; // Information about the removed emoji.
 }
 
+// Request to add a comment to a blog post or another comment.
 message AddCommentRequest {
-  string uuid = 1; // The target uuid.
-  Comment comment = 2; // info about the like.
+  string uuid = 1; // The target UUID of the blog post or parent comment.
+  Comment comment = 2; // Information about the comment being added.
 }
 
+// Response for adding a comment to a post or another comment.
 message AddCommentResponse{
-  Comment comment = 1; // info about the like.
+  Comment comment = 1; // Information about the added comment.
 }
 
+// Request to remove a comment from a blog post or another comment.
 message RemoveCommentRequest {
-  string uuid = 1; // The target uuid.
-  Comment comment = 2; // info about the like.
+  string uuid = 1; // The target UUID of the blog post or parent comment.
+  Comment comment = 2; // Information about the comment being removed.
 }
 
+// Response for removing a comment from a post or another comment.
 message RemoveCommentResponse{
+  // This message does not contain any fields.
 }
 
 ////////////////////// Search ///////////////////////
+
+// Represents a snippet of a search result.
 message Snippet {
-	string field = 1;
-	repeated string fragments = 2;
+	string field = 1; // The field in which the snippet was found.
+	repeated string fragments = 2; // The snippets of text found in the field.
 }
 
+// Represents a single hit in the search results.
 message SearchHit {
-	int32 index = 1;
-	double score = 2;
-	repeated Snippet snippets = 3;
+	int32 index = 1; // The index of the hit in the search results.
+	double score = 2; // The score of the hit in the search results.
+	repeated Snippet snippets = 3; // The snippets found in this hit.
 
-	// the underlying values.
+	// The blog post corresponding to this hit.
 	BlogPost blog = 4;
 }
 
+// Summary of the search operation.
 message SearchSummary {
-	string query = 1; // the search input
-	uint64 total = 2; // number of found match
-	int64 took = 3;
+	string query = 1; // The search query input.
+	uint64 total = 2; // The total number of matches found.
+	int64 took = 3; // The time taken for the search operation.
 }
 
+// Represents a single term in a search facet.
 message SearchFacetTerm {
-	string term = 1;
-	int32 count = 2;
+	string term = 1; // The term in the facet.
+	int32 count = 2; // The count of how often the term appears.
 }
 
+// Represents a facet in search results.
 message SearchFacet {
-	string field = 1;
-	int32 total = 2; 
-	repeated SearchFacetTerm terms = 3;
-	int32 other = 4;
+	string field = 1; // The field for which the facet is relevant.
+	int32 total = 2; // The total count of terms for this facet.
+	repeated SearchFacetTerm terms = 3; // The terms within this facet.
+	int32 other = 4; // The count of other terms not listed individually.
 }
 
+// Collection of facets from search results.
 message SearchFacets {
-	repeated SearchFacet facets = 1;
+	repeated SearchFacet facets = 1; // The list of facets.
 }
 
+// Request for searching blog posts.
 message SearchBlogPostsRequest {
-	string query = 1;
-	repeated string fields = 2;
-	string indexPath = 3;
-	int32 size = 4;
-	int32 offset = 5;
+	string query = 1; // The search query.
+	repeated string fields = 2; // The fields to be searched.
+	string indexPath = 3; // The index path for the search.
+	int32 size = 4; // The number of results to return.
+	int32 offset = 5; // The offset for the results.
 }
 
+// Response for searching blog posts.
 message SearchBlogPostsResponse {
+    // Union of possible results.
     oneof result  {
-        SearchSummary summary = 1;
-        SearchHit hit = 2;
-	      SearchFacets facets = 3;
+        SearchSummary summary = 1; // The summary of the search results.
+        SearchHit hit = 2; // A single hit from the search results.
+	      SearchFacets facets = 3; // The facets from the search results.
     }
 }
 
 
-/** A blogger for globular */
+/**
+ * Proto file for BlogService, offering a range of functionalities for blogging.
+ * This includes creating, updating, managing blog posts, comments, emojis, and
+ * searching through blog posts.
+ */
 service BlogService {
 
-
-  // One request followed by one response
-	rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse);
-
-  // Update a blog post...
-  rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse);
-
-  // Retreive Blog Post by author
-  rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse);
-
-  // Search blog by keyword's or text find in the post...
-  rpc GetBlogPosts(GetBlogPostsRequest) returns (stream GetBlogPostsResponse);
-
-  // Search blogpost...
-	rpc SearchBlogPosts(SearchBlogPostsRequest) returns (stream SearchBlogPostsResponse);
-
-  // Delete a blog.
-  rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);
-
-  // Add reaction to a post or comment
-  rpc AddEmoji(AddEmojiRequest) returns (AddEmojiResponse);
-
-  // Remove reaction from a post or comment.
-  rpc RemoveEmoji(RemoveEmojiRequest) returns (RemoveEmojiResponse);
-
-  // Comment a post or comment
-  rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
-
-  // Remove comment from a post or comment.
-  rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse);
-
+    // Creates a new blog post. This is a simple request-response call.
+    rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse);
+  
+    // Updates an existing blog post. This is also a simple request-response call.
+    rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse);
+  
+    // Retrieves blog posts by a given set of authors. This method streams the responses back to the client.
+    rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse);
+  
+    // Retrieves blog posts based on keywords or text content within the post. Responses are streamed to the client.
+    rpc GetBlogPosts(GetBlogPostsRequest) returns (stream GetBlogPostsResponse);
+  
+    // Searches for blog posts based on various search criteria. This is a streaming response to handle potentially large result sets.
+    rpc SearchBlogPosts(SearchBlogPostsRequest) returns (stream SearchBlogPostsResponse);
+  
+    // Deletes a specified blog post. This is a simple request-response call.
+    rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);
+  
+    // Adds an emoji as a reaction to a post or a comment. This is a simple request-response call.
+    rpc AddEmoji(AddEmojiRequest) returns (AddEmojiResponse);
+  
+    // Removes an emoji reaction from a post or a comment. This is a simple request-response call.
+    rpc RemoveEmoji(RemoveEmojiRequest) returns (RemoveEmojiResponse);
+  
+    // Adds a comment to a post or another comment. This is a simple request-response call.
+    rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
+  
+    // Removes a comment from a post or another comment. This is a simple request-response call.
+    rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse);
+  
 }
