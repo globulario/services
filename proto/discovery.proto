@@ -1,6 +1,3 @@
-/**
- * Service management functionality.
- */
 syntax = "proto3";
 package discovery;
 
@@ -8,56 +5,62 @@ import "resource.proto";
 
 option go_package="github.com/globulario/services/golang/discovery/discoverypb";
 
-message PublishServiceRequest{
-	string serviceId = 1;
-	string serviceName = 2;
-	string user = 3;
-	string organization = 4;
-	string dicorveryId = 5;
-	string repositoryId = 6;
-	string description = 7;
-	repeated string keywords = 8;
-	string version = 9;
-	string platform = 10;
-	string path = 11;
+// Request for publishing a service.
+message PublishServiceRequest {
+  string serviceId = 1;           // Unique identifier for the service.
+  string serviceName = 2;         // Name of the service.
+  string user = 3;                // Username of the person publishing the service.
+  string organization = 4;        // Name of the organization publishing the service.
+  string discoveryId = 5;         // ID for the discovery service.
+  string repositoryId = 6;        // Repository identifier where the service is stored.
+  string description = 7;         // Description of the service.
+  repeated string keywords = 8;   // Keywords associated with the service for searchability.
+  string version = 9;             // Version of the service.
+  string platform = 10;           // Platform for which the service is developed.
+  string path = 11;               // Path to the service in the repository.
 }
 
-message PublishServiceResponse{
-	bool result = 1;
+// Response for service publication.
+message PublishServiceResponse {
+  bool result = 1;                // Indicates success or failure of the service publication.
 }
 
-message PublishApplicationRequest{
-	string name = 1;
-	string domain = 2;
-	bytes data = 3;
-	string user = 4;
-	string organization = 5;
-	string version = 6;
-	repeated string keywords = 7;
-	string description = 8;
-	repeated string actions = 9; // That need to be use by the application...
-	string repository = 10;
-	string discovery = 11;
-	string icon = 12;
-	string alias = 13;
-	repeated resource.Role roles = 14;
-	repeated resource.Group groups = 15;
-	bool set_as_default = 16;
-	string path = 17;
+// Request for publishing an application.
+message PublishApplicationRequest {
+  string name = 1;                // Name of the application.
+  string domain = 2;              // Domain associated with the application.
+  bytes data = 3;                 // Binary data of the application.
+  string user = 4;                // Username of the person publishing the application.
+  string organization = 5;        // Name of the organization publishing the application.
+  string version = 6;             // Version of the application.
+  repeated string keywords = 7;   // Keywords for searchability of the application.
+  string description = 8;         // Description of the application.
+  repeated string actions = 9;    // Actions that the application is capable of performing.
+  string repository = 10;         // Repository where the application is stored.
+  string discovery = 11;          // Discovery service ID for the application.
+  string icon = 12;               // Icon for the application.
+  string alias = 13;              // Alias for the application.
+  repeated resource.Role roles = 14;    // Roles associated with the application.
+  repeated resource.Group groups = 15;  // Groups associated with the application.
+  bool set_as_default = 16;       // Flag to set the application as default.
+  string path = 17;               // Path to the application in the repository.
 }
 
-message PublishApplicationResponse{
-	bool result = 1;
+// Response for application publication.
+message PublishApplicationResponse {
+  bool result = 1;                // Indicates success or failure of the application publication.
 }
 
-/** functionality to retreive a service **/
+// Service for package discovery and publishing.
 service PackageDiscovery {
 
-    /** Publish a service into globular repository */
-    rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
-	
-    // Publish a web application to a globular discovery services.
-    rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse);
-
+  // Publishes a service to the globular repository.
+  // Input: PublishServiceRequest with service details.
+  // Output: PublishServiceResponse indicating the result of the publication.
+  rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
+  
+  // Publishes a web application to globular discovery services.
+  // Input: PublishApplicationRequest with application details.
+  // Output: PublishApplicationResponse indicating the result of the publication.
+  rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse);
 }
-

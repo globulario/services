@@ -5,30 +5,38 @@ import "resource.proto";
 
 option go_package="github.com/globulario/services/golang/repository/repositorypb";
 
+// Request for uploading a bundle.
 message UploadBundleRequest {
-	string user = 1;
-	string organization = 2;
-	bytes data = 3;
+  string user = 1;              // Username of the person uploading the bundle.
+  string organization = 2;      // Name of the organization uploading the bundle.
+  bytes data = 3;               // Binary data of the bundle being uploaded.
 }
 
+// Response after uploading a bundle.
 message UploadBundleResponse {
-	bool result = 1;
+  bool result = 1;              // Indicates success or failure of the bundle upload.
 }
 
+// Request for downloading a bundle.
 message DownloadBundleRequest {
-	resource.PackageDescriptor descriptor = 1;
-	string plaform = 2;
+  resource.PackageDescriptor descriptor = 1;  // Descriptor of the package to be downloaded.
+  string platform = 2;                         // Platform for which the bundle is intended.
 }
 
+// Response for downloading a bundle.
 message DownloadBundleResponse {
-	bytes data = 1;
+  bytes data = 1;               // Binary data of the downloaded bundle.
 }
 
-/** functionality to download/upload a service **/
+// Service for managing package uploads and downloads in a repository.
 service PackageRepository {
-	/** Download a package bundle from a pacakge repository **/
-	rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse);
-	
-	/** Upload a package bundle to a repository **/
-	rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse);
+  // Downloads a package bundle from the package repository.
+  // Input: DownloadBundleRequest containing the package descriptor and platform.
+  // Output: Stream of DownloadBundleResponse containing the binary data of the bundle.
+  rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse);
+  
+  // Uploads a package bundle to the repository.
+  // Input: Stream of UploadBundleRequest containing the user, organization, and bundle data.
+  // Output: UploadBundleResponse indicating the result of the upload operation.
+  rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse);
 }

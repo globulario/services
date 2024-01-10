@@ -1,414 +1,478 @@
-/**
- * You can use echo as starter project.
- */
 syntax = "proto3";
 package dns;
 
 option go_package="github.com/globulario/services/golang/dns/dnspb";
 
+// SetARequest is used to set an 'A' (Address) record in DNS.
 message SetARequest {
-  string domain = 1;
-  string a = 2;
-  uint32 ttl =3;
+  string domain = 1; // The domain name for the A record.
+  string a = 2;      // The IPv4 address associated with the domain.
+  uint32 ttl = 3;    // Time To Live: duration that the record may be cached.
 }
 
+// SetAResponse is the response for a SetARequest.
 message SetAResponse {
-  string message = 1;
+  string message = 1; // Response message or confirmation.
 }
 
+// RemoveARequest is used to remove an 'A' record.
 message RemoveARequest {
-  string domain = 1;
-  string a = 2;
+  string domain = 1; // The domain name for the A record to be removed.
+  string a = 2;      // The IPv4 address associated with the domain to be removed.
 }
 
+// RemoveAResponse is the response for a RemoveARequest.
 message RemoveAResponse {
-  bool result = 1;
+  bool result = 1;   // The result of the removal operation, typically a success flag.
 }
 
+// GetARequest is used to retrieve 'A' records.
 message GetARequest {
-  string domain = 1;
+  string domain = 1; // The domain name to get the A records for.
 }
 
+// GetAResponse returns the 'A' records for a given domain.
 message GetAResponse {
-  repeated string a = 1;
+  repeated string a = 1; // List of IPv4 addresses associated with the domain.
 }
 
+// SetAAAARequest is used to set an 'AAAA' (IPv6 Address) record in DNS.
 message SetAAAARequest {
-  string domain = 1;
-  string aaaa = 2;
-  uint32 ttl = 3;
+  string domain = 1;     // The domain name for the AAAA record.
+  string aaaa = 2;       // The IPv6 address associated with the domain.
+  uint32 ttl = 3;        // Time To Live: duration that the record may be cached.
 }
 
+// SetAAAAResponse is the response for a SetAAAARequest.
 message SetAAAAResponse {
-  string message = 1;
+  string message = 1;    // Response message or confirmation.
 }
 
+// RemoveAAAARequest is used to remove an 'AAAA' (IPv6 Address) record.
 message RemoveAAAARequest {
-  string domain = 1;
-  string aaaa = 2;
+  string domain = 1; // The domain name for the AAAA record to be removed.
+  string aaaa = 2;   // The IPv6 address associated with the domain to be removed.
 }
 
+// RemoveAAAAResponse is the response for a RemoveAAAARequest.
 message RemoveAAAAResponse {
-  bool result = 1;
+  bool result = 1;   // The result of the removal operation, typically a success flag.
 }
 
+// GetAAAARequest is used to retrieve 'AAAA' records.
 message GetAAAARequest {
-  string domain = 1;
+  string domain = 1; // The domain name to get the AAAA records for.
 }
 
+// GetAAAAResponse returns the 'AAAA' records for a given domain.
 message GetAAAAResponse {
-  repeated string aaaa = 1;
+  repeated string aaaa = 1; // List of IPv6 addresses associated with the domain.
 }
 
+// SetTextRequest is used to set a text record in DNS.
 message SetTextRequest {
-  string id = 1;
-  repeated string values = 2;
-  uint32 ttl =3;
+  string id = 1;             // Identifier for the text record.
+  repeated string values = 2; // List of values for the text record.
+  uint32 ttl = 3;            // Time To Live: duration that the record may be cached.
 }
 
+// SetTextResponse is the response for a SetTextRequest.
 message SetTextResponse {
-  bool result = 1;
+  bool result = 1;          // The result of the set operation, typically a success flag.
 }
 
+// GetTextRequest is used to retrieve text records.
 message GetTextRequest {
-  string id = 1;
+  string id = 1;            // Identifier for the text record to retrieve.
 }
 
+// GetTextResponse returns the text records for a given ID.
 message GetTextResponse {
-  repeated string values = 1;
+  repeated string values = 1; // List of values associated with the text record.
 }
 
+// RemoveTextRequest is used to remove a text record.
 message RemoveTextRequest {
-  string id = 1;
+  string id = 1;            // Identifier for the text record to be removed.
 }
 
+// RemoveTextResponse is the response for a RemoveTextRequest.
 message RemoveTextResponse {
-  bool result = 1;
+  bool result = 1;          // The result of the removal operation, typically a success flag.
 }
 
+// SetNsRequest is used to set a Name Server (NS) record.
 message SetNsRequest {
-  string id = 1;
-  string ns = 2;
-  uint32 ttl =3;
+  string id = 1;   // Identifier for the NS record.
+  string ns = 2;   // The Name Server to be set.
+  uint32 ttl = 3;  // Time To Live: duration that the record may be cached.
 }
 
+// SetNsResponse is the response for a SetNsRequest.
 message SetNsResponse {
-  bool result = 1;
+  bool result = 1; // The result of the set operation, typically a success flag.
 }
 
+// GetNsRequest is used to retrieve Name Server (NS) records.
 message GetNsRequest {
-  string id = 1;
+  string id = 1;   // Identifier for the NS records to retrieve.
 }
 
+// GetNsResponse returns the NS records for a given identifier.
 message GetNsResponse {
-  repeated string ns = 1;
+  repeated string ns = 1; // List of Name Servers associated with the identifier.
 }
 
+// RemoveNsRequest is used to remove a Name Server (NS) record.
 message RemoveNsRequest {
-  string id = 1;
-  string ns = 2;
+  string id = 1;   // Identifier for the NS record to be removed.
+  string ns = 2;   // The Name Server to be removed.
 }
 
+// RemoveNsResponse is the response for a RemoveNsRequest.
 message RemoveNsResponse {
-  bool result = 1;
+  bool result = 1; // The result of the removal operation, typically a success flag.
 }
 
+// SetCNameRequest is used to set a Canonical Name (CNAME) record.
 message SetCNameRequest {
-  string id = 1;
-  string cname = 2;
-  uint32 ttl =3;
+  string id = 1;     // Identifier for the CNAME record.
+  string cname = 2;  // The Canonical Name to be set.
+  uint32 ttl = 3;    // Time To Live: duration that the record may be cached.
 }
 
+// SetCNameResponse is the response for a SetCNameRequest.
 message SetCNameResponse {
-  bool result = 1;
+  bool result = 1;   // The result of the set operation, typically a success flag.
 }
 
+// GetCNameRequest is used to retrieve Canonical Name (CNAME) records.
 message GetCNameRequest {
-  string id = 1;
+  string id = 1;     // Identifier for the CNAME record to retrieve.
 }
 
+// GetCNameResponse returns the CNAME record for a given identifier.
 message GetCNameResponse {
-  string cname = 1;
+  string cname = 1;  // The Canonical Name associated with the identifier.
 }
 
+// RemoveCNameRequest is used to remove a Canonical Name (CNAME) record.
 message RemoveCNameRequest {
-  string id = 1;
+  string id = 1;     // Identifier for the CNAME record to be removed.
 }
 
+// RemoveCNameResponse is the response for a RemoveCNameRequest.
 message RemoveCNameResponse {
-  bool result = 1;
+  bool result = 1;   // The result of the removal operation, typically a success flag.
 }
 
+// AFSDB represents an AFS database record.
 message AFSDB {
-	uint32 subtype = 1;
-	string hostname = 2;
+  uint32 subtype = 1;  // The subtype of the AFSDB record.
+  string hostname = 2; // The hostname of the AFS database server.
 }
 
+// SetAfsdbRequest is used to set an AFSDB record.
 message SetAfsdbRequest {
-  string id = 1;
-  AFSDB afsdb = 2;
-  uint32 ttl =3;
+  string id = 1;       // Identifier for the AFSDB record.
+  AFSDB afsdb = 2;     // The AFSDB record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
 
+// SetAfsdbResponse is the response for a SetAfsdbRequest.
 message SetAfsdbResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the set operation, typically a success flag.
 }
 
+// GetAfsdbRequest is used to retrieve AFSDB records.
 message GetAfsdbRequest {
-  string id = 1;
+  string id = 1;       // Identifier for the AFSDB record to retrieve.
 }
 
+// GetAfsdbResponse returns the AFSDB record for a given identifier.
 message GetAfsdbResponse {
-  AFSDB result = 1;
+  AFSDB result = 1;    // The AFSDB record associated with the identifier.
 }
 
+// RemoveAfsdbRequest is used to remove an AFSDB record.
 message RemoveAfsdbRequest {
-  string id = 1;
+  string id = 1;       // Identifier for the AFSDB record to be removed.
 }
 
+// RemoveAfsdbResponse is the response for a RemoveAfsdbRequest.
 message RemoveAfsdbResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// MX represents a mail exchange (MX) record.
 message MX {
-	int32 preference = 1;
-	string mx = 2;
+  int32 preference = 1; // Preference of the MX record, lower values are more preferred.
+  string mx = 2;        // The mail exchange server for this MX record.
 }
 
+// SetMxRequest is used to set an MX record.
 message SetMxRequest {
-  string id = 1;
-  MX mx = 2;
-  uint32 ttl =3;
+  string id = 1;       // Identifier for the MX record.
+  MX mx = 2;           // The MX record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
 
+// SetMxResponse is the response for a SetMxRequest.
 message SetMxResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the set operation, typically a success flag.
 }
 
+// GetMxRequest is used to retrieve MX records.
 message GetMxRequest {
-  string id = 1;
-  string mx = 2;
+  string id = 1;       // Identifier for the MX records to retrieve.
+  string mx = 2;       // Optional: specific MX record to retrieve.
 }
 
+// GetMxResponse returns the MX records for a given identifier.
 message GetMxResponse {
-  repeated MX result = 1;
+  repeated MX result = 1; // List of MX records associated with the identifier.
 }
 
+// RemoveMxRequest is used to remove an MX record.
 message RemoveMxRequest {
-  string id = 1;
-  string mx = 2;
+  string id = 1;       // Identifier for the MX record to be removed.
+  string mx = 2;       // Specific MX record to remove.
 }
 
+// RemoveMxResponse is the response for a RemoveMxRequest.
 message RemoveMxResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// SOA represents a Start of Authority record.
 message SOA {
-  string ns = 1; 
-  string mbox = 2;
-  uint32 serial = 3;
-  uint32 refresh = 4;
-  uint32 retry = 5;
-  uint32 expire = 6;
-  uint32 minttl =7;
+  string ns = 1;       // The primary name server for the domain.
+  string mbox = 2;     // The responsible party's mailbox for the domain.
+  uint32 serial = 3;   // The serial number of the zone.
+  uint32 refresh = 4;  // Time interval before the zone should be refreshed.
+  uint32 retry = 5;    // Time interval to retry if the primary NS is not available.
+  uint32 expire = 6;   // Time when the zone data is no longer authoritative.
+  uint32 minttl = 7;   // Minimum TTL to be exported with any RR from the zone.
 }
 
+// SetSoaRequest is used to set an SOA record.
 message SetSoaRequest {
-  string id = 1;
-  SOA soa = 2;
-  uint32 ttl =3;
+  string id = 1;       // Identifier for the SOA record.
+  SOA soa = 2;         // The SOA record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
 
+// SetSoaResponse is the response for a SetSoaRequest.
 message SetSoaResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the set operation, typically a success flag.
 }
 
+// GetSoaRequest is used to retrieve SOA records.
 message GetSoaRequest {
-  string id = 1;
-  string ns = 2;
+  string id = 1;       // Identifier for the SOA records to retrieve.
+  string ns = 2;       // Optional: specific name server for which to retrieve the SOA.
 }
 
+// GetSoaResponse returns the SOA records for a given identifier.
 message GetSoaResponse {
-  repeated SOA result = 1;
+  repeated SOA result = 1; // List of SOA records associated with the identifier.
 }
 
+// RemoveSoaRequest is used to remove an SOA record.
 message RemoveSoaRequest {
-  string id = 1;
-  string ns = 2;
+  string id = 1;       // Identifier for the SOA record to be removed.
+  string ns = 2;       // Specific name server for which to remove the SOA.
 }
 
+// RemoveSoaResponse is the response for a RemoveSoaRequest.
 message RemoveSoaResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// URI represents a Uniform Resource Identifier record.
 message URI {
-	uint32 priority = 1;
-	uint32 weight = 2;
-	string target  = 3;
+  uint32 priority = 1; // The priority of the target host, lower value means more preferred.
+  uint32 weight = 2;   // A relative weight for records with the same priority.
+  string target = 3;   // The target URI for the record.
 }
 
+// SetUriRequest is used to set a URI record.
 message SetUriRequest {
-  string id = 1;
-  URI uri = 2;
-  uint32 ttl =3;
+  string id = 1;       // Identifier for the URI record.
+  URI uri = 2;         // The URI record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
 
+// SetUriResponse is the response for a SetUriRequest.
 message SetUriResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the set operation, typically a success flag.
 }
 
+// GetUriRequest is used to retrieve URI records.
 message GetUriRequest {
-  string id = 1;
-  string target = 2;
+  string id = 1;       // Identifier for the URI records to retrieve.
+  string target = 2;   // Optional: specific target URI to retrieve.
 }
 
+// GetUriResponse returns the URI records for a given identifier.
 message GetUriResponse {
-  repeated URI result = 1;
+  repeated URI result = 1; // List of URI records associated with the identifier.
 }
 
+// RemoveUriRequest is used to remove a URI record.
 message RemoveUriRequest {
-  string id = 1;
-  string target = 2;
+  string id = 1;       // Identifier for the URI record to be removed.
+  string target = 2;   // Specific target URI to remove.
 }
 
+// RemoveUriResponse is the response for a RemoveUriRequest.
 message RemoveUriResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// CAA represents a Certification Authority Authorization record.
 message CAA {
-	uint32 flag = 1;
-	string tag = 2;
-	string domain  = 3;
+  uint32 flag = 1;     // An unsigned integer between 0-255 used as a flag.
+  string tag = 2;      // The property identifier, a case-sensitive ASCII string.
+  string domain = 3;   // The domain name associated with the record.
 }
 
+// SetCaaRequest is used to set a CAA record.
 message SetCaaRequest {
-  string id = 1;
-  CAA caa = 2;
-  uint32 ttl =3;
+  string id = 1;       // Identifier for the CAA record.
+  CAA caa = 2;         // The CAA record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
 }
 
+// SetCaaResponse is the response for a SetCaaRequest.
 message SetCaaResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the set operation, typically a success flag.
 }
 
+// GetCaaRequest is used to retrieve CAA records.
 message GetCaaRequest {
-  string id = 1;
-  string domain = 2;
+  string id = 1;       // Identifier for the CAA records to retrieve.
+  string domain = 2;   // Specific domain for which to retrieve the CAA record.
 }
 
+// GetCaaResponse returns the CAA records for a given identifier.
 message GetCaaResponse {
-  repeated CAA result = 1;
+  repeated CAA result = 1; // List of CAA records associated with the identifier.
 }
 
+// RemoveCaaRequest is used to remove a CAA record.
 message RemoveCaaRequest {
-  string id = 1;
-  string domain = 2;
+  string id = 1;       // Identifier for the CAA record to be removed.
+  string domain = 2;   // Specific domain for which to remove the CAA record.
 }
 
+// RemoveCaaResponse is the response for a RemoveCaaRequest.
 message RemoveCaaResponse {
-  bool result = 1;
+  bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// StopRequest is a request to stop or terminate an operation or process.
 message StopRequest {
-	
+  // No fields are needed for this message.
 }
 
+// StopResponse is the response to a StopRequest.
 message StopResponse {
-	
+  // No fields are needed for this message.
 }
 
+// DnsService defines a service for managing DNS records.
 service DnsService {
   // Stop the server.
   rpc Stop(StopRequest) returns (StopResponse);
-	
-  // Set a dns entry.
+
+  // Set an A record (IPv4 address).
   rpc SetA(SetARequest) returns (SetAResponse);
 
-  // Remove a dns entry
+  // Remove an A record.
   rpc RemoveA(RemoveARequest) returns (RemoveAResponse);
 
-  // Get the ipv4 address for a given name 
+  // Get the A record (IPv4 address) for a given domain name.
   rpc GetA(GetARequest) returns (GetAResponse);
 
-  // Set a dns entry.
+  // Set an AAAA record (IPv6 address).
   rpc SetAAAA(SetAAAARequest) returns (SetAAAAResponse);
 
-  // Remove a dns entry
+  // Remove an AAAA record.
   rpc RemoveAAAA(RemoveAAAARequest) returns (RemoveAAAAResponse);
 
-  // Get the ipv6 address for a given name 
+  // Get the AAAA record (IPv6 address) for a given domain name.
   rpc GetAAAA(GetAAAARequest) returns (GetAAAAResponse);
 
-  // Set a text entry.
+  // Set a TXT record.
   rpc SetText(SetTextRequest) returns (SetTextResponse);
 
-  // Retreive a text value
+  // Retrieve a TXT record.
   rpc GetText(GetTextRequest) returns (GetTextResponse);
 
-  // Remove a text entry
+  // Remove a TXT record.
   rpc RemoveText(RemoveTextRequest) returns (RemoveTextResponse);
 
-  // Set a ns value.
+  // Set an NS record.
   rpc SetNs(SetNsRequest) returns (SetNsResponse);
 
-  // Retreive a text value
+  // Retrieve an NS record.
   rpc GetNs(GetNsRequest) returns (GetNsResponse);
 
-  // Remove a text entry
+  // Remove an NS record.
   rpc RemoveNs(RemoveNsRequest) returns (RemoveNsResponse);
 
-  // Set a CName value.
+  // Set a CNAME record.
   rpc SetCName(SetCNameRequest) returns (SetCNameResponse);
 
-  // Retreive a CName value
+  // Retrieve a CNAME record.
   rpc GetCName(GetCNameRequest) returns (GetCNameResponse);
 
-  // Remove a CName entry
+  // Remove a CNAME record.
   rpc RemoveCName(RemoveCNameRequest) returns (RemoveCNameResponse);
 
-  // Set a Mx value.
+  // Set an MX record.
   rpc SetMx(SetMxRequest) returns (SetMxResponse);
 
-  // Retreive a Mx value
+  // Retrieve an MX record.
   rpc GetMx(GetMxRequest) returns (GetMxResponse);
 
-  // Remove a Mx entry
+  // Remove an MX record.
   rpc RemoveMx(RemoveMxRequest) returns (RemoveMxResponse);
 
- // Set a SOA value.
+  // Set an SOA record.
   rpc SetSoa(SetSoaRequest) returns (SetSoaResponse);
 
-  // Retreive a SOA value
+  // Retrieve an SOA record.
   rpc GetSoa(GetSoaRequest) returns (GetSoaResponse);
 
-  // Remove a SOA entry
+  // Remove an SOA record.
   rpc RemoveSoa(RemoveSoaRequest) returns (RemoveSoaResponse);
 
-  // Set a URI value.
+  // Set a URI record.
   rpc SetUri(SetUriRequest) returns (SetUriResponse);
 
-  // Retreive a URI value
+  // Retrieve a URI record.
   rpc GetUri(GetUriRequest) returns (GetUriResponse);
 
-  // Remove a URI entry
+  // Remove a URI record.
   rpc RemoveUri(RemoveUriRequest) returns (RemoveUriResponse);
 
-  // Set a CAA value.
+  // Set a CAA record.
   rpc SetCaa(SetCaaRequest) returns (SetCaaResponse);
 
-  // Retreive a CAA value
+  // Retrieve a CAA record.
   rpc GetCaa(GetCaaRequest) returns (GetCaaResponse);
 
-  // Remove a CAA entry
+  // Remove a CAA record.
   rpc RemoveCaa(RemoveCaaRequest) returns (RemoveCaaResponse);
 
-  // Set a AFSDB value.
+  // Set an AFSDB record.
   rpc SetAfsdb(SetAfsdbRequest) returns (SetAfsdbResponse);
 
-  // Retreive a AFSDB value
+  // Retrieve an AFSDB record.
   rpc GetAfsdb(GetAfsdbRequest) returns (GetAfsdbResponse);
 
-  // Remove a AFSDB entry
+  // Remove an AFSDB record.
   rpc RemoveAfsdb(RemoveAfsdbRequest) returns (RemoveAfsdbResponse);
-
 }

@@ -1,406 +1,234 @@
-/**
- * You can use conversation as starter project.
- */
-syntax = "proto3";
-package conversation;
 
-option go_package="github.com/globulario/services/golang/conversation/conversationpb";
-
-/** The conversation state. **/
-enum ConversationState{
-	ACTIVE = 0;
-	SUSPENDED = 1;
-}
-
-/** Invite a user to join a conversation */
-message Invitation {
-	string conversation = 1;
-	string from = 2; // account id.
-	string to = 3; // account id.
-	int64 invitation_date = 4; // The date the invitation was sent.
-	string name = 5; // The conversation name needed to display to list.
-
-	// The mac address where the inviation is store.
-	string mac = 6;
-}
-
-/** Invite a user to join a conversation */
-message Invitations {
-	repeated Invitation invitations = 1;
-}
-
-
-message Message {
-	/** The message uuid **/
-	string uuid = 1;
-
-	/** The conversation uuid **/
-	string conversation = 2;
-	
-	/** The time will also be use as message id **/
-	int64 creation_time = 3;
-	
-	/** The author of the message **/
-	string author = 4;
-	
-	/** The message body **/
-	string text = 5;
-	
-	/** The uuid of the message that message respond to **/
-	string in_reply_to = 6;
-	
-	/** The message language **/
-	string language = 7;
-	
-	/** The like list **/
-	repeated string likes = 8;
-	
-	/** The dislike like list */
-	repeated string dislikes = 9;
-	
-	/** The list of participants who has read the message */
-	repeated string readers = 10;
-}
-
-message Conversation {
-	/** Need to be unique... and trust me it will! */
-	string uuid = 1;
-	
-	/** Not need to be unique.. */
-	string name = 2;
-	
-	/** Array of message uuid */
-	repeated  string messages = 3;
-	
-	/** Keywords **/
-	repeated  string keywords = 4;
-	
-	int64 creation_time = 5;
-	
-	/** Keep track of when a conversation was suspend or activated **/
-	int64 last_message_time = 6;
-	
-	
-	/** The language ex. en, es, fr*/
-	string language = 7;
-	
-	/** The list of participant */
-	repeated string participants=8;
-	
-	/** Pending invitations */
-	Invitations invitations = 9;
-
-	// The mac address where the conversation is store.
-	string mac = 10;
-}
-
-/** List of conversation */
-message Conversations {
-	repeated Conversation conversations=1;
-}
-
-/** Connect */
-message ConnectRequest{
-	string uuid = 1; // a connection uuid..
-}
-
-/** The message stream */
-message ConnectResponse{
-	Message msg = 1;
-}
-
-message DisconnectRequest{
-	string uuid = 1;
-}
-
-message DisconnectResponse{
-	bool result = 1;
-}
-
-
-/** Create a new conversation **/
-message CreateConversationRequest {
-	
-	/** The name of the conversation to be created **/
-	string name = 1;
-	
-	/** Keywords **/
-	repeated  string keywords = 2;
-	
-	/** The conversation language **/
-	string language = 3;
-}
-
-message CreateConversationResponse{
-	Conversation conversation = 1;
-}
-
-
-message DeleteConversationRequest{
-	string conversation_uuid = 1;
-}
-
-message DeleteConversationResponse{
-	
-}
-
-message SendInvitationRequest{
-	Invitation invitation = 1;
-}
-
-message SendInvitationResponse{
-	/** nothing here*/
-}
-
-message AcceptInvitationRequest{
-	Invitation invitation = 1;
-}
-
-message AcceptInvitationResponse{
-	/** nothing here*/
-}
-
-message DeclineInvitationRequest{
-	Invitation invitation = 1;
-}
-
-message DeclineInvitationResponse{
-	/** nothing here*/
-}
-
-message RevokeInvitationRequest{
-	Invitation invitation = 1;
-}
-
-message RevokeInvitationResponse{
-	/** nothing here*/
-}
-
-message GetReceivedInvitationsRequest{
-	string account = 1;
-}
-
-message GetReceivedInvitationsResponse{
-	Invitations invitations = 1;
-}
-
-message GetSentInvitationsRequest{
-	string account = 1;
-}
-
-message GetSentInvitationsResponse{
-	Invitations invitations = 1;
-}
-
-message FindConversationsRequest{
-	string query = 1;
-	string language = 2;
-	int32 offset=3;
-	int32 pageSize=4;
-	int32 snippetSize = 5;
-}
-
-message FindConversationsResponse{
-	repeated Conversation conversations = 1;
-}
-
-message JoinConversationRequest{
-	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
-	/** The paticipant token */
-	string connection_uuid = 2;
-}
-
-message JoinConversationResponse{
-	Message msg = 1;
-	Conversation conversation = 2;
-}
-
-message KickoutFromConversationRequest{
-	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
-	/** The account id **/
-	string account = 2;
-}
-
-message KickoutFromConversationResponse{
-	/** nothing to do here */
-}
-
-message GetConversationRequest{
-	string id = 1;
-}
-
-message GetConversationResponse{
-	Conversation conversation = 1;
-}
-
-message GetConversationsRequest{
-	string creator = 1;
-}
-
-message GetConversationsResponse{
-	Conversations conversations = 1;
-}
-
-message LeaveConversationRequest{
-	/** The conversation uuid */
-	string conversation_uuid = 1;
-	
-	/** The paticipant token */
-	string connection_uuid = 2;
-}
-
-message LeaveConversationResponse{
-	Conversation conversation = 1;
-}
-
-message SendMessageRequest {
-	/** The conversation uuid */
-	Message msg = 1;
-}
-
-message SendMessageResponse {
-
-}
-
-message DeleteMessageRequest {
-	/** The message uuid */
-	string conversation = 1;
-	string uuid = 2;
-}
-
-message DeleteMessageResponse {
-	/* nothing here*/
-}
-
-
-message FindMessagesRequest{
-	repeated string keywords = 1;
-}
-
-message FindMessagesResponse{
-	Message message = 1;
-}
-
-message LikeMessageRqst{
-	string conversation = 1;
-	string message =2;
-	string account = 3;
-}
-
-message LikeMessageResponse{
-	/** Nothing here **/
-}
-
-message DislikeMessageRqst{
-	string conversation = 1;
-	string message =2;
-	string account = 3;
-}
-
-message DislikeMessageResponse{
-	/** Nothing here **/
-}
-
-message SetMessageReadRqst{
-	string conversation = 1;
-	string message =2;
-	string account = 3;
-}
-
-message SetMessageReadResponse{
-	/** Nothing here **/
-}
-
-message StopRequest {
-	
-}
-
-message StopResponse {
-	
-}
-
+ syntax = "proto3";
+ package conversation;
+ 
+ option go_package="github.com/globulario/services/golang/conversation/conversationpb";
+ 
+ // Enum representing the state of a conversation.
+ enum ConversationState {
+   ACTIVE = 0;     // The conversation is active.
+   SUSPENDED = 1;  // The conversation is suspended.
+ }
+ 
+ // Message representing an invitation to join a conversation.
+ message Invitation {
+   string conversation = 1;     // Unique identifier of the conversation.
+   string from = 2;             // Account ID of the person sending the invitation.
+   string to = 3;               // Account ID of the invitee.
+   int64 invitation_date = 4;   // Timestamp of when the invitation was sent.
+   string name = 5;             // Display name of the conversation.
+   string mac = 6;              // MAC address where the invitation is stored.
+ }
+ 
+ // Message representing a collection of invitations.
+ message Invitations {
+   repeated Invitation invitations = 1; // List of invitations.
+ }
+ 
+ // Message representing a single message within a conversation.
+ message Message {
+   string uuid = 1;                      // Unique identifier of the message.
+   string conversation = 2;              // Identifier of the conversation this message belongs to.
+   int64 creation_time = 3;              // Timestamp of message creation, also used as message ID.
+   string author = 4;                    // Author of the message.
+   string text = 5;                      // Body of the message.
+   string in_reply_to = 6;               // Identifier of the message this is in reply to, if any.
+   string language = 7;                  // Language of the message.
+   repeated string likes = 8;            // List of accounts that liked the message.
+   repeated string dislikes = 9;         // List of accounts that disliked the message.
+   repeated string readers = 10;         // List of participants who have read the message.
+ }
+ 
+ // Message representing a conversation.
+ message Conversation {
+   string uuid = 1;                      // Unique identifier of the conversation.
+   string name = 2;                      // Name of the conversation.
+   repeated string messages = 3;         // List of message identifiers in the conversation.
+   repeated string keywords = 4;         // Keywords associated with the conversation.
+   int64 creation_time = 5;              // Timestamp of conversation creation.
+   int64 last_message_time = 6;          // Timestamp of the last message in the conversation.
+   string language = 7;                  // Primary language of the conversation.
+   repeated string participants = 8;     // List of participants in the conversation.
+   Invitations invitations = 9;          // Pending invitations to the conversation.
+   string mac = 10;                      // MAC address where the conversation is stored.
+ }
+ 
+ // Message representing a list of conversations.
+ message Conversations {
+   repeated Conversation conversations = 1; // List of conversations.
+ }
+ 
+ // Request message for establishing a connection.
+ message ConnectRequest {
+   string uuid = 1; // Unique identifier for the connection.
+ }
+ 
+ // Response message for a connection, streaming messages.
+ message ConnectResponse {
+   Message msg = 1; // A message within the established connection.
+ }
+ 
+ // Request message for disconnecting.
+ message DisconnectRequest {
+   string uuid = 1; // Identifier of the connection to be disconnected.
+ }
+ 
+ // Response message for a disconnection request.
+ message DisconnectResponse {
+   bool result = 1; // Result of the disconnection request.
+ }
+ 
+ // Request message for creating a new conversation.
+ message CreateConversationRequest {
+   string name = 1;                 // Name of the new conversation.
+   repeated string keywords = 2;    // Keywords associated with the conversation.
+   string language = 3;             // Primary language of the conversation.
+ }
+ 
+ // Response message for a conversation creation request.
+ message CreateConversationResponse {
+   Conversation conversation = 1;   // The newly created conversation.
+ }
+ 
+ // Request message for deleting a conversation.
+ message DeleteConversationRequest {
+   string conversation_uuid = 1;    // Identifier of the conversation to be deleted.
+ }
+ 
+ // Response message for a conversation deletion request.
+ message DeleteConversationResponse {
+   // This message is empty, indicating the deletion was processed.
+ }
+ 
+ // Request message for sending an invitation.
+ message SendInvitationRequest {
+   Invitation invitation = 1;       // The invitation to be sent.
+ }
+ 
+ // Response message for an invitation send request.
+ message SendInvitationResponse {
+   // This message is empty, indicating the invitation was sent.
+ }
+ 
+ // Request message for accepting an invitation.
+ message AcceptInvitationRequest {
+   Invitation invitation = 1;       // The invitation to be accepted.
+ }
+ 
+ // Response message for an invitation accept request.
+ message AcceptInvitationResponse {
+   // This message is empty, indicating the invitation was accepted.
+ }
+ 
+ // Request message for declining an invitation.
+ message DeclineInvitationRequest {
+   Invitation invitation = 1;       // The invitation to be declined.
+ }
+ 
+ // Response message for an invitation decline request.
+ message DeclineInvitationResponse {
+   // This message is empty, indicating the invitation was declined.
+ }
+ 
+ // Request message for revoking an invitation.
+ message RevokeInvitationRequest {
+   Invitation invitation = 1;       // The invitation to be revoked.
+ }
+ 
+ // Response message for an invitation revoke request.
+ message RevokeInvitationResponse {
+   // This message is empty, indicating the invitation was revoked.
+ }
+ 
+ // Request message for retrieving received invitations.
+ message GetReceivedInvitationsRequest {
+   string account = 1;              // Account ID for which to retrieve invitations.
+ }
+ 
+ // Response message for received invitations retrieval.
+ message GetReceivedInvitationsResponse {
+   Invitations invitations = 1;     // List of received invitations.
+ }
+ 
+ // Request message for retrieving sent invitations.
+ message GetSentInvitationsRequest {
+   string account = 1;              // Account ID for which to retrieve sent invitations.
+ }
+ 
+ // Response message for sent invitations retrieval.
+ message GetSentInvitationsResponse {
+   Invitations invitations = 1;     // List of sent invitations.
+ }
+ 
+ // Request message for finding conversations.
+ message FindConversationsRequest {
+   string query = 1;                // Search query for finding conversations.
+   string language = 2;             // Language filter for the search.
+   int32 offset = 3;                // Pagination offset for the search results.
+   int32 limit = 4;                 // Maximum number of results to return.
+ }
+ 
+ // Response message for conversation search.
+ message FindConversationsResponse {
+   Conversations conversations = 1; // The search result conversations.
+ }
+ 
+// Service definition for conversation management.
 service ConversationService {
-	
-  // Stop the server.
-  rpc Stop(StopRequest) returns (StopResponse);
-
-  //////////////////////////////// Conversation ////////////////////////////////
-
-  // Connect will open a channel between the conversation sever and it client
-  // and that channel will be use to send all conversation message.
-  rpc Connect(ConnectRequest) returns (stream ConnectResponse);
-
-  // Close connection with the conversation server.
-  rpc Disconnect(DisconnectRequest) returns(DisconnectResponse);
-
-  // Create a new conversation with a given name. The creator will became the 
-  // owner of that conversation and he will be able to set permissions to
-  // determine who can participate to the conversation.
-  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
-
-  // Delete the conversation
-  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
-
-  // Retreive a conversation by keywords or name...
-  rpc FindConversations(FindConversationsRequest) returns (FindConversationsResponse);
-
-  // Join a conversation.
-  rpc JoinConversation(JoinConversationRequest) returns (stream JoinConversationResponse);
-
-  // Leave a given conversation.
-  rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
-
-  // Return a conversation with a given id.
-  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
-
-  // Return the list of conversations created by a given user.
-  rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);
-
-  // Kickout a user for any good reason...
-  rpc KickoutFromConversation(KickoutFromConversationRequest) returns (KickoutFromConversationResponse);
-
-  ////////////////////////////////// Invitation ///////////////////////////////////
-
-  // Conversation owner can invite a contact into Conversation.
-  rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse);
-
-  // Accept invitation response.
-  rpc AcceptInvitation(AcceptInvitationRequest) returns(AcceptInvitationResponse);
-
-  // Decline invitation response.
-  rpc DeclineInvitation(DeclineInvitationRequest) returns(DeclineInvitationResponse);
-
-  // Revoke invitation.
-  rpc RevokeInvitation(RevokeInvitationRequest) returns(RevokeInvitationResponse);
-
-  // Get the list of received invitations request.
-  rpc GetReceivedInvitations(GetReceivedInvitationsRequest) returns(GetReceivedInvitationsResponse);
-
-  // Get the list of sent invitations request.
-  rpc GetSentInvitations(GetSentInvitationsRequest) returns(GetSentInvitationsResponse);
-
-  ////////////////////////////////// Message ///////////////////////////////////
-
-  // Send a message
-  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
-
-  // Delete message.
-  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
-
-  // Retreive a conversation by keywords or name...
-  rpc FindMessages(FindMessagesRequest) returns (stream FindMessagesResponse);
-
-  // append a like message
-  rpc LikeMessage(LikeMessageRqst) returns (LikeMessageResponse);
-
-  // dislike message
-  rpc DislikeMessage(DislikeMessageRqst) returns (DislikeMessageResponse);
-
-  // set message as read
-  rpc SetMessageRead(SetMessageReadRqst) returns(SetMessageReadResponse);
-
-}
+	// Establishes a real-time connection for streaming messages.
+	// Input: ConnectRequest containing the unique identifier for the connection.
+	// Output: Stream of ConnectResponse messages containing conversation messages.
+	rpc Connect(ConnectRequest) returns (stream ConnectResponse);
+  
+	// Closes an established connection.
+	// Input: DisconnectRequest containing the identifier of the connection to be closed.
+	// Output: DisconnectResponse indicating the result of the disconnection.
+	rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
+  
+	// Creates a new conversation.
+	// Input: CreateConversationRequest with details like name, keywords, and language.
+	// Output: CreateConversationResponse containing the newly created conversation.
+	rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
+  
+	// Deletes an existing conversation.
+	// Input: DeleteConversationRequest with the UUID of the conversation to delete.
+	// Output: DeleteConversationResponse which is empty, indicating successful deletion.
+	rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+  
+	// Sends an invitation to a user to join a conversation.
+	// Input: SendInvitationRequest containing the invitation details.
+	// Output: SendInvitationResponse which is empty, indicating the invitation was sent.
+	rpc SendInvitation(SendInvitationRequest) returns (SendInvitationResponse);
+  
+	// Accepts a received invitation to join a conversation.
+	// Input: AcceptInvitationRequest with the invitation details.
+	// Output: AcceptInvitationResponse, empty indicating the invitation was accepted.
+	rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
+  
+	// Declines a received invitation to join a conversation.
+	// Input: DeclineInvitationRequest with the invitation details.
+	// Output: DeclineInvitationResponse, empty indicating the invitation was declined.
+	rpc DeclineInvitation(DeclineInvitationRequest) returns (DeclineInvitationResponse);
+  
+	// Revokes an invitation that was previously sent.
+	// Input: RevokeInvitationRequest with the invitation details.
+	// Output: RevokeInvitationResponse, empty indicating the invitation was revoked.
+	rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse);
+  
+	// Retrieves all invitations received by a user.
+	// Input: GetReceivedInvitationsRequest with the user's account ID.
+	// Output: GetReceivedInvitationsResponse containing a list of received invitations.
+	rpc GetReceivedInvitations(GetReceivedInvitationsRequest) returns (GetReceivedInvitationsResponse);
+  
+	// Retrieves all invitations sent by a user.
+	// Input: GetSentInvitationsRequest with the user's account ID.
+	// Output: GetSentInvitationsResponse containing a list of sent invitations.
+	rpc GetSentInvitations(GetSentInvitationsRequest) returns (GetSentInvitationsResponse);
+  
+	// Finds conversations based on a search query and other criteria.
+	// Input: FindConversationsRequest with search parameters like query, language, offset, and limit.
+	// Output: FindConversationsResponse containing a list of conversations that match the search criteria.
+	rpc FindConversations(FindConversationsRequest) returns (FindConversationsResponse);
+  }
+  
+ 

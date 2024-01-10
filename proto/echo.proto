@@ -1,35 +1,42 @@
-/**
- * You can use echo as starter project.
- */
-
 syntax = "proto3";
 package echo;
 
+// Specify the Go package where the generated code will reside.
 option go_package="github.com/globulario/services/golang/echo/echopb";
 
+// EchoRequest is the request message for the Echo call.
+// It contains a single string message.
 message EchoRequest {
-  string message = 1;
+  string message = 1; // The message to be echoed back by the server.
 }
 
+// EchoResponse is the response message for the Echo call.
+// It contains the echoed message and a count of how many times
+// the message has been echoed.
 message EchoResponse {
-  string message = 1;
-  int32 message_count = 2;
+  string message = 1;       // The echoed message.
+  int32 message_count = 2;  // The count of how many times the message was echoed.
 }
 
+// StopRequest is the request message to stop the server.
 message StopRequest {
-	
+  // This message does not contain any fields.
 }
 
+// StopResponse is the response message when the server is stopped.
 message StopResponse {
-	
+  // This message does not contain any fields.
 }
 
+// EchoService provides the Echo and Stop RPCs.
 service EchoService {
 	
   	// Stop the server.
+  	// This RPC allows the client to request the server to stop.
   	rpc Stop(StopRequest) returns (StopResponse);
 
-  	// One request followed by one response
+  	// Echo the received message.
+  	// This RPC takes a message and returns it back along with a count of
+  	// how many times the server has echoed messages.
 	rpc Echo(EchoRequest) returns (EchoResponse);
-
 }

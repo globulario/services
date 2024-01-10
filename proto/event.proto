@@ -1,92 +1,100 @@
-/**
- * You can use echo as starter project.
- */
-syntax = "proto3";
-package event;
-
-option go_package="github.com/globulario/services/golang/event/eventpb";
-
-message KeepAlive {}
-
-message Event{
-	string name = 1; // The event name.
-	bytes data = 2; // must be anything...
-}
-
-message QuitRequest{
-	string uuid = 1;
-}
-
-message QuitResponse{
-	bool result = 1;
-}
-
-message OnEventRequest{
-	string uuid = 1;
-}
-
-message OnEventResponse{
-  oneof data {
-    Event evt = 1;
-    KeepAlive ka = 2;
-  }
-}
-
-message SubscribeRequest {
-  string name = 1; // the event Topic.
-  string uuid = 2; // the subscriber uuid
-}
-
-message SubscribeResponse {
-  bool result = 1;
-}
-
-message UnSubscribeRequest {
-  string name = 1; // the event Topic.
-  string uuid = 2; // the subscriber uuid.
-}
-
-message UnSubscribeResponse {
-  bool result = 1; // must return true
-}
-
-message PublishRequest{
-	Event evt = 1; // The event to publish on channel
-}
-
-message PublishResponse{
-	bool result = 1; // must return true
-}
-
-message StopRequest {
-	
-}
-
-message StopResponse {
-	
-}
-
-/**
- * A gRpc event bus.
- */
-service EventService {
-  // Stop the server.
-  rpc Stop(StopRequest) returns (StopResponse);
-
-  // One stream by client.
-  rpc OnEvent(OnEventRequest) returns (stream OnEventResponse) {};
-
-  // Return from OnEvent.
-  rpc Quit(QuitRequest) returns (QuitResponse){};
-
-  // Connect to an event channel or create it if it not already exist
-  // and stay in that function until UnSubscribe is call.
-  rpc Subscribe(SubscribeRequest) returns (SubscribeResponse) {};
-
-  // Disconnect to an event channel.(Return from Subscribe)
-  rpc UnSubscribe(UnSubscribeRequest) returns (UnSubscribeResponse) {};
-
-  // Publish event on channel.
-  rpc Publish(PublishRequest) returns (PublishResponse) {};
-  
-}
+ syntax = "proto3";
+ package event;
+ 
+ // Go package path for generated code.
+ option go_package="github.com/globulario/services/golang/event/eventpb";
+ 
+ // KeepAlive message, likely used for maintaining the connection alive.
+ message KeepAlive {}
+ 
+ // Event represents a generic event with a name and data.
+ message Event {
+   string name = 1; // The event name.
+   bytes data = 2;  // The event data, can be anything.
+ }
+ 
+ // QuitRequest message to request stopping a stream or connection.
+ message QuitRequest {
+   string uuid = 1; // Unique identifier for the request.
+ }
+ 
+ // QuitResponse message as a result of QuitRequest.
+ message QuitResponse {
+   bool result = 1; // Result of the quit request.
+ }
+ 
+ // OnEventRequest message for starting event stream.
+ message OnEventRequest {
+   string uuid = 1; // Unique identifier for the stream request.
+ }
+ 
+ // OnEventResponse message as a stream response.
+ message OnEventResponse {
+   oneof data {
+     Event evt = 1;      // Event data.
+     KeepAlive ka = 2;   // KeepAlive signal.
+   }
+ }
+ 
+ // SubscribeRequest message for subscribing to an event topic.
+ message SubscribeRequest {
+   string name = 1; // The event topic to subscribe to.
+   string uuid = 2; // The subscriber's unique identifier.
+ }
+ 
+ // SubscribeResponse message as a result of SubscribeRequest.
+ message SubscribeResponse {
+   bool result = 1; // Result of the subscribe request.
+ }
+ 
+ // UnSubscribeRequest message for unsubscribing from an event topic.
+ message UnSubscribeRequest {
+   string name = 1; // The event topic to unsubscribe from.
+   string uuid = 2; // The subscriber's unique identifier.
+ }
+ 
+ // UnSubscribeResponse message as a result of UnSubscribeRequest.
+ message UnSubscribeResponse {
+   bool result = 1; // Result of the unsubscribe request.
+ }
+ 
+ // PublishRequest message for publishing an event.
+ message PublishRequest {
+   Event evt = 1; // The event to publish.
+ }
+ 
+ // PublishResponse message as a result of PublishRequest.
+ message PublishResponse {
+   bool result = 1; // Result of the publish request.
+ }
+ 
+ // StopRequest message to stop the server.
+ message StopRequest {}
+ 
+ // StopResponse message as a result of StopRequest.
+ message StopResponse {}
+ 
+ /**
+  * A gRPC event bus.
+  */
+ service EventService {
+   // Stop the server.
+   rpc Stop(StopRequest) returns (StopResponse);
+ 
+   // Stream of events for a client.
+   rpc OnEvent(OnEventRequest) returns (stream OnEventResponse) {};
+ 
+   // Quit the ongoing event stream.
+   rpc Quit(QuitRequest) returns (QuitResponse){};
+ 
+   // Subscribe to an event channel; creates it if it doesn't exist.
+   // The client remains in this function until UnSubscribe is called.
+   rpc Subscribe(SubscribeRequest) returns (SubscribeResponse) {};
+ 
+   // Unsubscribe from an event channel.
+   rpc UnSubscribe(UnSubscribeRequest) returns (UnSubscribeResponse) {};
+ 
+   // Publish an event to a channel.
+   rpc Publish(PublishRequest) returns (PublishResponse) {};
+ }
+ 

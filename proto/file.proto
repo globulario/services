@@ -1,546 +1,550 @@
 /**
  * You can use echo as starter project.
  */
-syntax = "proto3";
+ syntax = "proto3";
 
-package file;
+ package file;
+ 
+ option go_package="github.com/globulario/services/golang/file/filepb";
+ import "google/protobuf/struct.proto";
+ 
+ message Empty {
+	 // An empty message, often used for simple requests or responses that don't require any data.
+ }
+ 
+ /**
+  * FileInfo contains detailed information about a file or directory.
+  */
+ message FileInfo {
+	 string name = 1;         // The name of the file or directory.
+	 int64 size = 2;          // The size of the file in bytes.
+	 uint32 mode = 3;         // File mode (permissions).
+	 int64 mode_time = 4;     // Last modification time of the file.
+	 bool is_dir = 5;         // True if it's a directory.
+	 string path = 6;         // Full path of the file or directory.
+	 string mime = 7;         // MIME type of the file.
+	 string thumbnail = 8;    // Thumbnail image (if available).
+	 string checksum = 9;     // Checksum of the file for validation.
+ 
+	 // Metadata of the file, stored as a flexible struct.
+	 google.protobuf.Struct metadata = 10;
+ 
+	 // List of files within a directory (used in recursive directory listings).
+	 repeated FileInfo files = 11;
+ }
+ 
+ message ReadDirRequest {
+	 string path = 1;            // The path of the directory to read.
+	 bool recursive = 2;         // Whether to list files recursively.
+	 int32 thumbnailWidth = 3;   // Width for generated thumbnails.
+	 int32 thumbnailHeight = 4;  // Height for generated thumbnails.
+ }
+ 
+ message ReadDirResponse {
+	 FileInfo info = 1;  // Information about the files in the requested directory.
+ }
+ 
+ message CreateDirRequest {
+	 string path = 1;  // The path where the new directory will be created.
+	 string name = 2;  // The name of the new directory.
+ }
+ 
+ message CreateDirResponse {
+	 bool result = 1;  // Indicates if the directory was created successfully.
+ }
+ 
+ message DeleteDirRequest {
+	 string path = 1;  // The path of the directory to be deleted.
+ }
+ 
+ message DeleteDirResponse {
+	 bool result = 1;  // Indicates if the directory was deleted successfully.
+ }
+ 
+ message RenameRequest {
+	 string path = 1;     // The path of the file or directory.
+	 string new_name = 2; // The new name for the file or directory.
+	 string old_name = 3; // The current name of the file or directory.
+ }
+ 
+ message RenameResponse {
+	 bool result = 1;  // Indicates if the rename operation was successful.
+ }
+ 
+ message CopyRequest {
+	 string path = 1;        // The destination path for the copied files/directories.
+	 repeated string files = 2;  // List of files/directories to be copied.
+ }
+ 
+ message CopyResponse {
+	 bool result = 1;  // Indicates if the copy operation was successful.
+ }
+ 
+ message MoveRequest {
+	 string path = 1;        // The destination path for the moved files/directories.
+	 repeated string files = 2;  // List of files/directories to be moved.
+ }
+ 
+ message MoveResponse {
+	 bool result = 1;  // Indicates if the move operation was successful.
+ }
+ 
 
-option go_package="github.com/globulario/services/golang/file/filepb";
-import "google/protobuf/struct.proto";
-
-message Empty {}
-
-/**
- * That structure will keep file info.
- */
-message FileInfo {
-	string name = 1;
-	int64 size = 2;
-	uint32 mode = 3;
-	int64 mode_time = 4;
-	bool is_dir = 5;
-	string path = 6;
-	string mime = 7;
-	string thumbnail = 8;
-	string checksum = 9;
-
-	// This will contain file metadata...
-	google.protobuf.Struct metadata = 10;
-
-	// Can be left empty...
-	repeated FileInfo files = 11;
-}
-
-message ReadDirRequest {
-	string path = 1;
-	bool recursive = 2;
-	int32 thumnailWidth = 3;
-	int32 thumnailHeight = 4;
-}
-
-message ReadDirResponse {
-	// bytes data = 1; // The json string containing the list of files.
-	FileInfo info = 1;
-}
-
-message CreateDirRequest {
-	string path = 1; // The parent path
-	string name = 2; // the new directory name
-}
-
-message CreateDirResponse {
-	bool result = 1;
-}
-
-message DeleteDirRequest {
-	string path = 1;
-}
-
-message DeleteDirResponse {
-	bool result = 1;
-}
-
-message RenameRequest {
-	string path = 1; // the path of the directory
-	string new_name = 2; // the new name.
-	string old_name = 3; // the old name.
-}
-
-message RenameResponse {
-	bool result = 1;
-}
-
-message CopyRequest {
-	string path = 1; // the path of the directory where to copy files.
-	repeated string files = 2; // The list of files/directories to be copied
-}
-
-message CopyResponse {
-	bool result = 1;
-}
-
-message MoveRequest {
-	string path = 1; // the path of the directory where to move files.
-	repeated string files = 2; // The list of files/directories to be move
-}
-
-message MoveResponse {
-	bool result = 1;
-}
-
-message GetFileInfoRequest {
-	string path = 1;
-	int32 thumnailWidth = 2;
-	int32 thumnailHeight = 3;
+ message GetFileInfoRequest {
+    string path = 1;            // The path of the file for which information is requested.
+    int32 thumbnailWidth = 2;   // Desired width of the thumbnail.
+    int32 thumbnailHeight = 3;  // Desired height of the thumbnail.
 }
 
 message GetFileInfoResponse {
-	FileInfo info = 1;
+    FileInfo info = 1;  // Detailed information about the file.
 }
 
 message GetFileMetadataRequest {
-	string path = 1;
+    string path = 1;  // The path of the file for which metadata is requested.
 }
 
-message GetFileMetadataResponse{
-	google.protobuf.Struct result = 1;
+message GetFileMetadataResponse {
+    google.protobuf.Struct result = 1;  // Metadata of the file as a structured object.
 }
 
-// Read file as a binary file.
+// Request to read a file as binary data.
 message ReadFileRequest {
-	string path = 1;
+    string path = 1;  // The path of the file to read.
 }
 
+// Response containing the file's binary data.
 message ReadFileResponse {
-	bytes data = 1; // The file content.
+    bytes data = 1;  // The binary content of the file.
 }
 
-// Read file as a binary file.
+// Request to save a file. The file can be specified either by path or by binary data.
 message SaveFileRequest {
-	oneof file{
-		string path = 1;
-		bytes  data = 2;
-	}
+    oneof file {
+        string path = 1;  // The path where the file will be saved.
+        bytes data = 2;   // The binary data of the file to save.
+    }
 }
 
 message SaveFileResponse {
-	bool result = 1;
+    bool result = 1;  // Indicates if the file save operation was successful.
 }
 
-// Delete file
+// Request to delete a file.
 message DeleteFileRequest {
-	string path = 1;
+    string path = 1;  // The path of the file to be deleted.
 }
 
 message DeleteFileResponse {
-	bool result = 1;
+    bool result = 1;  // Indicates if the file was deleted successfully.
 }
 
-// Return all images thumnails from a directory
-message GetThumbnailsRequest{
-	string path = 1;
-	bool recursive = 2;
-	int32 thumnailWidth = 3;
-	int32 thumnailHeight = 4;
+// Request to get thumbnails for all images in a directory.
+message GetThumbnailsRequest {
+    string path = 1;            // The path of the directory.
+    bool recursive = 2;         // Whether to search for images recursively.
+    int32 thumbnailWidth = 3;   // Desired width of the thumbnails.
+    int32 thumbnailHeight = 4;  // Desired height of the thumbnails.
 }
 
+// Response containing thumbnails data.
 message GetThumbnailsResponse {
-	bytes data = 1; // The json string containing the list of files.
+    bytes data = 1;  // JSON string containing the list of files with their thumbnail data.
 }
 
-// Write the execel file on the server.
-message CreateArchiveRequest{
-	repeated string paths = 1; // The directory to archive
-	string name = 2; // the name
+// Request to create an archive (e.g., zip) of specified directories.
+message CreateArchiveRequest {
+    repeated string paths = 1;  // List of directories to include in the archive.
+    string name = 2;            // The desired name of the archive file.
 }
 
-message CreateArchiveResponse{
-	string result = 1;
+message CreateArchiveResponse {
+    string result = 1;  // Path or identifier of the created archive.
 }
 
-message CreateLnkRequest{
-	string path = 1; // The directory where the link will be created.
-	string name = 2; // toto.lnk (must end's by lnk)
-	string lnk = 3; // contain the json information of the linked file.
+// Request to create a shortcut link to a file.
+message CreateLnkRequest {
+    string path = 1;  // The directory where the link will be created.
+    string name = 2;  // The name of the link file (must end with '.lnk').
+    string lnk = 3;   // JSON containing the information of the linked file.
 }
 
-message CreateLnkResponse{
-	/** Nothing here */
+message CreateLnkResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-// Write the execel file on the server.
-message WriteExcelFileRequest{
-	string path = 1;
-	string data = 2; // JSON object containing {{"name":"page1", "data"[[1,2,3][4,5,6][7,8,9]]}}
+// Request to write an Excel file on the server.
+message WriteExcelFileRequest {
+    string path = 1;  // The path where the Excel file will be written.
+    string data = 2;  // JSON object containing Excel data (e.g., sheets, cells).
 }
 
-message WriteExcelFileResponse{
-	bool result = 1; // return true by default.
-}
-
-message HtmlToPdfRqst{
-	string html = 1; // The html values.
-}
-
-message HtmlToPdfResponse{
-	bytes pdf = 2; //The pdf data file.
+message WriteExcelFileResponse {
+    bool result = 1;  // Indicates if the Excel file write operation was successful.
 }
 
 
-/** Video conversion releated function. **/
+message HtmlToPdfRqst {
+    string html = 1; // The HTML content to be converted to PDF.
+}
+
+message HtmlToPdfResponse {
+    bytes pdf = 1; // The resulting PDF file data.
+}
+
+/** Video conversion related functions. **/
 
 message CreateVideoPreviewRequest {
-	string path = 1;
-	int32 nb = 2;
-	int32 height = 3;
+    string path = 1;   // The path of the video file.
+    int32 nb = 2;      // Number of preview images to generate.
+    int32 height = 3;  // Height of the preview images.
 }
 
-message CreateVideoPreviewResponse{
-
+message CreateVideoPreviewResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message CreateVideoTimeLineRequest{
-
-	string path = 1;
-	int32 width = 2;
-	float fps = 3;
+message CreateVideoTimeLineRequest {
+    string path = 1;  // The path of the video file.
+    int32 width = 2;  // Width of the timeline images.
+    float fps = 3;    // Frames per second for the timeline.
 }
 
-message CreateVideoTimeLineResponse{
-	/** Nothing here **/
+message CreateVideoTimeLineResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message ConvertVideoToMpeg4H264Request{
-	string path = 1;
+message ConvertVideoToMpeg4H264Request {
+    string path = 1;  // The path of the video file to convert.
 }
 
-message ConvertVideoToMpeg4H264Response{
-	string outpout = 1; // info about the conversion.
+message ConvertVideoToMpeg4H264Response {
+    string output = 1; // Information about the conversion process.
 }
 
-message ConvertVideoToHlsRequest{
-	string path = 1;
+message ConvertVideoToHlsRequest {
+    string path = 1;  // The path of the video file to convert.
 }
 
-message ConvertVideoToHlsResponse{
-	string outpout = 1; // info about the conversion.
+message ConvertVideoToHlsResponse {
+    string output = 1; // Information about the conversion process.
 }
 
-// Process video request.
+// Request to start processing a video.
 message StartProcessVideoRequest {
-	string path = 1; // if Empty it will process all videos...
+    string path = 1;  // Path of the video to process. If empty, processes all videos.
 }
 
 message StartProcessVideoResponse {
-	
+    // This message is empty as the response does not require specific data.
 }
 
+// Request to start processing audio.
 message StartProcessAudioRequest {
-	string path = 1; // if Empty it will process all videos...
+    string path = 1;  // Path of the audio to process. If empty, processes all audio.
 }
 
 message StartProcessAudioResponse {
-	
+    // This message is empty as the response does not require specific data.
 }
 
-// Return true if converstion is running.
-message IsProcessVideoRequest{
-
+// Request to check if video processing is ongoing.
+message IsProcessVideoRequest {
+    // No fields required for this request.
 }
 
-// Return true if converstion is running.
-message IsProcessVideoResponse{
-	bool isProcessVideo = 1;
+// Response to indicate if video processing is ongoing.
+message IsProcessVideoResponse {
+    bool isProcessVideo = 1; // True if video processing is currently running.
 }
 
-// Upload file request
+// Request to upload a file.
 message UploadFileRequest {
-	string url = 1; // the url of the video to upload
-	string dest = 2; // the video destination
-	string name = 3; // the file name
-	string domain = 4; // the domain of the file to upload
-	bool isDir = 5; // if the file is a directory, for exemple a directory with stream's
+    string url = 1;    // URL of the file to upload.
+    string dest = 2;   // Destination path for the uploaded file.
+    string name = 3;   // Name of the file.
+    string domain = 4; // Domain from which the file is being uploaded.
+    bool isDir = 5;    // True if the upload is a directory (e.g., for a directory of streams).
 }
 
 message UploadFileResponse {
-	int64 uploaded = 1;
-	int64 total = 2;
-	string info = 3; // can be error or done...
+    int64 uploaded = 1; // Amount of data uploaded.
+    int64 total = 2;    // Total size of the file.
+    string info = 3;    // Information about the upload status, errors, or completion.
 }
 
-// Upload video request
+// Request to upload a video.
 message UploadVideoRequest {
-	string url = 1; // the url of the video to upload
-	string dest = 2; // the video destination
-	string format = 3; // can be mp3 or mp4
+    string url = 1;    // URL of the video to upload.
+    string dest = 2;   // Destination path for the uploaded video.
+    string format = 3; // Desired format of the video (e.g., mp3, mp4).
 }
 
-// Upload video response
+// Response to video upload request.
 message UploadVideoResponse {
-	int32 pid = 1;
-	string result = 2;
+    int32 pid = 1;    // Process ID of the upload task.
+    string result = 2; // Result of the upload process.
 }
 
-// Stop process video.
+
+/// Stop process video.
 message StopProcessVideoRequest {
-	
+    // No fields required for this request.
 }
 
 message StopProcessVideoResponse {
-	
+    // This message is empty as the response does not require specific data.
 }
 
-
 message SetVideoConversionRequest {
-	bool value = 1;
+    bool value = 1; // Boolean to enable or disable video conversion.
 }
 
 message SetVideoConversionResponse {
-
+    // This message is empty as the response does not require specific data.
 }
 
 message SetVideoStreamConversionRequest {
-	bool value = 1;
+    bool value = 1; // Boolean to enable or disable video stream conversion.
 }
 
 message SetVideoStreamConversionResponse {
-
+    // This message is empty as the response does not require specific data.
 }
 
-message SetStartVideoConversionHourRequest{
-	string value = 1;
+message SetStartVideoConversionHourRequest {
+    string value = 1; // The start hour for video conversion.
 }
 
 message SetStartVideoConversionHourResponse {
-
+    // This message is empty as the response does not require specific data.
 }
 
-message SetMaximumVideoConversionDelayRequest{
-	string value = 1;
+message SetMaximumVideoConversionDelayRequest {
+    string value = 1; // The maximum delay for video conversion.
 }
 
-message SetMaximumVideoConversionDelayResponse{
-	
+message SetMaximumVideoConversionDelayResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message VideoConversionError{
-	string path = 1;
-	string error = 2;
+message VideoConversionError {
+    string path = 1;  // Path of the video file.
+    string error = 2; // Error message encountered during conversion.
 }
 
-message GetVideoConversionErrorsRequest{
-
+message GetVideoConversionErrorsRequest {
+    // No fields required for this request.
 }
 
-message GetVideoConversionErrorsResponse{
-	repeated VideoConversionError errors = 1;
+message GetVideoConversionErrorsResponse {
+    repeated VideoConversionError errors = 1; // List of video conversion errors.
 }
 
-message ClearVideoConversionErrorsRequest{
-	
+message ClearVideoConversionErrorsRequest {
+    // No fields required for this request.
 }
 
-message ClearVideoConversionErrorsResponse{
-
+message ClearVideoConversionErrorsResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message ClearVideoConversionErrorRequest{
-	string path = 1;
+message ClearVideoConversionErrorRequest {
+    string path = 1; // Path of the video file for which to clear the error.
 }
 
-message ClearVideoConversionErrorResponse{
-
+message ClearVideoConversionErrorResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message ClearVideoConversionLogsRequest{
-
+message ClearVideoConversionLogsRequest {
+    // No fields required for this request.
 }
 
-message ClearVideoConversionLogsResponse{
-
+message ClearVideoConversionLogsResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-message VideoConversionLog{
-	string path = 1;
-	string msg = 2;
-	int64 log_time = 3;
-	string status = 4;
+message VideoConversionLog {
+    string path = 1;     // Path of the video file.
+    string msg = 2;      // Log message.
+    int64 log_time = 3;  // Timestamp of the log entry.
+    string status = 4;   // Status of the conversion process.
 }
 
-message GetVideoConversionLogsRequest{
-
+message GetVideoConversionLogsRequest {
+    // No fields required for this request.
 }
 
-message GetVideoConversionLogsResponse{
-	repeated VideoConversionLog logs = 1;
+message GetVideoConversionLogsResponse {
+    repeated VideoConversionLog logs = 1; // List of video conversion logs.
 }
 
 message StopRequest {
-	
+    // No fields required for this request.
 }
 
 message StopResponse {
-	
+    // This message is empty as the response does not require specific data.
 }
 
-// Add a public dir.
-message AddPublicDirRequest{
-	string path = 1;
+// Add a public directory.
+message AddPublicDirRequest {
+    string path = 1; // Path of the directory to make public.
 }
 
-message AddPublicDirResponse{
-
+message AddPublicDirResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-// Add a public dir.
-message RemovePublicDirRequest{
-	string path = 1;
+// Remove a public directory.
+message RemovePublicDirRequest {
+    string path = 1; // Path of the public directory to remove.
 }
 
-message RemovePublicDirResponse{
-
+message RemovePublicDirResponse {
+    // This message is empty as the response does not require specific data.
 }
 
-// Return the list of public file path.
+// Request to get the list of public directories.
 message GetPublicDirsRequest {
-	
+    // No fields required for this request.
 }
 
 message GetPublicDirsResponse {
-	repeated string dirs = 1;
+    repeated string dirs = 1; // List of paths of public directories.
 }
 
-// Generate playlist for a given directory
+// Request to generate a playlist for a given directory.
 message GeneratePlaylistRequest {
-	string dir = 1;
+    string dir = 1; // Directory for which to generate the playlist.
 }
 
 message GeneratePlaylistResponse {
-
+    // This message is empty as the response does not require specific data.
 }
 
-
+// FileService defines a set of RPCs for managing files and directories, including operations like 
+// creating, reading, updating, deleting, and managing conversions and metadata for various file types.
+// It also includes services for video processing, thumbnail generation, and public directory management.
 service FileService {
-  	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
+    // Stop the server.
+    rpc Stop(StopRequest) returns (StopResponse);
 
-	// Append public dir to the list of dir...
-	rpc  AddPublicDir( AddPublicDirRequest ) returns(AddPublicDirResponse);
+    // Add a directory to the list of public directories.
+    rpc AddPublicDir(AddPublicDirRequest) returns (AddPublicDirResponse);
 
-	// Append public dir to the list of dir...
-	rpc  RemovePublicDir( RemovePublicDirRequest ) returns(RemovePublicDirResponse);
+    // Remove a directory from the list of public directories.
+    rpc RemovePublicDir(RemovePublicDirRequest) returns (RemovePublicDirResponse);
 
-	// Return the list of public path from a given file server...
-	rpc GetPublicDirs( GetPublicDirsRequest )  returns(GetPublicDirsResponse);
+    // Return the list of public directories.
+    rpc GetPublicDirs(GetPublicDirsRequest) returns (GetPublicDirsResponse);
 
-	// Return a JOSN string containing the directories informations.
-	// In case of image I will return a thumnail of the image so 
-	// so the response string can became large.
-	rpc ReadDir(ReadDirRequest) returns (stream ReadDirResponse){};
+    // Return a JSON string containing the directory information, including thumbnails for images.
+    rpc ReadDir(ReadDirRequest) returns (stream ReadDirResponse);
 
-	// Create a new directory
- 	rpc CreateDir(CreateDirRequest) returns (CreateDirResponse){};
+    // Create a new directory.
+    rpc CreateDir(CreateDirRequest) returns (CreateDirResponse);
 
-	// Create a link file
-	rpc CreateLnk(CreateLnkRequest) returns (CreateLnkResponse){};
-	
-	// Delete a directories
-	rpc DeleteDir(DeleteDirRequest) returns (DeleteDirResponse){};
-	
-	// Rename a file/directory
-	rpc Rename(RenameRequest) returns (RenameResponse){};
-	
-	// Move a file/directory
-	rpc Move(MoveRequest) returns (MoveResponse){};
-	
-	// Copy a file/directory
-	rpc Copy(CopyRequest) returns (CopyResponse){};
-	
-	// Create an archive from a given dir and set it with name.
-	rpc CreateAchive(CreateArchiveRequest) returns (CreateArchiveResponse);
-	
-	// Get file info, if the file exist it return the file size, name, thumnail...
-	rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse){};
+    // Create a link file.
+    rpc CreateLnk(CreateLnkRequest) returns (CreateLnkResponse);
 
-	// Return the file metadata, more specific infos store in the file itself.
-	rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse){};
+    // Delete a directory.
+    rpc DeleteDir(DeleteDirRequest) returns (DeleteDirResponse);
 
-	// Read file, can be use for small to medium file...
-	rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse){};
-	
-	// Save a file on the server...
-	rpc SaveFile(stream SaveFileRequest) returns (SaveFileResponse){};
-	
-	// Delete file
-	rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse){};
-	
-	// Specific files...
-	rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse){};
+    // Rename a file or directory.
+    rpc Rename(RenameRequest) returns (RenameResponse);
 
-	// Upload a video from a given url from a stream service source like hulu, youtube, pornhub... etc
-	rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse){};
+    // Move a file or directory.
+    rpc Move(MoveRequest) returns (MoveResponse);
 
-	// Upload a file from a given url, it use .
-	rpc UploadFile(UploadFileRequest) returns (stream UploadFileResponse){};
+    // Copy a file or directory.
+    rpc Copy(CopyRequest) returns (CopyResponse);
 
-	// Create a viedeo Preview...
-	rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse){};
+    // Create an archive from a given directory and set its name.
+    rpc CreateArchive(CreateArchiveRequest) returns (CreateArchiveResponse);
 
-	// Create video time line
-	rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse){};
+    // Get file information, including size, name, and thumbnail.
+    rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
 
-	// Convert a file from mkv, avi or other format to MPEG-4 AVC
-	rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response){};
+    // Return file metadata.
+    rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse);
 
-	// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the 
-	// the streams for various resolutions. (see script create-vod-hls.sh for more info)
-	rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse){};
+    // Read a file, suitable for small to medium-sized files.
+    rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
 
-	// Start process video on the server.
-	rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse) {};
+    // Save a file on the server.
+    rpc SaveFile(stream SaveFileRequest) returns (SaveFileResponse);
 
-	// Start process audio on the server.
-	rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse) {};
+    // Delete a file.
+    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
 
-	// Stop process video on the server.
-	rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse) {};
+    // Retrieve thumbnails for specific files.
+    rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse);
 
-	// Return true if video processing is running.
-	rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse) {};
+    // Upload a video from a URL (e.g., YouTube, Hulu, Pornhub).
+    rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse);
 
-	// Set video processing.
-	rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse) {};
+    // Upload a file from a URL.
+    rpc UploadFile(UploadFileRequest) returns (stream UploadFileResponse);
 
-	// Set video stream conversion.
-	rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse) {};
+    // Create a video preview.
+    rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse);
 
-	// Set the hour when the video conversion must start.
-	rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse) {};
+    // Create a video timeline.
+    rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse);
 
-	// Set the maximum delay when conversion can run, it will finish actual conversion but it will not begin new conversion past this delay.
-	rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse) {};
+    // Convert a video file to MPEG-4 AVC (H.264) format.
+    rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response);
 
-	// Return the list of failed video conversion.
-	rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse) {};
+    // Convert a video file to HLS (HTTP Live Streaming) format.
+    rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse);
 
-	// Clear the video conversion errors
-	rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse) {};
+    // Start processing video on the server.
+    rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse);
 
-	// Clear a specific video conversion error
-	rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse) {};
+    // Start processing audio on the server.
+    rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse);
 
-	// Clear a specific video conversion log
-	rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse) {};
+    // Stop processing video on the server.
+    rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse);
 
-	// Return the list of log messages
-	rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse){};
+    // Check if video processing is currently running.
+    rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse);
 
-	// Generate the playlists for a directory...
-	rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse) {};
+    // Set video processing configuration.
+    rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse);
 
-	// Excel files...
-	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};
-	
-	// Convert html to pdf.
-	rpc HtmlToPdf(HtmlToPdfRqst) returns(HtmlToPdfResponse){};
+    // Set video stream conversion configuration.
+    rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse);
+
+    // Set the start hour for video conversion.
+    rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse);
+
+    // Set the maximum delay for video conversion.
+    rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse);
+
+    // Retrieve the list of failed video conversions.
+    rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse);
+
+    // Clear all video conversion errors.
+    rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse);
+
+    // Clear a specific video conversion error.
+    rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse);
+
+    // Clear video conversion logs.
+    rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse);
+
+    // Retrieve video conversion logs.
+    rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse);
+
+    // Generate playlists for a directory.
+    rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse);
+
+    // Write an Excel file.
+    rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse);
+
+    // Convert HTML to PDF.
+    rpc HtmlToPdf(HtmlToPdfRqst) returns (HtmlToPdfResponse);
 }
