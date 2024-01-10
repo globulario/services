@@ -171,10 +171,11 @@ message GetFileInfoResponse{
    FileInfo info = 2;
 }
 
+/**
+ * The Admin service must be used to manage Globular cluster.
+**/
 service AdminService {
-  /** Root informations*/
 
-  /** Globular executable */
   // Update a given globular server (use by command line.)
   rpc Update(stream  UpdateRequest) returns(UpdateResponse);
 
@@ -184,8 +185,6 @@ service AdminService {
   // Return public certificate from a servcer.
   rpc GetCertificates(GetCertificatesRequest) returns(GetCertificatesResponse);
 	
-  /** Administration helpers **/
-
   // Test if a process of given name is running...
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
 

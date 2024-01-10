@@ -74,7 +74,10 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	}
 
 	s["Port"] = port
-	s["Proxy"] = proxyPort
+
+	if proxyPort == 0{
+		s["Proxy"] = port + 1
+	}
 
 	if s["Path"] == nil {
 		err := errors.New("no service path was found for service " + s["Name"].(string) + s["Id"].(string))
