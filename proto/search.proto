@@ -1,115 +1,121 @@
 /**
- * You can use search as starter project.
+ * Search service proto definition.
+ * Provides functionality for indexing, searching, and managing documents.
  */
-syntax = "proto3";
-package search;
-
-option go_package="github.com/globulario/services/golang/search/searchpb";
-
-
-message GetEngineVersionRequest {
-
-}
-
-message GetEngineVersionResponse {
-  string message = 1;
-}
-
-message IndexJsonObjectRequest {
-	/** The path of the database on the server. If empty the db will be created in memory */
-	string path = 1;
-	/** The JSON string */
-	string jsonStr = 2;
-	/** The language to be use to index the object */
-	string language = 3; 
-	/** The field that contain the id of the object. */
-	string id = 4;
-	/** The list of fields to be use as index */
-	repeated string indexs = 5;
-	/** Must be anything, can be the path of object to access it. */
-	string data = 6;
-}
-
-message IndexJsonObjectResponse {
-	/** Nothing **/
-}
-
-message DeleteDocumentRequest {
-	string path = 1;
-	string id = 2;
-}
-
-message DeleteDocumentResponse {
-}
-
-message CountRequest {
-	string path = 1;
-}
-
-message CountResponse {
-	int32 result = 1;
-}
-
-message SearchResult {
-	int32 rank = 1;
-	string docId = 2;
-	string data = 3;
-    string snippet = 4;
-}
-
-message SearchResults {
-	repeated SearchResult results=1;
-}
-
-message SearchDocumentsRequest{
-	repeated string paths = 1;
-	string query = 2;
-	string language = 3;
-	repeated string fields = 4;
-	int32 offset = 5; // start result
-	int32 pageSize = 6; // number of result to be return.
-	int32 snippetLength = 7; // The length of the snippet.
-}
-
-message SearchDocumentsResponse{
-	SearchResults results=1;
-}
-
-message StopRequest {
-	
-}
-
-message StopResponse {
-	
-}
-
-service SearchService {
-	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
-	
-	/**
-	 * Return the version number of the search engine.
-	 */
-	 rpc GetEngineVersion(GetEngineVersionRequest) returns (GetEngineVersionResponse);
-
-	/**
-	 * That function is use to index JSON object/array of object
-	 */
-	rpc IndexJsonObject(IndexJsonObjectRequest) returns (IndexJsonObjectResponse);
-	
-	/**
-	 * Return the number of document in a database.
-	 */
-	rpc Count(CountRequest) returns (CountResponse);
-	
-	/**
-	 * Remove a document from the db
-	 */
-	rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
-	
-	/**
-	 * Search documents
-	 */
-	rpc SearchDocuments(SearchDocumentsRequest) returns (stream SearchDocumentsResponse);
-
-}	
+ syntax = "proto3";
+ package search;
+ 
+ option go_package="github.com/globulario/services/golang/search/searchpb";
+ 
+ // Request for getting the version of the search engine.
+ message GetEngineVersionRequest {
+ }
+ 
+ // Response for GetEngineVersionRequest containing the version message.
+ message GetEngineVersionResponse {
+   string message = 1; // The version message of the search engine.
+ }
+ 
+ // Request to index a JSON object.
+ message IndexJsonObjectRequest {
+	 string path = 1; // The path of the database. If empty, a database is created in memory.
+	 string jsonStr = 2; // The JSON string to be indexed.
+	 string language = 3; // Language for indexing.
+	 string id = 4; // ID field of the object.
+	 repeated string indexs = 5; // Fields to be used for indexing.
+	 string data = 6; // Additional data, possibly an access path.
+ }
+ 
+ // Response for IndexJsonObjectRequest.
+ message IndexJsonObjectResponse {
+	 // Empty response for IndexJsonObjectRequest.
+ }
+ 
+ // Request to delete a document.
+ message DeleteDocumentRequest {
+	 string path = 1; // Path to the database.
+	 string id = 2; // ID of the document to delete.
+ }
+ 
+ // Response for DeleteDocumentRequest.
+ message DeleteDocumentResponse {
+ }
+ 
+ // Request to count the number of documents.
+ message CountRequest {
+	 string path = 1; // Database path.
+ }
+ 
+ // Response for CountRequest with the count result.
+ message CountResponse {
+	 int32 result = 1; // The count of documents.
+ }
+ 
+ // Represents a single search result.
+ message SearchResult {
+	 int32 rank = 1; // Rank of the result.
+	 string docId = 2; // Document ID.
+	 string data = 3; // Data of the result.
+	 string snippet = 4; // Snippet from the document.
+ }
+ 
+ // Collection of search results.
+ message SearchResults {
+	 repeated SearchResult results = 1; // List of search results.
+ }
+ 
+ // Request to search documents.
+ message SearchDocumentsRequest {
+	 repeated string paths = 1; // Paths to search in.
+	 string query = 2; // Query string.
+	 string language = 3; // Language for the search.
+	 repeated string fields = 4; // Fields to search within.
+	 int32 offset = 5; // Starting point of results.
+	 int32 pageSize = 6; // Number of results to return.
+	 int32 snippetLength = 7; // Length of snippet in the results.
+ }
+ 
+ // Response for SearchDocumentsRequest.
+ message SearchDocumentsResponse {
+	 SearchResults results = 1; // Search results.
+ }
+ 
+ // Request to stop the server.
+ message StopRequest {
+ }
+ 
+ // Response for StopRequest.
+ message StopResponse {
+ }
+ 
+ // Service definition for Search.
+ service SearchService {
+	 // Stop the server.
+	  rpc Stop(StopRequest) returns (StopResponse);
+ 
+	 /**
+	  * Return the version number of the search engine.
+	  */
+	  rpc GetEngineVersion(GetEngineVersionRequest) returns (GetEngineVersionResponse);
+ 
+	 /**
+	  * Index a JSON object or an array of objects.
+	  */
+	 rpc IndexJsonObject(IndexJsonObjectRequest) returns (IndexJsonObjectResponse);
+ 
+	 /**
+	  * Get the count of documents in a database.
+	  */
+	 rpc Count(CountRequest) returns (CountResponse);
+ 
+	 /**
+	  * Remove a document from the database.
+	  */
+	 rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
+ 
+	 /**
+	  * Search for documents based on the query.
+	  */
+	 rpc SearchDocuments(SearchDocumentsRequest) returns (stream SearchDocumentsResponse);
+ }
+ 

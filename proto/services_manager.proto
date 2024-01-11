@@ -4,103 +4,113 @@ package services_manager;
 option go_package="github.com/globulario/services/golang/services_manager/services_managerpb";
 import "google/protobuf/struct.proto";
 
-
-message InstallServiceRequest{
-	string dicorveryId = 1;
-	string serviceId = 2;
-	string publisherId = 3;
-	string version = 4;
+// Request for installing a service.
+message InstallServiceRequest {
+	string dicorveryId = 1; // ID used for service discovery.
+	string serviceId = 2; // Unique identifier for the service.
+	string publisherId = 3; // Identifier for the publisher of the service.
+	string version = 4; // Version of the service to be installed.
 }
 
-message InstallServiceResponse{
-	bool result = 1;
+// Response for InstallServiceRequest.
+message InstallServiceResponse {
+	bool result = 1; // Result of the installation process.
 }
 
-message UninstallServiceRequest{
-	string serviceId = 1;
-	string publisherId = 2;
-	string version = 3;
-	bool deletePermissions = 4;
+// Request for uninstalling a service.
+message UninstallServiceRequest {
+	string serviceId = 1; // Unique identifier for the service.
+	string publisherId = 2; // Identifier for the publisher of the service.
+	string version = 3; // Version of the service to be uninstalled.
+	bool deletePermissions = 4; // Flag to delete permissions associated with the service.
 }
 
-message UninstallServiceResponse{
-	bool result = 1;
+// Response for UninstallServiceRequest.
+message UninstallServiceResponse {
+	bool result = 1; // Result of the uninstallation process.
 }
 
+// Request to stop a service instance.
 message StopServiceInstanceRequest {
-  string service_id = 1;
+  string service_id = 1; // Identifier of the service instance to stop.
 }
 
+// Response for StopServiceInstanceRequest.
 message StopServiceInstanceResponse {
-  bool result = 1;
+  bool result = 1; // Result of the stop operation.
 }
 
+// Request to start a service instance.
 message StartServiceInstanceRequest {
-  string service_id = 1;
+  string service_id = 1; // Identifier of the service instance to start.
 }
 
-// Return the pid of the started service.
+// Response for StartServiceInstanceRequest with process IDs.
 message StartServiceInstanceResponse {
-  int64 service_pid = 1;
-  int64 proxy_pid = 2;
+  int64 service_pid = 1; // Process ID of the started service.
+  int64 proxy_pid = 2; // Process ID of the service's proxy, if applicable.
 }
 
-// Restart all services.
+// Request to restart all services.
 message RestartAllServicesRequest {
 }
 
+// Response for RestartAllServicesRequest.
 message RestartAllServicesResponse {
 }
 
-// Get the services configuration for that server.
-message GetServicesConfigurationRequest{
-
+// Request to get the configuration of services.
+message GetServicesConfigurationRequest {
 }
 
-message GetServicesConfigurationResponse{
-  repeated google.protobuf.Struct services = 1;
+// Response containing the configuration of services.
+message GetServicesConfigurationResponse {
+  repeated google.protobuf.Struct services = 1; // Configuration details of services.
 }
 
-// Return the list of all actions of the server.
+// Request to get all actions of the server.
 message GetAllActionsRequest {
 }
 
+// Response with the list of all server actions.
 message GetAllActionsResponse {
-  repeated string actions = 1;
+  repeated string actions = 1; // List of all actions available on the server.
 }
 
+// Request to save service configuration.
 message SaveServiceConfigRequest {
-  string config = 1;
+  string config = 1; // Configuration data to be saved.
 }
 
+// Response for SaveServiceConfigRequest.
 message SaveServiceConfigResponse {
-  
 }
 
+// Service definition for managing services.
 service ServicesManagerService {
 
-  // Install a service...
+  // Install a new service.
   rpc InstallService(InstallServiceRequest) returns (InstallServiceResponse);
 
-  // Uninstall a service...
+  // Uninstall an existing service.
   rpc UninstallService(UninstallServiceRequest) returns (UninstallServiceResponse);
   
-  // Stop a service
+  // Stop a running service instance.
   rpc StopServiceInstance(StopServiceInstanceRequest) returns (StopServiceInstanceResponse);
 
-  // Start a service
+  // Start a service instance.
   rpc StartServiceInstance(StartServiceInstanceRequest) returns (StartServiceInstanceResponse);
 
-  // Restart all Services
+  // Restart all the services.
   rpc RestartAllServices(RestartAllServicesRequest) returns (RestartAllServicesResponse);
 
-  // Get services configurations...
+  // Retrieve configuration for all services.
   rpc GetServicesConfiguration(GetServicesConfigurationRequest) returns (GetServicesConfigurationResponse);
 
-  // Return the list of all actions.
+  // Get the list of all available actions on the server.
   rpc GetAllActions(GetAllActionsRequest) returns(GetAllActionsResponse);
 
-  // Save a given service configuration.
+  // Save configuration for a specific service.
   rpc SaveServiceConfig(SaveServiceConfigRequest) returns(SaveServiceConfigResponse);
   
 }

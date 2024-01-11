@@ -4,101 +4,112 @@ package mail;
 
 option go_package="github.com/globulario/services/golang/mail/mailpb";
 
+// Connection holds the details necessary to establish a connection with a mail server.
 message Connection {
-	string id = 1;
-	string host = 3;
-	string user = 6;
-	string password = 7;
-	int32 port = 8;
+    string id = 1;       // Unique identifier for the connection.
+    string host = 3;     // Host address of the mail server.
+    string user = 6;     // Username for authentication.
+    string password = 7; // Password for authentication.
+    int32 port = 8;      // Port number for the mail server.
 }
 
-// Create connection
+// CreateConnectionRqst is the request format for creating a new mail connection.
 message CreateConnectionRqst {
-	Connection connection = 1;
+    Connection connection = 1; // Details of the connection to be created.
 }
 
+// CreateConnectionRsp is the response format for a create connection request.
 message CreateConnectionRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the operation.
 }
 
-// Delete connection
+// DeleteConnectionRqst is the request format for deleting an existing mail connection.
 message DeleteConnectionRqst {
-	string id = 1;
+    string id = 1; // Identifier of the connection to be deleted.
 }
 
+// DeleteConnectionRsp is the response format for a delete connection request.
 message DeleteConnectionRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the operation.
 }
 
-
+// CarbonCopy represents an email address to be used in the CC field.
 message CarbonCopy {
-	string address = 1;
-	string name = 2;
+    string address = 1; // Email address.
+    string name = 2;    // Name of the recipient (optional).
 }
 
+// Attachment represents a file to be attached to an email.
 message Attachement {
-	string fileName = 1;
-	bytes fileData = 2;
+    string fileName = 1; // Name of the file.
+    bytes fileData = 2;  // Binary data of the file.
 }
 
-enum BodyType{
-	TEXT = 0;
-	HTML = 1;
+// BodyType defines the format of the email's body.
+enum BodyType {
+    TEXT = 0; // Plain text format.
+    HTML = 1; // HTML format.
 }
 
+// Email represents the structure of an email message.
 message Email {
-    string from = 2;
-	repeated string to = 3;
-	repeated CarbonCopy cc = 4;
-	string subject = 5;
-	string body = 6;
-	BodyType bodyType = 7;
+    string from = 2;                 // Sender's email address.
+    repeated string to = 3;          // List of recipient email addresses.
+    repeated CarbonCopy cc = 4;      // List of CC recipients.
+    string subject = 5;              // Subject of the email.
+    string body = 6;                 // Body of the email.
+    BodyType bodyType = 7;           // Format of the email body.
 }
 
+// SendEmailRqst is the request format for sending a simple email.
 message SendEmailRqst {
-	string id = 1; 		// The connection id
-	Email email = 2;
+    string id = 1;  // The connection id.
+    Email email = 2; // Email details to be sent.
 }
 
+// SendEmailRsp is the response format for a send email request.
 message SendEmailRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the send operation.
 }
 
+// SendEmailWithAttachementsRqst is the request format for sending an email with attachments.
 message SendEmailWithAttachementsRqst {
-	string id = 1; 		// The connection id
-	oneof data {
-		Email email = 2; // Contain the email message data
-		Attachement attachements = 3; // Contain attachements data (chunk data...)
-	}
+    string id = 1; // The connection id.
+    oneof data {
+        Email email = 2;         // Contain the email message data.
+        Attachement attachements = 3; // Contain attachment data (can be chunked).
+    }
 }
 
+// SendEmailWithAttachementsRsp is the response format for a send email with attachments request.
 message SendEmailWithAttachementsRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the send operation.
 }
 
+// StopRequest is a request format to stop the mail service.
 message StopRequest {
-	
+    // Fields can be added if needed.
 }
 
+// StopResponse is the response format for a stop service request.
 message StopResponse {
-	
+    // Fields can be added if needed.
 }
 
+// MailService provides RPC methods for email operations.
 service MailService {
-  	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
+    // Stop the server.
+    rpc Stop(StopRequest) returns (StopResponse);
 
-	// Create a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
-	
-	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
-	
-	// Send a simple email whitout file.
-	rpc SendEmail(SendEmailRqst) returns (SendEmailRsp){};
-	
-	// Send email with attachements.
-	rpc SendEmailWithAttachements(stream SendEmailWithAttachementsRqst) returns (SendEmailWithAttachementsRsp){};
-	
-	
+    // Create a connection to a mail server.
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
+
+    // Delete an existing mail connection.
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
+
+    // Send a simple email without file attachments.
+    rpc SendEmail(SendEmailRqst) returns (SendEmailRsp){};
+
+    // Send an email with file attachments.
+    rpc SendEmailWithAttachements(stream SendEmailWithAttachementsRqst) returns (SendEmailWithAttachementsRsp){};
 }

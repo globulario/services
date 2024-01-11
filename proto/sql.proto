@@ -4,119 +4,108 @@ package sql;
 
 option go_package="github.com/globulario/services/golang/sql/sqlpb";
 
+// Represents a database connection configuration.
 message Connection {
-	string id = 1;
-	string name = 2;
-	string host = 3;
-	string charset = 4;
-	string driver = 5;
-	string user = 6;
-	string password = 7;
-	int32 port = 8;
-	string path = 9; // the path to the database file, used by sqlite.
+	string id = 1; // Unique identifier for the connection.
+	string name = 2; // Human-readable name for the connection.
+	string host = 3; // Host address of the SQL server.
+	string charset = 4; // Character set used in the SQL server.
+	string driver = 5; // Database driver (e.g., MySQL, PostgreSQL).
+	string user = 6; // Username for the SQL server authentication.
+	string password = 7; // Password for the SQL server authentication.
+	int32 port = 8; // Port number for the SQL server.
+	string path = 9; // Path to the database file, used by SQLite.
 }
 
-// Create connection
+// Request to create a new database connection.
 message CreateConnectionRqst {
-	Connection connection = 1;
+	Connection connection = 1; // The connection details.
 }
 
+// Response for CreateConnectionRqst.
 message CreateConnectionRsp {
-	bool result = 1;
+	bool result = 1; // Result of the connection creation process.
 }
 
-// Delete connection
+// Request to delete an existing database connection.
 message DeleteConnectionRqst {
-	string id = 1;
+	string id = 1; // Identifier of the connection to delete.
 }
 
+// Response for DeleteConnectionRqst.
 message DeleteConnectionRsp {
-	bool result = 1;
+	bool result = 1; // Result of the connection deletion process.
 }
 
-// Ping Connection
+// Request to ping a database connection to check its validity.
 message PingConnectionRqst {
-	string id = 1;
+	string id = 1; // Identifier of the connection to ping.
 }
 
+// Response for PingConnectionRqst.
 message PingConnectionRsp {
-	string result = 1;
+	string result = 1; // Result of the ping operation.
 }
 
+// Represents an SQL query and its associated parameters.
 message Query {
-	string connectionId = 1; // The connection id.
-	string query = 2; // the query string.
-	string parameters = 3; // because parameters can be of various type I will use a JSON string here.
-	string charset = 4; // The charset for the result, if not set it will use the one from the connection. ex. windows-1252, utf-8 etc...
+	string connectionId = 1; // The connection ID to use for this query.
+	string query = 2; // The SQL query string.
+	string parameters = 3; // JSON string of query parameters (for various types).
+	string charset = 4; // Charset for the result, defaults to connection charset if not set.
 }
 
+// Request to execute a query that returns data (e.g., SELECT).
 message QueryContextRqst {
-	Query query = 1;
+	Query query = 1; // The query to be executed.
 }
 
+// Response for QueryContextRqst with query results.
 message QueryContextRsp {
-	// The header contain result columns information and can be usefull to display data.
-	// - DatabaseTypeName The sql type name
-	// - Name The name of the column
-	// - Scale The digit scale.
-	// - Precision The digit precision
-	// - IsNillable True if the value can be null
-	// The header is alwas send in the first message of the stream
-	// Name are alwas given but DatabaseTypeName can be empty depending of the
-	// driver use, mySql has value but odbc donsent have it.
 	oneof result {
-		string header = 1;
-		
-		// The data is alway an array of rows so [[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
-		// The data contain in the array can be Null, Number, String or Bool. Date values
-		// are converted to unix time. (must be multiplicate by 1000)
-		string rows = 2;
+		string header = 1; // Contains column information of the result set.
+		string rows = 2; // Array of rows (e.g., [[1,2,3],[4,5,6]]), data types include Null, Number, String, Bool.
     }
-	
 }
 
+// Request to execute an SQL statement (e.g., INSERT, UPDATE) with optional transaction.
 message ExecContextRqst {
-	Query query = 1;
-	bool tx = 2; // Use a transaction.
+	Query query = 1; // The SQL statement to execute.
+	bool tx = 2; // Flag to indicate if a transaction should be used.
 }
 
+// Response for ExecContextRqst with execution results.
 message ExecContextRsp {
-	int64 affectedRows = 1;
-	int64 lastId = 2;
+	int64 affectedRows = 1; // Number of rows affected by the SQL statement.
+	int64 lastId = 2; // The last inserted ID, if applicable.
 }
 
+// Request to stop the SQL service.
 message StopRequest {
-	
 }
 
+// Response for StopRequest.
 message StopResponse {
-	
 }
 
-// Sql service.
-// The first step is to create a connection.
-// With that connection you can,
-// - Ping the sql server
-// - Execute sql operation UPDATE, DELETE, UPDATE with ExecContext
-// - Execute sql SELECT operation with QueryContext
-// You can also delete the create connection with DeleteConnection.
+// Service definition for SQL operations.
 service SqlService {
-  	// Stop the server.
+  	// Stops the SQL server.
  	rpc Stop(StopRequest) returns (StopResponse);
 	
-	// Create a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
+	// Creates a new database connection.
+	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
 	
-	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
+	// Deletes an existing database connection.
+	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
 	
-	// Ping existing connection.
-	rpc Ping(PingConnectionRqst) returns (PingConnectionRsp) {};
+	// Pings an existing database connection.
+	rpc Ping(PingConnectionRqst) returns (PingConnectionRsp);
 	
-	// That query return zero or more Rows as a reults, SQL SELECT
-	rpc QueryContext(QueryContextRqst) returns (stream QueryContextRsp) {};
+	// Executes a query and returns zero or more rows, typically used for SQL SELECT.
+	rpc QueryContext(QueryContextRqst) returns (stream QueryContextRsp);
 	
-	// Exec Query SQL CREATE and INSERT. Return number of affected rows and last id 
-	// if there is an id.
-	rpc ExecContext(ExecContextRqst) returns (ExecContextRsp) {};
+	// Executes an SQL statement like CREATE, INSERT, UPDATE, and DELETE.
+	// Returns the number of affected rows and the last inserted ID, if applicable.
+	rpc ExecContext(ExecContextRqst) returns (ExecContextRsp);
 }

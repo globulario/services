@@ -1,250 +1,281 @@
-/**
- * You can use monitoring as starter project.
- */
 syntax = "proto3";
 package monitoring;
 
 option go_package="github.com/globulario/services/golang/monitoring/monitoringpb";
 
-enum StoreType{
-	PROMETHEUS = 0;
+// StoreType defines the type of time series database.
+enum StoreType {
+    PROMETHEUS = 0; // Represents a Prometheus time series database.
 }
 
-// Connection to time series server.
+// Connection contains the details required for connecting to a time series server.
 message Connection {
-	string id = 1;
-	string host = 2;
-	StoreType store = 3;
-	int32 port = 4;
+    string id = 1;   // Unique identifier for the connection.
+    string host = 2; // Host address of the time series server.
+    StoreType store = 3; // Type of time series store.
+    int32 port = 4;  // Port number for the server.
 }
 
-// Create connection
+// CreateConnectionRqst is the request format for establishing a new connection.
 message CreateConnectionRqst {
-	Connection connection = 1;
+    Connection connection = 1; // Connection details to be established.
 }
 
+// CreateConnectionRsp is the response format for a create connection request.
 message CreateConnectionRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the operation.
 }
 
-// Delete connection
+// DeleteConnectionRqst is the request format for deleting an existing connection.
 message DeleteConnectionRqst {
-	string id = 1;
+    string id = 1; // Identifier of the connection to be deleted.
 }
 
+// DeleteConnectionRsp is the response format for a delete connection request.
 message DeleteConnectionRsp {
-	bool result = 1;
+    bool result = 1; // Indicates success or failure of the operation.
 }
 
+// AlertsRequest is the request format for retrieving alerts.
 message AlertsRequest {
-	  string connectionId = 1;
+    string connectionId = 1; // Identifier of the connection to query alerts.
 }
 
-
+// AlertsResponse is the response format containing the alerts data.
 message AlertsResponse {
-	  string results = 1;
+    string results = 1; // Results containing the alerts information.
 }
 
+// AlertManagersRequest is the request format for retrieving alert managers.
 message AlertManagersRequest {
-	  string connectionId = 1;
+    string connectionId = 1; // Identifier of the connection to query alert managers.
 }
 
-message AlertManagersResponse{
-	 string results = 1;
+// AlertManagersResponse is the response format containing alert managers data.
+message AlertManagersResponse {
+    string results = 1; // Results containing the alert managers information.
 }
 
+// CleanTombstonesRequest is the request format for cleaning tombstones in the database.
 message CleanTombstonesRequest {
-	  string connectionId = 1;
+    string connectionId = 1; // Identifier of the connection for the operation.
 }
 
-message CleanTombstonesResponse{
-	 bool result = 1;
+// CleanTombstonesResponse is the response format for a clean tombstones request.
+message CleanTombstonesResponse {
+    bool result = 1; // Indicates success or failure of the operation.
 }
 
+// ConfigRequest is the request format for retrieving configuration details.
 message ConfigRequest {
-	string connectionId = 1;
+    string connectionId = 1; // Identifier of the connection to retrieve configuration.
 }
 
-message ConfigResponse{
-	string results = 1;
+// ConfigResponse is the response format containing configuration details.
+message ConfigResponse {
+    string results = 1; // Results containing the configuration information.
+}
+
+// DeleteSeriesRequest is the request for deleting a series of data points.
+message DeleteSeriesRequest {
+    string connectionId = 1; // Identifier of the connection.
+    repeated string matches = 2; // Series matchers to specify which series should be deleted.
+    double startTime = 3; // Start time for the range of data to delete.
+    double endTime = 4; // End time for the range of data to delete.
+}
+
+// DeleteSeriesResponse is the response for a delete series request.
+message DeleteSeriesResponse {
+    bool result = 1; // Indicates success or failure of the operation.
+}
+
+// FlagsRequest is the request for retrieving server flags.
+message FlagsRequest {
+    string connectionId = 1; // Identifier of the connection.
+}
+
+// FlagsResponse is the response containing the server flags.
+message FlagsResponse {
+    string results = 1; // Results containing server flags information.
+}
+
+// LabelNamesRequest is the request for retrieving label names.
+message LabelNamesRequest {
+    string connectionId = 1; // Identifier of the connection.
+}
+
+// LabelNamesResponse is the response containing the label names.
+message LabelNamesResponse {
+    repeated string labels = 1; // List of label names.
+    string warnings = 2; // Warnings, if any, during the operation.
+}
+
+// LabelValuesRequest is the request for retrieving label values.
+message LabelValuesRequest {
+    string connectionId = 1; // Identifier of the connection.
+    string label = 2; // Specific label for which values are requested.
+    repeated string values = 3; // Specific values to filter.
+    int64 startTime = 4; // Start time for filtering the values.
+    int64 endTime = 5; // End time for filtering the values.
+}
+
+// LabelValuesResponse is the response containing label values.
+message LabelValuesResponse {
+    string labelValues = 1; // String representation of label values.
+    string warnings = 2; // Warnings, if any, during the operation.
+}
+
+// QueryRequest is the request for executing an instant query.
+message QueryRequest {
+    string connectionId = 1; // Identifier of the connection.
+    string query = 2; // Query expression.
+    double ts = 3; // Unix timestamp for the instant query.
+}
+
+// QueryResponse is the response containing the result of the query.
+message QueryResponse {
+    string value = 1; // Result of the query.
+    string warnings = 2; // Warnings, if any, during the query execution.
+}
+
+// QueryRangeRequest is the request for executing a range query.
+message QueryRangeRequest {
+    string connectionId = 1; // Identifier of the connection.
+    string query = 2; // Query expression.
+    double startTime = 3; // Start time for the range query.
+    double endTime = 4; // End time for the range query.
+    double step = 5; // Step duration in seconds.
+}
+
+// QueryRangeResponse is the response containing the results of the range query.
+message QueryRangeResponse {
+    string value = 1; // Result of the range query.
+    string warnings = 2; // Warnings, if any, during the query execution.
 }
 
 
-message DeleteSeriesRequest{
-	string connectionId = 1;
-	repeated string matches = 2;
-	double startTime = 3;
-	double endTime = 4;
+// SeriesRequest is used to request a series of data points.
+message SeriesRequest {
+    string connectionId = 1; // Identifier of the connection.
+    repeated string matches = 2; // Series matchers to specify which series to retrieve.
+    double startTime = 3; // Start time for the series range.
+    double endTime = 4; // End time for the series range.
 }
 
-message DeleteSeriesResponse{
-	bool result = 1;
+// SeriesResponse returns the series data.
+message SeriesResponse {
+    string LabelSet = 1; // The set of labels for the returned series.
+    string warnings = 2; // Warnings, if any, encountered during the request.
 }
 
-message FlagsRequest{
-	string connectionId = 1;
+// SnapshotRequest is the request to create a snapshot of the current data.
+message SnapshotRequest {
+    string connectionId = 1; // Identifier of the connection.
+    bool skipHead = 2; // Whether to skip the head block in the snapshot.
 }
 
-message FlagsResponse{
-	string results = 1;
+// SnapshotResponse is the response containing the snapshot result.
+message SnapshotResponse {
+    string result = 1; // Result or location of the snapshot.
 }
 
-message LabelNamesRequest{
-	string connectionId = 1;
+// RulesRequest is the request for retrieving alerting and recording rules.
+message RulesRequest {
+    string connectionId = 1; // Identifier of the connection.
 }
 
-message LabelNamesResponse{
-	repeated string labels = 1;
-	string warnings = 2;
+// RulesResponse returns the set of rules.
+message RulesResponse {
+    string result = 1; // Result containing the rules.
 }
 
-message LabelValuesRequest{
-	string connectionId = 1;
-	string label = 2;
-	repeated string values = 3;
-	int64 startTime = 4;
-	int64 endTime = 5;
+// TargetsRequest is used to request information about scrape targets.
+message TargetsRequest {
+    string connectionId = 1; // Identifier of the connection.
 }
 
-message LabelValuesResponse{
-	string labelValues = 1;
-	string warnings = 2;
+// TargetsResponse returns information about the scrape targets.
+message TargetsResponse {
+    string result = 1; // Result containing information about targets.
 }
 
-message QueryRequest{
-	string connectionId = 1;
-	string query = 2;
-	double ts = 3; // unix time
+// TargetsMetadataRequest is the request for metadata about specific targets.
+message TargetsMetadataRequest {
+    string connectionId = 1; // Identifier of the connection.
+    string matchTarget = 2; // Specific target to match for metadata.
+    string metric = 3; // Specific metric to retrieve metadata for.
+    string limit = 4; // Limit for the number of metadata entries returned.
 }
 
-message QueryResponse{
-	string value = 1;
-	string warnings = 2;
+// TargetsMetadataResponse returns metadata about the specified targets.
+message TargetsMetadataResponse {
+    string result = 1; // A JSON array containing metric metadata.
 }
 
-message QueryRangeRequest{
-	string connectionId = 1;
-	string query = 2;
-	double startTime = 3;
-	double endTime = 4;
-	double step = 5;
-}
-
-message QueryRangeResponse{
-	string value = 1;
-	string warnings = 2;
-}
-
-message SeriesRequest{
-	string connectionId = 1;
-	repeated string matches = 2;
-	double startTime = 3;
-	double endTime = 4;
-}
-
-message SeriesResponse{
-	string LabelSet = 1;
-	string warnings = 2;
-}
-
-message SnapshotRequest{
-	string connectionId = 1;
-	bool skipHead = 2;
-}
-
-message SnapshotResponse{
-	string result = 1;
-}
-
-message RulesRequest{
-	string connectionId = 1;
-}
-
-message RulesResponse{
-	string result = 1;
-}
-
-message TargetsRequest{
-	string connectionId = 1;
-}
-
-message TargetsResponse{
-	string result = 1;
-}
-
-message TargetsMetadataRequest{
-	string connectionId = 1;
-	string matchTarget = 2;
-	string metric = 3;
-	string limit = 4;
-}
-
-message TargetsMetadataResponse{
-	string result = 1; // a json array containning metric metadata.
-}
-
+// StopRequest is the request to stop the service or operation.
 message StopRequest {
-	
+    // Fields can be added as needed.
 }
 
+// StopResponse is the response after a stop request.
 message StopResponse {
-	
+    // Fields can be added as needed.
 }
 
+// MonitoringService defines a service for interaction with a monitoring system, 
+// typically for operations related to time-series data management, querying, and configuration.
 service MonitoringService {
-	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
-	
-	// Create a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
-	
-	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
-	
-	// Alerts returns a list of all active alerts.
-	rpc Alerts(AlertsRequest) returns (AlertsResponse);
+    // Stops the server or service gracefully.
+    rpc Stop(StopRequest) returns (StopResponse);
 
-	// AlertManagers returns an overview of the current state of the Prometheus alert manager discovery.
-  	rpc AlertManagers(AlertManagersRequest) returns (AlertManagersResponse);
-	
-	// CleanTombstones removes the deleted data from disk and cleans up the existing tombstones.
-	rpc CleanTombstones(CleanTombstonesRequest) returns (CleanTombstonesResponse);
-	
-	// Config returns the current Prometheus configuration.
-	rpc Config(ConfigRequest) returns (ConfigResponse);
-	
-	// DeleteSeries deletes data for a selection of series in a time range.
-	rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
-	
-	// Flags returns the flag values that Prometheus was launched with.
-	rpc Flags(FlagsRequest) returns(FlagsResponse);
-	
-	// LabelNames returns all the unique label names present in the block in sorted order.
-	rpc LabelNames(LabelNamesRequest) returns(LabelNamesResponse);
-	
-	// LabelValues performs a query for the values of the given label.
-	rpc LabelValues(LabelValuesRequest) returns(LabelValuesResponse);
-	
-	// Query performs a query for the given time.
-	rpc Query(QueryRequest) returns(QueryResponse);
-	
-	// QueryRange performs a query for the given range.
-	rpc QueryRange(QueryRangeRequest) returns(stream QueryRangeResponse);
-	
-	// Series finds series by label matchers.
-	rpc Series(SeriesRequest) returns(SeriesResponse);
-	
-	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
-	// under the TSDB's data directory and returns the directory as response.
-	rpc Snapshot(SnapshotRequest) returns(SnapshotResponse);
-	
-	// Rules returns a list of alerting and recording rules that are currently loaded.
-	rpc Rules(RulesRequest) returns(RulesResponse);
-	
-	// Targets returns an overview of the current state of the Prometheus target discovery.
-	rpc Targets(TargetsRequest) returns(TargetsResponse);
-	
-	// TargetsMetadata returns metadata about metrics currently scraped by the target.
-	rpc TargetsMetadata(TargetsMetadataRequest) returns(TargetsMetadataResponse);
-	
+    // Creates a new connection to the monitoring system or database.
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
+
+    // Deletes an existing connection to the monitoring system or database.
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
+
+    // Retrieves all active alerts from the monitoring system.
+    rpc Alerts(AlertsRequest) returns (AlertsResponse);
+
+    // Provides an overview of the current state of the alert manager discovery in Prometheus.
+    rpc AlertManagers(AlertManagersRequest) returns (AlertManagersResponse);
+
+    // Removes deleted data from the disk and cleans up tombstones (data marked for deletion).
+    rpc CleanTombstones(CleanTombstonesRequest) returns (CleanTombstonesResponse);
+
+    // Fetches the current configuration of the Prometheus server.
+    rpc Config(ConfigRequest) returns (ConfigResponse);
+
+    // Deletes a selection of series within a specified time range.
+    rpc DeleteSeries(DeleteSeriesRequest) returns (DeleteSeriesResponse);
+
+    // Returns the flags used to launch the Prometheus server.
+    rpc Flags(FlagsRequest) returns (FlagsResponse);
+
+    // Retrieves all unique label names in the data block, in sorted order.
+    rpc LabelNames(LabelNamesRequest) returns (LabelNamesResponse);
+
+    // Executes a query for the values associated with a specific label.
+    rpc LabelValues(LabelValuesRequest) returns (LabelValuesResponse);
+
+    // Performs a query at a specific point in time.
+    rpc Query(QueryRequest) returns (QueryResponse);
+
+    // Executes a query over a range of time.
+    rpc QueryRange(QueryRangeRequest) returns (stream QueryRangeResponse);
+
+    // Finds and returns series that match specified label criteria.
+    rpc Series(SeriesRequest) returns (SeriesResponse);
+
+    // Creates a snapshot of all current data and returns the directory of the snapshot.
+    rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+
+    // Retrieves the list of currently loaded alerting and recording rules.
+    rpc Rules(RulesRequest) returns (RulesResponse);
+
+    // Provides an overview of the current state of target discovery in Prometheus.
+    rpc Targets(TargetsRequest) returns (TargetsResponse);
+
+    // Returns metadata about metrics currently being scraped by a specified target.
+    rpc TargetsMetadata(TargetsMetadataRequest) returns (TargetsMetadataResponse);
 }

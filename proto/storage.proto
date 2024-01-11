@@ -4,159 +4,158 @@ package storage;
 
 option go_package="github.com/globulario/services/golang/storage/storagepb";
 
-enum StoreType{
-	LEVEL_DB = 0; // persistent storage
-	BIG_CACHE = 1; // in memory storage
-	BADGER_DB = 2; // persistent storage
-	SCYLLA_DB = 3; // persistent storage
-	ETCD = 4; // persistent storage
+// Enum representing types of storage.
+enum StoreType {
+	LEVEL_DB = 0; // Persistent key-value storage.
+	BIG_CACHE = 1; // In-memory key-value storage.
+	BADGER_DB = 2; // Persistent key-value storage.
+	SCYLLA_DB = 3; // Distributed NoSQL datastore.
+	ETCD = 4; // Distributed, reliable key-value store for the most critical data.
 }
 
+// Represents a storage connection configuration.
 message Connection {
-	string id = 1; // The connection id
-	string name = 2; // The name of the store
-	StoreType type = 3; // Specifey the implementation to be use.
+	string id = 1; // Unique identifier for the connection.
+	string name = 2; // Human-readable name for the store.
+	StoreType type = 3; // Type of store (e.g., LEVEL_DB, BIG_CACHE).
 }
 
-// open data store request
+// Request to open a data store with specific options.
 message OpenRqst {
-	string id = 1;
-	string options = 2;
+	string id = 1; // Identifier of the store to open.
+	string options = 2; // JSON string of options for opening the store.
 }
 
 message OpenRsp {
-	bool result = 1;
+	bool result = 1; // Result of the open operation.
 }
 
-// Close data
+// Request to close a data store.
 message CloseRqst {
-	string id = 1;
+	string id = 1; // Identifier of the store to close.
 }
 
 message CloseRsp {
-	bool result = 1;
+	bool result = 1; // Result of the close operation.
 }
 
-// Create connection
+// Request to create a new storage connection.
 message CreateConnectionRqst {
-	Connection connection = 1;
+	Connection connection = 1; // The connection details.
 }
 
 message CreateConnectionRsp {
-	bool result = 1;
+	bool result = 1; // Result of the connection creation process.
 }
 
-// Delete connection
+// Request to delete an existing storage connection.
 message DeleteConnectionRqst {
-	string id = 1;
+	string id = 1; // Identifier of the connection to delete.
 }
 
 message DeleteConnectionRsp {
-	bool result = 1;
+	bool result = 1; // Result of the connection deletion process.
 }
 
-// Save an item in the kv store
+// Request to save an item in the key-value store.
 message SetItemRequest {
-	string id = 1; // connection id
-	string key = 2; // the key
-	bytes value = 3; // The data to store.
+	string id = 1; // Connection identifier.
+	string key = 2; // Key for the item.
+	bytes value = 3; // Data to store.
 }
 
 message SetItemResponse {
-	bool result = 1;
+	bool result = 1; // Result of the set item operation.
 }
 
-// Save an item in the kv store
+// Request to save a large item in the key-value store.
 message SetLargeItemRequest {
-	string id = 1; // connection id
-	string key = 2; // the key
-	bytes value = 3; // The data to store.
+	string id = 1; // Connection identifier.
+	string key = 2; // Key for the item.
+	bytes value = 3; // Large data to store.
 }
 
 message SetLargeItemResponse {
-	bool result = 1;
+	bool result = 1; // Result of the set large item operation.
 }
 
-// Retreive a value with a given key
+// Request to retrieve a value with a given key.
 message GetItemRequest {
-	string id = 1; // connection id
-	string key = 2; // the key
+	string id = 1; // Connection identifier.
+	string key = 2; // Key of the item to retrieve.
 }
 
 message GetItemResponse {
-	bytes result = 1;
+	bytes result = 1; // Data retrieved from the store.
 }
 
-// Remove an item from the store.
+// Request to remove an item from the store.
 message RemoveItemRequest {
-	string id = 1; // connection id
-	string key = 2; // the key
+	string id = 1; // Connection identifier.
+	string key = 2; // Key of the item to remove.
 }
 
 message RemoveItemResponse {
-	bool result = 1;
+	bool result = 1; // Result of the remove item operation.
 }
 
-// Remove all item from a stroe.
+// Request to clear all items from a store.
 message ClearRequest {
-	string id = 1; // connection id
+	string id = 1; // Connection identifier.
 }
 
 message ClearResponse {
-	bool result = 1;
+	bool result = 1; // Result of the clear operation.
 }
 
-// Delte a data store
+// Request to delete a data store.
 message DropRequest {
-	string id = 1; // connection id
+	string id = 1; // Connection identifier.
 }
 
 message DropResponse {
-	bool result = 1;
+	bool result = 1; // Result of the drop operation.
 }
 
+// Request to stop the storage service.
 message StopRequest {
-	
 }
 
 message StopResponse {
-	
 }
 
-// TODO support TLS conncetion.
+// Service definition for storage operations.
 service StorageService {
-  	// Stop the server.
+  	// Stops the storage server.
  	rpc Stop(StopRequest) returns (StopResponse);
 	
-	// Open the store and set options...
-	rpc Open(OpenRqst) returns (OpenRsp){};
+	// Opens a storage and sets options.
+	rpc Open(OpenRqst) returns (OpenRsp);
 	
-	// Close the data store.
-	rpc Close(CloseRqst) returns (CloseRsp){};
+	// Closes the data store.
+	rpc Close(CloseRqst) returns (CloseRsp);
 	
-	// Create a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
+	// Creates a new storage connection.
+	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
 	
-	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
+	// Deletes an existing storage connection.
+	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
 
-	// Save an item in the kv store
-	rpc SetItem(SetItemRequest) returns (SetItemResponse) {};
+	// Saves an item in the key-value store.
+	rpc SetItem(SetItemRequest) returns (SetItemResponse);
 	
-	// Save an item in the kv store
-	rpc SetLargeItem(stream SetLargeItemRequest) returns (SetLargeItemResponse) {};
+	// Saves a large item in the key-value store.
+	rpc SetLargeItem(stream SetLargeItemRequest) returns (SetLargeItemResponse);
 	
-	// Retreive a value with a given key 
-	rpc GetItem(GetItemRequest) returns (stream GetItemResponse) {};
+	// Retrieves a value with a given key.
+	rpc GetItem(GetItemRequest) returns (stream GetItemResponse);
 	
-	// Remove an item with a given key 
-	rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse) {};
+	// Removes an item with a given key.
+	rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse);
 	
-	// Remove all items 
-	rpc Clear(ClearRequest) returns (ClearResponse) {};
+	// Removes all items from the store.
+	rpc Clear(ClearRequest) returns (ClearResponse);
 	
-	// Drop a store 
-	rpc Drop(DropRequest) returns (DropResponse) {};
-	
+	// Deletes a store.
+	rpc Drop(DropRequest) returns (DropResponse);
 }
-

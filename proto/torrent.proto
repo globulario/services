@@ -1,105 +1,92 @@
 /**
- * You can use echo as starter project.
+ * Defines the protocol for a torrent management service, including
+ * operations for downloading, tracking, and removing torrents.
  */
 
-syntax = "proto3";
-package torrent;
-
-option go_package="github.com/globulario/services/golang/torrent/torrentpb";
-
-message TorrentLnk {
-	string Lnk = 1;
-	string Name = 2;
-	string Dest = 3;
-	bool Seed = 4;
-	string Owner = 5;
-}
-
-message GetTorrentLnksRequest {
-	
-}
-
-message GetTorrentLnksResponse {
-	repeated TorrentLnk lnks = 1;
-}
-
-/**
- * Info about torrent files.
- */
-message TorrentFileInfo {
-	string Path = 1;
-	int64  Size = 2;
-	int64  Chunks = 3;
-	int64  Completed = 4;
-	double  Percent = 5;
-}
-
-/**
- * The torrent information...
- */
-message TorrentInfo {
-	string Name = 1;
-	bool Loaded = 2;
-	int64 Size = 3;
-	int64 TotalChunks = 4;
-	int64 TotalCompleted = 5;
-	int64 Downloaded = 6;
-	float DownloadRate = 7;
-	double Percent = 8;
-	int64 UpdatedAt = 9;
-	repeated TorrentFileInfo Files = 10;
-	string Destination = 11; // Where the torrent must be copie...
-}
-
-message GetTorrentInfosRequest {
-	
-}
-
-message GetTorrentInfosResponse {
-	repeated TorrentInfo infos = 1;
-}
-
-/**
- * That function will be call when a client wants to dowload a 
- * new torrent file or magnet.
- */
-message DownloadTorrentRequest {
-	string link = 1;
-	string dest = 2; // The path where the file will be dowloaded
-	bool   seed = 3; // If true upload from torrent will be allowed.
-}
-
-/**
- * Return a uuid asscociated with the link...
- */
-message DownloadTorrentResponse {
-
-}
-
-message DropTorrentRequest{
-	string name = 1; // The name found in the TorrentInfo
-}
-
-message DropTorrentResponse{
-
-}
-
-/**
- * The torrent management service will be use to manage torrent
- * file and dowload on the servcer...
- */
-service TorrentService {
-
-	/** Download a torrent file */
-	rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse);
-
-	/** Return a given torrent information **/
-	rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse);
-
-	/** Drop the torrent downloawd... */
-	rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);
-
-	/** Get the torrent links */
-	rpc GetTorrentLnks(GetTorrentLnksRequest) returns(GetTorrentLnksResponse);
-	
-}
+ syntax = "proto3";
+ package torrent;
+ 
+ option go_package="github.com/globulario/services/golang/torrent/torrentpb";
+ 
+ // Represents a link to a torrent file.
+ message TorrentLnk {
+	 string Lnk = 1;    // The link to the torrent file
+	 string Name = 2;   // Name of the torrent
+	 string Dest = 3;   // Destination where the torrent will be downloaded
+	 bool Seed = 4;     // Indicates if the torrent will be seeded
+	 string Owner = 5;  // Owner of the torrent
+ }
+ 
+ // Request to retrieve torrent links.
+ message GetTorrentLnksRequest {}
+ 
+ // Response containing a list of torrent links.
+ message GetTorrentLnksResponse {
+	 repeated TorrentLnk lnks = 1; // List of torrent links
+ }
+ 
+ // Information about a specific file within a torrent.
+ message TorrentFileInfo {
+	 string Path = 1;       // Path of the file within the torrent
+	 int64 Size = 2;        // Size of the file
+	 int64 Chunks = 3;      // Total number of chunks in the file
+	 int64 Completed = 4;   // Number of completed chunks
+	 double Percent = 5;    // Percentage of the file that has been downloaded
+ }
+ 
+ // Information about a torrent.
+ message TorrentInfo {
+	 string Name = 1;            // Name of the torrent
+	 bool Loaded = 2;           // Indicates if the torrent is loaded
+	 int64 Size = 3;            // Total size of the torrent
+	 int64 TotalChunks = 4;     // Total number of chunks in the torrent
+	 int64 TotalCompleted = 5;  // Number of completed chunks
+	 int64 Downloaded = 6;      // Amount downloaded
+	 float DownloadRate = 7;    // Download rate
+	 double Percent = 8;        // Overall download progress as a percentage
+	 int64 UpdatedAt = 9;       // Timestamp of the last update
+	 repeated TorrentFileInfo Files = 10; // List of files in the torrent
+	 string Destination = 11;   // Destination for the downloaded files
+ }
+ 
+ // Request to retrieve information about torrents.
+ message GetTorrentInfosRequest {}
+ 
+ // Response containing information about multiple torrents.
+ message GetTorrentInfosResponse {
+	 repeated TorrentInfo infos = 1; // List of torrent information
+ }
+ 
+ // Request to download a new torrent.
+ message DownloadTorrentRequest {
+	 string link = 1;   // The torrent link or magnet URL
+	 string dest = 2;   // Destination for the downloaded files
+	 bool seed = 3;     // Whether to seed the torrent after downloading
+ }
+ 
+ // Response for the download torrent request, possibly containing a UUID.
+ message DownloadTorrentResponse {}
+ 
+ // Request to drop or remove a torrent.
+ message DropTorrentRequest {
+	 string name = 1; // Name of the torrent to be dropped
+ }
+ 
+ // Response for dropping a torrent.
+ message DropTorrentResponse {}
+ 
+ // Service definition for managing torrents.
+ service TorrentService {
+	 // Initiates the download of a torrent.
+	 rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse);
+ 
+	 // Retrieves information about current torrents.
+	 rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse);
+ 
+	 // Drops a specific torrent from the service.
+	 rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);
+ 
+	 // Retrieves links to torrents.
+	 rpc GetTorrentLnks(GetTorrentLnksRequest) returns(GetTorrentLnksResponse);
+ }
+ 

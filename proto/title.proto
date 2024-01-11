@@ -1,592 +1,581 @@
-/**
- * You can use echo as starter project.
- */
-
 syntax = "proto3";
 package title;
 
 option go_package="github.com/globulario/services/golang/title/titlepb";
 
-///////////////////////////////////////////
-// Movie information taken from IMDB
-//////////////////////////////////////////
+// Represents a person with a role in the entertainment industry.
 message Person {
-	string ID = 1;
-	string URL = 2;
-	string FullName = 3;
+	string ID = 1; // Unique identifier for the person.
+	string URL = 2; // URL to the person's profile or information page.
+	string FullName = 3; // Full name of the person.
+	repeated string Aliases = 4; // List of known aliases or stage names.
 
-	repeated string Aliases = 4;
+	// Optional information about the person
+	string Picture = 5; // URL to the profile picture.
+	string Biography = 6; // Short biography or description of the person.
+	string CareerStatus = 7; // Current career status (e.g., active, inactive).
+	string Gender = 8; // Gender of the person.
+	string BirthPlace = 9; // Place of birth.
+	string BirthDate = 10; // Date of birth in a string format.
 
-	// Those information are not required...
+	// Related to their role in titles
+	repeated string Directing = 11; // Titles directed by the person.
+	repeated string Writing = 12; // Titles written by the person.
+	repeated string Acting = 13; // Titles where the person acted.
 
-	// A lnk to the profile picture...
-	string Picture = 5;
-
-	// A short text that describe the person.
-	string Biography = 6;
-
-	string CareerSatus = 7; // active, inactive etc.
-
-	string Gender = 8; // Male or female.
-
-	string BirthPlace = 9; // A string containing the Place of birth
-
-	string BirthDate = 10; // The date of birth.
-
-	// title releated role...
-	repeated string Directing = 11; // Contain the list of directed titles
-	repeated string Writing = 12; // Contain the list of writted titles
-	repeated string Acting = 13; // Contain list of title where the person was Actor.Album
-
-	// video releated role...
-	repeated string Casting = 14; // Contain the list of video where that person appear.
+	// Related to video appearances
+	repeated string Casting = 14; // Videos where the person appears.
 }
 
+// Represents a poster linked to a media title.
 message Poster {
-	string ID = 1; // A unique id.
-	string titleId = 2; // The title/video/audio linked by this poster.
-	string URL = 3; // The media url, can be a a video preview or the video itself
-	string ContentUrl = 4; // The poster image url
+	string ID = 1; // Unique identifier for the poster.
+	string titleId = 2; // ID of the linked title (video/audio).
+	string URL = 3; // URL of the video preview or video itself.
+	string ContentUrl = 4; // URL of the poster image.
 }
 
+// Represents a preview of a media title.
 message Preview {
 	string ID = 1;
-	string titleId = 2; // can also be a video
-	string URL = 3;
-	string ContentUrl = 4;
+	string titleId = 2; // Can also be linked to a video.
+	string URL = 3; // URL of the preview content.
+	string ContentUrl = 4; // URL of the preview image or video.
 }
 
-///////////////////////////////////////////
-// Video 
-///////////////////////////////////////////
+// Represents a publisher of media content.
 message Publisher {
-	string ID = 1;
-	string URL = 2;
-	string Name = 3;
+	string ID = 1; // Unique identifier for the publisher.
+	string URL = 2; // URL of the publisher's website or profile.
+	string Name = 3; // Name of the publisher.
 }
 
+// Represents a video and its metadata.
 message Video {
 	string ID = 1;
-	string URL = 2; // the origin
-	string Title = 3; // The title of the video
-	string Description = 4; // A short description of the video
-	Publisher PublisherId = 5; // The channel or name of the publisher.
-	int64 Count = 6; // The number of view.
-	float Rating = 7; // The score.
-	int64 Likes = 8; // The number of person who like the video
-	string Date = 9; // Contain information the publihsh date.
-	repeated string Genres = 10; // The kind of video ex. adult, music ect.
-	repeated string Tags = 11; // Categories, kewords... 
-
-	// The list of video figurant
-	repeated Person Casting = 12;
-
-	Poster poster = 13; // Thumbnail
-	Preview preview = 14; // short play...
-	int32 Duration = 15;
-	string UUID = 16;
+	string URL = 2; // Original URL of the video.
+	string Title = 3; // Title of the video.
+	string Description = 4; // Short description.
+	Publisher PublisherId = 5; // Publisher information.
+	int64 Count = 6; // View count.
+	float Rating = 7; // Average rating score.
+	int64 Likes = 8; // Number of likes.
+	string Date = 9; // Publish date.
+	repeated string Genres = 10; // Genres or categories of the video.
+	repeated string Tags = 11; // Tags or keywords associated with the video.
+	repeated Person Casting = 12; // List of people appearing in the video.
+	Poster poster = 13; // Associated poster.
+	Preview preview = 14; // Associated preview.
+	int32 Duration = 15; // Duration in seconds.
+	string UUID = 16; // Unique identifier.
 }
 
+// A collection of videos.
 message Videos {
-	repeated Video videos = 1;
+	repeated Video videos = 1; // List of videos.
 }
 
-/**
- * This create a new video and save it in the database.
- */
+// Request to create a new video entry.
 message CreateVideoRequest {
-	Video video = 1;
-	/** Where the information will be save */
-	string indexPath = 2; 
+	Video video = 1; // Video data to be created.
+	string indexPath = 2; // Path where the video data will be stored.
 }
 
 message CreateVideoResponse {
-	/** nothing here */
+	// This message is intentionally left blank.
 }
 
-/**
- * Return a video with a given id
- */
+// Request to retrieve a video by its ID.
 message GetVideoByIdRequest {
-	string vidoeId = 1;
-	string indexPath = 2;
+	string videoId = 1; // ID of the video to retrieve.
+	string indexPath = 2; // Path where the video data is stored.
 }
 
 message GetVideoByIdResponse {
-	Video video = 1;
-	repeated string filesPaths = 3;
+	Video video = 1; // Retrieved video data.
+	repeated string filesPaths = 3; // Paths to associated files or resources.
 }
 
-/**
- * Remove a video form the db.
- */
+// Request to delete a video from the database.
 message DeleteVideoRequest {
-	string videoId = 1;
-	string indexPath = 2;
+	string videoId = 1; // ID of the video to be deleted.
+	string indexPath = 2; // Path where the video data is stored.
 }
 
 message DeleteVideoResponse {
-	
+	// This message is intentionally left blank, typically used to acknowledge the deletion.
 }
 
+// Request to update metadata of an existing video.
 message UpdateVideoMetadataRequest{
-	Video video = 1;
-	string indexPath = 2;
+	Video video = 1; // Updated video information.
+	string indexPath = 2; // Path where the video data is stored.
 }
 
 message UpdateVideoMetadataResponse{
-	/** Nothing here */
+	// This message is intentionally left blank.
 }
 
-///////////////////////////////////////////
-// Movie, serie game... 
-///////////////////////////////////////////
+// Represents a media title (like a movie, TV show, etc.).
 message Title {
-	string ID = 1;
-	string URL = 2;
-	string Name = 3;
-	string Type = 4;
-	int32 Year = 5;
-	float Rating = 6;
-	int32 RatingCount = 7;
-	repeated Person Directors = 8;
-	repeated Person Writers = 9;
-	repeated Person Actors = 10;
-	repeated string Genres = 11;
-	repeated string Language = 12;
-	repeated string Nationalities = 13;
-	string Description = 14;
-	Poster Poster = 15;
-	repeated string AKA = 16;
-	string Duration = 17;
-	int32 Season = 18;
-	int32 Episode = 19;
-	string Serie = 20;
-	string UUID = 21;
+	string ID = 1; // Unique identifier for the title.
+	string URL = 2; // URL to more information about the title.
+	string Name = 3; // Name of the title.
+	string Type = 4; // Type of the title (e.g., movie, series).
+	int32 Year = 5; // Release year.
+	float Rating = 6; // Average rating.
+	int32 RatingCount = 7; // Number of ratings.
+	repeated Person Directors = 8; // List of directors.
+	repeated Person Writers = 9; // List of writers.
+	repeated Person Actors = 10; // List of actors.
+	repeated string Genres = 11; // Genres of the title.
+	repeated string Language = 12; // Languages available.
+	repeated string Nationalities = 13; // Nationalities involved in the title.
+	string Description = 14; // Description of the title.
+	Poster Poster = 15; // Associated poster.
+	repeated string AKA = 16; // Also Known As (alternative titles).
+	string Duration = 17; // Duration of the title.
+	int32 Season = 18; // Season number, if applicable.
+	int32 Episode = 19; // Episode number, if applicable.
+	string Serie = 20; // Series name, if part of a series.
+	string UUID = 21; // Unique identifier.
 }
 
+// Collection of titles.
 message Titles {
-	repeated Title titles = 1;
+	repeated Title titles = 1; // List of titles.
 }
 
-/**
- * This create a new title and save it in the database.
- */
+// Request to create a new title entry in the database.
 message CreateTitleRequest {
-	Title title = 1;
-	/** Where the information will be save */
-	string indexPath = 2; 
+	Title title = 1; // Title data to be created.
+	string indexPath = 2; // Path where the title data will be stored.
 }
 
 message CreateTitleResponse {
-	/** nothing here */
+	// This message is intentionally left blank.
 }
 
-/**
- * Return a title with a given id
- */
+// Request to retrieve a title by its ID.
 message GetTitleByIdRequest {
-	string titleId = 1;
-	string indexPath = 2;
+	string titleId = 1; // ID of the title to retrieve.
+	string indexPath = 2; // Path where the title data is stored.
 }
 
 message GetTitleByIdResponse {
-	Title title = 1;
-	repeated string filesPaths = 3;
+	Title title = 1; // Retrieved title data.
+	repeated string filesPaths = 3; // Paths to associated files or resources.
 }
 
-/**
- * Remove a title form the db.
- */
+// Request to delete a title from the database.
 message DeleteTitleRequest {
-	string titleId = 1;
-	string indexPath = 2;
+	string titleId = 1; // ID of the title to be deleted.
+	string indexPath = 2; // Path where the title data is stored.
 }
 
 message DeleteTitleResponse {
-	
+	// This message is intentionally left blank.
 }
 
+// Request to update metadata of an existing title.
 message UpdateTitleMetadataRequest{
-	Title title = 1;
-	string indexPath = 2;
+	Title title = 1; // Updated title information.
+	string indexPath = 2; // Path where the title data is stored.
 }
 
 message UpdateTitleMetadataResponse{
-	/** Nothing here */
+	// This message is intentionally left blank.
 }
 
+// Request to associate a file with a title.
 message AssociateFileWithTitleRequest {
-	string titleId = 1;
-	string filePath = 2;
-	string indexPath = 3;
+	string titleId = 1; // ID of the title.
+	string filePath = 2; // Path of the file to associate.
+	string indexPath = 3; // Path where the title data is stored.
 }
 
+// Response for associating a file with a title - intentionally left blank
 message AssociateFileWithTitleResponse {
-	/** nothing here */
 }
 
+// Request to dissociate a file from a title
 message DissociateFileWithTitleRequest {
-	string titleId = 1;
-	string filePath = 2;
-	string indexPath = 3;
+    string titleId = 1;  // ID of the title to dissociate
+    string filePath = 2; // Path of the file to dissociate
+    string indexPath = 3; // Index path for the dissociation
 }
 
+// Response for dissociating a file from a title - intentionally left blank
 message DissociateFileWithTitleResponse {
-	/** nothing here */
 }
 
-/** The list of files titles.*/
+// Request to get the list of titles associated with a file
 message GetFileTitlesRequest {
-	string filePath = 1;
-	string indexPath = 2;
+    string filePath = 1; // Path of the file
+    string indexPath = 2; // Index path for querying
 }
 
+// Response containing the list of titles associated with a file
 message GetFileTitlesResponse {
-	Titles titles = 1;
+    Titles titles = 1; // List of titles associated with the file
 }
 
-/** The list of files titles.*/
+// Request to get the list of videos associated with a file
 message GetFileVideosRequest {
-	string filePath = 1;
-	string indexPath = 2;
+    string filePath = 1; // Path of the file
+    string indexPath = 2; // Index path for querying
 }
 
+// Response containing the list of videos associated with a file
 message GetFileVideosResponse {
-	Videos videos = 1;
+    Videos videos = 1; // List of videos associated with the file
 }
 
-/** The list of files asscociated with a title */
+// Request to get the list of files associated with a title
 message GetTitleFilesRequest {
-	string titleId = 1;
-	string indexPath = 2;
+    string titleId = 1; // ID of the title
+    string indexPath = 2; // Index path for querying
 }
 
+// Response containing the list of files associated with a title
 message GetTitleFilesResponse {
-	repeated string filePaths = 1;
+    repeated string filePaths = 1; // List of file paths associated with the title
 }
 
+// Snippet of a search result
 message Snippet {
-	string field = 1;
-	repeated string fragments = 2;
+    string field = 1; // Field of the snippet
+    repeated string fragments = 2; // Fragments of the snippet
 }
 
+// A single search result hit
 message SearchHit {
-	int32 index = 1;
-	double score = 2;
-	repeated Snippet snippets = 3;
+    int32 index = 1; // Index of the hit
+    double score = 2; // Score of the hit
+    repeated Snippet snippets = 3; // Snippets of the hit
 
-	// the underlying values.
-	oneof result  {
-		Title title = 4;
-		Video video = 5;
-		Audio audio = 6;
-		Person person = 7;
-	 }
+    // The underlying values
+    oneof result {
+        Title title = 4;
+        Video video = 5;
+        Audio audio = 6;
+        Person person = 7;
+    }
 }
 
+// Summary of the search results
 message SearchSummary {
-	string query = 1; // the search input
-	uint64 total = 2; // number of found match
-	int64 took = 3;
+    string query = 1; // The search input
+    uint64 total = 2; // Number of found matches
+    int64 took = 3; // Time taken for the search
 }
 
+// A term within a search facet
 message SearchFacetTerm {
-	string term = 1;
-	int32 count = 2;
+    string term = 1; // The term
+    int32 count = 2; // Count of the term
 }
 
+// A facet in search results
 message SearchFacet {
-	string field = 1;
-	int32 total = 2; 
-	repeated SearchFacetTerm terms = 3;
-	int32 other = 4;
+    string field = 1; // Field of the facet
+    int32 total = 2; // Total count for this facet
+    repeated SearchFacetTerm terms = 3; // Terms in the facet
+    int32 other = 4; // Count of other terms
 }
 
+// Facets in search results
 message SearchFacets {
-	repeated SearchFacet facets = 1;
+    repeated SearchFacet facets = 1; // List of facets
 }
 
+// Request for searching titles
 message SearchTitlesRequest {
-	string query = 1;
-	repeated string fields = 2;
-	string indexPath = 3;
-	int32 size = 4;
-	int32 offset = 5;
+    string query = 1; // Search query
+    repeated string fields = 2; // Fields to search in
+    string indexPath = 3; // Index path for searching
+    int32 size = 4; // Size of the search result set
+    int32 offset = 5; // Offset for the search results
 }
 
+// Response for searching titles
 message SearchTitlesResponse {
-    oneof result  {
-        SearchSummary summary = 1;
-        SearchHit hit = 2;
-	    SearchFacets facets = 3;
+    oneof result {
+        SearchSummary summary = 1; // Summary of the search
+        SearchHit hit = 2; // Individual hit of the search
+        SearchFacets facets = 3; // Facets of the search results
     }
 }
 
+// Request for searching persons
 message SearchPersonsRequest {
-	string query = 1;
-	repeated string fields = 2;
-	string indexPath = 3;
-	int32 size = 4;
-	int32 offset = 5;
+    string query = 1; // Search query
+    repeated string fields = 2; // Fields to search in
+    string indexPath = 3; // Index path for searching
+    int32 size = 4; // Size of the search result set
+    int32 offset = 5; // Offset for the search results
 }
 
+
+// Response for searching persons
 message SearchPersonsResponse {
-    oneof result  {
-        SearchSummary summary = 1;
-        SearchHit hit = 2;
-	    SearchFacets facets = 3;
+    // Contains either summary, a single hit, or facets of the search
+    oneof result {
+        SearchSummary summary = 1; // Summary of the search
+        SearchHit hit = 2; // Individual hit of the search
+        SearchFacets facets = 3; // Facets of the search results
     }
 }
 
-message CreatePublisherRequest{
-	Publisher publisher = 1;
-	string indexPath = 2;
+// Request to create a publisher
+message CreatePublisherRequest {
+    Publisher publisher = 1; // Publisher details
+    string indexPath = 2; // Index path for the creation
 }
 
-message CreatePublisherResponse{
-	/** nothing here **/
+// Response for creating a publisher - intentionally left blank
+message CreatePublisherResponse {
 }
 
-message DeletePublisherRequest{
-	string publisherId = 1;
-	string indexPath = 2;
+// Request to delete a publisher
+message DeletePublisherRequest {
+    string publisherId = 1; // ID of the publisher to delete
+    string indexPath = 2; // Index path for the deletion
 }
 
-message DeletePublisherResponse{
-	/** nothing here */
+// Response for deleting a publisher - intentionally left blank
+message DeletePublisherResponse {
 }
 
+// Request to get a publisher by ID
 message GetPublisherByIdRequest {
-	string publisherId = 1;
-	string indexPath = 2;
+    string publisherId = 1; // ID of the publisher
+    string indexPath = 2; // Index path for querying
 }
 
+// Response containing the requested publisher
 message GetPublisherByIdResponse {
-	Publisher publisher = 1;
+    Publisher publisher = 1; // Publisher details
 }
 
-message CreatePersonRequest{
-	Person person = 1;
-	string indexPath = 2;
+// Request to create a person
+message CreatePersonRequest {
+    Person person = 1; // Person details
+    string indexPath = 2; // Index path for the creation
 }
 
-message CreatePersonResponse{
-	/** noting here. **/
+// Response for creating a person - intentionally left blank
+message CreatePersonResponse {
 }
 
-message DeletePersonRequest{
-	string personId = 1;
-	string indexPath = 2;
+// Request to delete a person
+message DeletePersonRequest {
+    string personId = 1; // ID of the person to delete
+    string indexPath = 2; // Index path for the deletion
 }
 
+// Response for deleting a person - intentionally left blank
 message DeletePersonResponse {
-	/** noting here. **/
 }
 
-message GetPersonByIdRequest{
-	string personId = 1;
-	string indexPath = 2;
+// Request to get a person by ID
+message GetPersonByIdRequest {
+    string personId = 1; // ID of the person
+    string indexPath = 2; // Index path for querying
 }
 
+// Response containing the requested person
 message GetPersonByIdResponse {
-	Person person = 1;
+    Person person = 1; // Person details
 }
 
-////////////////////////////////////////////
-// Audio
-///////////////////////////////////////////
-
-/**
- * This contain information about audio track. The information can be found in the 
- * file metadata.
- */
+// Represents an audio track with its metadata
 message Audio {
-	string ID = 1;
-	string URL = 2;
-	string Artist = 3;
-	string AlbumArtist = 4;
-	string Album = 5;
-	string Comment = 6;
-	string Composer = 7;
-	repeated string Genres = 8; // The kind of video ex. adult, music ect.
-	string Lyrics = 9;
-	string Title = 10;
-	int32 Year = 11;
-	int32 DiscNumber = 12;
-	int32 DiscTotal = 13;
-	int32 TrackNumber = 14;
-	int32 TrackTotal = 15;
-	Poster Poster = 16;
-	int32 Duration = 17;
-	string UUID = 19;
+    string ID = 1; // Unique identifier of the audio
+    string URL = 2; // URL of the audio
+    string Artist = 3; // Artist of the track
+    string AlbumArtist = 4; // Album artist
+    string Album = 5; // Album name
+    string Comment = 6; // Any comments about the audio
+    string Composer = 7; // Composer of the track
+    repeated string Genres = 8; // Genres of the audio track
+    string Lyrics = 9; // Lyrics of the track
+    string Title = 10; // Title of the track
+    int32 Year = 11; // Year of release
+    int32 DiscNumber = 12; // Disc number in the album
+    int32 DiscTotal = 13; // Total number of discs in the album
+    int32 TrackNumber = 14; // Track number on the disc
+    int32 TrackTotal = 15; // Total number of tracks on the disc
+    Poster Poster = 16; // Poster image for the audio
+    int32 Duration = 17; // Duration of the audio track in seconds
+    string UUID = 19; // Universally Unique Identifier
 }
 
-/**
- * The album info.
- */
+// Represents an album with its details
 message Album {
-	string ID = 1;
-	string Artist = 2;
-	int32  Year = 3;
-	repeated string Genres = 4; // The kind of video ex. adult, music ect.
-	Audios tracks = 5;
-	Poster Poster = 6;
+    string ID = 1; // Unique identifier for the album
+    string Artist = 2; // Artist of the album
+    int32 Year = 3; // Release year of the album
+    repeated string Genres = 4; // Genres of the album
+    Audios tracks = 5; // Tracks in the album
+    Poster Poster = 6; // Poster image for the album
 }
 
+// Collection of audio tracks
 message Audios {
-	repeated Audio audios = 1;
+    repeated Audio audios = 1; // List of audio tracks
 }
 
+// Request to create an audio track
 message CreateAudioRequest {
-	Audio audio = 1;
-	string indexPath = 2;
+    Audio audio = 1; // Audio track details
+    string indexPath = 2; // Index path for creation
 }
 
+// Response for creating an audio track - intentionally left blank
 message CreateAudioResponse {
-	/** Nothing here **/
 }
 
-message GetAudioByIdRequest{
-	string audioId = 1;
-	string indexPath = 2;
+// Request to get an audio track by ID
+message GetAudioByIdRequest {
+    string audioId = 1; // ID of the audio track
+    string indexPath = 2; // Index path for querying
 }
 
-message GetAudioByIdResponse{
-	Audio audio = 1;
-	repeated string filesPaths = 2;
+// Response containing the requested audio track
+message GetAudioByIdResponse {
+    Audio audio = 1; // Audio track details
+    repeated string filesPaths = 2; // File paths related to the audio
 }
 
-message DeleteAudioRequest{
-	string audioId = 1;
-	string indexPath = 2;
+// Request to delete an audio track
+message DeleteAudioRequest {
+    string audioId = 1; // ID of the audio track to delete
+    string indexPath = 2; // Index path for deletion
 }
 
-message DeleteAudioResponse{
-	/** Nothing here **/
+// Response for deleting an audio track - intentionally left blank
+message DeleteAudioResponse {
 }
 
-message GetFileAudiosRequest{
-	string filePath = 1;
-	string indexPath = 2;
+// Request to get audio tracks associated with a file
+message GetFileAudiosRequest {
+    string filePath = 1; // Path of the file
+    string indexPath = 2; // Index path for querying
 }
 
-message GetFileAudiosResponse{
-	Audios audios = 1;
+// Response containing audio tracks associated with a file
+message GetFileAudiosResponse {
+    Audios audios = 1; // Collection of audio tracks
 }
 
-message GetAlbumRequest{
-	string albumId = 1;
-	string indexPath = 2;
+// Request to get an album by ID
+message GetAlbumRequest {
+    string albumId = 1; // ID of the album
+    string indexPath = 2; // Index path for querying
 }
 
-message GetAlbumResponse{
-	Album album = 1;
+// Response containing the requested album
+message GetAlbumResponse {
+    Album album = 1; // Album details
 }
 
-message DeleteAlbumRequest{
-	string albumId = 1;
-	string indexPath = 2;
+// Request to delete an album
+message DeleteAlbumRequest {
+    string albumId = 1; // ID of the album to delete
+    string indexPath = 2; // Index path for deletion
 }
 
+// Response for deleting an album - intentionally left blank
 message DeleteAlbumResponse {
-
 }
+
 
 /**
- * That service is use to manage and get access to title informations it offer
- * search functionalities to retreives movies, series, episode information and ther
- * association with file contain on a peer. Information can  
- */
-service TitleService {
+* Service for managing and accessing title information. It provides
+* functionality to retrieve and manage data about movies, series, episodes,
+* and their associations with files on a peer.
+*/
+ service TitleService {
 
-	// Create a publisher...
-	rpc CreatePublisher(CreatePublisherRequest) returns (CreatePublisherResponse);
+    // Creates a new publisher in the database.
+    rpc CreatePublisher(CreatePublisherRequest) returns (CreatePublisherResponse);
 
-	// Delete a publisher...
-	rpc DeletePublisher(DeletePublisherRequest) returns (DeletePublisherResponse);
+    // Deletes a publisher from the database.
+    rpc DeletePublisher(DeletePublisherRequest) returns (DeletePublisherResponse);
 
-	// Retrun a publisher.
-	rpc GetPublisherById(GetPublisherByIdRequest) returns (GetPublisherByIdResponse);
+    // Retrieves a publisher's information by ID.
+    rpc GetPublisherById(GetPublisherByIdRequest) returns (GetPublisherByIdResponse);
 
-	/////////////////////////////////// Cast ////////////////////////////////////////////////////////////
-	// Create a person...
-	rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
+    // Creates a new person (e.g., actor, director) in the database.
+    rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
 
-	// Delete a person...
-	rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
+    // Deletes a person from the database.
+    rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
 
-	// Retrun a person with a given id.
-	rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse);
+    // Retrieves a person's information by ID.
+    rpc GetPersonById(GetPersonByIdRequest) returns (GetPersonByIdResponse);
 
-	/////////////////////////////////// Title specific functions ////////////////////////////////////////
-  	// Insert a title in the database or update it if it already exist.
-	rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
+    // Inserts or updates a title in the database.
+    rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
 
-	// Get a title by a given id.
-	rpc GetTitleById(GetTitleByIdRequest) returns (GetTitleByIdResponse);
+    // Retrieves a title by its ID.
+    rpc GetTitleById(GetTitleByIdRequest) returns (GetTitleByIdResponse);
 
-	// Delete a title from the database.
-	rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
+    // Deletes a title from the database.
+    rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
 
-	// Save the title as metadata in each of it associated file.
-	rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse);
+    // Updates metadata of a title in its associated files.
+    rpc UpdateTitleMetadata(UpdateTitleMetadataRequest) returns(UpdateTitleMetadataResponse);
 
-	/////////////////////////////////// Audio specific functions ////////////////////////////////////////
-	// Insert a audio information in the database or update it if it already exist.
-	rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse);
+    // Inserts or updates audio information in the database.
+    rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse);
 
-	// Get a audio by a given id.
-	rpc GetAudioById(GetAudioByIdRequest) returns (GetAudioByIdResponse);
+    // Retrieves audio information by its ID.
+    rpc GetAudioById(GetAudioByIdRequest) returns (GetAudioByIdResponse);
 
-	// Return the album information for a given id.
-	rpc GetAlbum(GetAlbumRequest) returns (GetAlbumResponse);
+    // Retrieves album information by its ID.
+    rpc GetAlbum(GetAlbumRequest) returns (GetAlbumResponse);
 
-	// Delete a audio from the database.
-	rpc DeleteAudio(DeleteAudioRequest) returns (DeleteAudioResponse);
+    // Deletes an audio record from the database.
+    rpc DeleteAudio(DeleteAudioRequest) returns (DeleteAudioResponse);
 
-	// Delete album from the database.
-	rpc DeleteAlbum(DeleteAlbumRequest) returns (DeleteAlbumResponse);
+    // Deletes an album from the database.
+    rpc DeleteAlbum(DeleteAlbumRequest) returns (DeleteAlbumResponse);
 
-	/////////////////////////////////// Video specific functions ////////////////////////////////////////
-  	// Insert a video in the database or update it if it already exist.
-	rpc CreateVideo(CreateVideoRequest) returns (CreateVideoResponse);
+    // Inserts or updates a video in the database.
+    rpc CreateVideo(CreateVideoRequest) returns (CreateVideoResponse);
 
-	// Get a video by a given id.
-	rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse);
+    // Retrieves a video by its ID.
+    rpc GetVideoById(GetVideoByIdRequest) returns (GetVideoByIdResponse);
 
-	// Delete a video from the database.
-	rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse);
+    // Deletes a video from the database.
+    rpc DeleteVideo(DeleteVideoRequest) returns (DeleteVideoResponse);
 
-	// Save the video as metadata in each of it associated file.
-	rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse);
+    // Updates metadata of a video in its associated files.
+    rpc UpdateVideoMetadata(UpdateVideoMetadataRequest) returns(UpdateVideoMetadataResponse);
 
-	////////////////////////////////////// File Tile or Video assocication ///////////////////////////////
+    // Associates a file with a title for easier retrieval.
+    rpc AssociateFileWithTitle(AssociateFileWithTitleRequest) returns (AssociateFileWithTitleResponse);
 
-	// Associate a file and a title info, so file can be found from title informations...
-	rpc AssociateFileWithTitle(AssociateFileWithTitleRequest) returns (AssociateFileWithTitleResponse);
+    // Dissociates a file from a title.
+    rpc DissociateFileWithTitle(DissociateFileWithTitleRequest) returns (DissociateFileWithTitleResponse);
 
-	// Dissociate a file and a title info, so file can be found from title informations...
-	rpc DissociateFileWithTitle(DissociateFileWithTitleRequest) returns (DissociateFileWithTitleResponse);
+    // Retrieves a list of titles associated with a file.
+    rpc GetFileTitles(GetFileTitlesRequest) returns (GetFileTitlesResponse);
 
-	// Return the list of titles asscociate with a file.
-	rpc GetFileTitles(GetFileTitlesRequest) returns (GetFileTitlesResponse);
+    // Retrieves a list of videos associated with a file.
+    rpc GetFileVideos(GetFileVideosRequest) returns (GetFileVideosResponse);
 
-	// Return the list of videos asscociate with a file.
-	rpc GetFileVideos(GetFileVideosRequest) returns (GetFileVideosResponse);
+    // Retrieves a list of audios associated with a file.
+    rpc GetFileAudios(GetFileAudiosRequest) returns (GetFileAudiosResponse);
 
-	// Return the list of audios asscociate with a file.
-	rpc GetFileAudios(GetFileAudiosRequest) returns (GetFileAudiosResponse);
+    // Retrieves a list of files associated with a title.
+    rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse);
 
-	// Return the list of files associate with a title
-	rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse);
+    // Searches for titles or videos based on given criteria.
+    rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
 
-	//////////////////////////////////////// Search functionalities ////////////////////////////////////////
-	
-	// Search title or videos infos...
-	rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
-
-	// Search youtuber, actor, pornstar realisator etc.
-	rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
-
+    // Searches for persons (e.g., YouTubers, actors, directors) based on given criteria.
+    rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
 }

@@ -5,379 +5,518 @@ package rbac;
 option go_package="github.com/globulario/services/golang/rbac/rbacpb";
 import "google/protobuf/struct.proto";
 
-
-////////////////////////////////////////////////////////////////////////////////
-// Role Based Access Control.
-////////////////////////////////////////////////////////////////////////////////
-
-// Permission message struct.
+// Permission defines the access level and scope for a resource.
 message Permission {
-	string name = 1; // read, write, delete ... what you need
-	repeated string applications = 2;
-	repeated string peers = 3;
-	repeated string accounts = 4;
-	repeated string groups = 5;
-	repeated string organizations = 6;
+    string name = 1; // Specific permission type (e.g., read, write, delete).
+    repeated string applications = 2; // Applications associated with this permission.
+    repeated string peers = 3; // Peers associated with this permission.
+    repeated string accounts = 4; // Accounts associated with this permission.
+    repeated string groups = 5; // Groups associated with this permission.
+    repeated string organizations = 6; // Organizations associated with this permission.
 }
 
+// Permissions aggregates all permission settings for a specific resource.
 message Permissions {
-	string path = 1;
-	string resource_type = 2;
-	Permission owners = 3;
-	repeated Permission allowed = 4;
-	repeated Permission denied = 5;
+    string path = 1; // Resource identifier or path.
+    string resource_type = 2; // Type of the resource (e.g., file, database).
+    Permission owners = 3; // Permissions for resource owners.
+    repeated Permission allowed = 4; // List of allowed permissions.
+    repeated Permission denied = 5; // List of denied permissions.
 }
 
-/** Return a resource permissions **/
-message GetResourcePermissionsRqst{
-	string path = 1;
+// GetResourcePermissionsRqst is a request for permissions of a specific resource.
+message GetResourcePermissionsRqst {
+    string path = 1; // Resource identifier or path.
 }
 
-/** Get resource permissions **/
-message GetResourcePermissionsRsp{
-	Permissions permissions = 1;
+// GetResourcePermissionsRsp is a response containing resource permissions.
+message GetResourcePermissionsRsp {
+    Permissions permissions = 1; // Permissions associated with the resource.
 }
 
-/** Return a resource permissions **/
-message GetResourcePermissionsByResourceTypeRqst{
-	string resourceType = 1;
+// GetResourcePermissionsByResourceTypeRqst requests permissions by resource type.
+message GetResourcePermissionsByResourceTypeRqst {
+    string resourceType = 1; // Type of the resource.
 }
 
-/** Get resource permissions **/
-message GetResourcePermissionsByResourceTypeRsp{
-	repeated Permissions permissions = 1;
+// GetResourcePermissionsByResourceTypeRsp provides permissions filtered by resource type.
+message GetResourcePermissionsByResourceTypeRsp {
+    repeated Permissions permissions = 1; // List of permissions for the specified resource type.
 }
 
-
-/** Return a resource permissions **/
-message GetResourcePermissionsBySubjectRqst{
-	string subject = 1;
-	SubjectType subject_type = 2;
-	string resource_type = 3;
+// GetResourcePermissionsBySubjectRqst requests permissions based on subject.
+message GetResourcePermissionsBySubjectRqst {
+    string subject = 1; // Subject identifier (e.g., user, group).
+    SubjectType subject_type = 2; // Type of the subject (e.g., user, group).
+    string resource_type = 3; // Type of the resource.
 }
 
-/** Get resource permissions **/
-message GetResourcePermissionsBySubjectRsp{
-	repeated Permissions permissions = 1;
+// GetResourcePermissionsBySubjectRsp provides permissions filtered by subject.
+message GetResourcePermissionsBySubjectRsp {
+    repeated Permissions permissions = 1; // List of permissions for the specified subject.
 }
 
-
-/** Delete a resource permissions **/
-message DeleteResourcePermissionsRqst{
-	string path = 1;
+// DeleteResourcePermissionsRqst is a request to delete permissions of a resource.
+message DeleteResourcePermissionsRqst {
+    string path = 1; // Resource identifier or path.
 }
 
-
-/** Return permissions **/
-message DeleteResourcePermissionsRsp{
-	Permissions permissions = 1;
+// DeleteResourcePermissionsRsp is a response after deleting resource permissions.
+message DeleteResourcePermissionsRsp {
+    Permissions permissions = 1; // Permissions that were deleted.
 }
 
-/** Delete specific resource permission **/
-message DeleteResourcePermissionRqst{
-	string path = 1;
-	string name = 2;
-	PermissionType type = 3;
+// DeleteResourcePermissionRqst is a request to delete a specific permission.
+message DeleteResourcePermissionRqst {
+    string path = 1; // Resource identifier or path.
+    string name = 2; // Name of the permission to delete.
+    PermissionType type = 3; // Type of the permission (e.g., allowed, denied).
 }
 
-/** Delete permissions **/
-message DeleteResourcePermissionRsp{
-	/** do nothing **/
+// DeleteResourcePermissionRsp is a response after deleting a specific permission.
+message DeleteResourcePermissionRsp {
+    // This message does not contain any fields.
 }
 
-/** Set all resource permissions **/
-message SetResourcePermissionsRqst{
-	string path = 1;
-	string resourceType = 2;
-	Permissions permissions = 3;
-}
-
-message SetResourcePermissionsRsp{
-	/** nothing here **/
-}
-
-enum PermissionType {
-	DENIED = 0;
-	ALLOWED = 1;
-}
-
-message GetResourcePermissionRqst{
-	string path = 1;
-	string name = 2;
-	PermissionType type = 3;
-}
-
-message GetResourcePermissionRsp{
-	Permission permission = 1;
-}
-
-message SetResourcePermissionRqst{
-	string path = 1;
-	Permission permission = 2;
-	PermissionType type = 3;
-}
-
-message SetResourcePermissionRsp{
-	/** nothing here **/
-}
-
-message AddResourceOwnerRqst{
-	string path = 1;
-	string resourceType = 2;
-	string subject = 3;
-	SubjectType type = 4;
-}
-
-message AddResourceOwnerRsp {
-	
-}
-
-message RemoveResourceOwnerRqst{
-	string path = 1;
-	string subject = 2;
-	SubjectType type = 3;
-}
-
-message RemoveResourceOwnerRsp {
-	
-}
-
-enum SubjectType {
-	ACCOUNT = 0;
-	PEER = 1;
-	GROUP= 2;
-	ORGANIZATION = 3;
-	APPLICATION = 4;
-	ROLE = 5;
-}
-	
-message DeleteAllAccessRqst {
-	string subject = 1;
-	SubjectType type = 2;
-}
-
-message DeleteAllAccessRsp {
-	
-}
-
-message ValidateAccessRqst {
-	string subject = 1;
-	SubjectType type = 2;
-	string path = 3; // The Resource path
-	string permission = 4; // the name of the permission (read, write, execute...)
-}
-
-message ValidateAccessRsp {
-	bool hasAccess = 1;
-	bool accessDenied = 2;
-}
-
-message GetActionResourceInfosRqst{
-	string action = 1;
-}
-
-message ResourceInfos {
-	int32 index = 1; // The parameter index.
-	string permission = 2; // The permission name, read, write, ect...
-	string path = 3; // The resource path (use by ValidateActionRsp)
-	string field = 4; // if the parameter is an object that will given the field name that contain the resource path. ex: video.ID ("ID" will contain the resource)
-}
-
-message GetActionResourceInfosRsp{
-	repeated ResourceInfos infos = 1;
-}
-
-message ValidateActionRqst {
-	string subject = 1;
-	SubjectType type = 2;
-	string action = 3; // The Action path (grpc path)
-	repeated ResourceInfos infos = 4; // The resource information associated with the rpc call.
-}
-
-message ValidateActionRsp {
-	bool hasAccess = 1; // if the user can run the action
-	bool accessDenied = 2; // if the resource path access is denied.
-}
-
-message SetActionResourcesPermissionsRqst{
-	google.protobuf.Struct permissions = 1;
-}
-
-message SetActionResourcesPermissionsRsp{
-
+/** 
+ * SetResourcePermissionsRqst is a request to set all permissions for a specific resource.
+ */
+ message SetResourcePermissionsRqst {
+    string path = 1; // Resource identifier or path.
+    string resourceType = 2; // Type of the resource.
+    Permissions permissions = 3; // Permissions to be set for the resource.
 }
 
 /**
- * Resource Shared. The resource can be share by the 
+ * SetResourcePermissionsRsp is a response to a set resource permissions request.
+ * This message is intentionally left empty.
+ */
+message SetResourcePermissionsRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * PermissionType defines the types of permissions (e.g., allowed, denied).
+ */
+enum PermissionType {
+    DENIED = 0;
+    ALLOWED = 1;
+}
+
+/**
+ * GetResourcePermissionRqst is a request to retrieve a specific permission for a resource.
+ */
+message GetResourcePermissionRqst {
+    string path = 1; // Resource identifier or path.
+    string name = 2; // Name of the permission.
+    PermissionType type = 3; // Type of the permission (ALLOWED or DENIED).
+}
+
+/**
+ * GetResourcePermissionRsp is a response containing a specific permission.
+ */
+message GetResourcePermissionRsp {
+    Permission permission = 1; // The requested permission.
+}
+
+/**
+ * SetResourcePermissionRqst is a request to set a specific permission for a resource.
+ */
+message SetResourcePermissionRqst {
+    string path = 1; // Resource identifier or path.
+    Permission permission = 2; // The permission to be set.
+    PermissionType type = 3; // Type of the permission (ALLOWED or DENIED).
+}
+
+/**
+ * SetResourcePermissionRsp is a response to a set resource permission request.
+ * This message is intentionally left empty.
+ */
+message SetResourcePermissionRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * AddResourceOwnerRqst is a request to add an owner to a resource.
+ */
+message AddResourceOwnerRqst {
+    string path = 1; // Resource identifier or path.
+    string resourceType = 2; // Type of the resource.
+    string subject = 3; // Identifier of the subject to be added as an owner.
+    SubjectType type = 4; // Type of the subject (e.g., user, group).
+}
+
+/**
+ * AddResourceOwnerRsp is a response to an add resource owner request.
+ * This message is intentionally left empty.
+ */
+message AddResourceOwnerRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * RemoveResourceOwnerRqst is a request to remove an owner from a resource.
+ */
+message RemoveResourceOwnerRqst {
+    string path = 1; // Resource identifier or path.
+    string subject = 2; // Identifier of the subject to be removed as an owner.
+    SubjectType type = 3; // Type of the subject (e.g., user, group).
+}
+
+/**
+ * RemoveResourceOwnerRsp is a response to a remove resource owner request.
+ * This message is intentionally left empty.
+ */
+message RemoveResourceOwnerRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * SubjectType defines the types of subjects (e.g., user, group, organization).
+ */
+enum SubjectType {
+    ACCOUNT = 0;
+    PEER = 1;
+    GROUP = 2;
+    ORGANIZATION = 3;
+    APPLICATION = 4;
+    ROLE = 5;
+}
+
+/**
+ * DeleteAllAccessRqst is a request to delete all access permissions for a given subject.
+ */
+message DeleteAllAccessRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+}
+
+/**
+ * DeleteAllAccessRsp is a response to a delete all access request.
+ * This message is intentionally left empty.
+ */
+message DeleteAllAccessRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * ValidateAccessRqst is a request to validate if a subject has a specific permission for a resource.
+ */
+ message ValidateAccessRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    string path = 3; // The resource path for which access is being validated.
+    string permission = 4; // The name of the permission to validate (e.g., read, write, execute).
+}
+
+/**
+ * ValidateAccessRsp is a response indicating whether access is granted or denied.
+ */
+message ValidateAccessRsp {
+    bool hasAccess = 1; // Indicates if the subject has access.
+    bool accessDenied = 2; // Indicates if access is explicitly denied.
+}
+
+/**
+ * GetActionResourceInfosRqst is a request to retrieve resource information related to an action.
+ */
+message GetActionResourceInfosRqst {
+    string action = 1; // The action for which resource information is requested.
+}
+
+/**
+ * ResourceInfos contains information about a resource in the context of an action.
+ */
+message ResourceInfos {
+    int32 index = 1; // The index of the parameter in the action.
+    string permission = 2; // The permission required for the resource (e.g., read, write).
+    string path = 3; // The path of the resource.
+    string field = 4; // If the parameter is an object, this specifies the field name containing the resource path.
+}
+
+/**
+ * GetActionResourceInfosRsp is a response containing resource information for an action.
+ */
+message GetActionResourceInfosRsp {
+    repeated ResourceInfos infos = 1; // List of resource information.
+}
+
+/**
+ * ValidateActionRqst is a request to validate access for an action involving multiple resources.
+ */
+message ValidateActionRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    string action = 3; // The action path (e.g., gRPC path).
+    repeated ResourceInfos infos = 4; // Resource information associated with the action.
+}
+
+/**
+ * ValidateActionRsp is a response indicating whether the action is accessible.
+ */
+message ValidateActionRsp {
+    bool hasAccess = 1; // Indicates if the action can be performed by the user.
+    bool accessDenied = 2; // Indicates if any resource path access is denied.
+}
+
+/**
+ * SetActionResourcesPermissionsRqst is a request to set permissions for resources involved in an action.
+ */
+message SetActionResourcesPermissionsRqst {
+    google.protobuf.Struct permissions = 1; // Struct containing the permissions configuration.
+}
+
+/**
+ * SetActionResourcesPermissionsRsp is a response to a set action resources permissions request.
+ * This message is intentionally left empty.
+ */
+message SetActionResourcesPermissionsRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * Share represents a shared resource within the system.
  */
 message Share {
-
-	// The resource path must be unique on the domain.
-	string path = 1;
-
-	// The domain from where the share is located.
-	string domain = 2;
-
-	// List of specific object to share with
-	repeated string applications = 3;
-	repeated string peers = 4;
-	repeated string accounts = 5;
-	repeated string groups = 6;
-	repeated string organizations = 7;
-
+    string path = 1; // The unique resource path within the domain.
+    string domain = 2; // The domain from where the share is located.
+    repeated string applications = 3; // Specific applications with which the resource is shared.
+    repeated string peers = 4; // Specific peers with whom the resource is shared.
+    repeated string accounts = 5; // Specific accounts with whom the resource is shared.
+    repeated string groups = 6; // Specific groups with whom the resource is shared.
+    repeated string organizations = 7; // Specific organizations with whom the resource is shared.
 }
 
 /**
- * Get the list of accessible resource for a given subject.
+ * GetSharedResourceRqst is a request to retrieve a list of accessible shared resources for a subject.
  */
 message GetSharedResourceRqst {
-	string subject = 1;
-	SubjectType type = 2; 
-	string owner = 3; // optional, it filter result for a given owner...
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    string owner = 3; // Optional filter to retrieve resources shared by a specific owner.
 }
 
+/**
+ * GetSharedResourceRsp is a response containing a list of shared resources accessible to the subject.
+ */
 message GetSharedResourceRsp {
-	repeated Share sharedResource = 1;
+    repeated Share sharedResource = 1; // List of shared resources.
 }
 
 /**
- * Remove Subject from the list of share.
+ * RemoveSubjectFromShareRqst is a request to remove a subject from a shared resource.
  */
-message RemoveSubjectFromShareRqst{
-	string subject = 1;
-	SubjectType type = 2;
-	string domain = 3;
-	string path = 4;
-}
-
-message RemoveSubjectFromShareRsp{
-
+message RemoveSubjectFromShareRqst {
+    string subject = 1; // Identifier of the subject to be removed.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    string domain = 3; // The domain of the shared resource.
+    string path = 4; // The path of the shared resource.
 }
 
 /**
- * Delete all share for a subject. That can be use if a subject is delete...
+ * RemoveSubjectFromShareRsp is a response to a remove subject from share request.
+ * This message is intentionally left empty.
  */
-message DeleteSubjectShareRqst{
-	string subject = 1;
-	SubjectType type = 2;
+message RemoveSubjectFromShareRsp {
+    // No fields are required for this response.
 }
 
-message DeleteSubjectShareRsp{
-
+/**
+ * DeleteSubjectShareRqst is a request to delete all shares associated with a subject.
+ * This is commonly used when a subject is deleted from the system.
+ */
+ message DeleteSubjectShareRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
 }
 
+/**
+ * DeleteSubjectShareRsp is a response to the delete subject share request.
+ * This message is intentionally left empty.
+ */
+message DeleteSubjectShareRsp {
+    // No fields are required for this response.
+}
+
+/**
+ * SetSubjectAllocatedSpaceRqst is a request to set the allocated space for a subject.
+ */
 message SetSubjectAllocatedSpaceRqst {
-	string subject = 1;
-	SubjectType type = 2;
-	uint64 allocated_space = 3;
-}
-
-message SetSubjectAllocatedSpaceRsp {
-
-}
-
-message GetSubjectAllocatedSpaceRqst {
-	string subject = 1;
-	SubjectType type = 2;
-}
-
-message GetSubjectAllocatedSpaceRsp {
-	uint64 allocated_space = 3;
-}
-
-message GetSubjectAvailableSpaceRqst {
-	string subject = 1;
-	SubjectType type = 2;
-}
-
-message GetSubjectAvailableSpaceRsp {
-	uint64 available_space = 3;
-}
-
-message ValidateSubjectSpaceRqst {
-	string subject = 1;
-	SubjectType type = 2;
-	uint64 required_space = 3;
-}
-
-message ValidateSubjectSpaceRsp {
-	bool hasSpace = 1;
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    uint64 allocated_space = 3; // The amount of space to be allocated, in bytes.
 }
 
 /**
- * The service to control action and resource access.
+ * SetSubjectAllocatedSpaceRsp is a response to the set subject allocated space request.
+ * This message is intentionally left empty.
  */
-service RbacService {
+message SetSubjectAllocatedSpaceRsp {
+    // No fields are required for this response.
+}
 
-	/** Set resource permissions this method will replace existing permission at once **/
-	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRqst);
+/**
+ * GetSubjectAllocatedSpaceRqst is a request to retrieve the allocated space for a subject.
+ */
+message GetSubjectAllocatedSpaceRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+}
+
+/**
+ * GetSubjectAllocatedSpaceRsp is a response containing the allocated space for a subject.
+ */
+message GetSubjectAllocatedSpaceRsp {
+    uint64 allocated_space = 1; // The amount of space allocated to the subject, in bytes.
+}
+
+/**
+ * GetSubjectAvailableSpaceRqst is a request to retrieve the available space for a subject.
+ */
+message GetSubjectAvailableSpaceRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+}
+
+/**
+ * GetSubjectAvailableSpaceRsp is a response containing the available space for a subject.
+ */
+message GetSubjectAvailableSpaceRsp {
+    uint64 available_space = 1; // The amount of available space for the subject, in bytes.
+}
+
+/**
+ * ValidateSubjectSpaceRqst is a request to validate if a subject has enough space for a given requirement.
+ */
+message ValidateSubjectSpaceRqst {
+    string subject = 1; // Identifier of the subject.
+    SubjectType type = 2; // Type of the subject (e.g., user, group).
+    uint64 required_space = 3; // The required space to validate, in bytes.
+}
+
+/**
+ * ValidateSubjectSpaceRsp is a response indicating whether the subject has sufficient space.
+ */
+message ValidateSubjectSpaceRsp {
+    bool hasSpace = 1; // Indicates if the subject has enough space.
+}
+
+/**
+ * RbacService is a service for controlling actions and managing access to resources 
+ * based on Role-Based Access Control (RBAC) principles.
+ */
+ service RbacService {
+
+	/**
+	 * SetResourcePermissions replaces existing permissions for a resource.
+	 */
+	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRsp);
 	
-	/** Delete a resource permissions (when a resource is deleted) **/
-	rpc DeleteResourcePermissions(DeleteResourcePermissionsRqst) returns(DeleteResourcePermissionsRqst);
+	/**
+	 * DeleteResourcePermissions removes all permissions associated with a resource.
+	 * Typically called when a resource is deleted.
+	 */
+	rpc DeleteResourcePermissions(DeleteResourcePermissionsRqst) returns(DeleteResourcePermissionsRsp);
 	
-	/** Delete a specific resource permission **/
-	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRqst);
+	/**
+	 * DeleteResourcePermission removes a specific permission from a resource.
+	 */
+	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRsp);
 	
-	/** Get specific resource permission  ex. read permission... **/
+	/**
+	 * GetResourcePermission retrieves a specific permission for a resource (e.g., read permission).
+	 */
 	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp);
 	
-	/** Set specific resource permission  ex. read permission... **/
+	/**
+	 * SetResourcePermission sets a specific permission for a resource (e.g., read permission).
+	 */
 	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp);
 	
-	/** Get resource permissions **/
+	/**
+	 * GetResourcePermissions retrieves all permissions associated with a resource.
+	 */
 	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp);
 
-	/** Get the list of all resource permission for a given resource type ex. blog or file...*/
+	/**
+	 * GetResourcePermissionsByResourceType streams permissions for a specific resource type (e.g., blog, file).
+	 */
 	rpc GetResourcePermissionsByResourceType(GetResourcePermissionsByResourceTypeRqst) returns(stream GetResourcePermissionsByResourceTypeRsp);
 
-	/** Return the list of permissions for a given subject. If no resource type was given all resource will be return. **/
+	/**
+	 * GetResourcePermissionsBySubject streams permissions associated with a specific subject.
+	 */
 	rpc GetResourcePermissionsBySubject(GetResourcePermissionsBySubjectRqst) returns(stream GetResourcePermissionsBySubjectRsp);
 	
-	/** Add resource owner do nothing if it already exist */
+	/**
+	 * AddResourceOwner adds an owner to a resource. Does nothing if the owner already exists.
+	 */
 	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
 	
-	/** Remove resource owner */
+	/**
+	 * RemoveResourceOwner removes an owner from a resource.
+	 */
 	rpc RemoveResourceOwner(RemoveResourceOwnerRqst) returns(RemoveResourceOwnerRsp);
 	
-	/** That function must be call when a subject is removed to clean up permissions. */
+	/**
+	 * DeleteAllAccess removes all access permissions associated with a subject.
+	 * Typically called when a subject is removed from the system.
+	 */
 	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
 	
-	/** Validate if a user can get access to a given Resource for a given operation (read, write...) */
+	/**
+	 * ValidateAccess checks if a subject has access to a resource for a specific operation (e.g., read, write).
+	 */
 	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
 
-	/** Set Actions resource Permissions */
+	/**
+	 * SetActionResourcesPermissions sets permissions for resources related to specific actions.
+	 */
 	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp);
 		
-	/////////////////////////// Rpc Action Valdisation ////////////////////////////////
-	
-	/** Return the action resource informations. */
+	/**
+	 * GetActionResourceInfos retrieves resource information related to a specific action.
+	 */
 	rpc GetActionResourceInfos(GetActionResourceInfosRqst) returns(GetActionResourceInfosRsp);
 	
-	/** Validate the actions */
+	/**
+	 * ValidateAction checks if a subject has permission to perform a specific action.
+	 */
 	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp);
 
-	///////////////////////// Disk usage ////////////////////////
-
-	/** Validate if the subject has enought space to store file **/
+	/**
+	 * ValidateSubjectSpace checks if a subject has enough space for storing files.
+	 */
 	rpc ValidateSubjectSpace(ValidateSubjectSpaceRqst) returns(ValidateSubjectSpaceRsp);
 
-	/** Return the subject available disk space **/
+	/**
+	 * GetSubjectAvailableSpace retrieves the available disk space for a subject.
+	 */
 	rpc GetSubjectAvailableSpace(GetSubjectAvailableSpaceRqst) returns(GetSubjectAvailableSpaceRsp);
 
-	/** Return the subject allocated disk space **/
+	/**
+	 * GetSubjectAllocatedSpace retrieves the allocated disk space for a subject.
+	 */
 	rpc GetSubjectAllocatedSpace(GetSubjectAllocatedSpaceRqst) returns(GetSubjectAllocatedSpaceRsp);
 
-	/** Set the user allocated space **/
+	/**
+	 * SetSubjectAllocatedSpace sets the allocated disk space for a subject.
+	 */
 	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp);
 
-	///////////////////////// Share ////////////////////////////
-
-	// Get the list of accessible shared resources.
+	/**
+	 * GetSharedResource retrieves the list of resources shared with a subject.
+	 */
 	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);
 
-	// Remove a subject from a share.
+	/**
+	 * RemoveSubjectFromShare removes a subject from a shared resource.
+	 */
 	rpc RemoveSubjectFromShare(RemoveSubjectFromShareRqst) returns(RemoveSubjectFromShareRsp);
 	
-	// Delete the subject
+	/**
+	 * DeleteSubjectShare removes all shares associated with a subject.
+	 * Typically used when a subject is deleted from the system.
+	 */
 	rpc DeleteSubjectShare(DeleteSubjectShareRqst) returns(DeleteSubjectShareRsp);
 }

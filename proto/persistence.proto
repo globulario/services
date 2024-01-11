@@ -1,6 +1,3 @@
-/**
- * You can use echo as starter project.
- */
 syntax = "proto3";
 
 package persistence;
@@ -8,347 +5,384 @@ package persistence;
 option go_package="github.com/globulario/services/golang/persistence/persistencepb";
 import "google/protobuf/struct.proto";
 
+// Enum defining the types of stores supported.
 enum StoreType{
-	MONGO = 0;
-	SQL = 1;
-	SCYLLA = 2;
+    MONGO = 0;  // MongoDB
+    SQL = 1;    // SQL-based databases
+    SCYLLA = 2; // ScyllaDB
 }
 
+// Represents a database connection configuration.
 message Connection {
-	string id = 1;
-	string name = 2;
-	string host = 3;
-	StoreType store = 5;
-	string user = 6;
-	string password = 7;
-	int32 port = 8;
-	int32 timeout = 9;
-	string options = 10;
+    string id = 1;           // Unique identifier for the connection
+    string name = 2;         // Human-readable name for the connection
+    string host = 3;         // Hostname or IP address of the database server
+    StoreType store = 5;     // Type of the database store
+    string user = 6;         // Username for authentication
+    string password = 7;     // Password for authentication
+    int32 port = 8;          // Port number for the database server
+    int32 timeout = 9;       // Timeout for the connection
+    string options = 10;     // Additional options for the connection
 }
 
-// Create connection
+// Request to create a new database connection.
 message CreateConnectionRqst {
-	Connection connection = 1;
-	bool save = 2; // if true it will save in the config file.
+    Connection connection = 1; // The connection details
+    bool save = 2;             // If true, saves the connection details in a config file
 }
 
+// Response for a create connection request.
 message CreateConnectionRsp {
-	bool result = 1;
+    bool result = 1;           // Result of the connection creation operation
 }
 
-// Delete connection
+// Request to delete an existing database connection.
 message DeleteConnectionRqst {
-	string id = 1;
+    string id = 1;             // The connection id to be deleted
 }
 
+// Response for a delete connection request.
 message DeleteConnectionRsp {
-	bool result = 1;
+    bool result = 1;           // Result of the connection deletion operation
 }
 
-// Ping Connection
+// Request to ping a database connection to check its availability.
 message PingConnectionRqst {
-	string id = 1;
+    string id = 1;             // The connection id to be pinged
 }
 
+// Response for a ping connection request.
 message PingConnectionRsp {
-	string result = 1;
+    string result = 1;         // Result of the ping operation
 }
 
+// Request to insert multiple documents/records.
 message InsertManyRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	bytes data = 4;
-	string options = 5;
+    string id = 1;             // The connection id
+    string database = 2;       // Database name
+    string collection = 3;     // Collection or table name
+    bytes data = 4;            // Data to be inserted
+    string options = 5;        // Additional options for insertion
 }
 
+// Response for an insert many request.
 message InsertManyRsp {
-	/*nothing here */
+    // Intentionally left blank, could be extended for result information
 }
 
+// Request to insert a single document/record.
 message InsertOneRqst {
-	string id = 1; // The connection id.
-	string database = 2;
-	string collection = 3;
-	string data = 4;
-	string options = 5;
+    string id = 1;             // The connection id
+    string database = 2;       // Database name
+    string collection = 3;     // Collection or table name
+    string data = 4;           // Data to be inserted
+    string options = 5;        // Additional options for insertion
 }
 
+// Response for an insert one request.
 message InsertOneRsp {
-	string id = 1; // Json string with id
+    string id = 1; // The JSON string containing the inserted document's ID
 }
 
+// Request to find multiple documents/records based on a query.
 message FindRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string options = 6;
+    string id = 1;         // The connection id
+    string database = 2;   // Database name
+    string collection = 3; // Collection or table name
+    string query = 4;      // Query string in JSON format
+    string options = 6;    // Additional options for the find operation
 }
 
+// Response for a find request.
 message FindResp {
-	bytes data = 1; // blob
+    bytes data = 1;        // Data blob containing the query results
 }
 
+// Request to find a single document/record based on a query.
 message FindOneRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string options = 6;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;
+    string options = 6;
 }
 
+// Response for a find one request.
 message FindOneResp {
-	google.protobuf.Struct result = 1;
+    google.protobuf.Struct result = 1; // Result of the find one operation
 }
 
+// Request to perform an aggregation operation.
 message AggregateRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string pipeline = 4; // Array of transformations.
-	string options = 6;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string pipeline = 4; // JSON string representing the aggregation pipeline
+    string options = 6;
 }
 
+// Response for an aggregate request.
 message AggregateResp {
-	bytes data = 1; // Json string
+    bytes data = 1; // JSON string containing the aggregation results
 }
 
+// Request to update multiple documents/records.
 message UpdateRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string value = 5;
-	string options = 6;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;  // Query to select documents
+    string value = 5;  // Update values
+    string options = 6;
 }
 
+// Response for an update request.
 message UpdateRsp {
-	bool result = 1;
+    bool result = 1;   // Result of the update operation
 }
 
+// Request to update a single document/record.
 message UpdateOneRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string value = 5;
-	string options = 6;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;
+    string value = 5;
+    string options = 6;
 }
 
+// Response for an update one request.
 message UpdateOneRsp {
-	bool result = 1;
+    bool result = 1;
 }
 
+// Request to replace a single document/record.
 message ReplaceOneRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string value = 5;
-	string options = 6;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;  // Query to select the document
+    string value = 5;  // New value for the document
+    string options = 6;
 }
 
+// Response for a replace one request.
 message ReplaceOneRsp {
-	bool result = 1;
+    bool result = 1;
 }
 
+// Request to delete multiple documents/records.
 message DeleteRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string options = 5;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;  // Query to select documents for deletion
+    string options = 5;
 }
 
+// Response for a delete request.
 message DeleteRsp {
-	bool result = 1;
+    bool result = 1;   // Result of the delete operation
 }
 
+// Request to delete a single document/record.
 message DeleteOneRqst {
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4;
-	string options = 5;
+    string id = 1;
+    string database = 2;
+    string collection = 3;
+    string query = 4;
+    string options = 5;
 }
 
+// Response for a delete one request.
 message DeleteOneRsp {
-	bool result = 1;
+    bool result = 1;
 }
 
-message CreateDatabaseRqst{
-		string id = 1;
-	string database = 2;
+// Request to create a new database.
+message CreateDatabaseRqst {
+    string id = 1;         // The connection id
+    string database = 2;   // Name of the database to be created
 }
 
-message CreateDatabaseRsp{
-	bool result = 1;
+// Response for a create database request.
+message CreateDatabaseRsp {
+    bool result = 1;       // Result of the database creation operation
 }
 
-message DeleteDatabaseRqst{
-	string id = 1;
-	string database = 2;
+// Request to delete a database.
+message DeleteDatabaseRqst {
+    string id = 1;       // Connection ID
+    string database = 2; // Name of the database to delete
 }
 
-message DeleteDatabaseRsp{
-	bool result = 1;
+// Response for a delete database request.
+message DeleteDatabaseRsp {
+    bool result = 1;     // Result of the delete operation
 }
 
-message CreateCollectionRqst{
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string optionsStr = 4;
+// Request to create a new collection.
+message CreateCollectionRqst {
+    string id = 1;           // Connection ID
+    string database = 2;     // Database name
+    string collection = 3;   // Name of the collection to create
+    string optionsStr = 4;   // Additional options for collection creation
 }
 
-message CreateCollectionRsp{
-	bool result = 1;
+// Response for a create collection request.
+message CreateCollectionRsp {
+    bool result = 1;         // Result of the create operation
 }
 
-message DeleteCollectionRqst{
-	string id = 1;
-	string database = 2;
-	string collection = 3;
+// Request to delete a collection.
+message DeleteCollectionRqst {
+    string id = 1;           // Connection ID
+    string database = 2;     // Database name
+    string collection = 3;   // Name of the collection to delete
 }
 
-message DeleteCollectionRsp{
-	bool result = 1;
+// Response for a delete collection request.
+message DeleteCollectionRsp {
+    bool result = 1;         // Result of the delete operation
 }
 
-message CountRqst{
-	string id = 1;
-	string database = 2;
-	string collection = 3;
-	string query = 4; // filter
-	string options = 5;
+// Request to count documents in a collection.
+message CountRqst {
+    string id = 1;           // Connection ID
+    string database = 2;     // Database name
+    string collection = 3;   // Collection name
+    string query = 4;        // Filter query for counting
+    string options = 5;      // Additional options for the count operation
 }
 
-message CountRsp{
-	int64 result = 1;
+// Response for a count request.
+message CountRsp {
+    int64 result = 1;        // The count result
 }
 
-// Create user function
-
-message RunAdminCmdRqst{
-	string connectionId = 1;
-	string user = 2;
-	string password = 3;
-	string script = 4;
+// Request to run an administrative command.
+message RunAdminCmdRqst {
+    string connectionId = 1; // Connection ID
+    string user = 2;         // Username for authentication
+    string password = 3;     // Password for authentication
+    string script = 4;       // Administrative script or command to run
 }
 
-message RunAdminCmdRsp{
-	string result = 1;
+// Response for running an administrative command.
+message RunAdminCmdRsp {
+    string result = 1;       // Result of the command execution
 }
 
-
-// Open a db connection.
-message ConnectRqst{
-	string connectionId = 1;
-	string password = 3;
+// Request to open a database connection.
+message ConnectRqst {
+    string connectionId = 1; // Connection ID
+    string password = 3;     // Password for authentication
 }
 
-
-message ConnectRsp{
-	bool result = 1;
+// Response for a connection request.
+message ConnectRsp {
+    bool result = 1;         // Result of the connection attempt
 }
 
-// Close a db connection
-message DisconnectRqst{
-	string connectionId = 1;
+// Request to close a database connection.
+message DisconnectRqst {
+    string connectionId = 1; // Connection ID
 }
 
-message DisconnectRsp{
-	bool result = 1;
+// Response for a disconnect request.
+message DisconnectRsp {
+    bool result = 1;         // Result of the disconnect operation
 }
 
+// Request to stop a service or process.
 message StopRequest {
-	
+    // Fields can be added if needed for specific stop instructions
 }
 
+// Response for a stop request.
 message StopResponse {
-	
+    // Fields can be added to provide feedback on the stop operation
 }
 
-// Persistence nothing can take place of persistence..!-)
+
+// PersistenceService handles database management and CRUD operations.
 service PersistenceService {
-  	// Stop the server.
- 	rpc Stop(StopRequest) returns (StopResponse);
+  
+    // Stop the server - Ends the server process.
+    rpc Stop(StopRequest) returns (StopResponse);
 
-	//////////////////////////////////////////////////////////////////////////////
-	// admin operations
-	//////////////////////////////////////////////////////////////////////////////
-	
-	// Create a database
-	rpc CreateDatabase(CreateDatabaseRqst) returns (CreateDatabaseRsp){};
-	
-	// Open connection.
-	rpc Connect(ConnectRqst) returns (ConnectRsp);
-	
-	// Close connection.
-	rpc Disconnect(DisconnectRqst) returns (DisconnectRsp);
-	
-	// Delete a database
-	rpc DeleteDatabase(DeleteDatabaseRqst) returns (DeleteDatabaseRsp){};
-	
-	// Create a Collection
-	rpc CreateCollection(CreateCollectionRqst) returns (CreateCollectionRsp){};
-	
-	// Delete collection
-	rpc DeleteCollection(DeleteCollectionRqst) returns (DeleteCollectionRsp){};
-	
-	// Create a connection.
-	rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp){};
-	
-	// Delete a connection.
-	rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp){};
-	
-	// Ping existing connection.
-	rpc Ping(PingConnectionRqst) returns (PingConnectionRsp) {};
-	
-	// Get the number of entry in a collection
-	rpc Count(CountRqst) returns (CountRsp) {};
-	
-	//////////////////////////////////////////////////////////////////////////////
-	// Crud operations
-	//////////////////////////////////////////////////////////////////////////////
-	
-	// Insert one result
-	rpc InsertOne(InsertOneRqst) returns (InsertOneRsp){};
+    //////////////////////////////////////////////////////////////////////////////
+    // Admin Operations
+    //////////////////////////////////////////////////////////////////////////////
+    
+    // CreateDatabase - Creates a new database.
+    rpc CreateDatabase(CreateDatabaseRqst) returns (CreateDatabaseRsp);
+    
+    // Connect - Establishes a connection to the database.
+    rpc Connect(ConnectRqst) returns (ConnectRsp);
+    
+    // Disconnect - Closes an established database connection.
+    rpc Disconnect(DisconnectRqst) returns (DisconnectRsp);
+    
+    // DeleteDatabase - Deletes an existing database.
+    rpc DeleteDatabase(DeleteDatabaseRqst) returns (DeleteDatabaseRsp);
+    
+    // CreateCollection - Creates a new collection in the database.
+    rpc CreateCollection(CreateCollectionRqst) returns (CreateCollectionRsp);
+    
+    // DeleteCollection - Removes a collection from the database.
+    rpc DeleteCollection(DeleteCollectionRqst) returns (DeleteCollectionRsp);
+    
+    // CreateConnection - Configures a new connection to a data store.
+    rpc CreateConnection(CreateConnectionRqst) returns (CreateConnectionRsp);
+    
+    // DeleteConnection - Removes an existing connection configuration.
+    rpc DeleteConnection(DeleteConnectionRqst) returns (DeleteConnectionRsp);
+    
+    // Ping - Checks the status of an existing connection.
+    rpc Ping(PingConnectionRqst) returns (PingConnectionRsp);
+    
+    // Count - Retrieves the count of documents in a collection based on a query.
+    rpc Count(CountRqst) returns (CountRsp);
 
-	// Insert many result at once.
-	rpc InsertMany(stream InsertManyRqst) returns (InsertManyRsp){};
-	
-	// Find many
-	rpc Find(FindRqst) returns (stream FindResp){};
-	
-	// Find one
-	rpc FindOne(FindOneRqst) returns (FindOneResp){};
+    //////////////////////////////////////////////////////////////////////////////
+    // CRUD Operations
+    //////////////////////////////////////////////////////////////////////////////
+    
+    // InsertOne - Inserts a single document into a collection.
+    rpc InsertOne(InsertOneRqst) returns (InsertOneRsp);
 
-	// Aggregate
-	rpc Aggregate(AggregateRqst) returns (stream AggregateResp){};
-	
-	// Update many result.
-	rpc Update(UpdateRqst) returns (UpdateRsp){};
-	
-	// Update one
-	rpc UpdateOne(UpdateOneRqst) returns (UpdateOneRsp){};
-	
-	// Replace one
-	rpc ReplaceOne(ReplaceOneRqst) returns (ReplaceOneRsp){};
-	
-	// Delete many.
-	rpc Delete(DeleteRqst) returns (DeleteRsp){};
-	
-	// Delete one
-	rpc DeleteOne(DeleteOneRqst) returns (DeleteOneRsp){};
-	
-	//////////////////////////////////////////////////////////////////////////////
-	// Resource management operations
-	//////////////////////////////////////////////////////////////////////////////
-	
-	// run admin command.
-	rpc RunAdminCmd(RunAdminCmdRqst) returns (RunAdminCmdRsp){};
-	
-	
+    // InsertMany - Inserts multiple documents into a collection.
+    rpc InsertMany(stream InsertManyRqst) returns (InsertManyRsp);
+    
+    // Find - Retrieves multiple documents based on a query.
+    rpc Find(FindRqst) returns (stream FindResp);
+    
+    // FindOne - Retrieves a single document based on a query.
+    rpc FindOne(FindOneRqst) returns (FindOneResp);
+
+    // Aggregate - Performs aggregation operations on a collection.
+    rpc Aggregate(AggregateRqst) returns (stream AggregateResp);
+    
+    // Update - Updates multiple documents in a collection.
+    rpc Update(UpdateRqst) returns (UpdateRsp);
+    
+    // UpdateOne - Updates a single document in a collection.
+    rpc UpdateOne(UpdateOneRqst) returns (UpdateOneRsp);
+    
+    // ReplaceOne - Replaces a single document in a collection.
+    rpc ReplaceOne(ReplaceOneRqst) returns (ReplaceOneRsp);
+    
+    // Delete - Deletes multiple documents from a collection.
+    rpc Delete(DeleteRqst) returns (DeleteRsp);
+    
+    // DeleteOne - Deletes a single document from a collection.
+    rpc DeleteOne(DeleteOneRqst) returns (DeleteOneRsp);
+    
+    //////////////////////////////////////////////////////////////////////////////
+    // Resource Management Operations
+    //////////////////////////////////////////////////////////////////////////////
+    
+    // RunAdminCmd - Executes an administrative command or script.
+    rpc RunAdminCmd(RunAdminCmdRqst) returns (RunAdminCmdRsp);
 }

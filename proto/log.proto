@@ -4,72 +4,79 @@ package log;
 
 option go_package="github.com/globulario/services/golang/log/logpb";
 
-////////////////////////////////////////////////////////////////////////////////
-// Log service
-////////////////////////////////////////////////////////////////////////////////
-
-enum LogLevel{
-	FATAL_MESSAGE=0;
-	ERROR_MESSAGE=1;
-	WARN_MESSAGE=2;
-	INFO_MESSAGE=3;
-	DEBUG_MESSAGE=4;
-	TRACE_MESSAGE=5;
+// LogLevel defines the severity of a log message.
+enum LogLevel {
+    FATAL_MESSAGE = 0;  // Critical errors causing premature termination.
+    ERROR_MESSAGE = 1;  // Errors that might still allow the application to continue running.
+    WARN_MESSAGE = 2;   // Potentially harmful situations.
+    INFO_MESSAGE = 3;   // Informational messages that highlight progress.
+    DEBUG_MESSAGE = 4;  // Detailed information typically of interest only when diagnosing problems.
+    TRACE_MESSAGE = 5;  // Finer-grained informational events than the DEBUG.
 }
 
-
-message LogInfo{
-	string id = 1; // the id of the log
-	LogLevel level = 2; // the level of the log
-	string application = 3;
-	string method = 4; // the method where the error occured
-	string message = 5; // the encounter error message
-	string line = 6; // the line number where the error occured
-	int64 occurences = 7; // the number of time the error occured
+// LogInfo represents a single log entry.
+message LogInfo {
+    string id = 1;             // Unique identifier of the log entry.
+    LogLevel level = 2;        // Severity level of the log.
+    string application = 3;    // Name of the application generating the log.
+    string method = 4;         // The method where the log was generated.
+    string message = 5;        // Descriptive message of the log.
+    string line = 6;           // Line number where the log was generated.
+    int64 occurences = 7;      // Number of occurrences of the log event.
 }
 
-message LogRqst{
-	LogInfo info = 1;
+// LogRqst is the request format for logging a new message.
+message LogRqst {
+    LogInfo info = 1;  // Log information to be recorded.
 }
 
-message LogRsp{
-	bool result=1;
+// LogRsp is the response format for a log request.
+message LogRsp {
+    bool result = 1;  // Indicates success or failure of the logging operation.
 }
 
-message DeleteLogRqst{
-	LogInfo log = 1;
+// DeleteLogRqst is the request format for deleting a log entry.
+message DeleteLogRqst {
+    LogInfo log = 1;  // Specifies the log entry to be deleted.
 }
 
-message DeleteLogRsp{
-	bool result=1;
+// DeleteLogRsp is the response format for a delete log request.
+message DeleteLogRsp {
+    bool result = 1;  // Indicates success or failure of the delete operation.
 }
 
-message GetLogRqst{
-	string query = 1;
+// GetLogRqst is the request format for retrieving log entries.
+message GetLogRqst {
+    string query = 1;  // Query to filter the logs.
 }
 
-message GetLogRsp{
-	repeated LogInfo infos = 1;
+// GetLogRsp is the response format for a get log request.
+message GetLogRsp {
+    repeated LogInfo infos = 1;  // List of log entries matching the query.
 }
 
-message ClearAllLogRqst{
-	string query = 1;
+// ClearAllLogRqst is the request format for clearing log entries.
+message ClearAllLogRqst {
+    string query = 1;  // Query to filter which logs to clear.
 }
 
-message ClearAllLogRsp{
-	bool result=1;
+// ClearAllLogRsp is the response format for a clear all logs request.
+message ClearAllLogRsp {
+    bool result = 1;  // Indicates success or failure of the clear operation.
 }
 
+// LogService provides RPC methods for logging operations.
 service LogService {
-	/** Set a method into the log... **/
-	rpc Log(LogRqst) returns(LogRsp);
-	
-	/** Get the list of logs **/
-	rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+    // Logs a new message.
+    rpc Log(LogRqst) returns(LogRsp);
 
-	/** Delete a single log entry **/
-	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
-	
-	/** Delete all log or logs that match the key pattern... **/
-	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
+    // Retrieves log entries based on a query.
+    // This is a server streaming RPC where the response is a stream of messages.
+    rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+
+    // Deletes a specific log entry.
+    rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
+
+    // Clears all logs or logs matching a specific query pattern.
+    rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
 }
