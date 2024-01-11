@@ -95,7 +95,6 @@ type server struct {
 	LastError            string
 	ModTime              int64
 	State                string
-	DynamicMethodRouting []interface{} // The list of dynamic method routing.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -777,7 +776,6 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same srv...
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewMailService_Client", mail_client.NewMailService_Client)

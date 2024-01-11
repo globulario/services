@@ -71,7 +71,6 @@ type server struct {
 	State                string
 	ModTime              int64
 	CacheAddress         string
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -896,7 +895,6 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.CacheAddress = s_impl.Address
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)

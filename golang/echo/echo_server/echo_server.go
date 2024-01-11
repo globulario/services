@@ -68,7 +68,6 @@ type server struct {
 	LastError            string
 	State                string
 	ModTime              int64
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -479,7 +478,6 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 1)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -491,9 +489,6 @@ func main() {
 
 	// Register the client function, so it can be use by the service.
 	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
-
-	// Set the dynamic method routing.
-	s_impl.DynamicMethodRouting[0] = map[string]interface{}{"name": "/echo.EchoService/Echo", "policy": "round-robin"}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

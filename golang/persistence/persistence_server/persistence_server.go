@@ -99,7 +99,6 @@ type server struct {
 	LastError            string
 	ModTime              int64
 	State                string
-	DynamicMethodRouting []interface{} // The list of dynamic method routing.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -1455,7 +1454,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)

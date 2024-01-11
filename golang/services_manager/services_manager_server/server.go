@@ -75,7 +75,6 @@ type server struct {
 	State                string
 	ModTime              int64
 	TLS                  bool
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -763,7 +762,6 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.done = make(chan bool)
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewServicesManagerService_Client", service_manager_client.NewServicesManagerService_Client)

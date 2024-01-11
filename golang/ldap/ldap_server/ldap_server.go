@@ -1188,7 +1188,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewLdapService_Client", ldap_client.NewLdapService_Client)

@@ -84,7 +84,6 @@ type server struct {
 	LastError            string
 	State                string
 	ModTime              int64
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// Specific configuration.
 	Root string // Where to look for conversation data, file.. etc.
@@ -1964,7 +1963,6 @@ func main() {
 	s_impl.KeepUpToDate = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
 	Utility.RegisterFunction("NewConversationService_Client", conversation_client.NewConversationService_Client)

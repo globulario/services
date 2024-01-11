@@ -78,8 +78,6 @@ type server struct {
 	ModTime         int64
 	State           string
 	TLS             bool
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
-
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -765,7 +763,6 @@ func main() {
 	s_impl.exit_ = make(chan bool)
 	s_impl.LdapConnectionId = ""
 	s_impl.authentications_ = make([]string, 0)
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)

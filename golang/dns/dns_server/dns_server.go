@@ -90,7 +90,6 @@ type server struct {
 	LastError            string
 	ModTime              int64
 	Root                 string
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -2544,7 +2543,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
 	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)

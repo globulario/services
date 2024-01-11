@@ -69,7 +69,6 @@ type server struct {
 	ModTime              int64
 	TLS                  bool
 	State                string
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -491,7 +490,6 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.Monitoring_Port = 9092
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)

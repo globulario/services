@@ -80,8 +80,6 @@ type server struct {
 	LastError            string
 	State                string
 	ModTime              int64
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
-
 	TLS bool
 
 	// svr-signed X.509 public keys for distribution
@@ -2918,7 +2916,6 @@ func main() {
 	s_impl.CacheType = "BADGER"
 	s_impl.CacheAddress = s_impl.Address
 	s_impl.CacheReplicationFactor = 3
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)

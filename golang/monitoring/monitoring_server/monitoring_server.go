@@ -63,7 +63,6 @@ type server struct {
 	Keywords             []string
 	Repositories         []string
 	Discoveries          []string
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// srv-signed X.509 public keys for distribution
 	CertFile string
@@ -951,7 +950,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)

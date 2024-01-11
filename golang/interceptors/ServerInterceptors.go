@@ -39,9 +39,6 @@ var (
 
 	// That will contain the permission in memory to limit the number
 	resourceInfos sync.Map
-
-	// that will contain the dynamic method routing strategy.
-	dynamicMethodRouting sync.Map
 )
 
 func GetLogClient(address string) (*log_client.Log_Client, error) {
@@ -215,9 +212,9 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 }
 
 // Get the client.
-func getClient (address, serviceName string) (globular_client.Client, error) {
+func getClient(address, serviceName string) (globular_client.Client, error) {
 
-	uuid := Utility.GenerateUUID( address + serviceName)
+	uuid := Utility.GenerateUUID(address + serviceName)
 
 	// Here I will test if the client is already in the cache.
 	item, ok := cache.Load(uuid)
@@ -227,7 +224,7 @@ func getClient (address, serviceName string) (globular_client.Client, error) {
 		return client, nil
 	}
 
-	fct := "New" + serviceName[strings.Index(serviceName, ".") + 1:]  + "_Client"
+	fct := "New" + serviceName[strings.Index(serviceName, ".")+1:] + "_Client"
 
 	client, err := globular_client.GetClient(address, serviceName, fct)
 	if err != nil {
@@ -249,7 +246,7 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 	}
 
 	// Here I will get the list of peers...
-	peers := config_["Peers"].([]interface{})	
+	peers := config_["Peers"].([]interface{})
 	if len(peers) == 0 {
 		return nil, errors.New("no peers found")
 	}
@@ -263,7 +260,7 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 	// Here I will test if the index is -1, if it is I will force the method to be call locally.
 	if index.(int) == -1 {
 		index = 0
-		cache.Store("roundRobinIndex_" + method, index)
+		cache.Store("roundRobinIndex_"+method, index)
 		return nil, errors.New("force method to be cal locally")
 	}
 
@@ -288,67 +285,17 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 	}
 
 	// Here I will set the index in the cache.
-	cache.Store("roundRobinIndex_" + method, index)
+	cache.Store("roundRobinIndex_"+method, index)
 
 	return rsp, nil
 }
 
 // That interceptor is use by all services to apply the dynamic method routing.
-func handleUnaryMethod(ctx context.Context, method string, rqst interface{}) (interface{}, error) {
-
-	policy, ok := dynamicMethodRouting.Load(method)
-
-	if !ok {
-		// Here I will get the DynamicMethodRouting from the local service config.
-		services, err := config.GetServicesConfigurationsByName(method[1:][0:strings.Index(method[1:], "/")])
-		if err != nil {
-			fmt.Println("fail to get the service configuration for method " + method)
-			return nil, err
-		}
-
-		if len(services) == 0 {
-			return nil, errors.New("fail to find the service configuration for method " + method)
-		}
-		
-		// Here I will get the service configuration.
-		service := services[0]
-
-		// Here I will get the service client.
-		data, err := os.ReadFile(service["ConfigPath"].(string))
-		if err != nil {
-			return nil, err
-		}
-
-		// Here I will reload the service configuration.
-		err = json.Unmarshal(data, &service)
-		if err != nil {
-			return nil, err
-		}
-
-		// Now I will get the dynamic method routing.
-		if service["DynamicMethodRouting"] == nil {
-			return nil, errors.New("no dynamic method routing found for method " + method + " in service " + service["Name"].(string))
-		}
-
-		dynamicMethodRoutingPolicies := service["DynamicMethodRouting"].([]interface{})
-		for i := 0; i < len(dynamicMethodRoutingPolicies); i++ {
-			dynamicMethodRouting_ := dynamicMethodRoutingPolicies[i].(map[string]interface{})
-			name := dynamicMethodRouting_["name"].(string)
-			if name == method {
-				// I will keep the policy in memory.
-				policy = dynamicMethodRouting_["policy"].(string)
-				dynamicMethodRouting.Store(method, policy)
-
-				break
-			}
-		}
-	}
+func handleUnaryMethod(routing string, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 
 	// Here I will apply the policy.
-	if policy != nil {
-		if policy.(string) == "round-robin" {
-			return roundRobinUnaryMethodHandler(ctx, method, rqst)
-		}
+	if routing == "round-robin" {
+		return roundRobinUnaryMethodHandler(ctx, method, rqst)
 	}
 
 	return nil, errors.New("fail to invoke method " + method + " not implemented")

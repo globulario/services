@@ -89,7 +89,6 @@ type server struct {
 	KeepAlive            bool
 	Permissions          []interface{} // contains the action permission for the services.
 	Dependencies         []string      // The list of services needed by this services.
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -838,7 +837,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// register new client creator.
 	Utility.RegisterFunction("NewStorageService_Client", storage_client.NewStorageService_Client)

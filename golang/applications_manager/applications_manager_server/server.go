@@ -74,7 +74,6 @@ type server struct {
 	ModTime              int64
 	State                string
 	TLS                  bool
-	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -656,7 +655,6 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
-	s_impl.DynamicMethodRouting = make([]interface{}, 0)
 
 	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
 	Utility.RegisterFunction("NewApplicationsManager_Client", applications_manager_client.NewApplicationsManager_Client)
