@@ -16,6 +16,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -73,22 +74,23 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust string
-	TLS                bool
-	Version            string
-	PublisherId        string
-	KeepUpToDate       bool
-	Checksum           string
-	Plaform            string
-	KeepAlive          bool
-	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies       []string      // The list of services needed by this services.
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	ModTime            int64
-	Root               string
+	CertAuthorityTrust   string
+	TLS                  bool
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Checksum             string
+	Plaform              string
+	KeepAlive            bool
+	Permissions          []interface{} // contains the action permission for the services.
+	Dependencies         []string      // The list of services needed by this services.
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	Root                 string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -1082,7 +1084,7 @@ func (srv *server) getNs(id string) ([]string, uint32, error) {
 	if !strings.HasSuffix(id, ".") {
 		id = id + "."
 	}
-	
+
 	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := srv.store.GetItem(uuid)
 	values := make([]string, 0)
@@ -2203,7 +2205,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					AAAA: net.ParseIP(address),
 				})
 			}
-		} 
+		}
 
 		err = w.WriteMsg(&msg)
 		if err != nil {
@@ -2542,6 +2544,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
 
 	// Set the root path if is pass as argument.
 	s_impl.Root = config.GetDataDir()

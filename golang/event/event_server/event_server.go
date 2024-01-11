@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
@@ -32,28 +33,29 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Name            string
-	Mac             string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Domain          string
-	Address         string
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	ModTime         int64
-	State           string
+	Id                   string
+	Name                 string
+	Mac                  string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	State                string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// srv-signed X.509 public keys for distribution
 	CertFile string
@@ -677,6 +679,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins

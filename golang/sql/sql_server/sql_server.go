@@ -22,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/sql/sql_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
 
 	iconv "github.com/djimenez/iconv-go"
@@ -156,6 +157,8 @@ type server struct {
 	ModTime            int64
 	State              string
 	ConfigPath         string
+	DynamicMethodRouting []interface{} // The list of dynamic method routing.
+
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -936,6 +939,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewSqlService_Client", sql_client.NewSqlService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

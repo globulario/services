@@ -22,6 +22,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/persistence/persistencepb"
 	"google.golang.org/grpc"
@@ -64,40 +65,41 @@ type connection struct {
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                 string
-	Mac                string
-	Name               string
-	Path               string
-	Port               int
-	Proto              string
-	Proxy              int
-	Protocol           string
-	AllowAllOrigins    bool
-	AllowedOrigins     string // comma separated string.
-	Domain             string
-	Address            string
-	Description        string
-	Keywords           []string
-	Repositories       []string
-	Discoveries        []string
-	CertAuthorityTrust string
-	CertFile           string
-	KeyFile            string
-	TLS                bool
-	Version            string
-	PublisherId        string
-	KeepUpToDate       bool
-	Plaform            string
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies       []string      // The list of services needed by this services.
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	ModTime            int64
-	State              string
+	Id                   string
+	Mac                  string
+	Name                 string
+	Path                 string
+	Port                 int
+	Proto                string
+	Proxy                int
+	Protocol             string
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	CertAuthorityTrust   string
+	CertFile             string
+	KeyFile              string
+	TLS                  bool
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Permissions          []interface{} // contains the action permission for the services.
+	Dependencies         []string      // The list of services needed by this services.
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	State                string
+	DynamicMethodRouting []interface{} // The list of dynamic method routing.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -1453,6 +1455,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

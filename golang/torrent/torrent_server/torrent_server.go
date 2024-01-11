@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 
 	"google.golang.org/grpc"
@@ -48,34 +49,35 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Plaform         string
-	Checksum        string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
+	Id                   string
+	Mac                  string
+	Name                 string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	State                string
+	ModTime              int64
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -1008,6 +1010,10 @@ func main() {
 	s_impl.KeepUpToDate = true
 	s_impl.DownloadDir = config.GetDataDir() + "/torrents"
 	s_impl.Seed = false
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewTorrentService_Client", torrent_client.NewTorrentService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

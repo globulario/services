@@ -74,6 +74,8 @@ type server struct {
 	LastError          string
 	ModTime            int64
 	State              string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
+
 
 	// The grpc server.
 	grpcServer *grpc.Server

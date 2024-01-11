@@ -7,12 +7,15 @@ package interceptors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
@@ -34,8 +37,11 @@ var (
 	// TODO made use of real cache instead of a memory map to limit the memory usage...
 	cache sync.Map
 
-	// keep map in memory.
+	// That will contain the permission in memory to limit the number
 	resourceInfos sync.Map
+
+	// that will contain the dynamic method routing strategy.
+	dynamicMethodRouting sync.Map
 )
 
 func GetLogClient(address string) (*log_client.Log_Client, error) {
@@ -208,6 +214,146 @@ func log(domain, application, user, method, fileLine, functionName string, msg s
 	}
 }
 
+// Get the client.
+func getClient (address, serviceName string) (globular_client.Client, error) {
+
+	uuid := Utility.GenerateUUID( address + serviceName)
+
+	// Here I will test if the client is already in the cache.
+	item, ok := cache.Load(uuid)
+	if ok {
+		// Here I will test if the permission has expired...
+		client := item.(globular_client.Client)
+		return client, nil
+	}
+
+	fct := "New" + serviceName[strings.Index(serviceName, ".") + 1:]  + "_Client"
+
+	client, err := globular_client.GetClient(address, serviceName, fct)
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will set the client in the cache.
+	cache.Store(uuid, client)
+
+	return client, nil
+}
+
+// The round robin policy unary method handler.
+func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst interface{}) (interface{}, error) {
+
+	config_, err := config.GetLocalConfig(true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will get the list of peers...
+	peers := config_["Peers"].([]interface{})	
+	if len(peers) == 0 {
+		return nil, errors.New("no peers found")
+	}
+
+	// I will get the round robin index for the method.
+	index, ok := cache.Load("roundRobinIndex_" + method)
+	if !ok {
+		index = 0
+	}
+
+	// Here I will test if the index is -1, if it is I will force the method to be call locally.
+	if index.(int) == -1 {
+		index = 0
+		cache.Store("roundRobinIndex_" + method, index)
+		return nil, errors.New("force method to be cal locally")
+	}
+
+	// display the peers information...
+	peer := peers[index.(int)].(map[string]interface{})
+	address := peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":" + Utility.ToString(peer["Port"])
+	client, err := getClient(address, method[1:][0:strings.Index(method[1:], "/")])
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will call the method on the peer.
+	rsp, err := client.Invoke(method, rqst, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will increment the index.
+	index = index.(int) + 1
+	if index.(int) >= len(peers) {
+		index = -1
+	}
+
+	// Here I will set the index in the cache.
+	cache.Store("roundRobinIndex_" + method, index)
+
+	return rsp, nil
+}
+
+// That interceptor is use by all services to apply the dynamic method routing.
+func handleUnaryMethod(ctx context.Context, method string, rqst interface{}) (interface{}, error) {
+
+	policy, ok := dynamicMethodRouting.Load(method)
+
+	if !ok {
+		// Here I will get the DynamicMethodRouting from the local service config.
+		services, err := config.GetServicesConfigurationsByName(method[1:][0:strings.Index(method[1:], "/")])
+		if err != nil {
+			fmt.Println("fail to get the service configuration for method " + method)
+			return nil, err
+		}
+
+		if len(services) == 0 {
+			return nil, errors.New("fail to find the service configuration for method " + method)
+		}
+		
+		// Here I will get the service configuration.
+		service := services[0]
+
+		// Here I will get the service client.
+		data, err := os.ReadFile(service["ConfigPath"].(string))
+		if err != nil {
+			return nil, err
+		}
+
+		// Here I will reload the service configuration.
+		err = json.Unmarshal(data, &service)
+		if err != nil {
+			return nil, err
+		}
+
+		// Now I will get the dynamic method routing.
+		if service["DynamicMethodRouting"] == nil {
+			return nil, errors.New("no dynamic method routing found for method " + method + " in service " + service["Name"].(string))
+		}
+
+		dynamicMethodRoutingPolicies := service["DynamicMethodRouting"].([]interface{})
+		for i := 0; i < len(dynamicMethodRoutingPolicies); i++ {
+			dynamicMethodRouting_ := dynamicMethodRoutingPolicies[i].(map[string]interface{})
+			name := dynamicMethodRouting_["name"].(string)
+			if name == method {
+				// I will keep the policy in memory.
+				policy = dynamicMethodRouting_["policy"].(string)
+				dynamicMethodRouting.Store(method, policy)
+
+				break
+			}
+		}
+	}
+
+	// Here I will apply the policy.
+	if policy != nil {
+		if policy.(string) == "round-robin" {
+			return roundRobinUnaryMethodHandler(ctx, method, rqst)
+		}
+	}
+
+	return nil, errors.New("fail to invoke method " + method + " not implemented")
+}
+
 // That interceptor is use by all services except the resource service who has
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
@@ -216,13 +362,13 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var token string
 	var application string
 	var organization string
-	
+
 	// The peer domain.
 	address, err := config.GetAddress()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(address) == 0 {
 		return nil, errors.New("fail to get the address")
 	}
@@ -291,12 +437,20 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	if !hasAccess || accessDenied {
 		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " address:" + address + " application:" + application)
-		
+
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, err
 	}
 
 	var result interface{}
+
+	// Here I will try to call the method dynamically.
+	result, err = handleUnaryMethod(ctx, method, rqst)
+	if err == nil {
+		return result, err
+	}
+
+	// I will call the real method.
 	result, err = handler(ctx, rqst)
 
 	// Send log message.
@@ -429,7 +583,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
-		//address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], ""))) 
+		//address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], "")))
 	}
 
 	var clientId string
@@ -455,9 +609,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		issuer = claims.Issuer
 	}
 
-
 	//fmt.Println("---------> ServerStreamInterceptor", method, application, token, address)
-
 
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()

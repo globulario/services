@@ -12,6 +12,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,37 +38,38 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Name            string
-	Mac             string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	Monitoring_Port int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Plaform         string
-	Checksum        string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPort      int
-	ConfigPath      string
-	LastError       string
-	ModTime         int64
-	TLS             bool
-	State           string
+	Id                   string
+	Name                 string
+	Mac                  string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	Monitoring_Port      int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPort           int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	TLS                  bool
+	State                string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -118,7 +120,7 @@ func (srv *server) GetProcess() int {
 }
 
 func (srv *server) SetProcess(pid int) {
-	if pid == -1 && srv.logs != nil{
+	if pid == -1 && srv.logs != nil {
 
 		srv.logs.Close()
 	}
@@ -489,6 +491,10 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.Monitoring_Port = 9092
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

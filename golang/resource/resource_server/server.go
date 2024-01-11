@@ -22,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"github.com/txn2/txeh"
@@ -46,34 +47,35 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Plaform         string
-	Checksum        string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
+	Id                   string
+	Mac                  string
+	Name                 string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	State                string
+	ModTime              int64
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -1055,7 +1057,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 	}
 
 	// Here I will check if the target id is on the same domain as the source id.
-	if strings.Split(targetId, "@")[1] !=  srv.Domain {
+	if strings.Split(targetId, "@")[1] != srv.Domain {
 
 		// TODO create a remote reference... (not implemented yet)
 		return errors.New("target id must be on the same domain as the source id")
@@ -1435,9 +1437,8 @@ func (srv *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
-
 	var name string
-	if  application["name"] != nil {
+	if application["name"] != nil {
 		name = application["name"].(string)
 	} else if application["Name"] != nil {
 		name = application["Name"].(string)
@@ -1529,6 +1530,10 @@ func main() {
 	s_impl.SessionTimeout = 15
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 
 	// Backend informations.
 	s_impl.Backend_type = "SQL" // use SQL as default backend.

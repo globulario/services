@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
 	"google.golang.org/grpc"
@@ -78,16 +79,17 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust string
-	TLS                bool
-	Version            string
-	PublisherId        string
-	Plaform            string
-	KeepUpToDate       bool
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies       []string      // The list of services needed by this services.
+	CertAuthorityTrust   string
+	TLS                  bool
+	Version              string
+	PublisherId          string
+	Plaform              string
+	KeepUpToDate         bool
+	Checksum             string
+	KeepAlive            bool
+	Permissions          []interface{} // contains the action permission for the services.
+	Dependencies         []string      // The list of services needed by this services.
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -836,6 +838,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewStorageService_Client", storage_client.NewStorageService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

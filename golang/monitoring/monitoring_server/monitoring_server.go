@@ -11,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/monitoring/monitoring_client"
 	"github.com/globulario/services/golang/monitoring/monitoring_store"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 
@@ -46,22 +47,23 @@ type connection struct {
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Mac             string
-	Name            string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Domain          string
-	Address         string
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
+	Id                   string
+	Mac                  string
+	Name                 string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// srv-signed X.509 public keys for distribution
 	CertFile string
@@ -949,6 +951,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

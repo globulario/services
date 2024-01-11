@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
+	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc"
 
@@ -45,35 +46,36 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Name            string
-	Mac             string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Plaform         string
-	Checksum        string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
-	TLS             bool
+	Id                   string
+	Name                 string
+	Mac                  string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	State                string
+	ModTime              int64
+	TLS                  bool
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -761,6 +763,10 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.done = make(chan bool)
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewServicesManagerService_Client", service_manager_client.NewServicesManagerService_Client)
 
 	// Create a new sync map.
 	s_impl.methods = make([]string, 0)

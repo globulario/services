@@ -22,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/persistence/persistence_client"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/mail/mail_client"
 	"github.com/globulario/services/golang/mail/mailpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -60,40 +61,41 @@ type connection struct {
 
 type server struct {
 	// The global attribute of the services.
-	Id                 string
-	Name               string
-	Mac                string
-	Path               string
-	Proto              string
-	Port               int
-	Proxy              int
-	Protocol           string
-	AllowAllOrigins    bool
-	AllowedOrigins     string // comma separated string.
-	Domain             string
-	Address            string
-	Description        string
-	Keywords           []string
-	Repositories       []string
-	Discoveries        []string
-	CertFile           string
-	KeyFile            string
-	CertAuthorityTrust string
-	Version            string
-	TLS                bool
-	PublisherId        string
-	KeepUpToDate       bool
-	Plaform            string
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies       []string      // The list of services needed by this services.
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	ModTime            int64
-	State              string
+	Id                   string
+	Name                 string
+	Mac                  string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	Protocol             string
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	CertFile             string
+	KeyFile              string
+	CertAuthorityTrust   string
+	Version              string
+	TLS                  bool
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Permissions          []interface{} // contains the action permission for the services.
+	Dependencies         []string      // The list of services needed by this services.
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	State                string
+	DynamicMethodRouting []interface{} // The list of dynamic method routing.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -775,6 +777,10 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
 	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same srv...
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewMailService_Client", mail_client.NewMailService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
@@ -35,34 +36,35 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Checksum        string
-	Plaform         string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	ModTime         int64
-	State           string
+	Id                   string
+	Mac                  string
+	Name                 string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Checksum             string
+	Plaform              string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	State                string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -479,6 +481,10 @@ func main() {
 	s_impl.KeepUpToDate = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	Utility.RegisterFunction("NewAdminService_Client", admin_client.NewAdminService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

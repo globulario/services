@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -19,9 +20,9 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	// "google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
@@ -43,27 +44,28 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Name            string
-	Mac             string
-	Port            int
-	Proxy           int
-	Path            string
-	Proto           string
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Domain          string
-	Address         string
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	State           string
-	LastError       string
+	Id                   string
+	Name                 string
+	Mac                  string
+	Port                 int
+	Proxy                int
+	Path                 string
+	Proto                string
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	State                string
+	LastError            string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -732,7 +734,6 @@ func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 	_id := Utility.GenerateUUID(instance.Id)
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
-
 	// Set the db reference.
 	jsonStr = strings.Replace(jsonStr, "refColId", "$ref", -1)
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1028,7 +1029,6 @@ func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 
 	// Here I will generate the _id key
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
-	
 
 	// set the object references...
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -1129,7 +1129,6 @@ func (srv *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 
 	// Here I will generate the _id key
 	_id := Utility.GenerateUUID(category.Id + category.LanguageCode)
-
 
 	data, err := protojson.Marshal(category)
 	if err != nil {
@@ -2617,6 +2616,10 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	Utility.RegisterFunction("NewCatalogService_Client", catalog_client.NewCatalogService_Client)
 
 	// Read service information.
 	s_impl.Services = make(map[string]interface{})

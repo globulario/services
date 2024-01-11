@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/discovery/discovery_client"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -70,6 +71,8 @@ type server struct {
 	LastError       string
 	State           string
 	ModTime         int64
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
+
 
 	TLS bool
 
@@ -600,6 +603,10 @@ func main() {
 	s_impl.KeepUpToDate = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	Utility.RegisterFunction("NewDiscoveryService_Client", discovery_client.NewDiscoveryService_Client)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

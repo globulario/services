@@ -122,6 +122,7 @@ type server struct {
 	LastError          string
 	ModTime            int64
 	State              string
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -6184,6 +6185,10 @@ func main() {
 	s_impl.KeepUpToDate = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 	s_impl.CacheReplicationFactor = 3
+	s_impl.DynamicMethodRouting = make([]interface{}, 0)
+
+	// register new client creator.
+	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
 
 	// set it to true in order to enable GPU acceleration.
 	s_impl.HasEnableGPU = false

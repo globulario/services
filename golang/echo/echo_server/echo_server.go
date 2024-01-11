@@ -11,8 +11,10 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
@@ -38,34 +40,35 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
-	Protocol        string
-	Version         string
-	PublisherId     string
-	KeepUpToDate    bool
-	Plaform         string
-	Checksum        string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
+	Id                   string
+	Mac                  string
+	Name                 string
+	Domain               string
+	Address              string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Protocol             string
+	Version              string
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	State                string
+	ModTime              int64
+	DynamicMethodRouting []interface{} // contains the method name and it routing policy. (ex: ["GetFile", "round-robin"])
 
 	TLS bool
 
@@ -391,7 +394,7 @@ func (srv *server) Init() error {
 	}
 
 	// Initialyse GRPC srv.
-	srv.grpcServer, err = globular.InitGrpcServer(srv /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
+	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -476,6 +479,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 	s_impl.KeepUpToDate = true
+	s_impl.DynamicMethodRouting = make([]interface{}, 1)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
@@ -484,6 +488,12 @@ func main() {
 		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
+
+	// Register the client function, so it can be use by the service.
+	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
+
+	// Set the dynamic method routing.
+	s_impl.DynamicMethodRouting[0] = map[string]interface{}{"name": "/echo.EchoService/Echo", "policy": "round-robin"}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
