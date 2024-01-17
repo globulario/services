@@ -562,6 +562,7 @@ func GetClientContext(client Client) context.Context {
 func InvokeClientRequest(client interface{}, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 	methodName := method[strings.LastIndex(method, "/")+1:]
 	var err error
+	
 	reply, err_ := Utility.CallMethod(client, methodName, []interface{}{ctx, rqst})
 	if err_ != nil {
 		if reflect.TypeOf(err_).Kind() == reflect.String {

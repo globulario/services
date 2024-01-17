@@ -7,13 +7,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
+	"github.com/fsnotify/fsnotify"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
@@ -705,6 +708,7 @@ var config_ map[string]interface{}
  * if lazy is set to true service will not be set in the configuration.
  */
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
+
 	if lazy && config_ != nil {
 		return config_, nil
 	}
@@ -1244,6 +1248,45 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 
 // Main loop to read and write configuration.
 func accesServiceConfigurationFile(services []map[string]interface{}) {
+
+	// so here I will set a watcher on the configuration file.
+	// I will use the fsnotify package to do so.
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		fmt.Println("fail to create watcher with error: ", err)
+		return
+	}
+
+	defer watcher.Close()
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+
+		defer close(ch)
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op == fsnotify.Write {
+					config_ = nil // force to reload the configuration.
+				}
+			}
+		}
+	}()
+
+	// Add the configuration file to the watcher.
+	configPath := GetConfigDir() + "/config.json"
+	err = watcher.Add(configPath)
+	
+	if err != nil {
+		fmt.Println("fail to add configuration file to watcher with error: ", err)
+		return
+	}
 
 	for {
 		select {

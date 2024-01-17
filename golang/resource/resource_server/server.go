@@ -834,7 +834,7 @@ func (srv *server) validatePassword(password string, hash string) error {
 /**
  * Register an Account.
  */
-func (srv *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
+func (srv *server) registerAccount(domain, id, name, email, password, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
 
 	fmt.Println("try to register account with name ", name, " and email ", email, " and domain ", domain)
 	localDomain, err := config.GetDomain()
@@ -933,14 +933,19 @@ func (srv *server) registerAccount(domain, id, name, email, password string, org
 			return err
 		}
 	} else if p.GetStoreType() == "SCYLLA" {
-		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %d};CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '', '', '', '');", name, srv.Backend_replication_factor, name, name, id, email)
+
+		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor': %d }; CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');", name, srv.Backend_replication_factor, name, name, id, email , first_name, last_name, middle_name, profile_picture)
+		
+		fmt.Println("---------------> ", createUserScript)
 		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
+			fmt.Println("---------------> ", err)
 			return err
 		}
 	}
 
 	// Here I will set user data in the database.
+
 
 	return err
 }

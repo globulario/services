@@ -124,7 +124,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 
 	}
 
-	err := srv.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
+	err := srv.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.FirstName, rqst.Account.LastName, rqst.Account.Middle, rqst.Account.ProfilePicture, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

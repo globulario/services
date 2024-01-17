@@ -1474,6 +1474,37 @@ func (store *ScyllaStore) DeleteCollection(ctx context.Context, connectionId str
 	return nil
 }
 
+func splitCQLScript(script string) []string {
+    var statements []string
+    var currentStatement strings.Builder
+
+    inString := false
+    for _, runeValue := range script {
+        char := string(runeValue)
+
+        // Toggle the inString flag if we encounter a single quote
+        if char == "'" {
+            inString = !inString
+        }
+
+        // Add the character to the current statement
+        currentStatement.WriteString(char)
+
+        // If we encounter a semicolon and we're not inside a string, end the current statement
+        if char == ";" && !inString {
+            statements = append(statements, strings.TrimSpace(currentStatement.String()))
+            currentStatement.Reset()
+        }
+    }
+
+    // Add any remaining part of the script as the last statement
+    if currentStatement.Len() > 0 {
+        statements = append(statements, strings.TrimSpace(currentStatement.String()))
+    }
+
+    return statements
+}
+
 func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
 
 	// I will get the host.
@@ -1521,7 +1552,7 @@ func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, 
 
 	// Execute the CREATE TABLE query
 	// Split the script into individual statements
-	statements := strings.Split(script, ";")
+	statements := splitCQLScript(script) //strings.Split(script, ";")
 	for _, statement := range statements {
 		// Remove leading/trailing spaces and execute the statement
 		statement = strings.TrimSpace(statement)

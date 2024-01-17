@@ -7,11 +7,10 @@ package interceptors
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -291,14 +290,16 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 }
 
 // That interceptor is use by all services to apply the dynamic method routing.
-func handleUnaryMethod(routing string, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
+func handleUnaryMethod(routing, token string, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 
 	// Here I will apply the policy.
 	if routing == "round-robin" {
+		ctx := context.Background()
+		ctx = metadata.AppendToOutgoingContext(ctx, "token", token)
 		return roundRobinUnaryMethodHandler(ctx, method, rqst)
 	}
 
-	return nil, errors.New("fail to invoke method " + method + " not implemented")
+	return nil, errors.New("fail to invoke method " + method + " routing " + routing + " not found")
 }
 
 // That interceptor is use by all services except the resource service who has
@@ -323,10 +324,13 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Here I will test if the
 	method := info.FullMethod
 
+	var routing string
+
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		// The application...
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
+		routing = strings.Join(md["routing"], "")
 	}
 
 	// If the call come from a local client it has hasAccess
@@ -392,7 +396,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var result interface{}
 
 	// Here I will try to call the method dynamically.
-	result, err = handleUnaryMethod(ctx, method, rqst)
+	result, err = handleUnaryMethod(routing, token, ctx, method, rqst)
 	if err == nil {
 		return result, err
 	}
@@ -442,7 +446,6 @@ func (l ServerStreamInterceptorStream) Context() context.Context {
 }
 
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
-
 	return l.inner.SendMsg(rqst)
 }
 
@@ -469,8 +472,6 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/repository.PackageRepository/DownloadBundle" {
 		return nil
 	}
-
-	//fmt.Print("ServerStreamInterceptorStream.RecvMsg ", l.method, " ", l.application, " ", l.token, " ", l.address, " ", l.clientId, " ", l.peer, " ", l.uuid, "\n")
 
 	// if the cache contain the uuid it means permission is allowed
 	_, ok := cache.Load(l.uuid)
@@ -505,6 +506,129 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	return nil
 }
 
+// The broadcast stream wrapper.
+type ServerStreamInterceptorBroadcastStream struct {
+	grpc.ServerStream
+	addresses []string // List of addresses to broadcast to
+	method    string   // The method to broadcast
+	token     string   // The token
+}
+
+// Context returns the context for this stream.
+func (b ServerStreamInterceptorBroadcastStream) Context() context.Context {
+	// I will create a new context with the token.
+	ctx := context.Background()
+	ctx = metadata.AppendToOutgoingContext(ctx, "token", b.token)
+	return ctx
+}
+
+// SetHeader sets the header metadata. It may be called multiple times.
+// Implementations must not modify the metadata map on the returned context.
+func (b ServerStreamInterceptorBroadcastStream) SetHeader(md metadata.MD) error {
+	return b.ServerStream.SetHeader(md)
+}
+
+// SendHeader sends the header metadata. The provided metadata can be prepared
+// using the metadata.New function.
+func (b ServerStreamInterceptorBroadcastStream) SendHeader(md metadata.MD) error {
+	return b.ServerStream.SendHeader(md)
+}
+
+// SetTrailer sets the trailer metadata which will be sent with the status.
+func (b ServerStreamInterceptorBroadcastStream) SetTrailer(md metadata.MD) {
+	b.ServerStream.SetTrailer(md)
+}
+
+// SendMsg sends a message to the client.
+func (b ServerStreamInterceptorBroadcastStream) SendMsg(m interface{}) error {
+	return b.ServerStream.SendMsg(m)
+}
+
+// RecvMsg receives a message from the client.
+func (b ServerStreamInterceptorBroadcastStream) RecvMsg(m interface{}) error {
+
+	// First, receive the message from the stream
+	if err := b.ServerStream.RecvMsg(m); err != nil {
+		return err
+	}
+
+	// Now that m is populated, you can broadcast it
+	b.Broadcast(m)
+
+
+	return nil
+}
+
+// BroadcastAndAggregate handles the broadcasting of the request and aggregation of the responses.
+func (b *ServerStreamInterceptorBroadcastStream) Broadcast(req interface{}) {
+
+	// A wait group to wait for all goroutines to finish
+	var wg sync.WaitGroup
+
+	// Send request to each address
+	for _, addr := range b.addresses {
+		wg.Add(1) // Increment the wait group counter
+
+		go func(address string) {
+			defer wg.Done() // Decrement the wait group counter when the goroutine completes
+
+			// Here, send the request to the server at `address`
+			// For example, this could be a gRPC client call
+			serviceName := b.method[1:][0:strings.Index(b.method[1:], "/")]
+			err := b.sendRequestToServer(b.Context(), serviceName, b.method, address, req)
+
+			if err != nil {
+				fmt.Println("error sending request to server: ", err)
+			}
+
+		}(addr)
+	}
+
+	// Wait for all requests to complete
+	wg.Wait()
+
+}
+
+func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context.Context, serviceName, method, address string, rqst interface{})  error {
+
+	// Create a client connection to the server at `address`
+	// Send the `req` and receive a response
+	// This will depend on your specific gRPC setup and request/response types
+	// ...
+	client, err := getClient(address, serviceName)
+	if err != nil {
+		return err
+	}
+
+	// Here I will call the method on the peer.
+	stream, err := client.Invoke(method, rqst, ctx)
+	if err != nil {
+		return  err
+	}
+
+	// Read from the stream
+	for {
+		resp, err := Utility.CallMethod(stream, "Recv", []interface{}{})
+		if err != nil {
+			if err.(error) == io.EOF {
+				// End of the stream
+				break
+			} else {
+				return  err.(error)
+			}
+		}
+
+		// send the response back
+		b.SendMsg(resp)
+		
+	}
+
+	return nil
+
+}
+
+
+
 // Stream interceptor.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 
@@ -523,14 +647,12 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	method := info.FullMethod
+	routing := ""
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-
-		// In that case the request must be process by other peer so I will redirect
-		// the request to that peer and return it response.
-		//address = strings.ToLower(strings.TrimSpace(strings.Join(md["domain"], "")))
+		routing = strings.Join(md["routing"], "")
 	}
 
 	var clientId string
@@ -542,6 +664,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
+
 		if err != nil && !hasAccess {
 			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			fmt.Println(token)
@@ -556,13 +679,38 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		issuer = claims.Issuer
 	}
 
-	//fmt.Println("---------> ServerStreamInterceptor", method, application, token, address)
-
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()
 
-	// Start streaming.
-	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
+	if routing == "broadcasting" {
+		// Here I will get the list of peers...
+		config_, err := config.GetLocalConfig(true)
+		if err != nil {
+			return err
+		}
+
+		// Here I will get the list of peers...
+		peers := config_["Peers"].([]interface{})
+		if len(peers) == 0 {
+			return errors.New("no peers found")
+		}
+
+		// Here I will get the list of addresses...
+		addresses := make([]string, len(peers))
+		for i := 0; i < len(peers); i++ {
+			peer := peers[i].(map[string]interface{})
+			addresses[i] = peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":" + Utility.ToString(peer["Port"])
+		}
+
+		// I will also add the local address.
+		addresses = append(addresses, address)
+
+		// Now I will call the handler with the broadcast stream.
+		err = handler(srv, ServerStreamInterceptorBroadcastStream{ServerStream: stream, addresses: addresses, method: method, token: token})
+
+	} else {
+		err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
+	}
 
 	if err != nil {
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
