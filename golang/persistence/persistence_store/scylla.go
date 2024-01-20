@@ -569,11 +569,11 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						var err error
 						entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 						if err != nil {
-							fmt.Println("error inserting data into array table: ", typeName, err)
+							fmt.Println("572 error inserting data into array table " + keyspace + "." + typeName, err)
 						}
 
 						// I will get the entity id.
-						_id := Utility.ToInt(entity["_id"])
+						_id := Utility.ToString(entity["_id"])
 						sourceCollection := tableName
 
 						// He I will create the reference table.
@@ -593,7 +593,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Println("598 Error inserting data into array table " + sourceCollection + "_" + field , err)
+							fmt.Println("Query: ", insertSQL)
 						}
 					} else if entity["$ref"] != nil {
 						typeName := entity["$ref"].(string)
@@ -605,7 +606,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						typeName = strings.Title(typeName)
 
 						// I will get the entity id.
-						_id := Utility.ToInt(entity["$id"])
+						_id := Utility.ToString(entity["$id"])
 						sourceCollection := tableName
 
 						// He I will create the reference table.
@@ -625,7 +626,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("Error inserting data into array table: ", err)
+							fmt.Println("631 Error inserting data into array table " + sourceCollection + "_" + field, err)
+							fmt.Println("Query: ", insertSQL, parameters)
 						}
 					}
 
@@ -648,7 +650,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 					err = session.Query(insertSQL, parameters...).Exec()
 					if err != nil {
-						fmt.Println("Error inserting data into array table: ", err)
+						fmt.Println("655 Error inserting data into array table " + keyspace + "." + arrayTableName, err)
+						fmt.Println("Query: ", insertSQL)
 					}
 				}
 			}
@@ -671,11 +674,11 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				var err error
 				entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 				if err != nil {
-					fmt.Println("Error inserting data into array table: ", err)
+					fmt.Println("679 Error inserting data into array table " + keyspace + "." + typeName, err)
 				}
 
 				// I will get the entity id.
-				_id := Utility.ToInt(entity["_id"])
+				_id := Utility.ToString(entity["_id"])
 				sourceCollection := tableName
 				field := column
 
@@ -696,7 +699,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("Error inserting data into array table: ", err)
+					fmt.Println("704 Error inserting data into array table " +  sourceCollection + "_" + field + " with error:", err)
+					fmt.Println("Query: ", insertSQL)
 				}
 			} else if entity["$ref"] != nil {
 				typeName := entity["$ref"].(string)
@@ -709,7 +713,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				typeName = strings.Title(typeName)
 
 				// I will get the entity id.
-				_id := Utility.ToInt(entity["$id"])
+				_id := Utility.ToString(entity["$id"])
 				sourceCollection := tableName
 				field := column
 
@@ -730,7 +734,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("Error inserting data into array table: ", err)
+					fmt.Println("739 Error inserting data into array table " + sourceCollection + "_" + field , err)
+					fmt.Println("Query: ", insertSQL)
 				}
 
 			}
@@ -821,7 +826,6 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 				if key == "_id" {
 					key = "id"
 					if strings.Contains(v.(string), "@") {
-						//fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
 						v = strings.Split(v.(string), "@")[0]
 					}
 				}
@@ -843,7 +847,6 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 				if key == "_id" {
 					key = "id"
 					if strings.Contains(v.(string), "@") {
-						//fmt.Println("------------------> domain ", strings.Split(v.(string), "@")[1])
 						v = strings.Split(v.(string), "@")[0]
 					}
 				}
@@ -882,7 +885,6 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 			if key == "_id" {
 				key = "id"
 				if strings.Contains(value.(string), "@") {
-					//fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
 					value = strings.Split(value.(string), "@")[0]
 				}
 			}
@@ -1175,6 +1177,7 @@ func (store *ScyllaStore) deleteEntity(connectionId string, keyspace string, tab
 
 	// Now I will delete the references.
 	for column, value := range entity {
+
 		if reflect.TypeOf(value).Kind() == reflect.Slice {
 
 			sliceValue := reflect.ValueOf(value)
@@ -1192,6 +1195,13 @@ func (store *ScyllaStore) deleteEntity(connectionId string, keyspace string, tab
 						// I will delete the reference.
 						query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
 						err := session.Query(query, entity["_id"], entity_["id"]).Exec()
+						if err == nil {
+							fmt.Println("reference deleted: ", query)
+						}
+					}else if entity_["$ref"] != nil {
+						// I will delete the reference.
+						query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
+						err := session.Query(query, entity["_id"], entity_["$id"]).Exec()
 						if err == nil {
 							fmt.Println("reference deleted: ", query)
 						}

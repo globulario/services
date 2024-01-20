@@ -429,7 +429,6 @@ message Group {
   string description = 4;           // Description of the group.
   repeated string members = 5;      // Members of the group, can be empty.
   repeated string organizations = 6;// Organizations associated with the group, can be empty.
-
   string typeName = 7;              // Type information about the object.
 }
 

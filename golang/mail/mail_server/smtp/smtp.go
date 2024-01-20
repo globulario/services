@@ -66,7 +66,6 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		}
 
 		for _, mx := range mxs {
-			fmt.Println("-------------> 63 dial ", mx.Host+":25")
 			c, err := smtp.Dial(mx.Host + ":25")
 			if err != nil {
 				if err != nil {

@@ -1455,7 +1455,12 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 					query := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", arrayTableName, table)
 
 					parameters := make([]interface{}, 0)
-					parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
+
+					if entity.(map[string]interface{})["_id"] != nil {
+						parameters = append(parameters, entity.(map[string]interface{})["_id"]) // append the object id...
+					} else if entity.(map[string]interface{})["$id"] != nil {
+						parameters = append(parameters, entity.(map[string]interface{})["$id"]) // append the object id...
+					}
 
 					// Execute the query
 					_, err := store.ExecContext(connectionId, db, query, parameters, 0)

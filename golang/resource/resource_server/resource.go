@@ -193,6 +193,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	}
 
 	q := `{"_id":"` + accountId + `"}`
+
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		fmt.Println("fail to retreive account:", accountId, " from database with error:", err.Error())
@@ -272,13 +273,12 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	db += "_db"
 
-	q = `{"$and":[{"_id":"` + accountId + `", "domain":"` + a.Domain + `"}]}`
-
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
 
+			// Now I will get the user data from the user database.
 			user_data_ := user_data.(map[string]interface{})
 			if user_data_["profile_picture"] != nil {
 				a.ProfilePicture = user_data_["profile_picture"].(string)
@@ -292,7 +292,26 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 			if user_data_["middle_name"] != nil {
 				a.Middle = user_data_["middle_name"].(string)
 			}
+
+			// try camel case.
+			if user_data_["profilePicture"] != nil {
+				a.ProfilePicture = user_data_["profilePicture"].(string)
+			}
+			if user_data_["firstName"] != nil {
+				a.FirstName = user_data_["firstName"].(string)
+			}
+			if user_data_["lastName"] != nil {
+				a.LastName = user_data_["lastName"].(string)
+			}
+			if user_data_["middleName"] != nil {
+				a.Middle = user_data_["middleName"].(string)
+			}
 		}
+	}else{
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		
 	}
 
 	return &resourcepb.GetAccountRsp{
@@ -410,10 +429,10 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 	}
 
 	// Set the query.
-	q := `{"_id":"` + rqst.Account.Id + `"}`
+	q := `{"_id":"` +  rqst.Account.Id + `"}`
 
 	// Set the field and the values to update.
-	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email, "domain": srv.Domain}}
+	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email}}
 	setAccount_, _ := Utility.ToJson(setAccount)
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount_, "")
@@ -433,27 +452,14 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 
 	db += "_db"
 
-	q = `{"_id":"` + rqst.Account.Id + `"}`
+	setUserData := map[string]interface{}{"$set": map[string]interface{}{"profile_picture": rqst.Account.ProfilePicture, "first_name": rqst.Account.FirstName, "last_name": rqst.Account.LastName, "middle_name": rqst.Account.Middle}}
+	setUserData_, _ := Utility.ToJson(setUserData)
 
-	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
-	if err == nil {
-		// set the user infos....
-		if user_data != nil {
-			user_data_ := user_data.(map[string]interface{})
-			if user_data_["profile_picture"] != nil {
-				rqst.Account.ProfilePicture = user_data_["profile_picture"].(string)
-			}
-			if user_data_["first_name"] != nil {
-				rqst.Account.FirstName = user_data_["first_name"].(string)
-			}
-			if user_data_["last_name"] != nil {
-				rqst.Account.LastName = user_data_["last_name"].(string)
-			}
-			if user_data_["middle_name"] != nil {
-				rqst.Account.Middle = user_data_["middle_name"].(string)
-			}
-
-		}
+	err = p.UpdateOne(context.Background(), "local_resource", db, "user_data", q, setUserData_, ``)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.SetAccountRsp{}, nil
@@ -579,6 +585,19 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 				}
 				if user_data_["middle_name"] != nil {
 					a.Middle = user_data_["middle_name"].(string)
+				}
+
+				if user_data_["profilePicture"] != nil {
+					a.ProfilePicture = user_data_["profilePicture"].(string)
+				}
+				if user_data_["firstName"] != nil {
+					a.FirstName = user_data_["firstName"].(string)
+				}
+				if user_data_["lastName"] != nil {
+					a.LastName = user_data_["lastName"].(string)
+				}
+				if user_data_["middleName"] != nil {
+					a.Middle = user_data_["middleName"].(string)
 				}
 			}
 		}
@@ -1732,7 +1751,7 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	db = strings.ReplaceAll(db, " ", "_")
 
 	// Here I will set the resource to manage the applicaiton access permission.
-	if err != nil || count == 0 {
+	if count == 0 {
 
 		var createApplicationDbScript string
 		if p.GetStoreType() == "MONGO" {

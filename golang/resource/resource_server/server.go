@@ -690,9 +690,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		// Connect to the store.
 		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
 		if err != nil {
-			fmt.Println("---------------> fail to connect store with error ", err)
 			os.Exit(1)
-			//return nil, err
 		}
 
 		err = srv.store.Ping(context.Background(), "local_resource")
@@ -853,7 +851,7 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	}
 
 	// Check if the account already exist.
-	q := `{"$and":[{"_id":"` + id + `"},{"domain":"` + domain + `"}]}`
+	q := `{"_id":"` + id + `"}`
 
 	// first of all the Persistence service must be active.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -935,11 +933,8 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	} else if p.GetStoreType() == "SCYLLA" {
 
 		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor': %d }; CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');", name, srv.Backend_replication_factor, name, name, id, email , first_name, last_name, middle_name, profile_picture)
-		
-		fmt.Println("---------------> ", createUserScript)
 		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
-			fmt.Println("---------------> ", err)
 			return err
 		}
 	}
@@ -1037,6 +1032,7 @@ func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, t
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
