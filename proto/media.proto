@@ -1,0 +1,273 @@
+syntax = "proto3";
+package media;
+
+// Specify the Go package where the generated code will reside.
+option go_package="github.com/globulario/services/golang/media/mediapb";
+
+
+// Request to create a video preview.
+message CreateVideoPreviewRequest {
+    string path = 1;   // The path of the video file.
+    int32 nb = 2;      // Number of preview images to generate.
+    int32 height = 3;  // Height of the preview images.
+}
+
+
+message CreateVideoPreviewResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message CreateVideoTimeLineRequest {
+    string path = 1;  // The path of the video file.
+    int32 width = 2;  // Width of the timeline images.
+    float fps = 3;    // Frames per second for the timeline.
+}
+
+message CreateVideoTimeLineResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message ConvertVideoToMpeg4H264Request {
+    string path = 1;  // The path of the video file to convert.
+}
+
+message ConvertVideoToMpeg4H264Response {
+    string output = 1; // Information about the conversion process.
+}
+
+message ConvertVideoToHlsRequest {
+    string path = 1;  // The path of the video file to convert.
+}
+
+message ConvertVideoToHlsResponse {
+    string output = 1; // Information about the conversion process.
+}
+
+// Request to start processing a video.
+message StartProcessVideoRequest {
+    string path = 1;  // Path of the video to process. If empty, processes all videos.
+}
+
+message StartProcessVideoResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+// Request to start processing audio.
+message StartProcessAudioRequest {
+    string path = 1;  // Path of the audio to process. If empty, processes all audio.
+}
+
+message StartProcessAudioResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+// Request to check if video processing is ongoing.
+message IsProcessVideoRequest {
+    // No fields required for this request.
+}
+
+// Response to indicate if video processing is ongoing.
+message IsProcessVideoResponse {
+    bool isProcessVideo = 1; // True if video processing is currently running.
+}
+
+
+// Request to upload a video.
+message UploadVideoRequest {
+    string url = 1;    // URL of the video to upload.
+    string dest = 2;   // Destination path for the uploaded video.
+    string format = 3; // Desired format of the video (e.g., mp3, mp4).
+}
+
+// Response to video upload request.
+message UploadVideoResponse {
+    int32 pid = 1;    // Process ID of the upload task.
+    string result = 2; // Result of the upload process.
+}
+
+/// Stop process video.
+message StopProcessVideoRequest {
+    // No fields required for this request.
+}
+
+message StopProcessVideoResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message SetVideoConversionRequest {
+    bool value = 1; // Boolean to enable or disable video conversion.
+}
+
+message SetVideoConversionResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message SetVideoStreamConversionRequest {
+    bool value = 1; // Boolean to enable or disable video stream conversion.
+}
+
+message SetVideoStreamConversionResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message SetStartVideoConversionHourRequest {
+    string value = 1; // The start hour for video conversion.
+}
+
+message SetStartVideoConversionHourResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message SetMaximumVideoConversionDelayRequest {
+    string value = 1; // The maximum delay for video conversion.
+}
+
+message SetMaximumVideoConversionDelayResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message VideoConversionError {
+    string path = 1;  // Path of the video file.
+    string error = 2; // Error message encountered during conversion.
+}
+
+message GetVideoConversionErrorsRequest {
+    // No fields required for this request.
+}
+
+message GetVideoConversionErrorsResponse {
+    repeated VideoConversionError errors = 1; // List of video conversion errors.
+}
+
+message ClearVideoConversionErrorsRequest {
+    // No fields required for this request.
+}
+
+message ClearVideoConversionErrorsResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message ClearVideoConversionErrorRequest {
+    string path = 1; // Path of the video file for which to clear the error.
+}
+
+message ClearVideoConversionErrorResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message ClearVideoConversionLogsRequest {
+    // No fields required for this request.
+}
+
+message ClearVideoConversionLogsResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message VideoConversionLog {
+    string path = 1;     // Path of the video file.
+    string msg = 2;      // Log message.
+    int64 log_time = 3;  // Timestamp of the log entry.
+    string status = 4;   // Status of the conversion process.
+}
+
+message GetVideoConversionLogsRequest {
+    // No fields required for this request.
+}
+
+message GetVideoConversionLogsResponse {
+    repeated VideoConversionLog logs = 1; // List of video conversion logs.
+}
+
+// Request to generate a playlist for a given directory.
+message GeneratePlaylistRequest {
+    string dir = 1; // Directory for which to generate the playlist.
+}
+
+message GeneratePlaylistResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message CreateVttFileRequest {
+    string path = 1; // Path of the video file.
+    float fps = 2;   // Frames per second for the timeline.
+}
+
+message CreateVttFileResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+message StopRequest {
+    // No fields required for this request.
+}
+
+message StopResponse {
+    // This message is empty as the response does not require specific data.
+}
+
+// Media service definition.
+service MediaService {
+	
+  	// Stop the server.
+  	// This RPC allows the client to request the server to stop.
+  	rpc Stop(StopRequest) returns (StopResponse);
+
+    // Upload a video from a URL (e.g., YouTube, Hulu, Pornhub).
+    rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse);
+
+    // Create a video preview.
+    rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse);
+
+    // Create a video timeline.
+    rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse);
+
+    // Convert a video file to MPEG-4 AVC (H.264) format.
+    rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response);
+
+    // Convert a video file to HLS (HTTP Live Streaming) format.
+    rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse);
+
+    // Start processing video on the server.
+    rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse);
+
+    // Start processing audio on the server.
+    rpc StartProcessAudio(StartProcessAudioRequest) returns (StartProcessAudioResponse);
+
+    // Stop processing video on the server.
+    rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse);
+
+    // Check if video processing is currently running.
+    rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse);
+
+    // Set video processing configuration.
+    rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse);
+
+    // Set video stream conversion configuration.
+    rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse);
+
+    // Set the start hour for video conversion.
+    rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse);
+
+    // Set the maximum delay for video conversion.
+    rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse);
+
+    // Retrieve the list of failed video conversions.
+    rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse);
+
+    // Clear all video conversion errors.
+    rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse);
+
+    // Clear a specific video conversion error.
+    rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse);
+
+    // Clear video conversion logs.
+    rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse);
+
+    // Retrieve video conversion logs.
+    rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse);
+
+    // Generate playlists for a directory.
+    rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse);
+
+    // Create a VTT file for a video.
+    rpc CreateVttFile(CreateVttFileRequest) returns (CreateVttFileResponse);
+}

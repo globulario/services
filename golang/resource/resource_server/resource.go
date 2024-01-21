@@ -3356,7 +3356,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	if rqst.Organization.Domain != localDomain {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you can't register group "+rqst.Organization.Id+" with domain "+rqst.Organization.Domain+" on domain "+localDomain)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you can't register organization "+rqst.Organization.Id+" with domain "+rqst.Organization.Domain+" on domain "+localDomain)))
 	}
 
 	// No authorization exist for that peer I will insert it.
@@ -3366,7 +3366,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	o["name"] = rqst.Organization.Name
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email
-	o["description"] = rqst.Organization.Email
+	o["description"] = rqst.Organization.Description
 	o["domain"] = srv.Domain
 
 	// Those are the list of entity linked to the organization

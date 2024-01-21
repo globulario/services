@@ -243,8 +243,8 @@ func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thum
 	rqst := &filepb.ReadDirRequest{
 		Path:           Utility.ToString(path),
 		Recursive:      Utility.ToBool(recursive),
-		ThumnailHeight: int32(Utility.ToInt(thumbnailHeight)),
-		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
+		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
+		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
 	stream, err := client.c.ReadDir(client.GetCtx(), rqst)
@@ -395,8 +395,8 @@ func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, 
 
 	rqst := &filepb.GetFileInfoRequest{
 		Path:           Utility.ToString(path),
-		ThumnailHeight: int32(Utility.ToInt(thumbnailHeight)),
-		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
+		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
+		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
 	rsp, err := client.c.GetFileInfo(client.GetCtx(), rqst)
@@ -500,8 +500,8 @@ func (client *File_Client) GetThumbnails(path interface{}, recursive interface{}
 	rqst := &filepb.GetThumbnailsRequest{
 		Path:           Utility.ToString(path),
 		Recursive:      Utility.ToBool(recursive),
-		ThumnailHeight: int32(Utility.ToInt(thumbnailHeight)),
-		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
+		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
+		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
 	stream, err := client.c.GetThumbnails(client.GetCtx(), rqst)
@@ -545,7 +545,7 @@ func (client *File_Client) HtmlToPdf(html string) ([]byte, error) {
  * Create an archive containing files listed by paths.
  * Return the address of the created archive on the server.
  */
-func (client *File_Client) CreateAchive(token string, paths []string, name string) (string, error) {
+func (client *File_Client) CreateArchive(token string, paths []string, name string) (string, error) {
 	rqst := &filepb.CreateArchiveRequest{Paths: paths, Name: name}
 	ctx := client.GetCtx()
 	if len(token) > 0 {
@@ -557,7 +557,7 @@ func (client *File_Client) CreateAchive(token string, paths []string, name strin
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := client.c.CreateAchive(ctx, rqst)
+	rsp, err := client.c.CreateArchive(ctx, rqst)
 
 	if err != nil {
 		return "", err

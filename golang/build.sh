@@ -12,6 +12,7 @@ go build  -buildvcs=false -o ./dns/dns_server ./dns/dns_server
 go build  -buildvcs=false -o ./echo/echo_server ./echo/echo_server
 go build  -buildvcs=false -o ./event/event_server ./event/event_server
 go build  -buildvcs=false -o ./file/file_server ./file/file_server
+go build  -buildvcs=false -o ./media/media_server ./media/media_server
 go build  -buildvcs=false -o ./ldap/ldap_server ./ldap/ldap_server
 go build  -buildvcs=false -o ./log/log_server ./log/log_server
 go build  -buildvcs=false -o ./mail/mail_server ./mail/mail_server

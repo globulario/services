@@ -11,6 +11,7 @@ protoc proto/rbac.proto -I proto --go-grpc_out=require_unimplemented_servers=fal
 protoc proto/log.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
 protoc proto/dns.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
 protoc proto/echo.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
+protoc proto/media.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
 protoc proto/search.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
 protoc proto/event.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
 protoc proto/storage.proto -I proto --go-grpc_out=require_unimplemented_servers=false:../../../ --go_out=../../../
@@ -57,6 +58,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/disc
 mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto
+mkdir typescript/media
+protoc --js_out=import_style=commonjs:typescript/media  -I ./proto/ media.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/media -I ./proto/ media.proto
 mkdir typescript/blog
 protoc --js_out=import_style=commonjs:typescript/blog  -I ./proto/ blog.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/blog -I ./proto/ blog.proto
