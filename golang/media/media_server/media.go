@@ -721,6 +721,10 @@ func getVideoPaths(dirs []string) []string {
 					return err
 				}
 
+				if strings.Contains(path, ".hidden") {
+					return nil // not hidden file...
+				}
+
 				if info == nil {
 					return errors.New("fail to get info for path " + path)
 				}
@@ -734,7 +738,7 @@ func getVideoPaths(dirs []string) []string {
 					}
 				} else {
 					path_ := strings.ReplaceAll(path, "\\", "/")
-					if !strings.Contains(path_, ".hidden") && !strings.Contains(path_, ".temp") {
+					if !strings.Contains(path_, ".temp") {
 						if strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
 							medias = append(medias, path_)
 						}
@@ -749,42 +753,46 @@ func getVideoPaths(dirs []string) []string {
 }
 
 func getVideoInfoPaths(dirs []string) []string {
-
-	// Here I will use at most one concurrent ffmeg...
+	fmt.Println("get video info paths", dirs)
 	medias := make([]string, 0)
+
 	for _, dir := range dirs {
-		filepath.Walk(dir,
-			func(path string, info os.FileInfo, err error) error {
-
-				if err != nil {
-					return err
-				}
-
-				if info == nil {
-					return errors.New("fail to get info for path " + path)
-				}
-
-				if info.IsDir() {
-					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
-					if err == nil && isEmpty {
-						// remove empty dir...
-						os.RemoveAll(path + "/" + info.Name())
-					}
-				}
-				if err != nil {
-					return err
-				}
-
-				path_ := strings.ReplaceAll(path, "\\", "/")
-				if strings.HasSuffix(path_, ".info.json") {
-					medias = append(medias, path_)
-				}
-
+		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			// Skip processing if the path contains ".hidden"
+			if strings.Contains(path, "__timeline__") || strings.Contains(path, "__preview__") || strings.Contains(path, "__thumbnail__") {
 				return nil
-			})
+			}
+
+			fmt.Println("get video info paths", path)
+			if err != nil {
+				return err
+			}
+
+			if info == nil {
+				return errors.New("fail to get info for path " + path)
+			}
+
+			if info.IsDir() {
+				isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
+				if err == nil && isEmpty {
+					// remove empty dir...
+					os.RemoveAll(path + "/" + info.Name())
+				}
+			}
+			if err != nil {
+				return err
+			}
+
+			path_ := strings.ReplaceAll(path, "\\", "/")
+			if strings.HasSuffix(path_, ".info.json") {
+				medias = append(medias, path_)
+			}
+
+			return nil
+		})
 	}
 
-	// Return the list of file to be process...
+	fmt.Println("found ", len(medias), " video info to process")
 	return medias
 }
 
@@ -1555,7 +1563,7 @@ func createVttFile(output string, fps float32) error {
 
 // Create a VTT file for a video.
 func (s *server) CreateVttFile(ctx context.Context, rqst *mediapb.CreateVttFileRequest) (*mediapb.CreateVttFileResponse, error) {
-	
+
 	err := createVttFile(rqst.Path, rqst.Fps)
 	if err != nil {
 		return nil, err
@@ -2194,7 +2202,7 @@ func (srv *server) generatePlaylist(path, token string) error {
 
 	for i := 0; i < len(infos); i++ {
 		filename := filepath.Join(path, infos[i].Name())
-		info, err := srv.getFileInfo(filename)
+		info, err := srv.getFileInfo(token, filename)
 
 		if err == nil {
 
@@ -2207,7 +2215,7 @@ func (srv *server) generatePlaylist(path, token string) error {
 					json.Unmarshal(data, &info_)
 					path := srv.formatPath(info_["path"].(string))
 					if Utility.Exists(path) {
-						info, _ = srv.getFileInfo(filename)
+						info, _ = srv.getFileInfo(token, filename)
 						filename = path
 					}
 				}
@@ -2334,6 +2342,11 @@ func (srv *server) CreateVideoTimeLine(ctx context.Context, rqst *mediapb.Create
 // Convert a file from mkv, avi or other format to MPEG-4 AVC
 func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.ConvertVideoToMpeg4H264Request) (*mediapb.ConvertVideoToMpeg4H264Response, error) {
 
+	token, _, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
 		return nil, status.Errorf(
@@ -2341,7 +2354,7 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
 
-	info, err := srv.getFileInfo(path_)
+	info, err := srv.getFileInfo(token, path_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2407,6 +2420,12 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 // the streams for various resolutions. (see script create-vod-hls.sh for more info)
 func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertVideoToHlsRequest) (*mediapb.ConvertVideoToHlsResponse, error) {
 
+	// Done with upload now I will porcess videos
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
 		return nil, status.Errorf(
@@ -2418,7 +2437,7 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertV
 		return nil, errors.New("no file found at path " + path_)
 	}
 
-	info, err := srv.getFileInfo(path_)
+	info, err := srv.getFileInfo(token, path_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3100,6 +3119,7 @@ func (srv *server) StartProcessAudio(ctx context.Context, rqst *mediapb.StartPro
 // Start process video on the server.
 func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartProcessVideoRequest) (*mediapb.StartProcessVideoResponse, error) {
 
+	fmt.Println("Start Process Video ", rqst.Path)
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err

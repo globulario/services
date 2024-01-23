@@ -391,7 +391,16 @@ func (client *File_Client) DeleteDir(token, path string) error {
 /**
  * Get a single file info.
  */
-func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (*filepb.FileInfo, error) {
+func (client *File_Client) GetFileInfo(token string, path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (*filepb.FileInfo, error) {
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
 
 	rqst := &filepb.GetFileInfoRequest{
 		Path:           Utility.ToString(path),
@@ -399,7 +408,7 @@ func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, 
 		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
-	rsp, err := client.c.GetFileInfo(client.GetCtx(), rqst)
+	rsp, err := client.c.GetFileInfo(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -410,10 +419,20 @@ func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, 
 /**
  * That function move a file from a directory to another... (mv) in unix.
  */
-func (client *File_Client) MoveFile(path interface{}, dest interface{}) error {
+func (client *File_Client) MoveFile(token string, path interface{}, dest interface{}) error {
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
 
 	// Open the stream...
-	stream, err := client.c.SaveFile(client.GetCtx())
+	stream, err := client.c.SaveFile(ctx)
 	if err != nil {
 		return err
 	}
@@ -565,3 +584,16 @@ func (client *File_Client) CreateArchive(token string, paths []string, name stri
 
 	return rsp.Result, nil
 }
+
+/**
+ * Return the list of public directories.
+ */
+func (client *File_Client)  GetPublicDirs() ([]string, error){
+	rqst := &filepb.GetPublicDirsRequest{}
+	rsp, err := client.c.GetPublicDirs(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Dirs, nil
+}
+ 

@@ -108,9 +108,6 @@ type server struct {
 	// The root path of the file server.
 	Root string
 
-	// Public contain a list of paths reachable by the file srv.
-	Public []string
-
 	// Define the backend to use as cache it can be scylla, badger or leveldb the default is bigcache a memory cache.
 	CacheType string
 
@@ -487,9 +484,14 @@ func (srv *server) Stop(context.Context, *mediapb.StopRequest) (*mediapb.StopRes
 // Return true if the file is found in the public path...
 func (srv *server) isPublic(path string) bool {
 	path = strings.ReplaceAll(path, "\\", "/")
+	publics, err := srv.getPublicDirs()
+	if err != nil {
+		return false
+	}
+
 	if Utility.Exists(path) {
-		for i := 0; i < len(srv.Public); i++ {
-			if strings.HasPrefix(path, srv.Public[i]) {
+		for i := 0; i < len(publics); i++ {
+			if strings.HasPrefix(path, publics[i]) {
 				return true
 			}
 		}
@@ -552,7 +554,22 @@ func (srv *server) getFileClient() (*file_client.File_Client, error) {
 	return client.(*file_client.File_Client), nil
 }
 
-func (srv *server) getFileInfo(path string) (*filepb.FileInfo, error) {
+func (srv *server) getPublicDirs() ([]string, error) {
+	client, err := srv.getFileClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the public dir.
+	public, err := client.GetPublicDirs()
+	if err != nil {
+		return nil, err
+	}
+
+	return public, nil
+}
+
+func (srv *server) getFileInfo(token, path string) (*filepb.FileInfo, error) {
 	// Try to get the file info from the cache.
 	data_, err := cache.GetItem(path)
 	if err == nil {
@@ -570,7 +587,7 @@ func (srv *server) getFileInfo(path string) (*filepb.FileInfo, error) {
 	}
 
 	// Get the file info.
-	fileInfo, err := file_client.GetFileInfo(path, false, -1, -1)
+	fileInfo, err := file_client.GetFileInfo(token, path, false, -1, -1)
 	if err != nil {
 		return nil, err
 	}
