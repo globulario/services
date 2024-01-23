@@ -472,7 +472,7 @@ export function createArchive(
   rqst.setName(name);
 
   globular.fileService
-    .createAchive(rqst, {
+    .createArchive(rqst, {
       token:token,
       application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,  address: address,
@@ -616,8 +616,8 @@ export function readDir(
   rqst.setPath(path);
   rqst.setRecursive(recursive);
 
-  rqst.setThumnailheight(thumbnail_height);
-  rqst.setThumnailwidth(thumbnail_width);
+  rqst.setThumbnailheight(thumbnail_height);
+  rqst.setThumbnailwidth(thumbnail_width);
 
   const stream = globular.fileService.readDir(rqst, {
     token:token,

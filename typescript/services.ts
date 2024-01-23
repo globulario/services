@@ -25,6 +25,7 @@ import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 import { TitleServicePromiseClient } from './title/title_grpc_web_pb';
 import { TorrentServicePromiseClient } from './torrent/torrent_grpc_web_pb';
+import { MediaServicePromiseClient } from './media/media_grpc_web_pb';
 
 /**
  * The service configuration information.
@@ -767,6 +768,31 @@ export class Globular {
       })
     }
     return this._logService;
+  }
+
+  private _mediaService: MediaServicePromiseClient
+  public get mediaService(): MediaServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._mediaService == null) {
+      let configs = this.getConfigs('media.MediaService')
+      configs.forEach((config: IServiceConfig) => {
+        let serviceAddress = config.Address.split(":")[0]
+        if (serviceAddress == "localhost") {
+          serviceAddress = this.address
+        }
+        this._mediaService = new MediaServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          serviceAddress +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._mediaService
+      })
+    }
+    return this._mediaService;
   }
 
   private _blogService: BlogServicePromiseClient

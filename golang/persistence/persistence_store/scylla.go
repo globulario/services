@@ -572,8 +572,18 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 							fmt.Println("572 error inserting data into array table " + keyspace + "." + typeName, err)
 						}
 
+						var _id string
+
 						// I will get the entity id.
-						_id := Utility.ToString(entity["_id"])
+						if entity["id"] != nil {
+							_id =  Utility.ToString(entity["id"])
+						}else if entity["_id"] != nil {
+							_id =  Utility.ToString(entity["_id"])
+						} else {
+							return nil, errors.New("the entity does not have an id")
+						}
+
+						
 						sourceCollection := tableName
 
 						// He I will create the reference table.
