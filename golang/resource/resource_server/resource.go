@@ -1198,7 +1198,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 
 	for i := 0; i < len(roles); i++ {
 		role := roles[i].(map[string]interface{})
-		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
+		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Description: role["description"].(string), Actions: make([]string, 0)}
 
 		if role["domain"] != nil {
 			r.Domain = role["domain"].(string)
@@ -1714,7 +1714,7 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 
 	q := `{"_id":"` + app.Id + `"}`
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", q, "")
+	_, err = p.Count(context.Background(), "local_resource", "local_resource", "Applications", q, "")
 
 	application := make(map[string]interface{}, 0)
 	application["_id"] = app.Id
@@ -1751,7 +1751,7 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	db = strings.ReplaceAll(db, " ", "_")
 
 	// Here I will set the resource to manage the applicaiton access permission.
-	if count == 0 {
+	if err != nil {
 
 		var createApplicationDbScript string
 		if p.GetStoreType() == "MONGO" {
@@ -2016,11 +2016,13 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 
 	application := values.(map[string]interface{})
 	needSave := false
+	var actions_ []interface{}
+
 	if application["actions"] == nil {
 		application["actions"] = rqst.Actions
 		needSave = true
 	} else {
-		var actions_ []interface{}
+		
 		switch application["actions"].(type) {
 		case primitive.A:
 			actions_ = []interface{}(application["actions"].(primitive.A))
@@ -2037,15 +2039,16 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 					exist = true
 					break
 				}
-				if !exist {
-					actions_ = append(actions_, rqst.Actions[j])
-					needSave = true
-				}
+			}
+			if !exist {
+				actions_ = append(actions_, rqst.Actions[j])
+				needSave = true
 			}
 		}
 	}
 
 	if needSave {
+		application["actions"] = actions_
 		jsonStr := serialyseObject(application)
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", q, string(jsonStr), ``)
 		if err != nil {

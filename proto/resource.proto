@@ -508,7 +508,6 @@ message Organization {
   string typeName = 11;               // Type information about the object.
 }
 
-
 /** Request to create a new organization. */
 message CreateOrganizationRqst {
   Organization organization = 1; // The organization details to be registered.
