@@ -2367,7 +2367,6 @@ export function getAllPeersInfo(
   let peers = new Array<Peer>();
 
   let stream = globular.resourceService.getPeers(rqst, {
-    token: localStorage.getItem("user_token"),
     application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,  address: address,
   });
