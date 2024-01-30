@@ -53,7 +53,6 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 
 	keyspace = strings.ToLower(keyspace)
 	keyspace = strings.ReplaceAll(keyspace, "-", "_")
-	
 
 	// Get the connection.
 	store.lock.Lock()
@@ -569,21 +568,20 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						var err error
 						entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 						if err != nil {
-							fmt.Println("572 error inserting data into array table " + keyspace + "." + typeName, err)
+							fmt.Println("572 error inserting data into array table "+keyspace+"."+typeName, err)
 						}
 
 						var _id string
 
 						// I will get the entity id.
 						if entity["id"] != nil {
-							_id =  Utility.ToString(entity["id"])
-						}else if entity["_id"] != nil {
-							_id =  Utility.ToString(entity["_id"])
+							_id = Utility.ToString(entity["id"])
+						} else if entity["_id"] != nil {
+							_id = Utility.ToString(entity["_id"])
 						} else {
 							return nil, errors.New("the entity does not have an id")
 						}
 
-						
 						sourceCollection := tableName
 
 						// He I will create the reference table.
@@ -603,7 +601,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("598 Error inserting data into array table " + sourceCollection + "_" + field , err)
+							fmt.Println("598 Error inserting data into array table "+sourceCollection+"_"+field, err)
 							fmt.Println("Query: ", insertSQL)
 						}
 					} else if entity["$ref"] != nil {
@@ -636,7 +634,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("631 Error inserting data into array table " + sourceCollection + "_" + field, err)
+							fmt.Println("631 Error inserting data into array table "+sourceCollection+"_"+field, err)
 							fmt.Println("Query: ", insertSQL, parameters)
 						}
 					}
@@ -660,7 +658,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 					err = session.Query(insertSQL, parameters...).Exec()
 					if err != nil {
-						fmt.Println("655 Error inserting data into array table " + keyspace + "." + arrayTableName, err)
+						fmt.Println("655 Error inserting data into array table "+keyspace+"."+arrayTableName, err)
 						fmt.Println("Query: ", insertSQL)
 					}
 				}
@@ -684,7 +682,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				var err error
 				entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 				if err != nil {
-					fmt.Println("679 Error inserting data into array table " + keyspace + "." + typeName, err)
+					fmt.Println("679 Error inserting data into array table "+keyspace+"."+typeName, err)
 				}
 
 				// I will get the entity id.
@@ -709,7 +707,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("704 Error inserting data into array table " +  sourceCollection + "_" + field + " with error:", err)
+					fmt.Println("704 Error inserting data into array table "+sourceCollection+"_"+field+" with error:", err)
 					fmt.Println("Query: ", insertSQL)
 				}
 			} else if entity["$ref"] != nil {
@@ -744,7 +742,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("739 Error inserting data into array table " + sourceCollection + "_" + field , err)
+					fmt.Println("739 Error inserting data into array table "+sourceCollection+"_"+field, err)
 					fmt.Println("Query: ", insertSQL)
 				}
 
@@ -869,7 +867,7 @@ func (store *ScyllaStore) getParameters(condition string, values []interface{}) 
 		}
 		query = strings.TrimSuffix(query, " OR ")
 
-	} 
+	}
 
 	return query
 }
@@ -904,7 +902,7 @@ func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error)
 			if reflect.TypeOf(value).Kind() == reflect.String {
 				query += fmt.Sprintf("%s = '%v' AND ", key, value)
 			} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-				if key == "$and" || key == "$or"  || key == "$regex"{
+				if key == "$and" || key == "$or" || key == "$regex" {
 					query += store.getParameters(key, value.([]interface{}))
 				}
 			} else if reflect.TypeOf(value).Kind() == reflect.Map {
@@ -1208,7 +1206,7 @@ func (store *ScyllaStore) deleteEntity(connectionId string, keyspace string, tab
 						if err == nil {
 							fmt.Println("reference deleted: ", query)
 						}
-					}else if entity_["$ref"] != nil {
+					} else if entity_["$ref"] != nil {
 						// I will delete the reference.
 						query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
 						err := session.Query(query, entity["_id"], entity_["$id"]).Exec()
@@ -1281,7 +1279,7 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
-		
+
 		return err
 	}
 
@@ -1316,13 +1314,22 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 	}
 
 	for _, entity := range entities {
+
 		// Here I will retreive the fiedls
 		fields := make([]interface{}, 0)
 		values := make([]interface{}, 0)
 
+		arrayFields := make([]string, 0)
+
 		for key, value := range values_["$set"].(map[string]interface{}) {
-			fields = append(fields, camelToSnake(key))
-			values = append(values, value)
+
+			// here I will test if the value is an array.
+			if reflect.TypeOf(value).Kind() == reflect.Slice {
+				arrayFields = append(arrayFields, key) // I will process the array later.
+			} else {
+				fields = append(fields, camelToSnake(key))
+				values = append(values, value)
+			}
 		}
 
 		query := "SELECT * FROM " + table + " WHERE id = ?"
@@ -1338,6 +1345,36 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 		if err != nil {
 			return err
 		}
+
+		// I will update the array fields.
+		for _, field := range arrayFields {
+
+			// I will get the values
+			values := values_["$set"].(map[string]interface{})[field].([]interface{})
+
+			// I will get the array table.
+			arrayTableName := table + "_" + field
+
+			// I will delete existing values one by one because allow filtering dosent work...
+			for _, value := range entity[field].([]interface{}) {
+				deleteQuery := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTableName, table)
+				err = session.Query(deleteQuery, entity["_id"], value).Exec()
+				if err != nil {
+					fmt.Println("Error deleting value: ", deleteQuery, err)
+				}
+			}
+
+			// I will insert the new values.
+			for _, value := range values {
+				insertQuery := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTableName, table)
+				err = session.Query(insertQuery, value, entity["_id"]).Exec()
+				if err != nil {
+					fmt.Println("Error inserting value: ", insertQuery, err)
+				}
+			}
+
+		}
+		
 	}
 
 	return err
@@ -1365,9 +1402,17 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 	fields := make([]interface{}, 0)
 	values := make([]interface{}, 0)
 
+	arrayFields := make([]string, 0)
+
 	for key, value := range values_["$set"].(map[string]interface{}) {
-		fields = append(fields, camelToSnake(key))
-		values = append(values, value)
+		// here I will test if the value is an array.
+		if reflect.TypeOf(value).Kind() == reflect.Slice {
+			arrayFields = append(arrayFields, key) // I will process the array later.
+		} else {
+			fields = append(fields, camelToSnake(key))
+			values = append(values, value)
+		}
+
 	}
 
 	q, err := generateUpdateTableQuery(keyspace+"."+table, fields, query)
@@ -1380,12 +1425,50 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 		return err
 	}
 
-	fmt.Println("query: ", q)
-
 	// Execute the query
 	err = session.Query(q, values...).Exec()
 	if err != nil {
 		fmt.Println("Error executing query: ", q, err)
+	}
+
+	// I will get the entity.
+	entities, err := store.find(connectionId, keyspace, table, query)
+	if err != nil {
+		return err
+	}
+
+	if len(entities) == 0 {
+		return errors.New("no entity found")
+	}
+
+	entity := entities[0]
+
+	// I will update the array fields.
+	for _, field := range arrayFields {
+		// I will get the values
+		values := values_["$set"].(map[string]interface{})[field].([]interface{})
+
+		// I will get the array table.
+		arrayTableName := table + "_" + field
+
+		// I will delete existing values one by one because allow filtering dosent work...
+		for _, value := range entity[field].([]interface{}) {
+			deleteQuery := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTableName, table)
+			err = session.Query(deleteQuery, entity["_id"], value).Exec()
+			if err != nil {
+				fmt.Println("Error deleting value: ", deleteQuery, err)
+			}
+		}
+
+		// I will insert the new values.
+		for _, value := range values {
+			insertQuery := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTableName, table)
+			err = session.Query(insertQuery, value, entity["_id"]).Exec()
+			if err != nil {
+				fmt.Println("Error inserting value: ", insertQuery, err)
+			}
+		}
+
 	}
 
 	return err
@@ -1495,34 +1578,34 @@ func (store *ScyllaStore) DeleteCollection(ctx context.Context, connectionId str
 }
 
 func splitCQLScript(script string) []string {
-    var statements []string
-    var currentStatement strings.Builder
+	var statements []string
+	var currentStatement strings.Builder
 
-    inString := false
-    for _, runeValue := range script {
-        char := string(runeValue)
+	inString := false
+	for _, runeValue := range script {
+		char := string(runeValue)
 
-        // Toggle the inString flag if we encounter a single quote
-        if char == "'" {
-            inString = !inString
-        }
+		// Toggle the inString flag if we encounter a single quote
+		if char == "'" {
+			inString = !inString
+		}
 
-        // Add the character to the current statement
-        currentStatement.WriteString(char)
+		// Add the character to the current statement
+		currentStatement.WriteString(char)
 
-        // If we encounter a semicolon and we're not inside a string, end the current statement
-        if char == ";" && !inString {
-            statements = append(statements, strings.TrimSpace(currentStatement.String()))
-            currentStatement.Reset()
-        }
-    }
+		// If we encounter a semicolon and we're not inside a string, end the current statement
+		if char == ";" && !inString {
+			statements = append(statements, strings.TrimSpace(currentStatement.String()))
+			currentStatement.Reset()
+		}
+	}
 
-    // Add any remaining part of the script as the last statement
-    if currentStatement.Len() > 0 {
-        statements = append(statements, strings.TrimSpace(currentStatement.String()))
-    }
+	// Add any remaining part of the script as the last statement
+	if currentStatement.Len() > 0 {
+		statements = append(statements, strings.TrimSpace(currentStatement.String()))
+	}
 
-    return statements
+	return statements
 }
 
 func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {

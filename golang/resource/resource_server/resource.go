@@ -2268,7 +2268,28 @@ func (srv *server) getApplications(query string, options string) ([]*resourcepb.
 				actions = append(actions, actions_[i].(string))
 			}
 		}
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
+
+		// Now the list of keywords.
+		keywords := make([]string, 0)
+
+		if values_["keywords"] != nil {
+
+			var keywords_ []interface{}
+			switch values_["keywords"].(type) {
+			case primitive.A:
+				keywords_ = []interface{}(values_["keywords"].(primitive.A))
+			case []interface{}:
+				keywords_ = []interface{}(values_["keywords"].([]interface{}))
+			default:
+				fmt.Println("unknown type ", values_["keywords"])
+			}
+
+			for i := 0; i < len(keywords_); i++ {
+				keywords = append(keywords, keywords_[i].(string))
+			}
+		}
+
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions, Keywords: keywords}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
