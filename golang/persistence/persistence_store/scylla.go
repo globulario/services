@@ -146,6 +146,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// So here I will authenticate the user and password.
 	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
+		fmt.Println("line 144 fail to create authentication client", err)
 		return err
 	}
 
@@ -159,6 +160,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		token, err = authentication_client.Authenticate(user, password)
 		if err != nil {
 			if nbTry == 0 {
+				fmt.Println("line 155 fail to authenticate user", user, "with error", err)
 				return err
 			}
 			nbTry--
@@ -183,7 +185,6 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	}
 
 	// save the connection before creating the cluster.
-
 	store.lock.Lock()
 	store.connections[id] = connection
 	store.lock.Unlock()
@@ -191,11 +192,13 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
+		fmt.Println("line 184 fail to create keyspace", keyspace, "whith error", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
+		fmt.Println("line 190 fail to create session", err)
 		return err
 	}
 

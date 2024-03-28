@@ -505,6 +505,10 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 		return nil, err
 	}
 
+	if len(raw) == 0 {
+		return nil, errors.New("no title found with id " + titleId)
+	}
+
 	title := new(titlepb.Title)
 	err = protojson.Unmarshal(raw, title)
 	if err != nil {
@@ -1644,6 +1648,10 @@ func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 		return nil, err
 	}
 
+	if len(raw) == 0 {
+		return nil, errors.New("no person found with id " + id)
+	}
+
 	person := new(titlepb.Person)
 	err = protojson.Unmarshal(raw, person)
 	if err != nil {
@@ -1797,6 +1805,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
+		
 		return nil, err
 	}
 
@@ -1804,6 +1813,10 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
+	}
+
+	if len(raw) == 0 {
+		return nil, errors.New("no video found with id " + id)
 	}
 
 	video := new(titlepb.Video)
@@ -1820,7 +1833,6 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 			casting = append(casting, c)
 		}
 	}
-
 	// set back.
 	video.Casting = casting
 
@@ -1829,8 +1841,10 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 // Get a video by a given id.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
+	
 	video, err := srv.getVideoById(rqst.IndexPath, rqst.VidoeId)
 	if err != nil {
+		fmt.Println("--------> 1831", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2480,6 +2494,9 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
 
+
+	fmt.Println("CreateAudio", rqst.Audio.ID, rqst.Audio.Title)
+	
 	if len(rqst.Audio.ID) == 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2579,6 +2596,10 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 	raw, err := index.GetInternal([]byte(uuid))
 	if err != nil {
 		return nil, err
+	}
+
+	if len(raw) == 0 {
+		return nil, errors.New("no audio found with id " + id)
 	}
 
 	audio := new(titlepb.Audio)
