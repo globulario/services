@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -27,7 +28,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Set the root password
+
+
+
+/** SetEmail sets the email of an account identified by the given account ID.
+It retrieves the account information from the database, validates the old email,
+and updates the email with the new email provided in the request.
+It also saves the updated account information in the database.
+Finally, it publishes an event to notify other services about the account update.
+This function returns a SetEmailResponse indicating the success of the operation or an error if any occurred. */
 func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
 
 	// Here I will set the root password.
@@ -39,6 +48,7 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	
 	accountId := rqst.AccountId
 
 	q := `{"_id":"` + accountId + `"}`

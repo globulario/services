@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	b64 "encoding/base64"
 	"io/ioutil"
 	"log"
 	"os"
@@ -32,8 +30,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 )
 
@@ -45,7 +41,7 @@ var (
 	// By default all origins are allowed.
 	allow_all_origins = true
 
-	// comma separeated values.
+	// comma separated values.
 	allowed_origins string = ""
 )
 
@@ -80,23 +76,24 @@ type server struct {
 	LastError            string
 	State                string
 	ModTime              int64
-	TLS bool
+	TLS                  bool
 
 	// svr-signed X.509 public keys for distribution
-	CertFile string
+	CertFile             string
 
 	// a private RSA key to sign and authenticate the public key
-	KeyFile string
+	KeyFile              string
 
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust string
+	CertAuthorityTrust   string
 
-	Permissions []interface{} // contains the action permission for the services.
+	Permissions          []interface{} // contains the action permission for the services.
 
-	Dependencies []string // The list of services needed by this services.
+	Dependencies         []string // The list of services needed by this services.
 
 	// The grpc server.
-	grpcServer *grpc.Server
+	grpcServer           *grpc.Server
+
 
 	// The cache address
 	CacheAddress string
@@ -1440,6 +1437,11 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 
 	if err == nil {
 		err = index.SetInternal([]byte(uuid), jsonStr)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return &titlepb.CreatePublisherResponse{}, nil
@@ -1493,7 +1495,7 @@ func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 
 	// Now from the result I will
 	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
+		return nil, errors.New("no publisher found with id " + id)
 	}
 
 	var publisher *titlepb.Publisher
@@ -1546,7 +1548,7 @@ func (srv *server) createPerson(indexPath string, person *titlepb.Person) error 
 
 	// Encode the biography field if is not already encoded.
 	if !Utility.IsStdBase64(person.Biography) {
-		person.Biography = b64.StdEncoding.EncodeToString([]byte(person.Biography))
+		person.Biography = base64.StdEncoding.EncodeToString([]byte(person.Biography))
 	}
 
 	// Index the title and put it in the search engine.
@@ -2556,6 +2558,11 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	jsonStr, err := protojson.Marshal(rqst.Audio)
 	if err == nil {
 		err = index.SetInternal([]byte(generateUUID(rqst.Audio.ID)), jsonStr)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// Now I will create the album from the track info...
@@ -2566,6 +2573,11 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		jsonStr, err := protojson.Marshal(album)
 		if err == nil {
 			err = index.SetInternal([]byte(generateUUID(album.ID)), jsonStr)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
 		}
 	}
 
