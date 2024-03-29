@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/v2"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/search/searchpb"
 )
@@ -70,7 +70,7 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 
 		// Now from the result I will
 		if searchResult.Total == 0 {
-			return nil, errors.New("No matches") // return as error...
+			return nil, errors.New("no matches found") // return as error...
 		}
 
 		// Now I will return the data

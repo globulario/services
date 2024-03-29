@@ -83,12 +83,21 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 
 			if ok, _ := c.Extension("STARTTLS"); ok {
 				tlsConfig := &tls.Config{ServerName: mx.Host}
-				if err := c.StartTLS(tlsConfig); err != nil {
+
+				/*if err := c.StartTLS(tlsConfig); err != nil {
+					if err != nil {
+						fmt.Println("82 ----------> ", err)
+					}
+					return err
+				}*/
+				c, err = smtp.DialStartTLS(mx.Host, tlsConfig)
+				if err != nil {
 					if err != nil {
 						fmt.Println("82 ----------> ", err)
 					}
 					return err
 				}
+
 			}
 
 			if err := c.Mail(from, &smtp.MailOptions{}); err != nil {
@@ -97,37 +106,41 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 				}
 				return err
 			}
-			if err := c.Rcpt(addr); err != nil {
-				if err != nil {
-					fmt.Println("96 ----------> ", err)
-				}
+
+			// Set recipient options
+			opt := &smtp.RcptOptions{}
+
+			if err := c.Rcpt(addr, opt); err != nil {
+
+				fmt.Println("96 ----------> ", err)
+
 				return err
 			}
 
 			wc, err := c.Data()
 			if err != nil {
-				if err != nil {
-					fmt.Println("104 ----------> ", err)
-				}
+
+				fmt.Println("104 ----------> ", err)
+
 				return err
 			}
 			if _, err := io.Copy(wc, r); err != nil {
-				if err != nil {
-					fmt.Println("110 ----------> ", err)
-				}
+
+				fmt.Println("110 ----------> ", err)
+
 				return err
 			}
 			if err := wc.Close(); err != nil {
-				if err != nil {
-					fmt.Println("116 ----------> ", err)
-				}
+
+				fmt.Println("116 ----------> ", err)
+
 				return err
 			}
 
 			if err := c.Quit(); err != nil {
-				if err != nil {
-					fmt.Println("124 ----------> ", err)
-				}
+
+				fmt.Println("124 ----------> ", err)
+
 				return err
 			}
 		}

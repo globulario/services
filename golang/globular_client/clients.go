@@ -445,7 +445,7 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	keyFile := client.GetKeyFile()
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		err = errors.New("fail to load client certificate cert file: "+ certFile + " kefile: " + keyFile + err.Error())
+		err = errors.New("fail to load client certificate cert file: "+ certFile + " kefile: " + keyFile + " " + err.Error())
 		return nil, err
 	}
 

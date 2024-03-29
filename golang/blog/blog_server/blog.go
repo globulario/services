@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/v2"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -309,7 +309,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 		facet_.Other = int32(f.Other)
 		facet_.Terms = make([]*blogpb.SearchFacetTerm, 0)
 		// Regular terms...
-		for _, t := range f.Terms {
+		for _, t := range f.Terms.Terms() {
 			term := new(blogpb.SearchFacetTerm)
 			term.Count = int32(t.Count)
 			term.Term = t.Term

@@ -2584,7 +2584,6 @@ func main() {
 		ServeDns(s_impl.DnsPort)
 	}()
 
-	// Register the echo services
 	dnspb.RegisterDnsServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 

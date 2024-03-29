@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/blevesearch/bleve"
+	"github.com/blevesearch/bleve/v2"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -2190,9 +2190,7 @@ func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titl
 			snippet := new(titlepb.Snippet)
 			snippet.Field = fragmentField
 			snippet.Fragments = make([]string, 0)
-			for _, fragment := range fragments {
-				snippet.Fragments = append(snippet.Fragments, fragment)
-			}
+			snippet.Fragments = append(snippet.Fragments, fragments...)
 			// append to the results.
 			hit_.Snippets = append(hit_.Snippets, snippet)
 		}
@@ -2296,9 +2294,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			snippet := new(titlepb.Snippet)
 			snippet.Field = fragmentField
 			snippet.Fragments = make([]string, 0)
-			for _, fragment := range fragments {
-				snippet.Fragments = append(snippet.Fragments, fragment)
-			}
+			snippet.Fragments = append(snippet.Fragments, fragments...)
 			// append to the results.
 			hit_.Snippets = append(hit_.Snippets, snippet)
 		}
@@ -2455,7 +2451,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		facet_.Other = int32(f.Other)
 		facet_.Terms = make([]*titlepb.SearchFacetTerm, 0)
 		// Regular terms...
-		for _, t := range f.Terms {
+		for _, t := range f.Terms.Terms() {
 			term := new(titlepb.SearchFacetTerm)
 			term.Count = int32(t.Count)
 			term.Term = t.Term
@@ -2675,10 +2671,9 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 
 	// Now from the result I will
 	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
+		return nil, errors.New("no album found with id " + id)
 	}
 
-	var album *titlepb.Album
 
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
@@ -2689,29 +2684,17 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 				return nil, err
 			}
 
-			album_ := new(titlepb.Album)
-			err_ := protojson.Unmarshal(raw, album_)
-			if err_ == nil {
-				album = album_
-			} else {
-				track := new(titlepb.Audio)
-				err_ := protojson.Unmarshal(raw, track)
-
-				if err_ == nil {
-					if track.Album == id {
-						if album.Tracks == nil {
-							album.Tracks = new(titlepb.Audios)
-							album.Tracks.Audios = make([]*titlepb.Audio, 0)
-						}
-						album.Tracks.Audios = append(album.Tracks.Audios, track)
-					}
-				}
+			album := new(titlepb.Album)
+			err = protojson.Unmarshal(raw, album)
+			if err == nil {
+				return album, nil
+			}else{
+				return nil, err
 			}
-			break
 		}
 	}
 
-	return album, nil
+	return nil, errors.New("no album found with id " + id)
 }
 
 // Return the album information for a given id.
