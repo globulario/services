@@ -204,6 +204,11 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	q := `{"_id":"` + accountId + `"}`
 
+	if strings.Contains(q, "@"){
+		// I will keep the first part of the string...
+		q =strings.Split(q, "@")[0]
+	}
+
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		fmt.Println("fail to retreive account:", accountId, " from database with error:", err.Error())
@@ -282,6 +287,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	db = strings.ReplaceAll(db, " ", "_")
 
 	db += "_db"
+
 
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {

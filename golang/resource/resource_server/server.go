@@ -47,34 +47,34 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Domain               string
-	Address              string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	State                string
-	ModTime              int64
+	Id              string
+	Mac             string
+	Name            string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	State           string
+	ModTime         int64
 
 	TLS bool
 
@@ -835,7 +835,6 @@ func (srv *server) validatePassword(password string, hash string) error {
  */
 func (srv *server) registerAccount(domain, id, name, email, password, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
 
-	fmt.Println("try to register account with name ", name, " and email ", email, " and domain ", domain)
 	localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
@@ -933,15 +932,30 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 		}
 	} else if p.GetStoreType() == "SCYLLA" {
 
-		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor': %d }; CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');", name, srv.Backend_replication_factor, name, name, id, email , first_name, last_name, middle_name, profile_picture)
+		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor': %d }; CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');", name, srv.Backend_replication_factor, name, name, id, email, first_name, last_name, middle_name, profile_picture)
 		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
 		if err != nil {
 			return err
 		}
+	} else if p.GetStoreType() == "SQL" {
+		// Create the user_data table in the user database
+		err = p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", name+"_db", "user_data", []string{"first_name TEXT", "last_name TEXT", "middle_name TEXT", "email TEXT", "profile_picture TEXT"})
+		if err != nil {
+			return err
+		}
+
 	}
 
 	// Here I will set user data in the database.
+	data := make(map[string]interface{}, 0)
+	data["_id"] = id
+	data["first_name"] = ""
+	data["last_name"] = ""
+	data["middle_name"] = ""
+	data["email"] = email
+	data["profile_picture"] = ""
 
+	_, err  = p.InsertOne( context.Background(), "local_resource", name+"_db", "user_data", data, "")
 
 	return err
 }

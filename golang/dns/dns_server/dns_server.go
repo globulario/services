@@ -905,6 +905,9 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 // Set a text entry.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 
+	fmt.Println("Try set dns entry ", rqst.Id)
+	srv.logServiceInfo("SetText", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Id)
+	
 	values, err := json.Marshal(rqst.Values)
 
 	if err != nil {

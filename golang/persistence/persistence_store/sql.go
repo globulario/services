@@ -1029,8 +1029,6 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 						parameters = append(parameters, object["_id"]) // append the object id...
 						parameters_, _ := Utility.ToJson(parameters)
 
-
-
 						// Execute the query
 						str, err := store.QueryContext(connectionId, db, query, parameters_)
 						if err == nil {
@@ -1095,7 +1093,6 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 
 			if key == "_id" {
 				if strings.Contains(value.(string), "@") {
-					fmt.Println("------------------> domain ", strings.Split(value.(string), "@")[1])
 					value = strings.Split(value.(string), "@")[0]
 				}
 			}

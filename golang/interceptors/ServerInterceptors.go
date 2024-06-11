@@ -469,6 +469,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetGroups" ||
 		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/admin.AdminService/GetProcessInfos" ||
+		l.method == "/rbac.RbacService/GetResourcePermissionsByResourceType" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" {
 		return nil
 	}
@@ -555,7 +556,6 @@ func (b ServerStreamInterceptorBroadcastStream) RecvMsg(m interface{}) error {
 	// Now that m is populated, you can broadcast it
 	b.Broadcast(m)
 
-
 	return nil
 }
 
@@ -589,7 +589,7 @@ func (b *ServerStreamInterceptorBroadcastStream) Broadcast(req interface{}) {
 
 }
 
-func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context.Context, serviceName, method, address string, rqst interface{})  error {
+func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context.Context, serviceName, method, address string, rqst interface{}) error {
 
 	// Create a client connection to the server at `address`
 	// Send the `req` and receive a response
@@ -603,7 +603,7 @@ func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context
 	// Here I will call the method on the peer.
 	stream, err := client.Invoke(method, rqst, ctx)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	// Read from the stream
@@ -614,20 +614,18 @@ func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context
 				// End of the stream
 				break
 			} else {
-				return  err.(error)
+				return err.(error)
 			}
 		}
 
 		// send the response back
 		b.SendMsg(resp)
-		
+
 	}
 
 	return nil
 
 }
-
-
 
 // Stream interceptor.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
