@@ -1064,7 +1064,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 }
 
 // * Set resource permissions this method will replace existing permission at once *
-func (srv *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRqst, error) {
+func (srv *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRsp, error) {
 
 	if len(rqst.Path) == 0 {
 		return nil, errors.New("no resource path given")
@@ -1099,7 +1099,7 @@ func (srv *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetR
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return &rbacpb.SetResourcePermissionsRqst{}, nil
+	return &rbacpb.SetResourcePermissionsRsp{}, nil
 }
 
 /**
@@ -1664,12 +1664,12 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 }
 
 // * Delete a resource permissions (when a resource is deleted) *
-func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRqst, error) {
+func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRsp, error) {
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
 		if strings.Contains(err.Error(), "item not found") {
-			return &rbacpb.DeleteResourcePermissionsRqst{}, nil
+			return &rbacpb.DeleteResourcePermissionsRsp{}, nil
 		}
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1683,11 +1683,11 @@ func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.D
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &rbacpb.DeleteResourcePermissionsRqst{}, nil
+	return &rbacpb.DeleteResourcePermissionsRsp{}, nil
 }
 
 // * Delete a specific resource permission *
-func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRqst, error) {
+func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRsp, error) {
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
@@ -1722,7 +1722,7 @@ func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.De
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &rbacpb.DeleteResourcePermissionRqst{}, nil
+	return &rbacpb.DeleteResourcePermissionRsp{}, nil
 }
 
 // * Get the resource Permission.

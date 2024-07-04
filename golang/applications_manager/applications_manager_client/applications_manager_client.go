@@ -237,7 +237,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
 func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
 
 	rqst := new(applications_managerpb.InstallApplicationRequest)
-	rqst.DicorveryId = discoveryId
+	rqst.DiscoveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
 	rqst.Domain =  domain
