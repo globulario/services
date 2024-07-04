@@ -319,7 +319,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		cmd_ += proxyArgs[i] + " "
 	}
 
-	fmt.Println(cmd_)
+	//fmt.Println(cmd_)
 	err := proxyProcess.Start()
 	if err != nil {
 
