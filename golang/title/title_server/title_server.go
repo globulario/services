@@ -1844,7 +1844,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 // Get a video by a given id.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
 	
-	video, err := srv.getVideoById(rqst.IndexPath, rqst.VidoeId)
+	video, err := srv.getVideoById(rqst.IndexPath, rqst.VideoId)
 	if err != nil {
 		fmt.Println("--------> 1831", err)
 		return nil, status.Errorf(
@@ -1857,7 +1857,7 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	// get the list of associated files if there some...
 	associations := srv.getAssociations(rqst.IndexPath)
 	if associations != nil {
-		data, err := associations.GetItem(rqst.VidoeId)
+		data, err := associations.GetItem(rqst.VideoId)
 		if err == nil {
 			association := new(fileTileAssociation)
 			err = json.Unmarshal(data, association)

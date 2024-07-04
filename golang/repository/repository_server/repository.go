@@ -18,11 +18,11 @@ import (
 /** Download a service from a service directory **/
 func (srv *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stream repositorypb.PackageRepository_DownloadBundleServer) error {
 	bundle := new(resourcepb.PackageBundle)
-	bundle.Plaform = rqst.Plaform
+	bundle.Plaform = rqst.Platform
 	bundle.PackageDescriptor = rqst.Descriptor_
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Plaform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Platform)
 	path := srv.Root + "/packages-repository"
 
 	var err error

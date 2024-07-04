@@ -287,7 +287,7 @@ func (client *Dicovery_Client) PublishService(user, organization, token, domain,
 		rqst.User = user
 		rqst.Organization = organization
 		rqst.Description = s["Description"].(string)
-		rqst.DicorveryId = discoveries[i].(string)
+		rqst.DiscoveryId = discoveries[i].(string)
 		rqst.RepositoryId = repositories[0].(string)
 		rqst.Keywords = keywords
 		rqst.Version = s["Version"].(string)

@@ -236,7 +236,7 @@ func _indexPersonInformation_(p *titlepb.Person, id string) error {
 	// The carrer status
 	carrerStatusSelector := `#search-result > section > form > div:nth-child(4) > ul > li:nth-child(9) > span.font-size-xs > a > span`
 	movieCollector.OnHTML(carrerStatusSelector, func(e *colly.HTMLElement) {
-		p.CareerSatus = strings.TrimSpace(e.Text)
+		p.CareerStatus = strings.TrimSpace(e.Text)
 	})
 
 	// The aliases.

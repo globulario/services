@@ -53,7 +53,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 		Description:  rqst.Description,
 		Keywords:     rqst.Keywords,
 		Repositories: []string{rqst.RepositoryId},
-		Discoveries:  []string{rqst.DicorveryId},
+		Discoveries:  []string{rqst.DiscoveryId},
 		Type:         resourcepb.PackageType_SERVICE_TYPE,
 	}
 

@@ -253,7 +253,7 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
-		Plaform:     platform,
+		Platform:     platform,
 	}
 
 	stream, err := client.c.DownloadBundle(client.GetCtx(), rqst)

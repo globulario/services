@@ -313,9 +313,7 @@ func (srv *server) startServiceInstance(serviceId string) error {
 	}
 
 	port := Utility.ToInt(s["Port"])
-	proxyPort := Utility.ToInt(s["ProxyPort"])
-
-	processPid, err := process.StartServiceProcess(s, port, proxyPort)
+	processPid, err := process.StartServiceProcess(s, port)
 	if err != nil {
 		return err
 	}
@@ -324,10 +322,10 @@ func (srv *server) startServiceInstance(serviceId string) error {
 	s["State"] = "running"
 
 	// save the service configuration
-	s["ProxyProcess"], err = Utility.GetProcessIdsByName("envoy")
+	/*s["ProxyProcess"], err = Utility.GetProcessIdsByName("envoy")
 	if err != nil {
 		return err
-	}
+	}*/
 
 	return srv.publishUpdateServiceConfigEvent(s)
 }

@@ -355,7 +355,7 @@ func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []str
 func (client *Title_Client) GetVideoById(path, id string) (*titlepb.Video, []string, error) {
 	rqst := &titlepb.GetVideoByIdRequest{
 		IndexPath: path,
-		VidoeId:   id,
+		VideoId:   id,
 	}
 
 	rsp, err := client.c.GetVideoById(client.GetCtx(), rqst)
