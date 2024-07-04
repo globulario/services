@@ -235,12 +235,12 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 	}
 
 	// Connect to the dicovery services
-	resource_client_, err := GetResourceClient(rqst.DicorveryId)
+	resource_client_, err := GetResourceClient(rqst.DiscoveryId)
 
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to "+rqst.DicorveryId)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to "+rqst.DiscoveryId)))
 	}
 
 	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ApplicationId, rqst.PublisherId, rqst.Version)
