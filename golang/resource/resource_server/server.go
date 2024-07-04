@@ -690,6 +690,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		// Connect to the store.
 		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
 		if err != nil {
+
 			fmt.Println("fail to connect to store with error ", err)
 			os.Exit(1)
 		}

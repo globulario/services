@@ -91,13 +91,16 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		var err error
 		// Authenticate the user.
 		token, err = authentication_client.Authenticate(user, password)
+
 		if err != nil && nbTry == 0 {
-			fmt.Println("Fail to authenticate user ", user, err)
+			
+			fmt.Println("--------------> 99 ", err)
 			return err
 		} else if err == nil {
 			break
 		}
 
+		nbTry--
 		time.Sleep(1 * time.Second)
 	}
 
@@ -113,6 +116,8 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	// set default path
 	path := config.GetDataDir() + "/sql-data"
+
+	fmt.Println("----------------> 120")
 
 	// set the path if it is provided.
 	if options["path"] != nil {
@@ -139,8 +144,13 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		store.connections[id] = connection
 	}
 
+
 	// Create the database if it does not exist.
 	databasePath := connection.Path + "/" + database + ".db"
+
+	fmt.Println("Database path: ", databasePath)
+	fmt.Println("connection: ", id)
+	fmt.Println("database: ", store.connections[id])
 
 	// Create the database.
 	db, err := sql.Open("sqlite3", databasePath)
