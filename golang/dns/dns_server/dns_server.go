@@ -504,6 +504,7 @@ func (srv *server) openConnection() error {
 }
 
 func (srv *server) isManaged(domain string) bool {
+	fmt.Println("Check if domain is managed: ", domain, " with domains: ", srv.Domains)
 	for i := 0; i < len(srv.Domains); i++ {
 		if strings.HasSuffix(domain, srv.Domains[i]) {
 			return true
@@ -905,10 +906,12 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 // Set a text entry.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 
-	fmt.Println("Try set dns entry ", rqst.Id)
+	
 	srv.logServiceInfo("SetText", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Id)
 	
 	values, err := json.Marshal(rqst.Values)
+
+	fmt.Println("Try set dns entry ", rqst.Id, " with values: ", rqst.Values)
 
 	if err != nil {
 		return nil, status.Errorf(
