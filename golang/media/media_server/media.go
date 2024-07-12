@@ -2342,10 +2342,11 @@ func (srv *server) CreateVideoTimeLine(ctx context.Context, rqst *mediapb.Create
 // Convert a file from mkv, avi or other format to MPEG-4 AVC
 func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.ConvertVideoToMpeg4H264Request) (*mediapb.ConvertVideoToMpeg4H264Response, error) {
 
-	token, _, err := security.GetClientId(ctx)
+	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 
 	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
@@ -2353,6 +2354,9 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
+
+	fmt.Println("convert video to mpeg4 h264: ", rqst.Path)
+	fmt.Println("token: ", token)
 
 	info, err := srv.getFileInfo(token, path_)
 	if err != nil {
