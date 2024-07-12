@@ -186,8 +186,6 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
 			AuthHandler: func(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
-				fmt.Println("--------> authenticate user ", string(username), string(password))
-
 				answer_ := make(chan map[string]interface{})
 				authenticate <- map[string]interface{}{"user": string(username), "pwd": string(password), "answer": answer_}
 

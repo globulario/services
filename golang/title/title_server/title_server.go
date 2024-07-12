@@ -745,6 +745,9 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 				// Here I will try to get it from the users dirs...
 				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				} else if Utility.Exists("/" + absolutefilePath) {	
+					absolutefilePath = "/" + absolutefilePath
+					
 				}
 
 				if !Utility.Exists(absolutefilePath) {
@@ -1015,6 +1018,9 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+		} else if Utility.Exists("/" + absolutefilePath) {
+			absolutefilePath = "/" + absolutefilePath
+			
 		}
 
 		if !Utility.Exists(absolutefilePath) {
@@ -1287,6 +1293,9 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+		}else if Utility.Exists("/" + absolutefilePath) {
+			absolutefilePath = "/" + absolutefilePath
+			
 		}
 	}
 	if !Utility.Exists(absolutefilePath) {
@@ -1382,6 +1391,9 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+		}else if Utility.Exists("/" + absolutefilePath) {
+			absolutefilePath = "/" + absolutefilePath
+			
 		}
 	}
 
@@ -1765,6 +1777,8 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 				// Here I will try to get it from the users dirs...
 				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+				}else if Utility.Exists("/" + absolutefilePath) {
+					absolutefilePath = "/" + absolutefilePath
 				}
 
 				if !Utility.Exists(absolutefilePath) {
@@ -1846,7 +1860,6 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	
 	video, err := srv.getVideoById(rqst.IndexPath, rqst.VideoId)
 	if err != nil {
-		fmt.Println("--------> 1831", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1982,18 +1995,21 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	fmt.Println("get file videos for relative path ", filePath)
+
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
 	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+
 	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+		} else if Utility.Exists("/" + absolutefilePath) {
+			absolutefilePath = "/" + absolutefilePath
+			
 		}
 	}
-
-	fmt.Println("get file videos for absolute path ", filePath)
-
+	
 	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2084,6 +2100,8 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		if Utility.Exists(association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
 		} else if Utility.Exists(config.GetDataDir() + "/files" + association.Paths[i]) {
+			paths = append(paths, association.Paths[i])
+		}else if Utility.Exists("/" + association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
 		}
 	}
@@ -2811,10 +2829,15 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
 	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+
+	fmt.Println("2833 --------> ", absolutefilePath)
 	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
+		}else if Utility.Exists("/" + absolutefilePath) {
+			absolutefilePath = "/" + absolutefilePath
+			
 		}
 	}
 

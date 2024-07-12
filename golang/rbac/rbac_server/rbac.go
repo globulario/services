@@ -15,32 +15,96 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/file/file_client"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
+
+/**
+ * Get the file service client.
+ */
+
+ func (srv *server) getFileClient() (*file_client.File_Client, error) {
+	address, _ := config.GetAddress()
+	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
+
+	client, err := globular_client.GetClient(address, "file.FileService", "NewFileService_Client")
+	if err != nil {
+		fmt.Println("fail to connect to file client with error: ", err)
+		return nil, err
+	}
+
+	return client.(*file_client.File_Client), nil
+}
+
+func (srv *server) getPublicDirs() ([]string, error) {
+	client, err := srv.getFileClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the public dir.
+	public, err := client.GetPublicDirs()
+	if err != nil {
+		return nil, err
+	}
+
+	return public, nil
+}
+
+// Return true if the file is found in the public path...
+func (srv *server) isPublic(path string) bool {
+	path = strings.ReplaceAll(path, "\\", "/")
+	publics, err := srv.getPublicDirs()
+	if err != nil {
+		return false
+	}
+
+	if Utility.Exists(path) {
+		for i := 0; i < len(publics); i++ {
+			if strings.HasPrefix(path, publics[i]) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func (srv *server) formatPath(path string) string {
 	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
+
 	if strings.HasPrefix(path, "/") {
+
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
-				// Must be in the root path if it's not in public path.
-				if Utility.Exists(config.GetGlobularExecPath() + path) {
-					path = config.GetGlobularExecPath() + path
-				} else if Utility.Exists(config.GetWebRootDir() + path) {
-					path = config.GetWebRootDir() + path
-				} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
-					path = config.GetDataDir() + "/files" + path
-				}
+				if !srv.isPublic(path) {
+					fmt.Println("path: ", path+" is not public")
+					// Must be in the root path if it's not in public path.
+					if Utility.Exists(srv.Root + path) {
+						path = srv.Root + path
+					} else if Utility.Exists(config.GetWebRootDir() + path) {
+						path = config.GetWebRootDir() + path
 
+					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
+						path = config.GetDataDir() + "/files" + path
+					} else if Utility.Exists("/" + path) { // network path...
+						path = "/" + path
+					} else {
+						path = srv.Root + "/" + path
+					}
+				}
 			} else {
-				path = config.GetGlobularExecPath() + "/" + path
+				path = srv.Root + "/" + path
 			}
+		} else {
+			// '/' represent the root path
+			path = srv.Root
 		}
 	}
 

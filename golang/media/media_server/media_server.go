@@ -502,10 +502,13 @@ func (srv *server) isPublic(path string) bool {
 func (srv *server) formatPath(path string) string {
 	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
+
 	if strings.HasPrefix(path, "/") {
+
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
+					fmt.Println("path: ", path+" is not public")
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(srv.Root + path) {
 						path = srv.Root + path
@@ -514,6 +517,10 @@ func (srv *server) formatPath(path string) string {
 
 					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
+					} else if Utility.Exists("/" + path) { // network path...
+						path = "/" + path
+					} else {
+						path = srv.Root + "/" + path
 					}
 				}
 			} else {

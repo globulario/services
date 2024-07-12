@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 var resource_pb = require('../resource/resource_pb.js');
 goog.object.extend(proto, resource_pb);
@@ -479,7 +488,7 @@ proto.repository.DownloadBundleRequest.prototype.toObject = function(opt_include
 proto.repository.DownloadBundleRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     descriptor: (f = msg.getDescriptor()) && resource_pb.PackageDescriptor.toObject(includeInstance, f),
-    plaform: jspb.Message.getFieldWithDefault(msg, 2, "")
+    platform: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -523,7 +532,7 @@ proto.repository.DownloadBundleRequest.deserializeBinaryFromReader = function(ms
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPlaform(value);
+      msg.setPlatform(value);
       break;
     default:
       reader.skipField();
@@ -562,7 +571,7 @@ proto.repository.DownloadBundleRequest.serializeBinaryToWriter = function(messag
       resource_pb.PackageDescriptor.serializeBinaryToWriter
     );
   }
-  f = message.getPlaform();
+  f = message.getPlatform();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -610,10 +619,10 @@ proto.repository.DownloadBundleRequest.prototype.hasDescriptor = function() {
 
 
 /**
- * optional string plaform = 2;
+ * optional string platform = 2;
  * @return {string}
  */
-proto.repository.DownloadBundleRequest.prototype.getPlaform = function() {
+proto.repository.DownloadBundleRequest.prototype.getPlatform = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -622,7 +631,7 @@ proto.repository.DownloadBundleRequest.prototype.getPlaform = function() {
  * @param {string} value
  * @return {!proto.repository.DownloadBundleRequest} returns this
  */
-proto.repository.DownloadBundleRequest.prototype.setPlaform = function(value) {
+proto.repository.DownloadBundleRequest.prototype.setPlatform = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 

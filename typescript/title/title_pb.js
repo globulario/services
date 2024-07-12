@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 goog.exportSymbol('proto.title.Album', null, global);
 goog.exportSymbol('proto.title.AssociateFileWithTitleRequest', null, global);
@@ -1622,7 +1631,7 @@ proto.title.Person.toObject = function(includeInstance, msg) {
     aliasesList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     picture: jspb.Message.getFieldWithDefault(msg, 5, ""),
     biography: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    careersatus: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    careerstatus: jspb.Message.getFieldWithDefault(msg, 7, ""),
     gender: jspb.Message.getFieldWithDefault(msg, 8, ""),
     birthplace: jspb.Message.getFieldWithDefault(msg, 9, ""),
     birthdate: jspb.Message.getFieldWithDefault(msg, 10, ""),
@@ -1692,7 +1701,7 @@ proto.title.Person.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.setCareersatus(value);
+      msg.setCareerstatus(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
@@ -1793,7 +1802,7 @@ proto.title.Person.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getCareersatus();
+  f = message.getCareerstatus();
   if (f.length > 0) {
     writer.writeString(
       7,
@@ -1980,10 +1989,10 @@ proto.title.Person.prototype.setBiography = function(value) {
 
 
 /**
- * optional string CareerSatus = 7;
+ * optional string CareerStatus = 7;
  * @return {string}
  */
-proto.title.Person.prototype.getCareersatus = function() {
+proto.title.Person.prototype.getCareerstatus = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
@@ -1992,7 +2001,7 @@ proto.title.Person.prototype.getCareersatus = function() {
  * @param {string} value
  * @return {!proto.title.Person} returns this
  */
-proto.title.Person.prototype.setCareersatus = function(value) {
+proto.title.Person.prototype.setCareerstatus = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
@@ -4014,7 +4023,7 @@ proto.title.GetVideoByIdRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.title.GetVideoByIdRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    vidoeid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    videoid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
@@ -4054,7 +4063,7 @@ proto.title.GetVideoByIdRequest.deserializeBinaryFromReader = function(msg, read
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setVidoeid(value);
+      msg.setVideoid(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -4089,7 +4098,7 @@ proto.title.GetVideoByIdRequest.prototype.serializeBinary = function() {
  */
 proto.title.GetVideoByIdRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getVidoeid();
+  f = message.getVideoid();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -4107,10 +4116,10 @@ proto.title.GetVideoByIdRequest.serializeBinaryToWriter = function(message, writ
 
 
 /**
- * optional string vidoeId = 1;
+ * optional string videoId = 1;
  * @return {string}
  */
-proto.title.GetVideoByIdRequest.prototype.getVidoeid = function() {
+proto.title.GetVideoByIdRequest.prototype.getVideoid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -4119,7 +4128,7 @@ proto.title.GetVideoByIdRequest.prototype.getVidoeid = function() {
  * @param {string} value
  * @return {!proto.title.GetVideoByIdRequest} returns this
  */
-proto.title.GetVideoByIdRequest.prototype.setVidoeid = function(value) {
+proto.title.GetVideoByIdRequest.prototype.setVideoid = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 

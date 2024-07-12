@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
 goog.object.extend(proto, google_protobuf_struct_pb);
@@ -8488,7 +8497,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.toObject = function(opt_include
  */
 proto.rbac.GetSubjectAllocatedSpaceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    allocatedSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    allocatedSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -8525,7 +8534,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.deserializeBinaryFromReader = function(ms
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 3:
+    case 1:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setAllocatedSpace(value);
       break;
@@ -8561,7 +8570,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.serializeBinaryToWriter = function(messag
   f = message.getAllocatedSpace();
   if (f !== 0) {
     writer.writeUint64(
-      3,
+      1,
       f
     );
   }
@@ -8569,11 +8578,11 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.serializeBinaryToWriter = function(messag
 
 
 /**
- * optional uint64 allocated_space = 3;
+ * optional uint64 allocated_space = 1;
  * @return {number}
  */
 proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.getAllocatedSpace = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
@@ -8582,7 +8591,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.getAllocatedSpace = function() 
  * @return {!proto.rbac.GetSubjectAllocatedSpaceRsp} returns this
  */
 proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.setAllocatedSpace = function(value) {
-  return jspb.Message.setProto3IntField(this, 3, value);
+  return jspb.Message.setProto3IntField(this, 1, value);
 };
 
 
@@ -8778,7 +8787,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.prototype.toObject = function(opt_include
  */
 proto.rbac.GetSubjectAvailableSpaceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    availableSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    availableSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -8815,7 +8824,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.deserializeBinaryFromReader = function(ms
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 3:
+    case 1:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setAvailableSpace(value);
       break;
@@ -8851,7 +8860,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.serializeBinaryToWriter = function(messag
   f = message.getAvailableSpace();
   if (f !== 0) {
     writer.writeUint64(
-      3,
+      1,
       f
     );
   }
@@ -8859,11 +8868,11 @@ proto.rbac.GetSubjectAvailableSpaceRsp.serializeBinaryToWriter = function(messag
 
 
 /**
- * optional uint64 available_space = 3;
+ * optional uint64 available_space = 1;
  * @return {number}
  */
 proto.rbac.GetSubjectAvailableSpaceRsp.prototype.getAvailableSpace = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
@@ -8872,7 +8881,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.prototype.getAvailableSpace = function() 
  * @return {!proto.rbac.GetSubjectAvailableSpaceRsp} returns this
  */
 proto.rbac.GetSubjectAvailableSpaceRsp.prototype.setAvailableSpace = function(value) {
-  return jspb.Message.setProto3IntField(this, 3, value);
+  return jspb.Message.setProto3IntField(this, 1, value);
 };
 
 

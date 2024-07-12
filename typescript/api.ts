@@ -632,7 +632,8 @@ export function readDir(
   stream.on("data", (rsp) => {
 
     let f = rsp.getInfo()
-    var parent = files[f.getPath().substring(0, f.getPath().lastIndexOf("/"))];
+    var path = f.getPath().split("//").join("/")
+    var parent = files[path.substring(0, path.lastIndexOf("/"))];
     if (parent) {
        let files_ = parent.getFilesList()
        files_.push(f)
@@ -642,6 +643,7 @@ export function readDir(
         globular.eventHub.publish("_read_dir_" + rqst.getPath(), f, true);
     }
     files[f.getPath()] = f;
+    files[path] = f;
   });
 
   stream.on("status", (status) => {

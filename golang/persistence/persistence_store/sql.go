@@ -94,7 +94,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 		if err != nil && nbTry == 0 {
 			
-			fmt.Println("--------------> 99 ", err)
 			return err
 		} else if err == nil {
 			break
@@ -116,8 +115,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 
 	// set default path
 	path := config.GetDataDir() + "/sql-data"
-
-	fmt.Println("----------------> 120")
 
 	// set the path if it is provided.
 	if options["path"] != nil {

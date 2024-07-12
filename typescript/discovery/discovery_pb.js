@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 var resource_pb = require('../resource/resource_pb.js');
 goog.object.extend(proto, resource_pb);
@@ -145,7 +154,7 @@ proto.discovery.PublishServiceRequest.toObject = function(includeInstance, msg) 
     servicename: jspb.Message.getFieldWithDefault(msg, 2, ""),
     user: jspb.Message.getFieldWithDefault(msg, 3, ""),
     organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    dicorveryid: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    discoveryid: jspb.Message.getFieldWithDefault(msg, 5, ""),
     repositoryid: jspb.Message.getFieldWithDefault(msg, 6, ""),
     description: jspb.Message.getFieldWithDefault(msg, 7, ""),
     keywordsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
@@ -206,7 +215,7 @@ proto.discovery.PublishServiceRequest.deserializeBinaryFromReader = function(msg
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDicorveryid(value);
+      msg.setDiscoveryid(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
@@ -289,7 +298,7 @@ proto.discovery.PublishServiceRequest.serializeBinaryToWriter = function(message
       f
     );
   }
-  f = message.getDicorveryid();
+  f = message.getDiscoveryid();
   if (f.length > 0) {
     writer.writeString(
       5,
@@ -414,10 +423,10 @@ proto.discovery.PublishServiceRequest.prototype.setOrganization = function(value
 
 
 /**
- * optional string dicorveryId = 5;
+ * optional string discoveryId = 5;
  * @return {string}
  */
-proto.discovery.PublishServiceRequest.prototype.getDicorveryid = function() {
+proto.discovery.PublishServiceRequest.prototype.getDiscoveryid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -426,7 +435,7 @@ proto.discovery.PublishServiceRequest.prototype.getDicorveryid = function() {
  * @param {string} value
  * @return {!proto.discovery.PublishServiceRequest} returns this
  */
-proto.discovery.PublishServiceRequest.prototype.setDicorveryid = function(value) {
+proto.discovery.PublishServiceRequest.prototype.setDiscoveryid = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 

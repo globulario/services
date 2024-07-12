@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 goog.exportSymbol('proto.applications_manager.InstallApplicationRequest', null, global);
 goog.exportSymbol('proto.applications_manager.InstallApplicationResponse', null, global);
@@ -132,7 +141,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.toObject = functi
  */
 proto.applications_manager.InstallApplicationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    dicorveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    discoveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     applicationid: jspb.Message.getFieldWithDefault(msg, 2, ""),
     publisherid: jspb.Message.getFieldWithDefault(msg, 3, ""),
     version: jspb.Message.getFieldWithDefault(msg, 4, ""),
@@ -176,7 +185,7 @@ proto.applications_manager.InstallApplicationRequest.deserializeBinaryFromReader
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDicorveryid(value);
+      msg.setDiscoveryid(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -227,7 +236,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.serializeBinary =
  */
 proto.applications_manager.InstallApplicationRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDicorveryid();
+  f = message.getDiscoveryid();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -273,10 +282,10 @@ proto.applications_manager.InstallApplicationRequest.serializeBinaryToWriter = f
 
 
 /**
- * optional string dicorveryId = 1;
+ * optional string discoveryId = 1;
  * @return {string}
  */
-proto.applications_manager.InstallApplicationRequest.prototype.getDicorveryid = function() {
+proto.applications_manager.InstallApplicationRequest.prototype.getDiscoveryid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -285,7 +294,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.getDicorveryid = 
  * @param {string} value
  * @return {!proto.applications_manager.InstallApplicationRequest} returns this
  */
-proto.applications_manager.InstallApplicationRequest.prototype.setDicorveryid = function(value) {
+proto.applications_manager.InstallApplicationRequest.prototype.setDiscoveryid = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 

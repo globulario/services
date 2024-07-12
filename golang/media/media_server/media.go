@@ -2935,6 +2935,8 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 	cmd := exec.Command(baseCmd, cmdArgs...)
 	cmd.Dir = path
 
+	fmt.Println("executing ", baseCmd, cmdArgs, " in ", path)
+	
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return pid, err
@@ -3119,7 +3121,7 @@ func (srv *server) StartProcessAudio(ctx context.Context, rqst *mediapb.StartPro
 // Start process video on the server.
 func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartProcessVideoRequest) (*mediapb.StartProcessVideoResponse, error) {
 
-	fmt.Println("Start Process Video ", rqst.Path)
+	
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -3142,6 +3144,8 @@ func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartPro
 		path := srv.formatPath(rqst.Path)
 		dirs = append(dirs, path)
 	}
+
+	fmt.Println("Start Process Video ", dirs)
 
 	// start conversion.
 	go func() {
