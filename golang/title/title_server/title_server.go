@@ -29,8 +29,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // The default values.
@@ -48,52 +48,51 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Domain               string
-	Address              string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	State                string
-	ModTime              int64
-	TLS                  bool
+	Id              string
+	Mac             string
+	Name            string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	State           string
+	ModTime         int64
+	TLS             bool
 
 	// svr-signed X.509 public keys for distribution
-	CertFile             string
+	CertFile string
 
 	// a private RSA key to sign and authenticate the public key
-	KeyFile              string
+	KeyFile string
 
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust   string
+	CertAuthorityTrust string
 
-	Permissions          []interface{} // contains the action permission for the services.
+	Permissions []interface{} // contains the action permission for the services.
 
-	Dependencies         []string // The list of services needed by this services.
+	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
-	grpcServer           *grpc.Server
-
+	grpcServer *grpc.Server
 
 	// The cache address
 	CacheAddress string
@@ -745,9 +744,9 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 				// Here I will try to get it from the users dirs...
 				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-				} else if Utility.Exists("/" + absolutefilePath) {	
+				} else if Utility.Exists("/" + absolutefilePath) {
 					absolutefilePath = "/" + absolutefilePath
-					
+
 				}
 
 				if !Utility.Exists(absolutefilePath) {
@@ -1020,7 +1019,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		} else if Utility.Exists("/" + absolutefilePath) {
 			absolutefilePath = "/" + absolutefilePath
-			
+
 		}
 
 		if !Utility.Exists(absolutefilePath) {
@@ -1293,9 +1292,8 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-		}else if Utility.Exists("/" + absolutefilePath) {
+		} else if Utility.Exists("/" + absolutefilePath) {
 			absolutefilePath = "/" + absolutefilePath
-			
 		}
 	}
 	if !Utility.Exists(absolutefilePath) {
@@ -1391,9 +1389,9 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-		}else if Utility.Exists("/" + absolutefilePath) {
+		} else if Utility.Exists("/" + absolutefilePath) {
 			absolutefilePath = "/" + absolutefilePath
-			
+
 		}
 	}
 
@@ -1777,7 +1775,7 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 				// Here I will try to get it from the users dirs...
 				if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 					absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-				}else if Utility.Exists("/" + absolutefilePath) {
+				} else if Utility.Exists("/" + absolutefilePath) {
 					absolutefilePath = "/" + absolutefilePath
 				}
 
@@ -1821,7 +1819,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
-		
+
 		return nil, err
 	}
 
@@ -1857,7 +1855,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 // Get a video by a given id.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
-	
+
 	video, err := srv.getVideoById(rqst.IndexPath, rqst.VideoId)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2006,10 +2004,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		} else if Utility.Exists("/" + absolutefilePath) {
 			absolutefilePath = "/" + absolutefilePath
-			
+
 		}
 	}
-	
+
 	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2101,7 +2099,7 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 			paths = append(paths, association.Paths[i])
 		} else if Utility.Exists(config.GetDataDir() + "/files" + association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
-		}else if Utility.Exists("/" + association.Paths[i]) {
+		} else if Utility.Exists("/" + association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
 		}
 	}
@@ -2510,9 +2508,8 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
 
-
 	fmt.Println("CreateAudio", rqst.Audio.ID, rqst.Audio.Title)
-	
+
 	if len(rqst.Audio.ID) == 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2692,7 +2689,6 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 		return nil, errors.New("no album found with id " + id)
 	}
 
-
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
 		if val.ID == id {
@@ -2706,7 +2702,7 @@ func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
 			err = protojson.Unmarshal(raw, album)
 			if err == nil {
 				return album, nil
-			}else{
+			} else {
 				return nil, err
 			}
 		}
@@ -2835,9 +2831,9 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
-		}else if Utility.Exists("/" + absolutefilePath) {
+		} else if Utility.Exists("/" + absolutefilePath) {
 			absolutefilePath = "/" + absolutefilePath
-			
+
 		}
 	}
 

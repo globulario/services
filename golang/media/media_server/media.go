@@ -2940,7 +2940,7 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 	cmd.Dir = path
 
 	fmt.Println("executing ", baseCmd, cmdArgs, " in ", path)
-	
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return pid, err
