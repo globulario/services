@@ -2,6 +2,7 @@ package imap
 
 import (
 	"errors"
+	"fmt"
 	//	"log"
 
 	"github.com/davecourtois/Utility"
@@ -19,18 +20,19 @@ type User_impl struct {
 }
 
 // Username returns this user's username.
-func (self *User_impl) Username() string {
-	return self.info["name"].(string)
+func (user *User_impl) Username() string {
+	return user.info["name"].(string)
 }
 
 // ListMailboxes returns a list of mailboxes belonging to this user. If
 // subscribed is set to true, only returns subscribed mailboxes.
-func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error) {
+func (user *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error) {
 
 	boxes := make([]backend.Mailbox, 0)
-	connectionId := self.Username() + "_db"
+	connectionId := user.Username() + "_db"
 	// Get list of other mail box here.
 	values, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
+	fmt.Println("------------> ListMailboxes: ", values)
 	if err != nil {
 		return nil, err
 	}
@@ -41,13 +43,13 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 
 	for i := 0; i < len(values); i++ {
 		val := values[i].(map[string]interface{})
-		box := NewMailBox(self.Username(), val["Name"].(string))
+		box := NewMailBox(user.Username(), val["Name"].(string))
 		boxes = append(boxes, box)
 	}
 
 	if len(values) == 0 {
 		// By default INBOX must exist on the backend, that the default mailbox.
-		inbox := NewMailBox(self.Username(), "INBOX")
+		inbox := NewMailBox(user.Username(), "INBOX")
 		boxes = append(boxes, inbox)
 
 	}
@@ -57,16 +59,18 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 
 // GetMailbox returns a mailbox. If it doesn't exist, it returns
 // ErrNoSuchMailbox.
-func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
+func (user *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
 
-	connectionId := self.Username() + "_db"
+	fmt.Println("------------> GetMailbox: ", name)
+
+	connectionId := user.Username() + "_db"
 	query := `{"Name":"` + name + `"}`
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil || count < 1 {
 		return nil, errors.New("No mail box found with name " + name)
 	}
 
-	return NewMailBox(self.Username(), name), nil
+	return NewMailBox(user.Username(), name), nil
 }
 
 // CreateMailbox creates a new mailbox.
@@ -87,7 +91,7 @@ func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
 // deleted, its unique identifiers MUST be greater than any unique identifiers
 // used in the previous incarnation of the mailbox UNLESS the new incarnation
 // has a different unique identifier validity value.
-func (self *User_impl) CreateMailbox(name string) error {
+func (user *User_impl) CreateMailbox(name string) error {
 
 	info := new(imap.MailboxInfo)
 	info.Name = name
@@ -96,7 +100,7 @@ func (self *User_impl) CreateMailbox(name string) error {
 	if err != nil {
 		return err
 	}
-	connectionId := self.Username() + "_db"
+	connectionId := user.Username() + "_db"
 	_, err = Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
 
 	return err
@@ -113,9 +117,9 @@ func (self *User_impl) CreateMailbox(name string) error {
 // be preserved so that a new mailbox created with the same name will not
 // reuse the identifiers of the former incarnation, UNLESS the new incarnation
 // has a different unique identifier validity value.
-func (self *User_impl) DeleteMailbox(name string) error {
+func (user *User_impl) DeleteMailbox(name string) error {
 
-	connectionId := self.Username() + "_db"
+	connectionId := user.Username() + "_db"
 
 	// First I will delete the entry in MailBoxes...
 	err := Store.DeleteOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+name+`"}`, "")
@@ -153,8 +157,8 @@ func (self *User_impl) DeleteMailbox(name string) error {
 // messages in INBOX to a new mailbox with the given name, leaving INBOX
 // empty.  If the server implementation supports inferior hierarchical names
 // of INBOX, these are unaffected by a rename of INBOX.
-func (self *User_impl) RenameMailbox(existingName, newName string) error {
-	connectionId := self.Username() + "_db"
+func (user *User_impl) RenameMailbox(existingName, newName string) error {
+	connectionId := user.Username() + "_db"
 
 	// I will rename the
 	err := Store.UpdateOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+existingName+`"}`, `{"$set":{"Name":"`+newName+`"}}`, "")
@@ -167,6 +171,6 @@ func (self *User_impl) RenameMailbox(existingName, newName string) error {
 
 // Logout is called when this User will no longer be used, likely because the
 // client closed the connection.
-func (self *User_impl) Logout() error {
-	return nil //Store.Disconnect(self.Username() + "_db")
+func (user *User_impl) Logout() error {
+	return nil //Store.Disconnect(user.Username() + "_db")
 }

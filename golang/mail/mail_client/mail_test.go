@@ -11,7 +11,7 @@ import (
 var (
 	client *Mail_Client
 	// address string = "globule-aws.globular.io"
-	address string = "globule-ryzen.globular.cloud"
+	address string = "globule-ryzen-win11.globular.cloud"
 )
 
 // smtpServer data to smtp server
@@ -49,9 +49,9 @@ func TestCreateConnection(t *testing.T) {
  */
 func TestSendEmail(t *testing.T) {
 
-	from := "dave@globular.io"
-	to := []string{"dave@globular.io"}
-	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave@globular.io"}}
+	from := "sa@globular.cloud"
+	to := []string{"dave.courtois60@gmail.com"}
+	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
 	bodyType := int32(mailpb.BodyType_HTML)

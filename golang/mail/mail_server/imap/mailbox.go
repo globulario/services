@@ -2,6 +2,7 @@ package imap
 
 import (
 	"errors"
+	"fmt"
 
 	// "io/ioutil"
 	"io/ioutil"
@@ -47,6 +48,7 @@ func NewMailBox(user string, name string) *MailBox_impl {
 
 func getMailBox(user string, name string) (*MailBox_impl, error) {
 
+	fmt.Println("Get mailbox ", name)
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user

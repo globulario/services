@@ -28,6 +28,7 @@ var (
  */
 func saveMessage(user string, mailBox string, body []byte, flags []string, date time.Time) error {
 
+	fmt.Println("imap ----> 31 Saving message in the backend.")
 	data := make(map[string]interface{})
 
 	data["Date"] = date
@@ -94,13 +95,14 @@ func startImap(port int, keyFile string, certFile string) {
 func StartImap(store *persistence_client.Persistence_Client, backend_address string, backend_port int, backend_password string, keyFile string, certFile string, port int, tls_port int, alt_port int) {
 
 	// keep backend info
-	store = store
+	/*store = store
 	backend_password = backend_password
 	backend_address = backend_address
-	backend_port = backend_port
+	backend_port = backend_port*/
 
 	// Create a memory backend
 	startImap(port, "", "")
+
 	startImap(tls_port, keyFile, certFile)
 	startImap(alt_port, keyFile, certFile)
 }

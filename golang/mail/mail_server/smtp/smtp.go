@@ -3,17 +3,17 @@ package smtp
 import (
 	"bytes"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/smtp"
 	"strings"
 	"time"
 
-	"github.com/emersion/go-smtp"
 	// I will use persistence store as backend...
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/mhale/smtpd"
 )
@@ -37,127 +37,112 @@ var (
 	Backend_port    int
 )
 
+// Sender represents an email sender
 type Sender struct {
 	Hostname string
 }
 
+// splitAddress splits the email address into the local part and the domain part
+func splitAddress(address string) (localPart, domain string, err error) {
+	at := strings.LastIndex(address, "@")
+	if at < 0 {
+		return "", "", fmt.Errorf("Invalid email address: %s", address)
+	}
+	return address[:at], address[at+1:], nil
+}
+
+// Send sends an email using the specified sender, from address, to addresses, and message reader
 func (s *Sender) Send(from string, to []string, r io.Reader) error {
-	// TODO: buffer r if sending to multiple recipients
-	// TODO: group recipients with same domain
-	fmt.Println(from, "try to send message to ", to)
+	fmt.Println(from, "trying to send message to", to)
+
 	for _, addr := range to {
 		_, domain, err := splitAddress(addr)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("lookup for address ", domain)
+		fmt.Println("Looking up MX records for domain", domain)
 		mxs, err := net.LookupMX(domain)
 		if err != nil {
+			fmt.Println("Failed to lookup MX records for domain", domain, ":", err)
 			return err
-		}
-
-		for _, mx := range mxs {
-			fmt.Println("-------------> 61 ", mx.Host)
 		}
 
 		if len(mxs) == 0 {
 			mxs = []*net.MX{{Host: domain}}
 		}
 
+		var success bool
 		for _, mx := range mxs {
-			c, err := smtp.Dial(mx.Host + ":25")
+			fmt.Println("Trying to connect to", mx.Host)
+
+			// First try with port 587 and STARTTLS
+			c, err := smtp.Dial(mx.Host + ":587")
 			if err != nil {
-				if err != nil {
-					fmt.Println("66 ----------> ", err)
-				}
-				return err
+				fmt.Println("Failed to connect to", mx.Host, "on port 587:", err)
+				continue
 			}
+
+			// Start TLS
+			tlsConfig := &tls.Config{
+				ServerName:         mx.Host,
+				InsecureSkipVerify: false,
+			}
+
+			if err := c.StartTLS(tlsConfig); err != nil {
+				fmt.Println("Failed to start TLS on", mx.Host, ":", err)
+				c.Quit()
+				continue
+			}
+
+			defer c.Quit()
 
 			if err := c.Hello(s.Hostname); err != nil {
-				if err != nil {
-					fmt.Println("73 ----------> ", err)
-				}
+				fmt.Println("Hello failed:", err)
 				return err
 			}
 
-			if ok, _ := c.Extension("STARTTLS"); ok {
-				tlsConfig := &tls.Config{ServerName: mx.Host}
-
-				/*if err := c.StartTLS(tlsConfig); err != nil {
-					if err != nil {
-						fmt.Println("82 ----------> ", err)
-					}
-					return err
-				}*/
-				c, err = smtp.DialStartTLS(mx.Host, tlsConfig)
-				if err != nil {
-					if err != nil {
-						fmt.Println("82 ----------> ", err)
-					}
-					return err
-				}
-
-			}
-
-			if err := c.Mail(from, &smtp.MailOptions{}); err != nil {
-				if err != nil {
-					fmt.Println("90 ----------> ", err)
-				}
+			if err := c.Mail(from); err != nil {
+				fmt.Println("Mail command failed:", err)
 				return err
 			}
 
-			// Set recipient options
-			opt := &smtp.RcptOptions{}
-
-			if err := c.Rcpt(addr, opt); err != nil {
-
-				fmt.Println("96 ----------> ", err)
-
+			if err := c.Rcpt(addr); err != nil {
+				fmt.Println("Rcpt command failed:", err)
 				return err
 			}
 
 			wc, err := c.Data()
 			if err != nil {
-
-				fmt.Println("104 ----------> ", err)
-
+				fmt.Println("Data command failed:", err)
 				return err
 			}
+
 			if _, err := io.Copy(wc, r); err != nil {
-
-				fmt.Println("110 ----------> ", err)
-
+				fmt.Println("Copy to data writer failed:", err)
 				return err
 			}
+
 			if err := wc.Close(); err != nil {
-
-				fmt.Println("116 ----------> ", err)
-
+				fmt.Println("Close data writer failed:", err)
 				return err
 			}
 
-			if err := c.Quit(); err != nil {
+			fmt.Println("Message sent to", addr)
+			success = true
+			break
+		}
 
-				fmt.Println("124 ----------> ", err)
-
-				return err
-			}
+		if !success {
+			return fmt.Errorf("Failed to send to any MX servers for domain %s", domain)
 		}
 	}
 
 	return nil
 }
 
-func splitAddress(addr string) (local, domain string, err error) {
-	parts := strings.SplitN(addr, "@", 2)
-	if len(parts) != 2 {
-		return "", "", errors.New("mta: invalid mail address")
-	}
-	return parts[0], parts[1], nil
-}
-
 func hasAccount(email string) bool {
+	fmt.Println("------------> test if account exist 149", email)
 	query := `{"email":"` + email + `"}`
 	count, _ := Store.Count("local_resource", "local_resource", "Accounts", query, "")
 
@@ -182,11 +167,15 @@ func rcptHandler(remoteAddr net.Addr, from string, to string) bool {
 func startSmtp(domain string, port int, keyFile string, certFile string) {
 	go func() {
 
+		fmt.Println("----------> start smtp server at port ", port)
 		srv := &smtpd.Server{
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
 			AuthHandler: func(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
 				answer_ := make(chan map[string]interface{})
+
+				fmt.Println("------------> Try to authenticate 181", string(username), string(password))
+				// send the authentication request to the main thread.
 				authenticate <- map[string]interface{}{"user": string(username), "pwd": string(password), "answer": answer_}
 
 				// wait for answer...
@@ -194,12 +183,14 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 				if answer["err"] != nil {
 					return false, answer["err"].(error)
 				}
+
+				fmt.Println("------------> 188", answer["valid"].(bool))
 				return answer["valid"].(bool), nil
 			},
 			AuthMechs:    map[string]bool{},
 			AuthRequired: false,
 			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error {
-
+				fmt.Println("------------> 189", from, to)
 				// push message in to incomming...
 				for i := 0; i < len(to); i++ {
 
@@ -235,19 +226,24 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			srv.TLSRequired = true
 			cer, err := tls.LoadX509KeyPair(certFile, keyFile)
 			if err != nil {
+				fmt.Println("----------------> 220", err)
 				return
 			}
 			srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 		}
 
-		srv.ListenAndServe()
+		fmt.Println("----------> smtp server lisen at port ", port)
+		err := srv.ListenAndServe()
+		if err != nil {
+			log.Fatal(err)
+		}
 
 	}()
 }
 
 func saveMessage(email string, mailBox string, body []byte, flags []string) error {
 
-	fmt.Println("try to save message from ", email, mailBox)
+	fmt.Println("-----------------> try to save message from ", email, mailBox)
 
 	query := `{"email":"` + email + `"}`
 	info, err := Store.FindOne("local_resource", "local_resource", "Accounts", query, "")
@@ -275,7 +271,7 @@ func saveMessage(email string, mailBox string, body []byte, flags []string) erro
 	return err
 }
 
-func StartSmtp(store *persistence_client.Persistence_Client, backend_address string, backend_port int, domain string, keyFile string, certFile string, port int, tls_port int, alt_port int) {
+func StartSmtp(store *persistence_client.Persistence_Client, backend_address string, backend_port int, backend_password string, domain string, keyFile string, certFile string, port int, tls_port int, alt_port int) {
 
 	// create channel's
 	incomming = make(chan map[string]interface{})
@@ -287,15 +283,24 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 	// Validate that the email is manage by the srv.
 	validateRcpt = make(chan map[string]interface{})
 
+	// I will use the backend address as the domain because the user is authenticated.
+	if backend_address == "0.0.0.0" || backend_address == "localhost" {
+		backend_address, _ = config.GetDomain()
+	}
+
+	err := Store.CreateConnection("local_resource", "local_resource", backend_address, float64(backend_port), 1, "sa", backend_password, 500, "", false)
+	if err != nil {
+		log.Println("fail to create connection to the backend with error: ", err)
+		return
+	}
+
 	go func() {
 		for {
 			select {
 			case data := <-incomming:
-
 				saveMessage(data["to"].(string), "INBOX", data["msg"].([]byte), []string{})
 
 			case data := <-outgoing:
-
 				sender := new(Sender)
 				sender.Hostname = domain
 
@@ -315,19 +320,20 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 				connection_id := user + "_db"
 
 				// I will use the datastore to authenticate the user.
-				err := Store.CreateConnection(connection_id, connection_id, backend_address, float64(backend_port), 0, user, pwd, 500, "", false)
+				err := Store.CreateConnection(connection_id, connection_id, backend_address, float64(backend_port), 1, user, pwd, 500, "", false)
 
 				if err != nil {
 					answer_ <- map[string]interface{}{"valid": false, "err": err}
 				} else {
 					answer_ <- map[string]interface{}{"valid": true, "err": nil}
 				}
+
 			}
 		}
 	}()
 
 	// non tls at port 25
-	startSmtp(domain, port, "", "")
+	//startSmtp(domain, port, "", "")
 
 	// tls at port 465
 	startSmtp(domain, tls_port, keyFile, certFile)

@@ -804,12 +804,11 @@ func main() {
 
 	// Here I will start the local smtp srv.
 	go func() {
-		certFile := s_impl.CertFile
+		certFile := config.GetLocalCertificate()
+		domain, _ := config.GetDomain()
+		name, _:= config.GetName()
 
-		// Here in case of tls connection I will use the domain certificate instead of the server certificate.
-		if s_impl.TLS == true {
-			certFile = certFile[0:strings.Index(certFile, "srv.crt")] + s_impl.Domain + ".crt"
-		}
+		certFile = config.GetConfigDir() + "/tls/"+ name + "." + domain + "/" + certFile
 
 		// The backend connection.
 		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
@@ -835,7 +834,7 @@ func main() {
 		// Open the backend main connection
 		nbTry := 10
 		for ; nbTry > 0; nbTry-- {
-			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 500, "", false)
+			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 1, "sa", s_impl.Password, 500, "", false)
 			if err == nil {
 				break
 			}
@@ -847,10 +846,12 @@ func main() {
 		}
 
 		// start imap srv.
+		fmt.Println("Start imap server")
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
+		fmt.Println("Start smtp server")
 		// start smtp server
-		smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
+		smtp.StartSmtp(store, address, port, s_impl.Password, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 
 	}()
 	// Start the service.
