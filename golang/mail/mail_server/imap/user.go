@@ -2,7 +2,6 @@ package imap
 
 import (
 	"errors"
-	"fmt"
 	//	"log"
 
 	"github.com/davecourtois/Utility"
@@ -32,7 +31,7 @@ func (user *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 	connectionId := user.Username() + "_db"
 	// Get list of other mail box here.
 	values, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
-	fmt.Println("------------> ListMailboxes: ", values)
+
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +59,6 @@ func (user *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 // GetMailbox returns a mailbox. If it doesn't exist, it returns
 // ErrNoSuchMailbox.
 func (user *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
-
-	fmt.Println("------------> GetMailbox: ", name)
 
 	connectionId := user.Username() + "_db"
 	query := `{"Name":"` + name + `"}`

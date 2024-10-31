@@ -581,7 +581,7 @@ func (srv *server) createConnection(ctx context.Context, user, password, id, nam
 		s := new(persistence_store.SqlStore)
 		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 		if err != nil {
-			fmt.Println("580 ------------------> fail to connect with error ", err)
+
 			// codes.
 			return err
 		}
@@ -597,7 +597,6 @@ func (srv *server) createConnection(ctx context.Context, user, password, id, nam
 		srv.stores[c.Id] = s
 	} else {
 		err := errors.New("Store type not supported")
-		fmt.Println("596 ------------------> fail to connect with error ", err)
 		return err
 	}
 
@@ -606,12 +605,10 @@ func (srv *server) createConnection(ctx context.Context, user, password, id, nam
 
 	// fail to connect with error
 	if err != nil {
-		fmt.Println("605 --------------------> fail to connect with error ", err)
 		srv.stores[c.Id].Disconnect(c.Id)
 		return err
 	}
 
-	fmt.Println("610 -----------> Connection ", srv.stores[c.Id] ," created with success.")
 	// Print the success message here.
 	return nil
 }

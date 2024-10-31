@@ -622,7 +622,6 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 
 	// Remove the file when it's transfer on the server...
 	defer os.RemoveAll(packagePath)
-	// fmt.Println("-------------------> ", packagePath)
 
 	// Upload the bundle to the repository server.
 	_, err = client.UploadBundle(token, domain, s["Id"].(string), s["PublisherId"].(string), s["Version"].(string), platform, packagePath)

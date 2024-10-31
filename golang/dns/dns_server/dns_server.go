@@ -74,22 +74,22 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust   string
-	TLS                  bool
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Checksum             string
-	Plaform              string
-	KeepAlive            bool
-	Permissions          []interface{} // contains the action permission for the services.
-	Dependencies         []string      // The list of services needed by this services.
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	ModTime              int64
-	Root                 string
+	CertAuthorityTrust string
+	TLS                bool
+	Version            string
+	PublisherId        string
+	KeepUpToDate       bool
+	Checksum           string
+	Plaform            string
+	KeepAlive          bool
+	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies       []string      // The list of services needed by this services.
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
+	ModTime            int64
+	Root               string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -906,9 +906,8 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 // Set a text entry.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 
-	
 	srv.logServiceInfo("SetText", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Id)
-	
+
 	values, err := json.Marshal(rqst.Values)
 
 	fmt.Println("Try set dns entry ", rqst.Id, " with values: ", rqst.Values)
@@ -1284,17 +1283,24 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 	}, nil
 }
 
-// Set a text entry.
+// SetMx sets a DNS MX entry.
 func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
-
 	id := strings.ToLower(rqst.Id)
+	if !strings.HasSuffix(id, ".") {
+		id = id + "."
+	}
+
+	// do the same for the .MX field
+	if !strings.HasSuffix(rqst.Mx.Mx, ".") {
+		rqst.Mx.Mx = rqst.Mx.Mx + "."
+	}
+
 	uuid := Utility.GenerateUUID("MX:" + id)
 
-	// because it can be more than one NS, we store the value as json that contain aa list of string.
-
+	// Values holds the list of MX records.
 	values := make([]*dnspb.MX, 0)
 
-	// I will retreive the current value if any.
+	// Retrieve the current value if any.
 	data, err := srv.store.GetItem(uuid)
 	if err == nil {
 		err = json.Unmarshal(data, &values)
@@ -1305,20 +1311,22 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 		}
 	}
 
-	// I will add the new value.
+	// Check if the new MX record already exists.
+	found := false
 	for i := 0; i < len(values); i++ {
 		if values[i].Mx == rqst.Mx.Mx {
 			values[i] = rqst.Mx
-			rqst.Mx = nil
+			found = true
 			break
 		}
 	}
 
-	if rqst.Mx != nil {
+	// If the MX record was not found, add it.
+	if !found && rqst.Mx != nil {
 		values = append(values, rqst.Mx)
 	}
 
-	// I will save the new value.
+	// Save the updated value.
 	data, err = json.Marshal(values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1326,7 +1334,6 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// I will save the new value.
 	err = srv.store.SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1337,7 +1344,7 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 	srv.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetMxResponse{
-		Result: true, // return the full domain.
+		Result: true, // Indicate that the operation was successful.
 	}, nil
 }
 
@@ -1345,13 +1352,24 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 
 	id = strings.ToLower(id)
+	if !strings.HasSuffix(id, ".") {
+		id = id + "."
+	}
+
+	mx = strings.ToLower(mx)
+	if !strings.HasSuffix(mx, ".") {
+		mx = mx + "."
+	}
+
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := srv.store.GetItem(uuid)
 	values := make([]*dnspb.MX, 0) // use a map instead of Mx struct.
 
 	if err == nil {
 		err = json.Unmarshal(data, &values)
+
 		if err != nil {
+			fmt.Println("fail to retreive MX (mail exchange) for domain ", id, " with error: ", err)
 			return nil, 0, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1359,10 +1377,9 @@ func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 	}
 
 	// I will return the value if any.
-	if len(mx) > 0 {
+	if len(values) > 0 {
 		for i := 0; i < len(values); i++ {
 			if values[i].Mx == mx {
-
 				return []*dnspb.MX{values[i]}, srv.getTtl(uuid), nil
 			}
 		}
@@ -1375,6 +1392,10 @@ func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
 
 	id := strings.ToLower(rqst.Id)
+	if !strings.HasSuffix(id, ".") {
+		id = id + "."
+	}
+
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := srv.store.GetItem(uuid)
 
