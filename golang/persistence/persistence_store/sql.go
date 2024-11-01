@@ -93,7 +93,7 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		token, err = authentication_client.Authenticate(user, password)
 
 		if err != nil && nbTry == 0 {
-			
+
 			return err
 		} else if err == nil {
 			break
@@ -140,7 +140,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		// Save the connection.
 		store.connections[id] = connection
 	}
-
 
 	// Create the database if it does not exist.
 	databasePath := connection.Path + "/" + database + ".db"
@@ -1085,6 +1084,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 }
 
 func (store *SqlStore) formatQuery(table, query string) (string, error) {
+
 	if query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
 	} else {
@@ -1097,6 +1097,10 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 		// I will build the query here.
 		query = fmt.Sprintf("SELECT * FROM %s WHERE ", table)
 		for key, value := range parameters {
+
+			if key == "id" {
+				key = "_id"
+			}
 
 			if key == "_id" {
 				if strings.Contains(value.(string), "@") {
