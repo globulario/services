@@ -312,6 +312,7 @@ func (srv *server) ValidateSubjectSpace(ctx context.Context, rqst *rbacpb.Valida
  * Return the subject allocated space...
  */
 func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.SubjectType) (uint64, error) {
+	
 	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := srv.accountExist(subject)
@@ -345,8 +346,10 @@ func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.
 		id += "PEER/" + subject
 	}
 
+
 	data, err := srv.getItem(id)
 	if err != nil {
+		fmt.Println("355 fail to get allocated space for ", subject, " with id ", id, " with error ", err)
 		return 0, err
 	}
 
@@ -354,9 +357,12 @@ func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.
 	buf := bytes.NewBuffer(data)
 	err = binary.Read(buf, binary.LittleEndian, &ret)
 	if err != nil {
+		fmt.Println("361 fail to get allocated space for ", subject, " with id ", id, " with error ", err)
 		srv.removeItem(id)
 		return 0, err
 	}
+
+
 
 	return ret, nil
 }
@@ -457,13 +463,16 @@ func (srv *server) getSubjectAvailableSpace(subject string, subject_type rbacpb.
 }
 
 func (srv *server) setSubjectUsedSpace(subject string, subject_type rbacpb.SubjectType, used_space uint64) error {
-
+	
 	id := "USED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := srv.accountExist(subject)
 		if !exist {
-			errors.New("no account exist with id " + subject)
+			err := errors.New("no account exist with id " + subject)
+			fmt.Println(err)
+			return err
 		}
+
 		id += "ACCOUNT/" + a
 
 		// So Here I will create the user directory if it not already exist.
@@ -673,7 +682,11 @@ func (srv *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Ge
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return &rbacpb.GetSubjectAllocatedSpaceRsp{AllocatedSpace: allocated_space}, nil
+
+	rsp := &rbacpb.GetSubjectAllocatedSpaceRsp{AllocatedSpace: allocated_space}
+	fmt.Println("690 allocated space for ", rqst.Subject, " is ", allocated_space)
+
+	return rsp, nil
 }
 
 // * Set the user allocated space *
@@ -705,6 +718,7 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 
 	subject_type := rqst.Type
 	subject := rqst.Subject
+
 	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := srv.accountExist(subject)
@@ -749,9 +763,20 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 		id += "PEER/" + subject
 	}
 
+	
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, rqst.AllocatedSpace)
 	err = srv.setItem(id, b)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	fmt.Println("allocated space set for ", subject, " with value ", rqst.AllocatedSpace, " id ", id)
+
+	// test if the allocated space is set...
+	_, err = srv.getItem(id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

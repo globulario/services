@@ -407,9 +407,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Send log message.
 	if err != nil {
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		return nil, err
 	}
 
-	return result, err
+	return result, nil
 
 }
 
