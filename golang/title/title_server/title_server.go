@@ -1992,8 +1992,6 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
-	fmt.Println("get file videos for relative path ", filePath)
-
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
 	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
@@ -2508,8 +2506,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 // Insert a audio information in the database or update it if it already exist.
 func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
 
-	fmt.Println("CreateAudio", rqst.Audio.ID, rqst.Audio.Title)
-
 	if len(rqst.Audio.ID) == 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2826,7 +2822,6 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	absolutefilePath := rqst.FilePath
 	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
 
-	fmt.Println("2833 --------> ", absolutefilePath)
 	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {

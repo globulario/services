@@ -1917,6 +1917,8 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 
 	permissions, err := srv.getResourcePermissions(path)
 
+	fmt.Println("----------> addResourceOwner", path, resourceType_, subject, subjectType)
+
 	needSave := false
 	if err != nil {
 		if strings.Contains(err.Error(), "item not found") {

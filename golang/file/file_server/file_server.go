@@ -1009,6 +1009,11 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 // Index text contain in a pdf file
 func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 
+	// Be sure the file is a pdf...
+	if fileInfos.Mime != "application/pdf" {
+		return errors.New("file is not a pdf")
+	}
+
 	// The hidden folder path...
 	path_ := path[0:strings.LastIndex(path, "/")]
 	lastIndex := -1
@@ -1107,8 +1112,51 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 		page["Id"] = "page_" + Utility.ToString(i)
 		page["Number"] = i
 		txt, err := doc.Text(i)
+
+		// Try to index the text...
 		if err == nil {
-			page["Text"] = txt // Indexation will be generate from plain text...
+			if len(txt) > 0 {
+				page["Text"] = txt // Indexation will be generate from plain text...
+			} else {
+				// page["Text"] = ""
+				// so here I will try to use an OCR to extract text from the image...
+				img, err := doc.Image(i)
+				if err == nil {
+					if img != nil {
+						
+						tmpPath := os.TempDir() + "/" + Utility.RandomUUID() + ".jpg"
+
+						// Create and save the image to a temporary file
+						f, err := os.Create(tmpPath)
+						if err != nil {
+							return fmt.Errorf("failed to create temp file: %w", err)
+						}
+						err = jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
+						f.Close()
+						if err != nil {
+							return fmt.Errorf("failed to encode image: %w", err)
+						}
+						defer os.Remove(tmpPath) // Ensure the temp file is removed after processing
+						
+						// Verify the file exists
+						if _, err := os.Stat(tmpPath); os.IsNotExist(err) {
+							return fmt.Errorf("temporary file does not exist: %s", tmpPath)
+						}
+						
+						// Extract text using the OCR utility
+						text, err := Utility.ExtractTextFromJpeg(tmpPath)
+						if err != nil {
+							return fmt.Errorf("failed to extract text from image: %w", err)
+						}
+						
+						// Store the extracted text in the page map
+						page["Text"] = text
+						
+					}
+				}
+				
+			}
+
 			page_str, err := Utility.ToJson(page)
 
 			if err == nil {
@@ -1201,16 +1249,20 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 			// Test if a file named playlist.m3u8 exist...
 			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
-
+			fmt.Println("dirPath: ", dirPath, recursive, isHls, f.Name())
 			if recursive && !isHls && f.Name() != ".hidden" {
+
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token, fileInfos_chan)
 				if err != nil {
+					fmt.Println("fail to read dir ", dirPath, " with error ", err)
 					return nil, err
 				}
 
 				if fileInfos_chan != nil {
+
 					fileInfos_chan <- info_
 				} else {
+
 					info.Files = append(info.Files, info_)
 				}
 
@@ -1507,7 +1559,12 @@ func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest)
 		return nil, err
 	}
 
-	srv.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
+	err = srv.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
+	if err != nil {
+		return nil, err
+	}
+
+
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
