@@ -260,6 +260,10 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// Use in a local network or in test.
 	proxyArgs = append(proxyArgs, "--backend_addr="+proxyBackendAddress)
 	proxyArgs = append(proxyArgs, "--allow_all_origins="+proxyAllowAllOrgins)
+	//proxyArgs = append(proxyArgs, "--cors_allow_headers=Content-Type, Authorization")
+	//proxyArgs = append(proxyArgs, "--cors_allow_methods=GET, POST, OPTIONS")
+	//proxyArgs = append(proxyArgs, "  --cors_max_age=86400")
+	
 	hasTls := s["TLS"].(bool)
 
 

@@ -846,7 +846,7 @@ func main() {
 		}
 
 		// start imap srv.
-		fmt.Println("Start imap server")
+		fmt.Println("Start imap server on port ", s_impl.IMAP_Port)
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
 		fmt.Println("Start smtp server")

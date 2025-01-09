@@ -49,9 +49,9 @@ func TestCreateConnection(t *testing.T) {
  */
 func TestSendEmail(t *testing.T) {
 
-	from := "root@globular.app"
-	to := []string{"dave@globular.cloud"}
-	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave@globular.cloud"}}
+	from := "sa@globular.io"
+	to := []string{"test-1norsw1sk@srv1.mail-tester.com"}
+	cc := []*mailpb.CarbonCopy{/*&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "sa@globular.io"}*/}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
 	bodyType := int32(mailpb.BodyType_HTML)

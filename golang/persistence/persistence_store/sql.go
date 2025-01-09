@@ -574,9 +574,17 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 	var id string
 
 	if data["id"] != nil {
-		id = data["id"].(string)
+		id = Utility.ToString(data["id"])
 	} else if data["_id"] != nil {
-		id = data["_id"].(string)
+		id = Utility.ToString(data["_id"])
+	}else if data["Uid"] != nil {
+		id = Utility.ToString(data["Uid"])
+	}else if data["uid"] != nil {
+		id = Utility.ToString(data["uid"])
+	}else if data["uuid"] != nil {
+		id = Utility.ToString(data["uuid"])
+	}else if data["UUID"] != nil {
+		id = Utility.ToString(data["UUID"])
 	}
 
 	if len(id) == 0 {
@@ -584,6 +592,8 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 		return nil, errors.New("the id is required to insert data into the database")
 	}
 
+	data["_id"] = id
+	
 	// test if the data already exist.
 	if store.isTableExist(connectionId, db, tableName) {
 		// I will check if the data already exist.
