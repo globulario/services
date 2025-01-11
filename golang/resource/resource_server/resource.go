@@ -5254,10 +5254,6 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 	// Log a message to display update session...
 	//srv.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
 	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain": srv.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
-	jsonStr, err := Utility.ToJson(session)
-	if err != nil {
-		return err
-	}
 
 	// send update_session event
 	var q string
@@ -5272,7 +5268,17 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 		return errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", q, jsonStr, `[{"upsert":true}]`)
+	// Be sure to remove the old session...
+	p.Delete(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
+	
+	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Sessions", session, "")
+
+
+	fmt.Println("--------------------> update session ", session)
+	
+	return err
+
+	//return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", q, jsonStr, `[{"upsert":true}]`)
 
 }
 

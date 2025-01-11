@@ -319,7 +319,7 @@ func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetR
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given email dosent match existing one")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the g1736628884iven email dosent match existing one")))
 
 	}
 
@@ -350,7 +350,7 @@ func (srv *server) setKey(mac string) error {
 	// Get the mac address
 	macAddress, err := config.GetMacAddress()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	// Now I will generate keys if not already exist.
@@ -515,7 +515,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-
+	fmt.Println("update session: -----------------> ", session)
 	err = srv.updateSession(session)
 	if err != nil {
 		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
@@ -568,7 +568,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 		}, nil
 
 	}
-	
+
 	if strings.Contains(rqst.Name, "@") {
 		domain := strings.Split(rqst.Name, "@")[1]
 		if domain == srv.Domain {

@@ -18,21 +18,18 @@ import (
 	_ "github.com/mattn/go-sqlite3" // Import the sqlite3 driver
 )
 
-// Connection represent a connection to a SQL database.
+// SqlConnection represents a connection to a SQL database.
 type SqlConnection struct {
-	Id        string
-	Host      string
-	Token     string
-	Path      string
-	databases map[string]*sql.DB
+	Id        string            // Unique identifier for the connection
+	Host      string            // Host address of the SQL server
+	Token     string            // Authentication token
+	Path      string            // Path to the database file
+	databases map[string]*sql.DB // Map of database connections
 }
 
-/**
- * The SQL store.
- */
+// SqlStore represents the SQL store.
 type SqlStore struct {
-	/** The connections */
-	connections map[string]SqlConnection
+	connections map[string]SqlConnection // Map of SQL connections
 }
 
 func (store *SqlStore) GetStoreType() string {
@@ -1418,8 +1415,11 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 func (store *SqlStore) deleteSqlEntries(connectionId string, db string, table string, query string) error {
 	entities, err := store.Find(context.Background(), connectionId, db, table, query, "")
 	if err != nil {
+		fmt.Println("fail to retreive entries to delete...", query, err)
 		return err
 	}
+
+	fmt.Println("---------------> entities: ", entities)
 
 	for _, entity := range entities {
 		if entity.(map[string]interface{})["_id"] != nil {

@@ -1231,7 +1231,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 	if !info.IsDir {
 		if err_chan != nil {
-			err_chan <- errors.New("path is not a directory")
+			err_chan <- errors.New("path " + path + " is not a directory")
 		}
 		return nil, err
 	}
@@ -1436,14 +1436,14 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path " + rqst.Path + " doesn't exist")))
 	}
 
 	// So here I will test if the path is already in the public path...
 	if Utility.Contains(srv.Public, path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+path+" already exist in Pulbic paths")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("Path %s already exist in Public paths", path)))
 	}
 
 	// Append the path in the list...
@@ -1539,8 +1539,6 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	path := srv.formatPath(rqst.Path)
 	filesInfoChan := make(chan *filepb.FileInfo)
 	errChan := make(chan error)
-
-	fmt.Println("Read Dir: ", path)
 
 	// Start reading the directory in a goroutine
 	go func() {

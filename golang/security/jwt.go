@@ -46,28 +46,29 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-// Generate a token for a ginven user.
+// Generate a token for a given user.
 func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
 
-	// Declare the expiration time of the token
+	// Get current time
 	now := time.Now()
 
+	// Set the expiration time for the token
 	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
 
+	// Get the issuer (MAC address)
 	issuer, err := config.GetMacAddress()
 	if err != nil {
 		return "", err
 	}
 
+	// Set audience based on MAC address
 	audience := ""
-
 	if mac != issuer {
 		audience = mac
 	}
 
+	// Get the JWT signing key
 	var jwtKey []byte
-
-	// Here I will get the key...
 	if len(audience) > 0 {
 		jwtKey, err = GetPeerKey(audience)
 		if err != nil {
@@ -80,6 +81,7 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		}
 	}
 
+	// Get domain and address info
 	domain, err := config.GetDomain()
 	if err != nil {
 		return "", err
@@ -90,7 +92,7 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		return "", err
 	}
 
-	// Create the JWT claims, which includes the username and expiry time
+	// Create the JWT claims with user information and expiration time
 	claims := &Claims{
 		ID:         userId,
 		Username:   userName,
@@ -99,30 +101,37 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		Domain:     domain,
 		Address:    address,
 		StandardClaims: jwt.StandardClaims{
-			// In JWT, the expiry time is expressed as unix milliseconds
-			Id:        userId,
+			// Set the expiration time of the token (in Unix seconds)
 			ExpiresAt: expirationTime.Unix(),
+			// Set issued at time
+			IssuedAt: now.Unix(),
+			// The ID, subject, issuer, and audience
+			Id:        userId,
 			Subject:   userId,
 			Issuer:    issuer,
 			Audience:  audience,
-			IssuedAt:  now.Unix() - 1000, // make sure the IssuedAt is not in the futur...
 		},
 	}
 
-	// Declare the token with the algorithm used for signing, and the claims
+	// Create the JWT token using the specified signing method and claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// Create the JWT string
+	// Generate the signed token string
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		return "", err
 	}
 
+	// Optionally validate the token here (if needed)
 	_, err = ValidateToken(tokenString)
 	if err != nil {
-		fmt.Println("fail to generate token: ", err)
+		fmt.Println("Failed to generate token:", err)
 		return "", err
 	}
+
+	// Return the generated token string
+	//fmt.Println("Token generated successfully")
+	//fmt.Println("Token:", tokenString)
 
 	return tokenString, nil
 }
@@ -134,44 +143,48 @@ func ValidateToken(token string) (*Claims, error) {
 	claims := &Claims{}
 
 	// Parse the JWT string and store the result in `claims`.
-	// Note that we are passing the key in this method as well. This method will return an error
-	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
-	// or if the signature does not match
+	// This method will return an error if the token is invalid or if the signature doesn't match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-
+		// Retrieve the MAC address (issuer) and determine the key to use
 		macAddress, err := config.GetMacAddress()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		// Get the jwt key from file.
+		// Check if the audience is different from the MAC address (this might happen when the token is intended for a specific peer)
 		if len(claims.StandardClaims.Audience) > 0 {
+			// If the audience is different, we retrieve the peer's key
 			if claims.StandardClaims.Audience != macAddress {
 				return GetPeerKey(claims.StandardClaims.Audience)
 			}
 		}
 
+		// Otherwise, return the key associated with the issuer
 		key, err := GetPeerKey(claims.StandardClaims.Issuer)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
+		// Return the correct key to verify the signature
 		return key, nil
 	})
 
-	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
-		return claims, errors.New("the token is expired")
-	}
-
+	// Check if there was an error during the token parsing process
 	if err != nil {
-		return claims, err
+		return claims, fmt.Errorf("failed to parse token: %v", err)
 	}
 
+	// Check if the token has expired
+	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
+		return claims, errors.New("token has expired or is invalid " + time.Unix(claims.ExpiresAt, 0).String())
+	}
+
+	// Check if the token signature is valid
 	if !tkn.Valid {
-
-		return claims, errors.New("invalid token")
+		return claims, errors.New("invalid token signature")
 	}
 
+	// If everything is fine, return the claims
 	return claims, nil
 }
 
