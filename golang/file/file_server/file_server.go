@@ -1123,7 +1123,7 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 				img, err := doc.Image(i)
 				if err == nil {
 					if img != nil {
-						
+
 						tmpPath := os.TempDir() + "/" + Utility.RandomUUID() + ".jpg"
 
 						// Create and save the image to a temporary file
@@ -1137,24 +1137,24 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 							return fmt.Errorf("failed to encode image: %w", err)
 						}
 						defer os.Remove(tmpPath) // Ensure the temp file is removed after processing
-						
+
 						// Verify the file exists
 						if _, err := os.Stat(tmpPath); os.IsNotExist(err) {
 							return fmt.Errorf("temporary file does not exist: %s", tmpPath)
 						}
-						
+
 						// Extract text using the OCR utility
 						text, err := Utility.ExtractTextFromJpeg(tmpPath)
 						if err != nil {
 							return fmt.Errorf("failed to extract text from image: %w", err)
 						}
-						
+
 						// Store the extracted text in the page map
 						page["Text"] = text
-						
+
 					}
 				}
-				
+
 			}
 
 			page_str, err := Utility.ToJson(page)
@@ -1218,21 +1218,30 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string, fileInfos_chan chan *filepb.FileInfo) (*filepb.FileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string, fileInfos_chan chan *filepb.FileInfo, err_chan chan error) (*filepb.FileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
 	if err != nil {
+		if err_chan != nil {
+			err_chan <- err
+		}
 		return nil, err
 	}
 
 	if !info.IsDir {
-		return nil, errors.New(path + " is not a directory")
+		if err_chan != nil {
+			err_chan <- errors.New("path is not a directory")
+		}
+		return nil, err
 	}
 
 	// read list of files...
 	files, err := os.ReadDir(path)
 	if err != nil {
+		if err_chan != nil {
+			err_chan <- err
+		}
 		return nil, err
 	}
 
@@ -1252,9 +1261,12 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			fmt.Println("dirPath: ", dirPath, recursive, isHls, f.Name())
 			if recursive && !isHls && f.Name() != ".hidden" {
 
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token, fileInfos_chan)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token, fileInfos_chan, err_chan)
 				if err != nil {
 					fmt.Println("fail to read dir ", dirPath, " with error ", err)
+					if err_chan != nil {
+						err_chan <- err
+					}
 					return nil, err
 				}
 
@@ -1267,8 +1279,11 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				}
 
 			} else if f.Name() != ".hidden" { // I will not read sub-dir hidden files...
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token, fileInfos_chan)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token, fileInfos_chan, err_chan)
 				if err != nil {
+					if err_chan != nil {
+						err_chan <- err
+					}
 					return nil, err
 				}
 				if isHls {
@@ -1286,7 +1301,10 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 			info_, err := getFileInfo(s, path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			if err != nil {
-				return nil, err
+				if err_chan != nil {
+					err_chan <- err
+				}
+				return nil, nil
 			}
 
 			if !info_.IsDir && readFiles {
@@ -1296,6 +1314,9 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				} else {
 					f_, err := os.Open(path + "/" + f.Name())
 					if err != nil {
+						if err_chan != nil {
+							err_chan <- err
+						}
 						return nil, err
 					}
 					info_.Mime, _ = Utility.GetFileContentType(f_)
@@ -1343,8 +1364,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		}
 
 	}
-
-	return info, err
+	return info, nil
 }
 
 // return the icon address...
@@ -1505,6 +1525,11 @@ func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) 
 }
 
 func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+	if len(rqst.Path) == 0 {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
+	}
 
 	_, token, err := security.GetClientId(stream.Context())
 	if err != nil {
@@ -1513,35 +1538,56 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 
 	path := srv.formatPath(rqst.Path)
 	filesInfoChan := make(chan *filepb.FileInfo)
+	errChan := make(chan error)
 
 	fmt.Println("Read Dir: ", path)
 
+	// Start reading the directory in a goroutine
 	go func() {
 		defer close(filesInfoChan) // Close the channel when the goroutine exits
-		readDir(srv, path, rqst.GetRecursive(), rqst.ThumbnailWidth, rqst.ThumbnailHeight, true, token, filesInfoChan)
+		defer close(errChan)       // Ensure the error channel is closed
+		readDir(srv, path, rqst.GetRecursive(), rqst.ThumbnailWidth, rqst.ThumbnailHeight, true, token, filesInfoChan, errChan)
 	}()
 
-	// Continuously read from the channel and send FileInfo to the client
-	for fileInfo := range filesInfoChan {
+	// Use select to handle both file info and errors
+	for {
+		select {
+		case fileInfo, ok := <-filesInfoChan:
+			if !ok { // Check if the channel is closed
+				// If fileInfosChan is closed, return the error if it exists
+				err := <-errChan // Receive any error from the error channel
+				if err != nil {
+					return status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+				return nil // Successfully completed
+			}
 
-		err := stream.Send(&filepb.ReadDirResponse{
-			Info: fileInfo,
-		})
+			// Send the file info to the stream
+			if err := stream.Send(&filepb.ReadDirResponse{Info: fileInfo}); err != nil {
+				fmt.Println("Failed to send file info ", fileInfo.Path+"/"+fileInfo.Name)
+				fmt.Println("Error: ", err)
+				if err.Error() == "rpc error: code = Canceled desc = context canceled" {
+					return status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+			}
 
-		if err != nil {
-			fmt.Println("fail to send file info ", fileInfo.Path+"/"+fileInfo.Name, "thumbnail width:", rqst.ThumbnailWidth, "thumbnail height", rqst.ThumbnailHeight)
-			fmt.Println("error: ", err)
+		case err := <-errChan:
 
-			if err.Error() == "rpc error: code = Canceled desc = context canceled" {
+			if err != nil {
+				// If there's an error from the readDir goroutine
 				return status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}else{
+				return nil
 			}
 		}
 	}
 
-	fmt.Println("Read Dir: ", path, " done")
-	return nil
 }
 
 // Create a new directory
@@ -1563,7 +1609,6 @@ func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest)
 	if err != nil {
 		return nil, err
 	}
-
 
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
@@ -2819,7 +2864,7 @@ func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filep
 		path = strings.Replace(path, "\\", "/", -1)
 	}
 
-	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, token, nil)
+	info, err := readDir(srv, path, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, token, nil, nil)
 	if err != nil {
 		return err
 	}

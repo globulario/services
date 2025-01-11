@@ -1548,7 +1548,8 @@ func createVttFile(output string, fps float32) error {
 			end_ := time.Duration(time_ * int(time.Second))
 
 			webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
-			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" + strings.ReplaceAll(output, config.GetDataDir()+"/files/", "") + "/" + thumbnail.Name() + "\n\n"
+
+			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" +  strings.TrimPrefix(strings.ReplaceAll(output, config.GetDataDir()+"/files/", "") + "/" + thumbnail.Name(), "/")  + "\n\n"
 			index++
 		}
 
