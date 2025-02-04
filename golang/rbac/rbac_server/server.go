@@ -506,9 +506,9 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
  */
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 
-	if !strings.Contains(accountId, "@") {
+	/*if !strings.Contains(accountId, "@") {
 		accountId = accountId + "@" + srv.Domain
-	}
+	}*/
 
 	data, err := srv.cache.GetItem(accountId)
 	if err == nil {
@@ -556,9 +556,9 @@ func (srv *server) accountExist(id string) (bool, string) {
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
 	// I will add the domain if it is not already there...
-	if !strings.Contains(groupId, "@") {
+	/*if !strings.Contains(groupId, "@") {
 		groupId = groupId + "@" + srv.Domain
-	}
+	}*/
 
 	// I will try to get the information from the cache to save time...
 	data, err := srv.cache.GetItem(groupId)
@@ -613,9 +613,9 @@ func (srv *server) groupExist(id string) (bool, string) {
  */
 func (srv *server) getApplication(applicationId string) (*resourcepb.Application, error) {
 	// I will add the domain if it is not already there...
-	if !strings.Contains(applicationId, "@") {
+	/*if !strings.Contains(applicationId, "@") {
 		applicationId = applicationId + "@" + srv.Domain
-	}
+	}*/
 
 	// Try to get the application with the _id or the name.
 	q0 := `{"_id":"` + applicationId + `"}`
@@ -693,9 +693,9 @@ func (srv *server) peerExist(id string) bool {
  */
 func (srv *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
 
-	if !strings.Contains(organizationId, "@") {
+	/*if !strings.Contains(organizationId, "@") {
 		organizationId = organizationId + "@" + srv.Domain
-	}
+	}*/
 
 	resourceClient, err := srv.getResourceClient(organizationId)
 	if err != nil {

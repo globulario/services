@@ -2588,6 +2588,11 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 	// test if the subject is the direct owner of the resource.
 	permissions, err := srv.getResourcePermissions(path)
 
+	// validate access...
+	if(permissions != nil) {
+		fmt.Println("permissions allowed ", permissions.Allowed)
+	}
+
 	if err == nil {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission
@@ -2699,8 +2704,7 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 	}
 
 	// Now I will test parent directories permission and inherit the permission.
-	if permissions == nil {
-
+	if permissions == nil || permissions.Allowed == nil {
 		// validate parent permission.
 		if strings.LastIndex(path, "/") > 0 {
 			dir := filepath.Dir(path)

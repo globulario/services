@@ -349,7 +349,7 @@ export function renameFile(
   token: string = getToken()
 ) {
   const rqst = new RenameRequest();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  // path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
     path = "/";
   }
@@ -429,7 +429,7 @@ export function deleteDir(
   token: string = getToken()
 ) {
   const rqst = new DeleteDirRequest();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  // path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
     path = "/";
   }
@@ -535,7 +535,7 @@ export function downloadDir(
 ) {
 
   const name = path.split("/")[path.split("/").length - 1];
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  // path = path.replace("/webroot", ""); // remove the /webroot part.
 
   // append the port to the url.
   if (port != undefined) {
@@ -599,11 +599,12 @@ export function readDir(
   recursive: boolean,
   callback: (dir: any) => void,
   errorCallback: (err: any) => void,
+  onLoaded?: (dir: any) => void,
   thumbnail_height: number = 80,
   thumbnail_width: number = 80,
   token: string = getToken()
 ) {
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  // path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
     path = "/";
   }
@@ -628,12 +629,12 @@ export function readDir(
 
   let files: any
   files = {}
-
+  let dir: any
+  
   stream.on("data", (rsp) => {
-
     let f = rsp.getInfo()
-    var path = f.getPath().split("//").join("/")
-    var parent = files[path.substring(0, path.lastIndexOf("/"))];
+    var filePath = f.getPath().split("//").join("/")
+    var parent = files[filePath.substring(0, filePath.lastIndexOf("/"))];
     if (parent) {
 
       let files_ = parent.getFilesList()
@@ -648,7 +649,11 @@ export function readDir(
       globular.eventHub.publish("_read_dir_" + rqst.getPath(), f, true);
     }
     files[f.getPath()] = f;
-    files[path] = f;
+    files[filePath] = f;
+    if(dir == undefined && f.getIsDir()){
+      dir = f
+      files[path] = f;
+    }
   });
 
   stream.on("status", (status) => {
@@ -661,6 +666,14 @@ export function readDir(
       errorCallback({ message: status.details });
     }
   });
+
+  /** that function is call when the file is read completetly... */
+  stream.on("end", () => {
+    if (onLoaded != undefined) {
+      onLoaded(dir);
+    }
+  });
+
 }
 
 /**
@@ -692,7 +705,7 @@ export function createDir(
   errorCallback: (err: any) => void,
   token: string = getToken()
 ) {
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  // path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
     path = "/";
   }

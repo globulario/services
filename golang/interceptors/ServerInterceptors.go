@@ -471,7 +471,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/admin.AdminService/GetProcessInfos" ||
 		l.method == "/rbac.RbacService/GetResourcePermissionsByResourceType" ||
-		l.method == "/repository.PackageRepository/DownloadBundle" {
+		l.method == "/repository.PackageRepository/DownloadBundle" || 
+		l.method == "/file.FileService/ReadDir"  {
 		return nil
 	}
 
@@ -662,11 +663,11 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
+		
 		claims, err := security.ValidateToken(token)
 
 		if err != nil && !hasAccess {
 			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			fmt.Println(token)
 			return err
 		}
 
@@ -706,13 +707,15 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 		// Now I will call the handler with the broadcast stream.
 		err = handler(srv, ServerStreamInterceptorBroadcastStream{ServerStream: stream, addresses: addresses, method: method, token: token})
-
+		if err != nil {
+			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		}
+	
 	} else {
 		err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
 	}
 
 	if err != nil {
-		fmt.Println("------------> error: ", err, token, application, clientId, method)
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 

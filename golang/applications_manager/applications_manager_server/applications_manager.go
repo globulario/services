@@ -420,6 +420,10 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 		return err
 	}
 
+	if len(files) == 0 {
+		return errors.New("no index.html file found in the package")
+	}
+
 	// Here I will test that the index.html file is not corrupted...
 
 	// The file must contain a linq to a bundle.js file.

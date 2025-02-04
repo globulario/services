@@ -141,10 +141,6 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	// Create the database if it does not exist.
 	databasePath := connection.Path + "/" + database + ".db"
 
-	fmt.Println("Database path: ", databasePath)
-	fmt.Println("connection: ", id)
-	fmt.Println("database: ", store.connections[id])
-
 	// Create the database.
 	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {

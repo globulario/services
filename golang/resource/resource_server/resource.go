@@ -5272,9 +5272,6 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 	p.Delete(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
 	
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Sessions", session, "")
-
-
-	fmt.Println("--------------------> update session ", session)
 	
 	return err
 
@@ -5285,6 +5282,12 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 // * Update user session informations
 func (srv *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
 
+	if rqst.Session == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("session is empty")))
+	}
+		
 	err := srv.updateSession(rqst.Session.AccountId, rqst.Session.State, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
 	if err != nil {
 		return nil, status.Errorf(
@@ -5409,6 +5412,8 @@ func (srv *server) getSession(accountId string) (*resourcepb.Session, error) {
 	}
 
 	var state resourcepb.SessionState
+	// Default state is offline
+	state = resourcepb.SessionState_OFFLINE
 
 	if session["state"] != nil {
 		state = resourcepb.SessionState(int32(Utility.ToInt(session["state"])))
