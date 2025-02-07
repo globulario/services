@@ -112,6 +112,29 @@ func TestSearchDocument(t *testing.T) {
 	}
 }
 
+func TestSearchPdf(t *testing.T) {
+	fmt.Println("-----------> TestSearchDocument")
+	paths := []string{`/var/globular/data/files/users/sa@globular.io/.hidden/img1/__index_db__`, `/var/globular/data/files/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`}
+	query := `Text:Certificat`
+	language := "english"
+	fields := []string{"DocId", "Path"}
+	offset := int32(0)
+	pageSize := int32(10)
+	snippetLength := int32(500)
+
+	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
+	if err != nil {
+		log.Println("------------> ", err)
+		return
+	}
+
+	for i := 0; i < len(results); i++ {
+		log.Println("------------>", results[i])
+	}
+
+
+}
+
 func TestDeleteDocument(t *testing.T) {
 	err := getClient().DeleteDocument(tmpDir+"/search_test_db", "2")
 	if err != nil {

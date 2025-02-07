@@ -84,7 +84,6 @@ func (srv *server) formatPath(path string) string {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
-					fmt.Println("path: ", path+" is not public")
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(srv.Root + path) {
 						path = srv.Root + path
@@ -684,7 +683,6 @@ func (srv *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Ge
 	}
 
 	rsp := &rbacpb.GetSubjectAllocatedSpaceRsp{AllocatedSpace: allocated_space}
-	fmt.Println("690 allocated space for ", rqst.Subject, " is ", allocated_space)
 
 	return rsp, nil
 }
@@ -772,8 +770,6 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	fmt.Println("allocated space set for ", subject, " with value ", rqst.AllocatedSpace, " id ", id)
 
 	// test if the allocated space is set...
 	_, err = srv.getItem(id)
@@ -1917,8 +1913,6 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 
 	permissions, err := srv.getResourcePermissions(path)
 
-	fmt.Println("----------> addResourceOwner", path, resourceType_, subject, subjectType)
-
 	needSave := false
 	if err != nil {
 		if strings.Contains(err.Error(), "item not found") {
@@ -2000,7 +1994,6 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 		if err != nil {
 			return err
 		}
-		fmt.Println("ressource owner was set for ", subject, path)
 	}
 
 	return nil
@@ -2588,11 +2581,6 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 	// test if the subject is the direct owner of the resource.
 	permissions, err := srv.getResourcePermissions(path)
 
-	// validate access...
-	if(permissions != nil) {
-		fmt.Println("permissions allowed ", permissions.Allowed)
-	}
-
 	if err == nil {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission
@@ -2795,12 +2783,10 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	// first I will test if permissions is define
 	isAllowed := srv.validateAccessAllowed(subject, subjectType, name, path)
 	if !isAllowed {
-		fmt.Println(subject, "has not ", name, " acces to", path)
 		return false, false, nil
 	}
 
 	// The user has access.
-	fmt.Println(subject, "has", name, "acces to", path)
 	return true, false, nil
 }
 
@@ -2900,8 +2886,6 @@ func (srv *server) GetActionResourceInfos(ctx context.Context, rqst *rbacpb.GetA
  * Validate an action and also validate it resources
  */
 func (srv *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
-
-	fmt.Println("validate action ", action, " for subject ", subject, " of type ", subjectType.String(), " with resources ", resources)
 	// Exception
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") ||

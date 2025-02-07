@@ -2061,8 +2061,6 @@ func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 	uuid := Utility.GenerateUUID("CAA:" + id)
 	data, err := srv.store.GetItem(uuid)
 
-	fmt.Println("get CAA for domain ", id, " with uuid ", uuid)
-
 	caa := make([]*dnspb.CAA, 0) // use a map instead of Mx struct.
 
 	if err == nil {

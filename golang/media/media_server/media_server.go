@@ -508,7 +508,6 @@ func (srv *server) formatPath(path string) string {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
-					fmt.Println("path: ", path+" is not public")
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(srv.Root + path) {
 						path = srv.Root + path

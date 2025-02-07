@@ -515,7 +515,6 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-	fmt.Println("update session: -----------------> ", session)
 	err = srv.updateSession(session)
 	if err != nil {
 		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())

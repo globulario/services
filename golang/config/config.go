@@ -1081,13 +1081,11 @@ func initConfig() error {
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
 
-	fmt.Println("init config from path: ", serviceConfigDir)
 
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
 	services := make([]map[string]interface{}, 0)
 
 	if err != nil || len(files) == 0 {
-		fmt.Println("no configuration found at ", serviceConfigDir)
 		if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") {
 			// So here the root dir can be the client exec itself or globular.
 			if runtime.GOOS == "darwin" {
@@ -1110,7 +1108,6 @@ func initConfig() error {
 						for i := 0; i < len(execs); i++ {
 							if !execs[i].IsDir() {
 								path := dir + "/bin/" + execs[i].Name()
-								fmt.Println("copy ", path, "to", "/usr/local/bin/")
 								err := Utility.Move(path, "/usr/local/bin/")
 								if err == nil {
 									os.Chmod(path, 0755)

@@ -3,6 +3,7 @@ package search_engine
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/blevesearch/bleve/v2"
@@ -21,6 +22,8 @@ type BleveSearchEngine struct {
  * Return indexation for a given path...
  */
 func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
+
+	fmt.Println("Getting index for path: ", path)
 	if engine.indexs[path] == nil {
 		index, err := bleve.Open(path) // try to open existing index.
 		if err != nil {
@@ -49,6 +52,14 @@ func (engine *BleveSearchEngine) GetVersion() string {
 
 // Set a document from list of db from given paths...
 func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
+	
+	fmt.Println("Searching for: ", q)
+	fmt.Println("Fields: ", fields)
+	fmt.Println("Offset: ", offset)
+	fmt.Println("PageSize: ", pageSize)
+	fmt.Println("SnippetLength: ", snippetLength)
+	fmt.Println("Paths: ", paths)
+
 	results := new(searchpb.SearchResults)
 	results.Results = make([]*searchpb.SearchResult, 0)
 	for i := 0; i < len(paths); i++ {

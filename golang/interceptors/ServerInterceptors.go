@@ -338,7 +338,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	accessDenied := false
 
 	// Set the list of restricted method here...
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || 
+		method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {
 		hasAccess = false
 	}
 
@@ -375,7 +376,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	if !hasAccess && len(application) > 0 && accessDenied {
+	if !hasAccess && len(application) > 0 && !accessDenied {
+		
 		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, address)
 	}
 
@@ -472,6 +474,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/admin.AdminService/GetProcessInfos" ||
 		l.method == "/rbac.RbacService/GetResourcePermissionsByResourceType" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" || 
+		l.method == "/title.TitleService/SearchTitles" ||
+		l.method == "/blog.BlogService/SearchBlogPosts" ||
 		l.method == "/file.FileService/ReadDir"  {
 		return nil
 	}

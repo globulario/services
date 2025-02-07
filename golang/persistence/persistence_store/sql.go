@@ -1415,8 +1415,6 @@ func (store *SqlStore) deleteSqlEntries(connectionId string, db string, table st
 		return err
 	}
 
-	fmt.Println("---------------> entities: ", entities)
-
 	for _, entity := range entities {
 		if entity.(map[string]interface{})["_id"] != nil {
 			query := fmt.Sprintf("SELECT * FROM '%s' WHERE _id='%s'", table, entity.(map[string]interface{})["_id"].(string))

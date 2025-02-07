@@ -1006,12 +1006,155 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 	return nil, errors.New("no metadata found for " + path)
 }
 
-// Index text contain in a pdf file
-func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 
-	// Be sure the file is a pdf...
+// indexPdfFile indexes the content of a PDF file into a search engine.
+func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
+	log.Println("Indexing PDF file:", path)
+
+	// Validate MIME type
 	if fileInfos.Mime != "application/pdf" {
-		return errors.New("file is not a pdf")
+		return fmt.Errorf("file is not a PDF: %s", path)
+	}
+
+	// Determine base paths
+	dir := filepath.Dir(path)
+	baseName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	hiddenFolder := filepath.Join(dir, ".hidden", baseName)
+
+	thumbnailPath := filepath.Join(hiddenFolder, "__thumbnail__")
+	indexationPath := filepath.Join(hiddenFolder, "__index_db__")
+
+	// Create necessary directories
+	Utility.CreateIfNotExists(thumbnailPath, 0755)
+	Utility.CreateIfNotExists(indexationPath, 0755)
+
+	// Check if indexing is already done
+	if Utility.Exists(filepath.Join(thumbnailPath, "data_url.txt")) {
+		return errors.New("indexing info already exists")
+	}
+
+	// Open PDF document
+	doc, err := fitz.New(path)
+	if err != nil {
+		return fmt.Errorf("failed to open PDF file: %w", err)
+	}
+	defer doc.Close()
+
+	// Extract metadata
+	metadata, _ := ExtractMetada(path)
+	metadataJSON, _ := Utility.ToJson(metadata)
+	docId :=   Utility.GenerateUUID(path)
+	metadata["DocId"] = docId
+
+	// Initialize search engine
+	searchEngine := new(search_engine.BleveSearchEngine)
+	err = searchEngine.IndexJsonObject(indexationPath, metadataJSON, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+
+	if err != nil {
+		log.Println("Metadata indexing failed:", err)
+	}
+
+	// Process pages
+	for i := 0; i < doc.NumPage(); i++ {
+		pageMap := map[string]interface{}{
+			"Id":     fmt.Sprintf("%s_page_%d", docId, i),
+			"Number": i,
+			"Path":   path,
+			"DocId":  docId,
+		}
+
+		// Process first page image as thumbnail
+		if i == 0 {
+			if err := processThumbnail(doc, thumbnailPath); err != nil {
+				log.Println("Failed to create thumbnail:", err)
+			}
+		}
+
+		// Extract text from the page
+		text, err := doc.Text(i)
+		if err != nil || len(text) == 0 {
+			text, err = extractTextFromImage(doc, i)
+			if err != nil {
+				log.Println("Failed to extract text from image on page", i, ":", err)
+			}
+		}
+
+		pageMap["Text"] = Utility.CleanText(text)
+		pageJSON, err := Utility.ToJson(pageMap)
+		if err == nil {
+			err = searchEngine.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
+			if err != nil {
+				log.Println("Failed to index page", i, ":", err)
+			}else{
+				fmt.Println(pageJSON)
+			}
+		}
+	}
+
+	return nil
+}
+
+// processThumbnail generates a thumbnail from the first page of a PDF.
+func processThumbnail(doc *fitz.Document, thumbnailPath string) error {
+	img, err := doc.Image(0)
+	if err != nil || img == nil {
+		return fmt.Errorf("no image found on the first page")
+	}
+
+	tmpFile := filepath.Join(os.TempDir(), Utility.RandomUUID()+".jpg")
+	defer os.Remove(tmpFile)
+
+	f, err := os.Create(tmpFile)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer f.Close()
+
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality}); err != nil {
+		return fmt.Errorf("failed to encode image: %w", err)
+	}
+
+	dataURL, err := Utility.CreateThumbnail(tmpFile, 256, 256)
+	if err != nil {
+		return fmt.Errorf("failed to create thumbnail: %w", err)
+	}
+
+	return os.WriteFile(filepath.Join(thumbnailPath, "data_url.txt"), []byte(dataURL), 0755)
+}
+
+// extractTextFromImage runs OCR on a page image if text extraction fails.
+func extractTextFromImage(doc *fitz.Document, pageIndex int) (string, error) {
+	img, err := doc.Image(pageIndex)
+	if err != nil || img == nil {
+		return "", fmt.Errorf("no image found on page %d", pageIndex)
+	}
+
+	tmpFile := filepath.Join(os.TempDir(), Utility.RandomUUID()+".jpg")
+	defer os.Remove(tmpFile)
+
+	f, err := os.Create(tmpFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer f.Close()
+
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality}); err != nil {
+		return "", fmt.Errorf("failed to encode image: %w", err)
+	}
+
+	return Utility.ExtractTextFromJpeg(tmpFile)
+}
+// Index text contain in a pdf file
+func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
+
+	if fileInfos.Mime != "text/plain" {
+		fmt.Println("file is not a text file")
+		return errors.New("file is not a text file")
+	}
+
+	// test if the file exist...
+	if !Utility.Exists(path) {
+		return errors.New("file not found")
 	}
 
 	// The hidden folder path...
@@ -1038,142 +1181,39 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 		return errors.New("info already exist")
 	}
 
-	// Read and index pdf information.
-	doc, err := fitz.New(path)
-	if err != nil {
-		return err
-	}
 
 	metadata_, _ := ExtractMetada(path)
 	metadata_str, _ := Utility.ToJson(metadata_)
 
 	search_engine := new(search_engine.BleveSearchEngine)
 
-	err = search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+	err := search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
 	if err != nil {
 		log.Println(err)
 	}
 
 	doc_ := make(map[string]interface{})
 
-	doc_["Metadata"] = doc.Metadata()
-	doc_["Pages"] = make([]interface{}, 0)
+	doc_["Metadata"] = metadata_
 
-	for i := 0; i < doc.NumPage(); i++ {
+	// Now the text...
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
 
-		// first of all the first image will be use as cover.
-		if i == 0 {
+	doc_["Text"] = text
 
-			// the metadata
+	doc_str, err := Utility.ToJson(doc_)
 
-			// take the first image as cover.
-			img, err := doc.Image(0)
-
-			if err != nil {
-				panic(err)
-			}
-
-			tmpPath := os.TempDir() + "/" + Utility.RandomUUID() + ".jpg"
-			f, err := os.Create(tmpPath)
-			if err != nil {
-				return err
-			}
-
-			err = jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
-			if err != nil {
-				return err
-			}
-
-			f.Close()
-			defer os.Remove(tmpPath)
-
-			data_url, err := Utility.CreateThumbnail(tmpPath, 256, 256)
-			if err != nil {
-				return err
-			}
-
-			// write the thumnail in the path
-			err = os.WriteFile(thumbnail_path+"/data_url.txt", []byte(data_url), 0755)
-			if err != nil {
-				return err
-			}
-
-			cache.RemoveItem(path)
-			event_client, err := getEventClient()
-			if err == nil {
-				dir := string(path)[0:strings.LastIndex(string(path), "/")]
-				dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
-				event_client.Publish("reload_dir_event", []byte(dir))
-			}
-		}
-
-		// Now the text...
-		page := make(map[string]interface{})
-		page["Id"] = "page_" + Utility.ToString(i)
-		page["Number"] = i
-		txt, err := doc.Text(i)
-
-		// Try to index the text...
-		if err == nil {
-			if len(txt) > 0 {
-				page["Text"] = txt // Indexation will be generate from plain text...
-			} else {
-				// page["Text"] = ""
-				// so here I will try to use an OCR to extract text from the image...
-				img, err := doc.Image(i)
-				if err == nil {
-					if img != nil {
-
-						tmpPath := os.TempDir() + "/" + Utility.RandomUUID() + ".jpg"
-
-						// Create and save the image to a temporary file
-						f, err := os.Create(tmpPath)
-						if err != nil {
-							return fmt.Errorf("failed to create temp file: %w", err)
-						}
-						err = jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
-						f.Close()
-						if err != nil {
-							return fmt.Errorf("failed to encode image: %w", err)
-						}
-						defer os.Remove(tmpPath) // Ensure the temp file is removed after processing
-
-						// Verify the file exists
-						if _, err := os.Stat(tmpPath); os.IsNotExist(err) {
-							return fmt.Errorf("temporary file does not exist: %s", tmpPath)
-						}
-
-						// Extract text using the OCR utility
-						text, err := Utility.ExtractTextFromJpeg(tmpPath)
-						if err != nil {
-							return fmt.Errorf("failed to extract text from image: %w", err)
-						}
-
-						// Store the extracted text in the page map
-						page["Text"] = text
-
-					}
-				}
-
-			}
-
-			page_str, err := Utility.ToJson(page)
-
-			if err == nil {
-				err = search_engine.IndexJsonObject(indexation_path, page_str, "english", "Id", []string{"Text"}, "")
-				if err != nil {
-					fmt.Println("fail to index page: ", err)
-				}
-			}
+	if err == nil {
+		err = search_engine.IndexJsonObject(indexation_path, doc_str, "english", "SourceFile", []string{"Text"}, "")
+		if err != nil {
+			fmt.Println("fail to text file: ", err)
 		}
 	}
 
-	return nil
-}
-
-// Index text contain in a pdf file
-func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
-	return nil
+	return err
 }
 
 // That function is use to index file at given path so the user will be able to
@@ -1230,8 +1270,8 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		return nil, err
 	}
 
-
 	if !info.IsDir {
+		// make the server panic...
 		if err_chan != nil {
 			err_chan <- errors.New("path " + path + " is not a directory")
 		}
@@ -1260,7 +1300,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 			// Test if a file named playlist.m3u8 exist...
 			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
-			fmt.Println("dirPath: ", dirPath, recursive, isHls, f.Name())
+
 			if recursive && !isHls && f.Name() != ".hidden" {
 
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, fileInfos_chan, err_chan)
@@ -1273,10 +1313,8 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				}
 
 				if fileInfos_chan != nil {
-
 					fileInfos_chan <- info_
 				} else {
-
 					info.Files = append(info.Files, info_)
 				}
 
@@ -1435,8 +1473,6 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 
 	path := strings.ReplaceAll(rqst.Path, "\\", "/")
 
-	fmt.Println("Add Public Dir: ", path)
-
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1539,6 +1575,27 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	path := srv.formatPath(rqst.Path)
 	filesInfoChan := make(chan *filepb.FileInfo)
 	errChan := make(chan error)
+
+	// I will test if the path exist...
+	if !Utility.Exists(path) {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+path)))
+	}
+
+	// Now i test if the path is a directory...
+	info, err := getFileInfo(srv, path, 64, 64)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if !info.IsDir {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path " + path + " is not a directory")))
+	}
 
 	// Start reading the directory in a goroutine
 	go func() {
@@ -1982,7 +2039,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	// Remove the permission itself...
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 	}
 
 	// Remove the file itself.

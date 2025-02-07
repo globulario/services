@@ -506,9 +506,6 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
  */
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 
-	/*if !strings.Contains(accountId, "@") {
-		accountId = accountId + "@" + srv.Domain
-	}*/
 
 	data, err := srv.cache.GetItem(accountId)
 	if err == nil {
@@ -519,7 +516,13 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 		}
 	}
 
-	resourceClient, err := srv.getResourceClient(srv.Address)
+	domain := srv.Domain
+	if strings.Contains(accountId, "@") {
+		domain = strings.Split(accountId, "@")[1]
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
+	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -555,10 +558,6 @@ func (srv *server) accountExist(id string) (bool, string) {
  */
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
-	// I will add the domain if it is not already there...
-	/*if !strings.Contains(groupId, "@") {
-		groupId = groupId + "@" + srv.Domain
-	}*/
 
 	// I will try to get the information from the cache to save time...
 	data, err := srv.cache.GetItem(groupId)
@@ -570,7 +569,15 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		}
 	}
 
-	resourceClient, err := srv.getResourceClient(srv.Address)
+	domain:=srv.Domain
+
+	if strings.Contains(groupId, "@") {
+		domain = strings.Split(groupId, "@")[1]
+		groupId = strings.Split(groupId, "@")[0]
+	}
+	
+
+	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -613,15 +620,17 @@ func (srv *server) groupExist(id string) (bool, string) {
  */
 func (srv *server) getApplication(applicationId string) (*resourcepb.Application, error) {
 	// I will add the domain if it is not already there...
-	/*if !strings.Contains(applicationId, "@") {
-		applicationId = applicationId + "@" + srv.Domain
-	}*/
+	domain := srv.Domain
+	if strings.Contains(applicationId, "@") {
+		domain = strings.Split(applicationId, "@")[1]
+		applicationId = strings.Split(applicationId, "@")[0]
+	}
 
 	// Try to get the application with the _id or the name.
 	q0 := `{"_id":"` + applicationId + `"}`
 	q1 := `{"name":"` + applicationId + `"}`
 
-	resourceClient, err := srv.getResourceClient(srv.Address)
+	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -693,11 +702,13 @@ func (srv *server) peerExist(id string) bool {
  */
 func (srv *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
 
-	/*if !strings.Contains(organizationId, "@") {
-		organizationId = organizationId + "@" + srv.Domain
-	}*/
+	domain := srv.Domain
+	if strings.Contains(organizationId, "@") {
+		domain = strings.Split(organizationId, "@")[1]
+		organizationId = strings.Split(organizationId, "@")[0]
+	}
 
-	resourceClient, err := srv.getResourceClient(organizationId)
+	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -782,11 +793,13 @@ func (srv *server) getOrganizations() ([]*resourcepb.Organization, error) {
  */
 func (srv *server) getRole(roleId string) (*resourcepb.Role, error) {
 
-	if !strings.Contains(roleId, "@") {
-		roleId = roleId + "@" + srv.Domain
+	domain := srv.Domain
+	if strings.Contains(roleId, "@") {
+		domain = strings.Split(roleId, "@")[1]
+		roleId = strings.Split(roleId, "@")[0]
 	}
-
-	resourceClient, err := srv.getResourceClient(srv.Address)
+ 
+	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
