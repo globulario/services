@@ -113,11 +113,11 @@ func TestSearchDocument(t *testing.T) {
 }
 
 func TestSearchPdf(t *testing.T) {
-	fmt.Println("-----------> TestSearchDocument")
+	
 	paths := []string{`/var/globular/data/files/users/sa@globular.io/.hidden/img1/__index_db__`, `/var/globular/data/files/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`}
-	query := `Text:Certificat`
+	query := `Text:Golf`
 	language := "english"
-	fields := []string{"DocId", "Path"}
+	fields := []string{"DocId", "Text"}
 	offset := int32(0)
 	pageSize := int32(10)
 	snippetLength := int32(500)

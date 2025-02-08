@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -395,7 +396,7 @@ func (srv *server) Init() error {
 	}
 
 	// Init the seach engine.
-	srv.search_engine = new(search_engine.BleveSearchEngine)
+	srv.search_engine = search_engine.NewBleveSearchEngine()
 
 	return nil
 
@@ -453,7 +454,7 @@ func (srv *server) Count(ctx context.Context, rqst *searchpb.CountRequest) (*sea
 func (srv *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
 	results := new(searchpb.SearchResults)
 	var err error
-
+	fmt.Println("-------------> search documents", rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 	results, err = srv.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 	if err != nil {
 		return err

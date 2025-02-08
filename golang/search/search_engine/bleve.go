@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/davecourtois/Utility"
@@ -18,25 +17,40 @@ type BleveSearchEngine struct {
 	indexs map[string]bleve.Index
 }
 
+// Create a new search engine.
+func NewBleveSearchEngine() *BleveSearchEngine {
+	// init the indexs map.
+	return &BleveSearchEngine{indexs: make(map[string]bleve.Index, 0)}
+}
+
 /**
  * Return indexation for a given path...
  */
 func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
 
-	fmt.Println("Getting index for path: ", path)
+	if len(path) == 0 {
+		return nil, errors.New("path is empty")
+	}
+
+	if !Utility.Exists(path) {
+		if engine.indexs[path] != nil {
+			engine.indexs[path].Close()
+			delete(engine.indexs, path)
+		}
+		return nil, errors.New("path does not exist")
+	}
+
 	if engine.indexs[path] == nil {
+
 		index, err := bleve.Open(path) // try to open existing index.
 		if err != nil {
+			fmt.Println("failed to open index with error: ", err)
 			mapping := bleve.NewIndexMapping()
 			var err error
 			index, err = bleve.New(path, mapping)
 			if err != nil {
 				return nil, err
 			}
-		}
-
-		if engine.indexs == nil {
-			engine.indexs = make(map[string]bleve.Index, 0)
 		}
 
 		engine.indexs[path] = index
@@ -52,60 +66,51 @@ func (engine *BleveSearchEngine) GetVersion() string {
 
 // Set a document from list of db from given paths...
 func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
-	
-	fmt.Println("Searching for: ", q)
-	fmt.Println("Fields: ", fields)
-	fmt.Println("Offset: ", offset)
-	fmt.Println("PageSize: ", pageSize)
-	fmt.Println("SnippetLength: ", snippetLength)
-	fmt.Println("Paths: ", paths)
 
 	results := new(searchpb.SearchResults)
 	results.Results = make([]*searchpb.SearchResult, 0)
 	for i := 0; i < len(paths); i++ {
-		index, err := engine.getIndex(paths[i])
-		if err != nil {
-			return nil, err
-		}
+		index, _ := engine.getIndex(paths[i])
+		if index != nil {
 
-		query := bleve.NewQueryStringQuery(q)
-		searchRequest := bleve.NewSearchRequest(query)
-		searchRequest.Fields = fields
-		searchRequest.From = int(offset)
-		searchRequest.Size = int(pageSize)
-		searchRequest.Highlight = bleve.NewHighlightWithStyle("html")
-		searchResult, err := index.Search(searchRequest)
-		if err != nil {
-			return nil, err
-		}
+			query := bleve.NewQueryStringQuery(q)
+			searchRequest := bleve.NewSearchRequest(query)
+			searchRequest.Fields = fields
+			searchRequest.From = int(offset)
+			searchRequest.Size = int(pageSize)
+			searchRequest.Highlight = bleve.NewHighlightWithStyle("html")
+			searchResult, _ := index.Search(searchRequest)
 
-		// Now from the result I will
-		if searchResult.Total == 0 {
-			return nil, errors.New("no matches found") // return as error...
-		}
+			// Now from the result I will
+			if searchResult != nil {
+				fmt.Println("found ", len(searchResult.Hits), " results")
+				// Now I will return the data
+				for _, val := range searchResult.Hits {
+					id := val.ID
+					raw, err := index.GetInternal([]byte(id))
+					if err == nil {
+						result := new(searchpb.SearchResult)
+						result.Data = string(raw)
 
-		// Now I will return the data
-		for _, val := range searchResult.Hits {
-			id := val.ID
-			raw, err := index.GetInternal([]byte(id))
-			if err != nil {
-				log.Fatal("Trouble getting internal doc:", err)
+						result.DocId = id
+						result.Rank = int32(val.Score * 100)
+
+						// serialyse the fragment and set it as snippet.
+						data, err := Utility.ToJson(val.Fragments)
+						if err == nil {
+							result.Snippet = string(data)
+						}
+						results.Results = append(results.Results, result)
+					}else{
+						fmt.Println("fait to retreiv raw data with error: ", err)
+					}
+				}
 			}
-			result := new(searchpb.SearchResult)
-			result.Data = string(raw)
-
-			result.DocId = id
-			result.Rank = int32(val.Score * 100)
-
-			// serialyse the fragment and set it as snippet.
-			data, err := Utility.ToJson(val.Fragments)
-			if err == nil {
-				result.Snippet = string(data)
-			}
-
-			results.Results = append(results.Results, result)
 		}
+	}
 
+	if len(results.Results) == 0 {
+		return nil, errors.New("no results found")
 	}
 
 	return results, nil
@@ -141,6 +146,9 @@ func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj m
 		data_, err := Utility.ToJson(obj)
 		if err == nil {
 			err = index.SetInternal([]byte(id_), []byte(data_))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -174,7 +182,8 @@ func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, la
 			}
 		}
 	}
-	return nil
+
+	return err
 }
 
 // Count the number of document in a db.
@@ -185,6 +194,9 @@ func (engine *BleveSearchEngine) Count(path string) int32 {
 	}
 
 	total, err := index.DocCount()
+	if err != nil {
+		return -1
+	}
 
 	// convert to int 32
 	return int32(total)

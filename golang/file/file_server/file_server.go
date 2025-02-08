@@ -40,7 +40,7 @@ import (
 	"github.com/globulario/services/golang/media/media_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/search/search_engine"
+	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -805,7 +805,6 @@ func (srv *server) uploadFile(token, url, dest, name string, stream filepb.FileS
 	done <- n
 
 	elapsed := time.Since(start)
-	log.Printf("Download completed in %s", elapsed)
 
 	stream.Send(
 		&filepb.UploadFileResponse{
@@ -1006,6 +1005,30 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 	return nil, errors.New("no metadata found for " + path)
 }
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Logger function
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Get the log client.
+ */
+ func (srv *server) GetSearchClient() (*search_client.Search_Client, error) {
+	// validate the port has not change...
+	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
+	client, err := globular_client.GetClient(srv.Address, "search.SearchService", "NewSearchService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*search_client.Search_Client), nil
+}
+
+func (srv *server) IndexJsonObject(indexationPath, json string, lang string, idField string, textFields []string, data string) error {
+	client, err := srv.GetSearchClient()
+	if err != nil {
+		return err
+	}
+
+	return client.IndexJsonObject(indexationPath, json, lang, idField, textFields, data)
+}
 
 // indexPdfFile indexes the content of a PDF file into a search engine.
 func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
@@ -1047,8 +1070,9 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 	metadata["DocId"] = docId
 
 	// Initialize search engine
-	searchEngine := new(search_engine.BleveSearchEngine)
-	err = searchEngine.IndexJsonObject(indexationPath, metadataJSON, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+	//searchEngine := new(search_engine.BleveSearchEngine)
+	//err = searchEngine.IndexJsonObject(indexationPath, metadataJSON, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+	err = srv.IndexJsonObject(indexationPath, metadataJSON, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
 
 	if err != nil {
 		log.Println("Metadata indexing failed:", err)
@@ -1082,7 +1106,8 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 		pageMap["Text"] = Utility.CleanText(text)
 		pageJSON, err := Utility.ToJson(pageMap)
 		if err == nil {
-			err = searchEngine.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
+			// err = searchEngine.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
+			err = srv.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
 			if err != nil {
 				log.Println("Failed to index page", i, ":", err)
 			}else{
@@ -1185,9 +1210,10 @@ func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error 
 	metadata_, _ := ExtractMetada(path)
 	metadata_str, _ := Utility.ToJson(metadata_)
 
-	search_engine := new(search_engine.BleveSearchEngine)
+	//search_engine := new(search_engine.BleveSearchEngine)
+	//err := search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+	err := srv.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
 
-	err := search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
 	if err != nil {
 		log.Println(err)
 	}
@@ -1207,7 +1233,8 @@ func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error 
 	doc_str, err := Utility.ToJson(doc_)
 
 	if err == nil {
-		err = search_engine.IndexJsonObject(indexation_path, doc_str, "english", "SourceFile", []string{"Text"}, "")
+		//err = search_engine.IndexJsonObject(indexation_path, doc_str, "english", "SourceFile", []string{"Text"}, "")
+		err = srv.IndexJsonObject(indexation_path, doc_str, "english", "SourceFile", []string{"Text"}, "")
 		if err != nil {
 			fmt.Println("fail to text file: ", err)
 		}
@@ -2196,6 +2223,7 @@ func dissociateFileWithTitle(path string, domain string) error {
 	return nil
 }
 
+
 // Delete file
 func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
@@ -2231,7 +2259,12 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 
 	hiddenFolder := path_ + "/.hidden/" + fileName
 	if Utility.Exists(hiddenFolder) {
-		err := os.RemoveAll(hiddenFolder)
+		err := Utility.UnlockFilesInDirectory(hiddenFolder)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		err = os.RemoveAll(hiddenFolder)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -3215,29 +3248,22 @@ func main() {
 	if err != nil {
 		fmt.Println("fail to open cache with error:", err)
 	}
-
-	// Now the event client service.
 	go func() {
-
 		event_client, err := getEventClient()
 		if err == nil {
-
-			channel_0 := make(chan string)
-			channel_1 := make(chan string)
-
+			channel_0 := make(chan string, 10) // Add buffering
+			channel_1 := make(chan string, 10) // Add buffering
+	
 			// Process request received...
 			go func() {
 				for {
 					select {
 					case path := <-channel_0:
-						// Now I will create the ownership...
 						if strings.HasPrefix(path, "/users/") {
 							values := strings.Split(path, "/")
-							if len(values) > 1 {
+							if len(values) > 2 { // Ensure correct index
 								owner := values[2]
-
-								// Set the owner of the conversation.
-								rbac_client_, err = getRbacClient()
+								rbac_client_, err := getRbacClient()
 								if err == nil {
 									err = rbac_client_.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT)
 									if err != nil {
@@ -3246,34 +3272,31 @@ func main() {
 								}
 							}
 						}
-						// send to the other channel but dont wait...
-						go func() {
-							channel_1 <- path
-						}()
-
+						channel_1 <- path // Direct send (not in a goroutine)
+	
 					case path := <-channel_1:
 						path_ := s_impl.formatPath(path)
-						err := s_impl.indexFile(path_)
-						if err != nil {
-							fmt.Println("fail to index file with error: ", err)
-						}
+						go func(p string) { // Index in a separate goroutine to avoid blocking
+							err := s_impl.indexFile(p)
+							if err != nil {
+								fmt.Println("fail to index file with error: ", err)
+							}
+						}(path_)
 					}
 				}
 			}()
-
+	
 			// index file event
 			err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
 				channel_1 <- string(evt.Data)
 			})
-
+	
 			if err != nil {
 				fmt.Println("Fail to connect to event channel index_file_event")
 			}
-
 		}
-
 	}()
-
+	
 	// Clean temp files...
 	s_impl.startRemoveTempFiles()
 
