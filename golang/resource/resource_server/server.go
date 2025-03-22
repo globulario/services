@@ -577,6 +577,14 @@ func (srv *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType
 	return rbac_client_.DeleteAllAccess(suject, subjectType)
 }
 
+func (srv *server) SetAccountAllocatedSpace(accountId string, space uint64) error {
+	rbac_client_, err := GetRbacClient(srv.Address)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetAccountAllocatedSpace(accountId, space)
+}
+
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.
@@ -687,7 +695,6 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
 
-		
 		// Connect to the store.
 		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
 		if err != nil {
@@ -708,7 +715,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		if srv.Backend_type == "SQL" {
 			// Create tables if not already exist.
-			err := srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+			err := srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT", "refresh_token TEXT"})
 			if err != nil {
 				fmt.Println("fail to create table Accounts with error ", err)
 			}
@@ -835,7 +842,7 @@ func (srv *server) validatePassword(password string, hash string) error {
 /**
  * Register an Account.
  */
-func (srv *server) registerAccount(domain, id, name, email, password, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
+func (srv *server) registerAccount(domain, id, name, email, password, refresh_token, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
 
 	localDomain, err := config.GetDomain()
 	if err != nil {
@@ -858,9 +865,18 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	// first of all the Persistence service must be active.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 
-	// one account already exist for the name.
-	if count == 1 {
+	// one account already exist for the name we look for.
+	if count == 1 && len(refresh_token) == 0 {
 		return errors.New("account with name " + name + " already exist!")
+	} else if count == 1 && len(refresh_token) != 0 {
+		// so here I will update the account with the refresh token.
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, `{"$set":{"refresh_token":"`+refresh_token+`"}}`, "")
+		if err != nil {
+			fmt.Println("fail to update account with error ", err)
+			return err
+		}
+		fmt.Println("account with name ", name, " has been updated with refresh token")
+		return nil
 	}
 
 	// set the account object and set it basic roles.
@@ -869,7 +885,18 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	account["name"] = name
 	account["email"] = email
 	account["domain"] = domain
-	account["password"], _ = srv.hashPassword(password) // hide the password...
+
+	if len(refresh_token) == 0 {
+		account["password"], err = srv.hashPassword(password) // hide the password...
+		if err != nil {
+			fmt.Println("fail to hash password with error ", err)
+			return err
+		}
+
+	} else {
+		account["refresh_token"] = refresh_token
+		account["password"] = ""
+	}
 
 	// List of aggregation.
 	account["roles"] = make([]interface{}, 0)
@@ -923,6 +950,9 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	path := "/users/" + id + "@" + localDomain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 	err = srv.addResourceOwner(path, "file", id+"@"+localDomain, rbacpb.SubjectType_ACCOUNT)
+	if err != nil {
+		fmt.Println("fail to add resource owner with error ", err)
+	}
 
 	// I will execute the sript with the admin function.
 	// TODO implement the admin function for scylla and sql.
@@ -951,13 +981,16 @@ func (srv *server) registerAccount(domain, id, name, email, password, first_name
 	// Here I will set user data in the database.
 	data := make(map[string]interface{}, 0)
 	data["_id"] = id
-	data["first_name"] = ""
-	data["last_name"] = ""
+	data["first_name"] = first_name
+	data["last_name"] = last_name
 	data["middle_name"] = ""
 	data["email"] = email
-	data["profile_picture"] = ""
+	data["profile_picture"] = profile_picture
 
-	_, err  = p.InsertOne( context.Background(), "local_resource", name+"_db", "user_data", data, "")
+	_, err = p.InsertOne(context.Background(), "local_resource", name+"_db", "user_data", data, "")
+
+	// Now I will allocate the new account disk space.
+	srv.SetAccountAllocatedSpace(id, 0)
 
 	return err
 }

@@ -2,24 +2,15 @@
 /**
  * @fileoverview
  * @enhanceable
- * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
-/* eslint-disable */
-// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global =
-    (typeof globalThis !== 'undefined' && globalThis) ||
-    (typeof window !== 'undefined' && window) ||
-    (typeof global !== 'undefined' && global) ||
-    (typeof self !== 'undefined' && self) ||
-    (function () { return this; }).call(null) ||
-    Function('return this')();
+var global = Function('return this')();
 
 goog.exportSymbol('proto.resource.AcceptPeerRqst', null, global);
 goog.exportSymbol('proto.resource.AcceptPeerRsp', null, global);
@@ -7883,7 +7874,7 @@ proto.resource.RemoveRolesActionRsp.prototype.setResult = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Account.repeatedFields_ = [10,11,12];
+proto.resource.Account.repeatedFields_ = [11,12,13];
 
 
 
@@ -7920,15 +7911,16 @@ proto.resource.Account.toObject = function(includeInstance, msg) {
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
     email: jspb.Message.getFieldWithDefault(msg, 3, ""),
     password: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    profilepicture: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    firstname: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    lastname: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    middle: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 13, "")
+    refreshtoken: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    profilepicture: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    firstname: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    lastname: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    middle: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
+    groupsList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 13)) == null ? undefined : f,
+    typename: jspb.Message.getFieldWithDefault(msg, 14, "")
   };
 
   if (includeInstance) {
@@ -7983,37 +7975,41 @@ proto.resource.Account.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDomain(value);
+      msg.setRefreshtoken(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.setProfilepicture(value);
+      msg.setDomain(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.setFirstname(value);
+      msg.setProfilepicture(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLastname(value);
+      msg.setFirstname(value);
       break;
     case 9:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMiddle(value);
+      msg.setLastname(value);
       break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
-      msg.addOrganizations(value);
+      msg.setMiddle(value);
       break;
     case 11:
       var value = /** @type {string} */ (reader.readString());
-      msg.addGroups(value);
+      msg.addOrganizations(value);
       break;
     case 12:
       var value = /** @type {string} */ (reader.readString());
-      msg.addRoles(value);
+      msg.addGroups(value);
       break;
     case 13:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addRoles(value);
+      break;
+    case 14:
       var value = /** @type {string} */ (reader.readString());
       msg.setTypename(value);
       break;
@@ -8074,66 +8070,73 @@ proto.resource.Account.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getDomain();
+  f = message.getRefreshtoken();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getProfilepicture();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       6,
       f
     );
   }
-  f = message.getFirstname();
+  f = message.getProfilepicture();
   if (f.length > 0) {
     writer.writeString(
       7,
       f
     );
   }
-  f = message.getLastname();
+  f = message.getFirstname();
   if (f.length > 0) {
     writer.writeString(
       8,
       f
     );
   }
-  f = message.getMiddle();
+  f = message.getLastname();
   if (f.length > 0) {
     writer.writeString(
       9,
       f
     );
   }
-  f = message.getOrganizationsList();
+  f = message.getMiddle();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       10,
       f
     );
   }
-  f = message.getGroupsList();
+  f = message.getOrganizationsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       11,
       f
     );
   }
-  f = message.getRolesList();
+  f = message.getGroupsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       12,
       f
     );
   }
+  f = message.getRolesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      13,
+      f
+    );
+  }
   f = message.getTypename();
   if (f.length > 0) {
     writer.writeString(
-      13,
+      14,
       f
     );
   }
@@ -8213,10 +8216,10 @@ proto.resource.Account.prototype.setPassword = function(value) {
 
 
 /**
- * optional string domain = 5;
+ * optional string refreshToken = 5;
  * @return {string}
  */
-proto.resource.Account.prototype.getDomain = function() {
+proto.resource.Account.prototype.getRefreshtoken = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -8225,16 +8228,16 @@ proto.resource.Account.prototype.getDomain = function() {
  * @param {string} value
  * @return {!proto.resource.Account} returns this
  */
-proto.resource.Account.prototype.setDomain = function(value) {
+proto.resource.Account.prototype.setRefreshtoken = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * optional string profilePicture = 6;
+ * optional string domain = 6;
  * @return {string}
  */
-proto.resource.Account.prototype.getProfilepicture = function() {
+proto.resource.Account.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
@@ -8243,16 +8246,16 @@ proto.resource.Account.prototype.getProfilepicture = function() {
  * @param {string} value
  * @return {!proto.resource.Account} returns this
  */
-proto.resource.Account.prototype.setProfilepicture = function(value) {
+proto.resource.Account.prototype.setDomain = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
 /**
- * optional string firstName = 7;
+ * optional string profilePicture = 7;
  * @return {string}
  */
-proto.resource.Account.prototype.getFirstname = function() {
+proto.resource.Account.prototype.getProfilepicture = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
@@ -8261,16 +8264,16 @@ proto.resource.Account.prototype.getFirstname = function() {
  * @param {string} value
  * @return {!proto.resource.Account} returns this
  */
-proto.resource.Account.prototype.setFirstname = function(value) {
+proto.resource.Account.prototype.setProfilepicture = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 
 /**
- * optional string lastName = 8;
+ * optional string firstName = 8;
  * @return {string}
  */
-proto.resource.Account.prototype.getLastname = function() {
+proto.resource.Account.prototype.getFirstname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
 };
 
@@ -8279,16 +8282,16 @@ proto.resource.Account.prototype.getLastname = function() {
  * @param {string} value
  * @return {!proto.resource.Account} returns this
  */
-proto.resource.Account.prototype.setLastname = function(value) {
+proto.resource.Account.prototype.setFirstname = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
 /**
- * optional string middle = 9;
+ * optional string lastName = 9;
  * @return {string}
  */
-proto.resource.Account.prototype.getMiddle = function() {
+proto.resource.Account.prototype.getLastname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
 };
 
@@ -8297,17 +8300,35 @@ proto.resource.Account.prototype.getMiddle = function() {
  * @param {string} value
  * @return {!proto.resource.Account} returns this
  */
-proto.resource.Account.prototype.setMiddle = function(value) {
+proto.resource.Account.prototype.setLastname = function(value) {
   return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 
 /**
- * repeated string organizations = 10;
+ * optional string middle = 10;
+ * @return {string}
+ */
+proto.resource.Account.prototype.getMiddle = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Account} returns this
+ */
+proto.resource.Account.prototype.setMiddle = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * repeated string organizations = 11;
  * @return {!Array<string>}
  */
 proto.resource.Account.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 11));
 };
 
 
@@ -8316,7 +8337,7 @@ proto.resource.Account.prototype.getOrganizationsList = function() {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 10, value || []);
+  return jspb.Message.setField(this, 11, value || []);
 };
 
 
@@ -8326,7 +8347,7 @@ proto.resource.Account.prototype.setOrganizationsList = function(value) {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 11, value, opt_index);
 };
 
 
@@ -8340,11 +8361,11 @@ proto.resource.Account.prototype.clearOrganizationsList = function() {
 
 
 /**
- * repeated string groups = 11;
+ * repeated string groups = 12;
  * @return {!Array<string>}
  */
 proto.resource.Account.prototype.getGroupsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 11));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 12));
 };
 
 
@@ -8353,7 +8374,7 @@ proto.resource.Account.prototype.getGroupsList = function() {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.setGroupsList = function(value) {
-  return jspb.Message.setField(this, 11, value || []);
+  return jspb.Message.setField(this, 12, value || []);
 };
 
 
@@ -8363,7 +8384,7 @@ proto.resource.Account.prototype.setGroupsList = function(value) {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.addGroups = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 11, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 12, value, opt_index);
 };
 
 
@@ -8377,11 +8398,11 @@ proto.resource.Account.prototype.clearGroupsList = function() {
 
 
 /**
- * repeated string roles = 12;
+ * repeated string roles = 13;
  * @return {!Array<string>}
  */
 proto.resource.Account.prototype.getRolesList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 12));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 13));
 };
 
 
@@ -8390,7 +8411,7 @@ proto.resource.Account.prototype.getRolesList = function() {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.setRolesList = function(value) {
-  return jspb.Message.setField(this, 12, value || []);
+  return jspb.Message.setField(this, 13, value || []);
 };
 
 
@@ -8400,7 +8421,7 @@ proto.resource.Account.prototype.setRolesList = function(value) {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.addRoles = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 12, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 13, value, opt_index);
 };
 
 
@@ -8414,11 +8435,11 @@ proto.resource.Account.prototype.clearRolesList = function() {
 
 
 /**
- * optional string typeName = 13;
+ * optional string typeName = 14;
  * @return {string}
  */
 proto.resource.Account.prototype.getTypename = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
 };
 
 
@@ -8427,7 +8448,7 @@ proto.resource.Account.prototype.getTypename = function() {
  * @return {!proto.resource.Account} returns this
  */
 proto.resource.Account.prototype.setTypename = function(value) {
-  return jspb.Message.setProto3StringField(this, 13, value);
+  return jspb.Message.setProto3StringField(this, 14, value);
 };
 
 
@@ -8464,7 +8485,7 @@ proto.resource.RegisterAccountRqst.prototype.toObject = function(opt_includeInst
 proto.resource.RegisterAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f),
-    confirmPassword: jspb.Message.getFieldWithDefault(msg, 3, "")
+    confirmPassword: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8506,7 +8527,7 @@ proto.resource.RegisterAccountRqst.deserializeBinaryFromReader = function(msg, r
       reader.readMessage(value,proto.resource.Account.deserializeBinaryFromReader);
       msg.setAccount(value);
       break;
-    case 3:
+    case 2:
       var value = /** @type {string} */ (reader.readString());
       msg.setConfirmPassword(value);
       break;
@@ -8550,7 +8571,7 @@ proto.resource.RegisterAccountRqst.serializeBinaryToWriter = function(message, w
   f = message.getConfirmPassword();
   if (f.length > 0) {
     writer.writeString(
-      3,
+      2,
       f
     );
   }
@@ -8595,11 +8616,11 @@ proto.resource.RegisterAccountRqst.prototype.hasAccount = function() {
 
 
 /**
- * optional string confirm_password = 3;
+ * optional string confirm_password = 2;
  * @return {string}
  */
 proto.resource.RegisterAccountRqst.prototype.getConfirmPassword = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
@@ -8608,7 +8629,7 @@ proto.resource.RegisterAccountRqst.prototype.getConfirmPassword = function() {
  * @return {!proto.resource.RegisterAccountRqst} returns this
  */
 proto.resource.RegisterAccountRqst.prototype.setConfirmPassword = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

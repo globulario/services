@@ -470,3 +470,20 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 	}
 	return nil
 }
+
+/** Set subject allocated space **/
+func (client *Rbac_Client) SetAccountAllocatedSpace(accountId string, space uint64) error {
+
+	rqst := &rbacpb.SetSubjectAllocatedSpaceRqst{
+		Subject: accountId,
+		Type:     rbacpb.SubjectType_ACCOUNT,
+		AllocatedSpace:    space,
+	}
+
+	_, err := client.c.SetSubjectAllocatedSpace(client.GetCtx(), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

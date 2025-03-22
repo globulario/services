@@ -1649,6 +1649,15 @@ func (s *server) createVideoPreview(path string, nb int, height int, force bool)
 		return errors.New("no file found at path " + path)
 	}
 
+	if strings.Contains(path, ".hidden") || strings.Contains(path, ".temp") {
+		return nil
+	}
+
+	// Not a video file...
+	if !strings.Contains(path, ".") {
+		return errors.New(path + " does not has extension")
+	}
+
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
 		return errors.New("number of ffmeg instance has been reach, try it latter")
@@ -2922,9 +2931,6 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 	}
 
 	// Now I will set the path to the hidden folder...
-	//path += "/.hidden"
-	path = strings.ReplaceAll(path, "\\", "/")
-
 	Utility.CreateDirIfNotExist(path)
 	done := make(chan bool)
 
@@ -2982,7 +2988,6 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 	done <- true
 
 	// Process videos...
-
 	if format == "mp4" {
 		// Replace file name...
 		info_path := strings.ReplaceAll(fileName, ".mp4", ".info.json")
@@ -3086,6 +3091,10 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 				fmt.Println("fail to generate playlist with error ", err)
 			}
 		}
+	}else {
+		// I will remove the file...
+		os.Remove(fileName)
+		return pid, errors.New("format " + format + " not supported")
 	}
 
 	stream.Send(

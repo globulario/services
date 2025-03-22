@@ -504,19 +504,17 @@ func (srv *server) formatPath(path string) string {
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	if strings.HasPrefix(path, "/") {
-
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
 					// Must be in the root path if it's not in public path.
-					if Utility.Exists(srv.Root + path) {
-						path = srv.Root + path
-					} else if Utility.Exists(config.GetWebRootDir() + path) {
-						path = config.GetWebRootDir() + path
-
-					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
+				    if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
-					} else if Utility.Exists("/" + path) { // network path...
+					} else if Utility.Exists(config.GetWebRootDir() + path){
+						path = config.GetWebRootDir() + path
+					} else if Utility.Exists(srv.Root + path) {
+						path = srv.Root + path
+					}  else if Utility.Exists("/" + path) { // network path...
 						path = "/" + path
 					} else {
 						path = srv.Root + "/" + path
@@ -531,8 +529,12 @@ func (srv *server) formatPath(path string) string {
 		}
 	}
 
+	// remove the double slash...
+	path = strings.ReplaceAll(path, "//", "/")
+
 	return path
 }
+
 
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)

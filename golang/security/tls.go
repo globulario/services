@@ -915,10 +915,13 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	}
 
 	for i := 0; i < len(alternateDomains_); i++ {
-		if strings.Contains(alternateDomains_[i], "*") {
+		if strings.HasPrefix(alternateDomains_[i], "*.") {
 			wildcard := alternateDomains_[i]
 			if strings.HasSuffix(domain, wildcard[2:]) {
 				domain = wildcard[2:] // trim the first part of CN...
+			}
+			if !Utility.Contains(alternateDomains_, wildcard[2:]) {
+				alternateDomains = append(alternateDomains, wildcard[2:])
 			}
 		}
 	}

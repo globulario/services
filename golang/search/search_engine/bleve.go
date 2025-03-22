@@ -32,12 +32,14 @@ func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
 		return nil, errors.New("path is empty")
 	}
 
-	if !Utility.Exists(path) {
-		if engine.indexs[path] != nil {
-			engine.indexs[path].Close()
-			delete(engine.indexs, path)
+	if engine.indexs[path] != nil {
+		if !Utility.Exists(path) {
+			if engine.indexs[path] != nil {
+				engine.indexs[path].Close()
+				delete(engine.indexs, path)
+			}
+			return nil, errors.New("path: '" + path + "' does not exist")
 		}
-		return nil, errors.New("path does not exist")
 	}
 
 	if engine.indexs[path] == nil {
@@ -101,7 +103,7 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 							result.Snippet = string(data)
 						}
 						results.Results = append(results.Results, result)
-					}else{
+					} else {
 						fmt.Println("fait to retreiv raw data with error: ", err)
 					}
 				}
@@ -133,7 +135,15 @@ func (engine *BleveSearchEngine) DeleteDocument(path string, id string) error {
 }
 
 func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
+	if len(id) == 0 {
+		return errors.New("no id field found")
+	}
+
 	id_ := obj[id].(string)
+	if len(id_) == 0 {
+		return errors.New("id is empty field: " + id)
+	}
+
 	err := index.Index(id_, obj)
 	if err != nil {
 		return err

@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -28,15 +27,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-
-
-
-/** SetEmail sets the email of an account identified by the given account ID.
+/*
+* SetEmail sets the email of an account identified by the given account ID.
 It retrieves the account information from the database, validates the old email,
 and updates the email with the new email provided in the request.
 It also saves the updated account information in the database.
 Finally, it publishes an event to notify other services about the account update.
-This function returns a SetEmailResponse indicating the success of the operation or an error if any occurred. */
+This function returns a SetEmailResponse indicating the success of the operation or an error if any occurred.
+*/
 func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
 
 	// Here I will set the root password.
@@ -48,7 +46,6 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	
 	accountId := rqst.AccountId
 
 	q := `{"_id":"` + accountId + `"}`
@@ -118,52 +115,73 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 	return &resourcepb.SetEmailResponse{}, nil
 }
 
-/* Register a new Account */
 func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.RegisterAccountRqst) (*resourcepb.RegisterAccountRsp, error) {
-	rqst.Account.TypeName = "Account"
-	if rqst.ConfirmPassword != rqst.Account.Password {
+	var account *resourcepb.Account
+	// Regular account registration
+	if rqst.Account != nil {
+		account = rqst.Account
+
+		// Confirm password
+		if len(rqst.Account.RefreshToken) == 0 {
+			if rqst.ConfirmPassword != account.Password {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to confirm your password")),
+				)
+			}
+		}
+		
+	} else {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to confirm your password")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no account or OAuth account was provided")),
+		)
 	}
 
-	if rqst.Account == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no account information was given")))
+	// Register the account in the system
+	err := srv.registerAccount(
+		account.Domain, account.Id, account.Name, account.Email, account.Password, account.RefreshToken,
+		account.FirstName, account.LastName, account.Middle, account.ProfilePicture,
+		account.Organizations, account.Roles, account.Groups,
+	)
 
-	}
-
-	err := srv.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.FirstName, rqst.Account.LastName, rqst.Account.Middle, rqst.Account.ProfilePicture, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	// Generate a token to identify the user.
-	tokenString, _ := security.GenerateToken(srv.SessionTimeout, srv.Mac, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
+	// Generate a token for the new account
+	tokenString, _ := security.GenerateToken(srv.SessionTimeout, srv.Mac, account.Id, account.Name, account.Email, account.Domain)
+
+	// Validate the token...
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	err = srv.updateSession(claims.Id+"@"+claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
+	// Update user session.
+	err = srv.updateSession(claims.Id+"@"+claims.UserDomain, resourcepb.SessionState_ONLINE, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	jsonStr, err := protojson.Marshal(rqst.Account)
+	// Publish account creation event
+	jsonStr, err := protojson.Marshal(account)
 	if err == nil {
 		srv.publishEvent("create_account_evt", jsonStr, srv.Address)
 	}
-	// Now I will
+
+	// Return the generated authentication token
 	return &resourcepb.RegisterAccountRsp{
-		Result: tokenString, // Return the token string.
+		Result: tokenString,
 	}, nil
 }
 
@@ -204,9 +222,9 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	q := `{"_id":"` + accountId + `"}`
 
-	if strings.Contains(q, "@"){
+	if strings.Contains(q, "@") {
 		// I will keep the first part of the string...
-		q =strings.Split(q, "@")[0]
+		q = strings.Split(q, "@")[0]
 	}
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
@@ -288,7 +306,6 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	db += "_db"
 
-
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
 	if err == nil {
 		// set the user infos....
@@ -323,11 +340,11 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 				a.Middle = user_data_["middleName"].(string)
 			}
 		}
-	}else{
+	} else {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		
+
 	}
 
 	return &resourcepb.GetAccountRsp{
@@ -435,220 +452,188 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	return &resourcepb.SetAccountPasswordRsp{}, nil
 }
 
-// * Save an account
-func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRqst) (*resourcepb.SetAccountRsp, error) {
-	p, err := srv.getPersistenceStore()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Set the query.
-	q := `{"_id":"` +  rqst.Account.Id + `"}`
-
-	// Set the field and the values to update.
-	setAccount := map[string]interface{}{"$set": map[string]interface{}{"name": rqst.Account.Name, "email": rqst.Account.Email}}
-	setAccount_, _ := Utility.ToJson(setAccount)
-
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", q, setAccount_, "")
-	if err != nil {
-
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Set values from the accound db itself.
-	db := rqst.Account.Id
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
-	setUserData := map[string]interface{}{"$set": map[string]interface{}{"profile_picture": rqst.Account.ProfilePicture, "first_name": rqst.Account.FirstName, "last_name": rqst.Account.LastName, "middle_name": rqst.Account.Middle}}
-	setUserData_, _ := Utility.ToJson(setUserData)
-
-	err = p.UpdateOne(context.Background(), "local_resource", db, "user_data", q, setUserData_, ``)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &resourcepb.SetAccountRsp{}, nil
-
-}
-
-// * Return the list accounts *
-func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
-
-	// Get the persistence connection
+func (srv *server) updateAccount(ctx context.Context, account *resourcepb.Account) error {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	query := rqst.Query
+	// Set the query.
+	q := `{"_id":"` + account.Id + `"}`
+
+	// Update main account information.
+	setAccount := map[string]interface{}{
+		"$set": map[string]interface{}{
+			"name":  account.Name,
+			"email": account.Email,
+		},
+	}
+	setAccount_, _ := Utility.ToJson(setAccount)
+
+	err = p.UpdateOne(ctx, "local_resource", "local_resource", "Accounts", q, setAccount_, "")
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
+	}
+
+	// Sanitize the database name
+	db := strings.ReplaceAll(strings.ReplaceAll(account.Id, ".", "_"), "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+	db += "_db"
+
+	// Update user-specific data.
+	setUserData := map[string]interface{}{
+		"$set": map[string]interface{}{
+			"profile_picture": account.ProfilePicture,
+			"first_name":      account.FirstName,
+			"last_name":       account.LastName,
+			"middle_name":     account.Middle,
+		},
+	}
+	setUserData_, _ := Utility.ToJson(setUserData)
+
+	err = p.UpdateOne(ctx, "local_resource", db, "user_data", q, setUserData_, "")
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
+	}
+
+	return nil
+}
+
+func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRqst) (*resourcepb.SetAccountRsp, error) {
+	if err := srv.updateAccount(ctx, rqst.Account); err != nil {
+		return nil, err
+	}
+	return &resourcepb.SetAccountRsp{}, nil
+}
+
+func (srv *server) getAccount(query string, options string) ([]*resourcepb.Account, error) {
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	if query == "" {
 		query = "{}"
 	}
 
-	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, options)
 	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// No I will stream the result over the networks.
-	maxSize := 100
-	values := make([]*resourcepb.Account, 0)
+	var results []*resourcepb.Account
 
-	for i := 0; i < len(accounts); i++ {
-		account := accounts[i].(map[string]interface{})
-		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Domain: account["domain"].(string)}
-
-		if account["domain"] == nil {
-			a.Domain = srv.Domain
+	for _, acc := range accounts {
+		account := acc.(map[string]interface{})
+		a := &resourcepb.Account{
+			Id:    account["_id"].(string),
+			Name:  account["name"].(string),
+			Email: account["email"].(string),
+			Domain: func() string {
+				if account["domain"] != nil {
+					return account["domain"].(string)
+				}
+				return srv.Domain
+			}(),
 		}
 
-		if account["groups"] != nil {
-			var groups []interface{}
-			switch account["groups"].(type) {
-			case primitive.A:
-				groups = []interface{}(account["groups"].(primitive.A))
-			case []interface{}:
-				groups = []interface{}(account["groups"].([]interface{}))
-			default:
-				fmt.Println("unknown type ", account["groups"])
-			}
+		// Process groups, roles, organizations
+		processField := func(fieldName string, target *[]string) {
+			if account[fieldName] != nil {
+				var items []interface{}
+				switch v := account[fieldName].(type) {
+				case primitive.A:
+					items = []interface{}(v)
+				case []interface{}:
+					items = v
+				}
 
-			if groups != nil {
-				for i := 0; i < len(groups); i++ {
-					groupId := groups[i].(map[string]interface{})["$id"].(string)
-					a.Groups = append(a.Groups, groupId)
+				for _, item := range items {
+					if id, ok := item.(map[string]interface{})["$id"].(string); ok {
+						*target = append(*target, id)
+					}
 				}
 			}
 		}
 
-		if account["roles"] != nil {
-			var roles []interface{}
-			switch account["roles"].(type) {
-			case primitive.A:
-				roles = []interface{}(account["roles"].(primitive.A))
-			case []interface{}:
-				roles = []interface{}(account["roles"].([]interface{}))
-			default:
-				fmt.Println("unknown type ", account["roles"])
-			}
+		processField("groups", &a.Groups)
+		processField("roles", &a.Roles)
+		processField("organizations", &a.Organizations)
 
-			if roles != nil {
-				for i := 0; i < len(roles); i++ {
-					roleId := roles[i].(map[string]interface{})["$id"].(string)
-					a.Roles = append(a.Roles, roleId)
-				}
-			}
-		}
-
-		if account["organizations"] != nil {
-			var organizations []interface{}
-			switch account["organizations"].(type) {
-			case primitive.A:
-				organizations = []interface{}(account["organizations"].(primitive.A))
-			case []interface{}:
-				organizations = []interface{}(account["organizations"].([]interface{}))
-			default:
-				fmt.Println("unknown type ", account["organizations"])
-			}
-
-			if organizations != nil {
-				for i := 0; i < len(organizations); i++ {
-					organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-					a.Organizations = append(a.Organizations, organizationId)
-				}
-			}
-		}
-
-		// set the caller id.
-		db := a.Id
-		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-		db = strings.ReplaceAll(db, "-", "_")
-		db = strings.ReplaceAll(db, ".", "_")
-		db = strings.ReplaceAll(db, " ", "_")
-
-		db += "_db"
-
+		// Retrieve user data
+		db := strings.NewReplacer(".", "_", "@", "_", "-", "_", " ", "_").Replace(a.Id) + "_db"
 		q := `{"_id":"` + a.Id + `"}`
-
-		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
-		if err == nil {
-			// set the user infos....
-			if user_data != nil {
-				user_data_ := user_data.(map[string]interface{})
-				if user_data_["profile_picture"] != nil {
-					a.ProfilePicture = user_data_["profile_picture"].(string)
+		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, "")
+		if err == nil && user_data != nil {
+			if userDataMap, ok := user_data.(map[string]interface{}); ok {
+				if v, ok := userDataMap["profile_picture"].(string); ok {
+					a.ProfilePicture = v
 				}
-				if user_data_["first_name"] != nil {
-					a.FirstName = user_data_["first_name"].(string)
+				if v, ok := userDataMap["first_name"].(string); ok {
+					a.FirstName = v
 				}
-				if user_data_["last_name"] != nil {
-					a.LastName = user_data_["last_name"].(string)
+				if v, ok := userDataMap["last_name"].(string); ok {
+					a.LastName = v
 				}
-				if user_data_["middle_name"] != nil {
-					a.Middle = user_data_["middle_name"].(string)
-				}
-
-				if user_data_["profilePicture"] != nil {
-					a.ProfilePicture = user_data_["profilePicture"].(string)
-				}
-				if user_data_["firstName"] != nil {
-					a.FirstName = user_data_["firstName"].(string)
-				}
-				if user_data_["lastName"] != nil {
-					a.LastName = user_data_["lastName"].(string)
-				}
-				if user_data_["middleName"] != nil {
-					a.Middle = user_data_["middleName"].(string)
+				if v, ok := userDataMap["middle_name"].(string); ok {
+					a.Middle = v
 				}
 			}
 		}
+		results = append(results, a)
+	}
 
+	return results, nil
+}
+
+func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
+	accounts, err := srv.getAccount(rqst.Query, rqst.Options)
+	if err != nil {
+		return err
+	}
+
+	maxSize := 100
+	values := make([]*resourcepb.Account, 0, maxSize)
+
+	for _, a := range accounts {
 		values = append(values, a)
-
 		if len(values) >= maxSize {
-			err := stream.Send(
-				&resourcepb.GetAccountsRsp{
-					Accounts: values,
-				},
-			)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			if err := stream.Send(&resourcepb.GetAccountsRsp{Accounts: values}); err != nil {
+				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			values = make([]*resourcepb.Account, 0)
+			values = values[:0]
 		}
 	}
 
-	// Send reminding values.
-	err = stream.Send(
-		&resourcepb.GetAccountsRsp{
-			Accounts: values,
-		},
-	)
-
-	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if len(values) > 0 {
+		if err := stream.Send(&resourcepb.GetAccountsRsp{Accounts: values}); err != nil {
+			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	return nil
+}
+
+func (srv *server) getAccountByEmail(email string) (*resourcepb.Account, error) {
+	query := `{"email": "` + email + `"}`
+	accounts, err := srv.getAccount(query, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		return nil, status.Errorf(codes.NotFound, "account not found")
+	}
+	return accounts[0], nil
 }
 
 // * Add contact to a given account *
@@ -2038,7 +2023,7 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 		application["actions"] = rqst.Actions
 		needSave = true
 	} else {
-		
+
 		switch application["actions"].(type) {
 		case primitive.A:
 			actions_ = []interface{}(application["actions"].(primitive.A))
@@ -2457,7 +2442,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +  `"}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
@@ -2490,12 +2475,10 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// so the intention is to register the server itself on another srv...
 	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
-
 	if len(rqst.Peer.Mac) == 0 {
 
-
 		// In that case I will use the hostname and the domain to set the address
-		address_ := rqst.Peer.Hostname 
+		address_ := rqst.Peer.Hostname
 		if rqst.Peer.Domain != "localhost" {
 			address_ += "." + rqst.Peer.Domain
 		}
@@ -2649,7 +2632,6 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	// actions will need to be set by admin latter...
 	pubKey, err := security.GetPeerKey(getLocalPeer().Mac)
 	if err != nil {
@@ -2657,7 +2639,6 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
@@ -2667,7 +2648,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	// signal peers changes...
 	srv.publishEvent("update_peers_evt", jsonStr, srv.GetAddress())
 
-	address_ := rqst.Peer.Hostname 
+	address_ := rqst.Peer.Hostname
 	if rqst.Peer.Domain != "localhost" {
 		address_ += "." + rqst.Peer.Domain
 	}
@@ -2790,7 +2771,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +`"}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	setState := `{ "$set":{"state":2}}`
 
@@ -3069,7 +3050,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 		return nil, err
 	}
 
-	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) +`"}`
+	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
 
 	// try to get the peer from the database.
 	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
@@ -5270,9 +5251,9 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 
 	// Be sure to remove the old session...
 	p.Delete(context.Background(), "local_resource", "local_resource", "Sessions", q, "")
-	
+
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Sessions", session, "")
-	
+
 	return err
 
 	//return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", q, jsonStr, `[{"upsert":true}]`)
@@ -5287,7 +5268,7 @@ func (srv *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSes
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("session is empty")))
 	}
-		
+
 	err := srv.updateSession(rqst.Session.AccountId, rqst.Session.State, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
 	if err != nil {
 		return nil, status.Errorf(

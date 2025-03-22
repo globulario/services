@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -361,6 +362,43 @@ func (srv *server) setKey(mac string) error {
 	return nil
 }
 
+// validateGoogleToken checks if the provided access token is valid
+func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
+	validationURL := "https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=" + accessToken
+
+	// Make the HTTP request
+	resp, err := http.Get(validationURL)
+	if err != nil {
+		return false, fmt.Errorf("failed to validate token: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("invalid token, status code: %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse JSON response
+	var tokenInfo map[string]interface{}
+	err = json.Unmarshal(body, &tokenInfo)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse JSON response: %v", err)
+	}
+
+	// Ensure the token has an `expires_in` field (indicates it's still valid)
+	if _, exists := tokenInfo["expires_in"]; !exists {
+		return false, errors.New("invalid access token: missing expiration info")
+	}
+
+	return true, nil
+}
+
 /* Authenticate a user */
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
@@ -460,30 +498,72 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		return "", err
 	}
 
-	err = srv.validatePassword(pwd, account.Password)
-	if err != nil {
-		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
-		// Now if the LDAP service is configure I will try to authenticate with it...
-		if len(srv.LdapConnectionId) != 0 {
-			err := srv.authenticateLdap(account.Name, pwd)
-			if err != nil {
-				fmt.Println("fail to authenticate with error ", err)
-				return "", err
-			}
-			// set back the password.
-			// the old password can be left blank if the token was generated for sa.
-			token, err := security.GetLocalToken(srv.Mac)
-			if err != nil {
-				return "", err
-			}
+	// Check if `pwd` is empty, indicating OAuth authentication
+	if pwd == "" {
+		if account.RefreshToken == "" {
+			return "", errors.New("no password or refresh token provided")
+		}
 
-			err = srv.changeAccountPassword(account.Id, token, "", pwd)
-			if err != nil {
-				fmt.Println("fail to change password: ", account.Id, err)
+
+
+		// Call Google API to refresh the token
+		refreshURL := fmt.Sprintf("https://%s/refresh_google_token?refresh_token=%s", srv.Domain, account.RefreshToken)
+		resp, err := http.Get(refreshURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to call refresh token API: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Read response body
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read response: %v", err)
+		}
+
+		// Parse the response (assuming it returns a JSON with "access_token")
+		var result map[string]string
+		err = json.Unmarshal(body, &result)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse JSON response: %v", err)
+		}
+
+		accessToken, exists := result["access_token"]
+		if !exists {
+			return "", errors.New("no access token found in response")
+		}
+
+		// Validate the Google token (optional, if needed)
+		valid, err := srv.validateGoogleToken(accessToken)
+		if err != nil || !valid {
+			return "", fmt.Errorf("invalid Google token: %v", err)
+		}
+
+	} else {
+		err = srv.validatePassword(pwd, account.Password)
+		if err != nil {
+			srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
+			// Now if the LDAP service is configure I will try to authenticate with it...
+			if len(srv.LdapConnectionId) != 0 {
+				err := srv.authenticateLdap(account.Name, pwd)
+				if err != nil {
+					fmt.Println("fail to authenticate with error ", err)
+					return "", err
+				}
+				// set back the password.
+				// the old password can be left blank if the token was generated for sa.
+				token, err := security.GetLocalToken(srv.Mac)
+				if err != nil {
+					return "", err
+				}
+
+				err = srv.changeAccountPassword(account.Id, token, "", pwd)
+				if err != nil {
+					fmt.Println("fail to change password: ", account.Id, err)
+					return "", err
+				}
+			} else {
 				return "", err
 			}
-		} else {
-			return "", err
 		}
 	}
 

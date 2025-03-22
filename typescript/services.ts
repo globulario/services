@@ -100,8 +100,9 @@ export interface IConfig {
   Path: string;
   DataPath: string;
   ConfigPath: string;
-  Vesion: string;
+  Version: string;
   Platform: string;
+  OAuth2_ClientId: string;
 
   // The map of service object.
   Services: IServices;

@@ -42,35 +42,35 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Domain               string
-	Address              string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	State                string
-	ModTime              int64
-	CacheAddress         string
+	Id              string
+	Mac             string
+	Name            string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	State           string
+	ModTime         int64
+	CacheAddress    string
 
 	TLS bool
 
@@ -506,7 +506,6 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
  */
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 
-
 	data, err := srv.cache.GetItem(accountId)
 	if err == nil {
 		a := new(resourcepb.Account)
@@ -517,8 +516,11 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	}
 
 	domain := srv.Domain
+
 	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
+		if len(strings.Split(accountId, "@")[1]) > 0 {
+			domain = strings.Split(accountId, "@")[1]
+		}
 		accountId = strings.Split(accountId, "@")[0]
 	}
 
@@ -558,7 +560,6 @@ func (srv *server) accountExist(id string) (bool, string) {
  */
 func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
-
 	// I will try to get the information from the cache to save time...
 	data, err := srv.cache.GetItem(groupId)
 	if err == nil {
@@ -569,13 +570,12 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		}
 	}
 
-	domain:=srv.Domain
+	domain := srv.Domain
 
 	if strings.Contains(groupId, "@") {
 		domain = strings.Split(groupId, "@")[1]
 		groupId = strings.Split(groupId, "@")[0]
 	}
-	
 
 	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
@@ -605,7 +605,6 @@ func (srv *server) getGroup(groupId string) (*resourcepb.Group, error) {
  * Test if a group exist.
  */
 func (srv *server) groupExist(id string) (bool, string) {
-
 	g, err := srv.getGroup(id)
 	if err != nil || g == nil {
 		fmt.Println("fail to find group ", id)
@@ -690,6 +689,7 @@ func (srv *server) getPeer(peerId string) (*resourcepb.Peer, error) {
  * Test if a peer exist.
  */
 func (srv *server) peerExist(id string) bool {
+
 	p, err := srv.getPeer(id)
 	if err != nil || p == nil {
 		return false
@@ -798,7 +798,7 @@ func (srv *server) getRole(roleId string) (*resourcepb.Role, error) {
 		domain = strings.Split(roleId, "@")[1]
 		roleId = strings.Split(roleId, "@")[0]
 	}
- 
+
 	resourceClient, err := srv.getResourceClient(domain)
 	if err != nil {
 		return nil, err

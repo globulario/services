@@ -140,25 +140,27 @@ message Account {
   string id = 1; // Unique identifier of the account.
   string name = 2; // Name associated with the account.
   string email = 3; // Email of the account holder.
-  string password = 4; // Encrypted password for the account.
-  string domain = 5; // The domain where the account belongs.
-  string profilePicture = 6; // URL or identifier for the profile picture.
-  string firstName = 7; // First name of the account holder.
-  string lastName = 8; // Last name of the account holder.
-  string middle = 9; // Middle name of the account holder.
+  string password = 4; // Encrypted password (only for non-OAuth accounts).
+  string refreshToken = 5; // Refresh token for OAuth accounts.
+  string domain = 6; // The domain where the account belongs.
+  string profilePicture = 7; // URL or identifier for the profile picture.
+  string firstName = 8; // First name of the account holder.
+  string lastName = 9; // Last name of the account holder.
+  string middle = 10; // Middle name of the account holder.
 
   // References.
-  repeated string organizations = 10; // List of organizations the account is associated with.
-  repeated string groups = 11; // List of groups the account is part of.
-  repeated string roles = 12; // List of roles assigned to the account.
+  repeated string organizations = 11; // List of organizations the account is associated with.
+  repeated string groups = 12; // List of groups the account is part of.
+  repeated string roles = 13; // List of roles assigned to the account.
 
-  string typeName = 13; // Type of the account object, for internal use.
+  string typeName = 14; // Type of the account object, for internal use.
 }
 
 message RegisterAccountRqst {
   Account account = 1; // The account information to be registered.
-  string confirm_password = 3; // Confirmation of the account password.
+  string confirm_password = 2; // Only required for non-OAuth registrations.
 }
+
 
 message RegisterAccountRsp { 
   string result = 1; // The result of the account registration request.
