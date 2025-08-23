@@ -561,14 +561,14 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*titlepb.Person) []*titlepb.Person {
 	casting := make([]*titlepb.Person, 0)
 
-	for i := 0; i < len(persons); i++ {
+	for i := range persons {
 		person := persons[i]
 
 		// Get existiong movie...
 		existing, err := srv.getPersonById(indexpath, person.ID)
 		if err == nil {
 			if role == "Casting" {
-				for i := 0; i < len(existing.Casting); i++ {
+				for i := range existing.Casting {
 					if !Utility.Contains(person.Casting, existing.Casting[i]) {
 						person.Casting = append(person.Casting, existing.Casting[i])
 					}
@@ -578,7 +578,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 					person.Casting = append(person.Casting, titleId)
 				}
 			} else if role == "Acting" {
-				for i := 0; i < len(existing.Acting); i++ {
+				for i := range existing.Acting {
 					if !Utility.Contains(person.Acting, existing.Acting[i]) {
 						person.Acting = append(person.Acting, existing.Acting[i])
 					}
@@ -588,7 +588,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 					person.Acting = append(person.Acting, titleId)
 				}
 			} else if role == "Directing" {
-				for i := 0; i < len(existing.Directing); i++ {
+				for i := range existing.Directing {
 					if !Utility.Contains(person.Directing, existing.Directing[i]) {
 						person.Directing = append(person.Directing, existing.Directing[i])
 					}
@@ -598,7 +598,7 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 					person.Directing = append(person.Directing, titleId)
 				}
 			} else if role == "Writing" {
-				for i := 0; i < len(existing.Writing); i++ {
+				for i := range existing.Writing {
 					if !Utility.Contains(person.Writing, existing.Writing[i]) {
 						person.Writing = append(person.Writing, existing.Writing[i])
 					}
@@ -609,11 +609,12 @@ func (srv *server) saveTitleCasting(indexpath, titleId, role string, persons []*
 				}
 			}
 
-			casting = append(casting, person)
+			fmt.Println("update person ", person.ID, " with title ", titleId, " and role ", role)
 
-			// save the existing cast...
-			srv.createPerson(indexpath, person)
 		}
+		// save the existing cast...
+		srv.createPerson(indexpath, person)
+		casting = append(casting, person)
 	}
 
 	return casting
@@ -627,6 +628,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title id was given")))
 	}
+
+	fmt.Println("--------------------> create title with id ", rqst.Title.ID, " and name ", rqst.Title.Name, rqst.Title.Actors, rqst.Title.Writers, rqst.Title.Directors)
 
 	// Now I will index the conversation to be retreivable for it creator...
 	clientId, _, err := security.GetClientId(ctx)
@@ -676,6 +679,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 				rqst.Title.Poster.ContentUrl = thumbnail
 			}
 		}
+	} else {
+		return nil, errors.New("no poster was given")
 	}
 
 	// so here I will set the ownership...
@@ -881,6 +886,7 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		return err
 	}
 
+	fmt.Println("----------------------> save title metadata for file ", absolutefilePath, " with title ", title.Name, title.Actors, title.Writers, title.Directors)
 	jsonStr, err := protojson.Marshal(title)
 	if err != nil {
 		return err

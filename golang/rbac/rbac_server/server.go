@@ -548,6 +548,7 @@ func (srv *server) accountExist(id string) (bool, string) {
 
 	a, err := srv.getAccount(id)
 	if err != nil {
+		fmt.Println("fail to find account ", id, " with error: ", err.Error())
 		return false, ""
 	}
 

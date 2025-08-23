@@ -2,8 +2,6 @@ module github.com/globulario/services/golang
 
 go 1.22.5
 
-replace github.com/davecourtois/Utility => ../../Utility
-
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
 	github.com/StalkR/httpcache v1.0.0
@@ -13,13 +11,13 @@ require (
 	github.com/anacrolix/torrent v1.56.1
 	github.com/barasher/go-exiftool v1.10.0
 	github.com/blevesearch/bleve/v2 v2.4.1
+	github.com/davecourtois/Utility v0.0.0-20240704162403-bd08b54546a9
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
-	github.com/emersion/go-smtp v0.21.2
 	github.com/emicklei/proto v1.13.2
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-ldap/ldap/v3 v3.4.8
@@ -58,7 +56,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/PuerkitoBio/goquery v1.5.1 // indirect
@@ -112,9 +109,7 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/davecourtois/Utility v0.0.0-20240704162403-bd08b54546a9 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
-	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
@@ -156,7 +151,6 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
-	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect
 	github.com/pion/dtls/v2 v2.2.4 // indirect

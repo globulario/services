@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
+	"github.com/gocolly/colly/v2"
 	"github.com/mitchellh/go-ps"
 	"golang.org/x/text/language"
 	"golang.org/x/text/language/display"
@@ -163,9 +166,84 @@ func getHttpClient() *http.Client {
 	return http_client
 }
 
+func GetIMDBPoster(imdbID string) (string, error) {
+	mainURL := "https://www.imdb.com/title/" + imdbID + "/"
+	var posterViewerURL string
+	var posterURL string
+
+	c := colly.NewCollector()
+
+	// Step 1: Find media viewer URL
+	c.OnHTML("a.ipc-lockup-overlay", func(e *colly.HTMLElement) {
+		href := e.Attr("href")
+		if strings.Contains(href, "/mediaviewer/") && posterViewerURL == "" {
+			posterViewerURL = "https://www.imdb.com" + href
+		}
+	})
+
+	if err := c.Visit(mainURL); err != nil {
+		return "", err
+	}
+	if posterViewerURL == "" {
+		return "", fmt.Errorf("could not find media viewer URL")
+	}
+
+	// Step 2: Extract rmID from URL
+	reRM := regexp.MustCompile(`/mediaviewer/(rm\d+)/`)
+	match := reRM.FindStringSubmatch(posterViewerURL)
+	if len(match) < 2 {
+		return "", fmt.Errorf("could not extract rmID")
+	}
+	rmID := match[1] + "-curr"
+
+	// Step 3: Visit media viewer and find correct image
+	imgCollector := colly.NewCollector()
+
+	imgCollector.OnHTML("img", func(e *colly.HTMLElement) {
+		if e.Attr("data-image-id") == rmID {
+			srcset := e.Attr("srcset")
+			if srcset != "" {
+				// Parse srcset and get highest resolution
+				maxResURL := ""
+				maxWidth := 0
+				for _, part := range strings.Split(srcset, ",") {
+					part = strings.TrimSpace(part)
+					if items := strings.Split(part, " "); len(items) == 2 {
+						url := items[0]
+						widthStr := items[1]
+						if strings.HasSuffix(widthStr, "w") {
+							width, err := strconv.Atoi(strings.TrimSuffix(widthStr, "w"))
+							if err == nil && width > maxWidth {
+								maxWidth = width
+								maxResURL = url
+							}
+						}
+					}
+				}
+				if maxResURL != "" {
+					posterURL = maxResURL
+					return
+				}
+			}
+			// fallback to src
+			if posterURL == "" {
+				posterURL = e.Attr("src")
+			}
+		}
+	})
+
+	if err := imgCollector.Visit(posterViewerURL); err != nil {
+		return "", fmt.Errorf("failed to visit viewer page: %v", err)
+	}
+	if posterURL == "" {
+		return "", fmt.Errorf("poster image not found")
+	}
+	return posterURL, nil
+}
+
 func restoreVideoInfos(client *title_client.Title_Client, token, video_path, domain string) error {
 
-	fmt.Println("try to restore video info for ", video_path)
+	fmt.Println("try to restore video info for: ---> ", video_path)
 
 	// get video info from metadata
 	infos, err := getVideoInfos(video_path, domain)
@@ -201,7 +279,6 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 						if strings.Contains(string(jsonStr), "{") {
 							title := new(titlepb.Title)
 							err = protojson.Unmarshal(jsonStr, title)
-
 							if err == nil {
 								t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
 								if err != nil {
@@ -211,8 +288,12 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 										title__, err := imdb.NewTitle(client_, title.ID)
 
 										if err == nil {
-											title.Poster.URL = title__.Poster.ContentURL
-											title.Poster.ContentUrl = title__.Poster.ContentURL
+											posterUrl, err := GetIMDBPoster(title.ID)
+											if err == nil {
+												title.Poster.URL = posterUrl
+												title.Poster.ContentUrl = posterUrl
+												title.Poster.ID = title.ID
+											}
 
 											// The hidden folder path...
 											lastIndex := -1
@@ -242,6 +323,34 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 
 											title.Rating = float32(Utility.ToNumeric(title__.Rating))
 											title.RatingCount = int32(title__.RatingCount)
+
+											title.Actors = make([]*titlepb.Person, 0)
+											for _, actor := range title__.Actors {
+												person := new(titlepb.Person)
+												person.ID = actor.ID
+												person.FullName = actor.FullName
+												person.URL = actor.URL
+												title.Actors = append(title.Actors, person)
+											}
+
+											title.Directors = make([]*titlepb.Person, 0)
+											for _, director := range title__.Directors {
+												person := new(titlepb.Person)
+												person.ID = director.ID
+												person.FullName = director.FullName
+												person.URL = director.URL
+												title.Directors = append(title.Directors, person)
+											}
+
+											title.Writers = make([]*titlepb.Person, 0)
+											for _, writer := range title__.Writers {
+												person := new(titlepb.Person)
+												person.ID = writer.ID
+												person.FullName = writer.FullName
+												person.URL = writer.URL
+												title.Writers = append(title.Writers, person)
+											}
+
 										}
 
 										err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
@@ -417,7 +526,7 @@ func processVideos(srv *server, token string, dirs []string) {
 
 	// This will be execute in case the server was stop when it process file.
 	// Step 1 convert .info.json to video and audio info and move downloaded media file from hidden to the final destination...
-	for i := 0; i < len(video_infos); i++ {
+	for i := range video_infos {
 		info_path := video_infos[i]
 		err := srv.processVideoInfo(token, info_path)
 		if err != nil {
@@ -434,9 +543,9 @@ func processVideos(srv *server, token string, dirs []string) {
 		fmt.Println("fail to connect to local title client ", err)
 	} else {
 		// Restore serie's
-		for i := 0; i < len(dirs); i++ {
+		for i := range dirs {
 			infos_ := Utility.GetFilePathsByExtension(dirs[i], "infos.json")
-			for j := 0; j < len(infos_); j++ {
+			for j := range infos_ {
 				data, err := os.ReadFile(infos_[j])
 				if err == nil {
 					infos := make(map[string]interface{})
@@ -453,10 +562,42 @@ func processVideos(srv *server, token string, dirs []string) {
 										client_ := getHttpClient()
 										title__, err := imdb.NewTitle(client_, title.ID)
 										if err == nil {
-											title.Poster.URL = title__.Poster.ContentURL
-											title.Poster.ContentUrl = title__.Poster.ContentURL
+											posterUrl, err := GetIMDBPoster(title.ID)
+											if err == nil {
+												title.Poster.URL = posterUrl
+												title.Poster.ContentUrl = posterUrl
+												title.Poster.ID = title.ID
+											}
 											title.Rating = float32(Utility.ToNumeric(title__.Rating))
 											title.RatingCount = int32(title__.RatingCount)
+
+											title.Actors = make([]*titlepb.Person, 0)
+											for _, actor := range title__.Actors {
+												person := new(titlepb.Person)
+												person.ID = actor.ID
+												person.FullName = actor.FullName
+												person.URL = actor.URL
+												title.Actors = append(title.Actors, person)
+											}
+
+											title.Directors = make([]*titlepb.Person, 0)
+											for _, director := range title__.Directors {
+												person := new(titlepb.Person)
+												person.ID = director.ID
+												person.FullName = director.FullName
+												person.URL = director.URL
+												title.Directors = append(title.Directors, person)
+											}
+
+											title.Writers = make([]*titlepb.Person, 0)
+											for _, writer := range title__.Writers {
+												person := new(titlepb.Person)
+												person.ID = writer.ID
+												person.FullName = writer.FullName
+												person.URL = writer.URL
+												title.Writers = append(title.Writers, person)
+											}
+
 										}
 										err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
 										if err != nil {
@@ -474,7 +615,7 @@ func processVideos(srv *server, token string, dirs []string) {
 		}
 
 		// Restore information as needed...
-		for i := 0; i < len(video_paths); i++ {
+		for i := range video_paths {
 			err := restoreVideoInfos(client, token, video_paths[i], srv.Domain)
 			if err != nil {
 				fmt.Println("fail to restore video infos with error: ", err)
@@ -585,45 +726,74 @@ func processVideos(srv *server, token string, dirs []string) {
 
 					// Here I will convert the audio...
 					if strings.HasSuffix(video, ".mp4") {
+
 						streamInfos, err := getStreamInfos(video)
 						if err == nil {
 							// Here I will test if the encoding is valid
 							audio_encoding := ""
+							aac_stream_index := -1
+							audio_stream_count := 0
+
 							for _, stream := range streamInfos["streams"].([]interface{}) {
-								if stream.(map[string]interface{})["codec_type"].(string) == "audio" {
-									audio_encoding = stream.(map[string]interface{})["codec_name"].(string)
+								streamMap := stream.(map[string]interface{})
+								if streamMap["codec_type"].(string) == "audio" {
+									audio_stream_count++
+									codec := streamMap["codec_name"].(string)
+									fmt.Println("found audio stream for video", video, "with codec", codec)
+									if codec == "aac" && aac_stream_index == -1 {
+										aac_stream_index = audio_stream_count - 1 // Track actual audio index
+									}
+									audio_encoding = codec
 								}
 							}
 
-							if audio_encoding != "aac" {
-								// sudo ffmpeg -i Andor\ S01E01.mp4 -c:v copy -ac 2 -c:a aac -b:a 192k Andor\ S01E01.acc.mp4
+							if audio_encoding != "aac" || (audio_stream_count > 1 && aac_stream_index != -1) {
+								fmt.Println("converting or fixing audio for video", video)
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
-
-								defer os.Remove(output) // remove the temp file...
+								defer os.Remove(output)
 
 								wait := make(chan error)
-								args := []string{"-i", video, "-c:v", "copy"}
-								args = append(args, "-c:a", "copy", "-c:s", "mov_text", "-map", "0")
-								args = append(args, "-b:a", "192k", output)
-								Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
-								err := <-wait
-								// if error...
-								if err == nil {
-									err := os.Remove(video) // remove the original file...
-									if err == nil {
-										err = os.Rename(output, video) // rename the temp file...
-										if err != nil {
-											fmt.Println("fail to rename ", video, err)
+
+								args := []string{"-i", video, "-map", "0", "-c:v", "copy", "-c:s", "mov_text"}
+
+								// If audio isn't AAC, convert all audio to AAC.
+								// Otherwise, keep audio but change disposition to make AAC default.
+								if audio_encoding != "aac" {
+									args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+								} else {
+									args = append(args, "-c:a", "copy")
+									for i := 0; i < audio_stream_count; i++ {
+										if i == aac_stream_index {
+											args = append(args, fmt.Sprintf("-disposition:a:%d", i), "default")
+										} else {
+											args = append(args, fmt.Sprintf("-disposition:a:%d", i), "none")
 										}
 									}
+								}
 
+								args = append(args, output)
+
+								Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
+								err := <-wait
+
+								if err == nil {
+									err := os.Remove(video)
+									if err == nil {
+										err = os.Rename(output, video)
+										if err != nil {
+											fmt.Println("fail to rename", video, err)
+										}
+									}
 								} else {
-									fmt.Println("fail to convert audio with error ", video, err)
+									fmt.Println("fail to convert audio with error", video, err)
 									os.Remove(output)
 								}
 							}
 
+						} else {
+							fmt.Println("fail to get stream infos for video ", video, " with error ", err)
+							srv.publishConvertionLogError(video, err)
 						}
 					}
 
@@ -648,6 +818,8 @@ func processVideos(srv *server, token string, dirs []string) {
 							srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 						}
 					}
+				} else {
+					fmt.Println("video ", video, " was already processed and failed before, so it will not be processed again.")
 				}
 
 			} else {
@@ -832,7 +1004,7 @@ func getStreamFrameRateInterval(path string) (int, error) {
 /**
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
-func (srv *server) createVideoMpeg4H264(path string) (string, error) {
+/*func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 
 	cache.RemoveItem(path)
 
@@ -923,6 +1095,117 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	}
 
 	// Here I will remove the input file...
+	os.Remove(path)
+
+	return output, nil
+}*/
+
+/**
+ * Convert all kind of video to mp4 h264 container so all browser will be able to read it.
+ */
+func (srv *server) createVideoMpeg4H264(path string) (string, error) {
+	cache.RemoveItem(path)
+
+	extractSubtitleTracks(path)
+
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return "", errors.New("number of ffmpeg instances has been reached, try later")
+	}
+
+	if !strings.Contains(path, ".") {
+		return "", errors.New(path + " does not have an extension")
+	}
+
+	path = strings.ReplaceAll(path, "\\", "/")
+	pathDir := path[0:strings.LastIndex(path, "/")]
+	name := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
+	output := pathDir + "/" + name + ".mp4"
+
+	if !strings.HasSuffix(path, ".mp4") {
+		if Utility.Exists(output) {
+			os.Remove(output)
+		}
+	} else {
+		path = pathDir + "/" + name + ".hevc"
+		if Utility.Exists(path) {
+			return "", errors.New("currently processing video " + output)
+		}
+		Utility.MoveFile(output, path)
+	}
+
+	var args []string
+
+	streamInfos, err := getStreamInfos(path)
+	if err != nil {
+		return "", err
+	}
+
+	// Detect video encoding
+	videoEncoding := ""
+	for _, stream := range streamInfos["streams"].([]interface{}) {
+		s := stream.(map[string]interface{})
+		if s["codec_type"].(string) == "video" {
+			videoEncoding = s["codec_long_name"].(string)
+			break
+		}
+	}
+
+	// Choose encoder
+	args = append(args, "-i", path, "-c:v")
+	if srv.hasEnableCudaNvcc() {
+		if strings.HasPrefix(videoEncoding, "H.264") || strings.HasPrefix(videoEncoding, "MPEG-4 part 2") {
+			args = append(args, "h264_nvenc")
+		} else if strings.HasPrefix(videoEncoding, "H.265") || strings.HasPrefix(videoEncoding, "Motion JPEG") {
+			args = append(args, "h264_nvenc", "-pix_fmt", "yuv420p")
+		} else {
+			return "", errors.New("no encoding command found for " + videoEncoding)
+		}
+	} else {
+		if strings.HasPrefix(videoEncoding, "H.264") || strings.HasPrefix(videoEncoding, "MPEG-4 part 2") {
+			args = append(args, "libx264")
+		} else if strings.HasPrefix(videoEncoding, "H.265") || strings.HasPrefix(videoEncoding, "Motion JPEG") {
+			args = append(args, "libx264", "-pix_fmt", "yuv420p")
+		} else {
+			return "", errors.New("no encoding command found for " + videoEncoding)
+		}
+	}
+
+	// Map video
+	args = append(args, "-map", "0:v")
+
+	// Map audio streams (up to 8)
+	for i := range 8 {
+		args = append(args, "-map", fmt.Sprintf("0:a:%d?", i), "-c:a:"+fmt.Sprint(i), "aac")
+	}
+
+	// Dynamically map compatible subtitle streams
+	subtitleIndex := 0
+	for _, stream := range streamInfos["streams"].([]interface{}) {
+		s := stream.(map[string]interface{})
+		if s["codec_type"].(string) == "subtitle" {
+			codec := s["codec_name"].(string)
+			if codec == "subrip" || codec == "ass" || codec == "ssa" {
+				args = append(args,
+					"-map", fmt.Sprintf("0:s:%d?", subtitleIndex),
+					"-c:s:"+fmt.Sprint(subtitleIndex), "mov_text")
+				subtitleIndex++
+			} else {
+				fmt.Println("Skipping unsupported subtitle codec:", codec)
+			}
+		}
+	}
+
+	args = append(args, output)
+
+	wait := make(chan error)
+	Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
+	err = <-wait
+	if err != nil {
+		return "", err
+	}
+
+	// Remove input file after conversion
 	os.Remove(path)
 
 	return output, nil
@@ -1549,7 +1832,7 @@ func createVttFile(output string, fps float32) error {
 
 			webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
 
-			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" +  strings.TrimPrefix(strings.ReplaceAll(output, config.GetDataDir()+"/files/", "") + "/" + thumbnail.Name(), "/")  + "\n\n"
+			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" + strings.TrimPrefix(strings.ReplaceAll(output, config.GetDataDir()+"/files/", "")+"/"+thumbnail.Name(), "/") + "\n\n"
 			index++
 		}
 
@@ -1782,14 +2065,14 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 				return nil, err
 			}
 
-			title := make(map[string]interface{})
-			err = json.Unmarshal(data, &title)
+			var title titlepb.Title
+			err = protojson.Unmarshal(data, &title) //json.Unmarshal(data, &title)
 			if err != nil {
 				return nil, err
 			}
 
 			// Convert the videos info to json string
-			data_, err := json.Marshal(title)
+			data_, err := protojson.Marshal(&title)
 			if err != nil {
 				return nil, err
 			}
@@ -1816,7 +2099,7 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 			if err == nil && videos != nil {
 				if len(videos) > 0 {
 					// Convert the videos info to json string
-					data, err := json.Marshal(videos[0])
+					data, err := protojson.Marshal(videos[0])
 					if err != nil {
 						return nil, err
 					}
@@ -1845,7 +2128,7 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 			if err == nil && titles != nil {
 				if len(titles) > 0 {
 					// Convert the videos info to json string
-					data, err := json.Marshal(titles[0])
+					data, err := protojson.Marshal(titles[0])
 					if err != nil {
 						return nil, err
 					}
@@ -2357,7 +2640,6 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 		return nil, err
 	}
 
-
 	path_ := srv.formatPath(rqst.Path)
 	if !Utility.Exists(path_) {
 		return nil, status.Errorf(
@@ -2840,7 +3122,7 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 		}
 
 		// remove incomplete download...
-		for i := 0; i < len(files); i++ {
+		for i := range files {
 			f := files[i]
 			if strings.Contains(f.Name(), ".temp.") || strings.HasSuffix(f.Name(), ".ytdl") || strings.HasSuffix(f.Name(), ".webp") || strings.HasSuffix(f.Name(), ".png") || strings.HasSuffix(f.Name(), ".jpg") || strings.HasSuffix(f.Name(), ".info.json") || strings.Contains(f.Name(), ".part-") {
 				os.Remove(path_ + "/" + f.Name())
@@ -2940,7 +3222,7 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 	if format == "mp3" {
 		cmdArgs = append(cmdArgs, []string{"-f", "bestaudio", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-thumbnail", "--embed-metadata", "--write-info-json", "-o", `%(id)s.%(ext)s`, url}...)
 	} else {
-		cmdArgs = append(cmdArgs, []string{"-f", "mp4", "--write-info-json", "--embed-metadata", "--embed-thumbnail", "-o", `%(id)s.%(ext)s`, url}...)
+		cmdArgs = append(cmdArgs, []string{"--write-info-json", "--embed-metadata", "--embed-thumbnail", "-o", `%(id)s.%(ext)s`, url}...)
 	}
 
 	cmd := exec.Command(baseCmd, cmdArgs...)
@@ -3091,7 +3373,7 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 				fmt.Println("fail to generate playlist with error ", err)
 			}
 		}
-	}else {
+	} else {
 		// I will remove the file...
 		os.Remove(fileName)
 		return pid, errors.New("format " + format + " not supported")
@@ -3135,7 +3417,6 @@ func (srv *server) StartProcessAudio(ctx context.Context, rqst *mediapb.StartPro
 // Start process video on the server.
 func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartProcessVideoRequest) (*mediapb.StartProcessVideoResponse, error) {
 
-	
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err

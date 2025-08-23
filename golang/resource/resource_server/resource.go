@@ -227,6 +227,8 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 		q = strings.Split(q, "@")[0]
 	}
 
+	
+
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
 		fmt.Println("fail to retreive account:", accountId, " from database with error:", err.Error())
@@ -1342,6 +1344,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 
 	// Remove it from the accounts
 	if role["members"] != nil {
+		fmt.Println("----> role members ", role["members"])
 		var accounts []interface{}
 		switch role["members"].(type) {
 		case primitive.A:
