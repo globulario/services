@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -15,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"

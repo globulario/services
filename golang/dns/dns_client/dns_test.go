@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
+	Utility "github.com/globulario/utility"
 )
 
 var (

@@ -6,8 +6,8 @@ import (
 	"testing"
 	//	"time"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/eventpb"
+	Utility "github.com/globulario/utility"
 )
 
 /*

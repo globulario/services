@@ -13,10 +13,10 @@ import (
 	//	"log"
 	"os"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
+	Utility "github.com/globulario/utility"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"

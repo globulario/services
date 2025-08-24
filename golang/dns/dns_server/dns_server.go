@@ -14,7 +14,6 @@ import (
 
 	"encoding/binary"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
@@ -27,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
+	Utility "github.com/globulario/utility"
 	"github.com/miekg/dns"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

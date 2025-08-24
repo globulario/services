@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"

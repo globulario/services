@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
+	Utility "github.com/globulario/utility"
 )
 
 var (

@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"

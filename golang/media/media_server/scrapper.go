@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/title/titlepb"
+	Utility "github.com/globulario/utility"
 	colly "github.com/gocolly/colly/v2"
 )
 

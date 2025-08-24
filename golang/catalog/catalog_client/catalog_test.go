@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

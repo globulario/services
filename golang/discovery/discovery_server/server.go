@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discovery_client"
 	"github.com/globulario/services/golang/discovery/discoverypb"
@@ -21,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 

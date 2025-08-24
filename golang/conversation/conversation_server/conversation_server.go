@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/conversation/conversation_client"
 	"github.com/globulario/services/golang/conversation/conversationpb"
@@ -19,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 

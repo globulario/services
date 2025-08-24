@@ -10,7 +10,6 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -26,6 +25,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 
 	"google.golang.org/grpc/reflection"

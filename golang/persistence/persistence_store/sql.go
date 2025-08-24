@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 	_ "github.com/mattn/go-sqlite3" // Import the sqlite3 driver
 )
 

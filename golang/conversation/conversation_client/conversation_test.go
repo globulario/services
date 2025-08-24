@@ -7,9 +7,9 @@ import (
 
 	"time"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/conversation/conversationpb"
 	"github.com/globulario/services/golang/resource/resource_client"
+	Utility "github.com/globulario/utility"
 )
 
 var (

@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/search/searchpb"
+	Utility "github.com/globulario/utility"
 
 	"google.golang.org/grpc"
 

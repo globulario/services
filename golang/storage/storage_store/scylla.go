@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 	"github.com/gocql/gocql"
 )
 

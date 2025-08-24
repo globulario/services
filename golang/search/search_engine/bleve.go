@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/blevesearch/bleve/v2"
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/search/searchpb"
+	Utility "github.com/globulario/utility"
 )
 
 /**

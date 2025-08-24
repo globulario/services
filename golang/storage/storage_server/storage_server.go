@@ -13,10 +13,10 @@ import (
 
 	//	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	Utility "github.com/globulario/utility"
 
 	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storage_store"

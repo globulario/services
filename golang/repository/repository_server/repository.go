@@ -9,9 +9,9 @@ import (
 	"io/ioutil"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	Utility "github.com/globulario/utility"
 )
 
 // Repository

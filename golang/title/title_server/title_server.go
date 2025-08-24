@@ -14,7 +14,6 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -26,6 +25,7 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"

@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	config_ "github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 )
 
 var (

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

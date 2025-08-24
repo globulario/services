@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/emicklei/proto"
 	"github.com/fsnotify/fsnotify"
+	Utility "github.com/globulario/utility"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 

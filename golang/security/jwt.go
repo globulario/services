@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecourtois/Utility"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/metadata"
 )
 

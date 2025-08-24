@@ -7,10 +7,10 @@ import (
 
 	//"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	Utility "github.com/globulario/utility"
 )
 
 var (

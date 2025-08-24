@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
+	"github.com/globulario/utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -25,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
+	Utility "github.com/globulario/utility"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

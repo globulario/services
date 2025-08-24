@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	Utility "github.com/globulario/utility"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"

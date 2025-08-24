@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/fsnotify/fsnotify"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
 

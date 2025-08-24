@@ -5,10 +5,10 @@ import (
 	"errors"
 	"io"
 
-	Utility "github.com/davecourtois/!utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

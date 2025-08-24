@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -28,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
+	Utility "github.com/globulario/utility"
 	"github.com/jasonlvhit/gocron"
 
 	"google.golang.org/grpc"

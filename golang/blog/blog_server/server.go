@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/config"
@@ -24,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/encoding/protojson"

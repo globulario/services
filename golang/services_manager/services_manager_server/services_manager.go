@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"strings"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
@@ -23,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"

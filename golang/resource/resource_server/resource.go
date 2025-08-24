@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/globulario/services/golang/persistence/persistence_client"

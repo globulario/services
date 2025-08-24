@@ -15,12 +15,12 @@ import (
 	"os"
 	"strings"
 
-	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
+	Utility "github.com/globulario/utility"
 
 	"github.com/globulario/services/golang/mail/mail_client"
 	"github.com/globulario/services/golang/mail/mailpb"

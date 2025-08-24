@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
+	Utility "github.com/globulario/utility"
 	"github.com/gocql/gocql"
 )
 
