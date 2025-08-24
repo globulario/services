@@ -13,7 +13,7 @@ import (
 	//	"log"
 	"os"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -86,14 +86,14 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 func (client *Admin_Client) Reconnect() error {
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = adminpb.NewAdminServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -105,7 +105,6 @@ func (client *Admin_Client) Reconnect() error {
 func (client *Admin_Client) SetAddress(address string) {
 	client.address = address
 }
-
 
 func (client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
@@ -570,6 +569,6 @@ func (client *Admin_Client) GetAvailableHosts() ([]*adminpb.HostInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return rsp.Hosts, err
 }

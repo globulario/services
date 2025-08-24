@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -15,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/monitoring/monitoring_store"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -47,22 +47,22 @@ type connection struct {
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Domain               string
-	Address              string
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
+	Id              string
+	Mac             string
+	Name            string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Domain          string
+	Address         string
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
 
 	// srv-signed X.509 public keys for distribution
 	CertFile string

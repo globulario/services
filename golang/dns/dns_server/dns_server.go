@@ -14,7 +14,7 @@ import (
 
 	"encoding/binary"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"

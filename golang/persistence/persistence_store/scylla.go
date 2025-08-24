@@ -1377,7 +1377,7 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 			}
 
 		}
-		
+
 	}
 
 	return err

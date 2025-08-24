@@ -26,7 +26,6 @@ import (
 	"github.com/karmdip-mi/go-fitz"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
-	"github.com/davecourtois/Utility"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
@@ -1011,7 +1010,7 @@ func ExtractMetada(path string) (map[string]interface{}, error) {
 /**
  * Get the log client.
  */
- func (srv *server) GetSearchClient() (*search_client.Search_Client, error) {
+func (srv *server) GetSearchClient() (*search_client.Search_Client, error) {
 	// validate the port has not change...
 	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
 	client, err := globular_client.GetClient(srv.Address, "search.SearchService", "NewSearchService_Client")
@@ -1066,7 +1065,7 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 	// Extract metadata
 	metadata, _ := ExtractMetada(path)
 	metadataJSON, _ := Utility.ToJson(metadata)
-	docId :=   Utility.GenerateUUID(path)
+	docId := Utility.GenerateUUID(path)
 	metadata["DocId"] = docId
 
 	// Initialize search engine
@@ -1110,7 +1109,7 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 			err = srv.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
 			if err != nil {
 				log.Println("Failed to index page", i, ":", err)
-			}else{
+			} else {
 				fmt.Println(pageJSON)
 			}
 		}
@@ -1169,6 +1168,7 @@ func extractTextFromImage(doc *fitz.Document, pageIndex int) (string, error) {
 
 	return Utility.ExtractTextFromJpeg(tmpFile)
 }
+
 // Index text contain in a pdf file
 func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
 
@@ -1205,7 +1205,6 @@ func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error 
 	if Utility.Exists(thumbnail_path + "/data_url.txt") {
 		return errors.New("info already exist")
 	}
-
 
 	metadata_, _ := ExtractMetada(path)
 	metadata_str, _ := Utility.ToJson(metadata_)
@@ -1285,7 +1284,7 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, /*token string,*/ fileInfos_chan chan *filepb.FileInfo, err_chan chan error) (*filepb.FileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool /*token string,*/, fileInfos_chan chan *filepb.FileInfo, err_chan chan error) (*filepb.FileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
@@ -1374,7 +1373,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				return nil, nil
 			}
 
-			
 			if !info_.IsDir && readFiles {
 				if strings.Contains(f.Name(), ".") {
 					fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
@@ -1426,7 +1424,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				if fileInfos_chan != nil {
 					fileInfos_chan <- info_
 				} else {
-					
+
 					info.Files = append(info.Files, info_)
 				}
 			}
@@ -1457,9 +1455,9 @@ func (srv *server) formatPath(path string) string {
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(srv.Root + path) {
 						path = srv.Root + path
-					} else if Utility.Exists(config.GetWebRootDir() + path){
+					} else if Utility.Exists(config.GetWebRootDir() + path) {
 						path = config.GetWebRootDir() + path
-					}else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
+					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
 					} else if Utility.Exists("/" + path) { // network path...
 						path = "/" + path
@@ -1503,7 +1501,7 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path " + rqst.Path + " doesn't exist")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+" doesn't exist")))
 	}
 
 	// So here I will test if the path is already in the public path...
@@ -1598,7 +1596,6 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
 	}
 
-
 	path := srv.formatPath(rqst.Path)
 	filesInfoChan := make(chan *filepb.FileInfo)
 	errChan := make(chan error)
@@ -1621,7 +1618,7 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	if !info.IsDir {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path " + path + " is not a directory")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path "+path+" is not a directory")))
 	}
 
 	// Start reading the directory in a goroutine
@@ -1664,7 +1661,7 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 				return status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}else{
+			} else {
 				return nil
 			}
 		}
@@ -2222,7 +2219,6 @@ func dissociateFileWithTitle(path string, domain string) error {
 
 	return nil
 }
-
 
 // Delete file
 func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
@@ -3253,7 +3249,7 @@ func main() {
 		if err == nil {
 			channel_0 := make(chan string, 10) // Add buffering
 			channel_1 := make(chan string, 10) // Add buffering
-	
+
 			// Process request received...
 			go func() {
 				for {
@@ -3273,7 +3269,7 @@ func main() {
 							}
 						}
 						channel_1 <- path // Direct send (not in a goroutine)
-	
+
 					case path := <-channel_1:
 						path_ := s_impl.formatPath(path)
 						go func(p string) { // Index in a separate goroutine to avoid blocking
@@ -3285,18 +3281,18 @@ func main() {
 					}
 				}
 			}()
-	
+
 			// index file event
 			err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
 				channel_1 <- string(evt.Data)
 			})
-	
+
 			if err != nil {
 				fmt.Println("Fail to connect to event channel index_file_event")
 			}
 		}
 	}()
-	
+
 	// Clean temp files...
 	s_impl.startRemoveTempFiles()
 

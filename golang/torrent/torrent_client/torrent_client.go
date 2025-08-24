@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"

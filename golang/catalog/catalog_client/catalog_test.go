@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -76,7 +76,7 @@ func TestSaveItemDefintion(t *testing.T) {
 	}
 
 	properties_ids_en_str, _ := protojson.Marshal(properties_ids_en)
-	properties_ids_fr_str, _ :=  protojson.Marshal(properties_ids_fr)
+	properties_ids_fr_str, _ := protojson.Marshal(properties_ids_fr)
 
 	// Create item definition from predefined properties.
 	client.SaveItemDefinition("catalogue_2_db", "PIPE", "en", "pipe", ``, `A pipe is a tubular section or hollow cylinder, usually but not necessarily of circular cross-section, used mainly to convey substances which can flow — liquids and gases (fluids), slurries, powders and masses of small solids. It can also be used for structural applications; hollow pipe is far stiffer per unit weight than solid members.`, "", properties_ids_en_str)
@@ -165,8 +165,8 @@ func TestSavePackageSupplier(t *testing.T) {
 	}
 
 	price_str, _ := protojson.Marshal(price)
-	packageRef_str, _ :=  protojson.Marshal(packageRef)
-	supplierRef_str, _ :=  protojson.Marshal(supplierRef)
+	packageRef_str, _ := protojson.Marshal(packageRef)
+	supplierRef_str, _ := protojson.Marshal(supplierRef)
 
 	err := client.SavePackageSupplier("catalogue_2_db", "000123254", supplierRef_str, packageRef_str, price_str, time.Now().Unix(), 1)
 	if err != nil {
@@ -189,8 +189,8 @@ func TestSaveItemManufacturer(t *testing.T) {
 		RefColId:  "Manufacturer",
 	}
 
-	itemRef_str, _ :=  protojson.Marshal(itemRef)
-	manufacturerRef_str, _ :=  protojson.Marshal(manufacturerRef)
+	itemRef_str, _ := protojson.Marshal(itemRef)
+	manufacturerRef_str, _ := protojson.Marshal(manufacturerRef)
 
 	err := client.SaveItemManufacturer("catalogue_2_db", "3M_011002", manufacturerRef_str, itemRef_str)
 	if err != nil {

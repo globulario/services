@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	config_ "github.com/globulario/services/golang/config"
 )
 

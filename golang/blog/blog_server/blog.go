@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 /////////////////////// Blog specific function /////////////////////////////////
@@ -60,7 +60,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Set the owner of the conversation.
-	err = srv.addResourceOwner( uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT)
+	err = srv.addResourceOwner(uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -103,7 +103,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 
 // Update a blog post...
 func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRequest) (*blogpb.SaveBlogPostResponse, error) {
-	
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -370,7 +370,7 @@ func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 
 // Emoji a post or comment
 func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (*blogpb.AddEmojiResponse, error) {
-	
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -443,7 +443,7 @@ func (srv *server) RemoveEmoji(ctx context.Context, rqst *blogpb.RemoveEmojiRequ
 
 // Comment a post or comment
 func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentRequest) (*blogpb.AddCommentResponse, error) {
-	
+
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err

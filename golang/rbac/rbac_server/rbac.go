@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -545,7 +545,6 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 	for i := range permissions {
 		path := permissions[i].Path
 
-
 		// so here I will retreive the local file.
 		if !Utility.Exists(path) {
 			if Utility.Exists(config.GetDataDir() + "/files" + path) {
@@ -825,7 +824,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 
 				exist, g := srv.groupExist(allowed[i].Groups[j])
 				if exist {
-	
+
 					err := srv.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+g, path)
 					if err != nil {
 						return err

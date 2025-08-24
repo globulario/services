@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -38,37 +38,37 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Name                 string
-	Mac                  string
-	Domain               string
-	Address              string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	Monitoring_Port      int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPort           int
-	ConfigPath           string
-	LastError            string
-	ModTime              int64
-	TLS                  bool
-	State                string
+	Id              string
+	Name            string
+	Mac             string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	Monitoring_Port int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPort      int
+	ConfigPath      string
+	LastError       string
+	ModTime         int64
+	TLS             bool
+	State           string
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string

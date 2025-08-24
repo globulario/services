@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/globular_service"
@@ -59,41 +59,41 @@ type connection struct {
 type server struct {
 
 	// The global attribute of the services.
-	Id                 string
-	Mac                string
-	Name               string
-	Path               string
-	Proto              string
-	Port               int
-	Proxy              int
-	Protocol           string
-	AllowAllOrigins    bool
-	AllowedOrigins     string // comma separated string.
-	Domain             string
-	Address            string
-	Description        string
-	Keywords           []string
-	Repositories       []string
-	Discoveries        []string
-	CertAuthorityTrust string
-	CertFile           string
-	KeyFile            string
-	Version            string
-	TLS                bool
-	PublisherId        string
-	KeepUpToDate       bool
-	Plaform            string
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies       []string      // The list of services needed by this services.
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	ModTime            int64
-	State              string
-	DynamicMethodRouting	[]interface{} // The list of dynamic method routing.
+	Id                   string
+	Mac                  string
+	Name                 string
+	Path                 string
+	Proto                string
+	Port                 int
+	Proxy                int
+	Protocol             string
+	AllowAllOrigins      bool
+	AllowedOrigins       string // comma separated string.
+	Domain               string
+	Address              string
+	Description          string
+	Keywords             []string
+	Repositories         []string
+	Discoveries          []string
+	CertAuthorityTrust   string
+	CertFile             string
+	KeyFile              string
+	Version              string
+	TLS                  bool
+	PublisherId          string
+	KeepUpToDate         bool
+	Plaform              string
+	Checksum             string
+	KeepAlive            bool
+	Permissions          []interface{} // contains the action permission for the services.
+	Dependencies         []string      // The list of services needed by this services.
+	Process              int
+	ProxyProcess         int
+	ConfigPath           string
+	LastError            string
+	ModTime              int64
+	State                string
+	DynamicMethodRouting []interface{} // The list of dynamic method routing.
 
 	// The grpc server.
 	grpcServer *grpc.Server

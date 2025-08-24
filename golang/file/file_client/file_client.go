@@ -7,11 +7,11 @@ import (
 
 	"context"
 
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -241,8 +241,8 @@ func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thum
 
 	// Create a new client service...
 	rqst := &filepb.ReadDirRequest{
-		Path:           Utility.ToString(path),
-		Recursive:      Utility.ToBool(recursive),
+		Path:            Utility.ToString(path),
+		Recursive:       Utility.ToBool(recursive),
 		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
 		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
@@ -403,7 +403,7 @@ func (client *File_Client) GetFileInfo(token string, path interface{}, recursive
 	}
 
 	rqst := &filepb.GetFileInfoRequest{
-		Path:           Utility.ToString(path),
+		Path:            Utility.ToString(path),
 		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
 		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
@@ -517,8 +517,8 @@ func (client *File_Client) GetThumbnails(path interface{}, recursive interface{}
 
 	// Create a new client service...
 	rqst := &filepb.GetThumbnailsRequest{
-		Path:           Utility.ToString(path),
-		Recursive:      Utility.ToBool(recursive),
+		Path:            Utility.ToString(path),
+		Recursive:       Utility.ToBool(recursive),
 		ThumbnailHeight: int32(Utility.ToInt(thumbnailHeight)),
 		ThumbnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
@@ -588,7 +588,7 @@ func (client *File_Client) CreateArchive(token string, paths []string, name stri
 /**
  * Return the list of public directories.
  */
-func (client *File_Client)  GetPublicDirs() ([]string, error){
+func (client *File_Client) GetPublicDirs() ([]string, error) {
 	rqst := &filepb.GetPublicDirsRequest{}
 	rsp, err := client.c.GetPublicDirs(client.GetCtx(), rqst)
 	if err != nil {
@@ -596,4 +596,3 @@ func (client *File_Client)  GetPublicDirs() ([]string, error){
 	}
 	return rsp.Dirs, nil
 }
- 

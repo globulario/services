@@ -193,8 +193,8 @@ github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ3
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/davecourtois/Utility v0.1.1 h1:70+QQkPovoqCrKG99lNMgRBwxiW5RUfLoovLLckMtZ4=
-github.com/davecourtois/Utility v0.1.1/go.mod h1:TkwfL05dMF0G+8R315K2DF3VnmdrwYCw9q8S1e6BPzg=
+"github.com/globulario/utility" v0.1.1 h1:70+QQkPovoqCrKG99lNMgRBwxiW5RUfLoovLLckMtZ4=
+"github.com/globulario/utility" v0.1.1/go.mod h1:TkwfL05dMF0G+8R315K2DF3VnmdrwYCw9q8S1e6BPzg=
 github.com/denisenkom/go-mssqldb v0.12.3 h1:pBSGx9Tq67pBOTLmxNuirNTeB8Vjmf886Kx+8Y+8shw=
 github.com/denisenkom/go-mssqldb v0.12.3/go.mod h1:k0mtMFOnU+AihqFxPMiF05rtiDrorD1Vrm1KEz5hxDo=
 github.com/dgraph-io/badger/v3 v3.2103.5 h1:ylPa6qzbjYRQMU6jokoj4wzcaweHylt//CH0AKt0akg=

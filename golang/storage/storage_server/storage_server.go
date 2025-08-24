@@ -12,11 +12,12 @@ import (
 	"os"
 
 	//	"time"
+
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
@@ -79,16 +80,16 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
 	// a private RSA key to sign and authenticate the public key
-	CertAuthorityTrust   string
-	TLS                  bool
-	Version              string
-	PublisherId          string
-	Plaform              string
-	KeepUpToDate         bool
-	Checksum             string
-	KeepAlive            bool
-	Permissions          []interface{} // contains the action permission for the services.
-	Dependencies         []string      // The list of services needed by this services.
+	CertAuthorityTrust string
+	TLS                bool
+	Version            string
+	PublisherId        string
+	Plaform            string
+	KeepUpToDate       bool
+	Checksum           string
+	KeepAlive          bool
+	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies       []string      // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server

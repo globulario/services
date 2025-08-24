@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
@@ -508,6 +508,5 @@ func main() {
 
 	// Start the service.
 	s_impl.StartService()
-
 
 }

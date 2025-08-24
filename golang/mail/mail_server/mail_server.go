@@ -15,13 +15,13 @@ import (
 	"os"
 	"strings"
 
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/mail/mail_client"
 	"github.com/globulario/services/golang/mail/mailpb"
 	"google.golang.org/grpc"
@@ -61,40 +61,40 @@ type connection struct {
 
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Name                 string
-	Mac                  string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	Protocol             string
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Domain               string
-	Address              string
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	CertFile             string
-	KeyFile              string
-	CertAuthorityTrust   string
-	Version              string
-	TLS                  bool
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Permissions          []interface{} // contains the action permission for the services.
-	Dependencies         []string      // The list of services needed by this services.
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	ModTime              int64
-	State                string
+	Id                 string
+	Name               string
+	Mac                string
+	Path               string
+	Proto              string
+	Port               int
+	Proxy              int
+	Protocol           string
+	AllowAllOrigins    bool
+	AllowedOrigins     string // comma separated string.
+	Domain             string
+	Address            string
+	Description        string
+	Keywords           []string
+	Repositories       []string
+	Discoveries        []string
+	CertFile           string
+	KeyFile            string
+	CertAuthorityTrust string
+	Version            string
+	TLS                bool
+	PublisherId        string
+	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
+	KeepAlive          bool
+	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies       []string      // The list of services needed by this services.
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
+	ModTime            int64
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -806,9 +806,9 @@ func main() {
 	go func() {
 		certFile := config.GetLocalCertificate()
 		domain, _ := config.GetDomain()
-		name, _:= config.GetName()
+		name, _ := config.GetName()
 
-		certFile = config.GetConfigDir() + "/tls/"+ name + "." + domain + "/" + certFile
+		certFile = config.GetConfigDir() + "/tls/" + name + "." + domain + "/" + certFile
 
 		// The backend connection.
 		address := string(strings.Split(s_impl.DbIpV4, ":")[0])

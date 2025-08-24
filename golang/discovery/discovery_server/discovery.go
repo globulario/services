@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -28,7 +28,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 	}
 
 	if clientId != rqst.User {
-		return nil, errors.New("the user id "+ rqst.User +"dosent match the token id " + clientId)
+		return nil, errors.New("the user id " + rqst.User + "dosent match the token id " + clientId)
 	}
 
 	// Make sure the user is part of the organization if one is given.
@@ -79,7 +79,7 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 	}
 
 	if clientId != rqst.User {
-		return nil, errors.New("the user id "+rqst.User + " dosent match the token id " + clientId)
+		return nil, errors.New("the user id " + rqst.User + " dosent match the token id " + clientId)
 	}
 
 	publisherId := rqst.User

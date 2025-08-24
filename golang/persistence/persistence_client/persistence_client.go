@@ -11,7 +11,7 @@ import (
 
 	//"log"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/persistence/persistencepb"
 	"github.com/globulario/services/golang/security"

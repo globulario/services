@@ -20,7 +20,7 @@ import (
 
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/media/mediapb"

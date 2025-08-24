@@ -95,7 +95,7 @@ func StartImap(store *persistence_client.Persistence_Client, backendAddress stri
 	Backend_password = backendPassword
 
 	// Start the IMAP servers with different port configurations
-	startImap(port, "", "")       // Non-TLS server
+	startImap(port, "", "")               // Non-TLS server
 	startImap(tlsPort, keyFile, certFile) // TLS-enabled server
 	startImap(altPort, keyFile, certFile) // Alternate TLS-enabled server
 }

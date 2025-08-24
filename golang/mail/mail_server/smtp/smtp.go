@@ -11,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/mhale/smtpd"
 )
 
 var (
-	incoming   chan map[string]interface{}  // Incoming email messages channel
-	outgoing   chan map[string]interface{}  // Outgoing email messages channel
-	authenticate chan map[string]interface{} // Channel for user authentication
-	validateRcpt chan map[string]interface{} // Channel for recipient validation
+	incoming        chan map[string]interface{}            // Incoming email messages channel
+	outgoing        chan map[string]interface{}            // Outgoing email messages channel
+	authenticate    chan map[string]interface{}            // Channel for user authentication
+	validateRcpt    chan map[string]interface{}            // Channel for recipient validation
 	Store           *persistence_client.Persistence_Client // Database connection for persistence
 	Backend_address string
 	Backend_port    int
@@ -43,114 +43,114 @@ func splitAddress(address string) (localPart, domain string, err error) {
 
 // Send sends an email using the specified sender, from address, to addresses, and message reader
 func (s *Sender) Send(from string, to []string, r io.Reader) error {
-    fmt.Println(from, "trying to send message to", to)
+	fmt.Println(from, "trying to send message to", to)
 
-    for _, addr := range to {
-        _, domain, err := splitAddress(addr)
-        if err != nil {
-            return err
-        }
+	for _, addr := range to {
+		_, domain, err := splitAddress(addr)
+		if err != nil {
+			return err
+		}
 
-        // Lookup MX records for the domain
-        fmt.Println("Looking up MX records for domain", domain)
-        mxs, err := net.LookupMX(domain)
-        if err != nil {
-            fmt.Println("Failed to lookup MX records for domain", domain, ":", err)
-            return err
-        }
+		// Lookup MX records for the domain
+		fmt.Println("Looking up MX records for domain", domain)
+		mxs, err := net.LookupMX(domain)
+		if err != nil {
+			fmt.Println("Failed to lookup MX records for domain", domain, ":", err)
+			return err
+		}
 
-        // Default to MX server if no records found
-        if len(mxs) == 0 {
-            mxs = []*net.MX{{Host: domain}}
-        }
+		// Default to MX server if no records found
+		if len(mxs) == 0 {
+			mxs = []*net.MX{{Host: domain}}
+		}
 
-        var success bool
-        for _, mx := range mxs {
-            // Try connecting on port 587 first (preferred port for SMTP with STARTTLS)
-            for _, port := range []int{587, 465, 25} {
-                fmt.Println("Trying to connect to", mx.Host, "on port", port)
-                c, err := smtp.Dial(mx.Host + fmt.Sprintf(":%d", port))
-                if err != nil {
-                    fmt.Println("Failed to connect to", mx.Host, "on port", port, ":", err)
-                    continue
-                }
+		var success bool
+		for _, mx := range mxs {
+			// Try connecting on port 587 first (preferred port for SMTP with STARTTLS)
+			for _, port := range []int{587, 465, 25} {
+				fmt.Println("Trying to connect to", mx.Host, "on port", port)
+				c, err := smtp.Dial(mx.Host + fmt.Sprintf(":%d", port))
+				if err != nil {
+					fmt.Println("Failed to connect to", mx.Host, "on port", port, ":", err)
+					continue
+				}
 
-                // Attempt STARTTLS or SSL based on the port
-                if port == 587 {
-                    // Port 587 uses STARTTLS
-                    tlsConfig := &tls.Config{
-                        ServerName:         mx.Host,
-                        InsecureSkipVerify: false, // Set to true for testing, but should be false in production
-                    }
-                    if err := c.StartTLS(tlsConfig); err != nil {
-                        fmt.Println("Failed to start TLS on", mx.Host, ":", err)
-                        c.Quit()
-                        continue
-                    }
-                } else if port == 465 {
-                    // Port 465 uses SSL/TLS directly, no need for STARTTLS
-                    tlsConfig := &tls.Config{
-                        ServerName:         mx.Host,
-                        InsecureSkipVerify: false,
-                    }
-                    if err := c.StartTLS(tlsConfig); err != nil {
-                        fmt.Println("Failed to start SSL/TLS on", mx.Host, ":", err)
-                        c.Quit()
-                        continue
-                    }
-                }
+				// Attempt STARTTLS or SSL based on the port
+				if port == 587 {
+					// Port 587 uses STARTTLS
+					tlsConfig := &tls.Config{
+						ServerName:         mx.Host,
+						InsecureSkipVerify: false, // Set to true for testing, but should be false in production
+					}
+					if err := c.StartTLS(tlsConfig); err != nil {
+						fmt.Println("Failed to start TLS on", mx.Host, ":", err)
+						c.Quit()
+						continue
+					}
+				} else if port == 465 {
+					// Port 465 uses SSL/TLS directly, no need for STARTTLS
+					tlsConfig := &tls.Config{
+						ServerName:         mx.Host,
+						InsecureSkipVerify: false,
+					}
+					if err := c.StartTLS(tlsConfig); err != nil {
+						fmt.Println("Failed to start SSL/TLS on", mx.Host, ":", err)
+						c.Quit()
+						continue
+					}
+				}
 
-                defer c.Quit()
+				defer c.Quit()
 
-                // SMTP command sequence
-                if err := c.Hello(s.Hostname); err != nil {
-                    fmt.Println("Hello failed:", err)
-                    return err
-                }
+				// SMTP command sequence
+				if err := c.Hello(s.Hostname); err != nil {
+					fmt.Println("Hello failed:", err)
+					return err
+				}
 
-                if err := c.Mail(from); err != nil {
-                    fmt.Println("Mail command failed:", err)
-                    return err
-                }
+				if err := c.Mail(from); err != nil {
+					fmt.Println("Mail command failed:", err)
+					return err
+				}
 
-                if err := c.Rcpt(addr); err != nil {
-                    fmt.Println("Rcpt command failed:", err)
-                    return err
-                }
+				if err := c.Rcpt(addr); err != nil {
+					fmt.Println("Rcpt command failed:", err)
+					return err
+				}
 
-                // Send email data
-                wc, err := c.Data()
-                if err != nil {
-                    fmt.Println("Data command failed:", err)
-                    return err
-                }
+				// Send email data
+				wc, err := c.Data()
+				if err != nil {
+					fmt.Println("Data command failed:", err)
+					return err
+				}
 
-                if _, err := io.Copy(wc, r); err != nil {
-                    fmt.Println("Copy to data writer failed:", err)
-                    return err
-                }
+				if _, err := io.Copy(wc, r); err != nil {
+					fmt.Println("Copy to data writer failed:", err)
+					return err
+				}
 
-                if err := wc.Close(); err != nil {
-                    fmt.Println("Close data writer failed:", err)
-                    return err
-                }
+				if err := wc.Close(); err != nil {
+					fmt.Println("Close data writer failed:", err)
+					return err
+				}
 
-                fmt.Println("Message sent to", addr)
-                success = true
-                break
-            }
+				fmt.Println("Message sent to", addr)
+				success = true
+				break
+			}
 
-            if success {
-                break
-            }
-        }
+			if success {
+				break
+			}
+		}
 
-        if !success {
-            return fmt.Errorf("Failed to send to any MX servers for domain %s", domain)
-        }
-    }
+		if !success {
+			return fmt.Errorf("Failed to send to any MX servers for domain %s", domain)
+		}
+	}
 
-    return nil
+	return nil
 }
 
 // hasAccount checks if the user email has an associated account
@@ -203,8 +203,8 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			},
 			HandlerRcpt: rcptHandler,
 			Hostname:    domain,
-			LogRead: func(remoteIP string, verb string, line string) {},
-			LogWrite: func(remoteIP string, verb string, line string) {},
+			LogRead:     func(remoteIP string, verb string, line string) {},
+			LogWrite:    func(remoteIP string, verb string, line string) {},
 			MaxSize:     0,
 			Timeout:     0,
 			TLSConfig:   nil,

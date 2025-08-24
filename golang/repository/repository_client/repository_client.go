@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -15,9 +15,9 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"google.golang.org/protobuf/encoding/protojson"
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"bytes"
 	"encoding/gob"
@@ -253,7 +253,7 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
-		Platform:     platform,
+		Platform:    platform,
 	}
 
 	stream, err := client.c.DownloadBundle(client.GetCtx(), rqst)
@@ -364,7 +364,7 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 	if err != nil {
 		return -1, err
 	}
-	
+
 	percent_ := 0
 	bar := progressbar.Default(100)
 	for {

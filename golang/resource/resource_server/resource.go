@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -130,7 +130,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 				)
 			}
 		}
-		
+
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -226,8 +226,6 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 		// I will keep the first part of the string...
 		q = strings.Split(q, "@")[0]
 	}
-
-	
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
@@ -36,34 +36,34 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Domain               string
-	Address              string
-	Path                 string
-	Proto                string
-	Port                 int
-	Proxy                int
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Checksum             string
-	Plaform              string
-	KeepAlive            bool
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	ModTime              int64
-	State                string
+	Id              string
+	Mac             string
+	Name            string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	Checksum        string
+	Plaform         string
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	ModTime         int64
+	State           string
 
 	TLS bool
 

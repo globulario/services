@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	//"time"
-	"github.com/davecourtois/Utility"
+
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
@@ -14,12 +15,11 @@ import (
 
 var (
 	// Connect to the admin client.
-	address = "globule-ryzen.globular.cloud"
-	client, _   = NewAdminService_Client(address, "admin.AdminService")
+	address                   = "globule-ryzen.globular.cloud"
+	client, _                 = NewAdminService_Client(address, "admin.AdminService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
-	log_client_ ,_ = log_client.NewLogService_Client(address, "log.LogService")
+	log_client_, _            = log_client.NewLogService_Client(address, "log.LogService")
 )
-
 
 func TestRunCmd(t *testing.T) {
 	log.Println("call authenticate")

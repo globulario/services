@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/fsnotify/fsnotify"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -36,7 +36,6 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
-
 
 // The client service interface.
 type Service interface {
@@ -557,18 +556,18 @@ func StartService(s Service, srv *grpc.Server) error {
 		}
 	}()
 
-/*
-	// Now I will start the proxy...
-	options := NewWrapperedServerOptions("0.0.0.0:"+Utility.ToString(s.GetPort()), s.GetCertFile(), s.GetKeyFile(), true)
+	/*
+		// Now I will start the proxy...
+		options := NewWrapperedServerOptions("0.0.0.0:"+Utility.ToString(s.GetPort()), s.GetCertFile(), s.GetKeyFile(), true)
 
-	// Create the wrappered gRPC-Web server
-	wrapperedServer := NewWrapperedGRPCWebServer(options, srv)
+		// Create the wrappered gRPC-Web server
+		wrapperedServer := NewWrapperedGRPCWebServer(options, srv)
 
-	// Start the server
-	if err := wrapperedServer.Serve(); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
-*/
+		// Start the server
+		if err := wrapperedServer.Serve(); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	*/
 
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)

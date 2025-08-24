@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"

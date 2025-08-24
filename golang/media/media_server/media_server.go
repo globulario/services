@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -508,13 +508,13 @@ func (srv *server) formatPath(path string) string {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
 					// Must be in the root path if it's not in public path.
-				    if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
+					if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
-					} else if Utility.Exists(config.GetWebRootDir() + path){
+					} else if Utility.Exists(config.GetWebRootDir() + path) {
 						path = config.GetWebRootDir() + path
 					} else if Utility.Exists(srv.Root + path) {
 						path = srv.Root + path
-					}  else if Utility.Exists("/" + path) { // network path...
+					} else if Utility.Exists("/" + path) { // network path...
 						path = "/" + path
 					} else {
 						path = srv.Root + "/" + path
@@ -534,7 +534,6 @@ func (srv *server) formatPath(path string) string {
 
 	return path
 }
-
 
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)

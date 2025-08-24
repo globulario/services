@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -215,7 +215,7 @@ func TestSetResourcePermissions(t *testing.T) {
 		},
 	}
 
-	err = rbac_client_.SetResourcePermissions(token, filePath, "file",   permissions)
+	err = rbac_client_.SetResourcePermissions(token, filePath, "file", permissions)
 	if err != nil {
 		log.Println(err)
 	}
@@ -469,19 +469,19 @@ func TestResetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
-/*
-	err = resource_client_.DeletePeer("", "p1.test.com")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+	/*
+		err = resource_client_.DeletePeer("", "p1.test.com")
+		if err != nil {
+			log.Println(err)
+			t.Fail()
+		}
 
 
-	err = resource_client_.DeletePeer("", "p0.test.com")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-*/
+		err = resource_client_.DeletePeer("", "p0.test.com")
+		if err != nil {
+			log.Println(err)
+			t.Fail()
+		}
+	*/
 
 }

@@ -12,7 +12,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
@@ -503,8 +503,6 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		if account.RefreshToken == "" {
 			return "", errors.New("no password or refresh token provided")
 		}
-
-
 
 		// Call Google API to refresh the token
 		refreshURL := fmt.Sprintf("https://%s/refresh_google_token?refresh_token=%s", srv.Domain, account.RefreshToken)

@@ -14,12 +14,12 @@ import (
 	"os"
 	"strings"
 
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/persistence/persistence_client"
@@ -65,40 +65,40 @@ type connection struct {
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Mac                  string
-	Name                 string
-	Path                 string
-	Port                 int
-	Proto                string
-	Proxy                int
-	Protocol             string
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Domain               string
-	Address              string
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	CertAuthorityTrust   string
-	CertFile             string
-	KeyFile              string
-	TLS                  bool
-	Version              string
-	PublisherId          string
-	KeepUpToDate         bool
-	Plaform              string
-	Checksum             string
-	KeepAlive            bool
-	Permissions          []interface{} // contains the action permission for the services.
-	Dependencies         []string      // The list of services needed by this services.
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	LastError            string
-	ModTime              int64
-	State                string
+	Id                 string
+	Mac                string
+	Name               string
+	Path               string
+	Port               int
+	Proto              string
+	Proxy              int
+	Protocol           string
+	AllowAllOrigins    bool
+	AllowedOrigins     string // comma separated string.
+	Domain             string
+	Address            string
+	Description        string
+	Keywords           []string
+	Repositories       []string
+	Discoveries        []string
+	CertAuthorityTrust string
+	CertFile           string
+	KeyFile            string
+	TLS                bool
+	Version            string
+	PublisherId        string
+	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
+	KeepAlive          bool
+	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies       []string      // The list of services needed by this services.
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
+	ModTime            int64
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -36,7 +36,7 @@ func GetClient(address, name, fct string) (Client, error) {
 	localAddress, _ := config.GetAddress()
 	if localAddress != address {
 		// Here I will test if the domain is contain in peers...
-		localConfig, _ := config.GetLocalConfig( true)
+		localConfig, _ := config.GetLocalConfig(true)
 		peers, _ := localConfig["Peers"].([]interface{})
 		for i := 0; i < len(peers); i++ {
 			p := peers[i].(map[string]interface{})
@@ -259,7 +259,7 @@ func InitClient(client Client, address string, id string) error {
 
 		// Local client configuration
 		config_, err = config.GetServiceConfigurationById(id)
-		
+
 	} else {
 
 		// so here I try to get more information from peers...
@@ -445,7 +445,7 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	keyFile := client.GetKeyFile()
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		err = errors.New("fail to load client certificate cert file: "+ certFile + " kefile: " + keyFile + " " + err.Error())
+		err = errors.New("fail to load client certificate cert file: " + certFile + " kefile: " + keyFile + " " + err.Error())
 		return nil, err
 	}
 
@@ -472,7 +472,6 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 
 }
 
-
 /**
  * Get the client connection. The token is require to control access to resource
  */
@@ -489,7 +488,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	// The grpc address
 	address += ":" + Utility.ToString(client.GetPort())
 	if client.HasTLS() {
-		
+
 		tlsConfig, err := GetClientTlsConfig(client)
 		if err != nil {
 			fmt.Println("fail to get tls config ", err)
@@ -562,7 +561,7 @@ func GetClientContext(client Client) context.Context {
 func InvokeClientRequest(client interface{}, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 	methodName := method[strings.LastIndex(method, "/")+1:]
 	var err error
-	
+
 	reply, err_ := Utility.CallMethod(client, methodName, []interface{}{ctx, rqst})
 	if err_ != nil {
 		if reflect.TypeOf(err_).Kind() == reflect.String {

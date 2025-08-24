@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/prometheus/client_golang/api"
-	"github.com/prometheus/client_golang/api/prometheus/v1"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
 // Implementation of prometheus store.
@@ -121,7 +121,7 @@ func (store *PrometheusStore) LabelNames(ctx context.Context) ([]string, string,
 func (store *PrometheusStore) LabelValues(ctx context.Context, label string, values []string, startTime int64, endTime int64) (string, string, error) {
 	startTime_ := time.Unix(startTime, 0)
 	endTime_ := time.Unix(endTime, 0)
-	
+
 	results, warnings, err := store.c.LabelValues(ctx, label, values, startTime_, endTime_)
 	if err != nil {
 		return "", "", err

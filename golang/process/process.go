@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -77,7 +77,7 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 	// I will start the service process.
 	s["Port"] = port
 	s["Proxy"] = port + 1
-	
+
 	if s["Path"] == nil {
 		err := errors.New("no service path was found for service " + s["Name"].(string) + s["Id"].(string))
 		fmt.Println(err)
@@ -153,10 +153,9 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 		// and to save the configuration.
 		// I will wait until the service is started.
 
-
 		// give back the process id.
 		waitUntilStart <- p.Process.Pid
-		
+
 		err = p.Wait() // wait util the process exit.
 
 		// Here I will read the configuration to get more information about the process.
@@ -263,14 +262,13 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	//proxyArgs = append(proxyArgs, "--cors_allow_headers=Content-Type, Authorization")
 	//proxyArgs = append(proxyArgs, "--cors_allow_methods=GET, POST, OPTIONS")
 	//proxyArgs = append(proxyArgs, "  --cors_max_age=86400")
-	
+
 	hasTls := s["TLS"].(bool)
 
+	name, _ := config.GetName()
+	domain, _ := config.GetDomain()
 
-	name, _ :=  config.GetName()
-	domain,_ := config.GetDomain()
-
-	creds := config.GetConfigDir() + "/tls/" +name + "." + domain
+	creds := config.GetConfigDir() + "/tls/" + name + "." + domain
 
 	proxyPort := Utility.ToInt(s["Proxy"])
 
@@ -283,7 +281,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		proxyArgs = append(proxyArgs, "--backend_client_tls_cert_file="+creds+"/client.crt")
 		proxyArgs = append(proxyArgs, "--backend_client_tls_key_file="+creds+"/client.pem")
 
-		
 		/* http2 parameters between the browser and the proxy.*/
 		proxyArgs = append(proxyArgs, "--run_http_server=false")
 		proxyArgs = append(proxyArgs, "--run_tls_server=true")
@@ -367,8 +364,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 	str, _ := Utility.ToJson(s)
 
-
-
 	wait := make(chan int)
 
 	// Get the process id...
@@ -393,7 +388,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 		// wait to proxy
 		proxyProcess.Wait()
-	
+
 		// reload the config directly from the file...
 		data, err := os.ReadFile(s["ConfigPath"].(string))
 		if err != nil {
@@ -422,7 +417,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcessPid
 
-	
 	return proxyProcessPid, config.SaveServiceConfiguration(s)
 
 }
@@ -498,7 +492,7 @@ func StartEtcdServer() error {
 			return err
 		}
 
-		if protocol == "https" {	
+		if protocol == "https" {
 			if node_config["tls"] != nil {
 				return nil // nothing to do here...
 			}
@@ -506,7 +500,7 @@ func StartEtcdServer() error {
 	}
 
 	// set the node config.
-	address, _ :=  config.GetAddress()
+	address, _ := config.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
@@ -517,7 +511,7 @@ func StartEtcdServer() error {
 	node_config["listen-client-urls"] = protocol + "://" + address + ":2379"
 	node_config["advertise-client-urls"] = protocol + "://" + address + ":2379"
 	node_config["initial-advertise-peer-urls"] = protocol + "://" + address + ":2380"
-	node_config["initial-cluster"] =local_config["Name"].(string) + "=" + protocol + "://" + address + ":2380"
+	node_config["initial-cluster"] = local_config["Name"].(string) + "=" + protocol + "://" + address + ":2380"
 	node_config["initial-cluster-token"] = "etcd-cluster-1"
 	node_config["initial-cluster-state"] = "new"
 
@@ -536,7 +530,7 @@ func StartEtcdServer() error {
 		peers := local_config["Peers"].([]interface{})
 		for i := 0; i < len(peers); i++ {
 			peer := peers[i].(map[string]interface{})
-			node_config["initial-cluster"] = node_config["initial-cluster"].(string) + "," +  peer["Hostname"].(string)+"="+protocol+"://"+peer["Hostname"].(string)+"."+peer["Domain"].(string)+":2380"
+			node_config["initial-cluster"] = node_config["initial-cluster"].(string) + "," + peer["Hostname"].(string) + "=" + protocol + "://" + peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":2380"
 		}
 	}
 
@@ -597,7 +591,7 @@ func StartEnvoyProxy() error {
 
 	configPath := config.GetConfigDir() + "/envoy.yml"
 	if !Utility.Exists(configPath) {
-	  return errors.New("no envoy configuration file found at path " + configPath)
+		return errors.New("no envoy configuration file found at path " + configPath)
 	}
 
 	// Here I will start envoy proxy.
@@ -657,7 +651,6 @@ func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error
 
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
-	
 
 	domain, _ := config.GetAddress()
 	domain = strings.Split(domain, ":")[0]
@@ -760,8 +753,8 @@ inhibit_rules:
 		if !Utility.Exists(config.GetConfigDir() + "/prometheus_tls.yml") {
 
 			config_ := `tls_server_config:
- cert_file: ` + config.GetConfigDir()+ "/tls/" + domain + "/" + config.GetLocalCertificate() + `
- key_file: ` + config.GetConfigDir()+ "/tls/" + domain + "/" +  config.GetLocalServerCerificateKeyPath() 
+ cert_file: ` + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalCertificate() + `
+ key_file: ` + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalServerCerificateKeyPath()
 
 			err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus_tls.yml", []byte(config_), 0644)
 			if err != nil {

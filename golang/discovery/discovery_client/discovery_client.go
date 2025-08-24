@@ -9,7 +9,7 @@ import (
 	"errors"
 	"io/ioutil"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -279,7 +279,7 @@ func (client *Dicovery_Client) PublishService(user, organization, token, domain,
 	repositories := []interface{}{domain}
 
 	if !strings.Contains(user, "@") {
-		user += "@" +  client.GetDomain()
+		user += "@" + client.GetDomain()
 	}
 
 	for i := 0; i < len(discoveries); i++ {
@@ -321,7 +321,7 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 	}
 
 	if !strings.Contains(user, "@") {
-		user += "@" +  client.GetDomain()
+		user += "@" + client.GetDomain()
 	}
 
 	rqst := &discoverypb.PublishApplicationRequest{

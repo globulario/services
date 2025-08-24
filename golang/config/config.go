@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/emicklei/proto"
 	"github.com/fsnotify/fsnotify"
 	"github.com/syndtr/goleveldb/leveldb/errors"
@@ -173,7 +173,7 @@ func GetLocalClientCerificateKeyPath() string {
 		if !Utility.Exists(GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/client.pem") {
 			return ""
 		}
-		
+
 		return GetConfigDir() + "/tls/" + localConfig["Name"].(string) + "." + localConfig["Domain"].(string) + "/client.pem"
 	}
 	return ""
@@ -1081,7 +1081,6 @@ func initConfig() error {
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
 
-
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
 	services := make([]map[string]interface{}, 0)
 
@@ -1279,7 +1278,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 	// Add the configuration file to the watcher.
 	configPath := GetConfigDir() + "/config.json"
 	err = watcher.Add(configPath)
-	
+
 	if err != nil {
 		fmt.Println("fail to add configuration file to watcher with error: ", err)
 		return

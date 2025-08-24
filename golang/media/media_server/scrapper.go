@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/title/titlepb"
-	colly "github.com/gocolly/colly/v2"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/title/titlepb"
+	colly "github.com/gocolly/colly/v2"
 )
 
 // get the thumbnail fil with help of youtube dl...

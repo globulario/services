@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 )
 
@@ -15,9 +15,8 @@ var (
 	domain                    = "globule-ryzen.globular.cloud"
 	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	token, err = authentication_client_.Authenticate("sa", "adminadmin")
+	token, err                = authentication_client_.Authenticate("sa", "adminadmin")
 )
-
 
 // Test various function here.
 func TestSetA(t *testing.T) {
@@ -29,12 +28,10 @@ func TestSetA(t *testing.T) {
 	// Set ip address
 	ipv4 := Utility.MyIP()
 
-
-	ipv6, err  := Utility.MyIPv6()
+	ipv6, err := Utility.MyIPv6()
 	if err != nil {
 		log.Println(err)
 	}
-
 
 	// not I will set a subdomain
 	_, err = client.SetA(token, "ns1.globular.io", ipv4, 60)
@@ -57,7 +54,6 @@ func TestSetA(t *testing.T) {
 		log.Println("----------> fail to set AAAA ns1.globular.io with error", err)
 	}
 
-
 	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv4, 60)
 	if err != nil {
 		log.Println("----------> fail to set AAAA globular.app with error", err)
@@ -77,17 +73,17 @@ func TestGetClusterCertificatesBundle(t *testing.T) {
 	}
 
 	// Now I will save it to a file.
-	err = os.WriteFile(os.TempDir() + "/certificates.tar.gz", data, 0644)
+	err = os.WriteFile(os.TempDir()+"/certificates.tar.gz", data, 0644)
 
 	if err != nil {
 		log.Panicln(err)
 	}
 
-	log.Println("certificates bundle was save to ", os.TempDir() + "/certificates.tar.gz")
+	log.Println("certificates bundle was save to ", os.TempDir()+"/certificates.tar.gz")
 }
 
 func TestGetA(t *testing.T) {
-	
+
 	// Connect to the plc client.
 	log.Println("---> test resolve A")
 	ipv4, err := client.GetA("globular.cloud")
@@ -97,7 +93,6 @@ func TestGetA(t *testing.T) {
 		log.Panicln(err)
 	}
 }
-
 
 /*
 func TestResolve(t *testing.T) {
@@ -128,7 +123,7 @@ func TestResolve(t *testing.T) {
 func TestTextValue(t *testing.T) {
 	// Connect to the plc client.
 	log.Println("---> test set text")
-	err := client.SetText(token,"_acme-challenge.globular.cloud.", []string{"toto", "titi", "tata"}, 300)
+	err := client.SetText(token, "_acme-challenge.globular.cloud.", []string{"toto", "titi", "tata"}, 300)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -158,7 +153,7 @@ func TestNsValue(t *testing.T) {
 	ttl := uint32(11200)
 
 	client.RemoveNs(token, id)
-	
+
 	err := client.SetNs(token, id, ns, ttl)
 	if err != nil {
 		log.Panicln(err)
@@ -172,10 +167,9 @@ func TestNsValue(t *testing.T) {
 	}
 }
 
-
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
-	
+
 	id := "globule-ryzen.globular.cloud."
 
 	client.RemoveSoa(token, id)
@@ -195,7 +189,6 @@ func TestSoaValue(t *testing.T) {
 
 	ns = "ns2.globular.io."
 	serial = uint32(2)
-
 
 	err = client.SetSoa(token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
 	if err != nil {

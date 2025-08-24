@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,7 +529,7 @@ func (client *Catalog_Client) AppendItemDefinitionCategory(connectionId string, 
 func (client *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
-	err :=protojson.Unmarshal([]byte(item_definition_ref_str), itemDefinitionRef)
+	err := protojson.Unmarshal([]byte(item_definition_ref_str), itemDefinitionRef)
 	if err != nil {
 		return err
 	}

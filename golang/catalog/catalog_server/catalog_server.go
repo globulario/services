@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/config"
@@ -44,27 +44,27 @@ var (
 // Value need by Globular to start the services...
 type server struct {
 	// The global attribute of the services.
-	Id                   string
-	Name                 string
-	Mac                  string
-	Port                 int
-	Proxy                int
-	Path                 string
-	Proto                string
-	AllowAllOrigins      bool
-	AllowedOrigins       string // comma separated string.
-	Protocol             string
-	Domain               string
-	Address              string
-	Description          string
-	Keywords             []string
-	Repositories         []string
-	Discoveries          []string
-	Process              int
-	ProxyProcess         int
-	ConfigPath           string
-	State                string
-	LastError            string
+	Id              string
+	Name            string
+	Mac             string
+	Port            int
+	Proxy           int
+	Path            string
+	Proto           string
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Domain          string
+	Address         string
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	State           string
+	LastError       string
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string

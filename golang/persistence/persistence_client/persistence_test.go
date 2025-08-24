@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
-	//"github.com/davecourtois/Utility"
+	//""github.com/globulario/utility""
 )
 
 // start: mongod --dbpath E:\Project\src\github.com\davecourtois\Globular\data\MONGO-data

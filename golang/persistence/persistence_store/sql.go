@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
 	_ "github.com/mattn/go-sqlite3" // Import the sqlite3 driver
@@ -1212,7 +1212,6 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 		}
 	}
 
-	
 	str, err := store.QueryContext(connectionId, db, query, "[]")
 	if err != nil {
 		fmt.Printf("error executing query: %s with error %s ", query, err.Error())

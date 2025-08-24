@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
@@ -570,7 +570,7 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 			hostInfo.Name, _ = os.Hostname()
 			hostInfo.Infos, _ = getComputerModel()
 		}
-		
+
 		if hostname, ok := ipHostnameMap[hostInfo.Ip]; ok {
 			hostInfo.Name = hostname
 		}
@@ -581,8 +581,6 @@ func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvail
 		Hosts: hostInfos,
 	}, nil
 }
-
-
 
 func getComputerModel() (string, error) {
 	var out bytes.Buffer
@@ -632,7 +630,7 @@ func parseArpOutput(output string, gateway string) []*adminpb.HostInfo {
 			}
 
 			// Append the parsed entry to the result
-			if ip != gateway && len(mac) > 0  && !strings.Contains(line, "(DUP:"){
+			if ip != gateway && len(mac) > 0 && !strings.Contains(line, "(DUP:") {
 				arpEntries = append(arpEntries, &adminpb.HostInfo{Ip: ip, Mac: mac, Infos: infos, Name: ""})
 			}
 		}

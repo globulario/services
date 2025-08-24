@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -139,7 +139,7 @@ func (client *Event_Client) run() error {
 	for {
 		select {
 		case <-exit:
-			
+
 			/** So here I will try to reconnect **/
 			err := client.Reconnect()
 			if err != nil {
@@ -175,7 +175,7 @@ func (client *Event_Client) run() error {
 
 			if err != nil {
 				return err
-			}else{
+			} else {
 				fmt.Println("event client reconnect successfully!")
 			}
 

@@ -15,11 +15,10 @@ import (
 	"net/url"
 	"os"
 
+	Utility "github.com/davecourtois/!utility"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/davecourtois/Utility"
 )
 
 /**
@@ -27,7 +26,7 @@ import (
  */
 type MongoStore struct {
 	// Keep track of connections with MongoDB.
-	clients map[string]*mongo.Client
+	clients  map[string]*mongo.Client
 	DataPath string
 	Port     int
 	Password string
@@ -96,7 +95,6 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		fmt.Println("Failed to connect with error:", err)
 		return err
 	}
-
 
 	store.clients[connectionId] = client
 
@@ -755,7 +753,7 @@ func (store *MongoStore) registerSa() error {
 		// Here I will create the directory
 		err = os.MkdirAll(dataPath, os.ModeDir)
 		if err != nil {
-			fmt.Println("Failed to create data `" + dataPath + "` dir with error:", err)
+			fmt.Println("Failed to create data `"+dataPath+"` dir with error:", err)
 			return err
 		}
 
@@ -884,7 +882,7 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) err
 	go Utility.ReadOutput(output, stdout)
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("Failed to run MongoDB with error", fmt.Sprint(err) + ": " + stderr.String())
+		fmt.Println("Failed to run MongoDB with error", fmt.Sprint(err)+": "+stderr.String())
 		fmt.Println("mongod", "--port", strconv.Itoa(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
 		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
 	}

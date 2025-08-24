@@ -9,7 +9,7 @@ import (
 	"github.com/globulario/services/golang/search/searchpb"
 	"github.com/globulario/services/golang/security"
 
-	//"github.com/davecourtois/Utility"
+	//""github.com/globulario/utility""
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

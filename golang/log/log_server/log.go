@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"

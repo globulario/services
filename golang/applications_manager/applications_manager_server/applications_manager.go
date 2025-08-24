@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
@@ -451,7 +451,6 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 		return err
 	}
 
-	
 	err = Utility.CopyDir(filepath.Dir(files[0])+"/.", abosolutePath)
 	if err != nil {
 		return err
@@ -512,7 +511,6 @@ func (srv *server) installApplication(token, domain, id, name, publisherId, vers
 	if err != nil {
 		return err
 	}
-
 
 	if set_as_default {
 		// TODO keep track of the starting appliation...

@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/davecourtois/Utility"
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_client"

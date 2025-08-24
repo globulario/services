@@ -106,10 +106,10 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 			// Set issued at time
 			IssuedAt: now.Unix(),
 			// The ID, subject, issuer, and audience
-			Id:        userId,
-			Subject:   userId,
-			Issuer:    issuer,
-			Audience:  audience,
+			Id:       userId,
+			Subject:  userId,
+			Issuer:   issuer,
+			Audience: audience,
 		},
 	}
 

@@ -11,7 +11,6 @@ require (
 	github.com/anacrolix/torrent v1.56.1
 	github.com/barasher/go-exiftool v1.10.0
 	github.com/blevesearch/bleve/v2 v2.4.1
-	github.com/davecourtois/Utility v0.1.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

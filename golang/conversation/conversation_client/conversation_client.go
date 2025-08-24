@@ -6,8 +6,9 @@ import (
 	"io"
 	"time"
 
-	//"github.com/davecourtois/Utility"
-	"github.com/davecourtois/Utility"
+	//""github.com/globulario/utility""
+
+	Utility "github.com/davecourtois/!utility"
 	"github.com/globulario/services/golang/conversation/conversationpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
