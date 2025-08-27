@@ -59,7 +59,7 @@ Globular::GlobularService::GlobularService(std::string id,
         auto j = nlohmann::json::parse(jsonStr);
 
         // Now I will initialyse the value from the configuration file.
-        this->publisher_id = j["PublisherId"];
+        this->publisher_id = j["PublisherID"];
         this->version = j["Version"];
         this->keep_up_to_date = j["KeepUpToDate"];
         this->allow_all_origins = j["AllowAllOrigins"];
@@ -119,7 +119,7 @@ read ( const std::string& filename, std::string& data )
 
 void Globular::GlobularService::save() {
     nlohmann::json j;
-    j["PublisherId"] = this->publisher_id;
+    j["PublisherID"] = this->publisher_id;
     j["Version"] = this->version;
     j["KeepUpToDate"] = this->keep_up_to_date;
     j["KeepAlive"] = this->keep_alive;

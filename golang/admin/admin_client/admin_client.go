@@ -241,9 +241,9 @@ func (client *Admin_Client) SetCaFile(caFile string) {
 /////////////////////// API /////////////////////
 
 /** Create a service package **/
-func (client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
+func (client *Admin_Client) createServicePackage(PublisherID string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
 	// Take the information from the configuration...
-	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
+	id := PublisherID + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
 
 	// tar + gzip
 	var buf bytes.Buffer

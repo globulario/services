@@ -3137,7 +3137,7 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, id_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, name_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, type_),
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, publisherid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, PublisherID_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, version_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, description_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::PackageDescriptor, repositories_),
@@ -3154,7 +3154,7 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::GetPackageDescriptorRequest, serviceid_),
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::GetPackageDescriptorRequest, publisherid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::GetPackageDescriptorRequest, PublisherID_),
   ~0u,  // no _has_bits_
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::GetPackageDescriptorResponse, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -3449,7 +3449,7 @@ const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUT
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, keywords_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, icon_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, alias_),
-  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, publisherid_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, PublisherID_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, creation_date_),
   GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::resource::Application, last_deployed_),
   ~0u,  // no _has_bits_
@@ -4451,14 +4451,14 @@ void AddDescriptorsImpl() {
       "\n GetPackageBundleChecksumResponse\022\020\n\010ch"
       "ecksum\030\001 \001(\t\"\270\002\n\021PackageDescriptor\022\n\n\002id"
       "\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022#\n\004type\030\003 \001(\0162\025.res"
-      "ource.PackageType\022\023\n\013publisherId\030\004 \001(\t\022\017"
+      "ource.PackageType\022\023\n\013PublisherID\030\004 \001(\t\022\017"
       "\n\007version\030\006 \001(\t\022\023\n\013description\030\007 \001(\t\022\024\n\014"
       "repositories\030\010 \003(\t\022\023\n\013discoveries\030\t \003(\t\022"
       "\020\n\010keywords\030\n \003(\t\022\017\n\007actions\030\013 \003(\t\022\035\n\005ro"
       "les\030\014 \003(\0132\016.resource.Role\022\037\n\006groups\030\r \003("
       "\0132\017.resource.Group\022\014\n\004icon\030\016 \001(\t\022\r\n\005alia"
       "s\030\017 \001(\t\"E\n\033GetPackageDescriptorRequest\022\021"
-      "\n\tserviceId\030\001 \001(\t\022\023\n\013publisherId\030\002 \001(\t\"L"
+      "\n\tserviceId\030\001 \001(\t\022\023\n\013PublisherID\030\002 \001(\t\"L"
       "\n\034GetPackageDescriptorResponse\022,\n\007result"
       "s\030\001 \003(\0132\033.resource.PackageDescriptor\">\n\034"
       "GetPackagesDescriptorRequest\022\r\n\005query\030\001 "
@@ -4521,7 +4521,7 @@ void AddDescriptorsImpl() {
       "(\t\022\020\n\010password\030\004 \001(\t\022\014\n\004path\030\005 \001(\t\022\017\n\007ve"
       "rsion\030\006 \001(\t\022\023\n\013description\030\007 \001(\t\022\017\n\007acti"
       "ons\030\010 \003(\t\022\020\n\010keywords\030\t \003(\t\022\014\n\004icon\030\n \001("
-      "\t\022\r\n\005alias\030\013 \001(\t\022\023\n\013publisherid\030\014 \001(\t\022\025\n"
+      "\t\022\r\n\005alias\030\013 \001(\t\022\023\n\013PublisherID\030\014 \001(\t\022\025\n"
       "\rcreation_date\030\r \001(\003\022\025\n\rlast_deployed\030\016 "
       "\001(\003\"C\n\025CreateApplicationRqst\022*\n\013applicat"
       "ion\030\001 \001(\0132\025.resource.Application\"\026\n\024Crea"
@@ -6384,7 +6384,7 @@ void PackageDescriptor::InitAsDefaultInstance() {
 const int PackageDescriptor::kIdFieldNumber;
 const int PackageDescriptor::kNameFieldNumber;
 const int PackageDescriptor::kTypeFieldNumber;
-const int PackageDescriptor::kPublisherIdFieldNumber;
+const int PackageDescriptor::kPublisherIDFieldNumber;
 const int PackageDescriptor::kVersionFieldNumber;
 const int PackageDescriptor::kDescriptionFieldNumber;
 const int PackageDescriptor::kRepositoriesFieldNumber;
@@ -6422,9 +6422,9 @@ PackageDescriptor::PackageDescriptor(const PackageDescriptor& from)
   if (from.name().size() > 0) {
     name_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.name_);
   }
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  if (from.publisherid().size() > 0) {
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.PublisherID().size() > 0) {
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
   version_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   if (from.version().size() > 0) {
@@ -6449,7 +6449,7 @@ PackageDescriptor::PackageDescriptor(const PackageDescriptor& from)
 void PackageDescriptor::SharedCtor() {
   id_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   name_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   version_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   description_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
@@ -6465,7 +6465,7 @@ PackageDescriptor::~PackageDescriptor() {
 void PackageDescriptor::SharedDtor() {
   id_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   name_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   version_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   description_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
@@ -6500,7 +6500,7 @@ void PackageDescriptor::Clear() {
   groups_.Clear();
   id_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   name_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   version_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   description_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
@@ -6566,16 +6566,16 @@ bool PackageDescriptor::MergePartialFromCodedStream(
         break;
       }
 
-      // string publisherId = 4;
+      // string PublisherID = 4;
       case 4: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(34u /* 34 & 0xFF */)) {
           DO_(::google::protobuf::internal::WireFormatLite::ReadString(
-                input, this->mutable_publisherid()));
+                input, this->mutable_PublisherID()));
           DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-            this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+            this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
             ::google::protobuf::internal::WireFormatLite::PARSE,
-            "resource.PackageDescriptor.publisherId"));
+            "resource.PackageDescriptor.PublisherID"));
         } else {
           goto handle_unusual;
         }
@@ -6790,14 +6790,14 @@ void PackageDescriptor::SerializeWithCachedSizes(
       3, this->type(), output);
   }
 
-  // string publisherId = 4;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 4;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.PackageDescriptor.publisherId");
+      "resource.PackageDescriptor.PublisherID");
     ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
-      4, this->publisherid(), output);
+      4, this->PublisherID(), output);
   }
 
   // string version = 6;
@@ -6940,15 +6940,15 @@ void PackageDescriptor::SerializeWithCachedSizes(
       3, this->type(), target);
   }
 
-  // string publisherId = 4;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 4;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.PackageDescriptor.publisherId");
+      "resource.PackageDescriptor.PublisherID");
     target =
       ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
-        4, this->publisherid(), target);
+        4, this->PublisherID(), target);
   }
 
   // string version = 6;
@@ -7136,11 +7136,11 @@ size_t PackageDescriptor::ByteSizeLong() const {
         this->name());
   }
 
-  // string publisherId = 4;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 4;
+  if (this->PublisherID().size() > 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::StringSize(
-        this->publisherid());
+        this->PublisherID());
   }
 
   // string version = 6;
@@ -7218,9 +7218,9 @@ void PackageDescriptor::MergeFrom(const PackageDescriptor& from) {
 
     name_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.name_);
   }
-  if (from.publisherid().size() > 0) {
+  if (from.PublisherID().size() > 0) {
 
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
   if (from.version().size() > 0) {
 
@@ -7277,7 +7277,7 @@ void PackageDescriptor::InternalSwap(PackageDescriptor* other) {
     GetArenaNoVirtual());
   name_.Swap(&other->name_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
-  publisherid_.Swap(&other->publisherid_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.Swap(&other->PublisherID_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
   version_.Swap(&other->version_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
@@ -7303,7 +7303,7 @@ void GetPackageDescriptorRequest::InitAsDefaultInstance() {
 }
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
 const int GetPackageDescriptorRequest::kServiceIdFieldNumber;
-const int GetPackageDescriptorRequest::kPublisherIdFieldNumber;
+const int GetPackageDescriptorRequest::kPublisherIDFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 GetPackageDescriptorRequest::GetPackageDescriptorRequest()
@@ -7321,16 +7321,16 @@ GetPackageDescriptorRequest::GetPackageDescriptorRequest(const GetPackageDescrip
   if (from.serviceid().size() > 0) {
     serviceid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.serviceid_);
   }
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  if (from.publisherid().size() > 0) {
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.PublisherID().size() > 0) {
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
   // @@protoc_insertion_point(copy_constructor:resource.GetPackageDescriptorRequest)
 }
 
 void GetPackageDescriptorRequest::SharedCtor() {
   serviceid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetPackageDescriptorRequest::~GetPackageDescriptorRequest() {
@@ -7340,7 +7340,7 @@ GetPackageDescriptorRequest::~GetPackageDescriptorRequest() {
 
 void GetPackageDescriptorRequest::SharedDtor() {
   serviceid_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 void GetPackageDescriptorRequest::SetCachedSize(int size) const {
@@ -7364,7 +7364,7 @@ void GetPackageDescriptorRequest::Clear() {
   (void) cached_has_bits;
 
   serviceid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   _internal_metadata_.Clear();
 }
 
@@ -7394,16 +7394,16 @@ bool GetPackageDescriptorRequest::MergePartialFromCodedStream(
         break;
       }
 
-      // string publisherId = 2;
+      // string PublisherID = 2;
       case 2: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(18u /* 18 & 0xFF */)) {
           DO_(::google::protobuf::internal::WireFormatLite::ReadString(
-                input, this->mutable_publisherid()));
+                input, this->mutable_PublisherID()));
           DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-            this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+            this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
             ::google::protobuf::internal::WireFormatLite::PARSE,
-            "resource.GetPackageDescriptorRequest.publisherId"));
+            "resource.GetPackageDescriptorRequest.PublisherID"));
         } else {
           goto handle_unusual;
         }
@@ -7446,14 +7446,14 @@ void GetPackageDescriptorRequest::SerializeWithCachedSizes(
       1, this->serviceid(), output);
   }
 
-  // string publisherId = 2;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 2;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.GetPackageDescriptorRequest.publisherId");
+      "resource.GetPackageDescriptorRequest.PublisherID");
     ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
-      2, this->publisherid(), output);
+      2, this->PublisherID(), output);
   }
 
   if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
@@ -7481,15 +7481,15 @@ void GetPackageDescriptorRequest::SerializeWithCachedSizes(
         1, this->serviceid(), target);
   }
 
-  // string publisherId = 2;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 2;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.GetPackageDescriptorRequest.publisherId");
+      "resource.GetPackageDescriptorRequest.PublisherID");
     target =
       ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
-        2, this->publisherid(), target);
+        2, this->PublisherID(), target);
   }
 
   if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
@@ -7516,11 +7516,11 @@ size_t GetPackageDescriptorRequest::ByteSizeLong() const {
         this->serviceid());
   }
 
-  // string publisherId = 2;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 2;
+  if (this->PublisherID().size() > 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::StringSize(
-        this->publisherid());
+        this->PublisherID());
   }
 
   int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
@@ -7554,9 +7554,9 @@ void GetPackageDescriptorRequest::MergeFrom(const GetPackageDescriptorRequest& f
 
     serviceid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.serviceid_);
   }
-  if (from.publisherid().size() > 0) {
+  if (from.PublisherID().size() > 0) {
 
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
 }
 
@@ -7586,7 +7586,7 @@ void GetPackageDescriptorRequest::InternalSwap(GetPackageDescriptorRequest* othe
   using std::swap;
   serviceid_.Swap(&other->serviceid_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
-  publisherid_.Swap(&other->publisherid_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.Swap(&other->PublisherID_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
   _internal_metadata_.Swap(&other->_internal_metadata_);
 }
@@ -18877,7 +18877,7 @@ const int Application::kActionsFieldNumber;
 const int Application::kKeywordsFieldNumber;
 const int Application::kIconFieldNumber;
 const int Application::kAliasFieldNumber;
-const int Application::kPublisheridFieldNumber;
+const int Application::kPublisherIDFieldNumber;
 const int Application::kCreationDateFieldNumber;
 const int Application::kLastDeployedFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
@@ -18931,9 +18931,9 @@ Application::Application(const Application& from)
   if (from.alias().size() > 0) {
     alias_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.alias_);
   }
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  if (from.publisherid().size() > 0) {
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.PublisherID().size() > 0) {
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
   ::memcpy(&creation_date_, &from.creation_date_,
     static_cast<size_t>(reinterpret_cast<char*>(&last_deployed_) -
@@ -18951,7 +18951,7 @@ void Application::SharedCtor() {
   description_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   alias_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   ::memset(&creation_date_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&last_deployed_) -
       reinterpret_cast<char*>(&creation_date_)) + sizeof(last_deployed_));
@@ -18972,7 +18972,7 @@ void Application::SharedDtor() {
   description_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   alias_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 void Application::SetCachedSize(int size) const {
@@ -19006,7 +19006,7 @@ void Application::Clear() {
   description_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   icon_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   alias_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
   ::memset(&creation_date_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&last_deployed_) -
       reinterpret_cast<char*>(&creation_date_)) + sizeof(last_deployed_));
@@ -19201,16 +19201,16 @@ bool Application::MergePartialFromCodedStream(
         break;
       }
 
-      // string publisherid = 12;
+      // string PublisherID = 12;
       case 12: {
         if (static_cast< ::google::protobuf::uint8>(tag) ==
             static_cast< ::google::protobuf::uint8>(98u /* 98 & 0xFF */)) {
           DO_(::google::protobuf::internal::WireFormatLite::ReadString(
-                input, this->mutable_publisherid()));
+                input, this->mutable_PublisherID()));
           DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-            this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+            this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
             ::google::protobuf::internal::WireFormatLite::PARSE,
-            "resource.Application.publisherid"));
+            "resource.Application.PublisherID"));
         } else {
           goto handle_unusual;
         }
@@ -19381,14 +19381,14 @@ void Application::SerializeWithCachedSizes(
       11, this->alias(), output);
   }
 
-  // string publisherid = 12;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 12;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.Application.publisherid");
+      "resource.Application.PublisherID");
     ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
-      12, this->publisherid(), output);
+      12, this->PublisherID(), output);
   }
 
   // int64 creation_date = 13;
@@ -19534,15 +19534,15 @@ void Application::SerializeWithCachedSizes(
         11, this->alias(), target);
   }
 
-  // string publisherid = 12;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 12;
+  if (this->PublisherID().size() > 0) {
     ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-      this->publisherid().data(), static_cast<int>(this->publisherid().length()),
+      this->PublisherID().data(), static_cast<int>(this->PublisherID().length()),
       ::google::protobuf::internal::WireFormatLite::SERIALIZE,
-      "resource.Application.publisherid");
+      "resource.Application.PublisherID");
     target =
       ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
-        12, this->publisherid(), target);
+        12, this->PublisherID(), target);
   }
 
   // int64 creation_date = 13;
@@ -19651,11 +19651,11 @@ size_t Application::ByteSizeLong() const {
         this->alias());
   }
 
-  // string publisherid = 12;
-  if (this->publisherid().size() > 0) {
+  // string PublisherID = 12;
+  if (this->PublisherID().size() > 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::StringSize(
-        this->publisherid());
+        this->PublisherID());
   }
 
   // int64 creation_date = 13;
@@ -19737,9 +19737,9 @@ void Application::MergeFrom(const Application& from) {
 
     alias_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.alias_);
   }
-  if (from.publisherid().size() > 0) {
+  if (from.PublisherID().size() > 0) {
 
-    publisherid_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.publisherid_);
+    PublisherID_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.PublisherID_);
   }
   if (from.creation_date() != 0) {
     set_creation_date(from.creation_date());
@@ -19793,7 +19793,7 @@ void Application::InternalSwap(Application* other) {
     GetArenaNoVirtual());
   alias_.Swap(&other->alias_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
-  publisherid_.Swap(&other->publisherid_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.Swap(&other->PublisherID_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
     GetArenaNoVirtual());
   swap(creation_date_, other->creation_date_);
   swap(last_deployed_, other->last_deployed_);

@@ -8,7 +8,7 @@ import "google/protobuf/struct.proto";
 message InstallServiceRequest {
 	string dicorveryId = 1; // ID used for service discovery.
 	string serviceId = 2; // Unique identifier for the service.
-	string publisherId = 3; // Identifier for the publisher of the service.
+	string PublisherID = 3; // Identifier for the publisher of the service.
 	string version = 4; // Version of the service to be installed.
 }
 
@@ -20,7 +20,7 @@ message InstallServiceResponse {
 // Request for uninstalling a service.
 message UninstallServiceRequest {
 	string serviceId = 1; // Unique identifier for the service.
-	string publisherId = 2; // Identifier for the publisher of the service.
+	string PublisherID = 2; // Identifier for the publisher of the service.
 	string version = 3; // Version of the service to be uninstalled.
 	bool deletePermissions = 4; // Flag to delete permissions associated with the service.
 }

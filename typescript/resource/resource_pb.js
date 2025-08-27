@@ -4724,7 +4724,7 @@ proto.resource.PackageDescriptor.toObject = function(includeInstance, msg) {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
     type: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 4, ""),
     version: jspb.Message.getFieldWithDefault(msg, 6, ""),
     description: jspb.Message.getFieldWithDefault(msg, 7, ""),
     repositoriesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
@@ -4788,7 +4788,7 @@ proto.resource.PackageDescriptor.deserializeBinaryFromReader = function(msg, rea
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
@@ -4886,7 +4886,7 @@ proto.resource.PackageDescriptor.serializeBinaryToWriter = function(message, wri
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       4,
@@ -5030,10 +5030,10 @@ proto.resource.PackageDescriptor.prototype.setType = function(value) {
 
 
 /**
- * optional string publisherId = 4;
+ * optional string PublisherID = 4;
  * @return {string}
  */
-proto.resource.PackageDescriptor.prototype.getPublisherid = function() {
+proto.resource.PackageDescriptor.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -5042,7 +5042,7 @@ proto.resource.PackageDescriptor.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.resource.PackageDescriptor} returns this
  */
-proto.resource.PackageDescriptor.prototype.setPublisherid = function(value) {
+proto.resource.PackageDescriptor.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -5394,7 +5394,7 @@ proto.resource.GetPackageDescriptorRequest.prototype.toObject = function(opt_inc
 proto.resource.GetPackageDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 2, "")
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -5437,7 +5437,7 @@ proto.resource.GetPackageDescriptorRequest.deserializeBinaryFromReader = functio
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     default:
       reader.skipField();
@@ -5475,7 +5475,7 @@ proto.resource.GetPackageDescriptorRequest.serializeBinaryToWriter = function(me
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -5504,10 +5504,10 @@ proto.resource.GetPackageDescriptorRequest.prototype.setServiceid = function(val
 
 
 /**
- * optional string publisherId = 2;
+ * optional string PublisherID = 2;
  * @return {string}
  */
-proto.resource.GetPackageDescriptorRequest.prototype.getPublisherid = function() {
+proto.resource.GetPackageDescriptorRequest.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -5516,7 +5516,7 @@ proto.resource.GetPackageDescriptorRequest.prototype.getPublisherid = function()
  * @param {string} value
  * @return {!proto.resource.GetPackageDescriptorRequest} returns this
  */
-proto.resource.GetPackageDescriptorRequest.prototype.setPublisherid = function(value) {
+proto.resource.GetPackageDescriptorRequest.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -13060,7 +13060,7 @@ proto.resource.Application.toObject = function(includeInstance, msg) {
     keywordsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
     icon: jspb.Message.getFieldWithDefault(msg, 10, ""),
     alias: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 12, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 12, ""),
     creationDate: jspb.Message.getFieldWithDefault(msg, 13, 0),
     lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0),
     typename: jspb.Message.getFieldWithDefault(msg, 15, "")
@@ -13146,7 +13146,7 @@ proto.resource.Application.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 12:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 13:
       var value = /** @type {number} */ (reader.readInt64());
@@ -13266,7 +13266,7 @@ proto.resource.Application.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       12,
@@ -13534,10 +13534,10 @@ proto.resource.Application.prototype.setAlias = function(value) {
 
 
 /**
- * optional string publisherid = 12;
+ * optional string PublisherID = 12;
  * @return {string}
  */
-proto.resource.Application.prototype.getPublisherid = function() {
+proto.resource.Application.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
 };
 
@@ -13546,7 +13546,7 @@ proto.resource.Application.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setPublisherid = function(value) {
+proto.resource.Application.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 12, value);
 };
 
@@ -22777,8 +22777,8 @@ proto.resource.Peer.toObject = function(includeInstance, msg) {
     externalIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
     localIpAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
     mac: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    porthttp: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    porthttps: jspb.Message.getFieldWithDefault(msg, 7, 0),
+    PortHTTP: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    PortHTTPS: jspb.Message.getFieldWithDefault(msg, 7, 0),
     protocol: jspb.Message.getFieldWithDefault(msg, 8, ""),
     state: jspb.Message.getFieldWithDefault(msg, 9, 0),
     actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
@@ -22841,11 +22841,11 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 6:
       var value = /** @type {number} */ (reader.readInt32());
-      msg.setPorthttp(value);
+      msg.setPortHTTP(value);
       break;
     case 7:
       var value = /** @type {number} */ (reader.readInt32());
-      msg.setPorthttps(value);
+      msg.setPortHTTPS(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
@@ -22927,14 +22927,14 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPorthttp();
+  f = message.getPortHTTP();
   if (f !== 0) {
     writer.writeInt32(
       6,
       f
     );
   }
-  f = message.getPorthttps();
+  f = message.getPortHTTPS();
   if (f !== 0) {
     writer.writeInt32(
       7,
@@ -23063,10 +23063,10 @@ proto.resource.Peer.prototype.setMac = function(value) {
 
 
 /**
- * optional int32 portHttp = 6;
+ * optional int32 PortHTTP = 6;
  * @return {number}
  */
-proto.resource.Peer.prototype.getPorthttp = function() {
+proto.resource.Peer.prototype.getPortHTTP = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
 };
 
@@ -23075,16 +23075,16 @@ proto.resource.Peer.prototype.getPorthttp = function() {
  * @param {number} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setPorthttp = function(value) {
+proto.resource.Peer.prototype.setPortHTTP = function(value) {
   return jspb.Message.setProto3IntField(this, 6, value);
 };
 
 
 /**
- * optional int32 portHttps = 7;
+ * optional int32 PortHTTPS = 7;
  * @return {number}
  */
-proto.resource.Peer.prototype.getPorthttps = function() {
+proto.resource.Peer.prototype.getPortHTTPS = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
 };
 
@@ -23093,7 +23093,7 @@ proto.resource.Peer.prototype.getPorthttps = function() {
  * @param {number} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setPorthttps = function(value) {
+proto.resource.Peer.prototype.setPortHTTPS = function(value) {
   return jspb.Message.setProto3IntField(this, 7, value);
 };
 

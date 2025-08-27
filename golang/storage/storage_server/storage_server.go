@@ -83,7 +83,7 @@ type server struct {
 	CertAuthorityTrust string
 	TLS                bool
 	Version            string
-	PublisherId        string
+	PublisherID        string
 	Plaform            string
 	KeepUpToDate       bool
 	Checksum           string
@@ -373,11 +373,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -827,7 +827,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)

@@ -196,9 +196,9 @@ func InitClient(client Client, address string, id string) error {
 		if strings.HasPrefix(address_, address) {
 			// this is local
 			if localConfig["Protocol"].(string) == "https" {
-				address += ":" + Utility.ToString(localConfig["PortHttps"])
+				address += ":" + Utility.ToString(localConfig["PortHTTPS"])
 			} else {
-				address += ":" + Utility.ToString(localConfig["PortHttp"])
+				address += ":" + Utility.ToString(localConfig["PortHTTP"])
 			}
 		} else {
 
@@ -216,9 +216,9 @@ func InitClient(client Client, address string, id string) error {
 			// No port was found so I will take the default port.
 			if !strings.Contains(address, ":") {
 				if localConfig["Protocol"].(string) == "https" {
-					address += ":" + Utility.ToString(localConfig["PortHttps"])
+					address += ":" + Utility.ToString(localConfig["PortHTTPS"])
 				} else {
-					address += ":" + Utility.ToString(localConfig["PortHttp"])
+					address += ":" + Utility.ToString(localConfig["PortHTTP"])
 				}
 			}
 		}

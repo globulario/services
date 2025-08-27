@@ -44,6 +44,7 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -96,7 +97,7 @@ type server struct {
 	KeyFile            string
 	TLS                bool
 	Version            string
-	PublisherId        string
+	PublisherID        string
 	KeepUpToDate       bool
 	Plaform            string
 	Checksum           string
@@ -401,11 +402,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -1102,7 +1103,7 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 			}
 		}
 
-		pageMap["Text"] = Utility.CleanText(text)
+		pageMap["Text"] = text
 		pageJSON, err := Utility.ToJson(pageMap)
 		if err == nil {
 			// err = searchEngine.IndexJsonObject(indexationPath, pageJSON, "english", "Id", []string{"Text"}, "")
@@ -2255,10 +2256,6 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 
 	hiddenFolder := path_ + "/.hidden/" + fileName
 	if Utility.Exists(hiddenFolder) {
-		err := Utility.UnlockFilesInDirectory(hiddenFolder)
-		if err != nil {
-			fmt.Println(err)
-		}
 
 		err = os.RemoveAll(hiddenFolder)
 		if err != nil {
@@ -3168,7 +3165,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Permissions = make([]interface{}, 14)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)

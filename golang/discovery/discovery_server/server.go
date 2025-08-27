@@ -56,7 +56,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	Plaform         string
 	Checksum        string
@@ -358,11 +358,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -534,7 +534,7 @@ func (srv *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescri
 	// publish event to notify client that the application was published...
 	str, _ := protojson.Marshal(descriptor)
 
-	return srv.publish(address, descriptor.PublisherId+":"+descriptor.Id, str)
+	return srv.publish(address, descriptor.PublisherID+":"+descriptor.Id, str)
 }
 
 /**
@@ -588,7 +588,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Service discovery client"
 	s_impl.Keywords = []string{"Discovery", "Package", "Service", "Application"}
 	s_impl.Repositories = make([]string, 0)

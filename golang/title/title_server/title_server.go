@@ -61,7 +61,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	Plaform         string
 	Checksum        string
@@ -398,11 +398,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -1472,7 +1472,7 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	uuid := generateUUID(rqst.PublisherId)
+	uuid := generateUUID(rqst.PublisherID)
 	err = index.Delete(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1535,7 +1535,7 @@ func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 
 // Retrun a publisher.
 func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublisherByIdRequest) (*titlepb.GetPublisherByIdResponse, error) {
-	publisher, err := srv.getPublisherById(rqst.IndexPath, rqst.PublisherId)
+	publisher, err := srv.getPublisherById(rqst.IndexPath, rqst.PublisherID)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2935,7 +2935,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Functionalities to find Title information and asscociate it with file."
 	s_impl.Keywords = []string{"Search", "Movie", "Title", "Episode", "MultiMedia", "IMDB"}
 	s_impl.Repositories = make([]string, 0)

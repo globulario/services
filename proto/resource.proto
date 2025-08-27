@@ -46,7 +46,7 @@ message PackageDescriptor {
   string id = 1; // Unique identifier of the package.
   string name = 2; // Name of the package.
   PackageType type = 3; // Type of the package (service or application).
-  string publisherId = 4; // Identifier of the publisher (organization or individual).
+  string PublisherID = 4; // Identifier of the publisher (organization or individual).
   string version = 6; // Version of the package.
   string description = 7; // Description of the package.
   repeated string repositories = 8; // List of repositories containing the package.
@@ -63,7 +63,7 @@ message PackageDescriptor {
 
 message GetPackageDescriptorRequest {
   string serviceId = 1;
-  string publisherId = 2;
+  string PublisherID = 2;
 }
 
 message GetPackageDescriptorResponse {
@@ -324,7 +324,7 @@ message Application {
   repeated string keywords = 9;        // Keywords for categorizing or searching the application.
   string icon = 10;                    // URL or path to the application's icon.
   string alias = 11;                   // Alias for the application.
-  string publisherid = 12;             // Identifier of the publisher of the application.
+  string PublisherID = 12;             // Identifier of the publisher of the application.
   int64 creation_date = 13;            // Timestamp of the application's creation.
   int64 last_deployed = 14;            // Timestamp of the last deployment of the application.
 
@@ -657,8 +657,8 @@ message Peer {
   string external_ip_address = 3; // External IP address of the peer.
   string local_ip_address = 4; // Local IP address of the peer.
   string mac = 5; // MAC address of the peer.
-  int32 portHttp = 6; // HTTP port used by the peer.
-  int32 portHttps = 7; // HTTPS port used by the peer.
+  int32 PortHTTP = 6; // HTTP port used by the peer.
+  int32 PortHTTPS = 7; // HTTPS port used by the peer.
   string protocol = 8; // Protocol used (http or https).
   PeerApprovalState state = 9; // Current approval state of the peer.
 

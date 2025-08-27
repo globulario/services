@@ -56,7 +56,7 @@ message Video {
 	string URL = 2; // Original URL of the video.
 	string Title = 3; // Title of the video.
 	string Description = 4; // Short description.
-	Publisher PublisherId = 5; // Publisher information.
+	Publisher PublisherID = 5; // Publisher information.
 	int64 Count = 6; // View count.
 	float Rating = 7; // Average rating score.
 	int64 Likes = 8; // Number of likes.
@@ -339,7 +339,7 @@ message CreatePublisherResponse {
 
 // Request to delete a publisher
 message DeletePublisherRequest {
-    string publisherId = 1; // ID of the publisher to delete
+    string PublisherID = 1; // ID of the publisher to delete
     string indexPath = 2; // Index path for the deletion
 }
 
@@ -349,7 +349,7 @@ message DeletePublisherResponse {
 
 // Request to get a publisher by ID
 message GetPublisherByIdRequest {
-    string publisherId = 1; // ID of the publisher
+    string PublisherID = 1; // ID of the publisher
     string indexPath = 2; // Index path for querying
 }
 

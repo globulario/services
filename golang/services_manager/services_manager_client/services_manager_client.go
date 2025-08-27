@@ -229,11 +229,11 @@ func (client *Services_Manager_Client) SetCaFile(caFile string) {
 /**
  * Intall a new service or update an existing one.
  */
-func (client *Services_Manager_Client) InstallService(token string, domain string, discoveryId string, publisherId string, serviceId string) error {
+func (client *Services_Manager_Client) InstallService(token string, domain string, discoveryId string, PublisherID string, serviceId string) error {
 
 	rqst := new(services_managerpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
-	rqst.PublisherId = publisherId
+	rqst.PublisherID = PublisherID
 	rqst.ServiceId = serviceId
 	ctx := client.GetCtx()
 	if len(token) > 0 {
@@ -252,10 +252,10 @@ func (client *Services_Manager_Client) InstallService(token string, domain strin
 /**
  * Intall a new service or update an existing one.
  */
-func (client *Services_Manager_Client) UninstallService(token string, domain string, publisherId string, serviceId string, version string) error {
+func (client *Services_Manager_Client) UninstallService(token string, domain string, PublisherID string, serviceId string, version string) error {
 
 	rqst := new(services_managerpb.UninstallServiceRequest)
-	rqst.PublisherId = publisherId
+	rqst.PublisherID = PublisherID
 	rqst.ServiceId = serviceId
 	rqst.Version = version
 	ctx := client.GetCtx()

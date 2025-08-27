@@ -18,8 +18,8 @@ namespace Globular
         public string CertStableURL { get; set; }
         public string CertURL { get; set; }
         public int ConfigurationPort { get; set; }
-        public int PortHttp { get; set; }
-        public int PortHttps { get; set; }
+        public int PortHTTP { get; set; }
+        public int PortHTTPS { get; set; }
         public string AdminEmail { get; set; }
         public int SessionTimeout { get; set; }
         public int CertExpirationDelay { get; set; }
@@ -410,7 +410,7 @@ namespace Globular
                 var serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
 
                 // The default configuration port will be local
-                var configurationPort = serverConfig.PortHttp;
+                var configurationPort = serverConfig.PortHTTP;
 
                 this.domain = address;
                 if (address.IndexOf(":") != -1)
@@ -464,7 +464,7 @@ namespace Globular
                 {
                     System.Console.WriteLine("Initialyse TLS configuration!");
                     // if the client is not local I will generate TLS certificates.
-                    if (address == serverConfig.Domain + ":" + serverConfig.PortHttp)
+                    if (address == serverConfig.Domain + ":" + serverConfig.PortHTTP)
                     {
                         System.Console.WriteLine("The client and server are on the same host...");
 

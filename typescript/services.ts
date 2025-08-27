@@ -42,7 +42,7 @@ export interface IServiceConfig {
   TLS: boolean;
   KeepUpToDate: boolean;
   KeepAlive: boolean;
-  PublisherId: string;
+  PublisherID: string;
   Version: string;
   Description: string;
   Keywords: Array<string>;
@@ -78,8 +78,8 @@ export interface IConfig {
   Name: string;
   Mac: string;
   Domain: string;
-  PortHttp: number;
-  PortHttps: number;
+  PortHTTP: number;
+  PortHTTPS: number;
   ExternalIpAddress: string;
   LocalIpAddress: string;
   BackendPort: number;

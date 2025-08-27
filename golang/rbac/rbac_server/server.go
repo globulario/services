@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -22,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -55,7 +55,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	Plaform         string
 	Checksum        string
@@ -415,11 +415,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -895,7 +895,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "The authencation server, validate user authentity"
 	s_impl.Keywords = []string{"Example", "rbac", "Test", "Service"}
 	s_impl.Repositories = make([]string, 0)

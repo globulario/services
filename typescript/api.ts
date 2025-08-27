@@ -304,11 +304,11 @@ export function uploadFiles(globule: Globular, token: string, path: string, file
   }
 
   if (globule.config.Protocol == "https") {
-    if (globule.config.PortHttps != 443)
-      url += ":" + globule.config.PortHttps
+    if (globule.config.PortHTTPS != 443)
+      url += ":" + globule.config.PortHTTPS
   } else {
-    if (globule.config.PortHttps != 80)
-      url += ":" + globule.config.PortHttp
+    if (globule.config.PortHTTPS != 80)
+      url += ":" + globule.config.PortHTTP
   }
 
 
@@ -1839,21 +1839,21 @@ export function saveApplication(
  * @param application
  * @param domain
  * @param serviceId
- * @param publisherId
+ * @param PublisherID
  * @param callback
  * @param errorCallback
  */
 export function getPackageDescriptor(
   globular: Globular,
   serviceId: string,
-  publisherId: string,
+  PublisherID: string,
   callback: (descriptors: PackageDescriptor[]) => void,
   errorCallback: (err: any) => void,
   token: string = getToken()
 ) {
   const rqst = new GetPackageDescriptorRequest();
   rqst.setServiceid(serviceId);
-  rqst.setPublisherid(publisherId);
+  rqst.setPublisherID(PublisherID);
 
   globular.resourceService
     .getPackageDescriptor(rqst, {
@@ -1966,7 +1966,7 @@ export function FindPackages(
  */
 export function getServiceBundles(
   globular: Globular,
-  publisherId: string,
+  PublisherID: string,
   serviceName: string,
   serviceId: string,
   version: string,
@@ -1999,7 +1999,7 @@ export function getServiceBundles(
       callback(
         bundles.filter((bundle) =>
           String(bundle._id).startsWith(
-            publisherId + "%" + serviceName + "%" + version + "%" + serviceId
+            PublisherID + "%" + serviceName + "%" + version + "%" + serviceId
           )
         )
       );

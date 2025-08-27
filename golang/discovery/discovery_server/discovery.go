@@ -32,13 +32,13 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 	}
 
 	// Make sure the user is part of the organization if one is given.
-	publisherId := rqst.User
+	PublisherID := rqst.User
 	if len(rqst.Organization) > 0 {
 		isMember, err := srv.isOrganizationMember(rqst.User, rqst.Organization)
 		if err != nil {
 			return nil, err
 		}
-		publisherId = rqst.Organization
+		PublisherID = rqst.Organization
 		if !isMember {
 			return nil, err
 		}
@@ -48,7 +48,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 	descriptor := &resourcepb.PackageDescriptor{
 		Id:           rqst.ServiceId,
 		Name:         rqst.ServiceName,
-		PublisherId:  publisherId,
+		PublisherID:  PublisherID,
 		Version:      rqst.Version,
 		Description:  rqst.Description,
 		Keywords:     rqst.Keywords,
@@ -82,16 +82,16 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 		return nil, errors.New("the user id " + rqst.User + " dosent match the token id " + clientId)
 	}
 
-	publisherId := rqst.User
+	PublisherID := rqst.User
 	if len(rqst.Organization) > 0 {
-		publisherId = rqst.Organization
+		PublisherID = rqst.Organization
 	}
 
 	// Now I will upload the service to the repository...
 	descriptor := &resourcepb.PackageDescriptor{
 		Id:           rqst.Name,
 		Name:         rqst.Name,
-		PublisherId:  publisherId,
+		PublisherID:  PublisherID,
 		Version:      rqst.Version,
 		Description:  rqst.Description,
 		Keywords:     rqst.Keywords,

@@ -61,7 +61,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	KeepAlive       bool
 	Checksum        string
@@ -392,11 +392,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -745,7 +745,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Authentication service"
 	s_impl.Keywords = []string{"Authentication"}
 	s_impl.Repositories = make([]string, 0)

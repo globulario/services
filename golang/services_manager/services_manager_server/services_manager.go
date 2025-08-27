@@ -36,7 +36,7 @@ func (srv *server) UninstallService(ctx context.Context, rqst *services_managerp
 		return nil, err
 	}
 
-	err = srv.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
+	err = srv.uninstallService(token, rqst.PublisherID, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -78,7 +78,7 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 			previous, _ := config.GetServiceConfigurationById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
-				srv.uninstallService(token, descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
+				srv.uninstallService(token, descriptor.PublisherID, descriptor.Id, descriptor.Version, false)
 			}
 
 			// Create the file.
@@ -92,13 +92,13 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 
 			// I will save the binairy in file...
 			Utility.CreateDirIfNotExist(srv.Root + "/services/")
-			err = Utility.CopyDir(_extracted_path_+"/"+descriptor.PublisherId, srv.Root+"/services/")
+			err = Utility.CopyDir(_extracted_path_+"/"+descriptor.PublisherID, srv.Root+"/services/")
 
 			if err != nil {
 				return err
 			}
 
-			path := srv.Root + "/services/" + descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Version + "/" + descriptor.Id
+			path := srv.Root + "/services/" + descriptor.PublisherID + "/" + descriptor.Name + "/" + descriptor.Version + "/" + descriptor.Id
 
 			// before I will start the service I will get a look if preinst script must be run...
 			if Utility.Exists(path + "/preinst") {
@@ -127,7 +127,7 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 				return err
 			}
 
-			protos, _ := Utility.FindFileByName(srv.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
+			protos, _ := Utility.FindFileByName(srv.Root+"/services/"+descriptor.PublisherID+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
 			if len(protos) == 0 {
 				return errors.New("no service was found")
 			}
@@ -209,7 +209,7 @@ func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to connect to "+rqst.DicorveryId)))
 	}
 
-	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherId, rqst.Version)
+	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherID, rqst.Version)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

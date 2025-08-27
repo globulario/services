@@ -98,7 +98,7 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 	currentVideo.Casting = make([]*titlepb.Person, 0)
 	currentVideo.Genres = []string{"adult"}
 	currentVideo.Tags = []string{} // keep empty...
-	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
+	currentVideo.Duration = int32(getVideoDuration(file_path))
 	currentVideo.URL = video_url
 	currentVideo.ID = id
 
@@ -139,10 +139,10 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 	})
 
 	movieCollector.OnHTML("#hd-leftColVideoPage > div:nth-child(1) > div.video-actions-container > div.video-actions-tabs > div.video-action-tab.about-tab.active > div.video-detailed-info > div.video-info-row.userRow > div.userInfo > div > a", func(e *colly.HTMLElement) {
-		currentVideo.PublisherId = new(titlepb.Publisher)
-		currentVideo.PublisherId.ID = e.Text
-		currentVideo.PublisherId.Name = e.Text
-		currentVideo.PublisherId.URL = e.Attr("href")
+		currentVideo.PublisherID = new(titlepb.Publisher)
+		currentVideo.PublisherID.ID = e.Text
+		currentVideo.PublisherID.Name = e.Text
+		currentVideo.PublisherID.URL = e.Attr("href")
 
 	})
 
@@ -269,7 +269,7 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 	currentVideo.Tags = []string{} // keep empty...
 	currentVideo.URL = video_url
 	currentVideo.ID = video_id
-	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
+	currentVideo.Duration = int32(getVideoDuration(file_path))
 
 	currentVideo.Poster = new(titlepb.Poster)
 	currentVideo.Poster.ID = currentVideo.ID + "-thumnail"
@@ -308,10 +308,10 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 				currentVideo.Tags = append(currentVideo.Tags, tag)
 			}
 		} else if strings.Contains(e.Attr("href"), "channels") {
-			currentVideo.PublisherId = new(titlepb.Publisher)
-			currentVideo.PublisherId.URL = e.Attr("href")
-			currentVideo.PublisherId.ID = e.Text
-			currentVideo.PublisherId.Name = e.Text
+			currentVideo.PublisherID = new(titlepb.Publisher)
+			currentVideo.PublisherID.URL = e.Attr("href")
+			currentVideo.PublisherID.ID = e.Text
+			currentVideo.PublisherID.Name = e.Text
 		}
 	})
 
@@ -344,7 +344,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 	currentVideo.Genres = []string{"adult"}
 	currentVideo.Tags = []string{} // keep empty...
 	currentVideo.URL = video_url
-	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
+	currentVideo.Duration = int32(getVideoDuration(file_path))
 
 	currentVideo.ID = video_id
 
@@ -378,18 +378,18 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 
 		e.ForEach(".metadata", func(index int, child *colly.HTMLElement) {
 			child.ForEach(".gold-plate, .free-plate", func(index int, child_ *colly.HTMLElement) {
-				currentVideo.PublisherId = new(titlepb.Publisher)
-				currentVideo.PublisherId.URL = "https://www.xnxx.com" + child_.Attr("href")
-				currentVideo.PublisherId.ID = child_.Text
-				currentVideo.PublisherId.Name = child_.Text
+				currentVideo.PublisherID = new(titlepb.Publisher)
+				currentVideo.PublisherID.URL = "https://www.xnxx.com" + child_.Attr("href")
+				currentVideo.PublisherID.ID = child_.Text
+				currentVideo.PublisherID.Name = child_.Text
 			})
 
 			values := strings.Split(child.Text, "-")
-			if currentVideo.PublisherId != nil {
+			if currentVideo.PublisherID != nil {
 				txt := strings.TrimSpace(values[0])
-				currentVideo.PublisherId.Name = txt[len(currentVideo.PublisherId.Name)+1:]
+				currentVideo.PublisherID.Name = txt[len(currentVideo.PublisherID.Name)+1:]
 			} else {
-				currentVideo.PublisherId = &titlepb.Publisher{ID: strings.TrimSpace(values[0]), Name: strings.TrimSpace(values[0])}
+				currentVideo.PublisherID = &titlepb.Publisher{ID: strings.TrimSpace(values[0]), Name: strings.TrimSpace(values[0])}
 			}
 
 			// The number of view
@@ -469,7 +469,7 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 	currentVideo.ID = video_id
 	currentVideo.Poster = new(titlepb.Poster)
 	currentVideo.Poster.ID = currentVideo.ID + "-thumnail"
-	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
+	currentVideo.Duration = int32(getVideoDuration(file_path))
 	var err error
 	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path) //e.Attr("src")
 	if err != nil {
@@ -511,13 +511,13 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 	})
 
 	movieCollector.OnHTML(".uploader-tag ", func(e *colly.HTMLElement) {
-		currentVideo.PublisherId = new(titlepb.Publisher)
-		currentVideo.PublisherId.URL = e.Attr("href")
+		currentVideo.PublisherID = new(titlepb.Publisher)
+		currentVideo.PublisherID.URL = e.Attr("href")
 
 		e.ForEach(".name", func(index int, child *colly.HTMLElement) {
 			// The poster
-			currentVideo.PublisherId.ID = child.Text
-			currentVideo.PublisherId.Name = child.Text
+			currentVideo.PublisherID.ID = child.Text
+			currentVideo.PublisherID.Name = child.Text
 
 		})
 
@@ -583,23 +583,23 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 	target := make(map[string]interface{})
 	json.NewDecoder(r.Body).Decode(&target)
 
-	currentVideo.PublisherId = new(titlepb.Publisher)
+	currentVideo.PublisherID = new(titlepb.Publisher)
 	if target["author_url"] != nil {
-		currentVideo.PublisherId.URL = target["author_url"].(string)
+		currentVideo.PublisherID.URL = target["author_url"].(string)
 		if target["author_name"] != nil {
-			currentVideo.PublisherId.Name = target["author_name"].(string)
+			currentVideo.PublisherID.Name = target["author_name"].(string)
 			currentVideo.Description = target["title"].(string)
 		}
-		if strings.Contains(currentVideo.PublisherId.URL, "@") {
-			currentVideo.PublisherId.ID = strings.Split(currentVideo.PublisherId.URL, "@")[1]
-		} else if len(currentVideo.PublisherId.URL) > 0 {
-			currentVideo.PublisherId.ID = currentVideo.PublisherId.URL[strings.LastIndex(currentVideo.PublisherId.URL, "/")+1:]
+		if strings.Contains(currentVideo.PublisherID.URL, "@") {
+			currentVideo.PublisherID.ID = strings.Split(currentVideo.PublisherID.URL, "@")[1]
+		} else if len(currentVideo.PublisherID.URL) > 0 {
+			currentVideo.PublisherID.ID = currentVideo.PublisherID.URL[strings.LastIndex(currentVideo.PublisherID.URL, "/")+1:]
 		} else {
-			currentVideo.PublisherId.ID = currentVideo.PublisherId.Name
+			currentVideo.PublisherID.ID = currentVideo.PublisherID.Name
 		}
 	}
 
-	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
+	currentVideo.Duration = int32(getVideoDuration(file_path))
 
 	return currentVideo, nil
 }

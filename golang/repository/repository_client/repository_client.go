@@ -303,7 +303,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 /**
  * Upload a service bundle.
  */
-func (client *Repository_Service_Client) UploadBundle(token, discoveryId, serviceId, publisherId, version, platform, packagePath string) (int, error) {
+func (client *Repository_Service_Client) UploadBundle(token, discoveryId, serviceId, PublisherID, version, platform, packagePath string) (int, error) {
 
 	// The service bundle...
 	bundle := new(resourcepb.PackageBundle)
@@ -316,7 +316,7 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 		return -1, err
 	}
 
-	descriptor, err := resource_client_.GetPackageDescriptor(serviceId, publisherId, version)
+	descriptor, err := resource_client_.GetPackageDescriptor(serviceId, PublisherID, version)
 	if err != nil {
 		return -1, err
 	}
@@ -439,14 +439,14 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		return -1, err
 	}
 
-	publisherId := user
+	PublisherID := user
 	if len(organization) > 0 {
-		publisherId = organization
+		PublisherID = organization
 	}
 
 	// Now I will open the data and create a archive from it.
 	// The path of the archive that contain the service package.
-	packagePath, err := client.createPackageArchive(publisherId, name, version, "webapp", path)
+	packagePath, err := client.createPackageArchive(PublisherID, name, version, "webapp", path)
 	if err != nil {
 		return -1, err
 	}
@@ -458,7 +458,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		return -1, err
 	}
 
-	resource_path := publisherId + "|" + name + "|" + version
+	resource_path := PublisherID + "|" + name + "|" + version
 
 	if len(organization) > 0 {
 		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
@@ -473,7 +473,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		}
 	}
 
-	applicationId := Utility.GenerateUUID(publisherId + "%" + name + "%" + version)
+	applicationId := Utility.GenerateUUID(PublisherID + "%" + name + "%" + version)
 	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 
 	if len(applications) > 0 {
@@ -532,7 +532,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	// Upload the bundle to the repository server.
-	return client.UploadBundle(token, address, name, publisherId, version, "webapp", packagePath)
+	return client.UploadBundle(token, address, name, PublisherID, version, "webapp", packagePath)
 
 }
 
@@ -577,12 +577,12 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		}
 	}
 
-	publisherId := user
+	PublisherID := user
 	if len(organization) > 0 {
-		publisherId = organization
+		PublisherID = organization
 	}
 
-	s["PublisherId"] = publisherId
+	s["PublisherID"] = PublisherID
 
 	jsonStr, _ := Utility.ToJson(&s)
 	ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
@@ -593,8 +593,8 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 
 	// So here I will create set the good file structure in a temp directory and
 	// copy file in it that will be the bundle to be use...
-	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherId"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
-	path_ := tmp_dir + "/" + s["PublisherId"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
+	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherID"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
+	path_ := tmp_dir + "/" + s["PublisherID"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
 	defer os.RemoveAll(tmp_dir)
 
 	// I will create the directory
@@ -609,13 +609,13 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 
 	// Now I will copy the proto file into the directory Version
 	proto := strings.ReplaceAll(s["Proto"].(string), "\\", "/")
-	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherId"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
+	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherID"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
 	if err != nil {
 		return err
 	}
 
 	// The path of the archive that contain the service package.
-	packagePath, err := client.createPackageArchive(s["PublisherId"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
+	packagePath, err := client.createPackageArchive(s["PublisherID"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
 	if err != nil {
 		return err
 	}
@@ -624,7 +624,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	defer os.RemoveAll(packagePath)
 
 	// Upload the bundle to the repository server.
-	_, err = client.UploadBundle(token, domain, s["Id"].(string), s["PublisherId"].(string), s["Version"].(string), platform, packagePath)
+	_, err = client.UploadBundle(token, domain, s["Id"].(string), s["PublisherID"].(string), s["Version"].(string), platform, packagePath)
 	if err != nil {
 		return err
 	}
@@ -634,7 +634,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		return err
 	}
 
-	resource_path := s["PublisherId"].(string) + "|" + s["Id"].(string) + "|" + s["Name"].(string) + "|" + s["Version"].(string)
+	resource_path := s["PublisherID"].(string) + "|" + s["Id"].(string) + "|" + s["Name"].(string) + "|" + s["Version"].(string)
 
 	if len(organization) > 0 {
 
@@ -655,7 +655,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 }
 
 /** Create a service package **/
-func (client *Repository_Service_Client) createPackageArchive(publisherId string, id string, version string, platform string, path string) (string, error) {
+func (client *Repository_Service_Client) createPackageArchive(PublisherID string, id string, version string, platform string, path string) (string, error) {
 
 	// Take the information from the configuration...
 	archive_name := id + "%" + version + "%" + id + "%" + platform

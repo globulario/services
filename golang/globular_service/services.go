@@ -158,8 +158,8 @@ type Service interface {
 	SetVersion(string)
 
 	// The publisher id.
-	GetPublisherId() string
-	SetPublisherId(string)
+	GetPublisherID() string
+	SetPublisherID(string)
 
 	GetKeepUpToDate() bool
 	SetKeepUptoDate(bool)
@@ -316,11 +316,11 @@ func SaveService(s Service) error {
 func Dist(distPath string, s Service) (string, error) {
 
 	// Create the dist diectories...
-	path := distPath + "/" + s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion() + "/" + s.GetId()
+	path := distPath + "/" + s.GetPublisherID() + "/" + s.GetName() + "/" + s.GetVersion() + "/" + s.GetId()
 	Utility.CreateDirIfNotExist(path)
 
 	// copy the proto file.
-	err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherId()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto")
+	err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherID()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto")
 	if err != nil {
 		return "", err
 	}
@@ -353,7 +353,7 @@ func Dist(distPath string, s Service) (string, error) {
 func CreateServicePackage(s Service, distPath string, platform string) (string, error) {
 
 	// Take the information from the configuration...
-	id := s.GetPublisherId() + "%" + s.GetName() + "%" + s.GetVersion() + "%" + s.GetId() + "%" + platform
+	id := s.GetPublisherID() + "%" + s.GetName() + "%" + s.GetVersion() + "%" + s.GetId() + "%" + platform
 
 	// So here I will create a directory and put file in it...
 	path, err := Dist(distPath, s)

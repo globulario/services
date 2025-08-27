@@ -60,7 +60,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	Plaform         string
 	Checksum        string
@@ -378,11 +378,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -720,7 +720,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 				fmt.Println("fail to create table Accounts with error ", err)
 			}
 
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INTEGER"})
 			if err != nil {
 				fmt.Println("fail to create table Organizations with error ", err)
 			}
@@ -744,7 +744,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			}
 
 			// Create peers table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "portHttp INTEGER", "portHttps INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
 			if err != nil {
 				fmt.Println("fail to create table Peers with error ", err)
 			}
@@ -767,7 +767,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 				fmt.Println("fail to create table Accounts with error ", err)
 			}
 
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INT", "path TEXT", "version TEXT", "publisherid TEXT", "creation_date INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INT", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INT"})
 			if err != nil {
 				fmt.Println("fail to create table Organizations with error ", err)
 			}
@@ -791,7 +791,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			}
 
 			// Create peers table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "portHttp INT", "portHttps INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "PortHTTP INT", "PortHTTPS INT"})
 			if err != nil {
 				fmt.Println("fail to create table Peers with error ", err)
 			}
@@ -1566,7 +1566,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Resource manager service. Resources are Group, Account, Role, Organization and Peer."
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)

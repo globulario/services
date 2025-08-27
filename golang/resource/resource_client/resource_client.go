@@ -1244,13 +1244,13 @@ func (client *Resource_Client) DeleteApplication(token, id string) error {
 /**
  * Create an application descriptor...
  */
-func (client *Resource_Client) CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (client *Resource_Client) CreateApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon string, actions, keywords []string) error {
 	rqst := &resourcepb.CreateApplicationRqst{
 		Application: &resourcepb.Application{
 			Id:          id,
 			Name:        name,
 			Path:        path,
-			Publisherid: publisherId,
+			PublisherID: PublisherID,
 			Version:     version,
 			Description: description,
 			Alias:       alias,
@@ -1262,7 +1262,7 @@ func (client *Resource_Client) CreateApplication(token, id, name, domain, passwo
 	}
 
 	// set the token in the context...
-	md := metadata.New(map[string]string{"token": string(token), "application": id, "domain": client.domain, "organization": publisherId})
+	md := metadata.New(map[string]string{"token": string(token), "application": id, "domain": client.domain, "organization": PublisherID})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
 	_, err := client.c.CreateApplication(ctx, rqst)
@@ -1276,7 +1276,7 @@ func (client *Resource_Client) CreateApplication(token, id, name, domain, passwo
 func (client *Resource_Client) UpdateApplication(token string, a *resourcepb.Application) error {
 	rqst := new(resourcepb.UpdateApplicationRqst)
 	rqst.ApplicationId = a.Id
-	rqst.Values = `{"$set":{"version":"` + a.Version + `","path":"` + a.Path + `","icon":"` + a.Icon + `","publisherid":"` + a.Publisherid + `","alias":"` + a.Alias + `","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
+	rqst.Values = `{"$set":{"version":"` + a.Version + `","path":"` + a.Path + `","icon":"` + a.Icon + `","PublisherID":"` + a.PublisherID + `","alias":"` + a.Alias + `","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
 
 	// set the token in the context...
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
@@ -1342,10 +1342,10 @@ func (client *Resource_Client) GetApplicationAlias(id string) (string, error) {
 // Package
 ////////////////////////////////////////////////////////////////////////////////
 
-func (client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, version string) (*resourcepb.PackageDescriptor, error) {
+func (client *Resource_Client) GetPackageDescriptor(pacakageId, PublisherID, version string) (*resourcepb.PackageDescriptor, error) {
 	rqst := &resourcepb.GetPackageDescriptorRequest{
 		ServiceId:   pacakageId,
-		PublisherId: publisherId,
+		PublisherID: PublisherID,
 	}
 
 	rsp, err := client.c.GetPackageDescriptor(client.GetCtx(), rqst)

@@ -1722,7 +1722,7 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	application["_id"] = app.Id
 	application["name"] = app.Name
 	application["path"] = "/" + app.Name // The path must be the same as the application name.
-	application["publisherid"] = app.Publisherid
+	application["PublisherID"] = app.PublisherID
 	application["version"] = app.Version
 	application["domain"] = srv.Domain // the domain where the application is save...
 	application["description"] = app.Description
@@ -2291,7 +2291,7 @@ func (srv *server) getApplications(query string, options string) ([]*resourcepb.
 			}
 		}
 
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions, Keywords: keywords}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), PublisherID: values_["PublisherID"].(string), Version: values_["version"].(string), Actions: actions, Keywords: keywords}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
@@ -2339,8 +2339,8 @@ func getLocalPeer() *resourcepb.Peer {
 	local_peer_ := new(resourcepb.Peer)
 	local_peer_.TypeName = "Peer"
 	local_peer_.Protocol = localConfig["Protocol"].(string)
-	local_peer_.PortHttp = int32(Utility.ToInt(localConfig["PortHttp"]))
-	local_peer_.PortHttps = int32(Utility.ToInt(localConfig["PortHttps"]))
+	local_peer_.PortHTTP = int32(Utility.ToInt(localConfig["PortHTTP"]))
+	local_peer_.PortHTTPS = int32(Utility.ToInt(localConfig["PortHTTPS"]))
 	local_peer_.Hostname = hostname
 	local_peer_.Domain = domain
 	local_peer_.ExternalIpAddress = Utility.MyIP()
@@ -2400,8 +2400,8 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 	}
 
 	localConfig, err := config.GetLocalConfig(true)
-	httpPort := Utility.ToInt(localConfig["PortHttp"])
-	httpsPort := Utility.ToInt(localConfig["PortHttps"])
+	httpPort := Utility.ToInt(localConfig["PortHTTP"])
+	httpsPort := Utility.ToInt(localConfig["PortHTTPS"])
 	protocol := localConfig["Protocol"].(string)
 
 	if err != nil {
@@ -2409,7 +2409,7 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: config.GetLocalIP()})
+	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHTTP: int32(httpPort), PortHTTPS: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: config.GetLocalIP()})
 }
 
 // * Connect tow peer toggether on the network.
@@ -2485,9 +2485,9 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		}
 
 		if rqst.Peer.Protocol == "https" {
-			address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+			address_ += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 		} else {
-			address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+			address_ += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 		}
 
 		// In that case I want to register the server to another srv.
@@ -2506,8 +2506,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		// keep the address where the configuration can be found...
 		// in case of docker instance that will be usefull to get peer addres config...
 		peer["protocol"] = rqst.Peer.Protocol
-		peer["portHttps"] = rqst.Peer.PortHttps
-		peer["portHttp"] = rqst.Peer.PortHttp
+		peer["PortHTTPS"] = rqst.Peer.PortHTTPS
+		peer["PortHTTP"] = rqst.Peer.PortHTTP
 		peer["hostname"] = peer_.Hostname
 		peer["mac"] = peer_.Mac
 		peer["local_ip_address"] = peer_.LocalIpAddress
@@ -2557,9 +2557,9 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		}
 
 		if rqst.Peer.Protocol == "https" {
-			address += ":" + Utility.ToString(rqst.Peer.PortHttps)
+			address += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 		} else {
-			address += ":" + Utility.ToString(rqst.Peer.PortHttp)
+			address += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 		}
 
 		// So here I need to publish my information as a pee
@@ -2593,8 +2593,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 	peer["protocol"] = rqst.Peer.Protocol
-	peer["portHttps"] = rqst.Peer.PortHttps
-	peer["portHttp"] = rqst.Peer.PortHttp
+	peer["PortHTTPS"] = rqst.Peer.PortHTTPS
+	peer["PortHTTP"] = rqst.Peer.PortHTTP
 	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
 	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
 	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
@@ -2655,9 +2655,9 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	}
 
 	if rqst.Peer.Protocol == "https" {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 	} else {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 	}
 
 	jsonStr, err = protojson.Marshal(getLocalPeer())
@@ -2746,9 +2746,9 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	}
 
 	if rqst.Peer.Protocol == "https" {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 	} else {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 	}
 
 	jsonStr, err = protojson.Marshal(getLocalPeer())
@@ -2797,9 +2797,9 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	}
 
 	if rqst.Peer.Protocol == "https" {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 	} else {
-		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 	}
 
 	jsonStr, err = protojson.Marshal(getLocalPeer())
@@ -2840,18 +2840,18 @@ func initPeer(values interface{}) *resourcepb.Peer {
 	values_ := values.(map[string]interface{})
 	state := resourcepb.PeerApprovalState(int32(Utility.ToInt(values_["state"])))
 
-	portHttp := int32(80)
-	if values_["portHttp"] != nil {
-		portHttp = int32(Utility.ToInt(values_["portHttp"]))
+	PortHTTP := int32(80)
+	if values_["PortHTTP"] != nil {
+		PortHTTP = int32(Utility.ToInt(values_["PortHTTP"]))
 	} else if values_["port_http"] != nil {
-		portHttp = int32(Utility.ToInt(values_["port_http"]))
+		PortHTTP = int32(Utility.ToInt(values_["port_http"]))
 	}
 
-	portHttps := int32(443)
-	if values_["portHttps"] != nil {
-		portHttps = int32(Utility.ToInt(values_["portHttps"]))
+	PortHTTPS := int32(443)
+	if values_["PortHTTPS"] != nil {
+		PortHTTPS = int32(Utility.ToInt(values_["PortHTTPS"]))
 	} else if values_["port_https"] != nil {
-		portHttps = int32(Utility.ToInt(values_["port_https"]))
+		PortHTTPS = int32(Utility.ToInt(values_["port_https"]))
 	}
 
 	hostname := values_["hostname"].(string)
@@ -2872,7 +2872,7 @@ func initPeer(values interface{}) *resourcepb.Peer {
 	}
 
 	mac := values_["mac"].(string)
-	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHttp: portHttp, PortHttps: portHttps, Hostname: hostname, Domain: domain, ExternalIpAddress: externalIpAddress, LocalIpAddress: localIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
+	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHTTP: PortHTTP, PortHTTPS: PortHTTPS, Hostname: hostname, Domain: domain, ExternalIpAddress: externalIpAddress, LocalIpAddress: localIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
 
 	var actions_ []interface{}
 	switch values_["actions"].(type) {
@@ -2983,8 +2983,8 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 
 	// Here I will update the peer information.
 	peer.Protocol = rqst.Peer.Protocol
-	peer.PortHttps = rqst.Peer.PortHttps
-	peer.PortHttp = rqst.Peer.PortHttp
+	peer.PortHTTPS = rqst.Peer.PortHTTPS
+	peer.PortHTTP = rqst.Peer.PortHTTP
 	peer.LocalIpAddress = rqst.Peer.LocalIpAddress
 	peer.ExternalIpAddress = rqst.Peer.ExternalIpAddress
 
@@ -3000,12 +3000,12 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...
-		setValues["$set"].(map[string]interface{})["port_https"] = rqst.Peer.PortHttps
-		setValues["$set"].(map[string]interface{})["port_http"] = rqst.Peer.PortHttp
+		setValues["$set"].(map[string]interface{})["port_https"] = rqst.Peer.PortHTTPS
+		setValues["$set"].(map[string]interface{})["port_http"] = rqst.Peer.PortHTTP
 	} else {
 		// MONGO and SQL
-		setValues["$set"].(map[string]interface{})["portHttps"] = rqst.Peer.PortHttps
-		setValues["$set"].(map[string]interface{})["portHttp"] = rqst.Peer.PortHttp
+		setValues["$set"].(map[string]interface{})["PortHTTPS"] = rqst.Peer.PortHTTPS
+		setValues["$set"].(map[string]interface{})["PortHTTP"] = rqst.Peer.PortHTTP
 	}
 
 	setValues_, err := Utility.ToJson(setValues)
@@ -3031,9 +3031,9 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	}
 
 	if rqst.Peer.Protocol == "https" {
-		address += ":" + Utility.ToString(rqst.Peer.PortHttps)
+		address += ":" + Utility.ToString(rqst.Peer.PortHTTPS)
 	} else {
-		address += ":" + Utility.ToString(rqst.Peer.PortHttp)
+		address += ":" + Utility.ToString(rqst.Peer.PortHTTP)
 	}
 	srv.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{}, address)
 
@@ -3104,9 +3104,9 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	if peer.Protocol == "https" {
-		address += ":" + Utility.ToString(peer.PortHttps)
+		address += ":" + Utility.ToString(peer.PortHTTPS)
 	} else {
-		address += ":" + Utility.ToString(peer.PortHttp)
+		address += ":" + Utility.ToString(peer.PortHTTP)
 	}
 
 	srv.publishEvent("delete_peer"+peer.Mac+"_evt", []byte{}, srv.Address)
@@ -3117,9 +3117,9 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 
 	address_ := peer.Domain
 	if peer.Protocol == "https" {
-		address_ += ":" + Utility.ToString(peer.PortHttps)
+		address_ += ":" + Utility.ToString(peer.PortHTTPS)
 	} else {
-		address_ += ":" + Utility.ToString(peer.PortHttp)
+		address_ += ":" + Utility.ToString(peer.PortHTTP)
 	}
 
 	// Also remove the peer at the other end...
@@ -4714,7 +4714,7 @@ func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackag
 		descriptors[i].Id = descriptor["_id"].(string)
 		descriptors[i].Name = descriptor["name"].(string)
 		descriptors[i].Description = descriptor["description"].(string)
-		descriptors[i].PublisherId = descriptor["publisherid"].(string)
+		descriptors[i].PublisherID = descriptor["PublisherID"].(string)
 		descriptors[i].Version = descriptor["version"].(string)
 		descriptors[i].Icon = descriptor["icon"].(string)
 		descriptors[i].Alias = descriptor["alias"].(string)
@@ -4799,11 +4799,11 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 
 	var query string
 	if p.GetStoreType() == "MONGO" {
-		query = `{"name":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+		query = `{"name":"` + rqst.ServiceId + `", "PublisherID":"` + rqst.PublisherID + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
-		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `' ALLOW FILTERING`
+		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND PublisherID='` + rqst.PublisherID + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
-		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND publisherid='` + rqst.PublisherId + `'`
+		query = `SELECT * FROM Packages WHERE name='` + rqst.ServiceId + `' AND PublisherID='` + rqst.PublisherID + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
@@ -4818,7 +4818,7 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 	if len(values) == 0 {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No package descriptor with id "+rqst.ServiceId+" was found for publisher id "+rqst.PublisherId)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No package descriptor with id "+rqst.ServiceId+" was found for publisher id "+rqst.PublisherID)))
 	}
 
 	descriptors := make([]*resourcepb.PackageDescriptor, len(values))
@@ -4839,8 +4839,8 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 		if descriptor["description"] != nil {
 			descriptors[i].Description = descriptor["description"].(string)
 		}
-		if descriptor["publisherid"] != nil {
-			descriptors[i].PublisherId = descriptor["publisherid"].(string)
+		if descriptor["PublisherID"] != nil {
+			descriptors[i].PublisherID = descriptor["PublisherID"].(string)
 		}
 		if descriptor["version"] != nil {
 			descriptors[i].Version = descriptor["version"].(string)
@@ -4995,7 +4995,7 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 		descriptor.Id = data[i].(map[string]interface{})["_id"].(string)
 		descriptor.Name = data[i].(map[string]interface{})["name"].(string)
 		descriptor.Description = data[i].(map[string]interface{})["description"].(string)
-		descriptor.PublisherId = data[i].(map[string]interface{})["publisherid"].(string)
+		descriptor.PublisherID = data[i].(map[string]interface{})["PublisherID"].(string)
 		descriptor.Version = data[i].(map[string]interface{})["version"].(string)
 		if data[i].(map[string]interface{})["icon"] != nil {
 			descriptor.Icon = data[i].(map[string]interface{})["icon"].(string)
@@ -5105,17 +5105,17 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 
 	var q string
 	if p.GetStoreType() == "MONGO" {
-		q = `{"name":"` + rqst.PackageDescriptor.Name + `", "publisherid":"` + rqst.PackageDescriptor.PublisherId + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
+		q = `{"name":"` + rqst.PackageDescriptor.Name + `", "PublisherID":"` + rqst.PackageDescriptor.PublisherID + `", "version":"` + rqst.PackageDescriptor.Version + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
-		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `' ALLOW FILTERING`
+		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND PublisherID='` + rqst.PackageDescriptor.PublisherID + `' AND version='` + rqst.PackageDescriptor.Version + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
-		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND publisherid='` + rqst.PackageDescriptor.PublisherId + `' AND version='` + rqst.PackageDescriptor.Version + `'`
+		q = `SELECT * FROM Packages WHERE name='` + rqst.PackageDescriptor.Name + `' AND PublisherID='` + rqst.PackageDescriptor.PublisherID + `' AND version='` + rqst.PackageDescriptor.Version + `'`
 	} else {
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
 	rqst.PackageDescriptor.TypeName = "PackageDescriptor"
-	rqst.PackageDescriptor.Id = Utility.GenerateUUID(rqst.PackageDescriptor.PublisherId + "%" + rqst.PackageDescriptor.Name + "%" + rqst.PackageDescriptor.Version)
+	rqst.PackageDescriptor.Id = Utility.GenerateUUID(rqst.PackageDescriptor.PublisherID + "%" + rqst.PackageDescriptor.Name + "%" + rqst.PackageDescriptor.Version)
 
 	for i := 0; i < len(rqst.PackageDescriptor.Groups); i++ {
 		rqst.PackageDescriptor.Groups[i].TypeName = "Group"
@@ -5133,7 +5133,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	}
 
 	// little fix...
-	jsonStr_ := strings.ReplaceAll(string(jsonStr), "publisherId", "publisherid")
+	jsonStr_ := strings.ReplaceAll(string(jsonStr), "PublisherID", "PublisherID")
 
 	// Always create a new if not already exist.
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", q, jsonStr_, `[{"upsert": true}]`)
@@ -5194,9 +5194,9 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 	}
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherID + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
 
-	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.PackageDescriptor.PublisherId, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
+	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "PublisherID": bundle.PackageDescriptor.PublisherID, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
 		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(

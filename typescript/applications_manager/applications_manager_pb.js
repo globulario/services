@@ -143,7 +143,7 @@ proto.applications_manager.InstallApplicationRequest.toObject = function(include
   var f, obj = {
     discoveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     applicationid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 3, ""),
     version: jspb.Message.getFieldWithDefault(msg, 4, ""),
     domain: jspb.Message.getFieldWithDefault(msg, 5, ""),
     setAsDefault: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
@@ -193,7 +193,7 @@ proto.applications_manager.InstallApplicationRequest.deserializeBinaryFromReader
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -250,7 +250,7 @@ proto.applications_manager.InstallApplicationRequest.serializeBinaryToWriter = f
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       3,
@@ -318,10 +318,10 @@ proto.applications_manager.InstallApplicationRequest.prototype.setApplicationid 
 
 
 /**
- * optional string publisherId = 3;
+ * optional string PublisherID = 3;
  * @return {string}
  */
-proto.applications_manager.InstallApplicationRequest.prototype.getPublisherid = function() {
+proto.applications_manager.InstallApplicationRequest.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -330,7 +330,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.getPublisherid = 
  * @param {string} value
  * @return {!proto.applications_manager.InstallApplicationRequest} returns this
  */
-proto.applications_manager.InstallApplicationRequest.prototype.setPublisherid = function(value) {
+proto.applications_manager.InstallApplicationRequest.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -552,7 +552,7 @@ proto.applications_manager.UninstallApplicationRequest.prototype.toObject = func
 proto.applications_manager.UninstallApplicationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 2, ""),
     version: jspb.Message.getFieldWithDefault(msg, 3, ""),
     deletepermissions: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
     domain: jspb.Message.getFieldWithDefault(msg, 5, "")
@@ -598,7 +598,7 @@ proto.applications_manager.UninstallApplicationRequest.deserializeBinaryFromRead
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -648,7 +648,7 @@ proto.applications_manager.UninstallApplicationRequest.serializeBinaryToWriter =
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -698,10 +698,10 @@ proto.applications_manager.UninstallApplicationRequest.prototype.setApplicationi
 
 
 /**
- * optional string publisherId = 2;
+ * optional string PublisherID = 2;
  * @return {string}
  */
-proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherid = function() {
+proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -710,7 +710,7 @@ proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherid 
  * @param {string} value
  * @return {!proto.applications_manager.UninstallApplicationRequest} returns this
  */
-proto.applications_manager.UninstallApplicationRequest.prototype.setPublisherid = function(value) {
+proto.applications_manager.UninstallApplicationRequest.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 

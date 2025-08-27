@@ -74,7 +74,7 @@ type server struct {
 	CertAuthorityTrust string
 	TLS                bool
 	Version            string
-	PublisherId        string
+	PublisherID        string
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Checksum           string
@@ -363,11 +363,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {

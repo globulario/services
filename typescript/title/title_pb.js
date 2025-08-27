@@ -2872,7 +2872,7 @@ proto.title.Video.toObject = function(includeInstance, msg) {
     url: jspb.Message.getFieldWithDefault(msg, 2, ""),
     title: jspb.Message.getFieldWithDefault(msg, 3, ""),
     description: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    publisherid: (f = msg.getPublisherid()) && proto.title.Publisher.toObject(includeInstance, f),
+    PublisherID: (f = msg.getPublisherID()) && proto.title.Publisher.toObject(includeInstance, f),
     count: jspb.Message.getFieldWithDefault(msg, 6, 0),
     rating: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
     likes: jspb.Message.getFieldWithDefault(msg, 8, 0),
@@ -2940,7 +2940,7 @@ proto.title.Video.deserializeBinaryFromReader = function(msg, reader) {
     case 5:
       var value = new proto.title.Publisher;
       reader.readMessage(value,proto.title.Publisher.deserializeBinaryFromReader);
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 6:
       var value = /** @type {number} */ (reader.readInt64());
@@ -3046,7 +3046,7 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f != null) {
     writer.writeMessage(
       5,
@@ -3210,10 +3210,10 @@ proto.title.Video.prototype.setDescription = function(value) {
 
 
 /**
- * optional Publisher PublisherId = 5;
+ * optional Publisher PublisherID = 5;
  * @return {?proto.title.Publisher}
  */
-proto.title.Video.prototype.getPublisherid = function() {
+proto.title.Video.prototype.getPublisherID = function() {
   return /** @type{?proto.title.Publisher} */ (
     jspb.Message.getWrapperField(this, proto.title.Publisher, 5));
 };
@@ -3223,7 +3223,7 @@ proto.title.Video.prototype.getPublisherid = function() {
  * @param {?proto.title.Publisher|undefined} value
  * @return {!proto.title.Video} returns this
 */
-proto.title.Video.prototype.setPublisherid = function(value) {
+proto.title.Video.prototype.setPublisherID = function(value) {
   return jspb.Message.setWrapperField(this, 5, value);
 };
 
@@ -3232,8 +3232,8 @@ proto.title.Video.prototype.setPublisherid = function(value) {
  * Clears the message field making it undefined.
  * @return {!proto.title.Video} returns this
  */
-proto.title.Video.prototype.clearPublisherid = function() {
-  return this.setPublisherid(undefined);
+proto.title.Video.prototype.clearPublisherID = function() {
+  return this.setPublisherID(undefined);
 };
 
 
@@ -3241,7 +3241,7 @@ proto.title.Video.prototype.clearPublisherid = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.title.Video.prototype.hasPublisherid = function() {
+proto.title.Video.prototype.hasPublisherID = function() {
   return jspb.Message.getField(this, 5) != null;
 };
 
@@ -11491,7 +11491,7 @@ proto.title.DeletePublisherRequest.prototype.toObject = function(opt_includeInst
  */
 proto.title.DeletePublisherRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    publisherid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 1, ""),
     indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
@@ -11531,7 +11531,7 @@ proto.title.DeletePublisherRequest.deserializeBinaryFromReader = function(msg, r
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -11566,7 +11566,7 @@ proto.title.DeletePublisherRequest.prototype.serializeBinary = function() {
  */
 proto.title.DeletePublisherRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -11584,10 +11584,10 @@ proto.title.DeletePublisherRequest.serializeBinaryToWriter = function(message, w
 
 
 /**
- * optional string publisherId = 1;
+ * optional string PublisherID = 1;
  * @return {string}
  */
-proto.title.DeletePublisherRequest.prototype.getPublisherid = function() {
+proto.title.DeletePublisherRequest.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -11596,7 +11596,7 @@ proto.title.DeletePublisherRequest.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.title.DeletePublisherRequest} returns this
  */
-proto.title.DeletePublisherRequest.prototype.setPublisherid = function(value) {
+proto.title.DeletePublisherRequest.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -11752,7 +11752,7 @@ proto.title.GetPublisherByIdRequest.prototype.toObject = function(opt_includeIns
  */
 proto.title.GetPublisherByIdRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    publisherid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    PublisherID: jspb.Message.getFieldWithDefault(msg, 1, ""),
     indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
@@ -11792,7 +11792,7 @@ proto.title.GetPublisherByIdRequest.deserializeBinaryFromReader = function(msg, 
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setPublisherID(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -11827,7 +11827,7 @@ proto.title.GetPublisherByIdRequest.prototype.serializeBinary = function() {
  */
 proto.title.GetPublisherByIdRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getPublisherid();
+  f = message.getPublisherID();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -11845,10 +11845,10 @@ proto.title.GetPublisherByIdRequest.serializeBinaryToWriter = function(message, 
 
 
 /**
- * optional string publisherId = 1;
+ * optional string PublisherID = 1;
  * @return {string}
  */
-proto.title.GetPublisherByIdRequest.prototype.getPublisherid = function() {
+proto.title.GetPublisherByIdRequest.prototype.getPublisherID = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -11857,7 +11857,7 @@ proto.title.GetPublisherByIdRequest.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.title.GetPublisherByIdRequest} returns this
  */
-proto.title.GetPublisherByIdRequest.prototype.setPublisherid = function(value) {
+proto.title.GetPublisherByIdRequest.prototype.setPublisherID = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 

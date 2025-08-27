@@ -109,9 +109,9 @@ func GetAddress() (string, error) {
 	// Return the address where to grab the configuration.
 	//address := domain
 	if Utility.ToString(localConfig["Protocol"]) == "https" {
-		address += ":" + Utility.ToString(localConfig["PortHttps"])
+		address += ":" + Utility.ToString(localConfig["PortHTTPS"])
 	} else {
-		address += ":" + Utility.ToString(localConfig["PortHttp"])
+		address += ":" + Utility.ToString(localConfig["PortHTTP"])
 	}
 
 	return strings.ToLower(address), nil
@@ -762,7 +762,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 /**
  * Return the list of method's for a given service.
  */
-func GetServiceMethods(name string, publisherId string, version string) ([]string, error) {
+func GetServiceMethods(name string, PublisherID string, version string) ([]string, error) {
 	methods := make([]string, 0)
 
 	configs, err := GetServicesConfigurationsByName(name)
@@ -772,7 +772,7 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 
 	path := ""
 	for i := 0; i < len(configs); i++ {
-		if configs[i]["PublisherId"] == publisherId && configs[i]["Version"] == version {
+		if configs[i]["PublisherID"] == PublisherID && configs[i]["Version"] == version {
 			path = configs[i]["ConfigPath"].(string)
 			break
 		}
@@ -780,7 +780,7 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 
 	// if no service exist for the given input informations.
 	if len(path) == 0 {
-		return nil, errors.New("no service found with name " + name + " version " + version + " and publisher id " + publisherId)
+		return nil, errors.New("no service found with name " + name + " version " + version + " and publisher id " + PublisherID)
 	}
 
 	// here I will parse the service defintion file to extract the

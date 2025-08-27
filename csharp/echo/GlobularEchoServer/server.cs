@@ -30,7 +30,7 @@ namespace Echo
             this.Id =  Guid.NewGuid().ToString(); // The service instance id.
             this.Name = "echo.EchoService"; // The service name
             this.Version = "0.0.1";
-            this.PublisherId = "globulario"; // must be the publisher id here...
+            this.PublisherID = "globulario"; // must be the publisher id here...
             this.Domain = "globulario";
             this.Protocol = "grpc";
             this.Version = "0.0.1";            

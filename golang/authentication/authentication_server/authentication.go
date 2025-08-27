@@ -686,9 +686,9 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 				peer := peers[i]
 				address := peer.Domain
 				if peer.Protocol == "https" {
-					address += ":" + Utility.ToString(peer.PortHttps)
+					address += ":" + Utility.ToString(peer.PortHTTPS)
 				} else {
-					address += ":" + Utility.ToString(peer.PortHttp)
+					address += ":" + Utility.ToString(peer.PortHTTP)
 				}
 
 				resource_client_, err := GetResourceClient(address)

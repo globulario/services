@@ -44,8 +44,8 @@ struct ServerConfig {
     std::string PortsRange;
     std::string CertStableURL;
     std::string CertURL;
-    unsigned int PortHttp;
-    unsigned int PortHttps;
+    unsigned int PortHTTP;
+    unsigned int PortHTTPS;
     std::string AdminEmail;
     unsigned int SessionTimeout;
     unsigned int CertExpirationDelay;

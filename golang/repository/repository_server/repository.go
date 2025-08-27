@@ -22,7 +22,7 @@ func (srv *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stre
 	bundle.PackageDescriptor = rqst.Descriptor_
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Platform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherID + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Platform)
 	path := srv.Root + "/packages-repository"
 
 	var err error
@@ -109,10 +109,10 @@ func (srv *server) UploadBundle(stream repositorypb.PackageRepository_UploadBund
 	}
 
 	// Set the bundle descriptor id.
-	bundle.PackageDescriptor.Id = Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version)
+	bundle.PackageDescriptor.Id = Utility.GenerateUUID(bundle.PackageDescriptor.PublisherID + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version)
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherID + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
 
 	path := srv.Root + "/packages-repository"
 	Utility.CreateDirIfNotExist(path)

@@ -1592,19 +1592,19 @@ class PackageDescriptor : public ::google::protobuf::Message /* @@protoc_inserti
   ::std::string* release_name();
   void set_allocated_name(::std::string* name);
 
-  // string publisherId = 4;
-  void clear_publisherid();
-  static const int kPublisherIdFieldNumber = 4;
-  const ::std::string& publisherid() const;
-  void set_publisherid(const ::std::string& value);
+  // string PublisherID = 4;
+  void clear_PublisherID();
+  static const int kPublisherIDFieldNumber = 4;
+  const ::std::string& PublisherID() const;
+  void set_PublisherID(const ::std::string& value);
   #if LANG_CXX11
-  void set_publisherid(::std::string&& value);
+  void set_PublisherID(::std::string&& value);
   #endif
-  void set_publisherid(const char* value);
-  void set_publisherid(const char* value, size_t size);
-  ::std::string* mutable_publisherid();
-  ::std::string* release_publisherid();
-  void set_allocated_publisherid(::std::string* publisherid);
+  void set_PublisherID(const char* value);
+  void set_PublisherID(const char* value, size_t size);
+  ::std::string* mutable_PublisherID();
+  ::std::string* release_PublisherID();
+  void set_allocated_PublisherID(::std::string* PublisherID);
 
   // string version = 6;
   void clear_version();
@@ -1680,7 +1680,7 @@ class PackageDescriptor : public ::google::protobuf::Message /* @@protoc_inserti
   ::google::protobuf::RepeatedPtrField< ::resource::Group > groups_;
   ::google::protobuf::internal::ArenaStringPtr id_;
   ::google::protobuf::internal::ArenaStringPtr name_;
-  ::google::protobuf::internal::ArenaStringPtr publisherid_;
+  ::google::protobuf::internal::ArenaStringPtr PublisherID_;
   ::google::protobuf::internal::ArenaStringPtr version_;
   ::google::protobuf::internal::ArenaStringPtr description_;
   ::google::protobuf::internal::ArenaStringPtr icon_;
@@ -1792,26 +1792,26 @@ class GetPackageDescriptorRequest : public ::google::protobuf::Message /* @@prot
   ::std::string* release_serviceid();
   void set_allocated_serviceid(::std::string* serviceid);
 
-  // string publisherId = 2;
-  void clear_publisherid();
-  static const int kPublisherIdFieldNumber = 2;
-  const ::std::string& publisherid() const;
-  void set_publisherid(const ::std::string& value);
+  // string PublisherID = 2;
+  void clear_PublisherID();
+  static const int kPublisherIDFieldNumber = 2;
+  const ::std::string& PublisherID() const;
+  void set_PublisherID(const ::std::string& value);
   #if LANG_CXX11
-  void set_publisherid(::std::string&& value);
+  void set_PublisherID(::std::string&& value);
   #endif
-  void set_publisherid(const char* value);
-  void set_publisherid(const char* value, size_t size);
-  ::std::string* mutable_publisherid();
-  ::std::string* release_publisherid();
-  void set_allocated_publisherid(::std::string* publisherid);
+  void set_PublisherID(const char* value);
+  void set_PublisherID(const char* value, size_t size);
+  ::std::string* mutable_PublisherID();
+  ::std::string* release_PublisherID();
+  void set_allocated_PublisherID(::std::string* PublisherID);
 
   // @@protoc_insertion_point(class_scope:resource.GetPackageDescriptorRequest)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::internal::ArenaStringPtr serviceid_;
-  ::google::protobuf::internal::ArenaStringPtr publisherid_;
+  ::google::protobuf::internal::ArenaStringPtr PublisherID_;
   mutable ::google::protobuf::internal::CachedSize _cached_size_;
   friend struct ::protobuf_resource_2eproto::TableStruct;
 };
@@ -7082,19 +7082,19 @@ class Application : public ::google::protobuf::Message /* @@protoc_insertion_poi
   ::std::string* release_alias();
   void set_allocated_alias(::std::string* alias);
 
-  // string publisherid = 12;
-  void clear_publisherid();
-  static const int kPublisheridFieldNumber = 12;
-  const ::std::string& publisherid() const;
-  void set_publisherid(const ::std::string& value);
+  // string PublisherID = 12;
+  void clear_PublisherID();
+  static const int kPublisherIDFieldNumber = 12;
+  const ::std::string& PublisherID() const;
+  void set_PublisherID(const ::std::string& value);
   #if LANG_CXX11
-  void set_publisherid(::std::string&& value);
+  void set_PublisherID(::std::string&& value);
   #endif
-  void set_publisherid(const char* value);
-  void set_publisherid(const char* value, size_t size);
-  ::std::string* mutable_publisherid();
-  ::std::string* release_publisherid();
-  void set_allocated_publisherid(::std::string* publisherid);
+  void set_PublisherID(const char* value);
+  void set_PublisherID(const char* value, size_t size);
+  ::std::string* mutable_PublisherID();
+  ::std::string* release_PublisherID();
+  void set_allocated_PublisherID(::std::string* PublisherID);
 
   // int64 creation_date = 13;
   void clear_creation_date();
@@ -7123,7 +7123,7 @@ class Application : public ::google::protobuf::Message /* @@protoc_insertion_poi
   ::google::protobuf::internal::ArenaStringPtr description_;
   ::google::protobuf::internal::ArenaStringPtr icon_;
   ::google::protobuf::internal::ArenaStringPtr alias_;
-  ::google::protobuf::internal::ArenaStringPtr publisherid_;
+  ::google::protobuf::internal::ArenaStringPtr PublisherID_;
   ::google::protobuf::int64 creation_date_;
   ::google::protobuf::int64 last_deployed_;
   mutable ::google::protobuf::internal::CachedSize _cached_size_;
@@ -19474,57 +19474,57 @@ inline void PackageDescriptor::set_type(::resource::PackageType value) {
   // @@protoc_insertion_point(field_set:resource.PackageDescriptor.type)
 }
 
-// string publisherId = 4;
-inline void PackageDescriptor::clear_publisherid() {
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+// string PublisherID = 4;
+inline void PackageDescriptor::clear_PublisherID() {
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline const ::std::string& PackageDescriptor::publisherid() const {
-  // @@protoc_insertion_point(field_get:resource.PackageDescriptor.publisherId)
-  return publisherid_.GetNoArena();
+inline const ::std::string& PackageDescriptor::PublisherID() const {
+  // @@protoc_insertion_point(field_get:resource.PackageDescriptor.PublisherID)
+  return PublisherID_.GetNoArena();
 }
-inline void PackageDescriptor::set_publisherid(const ::std::string& value) {
+inline void PackageDescriptor::set_PublisherID(const ::std::string& value) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
-  // @@protoc_insertion_point(field_set:resource.PackageDescriptor.publisherId)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
+  // @@protoc_insertion_point(field_set:resource.PackageDescriptor.PublisherID)
 }
 #if LANG_CXX11
-inline void PackageDescriptor::set_publisherid(::std::string&& value) {
+inline void PackageDescriptor::set_PublisherID(::std::string&& value) {
   
-  publisherid_.SetNoArena(
+  PublisherID_.SetNoArena(
     &::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::move(value));
-  // @@protoc_insertion_point(field_set_rvalue:resource.PackageDescriptor.publisherId)
+  // @@protoc_insertion_point(field_set_rvalue:resource.PackageDescriptor.PublisherID)
 }
 #endif
-inline void PackageDescriptor::set_publisherid(const char* value) {
+inline void PackageDescriptor::set_PublisherID(const char* value) {
   GOOGLE_DCHECK(value != NULL);
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
-  // @@protoc_insertion_point(field_set_char:resource.PackageDescriptor.publisherId)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
+  // @@protoc_insertion_point(field_set_char:resource.PackageDescriptor.PublisherID)
 }
-inline void PackageDescriptor::set_publisherid(const char* value, size_t size) {
+inline void PackageDescriptor::set_PublisherID(const char* value, size_t size) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
       ::std::string(reinterpret_cast<const char*>(value), size));
-  // @@protoc_insertion_point(field_set_pointer:resource.PackageDescriptor.publisherId)
+  // @@protoc_insertion_point(field_set_pointer:resource.PackageDescriptor.PublisherID)
 }
-inline ::std::string* PackageDescriptor::mutable_publisherid() {
+inline ::std::string* PackageDescriptor::mutable_PublisherID() {
   
-  // @@protoc_insertion_point(field_mutable:resource.PackageDescriptor.publisherId)
-  return publisherid_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  // @@protoc_insertion_point(field_mutable:resource.PackageDescriptor.PublisherID)
+  return PublisherID_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline ::std::string* PackageDescriptor::release_publisherid() {
-  // @@protoc_insertion_point(field_release:resource.PackageDescriptor.publisherId)
+inline ::std::string* PackageDescriptor::release_PublisherID() {
+  // @@protoc_insertion_point(field_release:resource.PackageDescriptor.PublisherID)
   
-  return publisherid_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  return PublisherID_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline void PackageDescriptor::set_allocated_publisherid(::std::string* publisherid) {
-  if (publisherid != NULL) {
+inline void PackageDescriptor::set_allocated_PublisherID(::std::string* PublisherID) {
+  if (PublisherID != NULL) {
     
   } else {
     
   }
-  publisherid_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), publisherid);
-  // @@protoc_insertion_point(field_set_allocated:resource.PackageDescriptor.publisherId)
+  PublisherID_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), PublisherID);
+  // @@protoc_insertion_point(field_set_allocated:resource.PackageDescriptor.PublisherID)
 }
 
 // string version = 6;
@@ -20132,57 +20132,57 @@ inline void GetPackageDescriptorRequest::set_allocated_serviceid(::std::string* 
   // @@protoc_insertion_point(field_set_allocated:resource.GetPackageDescriptorRequest.serviceId)
 }
 
-// string publisherId = 2;
-inline void GetPackageDescriptorRequest::clear_publisherid() {
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+// string PublisherID = 2;
+inline void GetPackageDescriptorRequest::clear_PublisherID() {
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline const ::std::string& GetPackageDescriptorRequest::publisherid() const {
-  // @@protoc_insertion_point(field_get:resource.GetPackageDescriptorRequest.publisherId)
-  return publisherid_.GetNoArena();
+inline const ::std::string& GetPackageDescriptorRequest::PublisherID() const {
+  // @@protoc_insertion_point(field_get:resource.GetPackageDescriptorRequest.PublisherID)
+  return PublisherID_.GetNoArena();
 }
-inline void GetPackageDescriptorRequest::set_publisherid(const ::std::string& value) {
+inline void GetPackageDescriptorRequest::set_PublisherID(const ::std::string& value) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
-  // @@protoc_insertion_point(field_set:resource.GetPackageDescriptorRequest.publisherId)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
+  // @@protoc_insertion_point(field_set:resource.GetPackageDescriptorRequest.PublisherID)
 }
 #if LANG_CXX11
-inline void GetPackageDescriptorRequest::set_publisherid(::std::string&& value) {
+inline void GetPackageDescriptorRequest::set_PublisherID(::std::string&& value) {
   
-  publisherid_.SetNoArena(
+  PublisherID_.SetNoArena(
     &::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::move(value));
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetPackageDescriptorRequest.publisherId)
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetPackageDescriptorRequest.PublisherID)
 }
 #endif
-inline void GetPackageDescriptorRequest::set_publisherid(const char* value) {
+inline void GetPackageDescriptorRequest::set_PublisherID(const char* value) {
   GOOGLE_DCHECK(value != NULL);
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
-  // @@protoc_insertion_point(field_set_char:resource.GetPackageDescriptorRequest.publisherId)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
+  // @@protoc_insertion_point(field_set_char:resource.GetPackageDescriptorRequest.PublisherID)
 }
-inline void GetPackageDescriptorRequest::set_publisherid(const char* value, size_t size) {
+inline void GetPackageDescriptorRequest::set_PublisherID(const char* value, size_t size) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
       ::std::string(reinterpret_cast<const char*>(value), size));
-  // @@protoc_insertion_point(field_set_pointer:resource.GetPackageDescriptorRequest.publisherId)
+  // @@protoc_insertion_point(field_set_pointer:resource.GetPackageDescriptorRequest.PublisherID)
 }
-inline ::std::string* GetPackageDescriptorRequest::mutable_publisherid() {
+inline ::std::string* GetPackageDescriptorRequest::mutable_PublisherID() {
   
-  // @@protoc_insertion_point(field_mutable:resource.GetPackageDescriptorRequest.publisherId)
-  return publisherid_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  // @@protoc_insertion_point(field_mutable:resource.GetPackageDescriptorRequest.PublisherID)
+  return PublisherID_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline ::std::string* GetPackageDescriptorRequest::release_publisherid() {
-  // @@protoc_insertion_point(field_release:resource.GetPackageDescriptorRequest.publisherId)
+inline ::std::string* GetPackageDescriptorRequest::release_PublisherID() {
+  // @@protoc_insertion_point(field_release:resource.GetPackageDescriptorRequest.PublisherID)
   
-  return publisherid_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  return PublisherID_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline void GetPackageDescriptorRequest::set_allocated_publisherid(::std::string* publisherid) {
-  if (publisherid != NULL) {
+inline void GetPackageDescriptorRequest::set_allocated_PublisherID(::std::string* PublisherID) {
+  if (PublisherID != NULL) {
     
   } else {
     
   }
-  publisherid_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), publisherid);
-  // @@protoc_insertion_point(field_set_allocated:resource.GetPackageDescriptorRequest.publisherId)
+  PublisherID_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), PublisherID);
+  // @@protoc_insertion_point(field_set_allocated:resource.GetPackageDescriptorRequest.PublisherID)
 }
 
 // -------------------------------------------------------------------
@@ -24165,57 +24165,57 @@ inline void Application::set_allocated_alias(::std::string* alias) {
   // @@protoc_insertion_point(field_set_allocated:resource.Application.alias)
 }
 
-// string publisherid = 12;
-inline void Application::clear_publisherid() {
-  publisherid_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+// string PublisherID = 12;
+inline void Application::clear_PublisherID() {
+  PublisherID_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline const ::std::string& Application::publisherid() const {
-  // @@protoc_insertion_point(field_get:resource.Application.publisherid)
-  return publisherid_.GetNoArena();
+inline const ::std::string& Application::PublisherID() const {
+  // @@protoc_insertion_point(field_get:resource.Application.PublisherID)
+  return PublisherID_.GetNoArena();
 }
-inline void Application::set_publisherid(const ::std::string& value) {
+inline void Application::set_PublisherID(const ::std::string& value) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
-  // @@protoc_insertion_point(field_set:resource.Application.publisherid)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), value);
+  // @@protoc_insertion_point(field_set:resource.Application.PublisherID)
 }
 #if LANG_CXX11
-inline void Application::set_publisherid(::std::string&& value) {
+inline void Application::set_PublisherID(::std::string&& value) {
   
-  publisherid_.SetNoArena(
+  PublisherID_.SetNoArena(
     &::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::move(value));
-  // @@protoc_insertion_point(field_set_rvalue:resource.Application.publisherid)
+  // @@protoc_insertion_point(field_set_rvalue:resource.Application.PublisherID)
 }
 #endif
-inline void Application::set_publisherid(const char* value) {
+inline void Application::set_PublisherID(const char* value) {
   GOOGLE_DCHECK(value != NULL);
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
-  // @@protoc_insertion_point(field_set_char:resource.Application.publisherid)
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), ::std::string(value));
+  // @@protoc_insertion_point(field_set_char:resource.Application.PublisherID)
 }
-inline void Application::set_publisherid(const char* value, size_t size) {
+inline void Application::set_PublisherID(const char* value, size_t size) {
   
-  publisherid_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+  PublisherID_.SetNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(),
       ::std::string(reinterpret_cast<const char*>(value), size));
-  // @@protoc_insertion_point(field_set_pointer:resource.Application.publisherid)
+  // @@protoc_insertion_point(field_set_pointer:resource.Application.PublisherID)
 }
-inline ::std::string* Application::mutable_publisherid() {
+inline ::std::string* Application::mutable_PublisherID() {
   
-  // @@protoc_insertion_point(field_mutable:resource.Application.publisherid)
-  return publisherid_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  // @@protoc_insertion_point(field_mutable:resource.Application.PublisherID)
+  return PublisherID_.MutableNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline ::std::string* Application::release_publisherid() {
-  // @@protoc_insertion_point(field_release:resource.Application.publisherid)
+inline ::std::string* Application::release_PublisherID() {
+  // @@protoc_insertion_point(field_release:resource.Application.PublisherID)
   
-  return publisherid_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  return PublisherID_.ReleaseNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
-inline void Application::set_allocated_publisherid(::std::string* publisherid) {
-  if (publisherid != NULL) {
+inline void Application::set_allocated_PublisherID(::std::string* PublisherID) {
+  if (PublisherID != NULL) {
     
   } else {
     
   }
-  publisherid_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), publisherid);
-  // @@protoc_insertion_point(field_set_allocated:resource.Application.publisherid)
+  PublisherID_.SetAllocatedNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), PublisherID);
+  // @@protoc_insertion_point(field_set_allocated:resource.Application.PublisherID)
 }
 
 // int64 creation_date = 13;

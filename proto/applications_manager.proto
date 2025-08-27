@@ -7,7 +7,7 @@ option go_package = "github.com/globulario/services/golang/applications_manager/
 message InstallApplicationRequest {
     string discoveryId = 1;      // Identifier for discovery service.
     string applicationId = 2;    // Unique identifier for the application to be installed.
-    string publisherId = 3;      // Identifier of the application's publisher.
+    string PublisherID = 3;      // Identifier of the application's publisher.
     string version = 4;          // Version of the application to be installed.
     string domain = 5;           // Optional. Useful if the server serves multiple domains.
     bool set_as_default = 6;     // If true, sets the application as the default for its type.
@@ -21,7 +21,7 @@ message InstallApplicationResponse {
 // UninstallApplicationRequest represents a request to uninstall a specific application.
 message UninstallApplicationRequest {
     string applicationId = 1;    // Unique identifier for the application to be uninstalled.
-    string publisherId = 2;      // Identifier of the application's publisher.
+    string PublisherID = 2;      // Identifier of the application's publisher.
     string version = 3;          // Version of the application to be uninstalled.
     bool deletePermissions = 4;  // If true, also deletes all permissions associated with the application.
     string domain = 5;           // Optional. Useful if the server serves multiple domains.

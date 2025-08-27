@@ -59,7 +59,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	Plaform         string
 	Checksum        string
@@ -384,11 +384,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -625,7 +625,7 @@ func (srv *server) stopService(s map[string]interface{}) error {
 }
 
 // uninstall service
-func (srv *server) uninstallService(token, publisherId, serviceId, version string, deletePermissions bool) error {
+func (srv *server) uninstallService(token, PublisherID, serviceId, version string, deletePermissions bool) error {
 	// First of all I will stop the running service(s) instance.
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
@@ -633,12 +633,12 @@ func (srv *server) uninstallService(token, publisherId, serviceId, version strin
 	}
 	for _, s := range services {
 		// Stop the instance of the service.
-		if s["PublisherId"].(string) == publisherId && s["Id"].(string) == serviceId && s["Version"].(string) == version {
+		if s["PublisherID"].(string) == PublisherID && s["Id"].(string) == serviceId && s["Version"].(string) == version {
 			// First of all I will unsubcribe to the package event...
 			srv.stopService(s)
 
 			// Get the list of method to remove from the list of actions.
-			toDelete, err := config.GetServiceMethods(s["Name"].(string), publisherId, version)
+			toDelete, err := config.GetServiceMethods(s["Name"].(string), PublisherID, version)
 			if err != nil {
 				return err
 			}
@@ -670,7 +670,7 @@ func (srv *server) uninstallService(token, publisherId, serviceId, version strin
 			srv.registerMethods()
 
 			// Test if the path exit.
-			path := srv.Root + "/services/" + publisherId + "/" + s["Name"].(string) + "/" + version + "/" + serviceId
+			path := srv.Root + "/services/" + PublisherID + "/" + s["Name"].(string) + "/" + version + "/" + serviceId
 
 			// Now I will remove the service.
 			// Service are located into the packagespb...
@@ -707,7 +707,7 @@ func updateService(srv *server, service map[string]interface{}) func(evt *eventp
 			descriptor := new(resourcepb.PackageDescriptor)
 			err := protojson.Unmarshal(evt.Data, descriptor)
 			if err == nil {
-				fmt.Println("update service received", descriptor.Name, descriptor.PublisherId, descriptor.Id, descriptor.Version)
+				fmt.Println("update service received", descriptor.Name, descriptor.PublisherID, descriptor.Id, descriptor.Version)
 				token, err := security.GetLocalToken(srv.Mac)
 				if err != nil {
 					fmt.Println(err)
@@ -716,7 +716,7 @@ func updateService(srv *server, service map[string]interface{}) func(evt *eventp
 
 				// uninstall the service.
 				if srv.stopService(service) == nil {
-					if srv.uninstallService(token, descriptor.PublisherId, descriptor.Id, service["Version"].(string), true) == nil {
+					if srv.uninstallService(token, descriptor.PublisherID, descriptor.Id, service["Version"].(string), true) == nil {
 						err = srv.installService(token, descriptor)
 						if err != nil {
 							fmt.Println("fail to update service with error: ", err)
@@ -748,7 +748,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Mircoservice manager service"
 	s_impl.Keywords = []string{"Manager", "Service"}
 	s_impl.Repositories = make([]string, 0)
@@ -809,8 +809,8 @@ func main() {
 		if err == nil {
 			for i := 0; i < len(services); i++ {
 				service := services[i]
-				evt := service["PublisherId"].(string) + ":" + service["Id"].(string)
-				values := strings.Split(service["PublisherId"].(string), "@")
+				evt := service["PublisherID"].(string) + ":" + service["Id"].(string)
+				values := strings.Split(service["PublisherID"].(string), "@")
 				if len(values) == 2 {
 					s_impl.subscribe(values[1], evt, updateService(s_impl, service))
 				}

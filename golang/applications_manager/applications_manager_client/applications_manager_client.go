@@ -2,8 +2,8 @@ package applications_manager_client
 
 import (
 	"context"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -76,14 +76,14 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 func (client *Applications_Manager_Client) Reconnect() error {
 	var err error
 	nb_try_connect := 10
-	
-	for i:=0; i <nb_try_connect; i++ {
+
+	for i := 0; i < nb_try_connect; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
 			break
 		}
-		
+
 		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -96,7 +96,6 @@ func (client *Applications_Manager_Client) Reconnect() error {
 func (client *Applications_Manager_Client) SetAddress(address string) {
 	client.address = address
 }
-
 
 func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
@@ -234,16 +233,16 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
 /**
  * Intall a new application or update an existing one.
  */
-func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
+func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, PublisherID, applicationId string, set_as_default bool) error {
 
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DiscoveryId = discoveryId
-	rqst.PublisherId = publisherId
+	rqst.PublisherID = PublisherID
 	rqst.ApplicationId = applicationId
-	rqst.Domain =  domain
+	rqst.Domain = domain
 	rqst.SetAsDefault = set_as_default
 	ctx := client.GetCtx()
-	
+
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
@@ -260,10 +259,10 @@ func (client *Applications_Manager_Client) InstallApplication(token, domain, use
  * Uninstall application, if no version is given the most recent version will
  * be install.
  */
-func (client *Applications_Manager_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
+func (client *Applications_Manager_Client) UninstallApplication(token string, domain string, user string, PublisherID string, applicationId string, version string) error {
 
 	rqst := new(applications_managerpb.UninstallApplicationRequest)
-	rqst.PublisherId = publisherId
+	rqst.PublisherID = PublisherID
 	rqst.ApplicationId = applicationId
 	rqst.Version = version
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...

@@ -17,7 +17,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
 	"github.com/globulario/services/golang/config"
@@ -39,6 +38,29 @@ import (
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func getVideoDuration(path string) int {
+	path = strings.ReplaceAll(path, "\\", "/")
+	// original command...
+	// ffprobe -v quiet -print_format compact=print_section=0:nokey=1:escape=csv -show_entries format=duration bob_ross_img-0-Animated.mp4
+	cmd := exec.Command("ffprobe", `-v`, `quiet`, `-print_format`, `compact=print_section=0:nokey=1:escape=csv`, `-show_entries`, `format=duration`, path)
+	cmd.Dir = filepath.Dir(path)
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		return 0.0
+	}
+
+	duration, _ := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
+
+	return Utility.ToInt(duration + 0.5)
+}
+
 
 func (srv *server) getStartTime() time.Time {
 	values := strings.Split(srv.StartVideoConversionHour, ":")
@@ -394,7 +416,7 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 										}
 
 										video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
-										video.Duration = int32(Utility.GetVideoDuration(video_path))
+										video.Duration = int32(getVideoDuration(video_path))
 
 										// the title was no found...
 										err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
@@ -1733,7 +1755,7 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 		return nil
 	}
 
-	duration_total := Utility.GetVideoDuration(path)
+	duration_total := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
 	}
@@ -1907,7 +1929,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 
 	Utility.CreateDirIfNotExist(output)
 
-	duration := Utility.GetVideoDuration(path)
+	duration := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec for video at path " + path)
 	}
@@ -1981,10 +2003,10 @@ func (s *server) createVideoPreview(path string, nb int, height int, force bool)
 	cache.RemoveItem(output)
 
 	// wait for the file to be accessible...
-	duration := Utility.GetVideoDuration(path)
+	duration := getVideoDuration(path)
 	for nbTry := 60 * 5; duration == 0 && nbTry > 0; nbTry-- {
 		time.Sleep(1 * time.Second)
-		duration = Utility.GetVideoDuration(path)
+		duration = getVideoDuration(path)
 	}
 
 	if duration == 0 {
@@ -2325,8 +2347,8 @@ func (srv *server) generateAudioPlaylist(path, token string, paths []string) err
 	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
 
 	for i := 0; i < len(paths); i++ {
-		metadata, err := Utility.ReadAudioMetadata(paths[i], 300, 300)
-		duration := Utility.GetVideoDuration(paths[i])
+		metadata, err :=Utility.ReadAudioMetadata(paths[i], 300, 300)
+		duration := getVideoDuration(paths[i])
 		if duration > 0 && err == nil {
 
 			id := Utility.GenerateUUID(metadata["Album"].(string) + ":" + metadata["Title"].(string) + ":" + metadata["AlbumArtist"].(string))
@@ -2339,9 +2361,9 @@ func (srv *server) generateAudioPlaylist(path, token string, paths []string) err
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {
-				url_ += Utility.ToString(localConfig["PortHttps"])
+				url_ += Utility.ToString(localConfig["PortHTTPS"])
 			} else {
-				url_ += Utility.ToString(localConfig["PortHttp"])
+				url_ += Utility.ToString(localConfig["PortHTTP"])
 			}
 
 			path_ := strings.ReplaceAll(paths[i], "\\", "/")
@@ -2445,9 +2467,9 @@ func (srv *server) generateVideoPlaylist(path, token string, paths []string) err
 			domain, _ := config.GetDomain()
 			url_ := localConfig["Protocol"].(string) + "://" + domain + ":"
 			if localConfig["Protocol"] == "https" {
-				url_ += Utility.ToString(localConfig["PortHttps"])
+				url_ += Utility.ToString(localConfig["PortHTTPS"])
 			} else {
-				url_ += Utility.ToString(localConfig["PortHttp"])
+				url_ += Utility.ToString(localConfig["PortHTTP"])
 			}
 
 			path_ := strings.ReplaceAll(paths[i], "\\", "/")

@@ -58,7 +58,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Version         string
-	PublisherId     string
+	PublisherID     string
 	KeepUpToDate    bool
 	KeepAlive       bool
 	Checksum        string
@@ -362,11 +362,11 @@ func (srv *server) SetVersion(version string) {
 }
 
 // The publisher id.
-func (srv *server) GetPublisherId() string {
-	return srv.PublisherId
+func (srv *server) GetPublisherID() string {
+	return srv.PublisherID
 }
-func (srv *server) SetPublisherId(publisherId string) {
-	srv.PublisherId = publisherId
+func (srv *server) SetPublisherID(PublisherID string) {
+	srv.PublisherID = PublisherID
 }
 
 func (srv *server) GetKeepUpToDate() bool {
@@ -475,7 +475,7 @@ func (srv *server) deleteApplication(token, applicationId string) error {
 	return resourceClient.DeleteApplication(token, applicationId)
 }
 
-func (srv *server) createApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (srv *server) createApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon string, actions, keywords []string) error {
 
 	if domain != srv.Domain {
 		return errors.New("you can only create application in your own domain")
@@ -486,7 +486,7 @@ func (srv *server) createApplication(token, id, name, domain, password, path, pu
 		return err
 	}
 
-	err = resourceClient.CreateApplication(token, id, name, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
+	err = resourceClient.CreateApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon, actions, keywords)
 
 	return err
 
@@ -574,7 +574,7 @@ func updateApplication(srv *server, application *resourcepb.Application) func(ev
 
 		descriptor := new(resourcepb.PackageDescriptor)
 		err := protojson.Unmarshal(evt.Data, descriptor)
-		applicationId := Utility.GenerateUUID(application.Publisherid + "%" + application.Name + "%" + application.Version)
+		applicationId := Utility.GenerateUUID(application.PublisherID + "%" + application.Name + "%" + application.Version)
 
 		// be sure the Id is set correctly.
 		application.Id = applicationId
@@ -609,7 +609,7 @@ func updateApplication(srv *server, application *resourcepb.Application) func(ev
 				r := bytes.NewReader(bundle.Binairies)
 
 				// Now I will install the applicaiton.
-				err = srv.installApplication(token, srv.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
+				err = srv.installApplication(token, srv.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherID, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
 				if err != nil {
 					fmt.Println("588 fail to install application with error: ", err)
 					return
@@ -641,7 +641,7 @@ func main() {
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
-	s_impl.PublisherId = "localhost"
+	s_impl.PublisherID = "localhost"
 	s_impl.Description = "Application manager service"
 	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
 	s_impl.Repositories = make([]string, 0)
@@ -693,7 +693,7 @@ func main() {
 			if err == nil {
 				for i := 0; i < len(applications); i++ {
 					application := applications[i]
-					evt := application.Publisherid + ":" + application.Name
+					evt := application.PublisherID + ":" + application.Name
 					s_impl.subscribe(s_impl.Address, evt, updateApplication(s_impl, application))
 				}
 			}

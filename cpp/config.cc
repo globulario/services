@@ -147,12 +147,12 @@ std::string getLocalProtocol(){
 
 int getHttpPort(){
     auto config_ = getLocalConfig();
-    return config_["PortHttp"].get<int>();;
+    return config_["PortHTTP"].get<int>();;
 }
 
 int getHttpsPort(){
     auto config_ = getLocalConfig();
-    return config_["PortHttps"].get<int>();
+    return config_["PortHTTPS"].get<int>();
 }
 
 int getLocalPort(){
@@ -160,9 +160,9 @@ int getLocalPort(){
     auto config_ = getLocalConfig();
     // Now the port...
     if(config_["Protocol"] == "http"){
-        port = config_["PortHttp"].get<int>();
+        port = config_["PortHTTP"].get<int>();
     }else{
-        port = config_["PortHttps"].get<int>();
+        port = config_["PortHTTPS"].get<int>();
     }
     return port;
 }

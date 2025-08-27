@@ -341,7 +341,7 @@ namespace Resource {
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Resource.PackageType), typeof(global::Resource.NotificationType), typeof(global::Resource.SessionState), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.PackageBundle), global::Resource.PackageBundle.Parser, new[]{ "PackageDescriptor", "Checksum", "Plaform", "Size", "Modified", "Binairies" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.PackageDescriptor), global::Resource.PackageDescriptor.Parser, new[]{ "Id", "Name", "Type", "PublisherId", "Version", "Description", "Repositories", "Discoveries", "Keywords", "Actions", "Roles", "Groups", "Icon", "Alias" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.PackageDescriptor), global::Resource.PackageDescriptor.Parser, new[]{ "Id", "Name", "Type", "PublisherID", "Version", "Description", "Repositories", "Discoveries", "Keywords", "Actions", "Roles", "Groups", "Icon", "Alias" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Account), global::Resource.Account.Parser, new[]{ "Id", "Name", "Email", "Password", "Organizations", "Groups", "Roles" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Role), global::Resource.Role.Parser, new[]{ "Id", "Name", "Actions", "Members", "Organizations" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.RegisterAccountRqst), global::Resource.RegisterAccountRqst.Parser, new[]{ "Account", "ConfirmPassword" }, null, null, null, null),
@@ -371,7 +371,7 @@ namespace Resource {
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetRolesRsp), global::Resource.GetRolesRsp.Parser, new[]{ "Roles" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.DeleteRoleRqst), global::Resource.DeleteRoleRqst.Parser, new[]{ "RoleId" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.DeleteRoleRsp), global::Resource.DeleteRoleRsp.Parser, new[]{ "Result" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Application), global::Resource.Application.Parser, new[]{ "Id", "Name", "Password", "Path", "Version", "Description", "Actions", "Keywords", "Icon", "Alias", "Publisherid", "CreationDate", "LastDeployed" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Application), global::Resource.Application.Parser, new[]{ "Id", "Name", "Password", "Path", "Version", "Description", "Actions", "Keywords", "Icon", "Alias", "PublisherID", "CreationDate", "LastDeployed" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.CreateApplicationRqst), global::Resource.CreateApplicationRqst.Parser, new[]{ "Application" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.CreateApplicationRsp), global::Resource.CreateApplicationRsp.Parser, null, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.UpdateApplicationRqst), global::Resource.UpdateApplicationRqst.Parser, new[]{ "ApplicationId", "Values" }, null, null, null, null),
@@ -464,7 +464,7 @@ namespace Resource {
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.ClearAllNotificationsRsp), global::Resource.ClearAllNotificationsRsp.Parser, null, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.ClearNotificationsByTypeRqst), global::Resource.ClearNotificationsByTypeRqst.Parser, new[]{ "Recipient", "NotificationType" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.ClearNotificationsByTypeRsp), global::Resource.ClearNotificationsByTypeRsp.Parser, null, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackageDescriptorRequest), global::Resource.GetPackageDescriptorRequest.Parser, new[]{ "ServiceId", "PublisherId" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackageDescriptorRequest), global::Resource.GetPackageDescriptorRequest.Parser, new[]{ "ServiceId", "PublisherID" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackageDescriptorResponse), global::Resource.GetPackageDescriptorResponse.Parser, new[]{ "Results" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackagesDescriptorRequest), global::Resource.GetPackagesDescriptorRequest.Parser, new[]{ "Query", "Options" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackagesDescriptorResponse), global::Resource.GetPackagesDescriptorResponse.Parser, new[]{ "Results" }, null, null, null, null),
@@ -918,7 +918,7 @@ namespace Resource {
       id_ = other.id_;
       name_ = other.name_;
       type_ = other.type_;
-      publisherId_ = other.publisherId_;
+      PublisherID_ = other.PublisherID_;
       version_ = other.version_;
       description_ = other.description_;
       repositories_ = other.repositories_.Clone();
@@ -970,17 +970,17 @@ namespace Resource {
       }
     }
 
-    /// <summary>Field number for the "publisherId" field.</summary>
-    public const int PublisherIdFieldNumber = 4;
-    private string publisherId_ = "";
+    /// <summary>Field number for the "PublisherID" field.</summary>
+    public const int PublisherIDFieldNumber = 4;
+    private string PublisherID_ = "";
     /// <summary>
     /// Cam be Organization or Account.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public string PublisherId {
-      get { return publisherId_; }
+    public string PublisherID {
+      get { return PublisherID_; }
       set {
-        publisherId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        PublisherID_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
       }
     }
 
@@ -1119,7 +1119,7 @@ namespace Resource {
       if (Id != other.Id) return false;
       if (Name != other.Name) return false;
       if (Type != other.Type) return false;
-      if (PublisherId != other.PublisherId) return false;
+      if (PublisherID != other.PublisherID) return false;
       if (Version != other.Version) return false;
       if (Description != other.Description) return false;
       if(!repositories_.Equals(other.repositories_)) return false;
@@ -1139,7 +1139,7 @@ namespace Resource {
       if (Id.Length != 0) hash ^= Id.GetHashCode();
       if (Name.Length != 0) hash ^= Name.GetHashCode();
       if (Type != global::Resource.PackageType.UnknowType) hash ^= Type.GetHashCode();
-      if (PublisherId.Length != 0) hash ^= PublisherId.GetHashCode();
+      if (PublisherID.Length != 0) hash ^= PublisherID.GetHashCode();
       if (Version.Length != 0) hash ^= Version.GetHashCode();
       if (Description.Length != 0) hash ^= Description.GetHashCode();
       hash ^= repositories_.GetHashCode();
@@ -1178,9 +1178,9 @@ namespace Resource {
         output.WriteRawTag(24);
         output.WriteEnum((int) Type);
       }
-      if (PublisherId.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(34);
-        output.WriteString(PublisherId);
+        output.WriteString(PublisherID);
       }
       if (Version.Length != 0) {
         output.WriteRawTag(50);
@@ -1225,9 +1225,9 @@ namespace Resource {
         output.WriteRawTag(24);
         output.WriteEnum((int) Type);
       }
-      if (PublisherId.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(34);
-        output.WriteString(PublisherId);
+        output.WriteString(PublisherID);
       }
       if (Version.Length != 0) {
         output.WriteRawTag(50);
@@ -1269,8 +1269,8 @@ namespace Resource {
       if (Type != global::Resource.PackageType.UnknowType) {
         size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Type);
       }
-      if (PublisherId.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(PublisherId);
+      if (PublisherID.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(PublisherID);
       }
       if (Version.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Version);
@@ -1310,8 +1310,8 @@ namespace Resource {
       if (other.Type != global::Resource.PackageType.UnknowType) {
         Type = other.Type;
       }
-      if (other.PublisherId.Length != 0) {
-        PublisherId = other.PublisherId;
+      if (other.PublisherID.Length != 0) {
+        PublisherID = other.PublisherID;
       }
       if (other.Version.Length != 0) {
         Version = other.Version;
@@ -1358,7 +1358,7 @@ namespace Resource {
             break;
           }
           case 34: {
-            PublisherId = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
           case 50: {
@@ -1428,7 +1428,7 @@ namespace Resource {
             break;
           }
           case 34: {
-            PublisherId = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
           case 50: {
@@ -7202,7 +7202,7 @@ namespace Resource {
       keywords_ = other.keywords_.Clone();
       icon_ = other.icon_;
       alias_ = other.alias_;
-      publisherid_ = other.publisherid_;
+      PublisherID_ = other.PublisherID_;
       creationDate_ = other.creationDate_;
       lastDeployed_ = other.lastDeployed_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
@@ -7321,14 +7321,14 @@ namespace Resource {
       }
     }
 
-    /// <summary>Field number for the "publisherid" field.</summary>
-    public const int PublisheridFieldNumber = 11;
-    private string publisherid_ = "";
+    /// <summary>Field number for the "PublisherID" field.</summary>
+    public const int PublisherIDFieldNumber = 11;
+    private string PublisherID_ = "";
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public string Publisherid {
-      get { return publisherid_; }
+    public string PublisherID {
+      get { return PublisherID_; }
       set {
-        publisherid_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        PublisherID_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
       }
     }
 
@@ -7377,7 +7377,7 @@ namespace Resource {
       if(!keywords_.Equals(other.keywords_)) return false;
       if (Icon != other.Icon) return false;
       if (Alias != other.Alias) return false;
-      if (Publisherid != other.Publisherid) return false;
+      if (PublisherID != other.PublisherID) return false;
       if (CreationDate != other.CreationDate) return false;
       if (LastDeployed != other.LastDeployed) return false;
       return Equals(_unknownFields, other._unknownFields);
@@ -7396,7 +7396,7 @@ namespace Resource {
       hash ^= keywords_.GetHashCode();
       if (Icon.Length != 0) hash ^= Icon.GetHashCode();
       if (Alias.Length != 0) hash ^= Alias.GetHashCode();
-      if (Publisherid.Length != 0) hash ^= Publisherid.GetHashCode();
+      if (PublisherID.Length != 0) hash ^= PublisherID.GetHashCode();
       if (CreationDate != 0L) hash ^= CreationDate.GetHashCode();
       if (LastDeployed != 0L) hash ^= LastDeployed.GetHashCode();
       if (_unknownFields != null) {
@@ -7449,9 +7449,9 @@ namespace Resource {
         output.WriteRawTag(82);
         output.WriteString(Alias);
       }
-      if (Publisherid.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(90);
-        output.WriteString(Publisherid);
+        output.WriteString(PublisherID);
       }
       if (CreationDate != 0L) {
         output.WriteRawTag(96);
@@ -7504,9 +7504,9 @@ namespace Resource {
         output.WriteRawTag(82);
         output.WriteString(Alias);
       }
-      if (Publisherid.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(90);
-        output.WriteString(Publisherid);
+        output.WriteString(PublisherID);
       }
       if (CreationDate != 0L) {
         output.WriteRawTag(96);
@@ -7551,8 +7551,8 @@ namespace Resource {
       if (Alias.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Alias);
       }
-      if (Publisherid.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Publisherid);
+      if (PublisherID.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(PublisherID);
       }
       if (CreationDate != 0L) {
         size += 1 + pb::CodedOutputStream.ComputeInt64Size(CreationDate);
@@ -7597,8 +7597,8 @@ namespace Resource {
       if (other.Alias.Length != 0) {
         Alias = other.Alias;
       }
-      if (other.Publisherid.Length != 0) {
-        Publisherid = other.Publisherid;
+      if (other.PublisherID.Length != 0) {
+        PublisherID = other.PublisherID;
       }
       if (other.CreationDate != 0L) {
         CreationDate = other.CreationDate;
@@ -7661,7 +7661,7 @@ namespace Resource {
             break;
           }
           case 90: {
-            Publisherid = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
           case 96: {
@@ -7727,7 +7727,7 @@ namespace Resource {
             break;
           }
           case 90: {
-            Publisherid = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
           case 96: {
@@ -25022,7 +25022,7 @@ namespace Resource {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public GetPackageDescriptorRequest(GetPackageDescriptorRequest other) : this() {
       serviceId_ = other.serviceId_;
-      publisherId_ = other.publisherId_;
+      PublisherID_ = other.PublisherID_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -25042,14 +25042,14 @@ namespace Resource {
       }
     }
 
-    /// <summary>Field number for the "publisherId" field.</summary>
-    public const int PublisherIdFieldNumber = 2;
-    private string publisherId_ = "";
+    /// <summary>Field number for the "PublisherID" field.</summary>
+    public const int PublisherIDFieldNumber = 2;
+    private string PublisherID_ = "";
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public string PublisherId {
-      get { return publisherId_; }
+    public string PublisherID {
+      get { return PublisherID_; }
       set {
-        publisherId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        PublisherID_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
       }
     }
 
@@ -25067,7 +25067,7 @@ namespace Resource {
         return true;
       }
       if (ServiceId != other.ServiceId) return false;
-      if (PublisherId != other.PublisherId) return false;
+      if (PublisherID != other.PublisherID) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -25075,7 +25075,7 @@ namespace Resource {
     public override int GetHashCode() {
       int hash = 1;
       if (ServiceId.Length != 0) hash ^= ServiceId.GetHashCode();
-      if (PublisherId.Length != 0) hash ^= PublisherId.GetHashCode();
+      if (PublisherID.Length != 0) hash ^= PublisherID.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -25096,9 +25096,9 @@ namespace Resource {
         output.WriteRawTag(10);
         output.WriteString(ServiceId);
       }
-      if (PublisherId.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(18);
-        output.WriteString(PublisherId);
+        output.WriteString(PublisherID);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -25113,9 +25113,9 @@ namespace Resource {
         output.WriteRawTag(10);
         output.WriteString(ServiceId);
       }
-      if (PublisherId.Length != 0) {
+      if (PublisherID.Length != 0) {
         output.WriteRawTag(18);
-        output.WriteString(PublisherId);
+        output.WriteString(PublisherID);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -25129,8 +25129,8 @@ namespace Resource {
       if (ServiceId.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(ServiceId);
       }
-      if (PublisherId.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(PublisherId);
+      if (PublisherID.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(PublisherID);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -25146,8 +25146,8 @@ namespace Resource {
       if (other.ServiceId.Length != 0) {
         ServiceId = other.ServiceId;
       }
-      if (other.PublisherId.Length != 0) {
-        PublisherId = other.PublisherId;
+      if (other.PublisherID.Length != 0) {
+        PublisherID = other.PublisherID;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -25168,7 +25168,7 @@ namespace Resource {
             break;
           }
           case 18: {
-            PublisherId = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
         }
@@ -25190,7 +25190,7 @@ namespace Resource {
             break;
           }
           case 18: {
-            PublisherId = input.ReadString();
+            PublisherID = input.ReadString();
             break;
           }
         }

@@ -40,7 +40,7 @@ namespace Globular
         public string Version { get; set; }
         public string State { get; set; }
         public string ConfigPath { get; set; }
-        public string PublisherId { get; set; }
+        public string PublisherID { get; set; }
         public string Description { get; set; }
         public string[] Keywords { get; set; }
         public bool KeepUpToDate { get; set; }
@@ -76,7 +76,7 @@ namespace Globular
             this.Domain = domain;
             this.Protocol = "grpc";
             this.Version = "0.0.1";
-            this.PublisherId = "localhost";
+            this.PublisherID = "localhost";
             this.CertFile = "";
             this.KeyFile = "";
             this.CertAuthorityTrust = "";
@@ -128,7 +128,7 @@ namespace Globular
 
 
             // set the http port
-            this.ConfigurationPort = s.PortHttp;
+            this.ConfigurationPort = s.PortHTTP;
             this.Address = this.Domain + ":" + this.ConfigurationPort;
             this.Protocol = s.Protocol;
 
