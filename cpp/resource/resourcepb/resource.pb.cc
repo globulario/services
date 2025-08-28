@@ -35604,8 +35604,8 @@ void Peer::InitAsDefaultInstance() {
 const int Peer::kHostnameFieldNumber;
 const int Peer::kAddressFieldNumber;
 const int Peer::kDomainFieldNumber;
-const int Peer::kExternalIpAddressFieldNumber;
-const int Peer::kLocalIpAddressFieldNumber;
+const int Peer::kExternalIPAddressFieldNumber;
+const int Peer::kLocalIPAddressFieldNumber;
 const int Peer::kMacFieldNumber;
 const int Peer::kStateFieldNumber;
 const int Peer::kActionsFieldNumber;

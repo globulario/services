@@ -14292,7 +14292,7 @@ class Peer : public ::google::protobuf::Message /* @@protoc_insertion_point(clas
 
   // string external_ip_address = 4;
   void clear_external_ip_address();
-  static const int kExternalIpAddressFieldNumber = 4;
+  static const int kExternalIPAddressFieldNumber = 4;
   const ::std::string& external_ip_address() const;
   void set_external_ip_address(const ::std::string& value);
   #if LANG_CXX11
@@ -14306,7 +14306,7 @@ class Peer : public ::google::protobuf::Message /* @@protoc_insertion_point(clas
 
   // string local_ip_address = 5;
   void clear_local_ip_address();
-  static const int kLocalIpAddressFieldNumber = 5;
+  static const int kLocalIPAddressFieldNumber = 5;
   const ::std::string& local_ip_address() const;
   void set_local_ip_address(const ::std::string& value);
   #if LANG_CXX11

@@ -6138,11 +6138,11 @@ type Peer struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Hostname          string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`                                              // Hostname of the peer.
 	Domain            string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`                                                  // Domain associated with the peer, must be unique.
-	ExternalIpAddress string                 `protobuf:"bytes,3,opt,name=external_ip_address,json=externalIpAddress,proto3" json:"external_ip_address,omitempty"` // External IP address of the peer.
-	LocalIpAddress    string                 `protobuf:"bytes,4,opt,name=local_ip_address,json=localIpAddress,proto3" json:"local_ip_address,omitempty"`          // Local IP address of the peer.
+	ExternalIpAddress string                 `protobuf:"bytes,3,opt,name=external_ip_address,json=ExternalIPAddress,proto3" json:"external_ip_address,omitempty"` // External IP address of the peer.
+	LocalIpAddress    string                 `protobuf:"bytes,4,opt,name=local_ip_address,json=localIPAddress,proto3" json:"local_ip_address,omitempty"`          // Local IP address of the peer.
 	Mac               string                 `protobuf:"bytes,5,opt,name=mac,proto3" json:"mac,omitempty"`                                                        // MAC address of the peer.
-	PortHTTP          int32                  `protobuf:"varint,6,opt,name=PortHTTP,proto3" json:"PortHTTP,omitempty"`                                             // HTTP port used by the peer.
-	PortHTTPS         int32                  `protobuf:"varint,7,opt,name=PortHTTPS,proto3" json:"PortHTTPS,omitempty"`                                           // HTTPS port used by the peer.
+	PortHttp          int32                  `protobuf:"varint,6,opt,name=port_http,json=PortHTTP,proto3" json:"port_http,omitempty"`                             // HTTP port used by the peer.
+	PortHttps         int32                  `protobuf:"varint,7,opt,name=port_https,json=PortHTTPS,proto3" json:"port_https,omitempty"`                          // HTTPS port used by the peer.
 	Protocol          string                 `protobuf:"bytes,8,opt,name=protocol,proto3" json:"protocol,omitempty"`                                              // Protocol used (http or https).
 	State             PeerApprovalState      `protobuf:"varint,9,opt,name=state,proto3,enum=resource.PeerApprovalState" json:"state,omitempty"`                   // Current approval state of the peer.
 	Actions           []string               `protobuf:"bytes,10,rep,name=actions,proto3" json:"actions,omitempty"`                                               // Actions that the peer can perform.
@@ -6216,16 +6216,16 @@ func (x *Peer) GetMac() string {
 	return ""
 }
 
-func (x *Peer) GetPortHTTP() int32 {
+func (x *Peer) GetPortHttp() int32 {
 	if x != nil {
-		return x.PortHTTP
+		return x.PortHttp
 	}
 	return 0
 }
 
-func (x *Peer) GetPortHTTPS() int32 {
+func (x *Peer) GetPortHttps() int32 {
 	if x != nil {
-		return x.PortHTTPS
+		return x.PortHttps
 	}
 	return 0
 }
@@ -9273,15 +9273,16 @@ const file_resource_proto_rawDesc = "" +
 	"\x16DeleteOrganizationRqst\x12\"\n" +
 	"\forganization\x18\x01 \x01(\tR\forganization\"/\n" +
 	"\x15DeleteOrganizationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xe5\x02\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xe7\x02\n" +
 	"\x04Peer\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12.\n" +
-	"\x13external_ip_address\x18\x03 \x01(\tR\x11externalIpAddress\x12(\n" +
-	"\x10local_ip_address\x18\x04 \x01(\tR\x0elocalIpAddress\x12\x10\n" +
-	"\x03mac\x18\x05 \x01(\tR\x03mac\x12\x1a\n" +
-	"\bPortHTTP\x18\x06 \x01(\x05R\bPortHTTP\x12\x1c\n" +
-	"\tPortHTTPS\x18\a \x01(\x05R\tPortHTTPS\x12\x1a\n" +
+	"\x13external_ip_address\x18\x03 \x01(\tR\x11ExternalIPAddress\x12(\n" +
+	"\x10local_ip_address\x18\x04 \x01(\tR\x0elocalIPAddress\x12\x10\n" +
+	"\x03mac\x18\x05 \x01(\tR\x03mac\x12\x1b\n" +
+	"\tport_http\x18\x06 \x01(\x05R\bPortHTTP\x12\x1d\n" +
+	"\n" +
+	"port_https\x18\a \x01(\x05R\tPortHTTPS\x12\x1a\n" +
 	"\bprotocol\x18\b \x01(\tR\bprotocol\x121\n" +
 	"\x05state\x18\t \x01(\x0e2\x1b.resource.PeerApprovalStateR\x05state\x12\x18\n" +
 	"\aactions\x18\n" +

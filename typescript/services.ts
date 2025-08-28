@@ -80,8 +80,8 @@ export interface IConfig {
   Domain: string;
   PortHTTP: number;
   PortHTTPS: number;
-  ExternalIpAddress: string;
-  LocalIpAddress: string;
+  ExternalIPAddress: string;
+  LocalIPAddress: string;
   BackendPort: number;
   BackendStore: number;
   AdminEmail: string;

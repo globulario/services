@@ -654,11 +654,11 @@ enum PeerApprovalState {
 message Peer {
   string hostname = 1; // Hostname of the peer.
   string domain = 2;  // Domain associated with the peer, must be unique.
-  string external_ip_address = 3; // External IP address of the peer.
-  string local_ip_address = 4; // Local IP address of the peer.
+  string external_ip_address = 3 [json_name = "ExternalIPAddress"]; // External IP address of the peer.
+  string local_ip_address = 4 [json_name = "localIPAddress"]; // Local IP address of the peer.
   string mac = 5; // MAC address of the peer.
-  int32 PortHTTP = 6; // HTTP port used by the peer.
-  int32 PortHTTPS = 7; // HTTPS port used by the peer.
+  int32 port_http = 6 [json_name = "PortHTTP"]; // HTTP port used by the peer.
+  int32 port_https = 7 [json_name = "PortHTTPS"]; // HTTPS port used by the peer.
   string protocol = 8; // Protocol used (http or https).
   PeerApprovalState state = 9; // Current approval state of the peer.
 

@@ -2343,8 +2343,8 @@ func getLocalPeer() *resourcepb.Peer {
 	local_peer_.PortHTTPS = int32(Utility.ToInt(localConfig["PortHTTPS"]))
 	local_peer_.Hostname = hostname
 	local_peer_.Domain = domain
-	local_peer_.ExternalIpAddress = Utility.MyIP()
-	local_peer_.LocalIpAddress = config.GetLocalIP()
+	local_peer_.ExternalIPAddress = Utility.MyIP()
+	local_peer_.LocalIPAddress = config.GetLocalIP()
 	local_peer_.Mac, _ = config.GetMacAddress()
 	local_peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
@@ -2409,7 +2409,7 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHTTP: int32(httpPort), PortHTTPS: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: config.GetLocalIP()})
+	return client.RegisterPeer(string(key), &resourcepb.Peer{Protocol: protocol, PortHTTP: int32(httpPort), PortHTTPS: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIPAddress: Utility.MyIP(), LocalIPAddress: config.GetLocalIP()})
 }
 
 // * Connect tow peer toggether on the network.
@@ -2419,11 +2419,11 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		return nil, errors.New("no peer object was given in the request")
 	}
 
-	if rqst.Peer.LocalIpAddress == "" {
+	if rqst.Peer.LocalIPAddress == "" {
 		return nil, errors.New("no local ip address was given in the request")
 	}
 
-	if rqst.Peer.ExternalIpAddress == "" {
+	if rqst.Peer.ExternalIPAddress == "" {
 		return nil, errors.New("no external ip address was given in the request")
 	}
 
@@ -2510,8 +2510,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		peer["PortHTTP"] = rqst.Peer.PortHTTP
 		peer["hostname"] = peer_.Hostname
 		peer["mac"] = peer_.Mac
-		peer["local_ip_address"] = peer_.LocalIpAddress
-		peer["external_ip_address"] = peer_.ExternalIpAddress
+		peer["local_ip_address"] = peer_.LocalIPAddress
+		peer["external_ip_address"] = peer_.ExternalIPAddress
 		peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 		peer["actions"] = []interface{}{}
 
@@ -2595,8 +2595,8 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	peer["protocol"] = rqst.Peer.Protocol
 	peer["PortHTTPS"] = rqst.Peer.PortHTTPS
 	peer["PortHTTP"] = rqst.Peer.PortHTTP
-	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
-	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
+	peer["local_ip_address"] = rqst.Peer.LocalIPAddress
+	peer["external_ip_address"] = rqst.Peer.ExternalIPAddress
 	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
 	peer["actions"] = []interface{}{}
 
@@ -2857,22 +2857,22 @@ func initPeer(values interface{}) *resourcepb.Peer {
 	hostname := values_["hostname"].(string)
 	domain := values_["domain"].(string)
 
-	externalIpAddress := ""
+	ExternalIPAddress := ""
 	if values_["external_ip_address"] != nil {
-		externalIpAddress = values_["external_ip_address"].(string)
-	} else if values_["externalIpAddress"] != nil {
-		externalIpAddress = values_["externalIpAddress"].(string)
+		ExternalIPAddress = values_["external_ip_address"].(string)
+	} else if values_["ExternalIPAddress"] != nil {
+		ExternalIPAddress = values_["ExternalIPAddress"].(string)
 	}
 
-	localIpAddress := ""
+	LocalIPAddress := ""
 	if values_["local_ip_address"] != nil {
-		localIpAddress = values_["local_ip_address"].(string)
-	} else if values_["localIpAddress"] != nil {
-		localIpAddress = values_["localIpAddress"].(string)
+		LocalIPAddress = values_["local_ip_address"].(string)
+	} else if values_["LocalIPAddress"] != nil {
+		LocalIPAddress = values_["LocalIPAddress"].(string)
 	}
 
 	mac := values_["mac"].(string)
-	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHTTP: PortHTTP, PortHTTPS: PortHTTPS, Hostname: hostname, Domain: domain, ExternalIpAddress: externalIpAddress, LocalIpAddress: localIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
+	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHTTP: PortHTTP, PortHTTPS: PortHTTPS, Hostname: hostname, Domain: domain, ExternalIPAddress: ExternalIPAddress, LocalIPAddress: LocalIPAddress, Mac: mac, Actions: make([]string, 0), State: state}
 
 	var actions_ []interface{}
 	switch values_["actions"].(type) {
@@ -2985,8 +2985,8 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	peer.Protocol = rqst.Peer.Protocol
 	peer.PortHTTPS = rqst.Peer.PortHTTPS
 	peer.PortHTTP = rqst.Peer.PortHTTP
-	peer.LocalIpAddress = rqst.Peer.LocalIpAddress
-	peer.ExternalIpAddress = rqst.Peer.ExternalIpAddress
+	peer.LocalIPAddress = rqst.Peer.LocalIPAddress
+	peer.ExternalIPAddress = rqst.Peer.ExternalIPAddress
 
 	jsonStr, err := json.Marshal(rqst.Peer)
 	if err != nil {
@@ -2996,7 +2996,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	}
 
 	// update peer values.
-	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIpAddress, "external_ip_address": rqst.Peer.ExternalIpAddress}}
+	setValues := map[string]interface{}{"$set": map[string]interface{}{"hostname": rqst.Peer.Hostname, "domain": rqst.Peer.Domain, "protocol": rqst.Peer.Protocol, "local_ip_address": rqst.Peer.LocalIPAddress, "external_ip_address": rqst.Peer.ExternalIPAddress}}
 
 	if p.GetStoreType() == "SCYLLA" {
 		// Scylla does not support camel case...

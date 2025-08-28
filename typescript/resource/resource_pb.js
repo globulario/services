@@ -22774,8 +22774,8 @@ proto.resource.Peer.toObject = function(includeInstance, msg) {
   var f, obj = {
     hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
     domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    externalIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    localIpAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    ExternalIPAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    LocalIPAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
     mac: jspb.Message.getFieldWithDefault(msg, 5, ""),
     PortHTTP: jspb.Message.getFieldWithDefault(msg, 6, 0),
     PortHTTPS: jspb.Message.getFieldWithDefault(msg, 7, 0),
@@ -22829,11 +22829,11 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setExternalIpAddress(value);
+      msg.setExternalIPAddress(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLocalIpAddress(value);
+      msg.setLocalIPAddress(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
@@ -22906,14 +22906,14 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getExternalIpAddress();
+  f = message.getExternalIPAddress();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getLocalIpAddress();
+  f = message.getLocalIPAddress();
   if (f.length > 0) {
     writer.writeString(
       4,
@@ -23012,7 +23012,7 @@ proto.resource.Peer.prototype.setDomain = function(value) {
  * optional string external_ip_address = 3;
  * @return {string}
  */
-proto.resource.Peer.prototype.getExternalIpAddress = function() {
+proto.resource.Peer.prototype.getExternalIPAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -23021,7 +23021,7 @@ proto.resource.Peer.prototype.getExternalIpAddress = function() {
  * @param {string} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
+proto.resource.Peer.prototype.setExternalIPAddress = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -23030,7 +23030,7 @@ proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
  * optional string local_ip_address = 4;
  * @return {string}
  */
-proto.resource.Peer.prototype.getLocalIpAddress = function() {
+proto.resource.Peer.prototype.getLocalIPAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -23039,7 +23039,7 @@ proto.resource.Peer.prototype.getLocalIpAddress = function() {
  * @param {string} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
+proto.resource.Peer.prototype.setLocalIPAddress = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
