@@ -664,12 +664,13 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		var options_str = ""
 
-		if srv.Backend_type == "SCYLLA" {
+		switch srv.Backend_type {
+		case "SCYLLA":
 			srv.store = new(persistence_store.ScyllaStore)
 			options := map[string]interface{}{"keyspace": "local_resource", "replication_factor": srv.Backend_replication_factor, "hosts": []string{srv.Backend_address}, "port": srv.Backend_port}
 			options_, _ := Utility.ToJson(options)
 			options_str = string(options_)
-		} else if srv.Backend_type == "MONGO" {
+		case "MONGO":
 
 			process, err := Utility.GetProcessIdsByName("mongod")
 			if err != nil {
@@ -684,14 +685,14 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 			srv.store = new(persistence_store.MongoStore)
 
-		} else if srv.Backend_type == "SQL" {
+		case "SQL":
 
 			srv.store = new(persistence_store.SqlStore)
 			options := map[string]interface{}{"driver": "sqlite3", "charset": "utf8", "path": srv.DataPath + "/sql-data"}
 			options_, _ := Utility.ToJson(options)
 			options_str = string(options_)
 
-		} else {
+		default:
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
 
@@ -713,7 +714,8 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 		fmt.Println("store ", srv.Backend_address+":"+Utility.ToString(srv.Backend_port), "is runing and ready to be used.")
 
-		if srv.Backend_type == "SQL" {
+		switch srv.Backend_type {
+		case "SQL":
 			// Create tables if not already exist.
 			err := srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT", "refresh_token TEXT"})
 			if err != nil {
@@ -760,7 +762,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			if err != nil {
 				fmt.Println("fail to create table Notifications with error ", err)
 			}
-		} else if srv.Backend_type == "SCYLLA" {
+		case "SCYLLA":
 			// Create tables if not already exist.
 			err := srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
 			if err != nil {
@@ -1166,7 +1168,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 
 		for j := 0; j < len(references); j++ {
 			if references[j].(map[string]interface{})["$id"] == targetId {
-				return errors.New(" named " + targetId + " aleready exist in  " + field + "!")
+				return errors.New(" named " + targetId + " already exist in  " + field + "!")
 			}
 		}
 

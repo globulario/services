@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/davecourtois/Utility"
 	imap_server "github.com/emersion/go-imap/server"
 	"github.com/globulario/services/golang/persistence/persistence_client"
+	Utility "github.com/globulario/utility"
 )
 
 // Global variables for backend configuration

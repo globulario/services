@@ -452,8 +452,8 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 	return -1
 }
 
-// OrderDependencies orders the services based on their dependencies.
-func OrderDependencies(services []map[string]interface{}) ([]string, error) {
+// OrderDependencys orders the services based on their Dependencys.
+func OrderDependencys(services []map[string]interface{}) ([]string, error) {
 
 	serviceMap := make(map[string]map[string]interface{})
 	for _, service := range services {
@@ -476,7 +476,7 @@ func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 
 		visited[serviceName] = true
 
-		for _, dependency := range service["Dependencies"].([]interface{}) {
+		for _, dependency := range service["Dependencys"].([]interface{}) {
 			if !visited[dependency.(string)] {
 				if err := visit(dependency.(string)); err != nil {
 					fmt.Println("fail to add dependency with error: ", err)
@@ -511,14 +511,14 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
-	// Order the services based on their dependencies.
-	orderedServices, err := OrderDependencies(services)
+	// Order the services based on their Dependencys.
+	orderedServices, err := OrderDependencys(services)
 	if err != nil {
 		fmt.Println("fail to order services with error ", err)
 		return nil, err
 	}
 
-	// Now I will order the services based on their dependencies.
+	// Now I will order the services based on their Dependencys.
 	orderedServicesConfig := make([]map[string]interface{}, 0)
 	for i := 0; i < len(orderedServices); i++ {
 		for j := 0; j < len(services); j++ {
@@ -641,6 +641,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
  */
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
+	
 	if len(address) == 0 {
 		return nil, errors.New("fail to get remote config no address was given")
 	}
@@ -671,6 +672,7 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
+
 	// set back the error to nil
 	err = nil
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {

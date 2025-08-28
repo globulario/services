@@ -4,9 +4,9 @@ import (
 	"errors"
 	//	"log"
 
-	"github.com/davecourtois/Utility"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
+	Utility "github.com/globulario/utility"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,9 +10,9 @@ import (
 
 	b64 "encoding/base64"
 
-	"github.com/davecourtois/Utility"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend/backendutil"
+	Utility "github.com/globulario/utility"
 )
 
 type MailBox_impl struct {
