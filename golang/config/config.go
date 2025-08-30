@@ -476,7 +476,7 @@ func OrderDependencys(services []map[string]interface{}) ([]string, error) {
 
 		visited[serviceName] = true
 
-		for _, dependency := range service["Dependencys"].([]interface{}) {
+		for _, dependency := range service["Dependencies"].([]interface{}) {
 			if !visited[dependency.(string)] {
 				if err := visit(dependency.(string)); err != nil {
 					fmt.Println("fail to add dependency with error: ", err)
@@ -641,7 +641,6 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
  */
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
-	
 	if len(address) == 0 {
 		return nil, errors.New("fail to get remote config no address was given")
 	}
