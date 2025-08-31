@@ -510,3 +510,50 @@ func (client *Event_Client) UnSubscribe(name string, uuid string) error {
 
 	return nil
 }
+
+// In event_client.Event_Client
+
+func (client *Event_Client) SubscribeCtx(ctx context.Context, name, uuid string, fct func(*eventpb.Event)) error {
+    if ctx == nil {
+        ctx = client.GetCtx()
+    }
+    // ensure the background loop is running
+    if !client.isRunning {
+        go client.run()
+    }
+
+    // server-side registration
+    rqst := &eventpb.SubscribeRequest{Name: name, Uuid: client.uuid}
+    if _, err := client.c.Subscribe(ctx, rqst); err != nil {
+        return err
+    }
+
+    // register local handler
+    action := map[string]interface{}{
+        "action": "subscribe",
+        "uuid":   uuid,
+        "name":   name,
+        "fct":    fct,
+    }
+    client.actions <- action
+
+    // auto-unsubscribe when ctx is done
+    go func() {
+        <-ctx.Done()
+        _ = client.UnSubscribe(name, uuid) // best-effort
+    }()
+    return nil
+}
+
+func (client *Event_Client) UnSubscribeCtx(ctx context.Context, name, uuid string) error {
+    if ctx == nil {
+        ctx = client.GetCtx()
+    }
+    rqst := &eventpb.UnSubscribeRequest{Name: name, Uuid: client.uuid}
+    if _, err := client.c.UnSubscribe(ctx, rqst); err != nil {
+        return err
+    }
+    action := map[string]interface{}{"action": "unsubscribe", "uuid": uuid, "name": name}
+    client.actions <- action
+    return nil
+}
