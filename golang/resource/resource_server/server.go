@@ -500,13 +500,13 @@ func (srv *server) setLocalHosts(peer *resourcepb.Peer) error {
 		return err
 	}
 
-	if peer.ExternalIPAddress == Utility.MyIP() {
-		hosts.AddHost(peer.LocalIPAddress, address)
+	if peer.ExternalIpAddress == Utility.MyIP() {
+		hosts.AddHost(peer.LocalIpAddress, address)
 	}
 
 	err = hosts.Save()
 	if err != nil {
-		fmt.Println("fail to save hosts ", peer.LocalIPAddress, address, " with error ", err)
+		fmt.Println("fail to save hosts ", peer.LocalIpAddress, address, " with error ", err)
 		return err
 	}
 
@@ -523,7 +523,7 @@ func (srv *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 
 	domain := peer.GetDomain()
 
-	if peer.ExternalIPAddress == Utility.MyIP() {
+	if peer.ExternalIpAddress == Utility.MyIP() {
 		hosts.RemoveHost(domain)
 	} else {
 		return errors.New("the peer is not on the same local network")

@@ -21,7 +21,7 @@ func getClient() *Search_Client {
 	return client
 }
 
-func TestIndexDocument(t *testing.T){
+func TestIndexDocument(t *testing.T) {
 	fmt.Println("test index document")
 
 }
@@ -113,7 +113,7 @@ func TestSearchDocument(t *testing.T) {
 }
 
 func TestSearchPdf(t *testing.T) {
-	
+
 	paths := []string{`/var/globular/data/files/users/sa@globular.io/.hidden/img1/__index_db__`, `/var/globular/data/files/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`}
 	query := `Text:Golf`
 	language := "english"
@@ -124,14 +124,13 @@ func TestSearchPdf(t *testing.T) {
 
 	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
-		log.Println("------------> ", err)
+		log.Println("-- ", err)
 		return
 	}
 
 	for i := 0; i < len(results); i++ {
-		log.Println("------------>", results[i])
+		log.Println("--", results[i])
 	}
-
 
 }
 

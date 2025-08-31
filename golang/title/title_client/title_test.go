@@ -95,14 +95,14 @@ func TestCreateTitle(t *testing.T) {
 	// Test create a new title.
 	err := client.CreateTitle("", "/tmp/titles", title)
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 	}
 }
 
 func TestGetTitleById(t *testing.T) {
 	title, paths, err := client.GetTitleById("/tmp/titles", "tt0390244")
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 
@@ -112,7 +112,7 @@ func TestGetTitleById(t *testing.T) {
 func TestSearchTitles(t *testing.T) {
 	summary, hits, facets,  err := client.SearchTitle("/tmp/titles", "revolutions peace Monica", []string{""})
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func TestAssociateFile(t *testing.T) {
 func TestGetTitleFiles(t *testing.T) {
 	files, err := client.GetTitleFiles("/tmp/titles", "tt0390244")
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 	fmt.Println("found files", files)
@@ -146,7 +146,7 @@ func TestGetTitleFiles(t *testing.T) {
 func TestGetFileTitles(t *testing.T) {
 	titles, err := client.GetFileTitles("/tmp/titles", "/media/dave/1F29-8099/movies/The Matrix (1999) [1080p]/The.Matrix.1999.1080p.BrRip.x264.YIFY.mp4")
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 	fmt.Println("found titles", titles)
@@ -156,7 +156,7 @@ func TestGetFileTitles(t *testing.T) {
 func TestDeleteTitle(t *testing.T) {
 	err := client.DeleteTitle("/tmp/titles", "tt0390244")
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 	title, _, err := client.GetTitleById("/tmp/titles", "tt0390244")
@@ -181,11 +181,10 @@ func TestDissociateFile(t *testing.T) {
 
 }*/
 
-
 func TestGetFileVideos(t *testing.T) {
 	titles, err := client.GetFileVideos("/var/globular/search/videos", "/mnt/8e7a3e9a-8530-4b8e-9947-fb728c709cc2/movie/xxx/pornhub/ph604652e34b5d9.mp4")
 	if err != nil {
-		fmt.Println("------------->", err)
+		fmt.Println("---", err)
 		return
 	}
 	fmt.Println("found titles", titles)

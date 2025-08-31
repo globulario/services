@@ -36,32 +36,32 @@ func TestSetA(t *testing.T) {
 	// not I will set a subdomain
 	_, err = client.SetA(token, "ns1.globular.io", ipv4, 60)
 	if err != nil {
-		log.Println("----------> fail to set A ns1.globular.io with error", err)
+		log.Println(" fail to set A ns1.globular.io with error", err)
 	}
 
 	_, err = client.SetA(token, "ns2.globular.io", ipv4, 60)
 	if err != nil {
-		log.Println("----------> fail to set A ns2.globular.io with error", err)
+		log.Println(" fail to set A ns2.globular.io with error", err)
 	}
 
 	_, err = client.SetAAAA(token, "ns2.globular.io", ipv6, 60)
 	if err != nil {
-		log.Println("----------> fail to set AAAA ns2.globular.io with error", err)
+		log.Println(" fail to set AAAA ns2.globular.io with error", err)
 	}
 
 	_, err = client.SetAAAA(token, "ns1.globular.io", ipv6, 60)
 	if err != nil {
-		log.Println("----------> fail to set AAAA ns1.globular.io with error", err)
+		log.Println(" fail to set AAAA ns1.globular.io with error", err)
 	}
 
 	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv4, 60)
 	if err != nil {
-		log.Println("----------> fail to set AAAA globular.app with error", err)
+		log.Println(" fail to set AAAA globular.app with error", err)
 	}
 
 	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv6, 60)
 	if err != nil {
-		log.Println("----------> fail to set AAAA globular.app with error", err)
+		log.Println(" fail to set AAAA globular.app with error", err)
 	}
 }
 

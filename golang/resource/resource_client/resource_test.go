@@ -137,7 +137,7 @@ func TestAddAccountRole(t *testing.T) {
 }
 
 /*func TestValidateAction(t *testing.T) {
-	
+
 		infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
 		if err != nil {
 			log.Println("---> ", err)
@@ -172,11 +172,11 @@ func TestAddAccountRole(t *testing.T) {
 		}
 
 		if hasAccess {
-			log.Println("----------> dave has access to read file " + path)
+			log.Println(" dave has access to read file " + path)
 		} else {
-			log.Println("----------> dave has not access to read file " + path)
+			log.Println(" dave has not access to read file " + path)
 		}
-	
+
 }*/
 
 func TestRemoveAccountRole(t *testing.T) {
@@ -202,7 +202,6 @@ func TestDeleteRole(t *testing.T) {
 	}
 }
 
-
 // Remove an account.
 func TestDeleteAccount(t *testing.T) {
 	log.Println("---> test remove existing account.")
@@ -219,4 +218,3 @@ func TestDeleteOrganization(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-

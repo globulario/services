@@ -1968,7 +1968,7 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 		return errors.New("no resource type was given")
 	}
 
-	fmt.Println("--------------------> addResourceOwner", path, resourceType_, subject, subjectType)
+	fmt.Println("---------- addResourceOwner", path, resourceType_, subject, subjectType)
 
 	permissions, err := srv.getResourcePermissions(path)
 

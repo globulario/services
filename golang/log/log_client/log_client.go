@@ -5,7 +5,6 @@ import (
 
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -252,41 +251,98 @@ func (client *Log_Client) Log(application string, user string, method string, le
 
 	_, err := client.c.Log(client.GetCtx(), rqst)
 
-	fmt.Println(application, user, method, level, message)
-
 	return err
 }
 
 /**
  * Return an array of log infos.
  */
+// Back-compat helper that uses the client's default context.
 func (client *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
-	rqst := &logpb.GetLogRqst{
-		Query: query,
-	}
+	return client.GetLogCtx(client.GetCtx(), query)
+}
 
-	stream, err := client.c.GetLog(client.GetCtx(), rqst)
+// Append a new log information with a caller-provided context.
+func (client *Log_Client) LogCtx(
+    ctx context.Context,
+    application string,
+    user string,
+    method string,
+    level logpb.LogLevel,
+    message string,
+    fileLine string,
+    functionName string,
+) error {
+    // do not log itself.
+    if method == "/log.LogService/Log" {
+        return errors.New("recursive function call cycle")
+    }
+
+    // Prepare request.
+    rqst := new(logpb.LogRqst)
+    info := new(logpb.LogInfo)
+
+    info.Method      = method
+    info.Line        = fileLine
+    info.Level       = level
+    info.Application = application
+    info.Message     = message
+    info.Occurences  = 0
+
+    rqst.Info = info
+
+    // Use the provided ctx (so caller can inject metadata/deadlines).
+    _, err := client.c.Log(ctx, rqst)
+    return err
+}
+
+// Same as LogCtx but lets you include component and structured fields.
+func (client *Log_Client) LogWithFieldsCtx(
+    ctx context.Context,
+    application, user, method string,
+    level logpb.LogLevel,
+    message, fileLine, functionName, component string,
+    fields map[string]string,
+) error {
+    if method == "/log.LogService/Log" {
+        return errors.New("recursive function call cycle")
+    }
+    rqst := &logpb.LogRqst{
+        Info: &logpb.LogInfo{
+            Method:      method,
+            Line:        fileLine,
+            Level:       level,
+            Application: application,
+            Message:     message,
+            Occurences:  0,
+            Component:   component,
+            Fields:      fields,
+        },
+    }
+    _, err := client.c.Log(ctx, rqst)
+    return err
+}
+
+// GetLogCtx is like GetLog, but uses the provided context (for metadata, deadlines, etc.).
+func (client *Log_Client) GetLogCtx(ctx context.Context, query string) ([]*logpb.LogInfo, error) {
+	rqst := &logpb.GetLogRqst{Query: query}
+
+	stream, err := client.c.GetLog(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
 
-	infos := make([]*logpb.LogInfo, 0)
-	// Here I will create the final array
-
+	var infos []*logpb.LogInfo
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			// end of stream...
-			break
+			break // end of stream
 		}
 		if err != nil {
 			return nil, err
 		}
-
 		infos = append(infos, msg.Infos...)
 	}
-
-	// The buffer that contain the
 	return infos, nil
 }
 

@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
@@ -16,296 +19,612 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// Api
+// Internal helpers
 ////////////////////////////////////////////////////////////////////////////////
 
-func (srv *server) log(info *logpb.LogInfo) error {
+func levelToString(lvl logpb.LogLevel) string {
+	switch lvl {
+	case logpb.LogLevel_INFO_MESSAGE:
+		return "info"
+	case logpb.LogLevel_DEBUG_MESSAGE:
+		return "debug"
+	case logpb.LogLevel_ERROR_MESSAGE:
+		return "error"
+	case logpb.LogLevel_FATAL_MESSAGE:
+		return "fatal"
+	case logpb.LogLevel_TRACE_MESSAGE:
+		return "trace"
+	case logpb.LogLevel_WARN_MESSAGE:
+		return "warning"
+	default:
+		return "info"
+	}
+}
 
+// makeDeterministicID builds a stable key for a (level, app, method, line, message) entry.
+// Including the message avoids merging unrelated lines logged from the same site.
+func makeDeterministicID(info *logpb.LogInfo, level string) string {
+	return Utility.GenerateUUID(level + "|" + info.Application + "|" + info.Method + "|" + info.Line + "|" + info.Message)
+}
+
+// addToIndex ensures the log id is listed under its (level, app) index.
+func (srv *server) addToIndex(idxKey, id string) {
+	data, err := srv.logs.GetItem(idxKey)
+	if err == nil {
+		var ids []string
+		if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, id) {
+			ids = append(ids, id)
+			if enc, e := json.Marshal(ids); e == nil {
+				_ = srv.logs.SetItem(idxKey, enc)
+			}
+		}
+		return
+	}
+	// create new list
+	ids := []string{id}
+	if enc, e := json.Marshal(ids); e == nil {
+		_ = srv.logs.SetItem(idxKey, enc)
+	}
+}
+
+// //////////////////////////////////////////////////////////////////////////////
+// Core
+// //////////////////////////////////////////////////////////////////////////////
+const bucketDur = time.Minute
+
+func bucketStart(ms int64) int64 {
+	return (ms / bucketDur.Milliseconds()) * bucketDur.Milliseconds()
+}
+
+// --- registry & pointers ---
+// We keep the set of apps per level, and each (level,app)'s oldest/newest bucket boundaries.
+func appsKey(level string) string {
+	return Utility.GenerateUUID("idx_apps|" + level)
+}
+func oldestKey(level, app string) string {
+	return Utility.GenerateUUID("idx_oldest|" + level + "|" + app)
+}
+func newestKey(level, app string) string {
+	return Utility.GenerateUUID("idx_newest|" + level + "|" + app)
+}
+
+func (srv *server) startRetentionJanitor() {
+	// Defaults if config didn’t set them
+	if srv.RetentionHours <= 0 {
+		srv.RetentionHours = 24 * 7
+	}
+	if srv.SweepEverySeconds <= 0 {
+		srv.SweepEverySeconds = 300
+	}
+
+	ticker := time.NewTicker(time.Duration(srv.SweepEverySeconds) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		cutoff := bucketStart(time.Now().Add(-time.Duration(srv.RetentionHours) * time.Hour).UnixMilli())
+
+		// Sweep each (level, app)
+		for _, lvl := range allLevels {
+			apps := srv.getAppsForLevel(lvl)
+			if len(apps) == 0 {
+				continue
+			}
+			for _, app := range apps {
+				// Read current bounds
+				oK := oldestKey(lvl, app)
+				nK := newestKey(lvl, app)
+				oldest, okOld := srv.getBoundary(oK)
+				newest, okNew := srv.getBoundary(nK)
+				if !okOld || !okNew {
+					continue
+				}
+				// Nothing to sweep?
+				if oldest >= cutoff {
+					continue
+				}
+				// Don’t sweep beyond newest
+				end := cutoff
+				if newest < end {
+					end = newest
+				}
+
+				// Sweep buckets [oldest, end)
+				for b := oldest; b < end; b += bucketDur.Milliseconds() {
+					// Load the time-indexed ids for this bucket
+					if data, err := srv.logs.GetItem(timeIndexKey(lvl, app, b)); err == nil {
+						var ids []string
+						if json.Unmarshal(data, &ids) == nil {
+							// Delete blobs (best effort)
+							for _, id := range ids {
+								_ = srv.logs.RemoveItem(id)
+							}
+						}
+						// Remove the bucket itself
+						_ = srv.logs.RemoveItem(timeIndexKey(lvl, app, b))
+					}
+				}
+
+				// Advance oldest pointer to 'end'
+				srv.setBoundary(oK, end)
+			}
+		}
+
+		// wait for next tick
+		<-ticker.C
+	}
+}
+
+// addAppToLevel ensures app is listed under its level for retention sweeping.
+func (srv *server) addAppToLevel(level, app string) {
+	k := appsKey(level)
+	data, err := srv.logs.GetItem(k)
+	if err == nil {
+		var apps []string
+		if json.Unmarshal(data, &apps) == nil {
+			if !Utility.Contains(apps, app) {
+				apps = append(apps, app)
+				if b, e := json.Marshal(apps); e == nil {
+					_ = srv.logs.SetItem(k, b)
+				}
+			}
+		}
+		return
+	}
+	// create new list
+	apps := []string{app}
+	if b, e := json.Marshal(apps); e == nil {
+		_ = srv.logs.SetItem(k, b)
+	}
+}
+
+func (srv *server) getAppsForLevel(level string) []string {
+	data, err := srv.logs.GetItem(appsKey(level))
+	if err != nil {
+		return nil
+	}
+	var apps []string
+	if json.Unmarshal(data, &apps) != nil {
+		return nil
+	}
+	return apps
+}
+
+func (srv *server) setBoundary(key string, ms int64) {
+	_ = srv.logs.SetItem(key, []byte(strconv.FormatInt(ms, 10)))
+}
+
+func (srv *server) getBoundary(key string) (int64, bool) {
+	b, err := srv.logs.GetItem(key)
+	if err != nil {
+		return 0, false
+	}
+	v, e := strconv.ParseInt(string(b), 10, 64)
+	if e != nil {
+		return 0, false
+	}
+	return v, true
+}
+
+// For convenience, the canonical set of supported levels. Keep in sync with your enums.
+var allLevels = []string{"info", "debug", "error", "fatal", "trace", "warning"}
+
+// index key for (level, app)
+func indexKey(level, app string) string {
+	return Utility.GenerateUUID(level + "|" + app)
+}
+
+// time index key for (level, app, bucketStartMs)
+func timeIndexKey(level, app string, b int64) string {
+	return Utility.GenerateUUID("idx_time|" + level + "|" + app + "|" + strconv.FormatInt(b, 10))
+}
+
+// log persists a LogInfo, coalescing occurrences for the same (site+message),
+// publishes the event to the bus, and bumps Prometheus counters.
+// NOTE: This is internal; public API methods delegate here.
+func (srv *server) log(info *logpb.LogInfo) error {
 	if info == nil {
 		return errors.New("no log info was given")
 	}
-
 	if len(info.Application) == 0 {
 		return errors.New("no application name was given")
 	}
-
 	if len(info.Method) == 0 {
 		return errors.New("no method name was given")
 	}
-
 	if len(info.Line) == 0 {
 		return errors.New("no line number was given")
 	}
 
 	var level string
-	if info.GetLevel() == logpb.LogLevel_INFO_MESSAGE {
+	switch info.GetLevel() {
+	case logpb.LogLevel_INFO_MESSAGE:
 		level = "info"
-	} else if info.GetLevel() == logpb.LogLevel_DEBUG_MESSAGE {
+	case logpb.LogLevel_DEBUG_MESSAGE:
 		level = "debug"
-	} else if info.GetLevel() == logpb.LogLevel_ERROR_MESSAGE {
+	case logpb.LogLevel_ERROR_MESSAGE:
 		level = "error"
-	} else if info.GetLevel() == logpb.LogLevel_FATAL_MESSAGE {
+	case logpb.LogLevel_FATAL_MESSAGE:
 		level = "fatal"
-	} else if info.GetLevel() == logpb.LogLevel_TRACE_MESSAGE {
+	case logpb.LogLevel_TRACE_MESSAGE:
 		level = "trace"
-	} else if info.GetLevel() == logpb.LogLevel_WARN_MESSAGE {
+	case logpb.LogLevel_WARN_MESSAGE:
 		level = "warning"
+	default:
+		level = "info"
 	}
 
-	// Set the id of the log info.
-	info.Id = Utility.GenerateUUID(level + `|` + info.Application + `|` + info.Method + `|` + info.Line)
+	if info.TimestampMs == 0 {
+		info.TimestampMs = time.Now().UnixMilli()
+	}
 
+	if srv.RetentionHours > 0 {
+		cutoff := time.Now().Add(-time.Duration(srv.RetentionHours) * time.Hour).UnixMilli()
+		if info.TimestampMs < cutoff {
+			// Drop silently; or return an error:
+			// return status.Errorf(codes.FailedPrecondition, "log older than retention window")
+			return nil
+		}
+	}
+	
+	// Stable id per (level|app|method|line)
+	info.Id = Utility.GenerateUUID(level + "|" + info.Application + "|" + info.Method + "|" + info.Line)
+
+	if info.TimestampMs == 0 {
+		info.TimestampMs = time.Now().UnixMilli()
+	}
 	info.Occurences = 1
 
-	// I will retreive the previous items...
-	data, err := srv.logs.GetItem(info.Id)
-	if err == nil {
-
-		previousInfo := logpb.LogInfo{}
-
-		// Unmarshal JSON data into the LogInfo instance
-		if err := protojson.Unmarshal(data, info); err != nil {
-			return err
+	if data, err := srv.logs.GetItem(info.Id); err == nil {
+		prev := new(logpb.LogInfo)
+		if e := protojson.Unmarshal(data, prev); e == nil {
+			info.Occurences = prev.Occurences + 1
+			if prev.TimestampMs > info.TimestampMs {
+				info.TimestampMs = prev.TimestampMs
+			}
 		}
-
-		// I will set the previous id...
-		info.Occurences = previousInfo.Occurences + 1
-
 	}
 
-	// I will index the log info...
-	index := Utility.GenerateUUID(level + `|` + info.Application)
-	data_, err := srv.logs.GetItem(index)
-	if err == nil {
-		indexed := make([]string, 0)
-		err = json.Unmarshal(data_, &indexed)
-		if err == nil && !Utility.Contains(indexed, info.Id) {
-			indexed = append(indexed, info.Id)
-			data_, err = json.Marshal(indexed)
-			if err == nil {
-				srv.logs.SetItem(index, data_)
+	// Primary (level,app) index (coarse)
+	idx := indexKey(level, info.Application)
+	if data, err := srv.logs.GetItem(idx); err == nil {
+		var ids []string
+		if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
+			ids = append(ids, info.Id)
+			if b, e := json.Marshal(ids); e == nil {
+				_ = srv.logs.SetItem(idx, b)
 			}
 		}
 	} else {
-		indexed := make([]string, 0)
-		indexed = append(indexed, info.Id)
-		data_, err = json.Marshal(indexed)
-		if err == nil {
-			srv.logs.SetItem(index, data_)
+		ids := []string{info.Id}
+		if b, e := json.Marshal(ids); e == nil {
+			_ = srv.logs.SetItem(idx, b)
 		}
 	}
 
-	// Marshal the log info into a json string.
-	jsonStr, err := protojson.Marshal(info)
+	// --- NEW: time bucket index + registry and boundaries ---
+	bStart := bucketStart(info.TimestampMs)
+	tidx := timeIndexKey(level, info.Application, bStart)
+	if data, err := srv.logs.GetItem(tidx); err == nil {
+		var ids []string
+		if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
+			ids = append(ids, info.Id)
+			if b, e := json.Marshal(ids); e == nil {
+				_ = srv.logs.SetItem(tidx, b)
+			}
+		}
+	} else {
+		ids := []string{info.Id}
+		if b, e := json.Marshal(ids); e == nil {
+			_ = srv.logs.SetItem(tidx, b)
+		}
+	}
+
+	// Register app under this level (used by janitor)
+	srv.addAppToLevel(level, info.Application)
+
+	// Maintain oldest/newest bucket pointers per (level, app)
+	oK := oldestKey(level, info.Application)
+	nK := newestKey(level, info.Application)
+	if old, ok := srv.getBoundary(oK); !ok || bStart < old {
+		srv.setBoundary(oK, bStart)
+	}
+	if neu, ok := srv.getBoundary(nK); !ok || bStart > neu {
+		srv.setBoundary(nK, bStart)
+	}
+	// --- END NEW ---
+
+	// Store the entry blob
+	js, err := protojson.Marshal(info)
 	if err != nil {
 		return err
 	}
+	_ = srv.logs.SetItem(info.Id, js)
 
-	// Append the log in leveldb
-	srv.logs.SetItem(info.Id, []byte(jsonStr))
-
-	// That must be use to keep all logger upto date...
-	srv.publish("new_log_evt", []byte(jsonStr))
-
-	// Inc the counter
-	fmt.Println("Log: ", level, info.Application, info.Method)
+	// Fan out & metrics
+	srv.publish("new_log_evt", js)
 	srv.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
-
 	return nil
 }
 
-// Log error or information into the data base *
-func (srv *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
+////////////////////////////////////////////////////////////////////////////////
+// API
+////////////////////////////////////////////////////////////////////////////////
 
+// Log receives a log entry, validates the caller token, persists/coalesces it,
+// publishes a `new_log_evt` with the full payload, and returns success.
+//
+// Required fields in rqst.Info:
+//   - application, method, line
+//
+// Optional:
+//   - message, timestamp_ms, component, fields
+func (srv *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	// Valide the token...
-	// The userId can be a single string or a JWT token.
-	_, err = security.ValidateToken(token)
-	if err != nil {
+	if _, err = security.ValidateToken(token); err != nil {
 		return nil, err
 	}
 
-	// Publish event...
-	srv.log(rqst.Info)
-
-	return &logpb.LogRsp{
-		Result: true,
-	}, nil
-}
-
-// Retreive the log informations
-func (srv *server) getLogs(application string, level string) ([]*logpb.LogInfo, error) {
-	index := Utility.GenerateUUID(level + `|` + application)
-	data, err := srv.logs.GetItem(index)
-	if err != nil {
-		return nil, err
-	}
-
-	indexed := make([]string, 0)
-	err = json.Unmarshal(data, &indexed)
-	if err != nil {
-		return nil, err
-	}
-
-	logs := make([]*logpb.LogInfo, 0)
-	for _, id := range indexed {
-		data, err := srv.logs.GetItem(id)
-		if err == nil {
-
-			info := logpb.LogInfo{}
-			err = protojson.Unmarshal(data, &info)
-			if err != nil {
-				return nil, err
-			}
-
-			logs = append(logs, &info)
-		}
-	}
-
-	return logs, nil
-}
-
-// Log error or information into the data base *
-// Retreive log infos (the query must be something like /infos/'date'/'applicationName'/'userName'
-func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
-
-	// Retreive the logs...
-	query := rqst.Query
-	if len(query) == 0 {
-		return errors.New("no query was given")
-	}
-
-	parameters := strings.Split(query, "/")
-	if len(parameters) != 3 {
-		return errors.New("the query must be something like /debug/application/*'")
-	}
-
-	logs, err := srv.getLogs(parameters[1], parameters[0])
-	if err != nil {
-		return err
-	}
-
-	// send the first 100 logs...
-	infos := make([]*logpb.LogInfo, 0)
-	max := 100
-
-	for _, info := range logs {
-		if max == 0 {
-			break
-		}
-
-		infos = append(infos, info)
-		max = max - 1
-
-	}
-
-	return stream.Send(&logpb.GetLogRsp{
-		Infos: infos,
-	})
-}
-
-func (srv *server) clearLogs(query string) error {
-
-	// TODO: retreive the logs and delete them...
-	// Retreive the logs...
-	if len(query) == 0 {
-		return errors.New("no query was given")
-	}
-
-	parameters := strings.Split(query, "/")
-	if len(parameters) != 3 {
-		return errors.New("the query must be something like /debug/application/*'")
-	}
-
-	// First of all I will retreive the log info with a given date.
-	logs, err := srv.getLogs(parameters[1], parameters[0])
-
-	if err != nil {
-		return err
-	}
-
-	// I will delete the logs...
-	for _, info := range logs {
-		err := srv.logs.RemoveItem(info.Id)
-		if err != nil {
-			return err
-		}
-	}
-
-	// I will delete the index...
-	index := Utility.GenerateUUID(parameters[0] + `|` + parameters[1])
-	err = srv.logs.RemoveItem(index)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// * Delete a log info *
-func (srv *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
-
-	err := srv.logs.RemoveItem(rqst.Log.Id)
-
-	if err != nil {
+	if err := srv.log(rqst.Info); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	var level string
-	if rqst.Log.GetLevel() == logpb.LogLevel_INFO_MESSAGE {
-		level = "info"
-	} else if rqst.Log.GetLevel() == logpb.LogLevel_DEBUG_MESSAGE {
-		level = "debug"
-	} else if rqst.Log.GetLevel() == logpb.LogLevel_ERROR_MESSAGE {
-		level = "error"
-	} else if rqst.Log.GetLevel() == logpb.LogLevel_FATAL_MESSAGE {
-		level = "fatal"
-	} else if rqst.Log.GetLevel() == logpb.LogLevel_TRACE_MESSAGE {
-		level = "trace"
-	} else if rqst.Log.GetLevel() == logpb.LogLevel_WARN_MESSAGE {
-		level = "warning"
+	return &logpb.LogRsp{Result: true}, nil
+}
+
+// GetLog streams up to the first 100 log entries that match a query.
+//
+// Query format: "/{level}/{application}/*"
+// Example: "/info/dns.DnsService/*"
+//
+// The server sends one response containing up to 100 entries.
+// GetLog streams up to the first N log entries that match a query.
+//
+// Query format (base):    "/{level}/{application}/*"
+// Optional filters (URL): "?since=ms&until=ms&limit=N&order=asc|desc&method=Foo&component=dns&contains=sub"
+// Examples:
+//
+//	"/info/dns.DnsService/*?since=1756650000000&limit=200&order=asc"
+//	"/error/*/*?contains=timeout"
+func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
+	q := rqst.Query
+	if q == "" {
+		return errors.New("no query was given")
 	}
 
-	// I will remove the log from index...
-	index := Utility.GenerateUUID(level + `|` + rqst.Log.Application)
-	data, err := srv.logs.GetItem(index)
-	if err == nil {
-		indexed := make([]string, 0)
-		err = json.Unmarshal(data, &indexed)
-		if err == nil {
-			for i, id := range indexed {
-				if id == rqst.Log.Id {
-					indexed = append(indexed[:i], indexed[i+1:]...)
-					data, err = json.Marshal(indexed)
-					if err == nil {
-						srv.logs.SetItem(index, data)
+	// Split path and optional URL-style filters
+	var rawPath, rawQuery string
+	if i := strings.IndexByte(q, '?'); i >= 0 {
+		rawPath, rawQuery = q[:i], q[i+1:]
+	} else {
+		rawPath = q
+	}
+
+	parts := strings.Split(rawPath, "/")
+	if len(parts) != 3 {
+		return errors.New("the query must be something like /debug/application/*'")
+	}
+	level, app := parts[0], parts[1]
+
+	// defaults
+	nowMs := time.Now().UnixMilli()
+	sinceMs := int64(0)
+	untilMs := nowMs
+	limit := 100
+	orderAsc := true
+	methodFilter := ""    // exact match if set
+	componentFilter := "" // exact match if set
+	contains := ""        // substring on message if set
+
+	// parse filters (all optional)
+	if rawQuery != "" {
+		v, _ := url.ParseQuery(rawQuery)
+
+		if s := v.Get("since"); s != "" {
+			if ms, err := strconv.ParseInt(s, 10, 64); err == nil {
+				sinceMs = ms
+			}
+		}
+		if s := v.Get("until"); s != "" {
+			if ms, err := strconv.ParseInt(s, 10, 64); err == nil {
+				untilMs = ms
+			}
+		}
+		if s := v.Get("limit"); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if s := strings.ToLower(v.Get("order")); s == "desc" {
+			orderAsc = false
+		}
+		if s := v.Get("method"); s != "" {
+			methodFilter = s
+		}
+		if s := v.Get("component"); s != "" {
+			componentFilter = s
+		}
+		if s := v.Get("contains"); s != "" {
+			contains = s
+		}
+	}
+	if sinceMs > untilMs {
+		sinceMs, untilMs = untilMs, sinceMs
+	}
+
+	// Helper to load a LogInfo by id
+	load := func(id string) *logpb.LogInfo {
+		if blob, e := srv.logs.GetItem(id); e == nil {
+			var li logpb.LogInfo
+			if protojson.Unmarshal(blob, &li) == nil {
+				return &li
+			}
+		}
+		return nil
+	}
+
+	// Collect candidate ids
+	candidates := make(map[string]struct{})
+
+	// Prefer time buckets if a time window is requested
+	usedTimeIdx := false
+	if sinceMs > 0 || untilMs < nowMs {
+		for b := bucketStart(sinceMs); b <= bucketStart(untilMs); b += bucketDur.Milliseconds() {
+			if data, err := srv.logs.GetItem(timeIndexKey(level, app, b)); err == nil {
+				var ids []string
+				if json.Unmarshal(data, &ids) == nil {
+					for _, id := range ids {
+						candidates[id] = struct{}{}
 					}
-					break
+					usedTimeIdx = true
 				}
 			}
 		}
 	}
-	return &logpb.DeleteLogRsp{
-		Result: true,
-	}, nil
+
+	// Fallback: coarse (level,app) index
+	if !usedTimeIdx {
+		idx := indexKey(level, app)
+		if data, err := srv.logs.GetItem(idx); err == nil {
+			var ids []string
+			if json.Unmarshal(data, &ids) == nil {
+				for _, id := range ids {
+					candidates[id] = struct{}{}
+				}
+			}
+		} else {
+			// no index -> nothing to send
+			return stream.Send(&logpb.GetLogRsp{Infos: nil})
+		}
+	}
+
+	// Load, filter, and sort
+	out := make([]*logpb.LogInfo, 0, len(candidates))
+	for id := range candidates {
+		li := load(id)
+		if li == nil {
+			continue
+		}
+		// time window
+		if (sinceMs > 0 && li.TimestampMs < sinceMs) || (untilMs > 0 && li.TimestampMs > untilMs) {
+			continue
+		}
+		// extra filters
+		if methodFilter != "" && li.Method != methodFilter {
+			continue
+		}
+		if componentFilter != "" && li.Component != componentFilter {
+			continue
+		}
+		if contains != "" && !strings.Contains(strings.ToLower(li.Message), strings.ToLower(contains)) {
+			continue
+		}
+		out = append(out, li)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if orderAsc {
+			return out[i].TimestampMs < out[j].TimestampMs
+		}
+		return out[i].TimestampMs > out[j].TimestampMs
+	})
+
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return stream.Send(&logpb.GetLogRsp{Infos: out})
 }
 
-// * Clear logs. info or errors *
+// DeleteLog removes a specific log entry and updates its (level, app) index.
+//
+// It expects rqst.Log to include a valid Id and Level/Application fields
+// to update the correct index.
+func (srv *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
+	if rqst == nil || rqst.Log == nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no log was provided")),
+		)
+	}
+
+	// Remove the log blob
+	if err := srv.logs.RemoveItem(rqst.Log.Id); err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
+	}
+
+	// Remove from index
+	levelStr := levelToString(rqst.Log.GetLevel())
+	idx := indexKey(levelStr, rqst.Log.Application)
+
+	if data, err := srv.logs.GetItem(idx); err == nil {
+		var ids []string
+		if json.Unmarshal(data, &ids) == nil {
+			for i, id := range ids {
+				if id == rqst.Log.Id {
+					ids = append(ids[:i], ids[i+1:]...)
+					break
+				}
+			}
+			if enc, e := json.Marshal(ids); e == nil {
+				_ = srv.logs.SetItem(idx, enc)
+			}
+		}
+	}
+
+	return &logpb.DeleteLogRsp{Result: true}, nil
+}
+
+// ClearAllLog removes all logs matching a query of the form "/{level}/{application}/*".
+//
+// It deletes each indexed entry and the index itself.
 func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst) (*logpb.ClearAllLogRsp, error) {
-	err := srv.clearLogs(rqst.Query)
+	query := rqst.GetQuery()
+	if query == "" {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no query was given")),
+		)
+	}
+
+	parts := strings.Split(query, "/")
+	if len(parts) != 3 {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the query must be something like /debug/application/*'")),
+		)
+	}
+
+	level, app := parts[0], parts[1]
+	idx := indexKey(level, app)
+
+	data, err := srv.logs.GetItem(idx)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
 	}
 
-	return &logpb.ClearAllLogRsp{
-		Result: true,
-	}, nil
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
+	}
+
+	for _, id := range ids {
+		_ = srv.logs.RemoveItem(id) // best effort
+	}
+	_ = srv.logs.RemoveItem(idx) // remove the index too
+
+	return &logpb.ClearAllLogRsp{Result: true}, nil
 }

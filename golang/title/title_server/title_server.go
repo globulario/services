@@ -629,7 +629,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title id was given")))
 	}
 
-	fmt.Println("--------------------> create title with id ", rqst.Title.ID, " and name ", rqst.Title.Name, rqst.Title.Actors, rqst.Title.Writers, rqst.Title.Directors)
+	fmt.Println("---------- create title with id ", rqst.Title.ID, " and name ", rqst.Title.Name, rqst.Title.Actors, rqst.Title.Writers, rqst.Title.Directors)
 
 	// Now I will index the conversation to be retreivable for it creator...
 	clientId, _, err := security.GetClientId(ctx)
@@ -886,7 +886,7 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		return err
 	}
 
-	fmt.Println("----------------------> save title metadata for file ", absolutefilePath, " with title ", title.Name, title.Actors, title.Writers, title.Directors)
+	fmt.Println("------------ save title metadata for file ", absolutefilePath, " with title ", title.Name, title.Actors, title.Writers, title.Directors)
 	jsonStr, err := protojson.Marshal(title)
 	if err != nil {
 		return err

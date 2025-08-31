@@ -682,13 +682,13 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 			srv.authentications_ = append(srv.authentications_, uuid)
 
 			// I will try to authenticate the peer on other resource service...
-			for i := 0; i < len(peers); i++ {
+			for i := range peers {
 				peer := peers[i]
 				address := peer.Domain
 				if peer.Protocol == "https" {
-					address += ":" + Utility.ToString(peer.PortHTTPS)
+					address += ":" + Utility.ToString(peer.PortHttps)
 				} else {
-					address += ":" + Utility.ToString(peer.PortHTTP)
+					address += ":" + Utility.ToString(peer.PortHttp)
 				}
 
 				resource_client_, err := GetResourceClient(address)
