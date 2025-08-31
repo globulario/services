@@ -513,6 +513,11 @@ func (client *Event_Client) UnSubscribe(name string, uuid string) error {
 
 // In event_client.Event_Client
 
+
+// SubscribeCtx subscribes to events with the specified name and uuid, using the provided context and handler function.
+// If the context is nil, it uses the client's default context. The subscription is registered both locally and on the server.
+// The handler function fct will be called for each received event. The subscription is automatically unsubscribed when the context is done.
+// Returns an error if the server-side registration fails.
 func (client *Event_Client) SubscribeCtx(ctx context.Context, name, uuid string, fct func(*eventpb.Event)) error {
     if ctx == nil {
         ctx = client.GetCtx()
@@ -545,6 +550,12 @@ func (client *Event_Client) SubscribeCtx(ctx context.Context, name, uuid string,
     return nil
 }
 
+
+// UnSubscribeCtx unsubscribes the client from an event stream identified by name and uuid.
+// If the provided context is nil, it uses the client's default context.
+// It sends an UnSubscribeRequest to the event service and, upon success,
+// notifies the client's actions channel about the unsubscription.
+// Returns an error if the unsubscribe operation fails.
 func (client *Event_Client) UnSubscribeCtx(ctx context.Context, name, uuid string) error {
     if ctx == nil {
         ctx = client.GetCtx()
