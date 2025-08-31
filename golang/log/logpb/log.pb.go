@@ -83,13 +83,16 @@ func (LogLevel) EnumDescriptor() ([]byte, []int) {
 // LogInfo represents a single log entry.
 type LogInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                          // Unique identifier of the log entry.
-	Level         LogLevel               `protobuf:"varint,2,opt,name=level,proto3,enum=log.LogLevel" json:"level,omitempty"` // Severity level of the log.
-	Application   string                 `protobuf:"bytes,3,opt,name=application,proto3" json:"application,omitempty"`        // Name of the application generating the log.
-	Method        string                 `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`                  // The method where the log was generated.
-	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`                // Descriptive message of the log.
-	Line          string                 `protobuf:"bytes,6,opt,name=line,proto3" json:"line,omitempty"`                      // Line number where the log was generated.
-	Occurences    int64                  `protobuf:"varint,7,opt,name=occurences,proto3" json:"occurences,omitempty"`         // Number of occurrences of the log event.
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                                                                    // Unique identifier of the log entry.
+	Level         LogLevel               `protobuf:"varint,2,opt,name=level,proto3,enum=log.LogLevel" json:"level,omitempty"`                                                           // Severity level of the log.
+	Application   string                 `protobuf:"bytes,3,opt,name=application,proto3" json:"application,omitempty"`                                                                  // Name of the application generating the log.
+	Method        string                 `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`                                                                            // The method where the log was generated.
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`                                                                          // Descriptive message of the log.
+	Line          string                 `protobuf:"bytes,6,opt,name=line,proto3" json:"line,omitempty"`                                                                                // Line number where the log was generated.
+	Occurences    int64                  `protobuf:"varint,7,opt,name=occurences,proto3" json:"occurences,omitempty"`                                                                   // Number of occurrences of the log event.
+	TimestampMs   int64                  `protobuf:"varint,8,opt,name=timestamp_ms,json=timestampMs,proto3" json:"timestamp_ms,omitempty"`                                              // Unix epoch millis when produced (producer side)
+	Component     string                 `protobuf:"bytes,9,opt,name=component,proto3" json:"component,omitempty"`                                                                      // e.g., "http", "dns", "tls" (from logger attr)
+	Fields        map[string]string      `protobuf:"bytes,10,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // structured attrs (key→value)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -171,6 +174,27 @@ func (x *LogInfo) GetOccurences() int64 {
 		return x.Occurences
 	}
 	return 0
+}
+
+func (x *LogInfo) GetTimestampMs() int64 {
+	if x != nil {
+		return x.TimestampMs
+	}
+	return 0
+}
+
+func (x *LogInfo) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
+func (x *LogInfo) GetFields() map[string]string {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
 }
 
 // LogRqst is the request format for logging a new message.
@@ -537,7 +561,7 @@ var File_log_proto protoreflect.FileDescriptor
 
 const file_log_proto_rawDesc = "" +
 	"\n" +
-	"\tlog.proto\x12\x03log\"\xc6\x01\n" +
+	"\tlog.proto\x12\x03log\"\xf4\x02\n" +
 	"\aLogInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\x05level\x18\x02 \x01(\x0e2\r.log.LogLevelR\x05level\x12 \n" +
@@ -547,7 +571,14 @@ const file_log_proto_rawDesc = "" +
 	"\x04line\x18\x06 \x01(\tR\x04line\x12\x1e\n" +
 	"\n" +
 	"occurences\x18\a \x01(\x03R\n" +
-	"occurences\"+\n" +
+	"occurences\x12!\n" +
+	"\ftimestamp_ms\x18\b \x01(\x03R\vtimestampMs\x12\x1c\n" +
+	"\tcomponent\x18\t \x01(\tR\tcomponent\x120\n" +
+	"\x06fields\x18\n" +
+	" \x03(\v2\x18.log.LogInfo.FieldsEntryR\x06fields\x1a9\n" +
+	"\vFieldsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"+\n" +
 	"\aLogRqst\x12 \n" +
 	"\x04info\x18\x01 \x01(\v2\f.log.LogInfoR\x04info\" \n" +
 	"\x06LogRsp\x12\x16\n" +
@@ -592,7 +623,7 @@ func file_log_proto_rawDescGZIP() []byte {
 }
 
 var file_log_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_log_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_log_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_log_proto_goTypes = []any{
 	(LogLevel)(0),           // 0: log.LogLevel
 	(*LogInfo)(nil),         // 1: log.LogInfo
@@ -604,25 +635,27 @@ var file_log_proto_goTypes = []any{
 	(*GetLogRsp)(nil),       // 7: log.GetLogRsp
 	(*ClearAllLogRqst)(nil), // 8: log.ClearAllLogRqst
 	(*ClearAllLogRsp)(nil),  // 9: log.ClearAllLogRsp
+	nil,                     // 10: log.LogInfo.FieldsEntry
 }
 var file_log_proto_depIdxs = []int32{
-	0, // 0: log.LogInfo.level:type_name -> log.LogLevel
-	1, // 1: log.LogRqst.info:type_name -> log.LogInfo
-	1, // 2: log.DeleteLogRqst.log:type_name -> log.LogInfo
-	1, // 3: log.GetLogRsp.infos:type_name -> log.LogInfo
-	2, // 4: log.LogService.Log:input_type -> log.LogRqst
-	6, // 5: log.LogService.GetLog:input_type -> log.GetLogRqst
-	4, // 6: log.LogService.DeleteLog:input_type -> log.DeleteLogRqst
-	8, // 7: log.LogService.ClearAllLog:input_type -> log.ClearAllLogRqst
-	3, // 8: log.LogService.Log:output_type -> log.LogRsp
-	7, // 9: log.LogService.GetLog:output_type -> log.GetLogRsp
-	5, // 10: log.LogService.DeleteLog:output_type -> log.DeleteLogRsp
-	9, // 11: log.LogService.ClearAllLog:output_type -> log.ClearAllLogRsp
-	8, // [8:12] is the sub-list for method output_type
-	4, // [4:8] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: log.LogInfo.level:type_name -> log.LogLevel
+	10, // 1: log.LogInfo.fields:type_name -> log.LogInfo.FieldsEntry
+	1,  // 2: log.LogRqst.info:type_name -> log.LogInfo
+	1,  // 3: log.DeleteLogRqst.log:type_name -> log.LogInfo
+	1,  // 4: log.GetLogRsp.infos:type_name -> log.LogInfo
+	2,  // 5: log.LogService.Log:input_type -> log.LogRqst
+	6,  // 6: log.LogService.GetLog:input_type -> log.GetLogRqst
+	4,  // 7: log.LogService.DeleteLog:input_type -> log.DeleteLogRqst
+	8,  // 8: log.LogService.ClearAllLog:input_type -> log.ClearAllLogRqst
+	3,  // 9: log.LogService.Log:output_type -> log.LogRsp
+	7,  // 10: log.LogService.GetLog:output_type -> log.GetLogRsp
+	5,  // 11: log.LogService.DeleteLog:output_type -> log.DeleteLogRsp
+	9,  // 12: log.LogService.ClearAllLog:output_type -> log.ClearAllLogRsp
+	9,  // [9:13] is the sub-list for method output_type
+	5,  // [5:9] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_log_proto_init() }
@@ -636,7 +669,7 @@ func file_log_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_log_proto_rawDesc), len(file_log_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

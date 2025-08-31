@@ -23,6 +23,9 @@ message LogInfo {
     string message = 5;        // Descriptive message of the log.
     string line = 6;           // Line number where the log was generated.
     int64 occurences = 7;      // Number of occurrences of the log event.
+    int64    timestamp_ms = 8;  // Unix epoch millis when produced (producer side)
+    string   component    = 9;  // e.g., "http", "dns", "tls" (from logger attr)
+    map<string,string> fields = 10; // structured attrs (key→value)
 }
 
 // LogRqst is the request format for logging a new message.
