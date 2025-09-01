@@ -73,6 +73,11 @@ func KillServiceProcess(s map[string]interface{}) error {
 	s["Process"] = -1
 	s["State"] = "killed"
 	slog.Info("service process terminated", "pid", pid)
+
+	if err := KillServiceProxyProcess(s); err != nil {
+		slog.Warn("failed to terminate proxy after service kill", "err", err)
+	}
+	
 	return nil
 }
 
@@ -369,6 +374,40 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		return proxyPid, err
 	}
 	return proxyPid, nil
+}
+
+// KillServiceProxyProcess terminates the grpcwebproxy for a service if present.
+func KillServiceProxyProcess(s map[string]interface{}) error {
+	pid := Utility.ToInt(s["ProxyProcess"])
+	if pid <= 0 {
+		return nil
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		// Process is already gone; clean up state.
+		slog.Warn("proxy process already gone", "pid", pid, "err", err)
+		s["ProxyProcess"] = -1
+		_ = config.SaveServiceConfiguration(s)
+		return nil
+	}
+
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		slog.Error("failed to terminate proxy process", "pid", pid, "err", err)
+		// keep LastError for visibility
+		s["LastError"] = err.Error()
+		_ = config.SaveServiceConfiguration(s)
+		return err
+	}
+
+	s["ProxyProcess"] = -1
+	// If the service itself is not running, mark overall state stopped.
+	if Utility.ToInt(s["Process"]) == -1 {
+		s["State"] = "stopped"
+	}
+	_ = config.SaveServiceConfiguration(s)
+	slog.Info("proxy process terminated", "pid", pid, "service", s["Name"], "id", s["Id"])
+	return nil
 }
 
 /*
