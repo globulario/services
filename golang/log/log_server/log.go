@@ -392,8 +392,9 @@ func (srv *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp,
 //	"/info/dns.DnsService/*?since=1756650000000&limit=200&order=asc"
 //	"/error/*/*?contains=timeout"
 func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLogServer) error {
+
 	q := rqst.Query
-	if q == "" {
+	if strings.TrimSpace(q) == "" {
 		return errors.New("no query was given")
 	}
 
@@ -405,11 +406,14 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 		rawPath = q
 	}
 
-	parts := strings.Split(rawPath, "/")
-	if len(parts) != 3 {
-		return errors.New("the query must be something like /debug/application/*'")
+	// Normalize path: trim leading/trailing slashes and split, ignoring empties
+	parts := strings.FieldsFunc(strings.Trim(rawPath, "/"), func(r rune) bool { return r == '/' })
+	if len(parts) < 2 || len(parts) > 3 {
+		return errors.New("the query must be like /{level}/{application}[/[*|method]]")
 	}
-	level, app := parts[0], parts[1]
+
+	level := strings.ToLower(parts[0])
+	app := parts[1]
 
 	// defaults
 	nowMs := time.Now().UnixMilli()
@@ -420,6 +424,11 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 	methodFilter := ""    // exact match if set
 	componentFilter := "" // exact match if set
 	contains := ""        // substring on message if set
+
+	// Optional 3rd segment: either "*" (wildcard) or a concrete method name.
+	if len(parts) == 3 && parts[2] != "*" {
+		methodFilter = parts[2]
+	}
 
 	// parse filters (all optional)
 	if rawQuery != "" {
@@ -453,6 +462,7 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 			contains = s
 		}
 	}
+
 	if sinceMs > untilMs {
 		sinceMs, untilMs = untilMs, sinceMs
 	}
@@ -539,6 +549,7 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 	}
 	return stream.Send(&logpb.GetLogRsp{Infos: out})
 }
+
 
 // DeleteLog removes a specific log entry and updates its (level, app) index.
 //

@@ -1,5 +1,14 @@
 package storage_store
 
+import "log/slog"
+
+// SetLogger allows the host service to inject its slog logger.
+func SetLogger(l *slog.Logger) {
+	if l != nil {
+		bcLogger = l
+	}
+}
+
 /**
  * A key value data store.
  */

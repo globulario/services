@@ -389,7 +389,6 @@ func (store *SqlStore) Disconnect(connectionId string) error {
 	// Remove the connection from the map
 	delete(store.connections, connectionId)
 
-	fmt.Println("Disconnected from SQL server", connectionId)
 	return nil
 }
 
@@ -413,8 +412,6 @@ func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, 
 	} else {
 		databasePath = store.connections[connectionId].Path + "/" + db + ".db"
 	}
-
-	fmt.Println("Delete database files: ", databasePath)
 
 	return os.RemoveAll(databasePath)
 }

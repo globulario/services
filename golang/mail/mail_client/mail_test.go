@@ -34,14 +34,11 @@ func TestCreateConnection(t *testing.T) {
 		log.Panicln(err)
 	}
 
-	fmt.Println("Connection creation test.")
 	err = client.CreateConnection("test_smtp", "sa", "adminadmin", 587, address)
 
 	if err != nil {
 		log.Panicln(err)
 	}
-
-	fmt.Println("connection was createad!")
 }
 
 /**

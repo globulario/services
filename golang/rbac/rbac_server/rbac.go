@@ -132,8 +132,6 @@ func (srv *server) getResourceTypePathIndexation(resource_type string) ([]*rbacp
 			if p.ResourceType == resource_type {
 				permissions = append(permissions, p)
 			}
-		} else {
-			fmt.Println("74 path not found: ", paths[i], err)
 		}
 	}
 
@@ -344,7 +342,7 @@ func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.
 
 	data, err := srv.getItem(id)
 	if err != nil {
-		fmt.Println("355 fail to get allocated space for ", subject, " with id ", id, " with error ", err)
+		fmt.Println("fail to get allocated space for ", subject, " with id ", id, " with error ", err)
 		return 0, err
 	}
 
@@ -352,7 +350,7 @@ func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.
 	buf := bytes.NewBuffer(data)
 	err = binary.Read(buf, binary.LittleEndian, &ret)
 	if err != nil {
-		fmt.Println("361 fail to get allocated space for ", subject, " with id ", id, " with error ", err)
+		fmt.Println("fail to get allocated space for ", subject, " with id ", id, " with error ", err)
 		srv.removeItem(id)
 		return 0, err
 	}
@@ -1968,8 +1966,6 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 		return errors.New("no resource type was given")
 	}
 
-	fmt.Println("---------- addResourceOwner", path, resourceType_, subject, subjectType)
-
 	permissions, err := srv.getResourcePermissions(path)
 
 	needSave := false
@@ -3009,8 +3005,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 		actions = application.Actions
 
-		fmt.Println("--> Application actions ", application.Name)
-		fmt.Println("--------> actions ", actions)
 
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)

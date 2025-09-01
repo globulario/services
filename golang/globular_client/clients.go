@@ -1,3 +1,5 @@
+// Package globular_client provides a thin client helper layer for discovering,
+// initializing, connecting, and invoking Globular gRPC services with optional TLS.
 package globular_client
 
 import (
@@ -6,15 +8,13 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
-	"runtime"
 	"runtime/debug"
-	"time"
-
-	//"log"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
@@ -29,24 +29,25 @@ var (
 	clients    *sync.Map
 )
 
-// Factory method.
+// GetClient is a factory that returns (and memoizes) a client for a given
+// service name at an address. fct must be the registered constructor name used
+// by Utility.CallFunction (e.g., "NewFileService_Client").
+// It resolves peer domains to reachable host:port when necessary.
 func GetClient(address, name, fct string) (Client, error) {
-
-	// so here I will test if the domain is contain in peers...
 	localAddress, _ := config.GetAddress()
 	if localAddress != address {
-		// Here I will test if the domain is contain in peers...
+		// Resolve peer address to a concrete host:port if the domain matches a peer.
 		localConfig, _ := config.GetLocalConfig(true)
-		peers, _ := localConfig["Peers"].([]interface{})
-		for i := 0; i < len(peers); i++ {
-			p := peers[i].(map[string]interface{})
-			if p["Domain"].(string) == address {
-				address = p["Hostname"].(string)
-				if p["Domain"].(string) != "localhost" {
-					address += "." + p["Domain"].(string)
+		if peers, ok := localConfig["Peers"].([]interface{}); ok {
+			for _, pi := range peers {
+				if p, ok := pi.(map[string]interface{}); ok && p["Domain"].(string) == address {
+					host := p["Hostname"].(string)
+					if p["Domain"].(string) != "localhost" {
+						host += "." + p["Domain"].(string)
+					}
+					address = host + ":" + Utility.ToString(p["Port"])
+					break
 				}
-				address += ":" + Utility.ToString(p["Port"])
-				break
 			}
 		}
 	}
@@ -56,324 +57,235 @@ func GetClient(address, name, fct string) (Client, error) {
 	}
 
 	id := Utility.GenerateUUID(name + ":" + address)
-	existing_client_, ok := clients.Load(id)
-	if ok {
-		return existing_client_.(Client), nil
+	if existing, ok := clients.Load(id); ok {
+		return existing.(Client), nil
 	}
 
 	results, err := Utility.CallFunction(fct, address, name)
 	if err != nil {
-
-		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
-
-		b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
-		n := runtime.Stack(b, false)
-		s := string(b[:n])
-		fmt.Println(s)
-
+		slog.Error("GetClient: constructor invocation failed",
+			"function", fct, "address", address, "service", name, "err", err)
 		return nil, err
 	}
 
 	if !results[1].IsNil() {
 		err := results[1].Interface().(error)
-		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
-		b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
-		n := runtime.Stack(b, false)
-		s := string(b[:n])
-		fmt.Println(s)
+		slog.Error("GetClient: constructor returned error",
+			"function", fct, "address", address, "service", name, "err", err)
 		return nil, err
 	}
 
 	client := results[0].Interface().(Client)
 	clients.Store(id, client)
-
+	slog.Debug("GetClient: client created", "service", name, "address", address)
 	return client, nil
 }
 
-// The client service interface.
+// Client defines the minimal interface required by helpers in this package.
 type Client interface {
-
-	// Return the address with the port where configuration can be found...
+	// Address including the HTTP(S) config port (not the gRPC port).
 	GetAddress() string
-
-	// Get Domain return the client domain.
 	GetDomain() string
-
-	// Return the id of the service.
 	GetId() string
-
-	// Return the mac address of a client.
 	GetMac() string
-
-	// Return the name of the service.
 	GetName() string
-
-	// Close the client.
 	Close()
 
-	// Contain the grpc port number, to http port is contain the address
+	// gRPC port (without host).
 	SetPort(int)
-
-	// Return the grpc port
 	GetPort() int
 
-	// Set the id of the client
 	SetId(string)
-
-	// Set the mac address
 	SetMac(string)
-
-	// Set the name of the client
 	SetName(string)
 
-	// Return the state of the client at connection time.
 	GetState() string
-
 	SetState(string)
 
-	// Set the domain of the client
 	SetDomain(string)
-
-	// Set the address of the client
 	SetAddress(string)
 
-	////////////////// TLS ///////////////////
-
-	//if the client is secure.
+	// TLS configuration
 	HasTLS() bool
-
-	// Get the TLS certificate file path
 	GetCertFile() string
-
-	// Get the TLS key file path
 	GetKeyFile() string
-
-	// Get the TLS key file path
 	GetCaFile() string
-
-	// Set the client is a secure client.
 	SetTLS(bool)
-
-	// Set TLS certificate file path
 	SetCertFile(string)
-
-	// Set TLS key file path
 	SetKeyFile(string)
-
-	// Set TLS authority trust certificate file path
 	SetCaFile(string)
 
-	// Connect or reconnect...
+	// Connection lifecycle
 	Reconnect() error
 
-	// Invoque a request on the client and return it grpc reply.
+	// Invoke a fully-qualified gRPC method on this client.
 	Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error)
 }
 
-/**
- * Initialyse the client security and set it port to
- */
+// InitClient initializes client metadata and TLS settings from Globular
+// configuration. The given address points to the HTTP(S) control port, not the
+// gRPC port; id is the service configuration identifier.
 func InitClient(client Client, address string, id string) error {
-
 	if len(address) == 0 {
-		return errors.New("no address was given for client id " + id)
+		return fmt.Errorf("InitClient: no address provided (id=%s)", id)
 	}
-
 	if len(id) == 0 {
-		return errors.New("no id was given for client address " + address)
+		return fmt.Errorf("InitClient: no id provided (address=%s)", address)
 	}
 
-	var config_ map[string]interface{}
+	var cfg map[string]interface{}
 	var err error
 
-	// Here the address must contain the port where the configuration can be found on the
-	// http server. If not given thas mean if it's local (on the same domain) I will retreive
-	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
-	address_, _ := config.GetAddress()
-	localConfig, _ := config.GetLocalConfig(true)
+	localAddr, _ := config.GetAddress()
+	localCfg, _ := config.GetLocalConfig(true)
 
+	// Normalize address to include control port.
 	if !strings.Contains(address, ":") {
-		if strings.HasPrefix(address_, address) {
-			// this is local
-			if localConfig["Protocol"].(string) == "https" {
-				address += ":" + Utility.ToString(localConfig["PortHTTPS"])
+		if strings.HasPrefix(localAddr, address) {
+			// Local
+			if localCfg["Protocol"].(string) == "https" {
+				address += ":" + Utility.ToString(localCfg["PortHTTPS"])
 			} else {
-				address += ":" + Utility.ToString(localConfig["PortHTTP"])
+				address += ":" + Utility.ToString(localCfg["PortHTTP"])
 			}
 		} else {
-
-			// so here I will test if the domain is contain in peers if so i will get the port from it...
-			if localConfig["Peers"] != nil {
-				peers := localConfig["Peers"].([]interface{})
-				for i := 0; i < len(peers); i++ {
-					p := peers[i].(map[string]interface{})
+			// Try peers
+			if ps, ok := localCfg["Peers"].([]interface{}); ok {
+				for _, pi := range ps {
+					p := pi.(map[string]interface{})
 					if p["Domain"].(string) == address {
 						address += ":" + Utility.ToString(p["Port"])
 						break
 					}
 				}
 			}
-			// No port was found so I will take the default port.
+			// Fall back to local defaults if still no port.
 			if !strings.Contains(address, ":") {
-				if localConfig["Protocol"].(string) == "https" {
-					address += ":" + Utility.ToString(localConfig["PortHTTPS"])
+				if localCfg["Protocol"].(string) == "https" {
+					address += ":" + Utility.ToString(localCfg["PortHTTPS"])
 				} else {
-					address += ":" + Utility.ToString(localConfig["PortHTTP"])
+					address += ":" + Utility.ToString(localCfg["PortHTTP"])
 				}
 			}
 		}
 	}
 
-	values := strings.Split(address, ":")
-	domain := values[0]
+	parts := strings.Split(address, ":")
+	domain := parts[0]
+	port := Utility.ToInt(parts[1])
+	isLocal := localAddr == address
 
-	port := Utility.ToInt(values[1])
-	isLocal := address_ == address
+	// Subject Alternative Name (SAN) details used when installing TLS certs.
+	var sanCountry, sanState, sanCity, sanOrg string
+	var sanAltDomains []interface{}
 
-	// San Certificate informations
-	var san_country string
-	var san_state string
-	var san_city string
-	var san_organization string
-	san_alternateDomains := make([]interface{}, 0)
+	var globuleCfg map[string]interface{}
 
 	if isLocal {
-
-		// get san values from the globule itself...
-		globule_config, _ := config.GetLocalConfig(true)
-		if globule_config["Country"] != nil {
-			san_country = globule_config["Country"].(string)
-		}
-		if globule_config["State"] != nil {
-			san_state = globule_config["State"].(string)
-		}
-		if globule_config["City"] != nil {
-			san_city = globule_config["City"].(string)
-		}
-		if globule_config["Organization"] != nil {
-			san_organization = globule_config["Organization"].(string)
-		}
-		if globule_config["AlternateDomains"] != nil {
-			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
-		}
-
-		// Local client configuration
-		config_, err = config.GetServiceConfigurationById(id)
-
+		globuleCfg, _ = config.GetLocalConfig(true)
+		cfg, err = config.GetServiceConfigurationById(id)
 	} else {
-
-		// so here I try to get more information from peers...
-		var globule_config map[string]interface{}
-		globule_config, err = config.GetRemoteConfig(domain, port)
+		globuleCfg, err = config.GetRemoteConfig(domain, port)
 		if err == nil {
-			config_, err = config.GetRemoteServiceConfig(domain, port, id)
+			cfg, err = config.GetRemoteServiceConfig(domain, port, id)
 		}
-
-		// set san values
-		if globule_config["Country"] != nil {
-			san_country = globule_config["Country"].(string)
-		}
-		if globule_config["State"] != nil {
-			san_state = globule_config["State"].(string)
-		}
-		if globule_config["City"] != nil {
-			san_city = globule_config["City"].(string)
-		}
-		if globule_config["Organization"] != nil {
-			san_organization = globule_config["Organization"].(string)
-		}
-		if globule_config["AlternateDomains"] != nil {
-			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
-		}
-
 	}
 
-	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
-		fmt.Println("fail to initialyse client", id, "with error", err)
+		slog.Error("InitClient: failed to fetch configuration",
+			"id", id, "address", address, "local", isLocal, "err", err)
 		return err
 	}
 
-	// Keep the client address...
+	// Extract SAN values
+	if v, ok := globuleCfg["Country"].(string); ok {
+		sanCountry = v
+	}
+	if v, ok := globuleCfg["State"].(string); ok {
+		sanState = v
+	}
+	if v, ok := globuleCfg["City"].(string); ok {
+		sanCity = v
+	}
+	if v, ok := globuleCfg["Organization"].(string); ok {
+		sanOrg = v
+	}
+	if v, ok := globuleCfg["AlternateDomains"].([]interface{}); ok {
+		sanAltDomains = v
+	}
+
+	// Persist the address on the client.
 	client.SetAddress(address)
 
-	// Set client attributes.
-	if config_["Id"] != nil {
-		client.SetId(config_["Id"].(string))
+	// Mandatory attributes
+	if v, ok := cfg["Id"].(string); ok && v != "" {
+		client.SetId(v)
 	} else {
-		return errors.New("no id found for service " + id)
+		return fmt.Errorf("InitClient: missing service Id for %s", id)
+	}
+	if v, ok := cfg["Domain"].(string); ok && v != "" {
+		client.SetDomain(v)
+	} else {
+		return fmt.Errorf("InitClient: missing service Domain for %s", id)
+	}
+	if v, ok := cfg["Name"].(string); ok && v != "" {
+		client.SetName(v)
+	} else {
+		return fmt.Errorf("InitClient: missing service Name for %s", id)
+	}
+	if v, ok := cfg["Mac"].(string); ok && v != "" {
+		client.SetMac(v)
+	} else {
+		return fmt.Errorf("InitClient: missing service Mac for %s", id)
+	}
+	if v, ok := cfg["Port"]; ok {
+		client.SetPort(Utility.ToInt(v))
+	} else {
+		return fmt.Errorf("InitClient: missing service Port for %s", id)
+	}
+	if v, ok := cfg["State"].(string); ok && v != "" {
+		client.SetState(v)
+	} else {
+		return fmt.Errorf("InitClient: missing service State for %s", id)
 	}
 
-	if config_["Domain"] != nil {
-		client.SetDomain(config_["Domain"].(string))
-	} else {
-		return errors.New("no domain found for service " + id)
-	}
-
-	if config_["Name"] != nil {
-		client.SetName(config_["Name"].(string))
-	} else {
-		return errors.New("no name found for service " + id)
-	}
-
-	if config_["Mac"] != nil {
-		client.SetMac(config_["Mac"].(string))
-	} else {
-		return errors.New("no mac address found for service " + id)
-	}
-
-	if config_["Port"] != nil {
-		client.SetPort(Utility.ToInt(config_["Port"]))
-	} else {
-		return errors.New("no port found for service " + id)
-	}
-
-	if config_["State"] != nil {
-		client.SetState(config_["State"].(string))
-	} else {
-		return errors.New("no state found for service " + id)
-	}
-
-	// Set security values.
-	if config_["TLS"].(bool) {
+	// TLS setup
+	if enabled, _ := cfg["TLS"].(bool); enabled {
 		client.SetTLS(true)
 		if isLocal {
-			// Change server cert to client cert and do the same for key because we are at client side...
-			certificateFile := strings.Replace(config_["CertFile"].(string), "server", "client", -1)
-			keyFile := strings.Replace(config_["KeyFile"].(string), "server", "client", -1)
+			// Translate server cert/key to client cert/key paths locally.
+			certFile := strings.Replace(cfg["CertFile"].(string), "server", "client", -1)
+			keyFile := strings.Replace(cfg["KeyFile"].(string), "server", "client", -1)
 			client.SetKeyFile(keyFile)
-			client.SetCertFile(certificateFile)
-			client.SetCaFile(config_["CertAuthorityTrust"].(string))
-
+			client.SetCertFile(certFile)
+			client.SetCaFile(cfg["CertAuthorityTrust"].(string))
 		} else {
-
-			// The address is not the local address so I want to get remote configuration value.
-			// Here I will retreive the credential or create it if not exist.
+			// Ensure remote client certificates are installed.
 			path := config.GetConfigDir() + "/tls/" + domain
-
-			// install tls certificates if needed.
-			keyFile, certificateFile, caFile, err := security.InstallClientCertificates(domain, port, path, san_country, san_state, san_city, san_organization, san_alternateDomains)
+			keyFile, certFile, caFile, err := security.InstallClientCertificates(
+				domain, port, path, sanCountry, sanState, sanCity, sanOrg, sanAltDomains,
+			)
 			if err != nil {
+				slog.Error("InitClient: InstallClientCertificates failed",
+					"domain", domain, "port", port, "err", err)
 				return err
 			}
-
 			client.SetKeyFile(keyFile)
-			client.SetCertFile(certificateFile)
+			client.SetCertFile(certFile)
 			client.SetCaFile(caFile)
 		}
-
 	} else {
 		client.SetTLS(false)
 	}
 
+	slog.Debug("InitClient: client initialized",
+		"id", client.GetId(), "name", client.GetName(), "domain", client.GetDomain(),
+		"grpc_port", client.GetPort(), "tls", client.HasTLS(), "address", client.GetAddress())
 	return nil
 }
 
-/**
- * That function is use to intercept all grpc client call for each client
- * if the connection is close a new connection will be made and the configuration
- * will be updated to set correct information.
- */
+// clientInterceptor attempts to transparently reinitialize/reconnect the client
+// when transient connection errors occur, then retries the call.
 func clientInterceptor(client_ Client) func(
 	ctx context.Context,
 	method string,
@@ -392,184 +304,155 @@ func clientInterceptor(client_ Client) func(
 		opts ...grpc.CallOption,
 	) error {
 
-		// Calls the invoker to execute RPC
 		err := invoker(ctx, method, req, reply, cc, opts...)
-		// Logic after invoking the invoker
-
 		if client_ != nil && err != nil {
-			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) || strings.HasPrefix(err.Error(), `rpc error: code = Unimplemented desc = unknown service`) {
+			msg := err.Error()
+			retriable := strings.HasPrefix(msg, `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) ||
+				strings.HasPrefix(msg, `rpc error: code = Unimplemented desc = unknown service`)
+			if retriable {
+				slog.Warn("clientInterceptor: reconnecting after error",
+					"method", method, "service", client_.GetName(), "id", client_.GetId(), "err", err)
 
-				// Here I will test if the process his the same...
-				//fmt.Println("fail to connect to client ", client_.GetName()+":"+client_.GetId(), "at address", client_.GetAddress(), "with error", err)
-				err := InitClient(client_, client_.GetAddress(), client_.GetId())
-				if err == nil {
-					nbTry := 10
-					for i := 0; i < nbTry; i++ {
-						err := client_.Reconnect()
-						if err != nil {
-							nbTry--
+				if initErr := InitClient(client_, client_.GetAddress(), client_.GetId()); initErr == nil {
+					const maxTries = 10
+					for i := 0; i < maxTries; i++ {
+						if recErr := client_.Reconnect(); recErr != nil {
 							time.Sleep(1 * time.Second)
-						} else {
-							return invoker(ctx, method, req, reply, cc, opts...)
+							continue
 						}
+						// Retry once reconnected
+						return invoker(ctx, method, req, reply, cc, opts...)
 					}
-
 				} else {
-
-					fmt.Println("fail to initialyse client ", client_.GetName()+":"+client_.GetId(), err)
+					slog.Error("clientInterceptor: reinit failed",
+						"service", client_.GetName(), "id", client_.GetId(), "err", initErr)
 					debug.PrintStack()
-
 				}
-
 			}
 		}
 		return err
 	}
 }
 
-/**
- * Get the client tls configuration.
- */
+// GetClientTlsConfig builds a tls.Config from the client's certificate files.
 func GetClientTlsConfig(client Client) (*tls.Config, error) {
-
-	var err error
-
-	// Load client certificate and private key
 	certFile := client.GetCertFile()
-	if len(certFile) == 0 {
-		err = errors.New("no certificate file is available for client")
-		fmt.Println(err)
+	if certFile == "" {
+		err := errors.New("GetClientTlsConfig: missing client certificate file")
 		return nil, err
 	}
-
 	keyFile := client.GetKeyFile()
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		err = errors.New("fail to load client certificate cert file: " + certFile + " kefile: " + keyFile + " " + err.Error())
-		return nil, err
+		return nil, fmt.Errorf("GetClientTlsConfig: load key pair failed (cert=%s, key=%s): %w", certFile, keyFile, err)
 	}
 
-	// Create a certificate pool from the certificate authority
 	certPool := x509.NewCertPool()
-	ca, err := os.ReadFile(client.GetCaFile())
+	caPem, err := os.ReadFile(client.GetCaFile())
 	if err != nil {
-		fmt.Println("fail to read ca certificate" + err.Error())
-		return nil, errors.New("fail to read ca certificate" + err.Error())
+		return nil, fmt.Errorf("GetClientTlsConfig: read CA file failed: %w", err)
 	}
-
-	// Append the certificates from the CA
-	if ok := certPool.AppendCertsFromPEM(ca); !ok {
-		return nil, errors.New("fail to append ca certificate")
+	if ok := certPool.AppendCertsFromPEM(caPem); !ok {
+		return nil, errors.New("GetClientTlsConfig: append CA certificate failed")
 	}
 
 	return &tls.Config{
-		ServerName:   strings.Split(client.GetAddress(), ":")[0], // NOTE: this is required!
+		ServerName:   strings.Split(client.GetAddress(), ":")[0], // Required for TLS SNI.
 		Certificates: []tls.Certificate{certificate},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    certPool,
 		RootCAs:      certPool,
+		MinVersion:   tls.VersionTLS12,
 	}, nil
-
 }
 
-/**
- * Get the client connection. The token is require to control access to resource
- */
+// GetClientConnection dials the gRPC endpoint for a client, using TLS if enabled.
 func GetClientConnection(client Client) (*grpc.ClientConn, error) {
-	// initialyse the client values.
-	var cc *grpc.ClientConn
-	var err error
-
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
+	target := address + ":" + Utility.ToString(client.GetPort())
 
-	// The grpc address
-	address += ":" + Utility.ToString(client.GetPort())
+	var (
+		cc  *grpc.ClientConn
+		err error
+	)
+
 	if client.HasTLS() {
-
-		tlsConfig, err := GetClientTlsConfig(client)
+		tcfg, err := GetClientTlsConfig(client)
 		if err != nil {
-			fmt.Println("fail to get tls config ", err)
+			slog.Error("GetClientConnection: TLS config error", "target", target, "err", err)
 			return nil, err
 		}
-
-		// Create a connection with the TLS credentials
-		cc, err = grpc.Dial(address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithUnaryInterceptor(clientInterceptor(client)))
+		cc, err = grpc.Dial(target,
+			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
+			grpc.WithUnaryInterceptor(clientInterceptor(client)),
+		)
 		if err != nil {
-			fmt.Println("fail to dial address ", err)
+			slog.Error("GetClientConnection: TLS dial failed", "target", target, "err", err)
 			return nil, err
-		} else if cc != nil {
-			return cc, nil
 		}
 	} else {
-		//fmt.Println("client connection not use tls")
-		cc, err = grpc.Dial(address, grpc.WithInsecure(), grpc.WithUnaryInterceptor(clientInterceptor(client)))
+		cc, err = grpc.Dial(target,
+			grpc.WithInsecure(),
+			grpc.WithUnaryInterceptor(clientInterceptor(client)),
+		)
 		if err != nil {
-			fmt.Println("fail to dial address ", err)
+			slog.Error("GetClientConnection: dial failed", "target", target, "err", err)
 			return nil, err
-		} else if cc != nil {
-			return cc, nil
 		}
 	}
 
-	return nil, errors.New("fail to connect to grpc service")
-
+	slog.Debug("GetClientConnection: connected", "target", target, "tls", client.HasTLS())
+	return cc, nil
 }
 
-/**
- * That function is use to get the client context. If a token is found in the
- * tmp directory for the client domain it's set in the metadata.
- */
+// GetClientContext returns a context with outbound metadata (token, domain, mac)
+// for the given client. If a local token is available, it is attached.
 func GetClientContext(client Client) context.Context {
-
-	var ctx context.Context
-
-	// if the address is local.
-	err := Utility.CreateDirIfNotExist(tokensPath)
-	if err != nil {
-		fmt.Println("fail to create token dir ", tokensPath)
+	if err := Utility.CreateDirIfNotExist(tokensPath); err != nil {
+		slog.Warn("GetClientContext: creating token dir failed", "path", tokensPath, "err", err)
 	}
 
-	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]
 	}
 
+	var md metadata.MD
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": client.GetMac()})
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
-		return ctx
+		md = metadata.New(map[string]string{
+			"token":  string(token),
+			"domain": address,
+			"mac":    client.GetMac(),
+		})
+	} else {
+		// No token; still include domain/mac to aid auditing and routing.
+		md = metadata.New(map[string]string{
+			"token":  "",
+			"domain": address,
+			"mac":    client.GetMac(),
+		})
 	}
-
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": client.GetMac()})
-	ctx = metadata.NewOutgoingContext(context.Background(), md)
-
-	return ctx
-
+	return metadata.NewOutgoingContext(context.Background(), md)
 }
 
-/**
- * Invoke a method on a client. The client is
- * ctx is the client request context.
- * method is the rpc method to run.
- * rqst is the request to run.
- */
+// InvokeClientRequest invokes a gRPC method by name on a concrete client stub
+// using reflection via Utility.CallMethod. method should be the fully-qualified
+// RPC method; only the final segment (after the last "/") is used here.
 func InvokeClientRequest(client interface{}, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 	methodName := method[strings.LastIndex(method, "/")+1:]
-	var err error
 
-	reply, err_ := Utility.CallMethod(client, methodName, []interface{}{ctx, rqst})
-	if err_ != nil {
-		if reflect.TypeOf(err_).Kind() == reflect.String {
-			err = errors.New(err_.(string))
-		} else {
-			err = err_.(error)
+	reply, callErr := Utility.CallMethod(client, methodName, []interface{}{ctx, rqst})
+	if callErr != nil {
+		// Utility.CallMethod may return either error or string.
+		if reflect.TypeOf(callErr).Kind() == reflect.String {
+			return nil, errors.New(callErr.(string))
 		}
+		return nil, callErr.(error)
 	}
 
-	return reply, err
+	return reply, nil
 }

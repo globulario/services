@@ -28,8 +28,6 @@ import (
 	Utility "github.com/globulario/utility"
 	"github.com/gocolly/colly/v2"
 	"github.com/mitchellh/go-ps"
-	"golang.org/x/text/language"
-	"golang.org/x/text/language/display"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -265,8 +263,6 @@ func GetIMDBPoster(imdbID string) (string, error) {
 
 func restoreVideoInfos(client *title_client.Title_Client, token, video_path, domain string) error {
 
-	fmt.Println("try to restore video info for: ---> ", video_path)
-
 	// get video info from metadata
 	infos, err := getVideoInfos(video_path, domain)
 	if err != nil {
@@ -431,7 +427,6 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 
 									} else {
 
-										fmt.Println("video ", video.ID, " already exist")
 										// now I will associate the path.
 										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 										path = strings.Replace(path, "/playlist.m3u8", "", -1)
@@ -442,7 +437,6 @@ func restoreVideoInfos(client *title_client.Title_Client, token, video_path, dom
 											fmt.Println("fail to assciate file ", path, " with video ", v.ID)
 										}
 
-										fmt.Println("file "+path+" is now asscociated with video ", v.ID)
 									}
 								} else {
 									fmt.Println("fail to unmarshal video ", err)
@@ -623,7 +617,7 @@ func processVideos(srv *server, token string, dirs []string) {
 										}
 										err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
 										if err != nil {
-											fmt.Println("title for serie ", title.Description, " was restore.")
+											fmt.Println("fail to create title ", title.ID, " with error ", err)
 										} else {
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, dirs[i])
 										}
@@ -761,7 +755,6 @@ func processVideos(srv *server, token string, dirs []string) {
 								if streamMap["codec_type"].(string) == "audio" {
 									audio_stream_count++
 									codec := streamMap["codec_name"].(string)
-									fmt.Println("found audio stream for video", video, "with codec", codec)
 									if codec == "aac" && aac_stream_index == -1 {
 										aac_stream_index = audio_stream_count - 1 // Track actual audio index
 									}
@@ -770,7 +763,6 @@ func processVideos(srv *server, token string, dirs []string) {
 							}
 
 							if audio_encoding != "aac" || (audio_stream_count > 1 && aac_stream_index != -1) {
-								fmt.Println("converting or fixing audio for video", video)
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
 								defer os.Remove(output)
@@ -840,8 +832,6 @@ func processVideos(srv *server, token string, dirs []string) {
 							srv.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 						}
 					}
-				} else {
-					fmt.Println("video ", video, " was already processed and failed before, so it will not be processed again.")
 				}
 
 			} else {
@@ -1365,9 +1355,7 @@ func reassociatePath(path, new_path, domain string) error {
 				fmt.Println("fail to dissocite file ", err_1)
 			}
 		}
-	} else {
-		fmt.Println("no videos found for ", config.GetDataDir()+"/search/videos", " ", path, err)
-	}
+	} 
 
 	return nil
 }
@@ -1697,8 +1685,6 @@ func extractSubtitleTracks(video_path string) error {
 	for i := 0; i < len(track_infos); i++ {
 		track_info := track_infos[i].(map[string]interface{})
 		language_code := track_info["tags"].(map[string]interface{})["language"].(string)
-		nativeTag := language.MustParse(language_code)
-		fmt.Println(display.Self.Name(nativeTag)) // ex jap display--> 日本語
 
 		// To get the language names in English
 		filename := filepath.Base(video_path)[0:strings.Index(filepath.Base(video_path), ".")]
@@ -2278,7 +2264,7 @@ func (srv *server) getFileAudiosAssociation(client *title_client.Title_Client, p
 func (srv *server) createAudio(client *title_client.Title_Client, path string, duration int, metadata map[string]interface{}) error {
 	// here I will create the info in the title srv...
 	audios := make(map[string][]*titlepb.Audio, 0)
-	fmt.Println("get file audio association: ", path)
+
 	err := srv.getFileAudiosAssociation(client, path, audios)
 	if err != nil {
 		if err.Error() == "no audios found" {
@@ -2668,9 +2654,6 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
-
-	fmt.Println("convert video to mpeg4 h264: ", rqst.Path)
-	fmt.Println("token: ", token)
 
 	info, err := srv.getFileInfo(token, path_)
 	if err != nil {
@@ -3249,8 +3232,6 @@ func (srv *server) uploadedVideo(token, url, dest, format, fileName string, stre
 
 	cmd := exec.Command(baseCmd, cmdArgs...)
 	cmd.Dir = path
-
-	fmt.Println("executing ", baseCmd, cmdArgs, " in ", path)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

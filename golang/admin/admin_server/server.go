@@ -14,8 +14,6 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
-
-	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -433,14 +431,6 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := GetRbacClient(srv.Address)
-	if err != nil {
-		return err
-	}
-
-	return rbac_client_.SetActionResourcesPermissions(permissions)
-}
 
 ///////////////////// event service functions ////////////////////////////////////
 

@@ -3,8 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	//"google.golang.org/grpc/grpclog"
+	// "google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -38,13 +37,13 @@ var (
 	// By default all origins are allowed.
 	allow_all_origins = true
 
-	// comma separeated values.
+	// comma separated values.
 	allowed_origins string = ""
 )
 
-// Value need by Globular to start the services...
+// server contains the values needed by Globular to start the service.
 type server struct {
-	// The global attribute of the services.
+	// The global attributes of the service.
 	Id              string
 	Mac             string
 	Name            string
@@ -55,7 +54,7 @@ type server struct {
 	Port            int
 	Proxy           int
 	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string.
+	AllowedOrigins  string // comma-separated string
 	Protocol        string
 	Version         string
 	PublisherID     string
@@ -81,350 +80,265 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
 
-	// a private RSA key to sign and authenticate the public key
+	// trust anchor for the certificate authority
 	CertAuthorityTrust string
 
-	Permissions []interface{} // contains the action permission for the services.
+	Permissions []interface{} // contains the action permissions for the service.
 
-	Dependencies []string // The list of services needed by this services.
+	Dependencies []string // The list of services needed by this service.
 
-	// The grpc server.
+	// The gRPC server.
 	grpcServer *grpc.Server
 
 	// The webroot
 	WebRoot string
 }
 
-// The path of the configuration.
-func (srv *server) GetConfigurationPath() string {
-	return srv.ConfigPath
-}
+// GetConfigurationPath returns the path to the service configuration.
+func (srv *server) GetConfigurationPath() string { return srv.ConfigPath }
 
-func (srv *server) SetConfigurationPath(path string) {
-	srv.ConfigPath = path
-}
+// SetConfigurationPath sets the path to the service configuration.
+func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
 
-// The http address where the configuration can be found /config
-func (srv *server) GetAddress() string {
-	return srv.Address
-}
+// GetAddress returns the HTTP address where the configuration can be found.
+func (srv *server) GetAddress() string { return srv.Address }
 
-func (srv *server) SetAddress(address string) {
-	srv.Address = address
-}
+// SetAddress sets the HTTP address where the configuration can be found.
+func (srv *server) SetAddress(address string) { srv.Address = address }
 
-func (srv *server) GetProcess() int {
-	return srv.Process
-}
+// GetProcess returns the service process ID.
+func (srv *server) GetProcess() int { return srv.Process }
 
-func (srv *server) SetProcess(pid int) {
-	srv.Process = pid
-}
+// SetProcess sets the service process ID.
+func (srv *server) SetProcess(pid int) { srv.Process = pid }
 
-func (srv *server) GetProxyProcess() int {
-	return srv.ProxyProcess
-}
+// GetProxyProcess returns the reverse-proxy process ID.
+func (srv *server) GetProxyProcess() int { return srv.ProxyProcess }
 
-func (srv *server) SetProxyProcess(pid int) {
-	srv.ProxyProcess = pid
-}
+// SetProxyProcess sets the reverse-proxy process ID.
+func (srv *server) SetProxyProcess(pid int) { srv.ProxyProcess = pid }
 
-// The current service state
-func (srv *server) GetState() string {
-	return srv.State
-}
+// GetState returns the current service state.
+func (srv *server) GetState() string { return srv.State }
 
-func (srv *server) SetState(state string) {
-	srv.State = state
-}
+// SetState sets the current service state.
+func (srv *server) SetState(state string) { srv.State = state }
 
-// The last error
-func (srv *server) GetLastError() string {
-	return srv.LastError
-}
+// GetLastError returns the last error message recorded by the service.
+func (srv *server) GetLastError() string { return srv.LastError }
 
-func (srv *server) SetLastError(err string) {
-	srv.LastError = err
-}
+// SetLastError sets the last error message.
+func (srv *server) SetLastError(err string) { srv.LastError = err }
 
-// The modeTime
-func (srv *server) SetModTime(modtime int64) {
-	srv.ModTime = modtime
-}
-func (srv *server) GetModTime() int64 {
-	return srv.ModTime
-}
+// SetModTime sets the last modification time (unix seconds).
+func (srv *server) SetModTime(modtime int64) { srv.ModTime = modtime }
 
-// Globular services implementation...
-// The id of a particular service instance.
-func (srv *server) GetId() string {
-	return srv.Id
-}
-func (srv *server) SetId(id string) {
-	srv.Id = id
-}
+// GetModTime returns the last modification time (unix seconds).
+func (srv *server) GetModTime() int64 { return srv.ModTime }
 
-// The name of a service, must be the gRpc Service name.
-func (srv *server) GetName() string {
-	return srv.Name
-}
-func (srv *server) SetName(name string) {
-	srv.Name = name
-}
+// GetId returns the ID of this service instance.
+func (srv *server) GetId() string { return srv.Id }
 
-func (srv *server) GetMac() string {
-	return srv.Mac
-}
+// SetId sets the ID of this service instance.
+func (srv *server) SetId(id string) { srv.Id = id }
 
-func (srv *server) SetMac(mac string) {
-	srv.Mac = mac
-}
+// GetName returns the gRPC service name.
+func (srv *server) GetName() string { return srv.Name }
 
-func (srv *server) GetChecksum() string {
+// SetName sets the gRPC service name.
+func (srv *server) SetName(name string) { srv.Name = name }
 
-	return srv.Checksum
-}
+// GetMac returns the MAC address recorded for the service.
+func (srv *server) GetMac() string { return srv.Mac }
 
-func (srv *server) SetChecksum(checksum string) {
-	srv.Checksum = checksum
-}
+// SetMac sets the MAC address recorded for the service.
+func (srv *server) SetMac(mac string) { srv.Mac = mac }
 
-func (srv *server) GetPlatform() string {
-	return srv.Plaform
-}
+// GetChecksum returns the service checksum.
+func (srv *server) GetChecksum() string { return srv.Checksum }
 
-func (srv *server) SetPlatform(platform string) {
-	srv.Plaform = platform
-}
+// SetChecksum sets the service checksum.
+func (srv *server) SetChecksum(checksum string) { srv.Checksum = checksum }
 
-// The description of the service
-func (srv *server) GetDescription() string {
-	return srv.Description
-}
-func (srv *server) SetDescription(description string) {
-	srv.Description = description
-}
+// GetPlatform returns the platform string.
+func (srv *server) GetPlatform() string { return srv.Plaform }
 
-// The list of keywords of the services.
-func (srv *server) GetKeywords() []string {
-	return srv.Keywords
-}
-func (srv *server) SetKeywords(keywords []string) {
-	srv.Keywords = keywords
-}
+// SetPlatform sets the platform string.
+func (srv *server) SetPlatform(platform string) { srv.Plaform = platform }
 
-func (srv *server) GetRepositories() []string {
-	return srv.Repositories
-}
-func (srv *server) SetRepositories(repositories []string) {
-	srv.Repositories = repositories
-}
+// GetDescription returns the service description.
+func (srv *server) GetDescription() string { return srv.Description }
 
-func (srv *server) GetDiscoveries() []string {
-	return srv.Discoveries
-}
-func (srv *server) SetDiscoveries(discoveries []string) {
-	srv.Discoveries = discoveries
-}
+// SetDescription sets the service description.
+func (srv *server) SetDescription(description string) { srv.Description = description }
 
-// Dist
-func (srv *server) Dist(path string) (string, error) {
+// GetKeywords returns the list of service keywords.
+func (srv *server) GetKeywords() []string { return srv.Keywords }
 
-	return globular.Dist(path, srv)
-}
+// SetKeywords sets the list of service keywords.
+func (srv *server) SetKeywords(keywords []string) { srv.Keywords = keywords }
 
+// GetRepositories returns the configured repositories.
+func (srv *server) GetRepositories() []string { return srv.Repositories }
+
+// SetRepositories sets the configured repositories.
+func (srv *server) SetRepositories(repositories []string) { srv.Repositories = repositories }
+
+// GetDiscoveries returns the configured discovery endpoints.
+func (srv *server) GetDiscoveries() []string { return srv.Discoveries }
+
+// SetDiscoveries sets the configured discovery endpoints.
+func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = discoveries }
+
+// Dist packages/distributes the service at the given path using Globular helpers.
+func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
+
+// GetDependencies returns the service dependencies (guaranteed non-nil).
 func (srv *server) GetDependencies() []string {
-
 	if srv.Dependencies == nil {
 		srv.Dependencies = make([]string, 0)
 	}
-
 	return srv.Dependencies
 }
 
+// SetDependency appends a dependency if not already present.
 func (srv *server) SetDependency(dependency string) {
 	if srv.Dependencies == nil {
 		srv.Dependencies = make([]string, 0)
 	}
-
-	// Append the depency to the list.
 	if !Utility.Contains(srv.Dependencies, dependency) {
 		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
 
-// The path of the executable.
-func (srv *server) GetPath() string {
-	return srv.Path
-}
-func (srv *server) SetPath(path string) {
-	srv.Path = path
-}
+// GetPath returns the executable path.
+func (srv *server) GetPath() string { return srv.Path }
 
-// The path of the .proto file.
-func (srv *server) GetProto() string {
-	return srv.Proto
-}
-func (srv *server) SetProto(proto string) {
-	srv.Proto = proto
-}
+// SetPath sets the executable path.
+func (srv *server) SetPath(path string) { srv.Path = path }
 
-// The gRpc port.
-func (srv *server) GetPort() int {
-	return srv.Port
-}
-func (srv *server) SetPort(port int) {
-	srv.Port = port
-}
+// GetProto returns the .proto file path.
+func (srv *server) GetProto() string { return srv.Proto }
 
-// The reverse proxy port (use by gRpc Web)
-func (srv *server) GetProxy() int {
-	return srv.Proxy
-}
-func (srv *server) SetProxy(proxy int) {
-	srv.Proxy = proxy
-}
+// SetProto sets the .proto file path.
+func (srv *server) SetProto(proto string) { srv.Proto = proto }
 
-// Can be one of http/https/tls
-func (srv *server) GetProtocol() string {
-	return srv.Protocol
-}
-func (srv *server) SetProtocol(protocol string) {
-	srv.Protocol = protocol
-}
+// GetPort returns the gRPC port.
+func (srv *server) GetPort() int { return srv.Port }
 
-// Return true if all Origins are allowed to access the mircoservice.
-func (srv *server) GetAllowAllOrigins() bool {
-	return srv.AllowAllOrigins
-}
-func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	srv.AllowAllOrigins = allowAllOrigins
-}
+// SetPort sets the gRPC port.
+func (srv *server) SetPort(port int) { srv.Port = port }
 
-// If AllowAllOrigins is false then AllowedOrigins will contain the
-// list of address that can reach the services.
-func (srv *server) GetAllowedOrigins() string {
-	return srv.AllowedOrigins
-}
+// GetProxy returns the reverse-proxy port.
+func (srv *server) GetProxy() int { return srv.Proxy }
 
-func (srv *server) SetAllowedOrigins(allowedOrigins string) {
-	srv.AllowedOrigins = allowedOrigins
-}
+// SetProxy sets the reverse-proxy port.
+func (srv *server) SetProxy(proxy int) { srv.Proxy = proxy }
 
-// Can be a ip address or domain name.
-func (srv *server) GetDomain() string {
-	return srv.Domain
-}
-func (srv *server) SetDomain(domain string) {
-	srv.Domain = domain
-}
+// GetProtocol returns the protocol (http/https/tls).
+func (srv *server) GetProtocol() string { return srv.Protocol }
 
-// TLS section
+// SetProtocol sets the protocol (http/https/tls).
+func (srv *server) SetProtocol(protocol string) { srv.Protocol = protocol }
 
-// If true the service run with TLS. The
-func (srv *server) GetTls() bool {
-	return srv.TLS
-}
-func (srv *server) SetTls(hasTls bool) {
-	srv.TLS = hasTls
-}
+// GetAllowAllOrigins returns whether all origins are allowed to access the service.
+func (srv *server) GetAllowAllOrigins() bool { return srv.AllowAllOrigins }
 
-// The certificate authority file
-func (srv *server) GetCertAuthorityTrust() string {
-	return srv.CertAuthorityTrust
-}
-func (srv *server) SetCertAuthorityTrust(ca string) {
-	srv.CertAuthorityTrust = ca
-}
+// SetAllowAllOrigins sets whether all origins are allowed to access the service.
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) { srv.AllowAllOrigins = allowAllOrigins }
 
-// The certificate file.
-func (srv *server) GetCertFile() string {
-	return srv.CertFile
-}
-func (srv *server) SetCertFile(certFile string) {
-	srv.CertFile = certFile
-}
+// GetAllowedOrigins returns the comma-separated list of allowed origins (if not allowing all).
+func (srv *server) GetAllowedOrigins() string { return srv.AllowedOrigins }
 
-// The key file.
-func (srv *server) GetKeyFile() string {
-	return srv.KeyFile
-}
-func (srv *server) SetKeyFile(keyFile string) {
-	srv.KeyFile = keyFile
-}
+// SetAllowedOrigins sets the comma-separated list of allowed origins.
+func (srv *server) SetAllowedOrigins(allowedOrigins string) { srv.AllowedOrigins = allowedOrigins }
 
-// The service version
-func (srv *server) GetVersion() string {
-	return srv.Version
-}
-func (srv *server) SetVersion(version string) {
-	srv.Version = version
-}
+// GetDomain returns the service domain (hostname).
+func (srv *server) GetDomain() string { return srv.Domain }
 
-// The publisher id.
-func (srv *server) GetPublisherID() string {
-	return srv.PublisherID
-}
-func (srv *server) SetPublisherID(PublisherID string) {
-	srv.PublisherID = PublisherID
-}
+// SetDomain sets the service domain (hostname).
+func (srv *server) SetDomain(domain string) { srv.Domain = domain }
 
-func (srv *server) GetKeepUpToDate() bool {
-	return srv.KeepUpToDate
-}
-func (srv *server) SetKeepUptoDate(val bool) {
-	srv.KeepUpToDate = val
-}
+// GetTls reports whether the service uses TLS.
+func (srv *server) GetTls() bool { return srv.TLS }
 
-func (srv *server) GetKeepAlive() bool {
-	return srv.KeepAlive
-}
-func (srv *server) SetKeepAlive(val bool) {
-	srv.KeepAlive = val
-}
+// SetTls enables or disables TLS for the service.
+func (srv *server) SetTls(hasTls bool) { srv.TLS = hasTls }
 
-func (srv *server) GetPermissions() []interface{} {
-	return srv.Permissions
-}
-func (srv *server) SetPermissions(permissions []interface{}) {
-	srv.Permissions = permissions
-}
+// GetCertAuthorityTrust returns the CA trust file path.
+func (srv *server) GetCertAuthorityTrust() string { return srv.CertAuthorityTrust }
 
-// Create the configuration file if is not already exist.
+// SetCertAuthorityTrust sets the CA trust file path.
+func (srv *server) SetCertAuthorityTrust(ca string) { srv.CertAuthorityTrust = ca }
+
+// GetCertFile returns the certificate file path.
+func (srv *server) GetCertFile() string { return srv.CertFile }
+
+// SetCertFile sets the certificate file path.
+func (srv *server) SetCertFile(certFile string) { srv.CertFile = certFile }
+
+// GetKeyFile returns the key file path.
+func (srv *server) GetKeyFile() string { return srv.KeyFile }
+
+// SetKeyFile sets the key file path.
+func (srv *server) SetKeyFile(keyFile string) { srv.KeyFile = keyFile }
+
+// GetVersion returns the service version.
+func (srv *server) GetVersion() string { return srv.Version }
+
+// SetVersion sets the service version.
+func (srv *server) SetVersion(version string) { srv.Version = version }
+
+// GetPublisherID returns the publisher ID.
+func (srv *server) GetPublisherID() string { return srv.PublisherID }
+
+// SetPublisherID sets the publisher ID.
+func (srv *server) SetPublisherID(PublisherID string) { srv.PublisherID = PublisherID }
+
+// GetKeepUpToDate reports whether the service should keep applications up to date.
+func (srv *server) GetKeepUpToDate() bool { return srv.KeepUpToDate }
+
+// SetKeepUptoDate sets the keep-up-to-date flag.
+func (srv *server) SetKeepUptoDate(val bool) { srv.KeepUpToDate = val }
+
+// GetKeepAlive reports whether the service should be kept alive.
+func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
+
+// SetKeepAlive sets the keep-alive flag.
+func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
+
+// GetPermissions returns the service permissions payload.
+func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
+
+// SetPermissions sets the service permissions payload.
+func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
+
+// Init creates the configuration file (if missing) and initializes the gRPC server.
 func (srv *server) Init() error {
-
-	err := globular.InitService(srv)
+	if err := globular.InitService(srv); err != nil {
+		return err
+	}
+	gs, err := globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
-
-	// Initialyse GRPC srv.
-	srv.grpcServer, err = globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
-	if err != nil {
-		return err
-	}
-
+	srv.grpcServer = gs
 	return nil
-
 }
 
-// Save the configuration values.
-func (srv *server) Save() error {
-	// Create the file...
-	return globular.SaveService(srv)
-}
+// Save persists the current configuration values.
+func (srv *server) Save() error { return globular.SaveService(srv) }
 
-func (srv *server) StartService() error {
-	return globular.StartService(srv, srv.grpcServer)
-}
+// StartService starts the service gRPC server.
+func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
 
-func (srv *server) StopService() error {
-	return globular.StopService(srv, srv.grpcServer)
-}
+// StopService stops the service gRPC server.
+func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
 
 // //////////////////////////////////////////////////////////////////////////////////////
-// Resource manager function
+// Resource manager helpers
 // //////////////////////////////////////////////////////////////////////////////////////
+
 func (srv *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
@@ -435,7 +349,7 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
 }
 
 func (srv *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-
+	// Accept "name@domain" form, but only allow same-domain access.
 	if strings.Contains(applicationId, "@") {
 		if strings.Split(applicationId, "@")[1] != srv.Domain {
 			return nil, errors.New("you can only get application in your own domain")
@@ -452,44 +366,32 @@ func (srv *server) getApplication(applicationId string) (*resourcepb.Application
 	if err != nil {
 		return nil, err
 	}
-
 	if len(applications) == 0 {
 		return nil, errors.New("no application found with name or _id " + applicationId)
 	}
-
 	return applications[0], nil
 }
 
 func (srv *server) deleteApplication(token, applicationId string) error {
-
-	_, err := security.ValidateToken(token)
-	if err != nil {
+	if _, err := security.ValidateToken(token); err != nil {
 		return err
 	}
-
 	resourceClient, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return err
 	}
-
 	return resourceClient.DeleteApplication(token, applicationId)
 }
 
 func (srv *server) createApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon string, actions, keywords []string) error {
-
 	if domain != srv.Domain {
 		return errors.New("you can only create application in your own domain")
 	}
-
 	resourceClient, err := srv.getResourceClient(srv.Address)
 	if err != nil {
 		return err
 	}
-
-	err = resourceClient.CreateApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon, actions, keywords)
-
-	return err
-
+	return resourceClient.CreateApplication(token, id, name, domain, password, path, PublisherID, version, description, alias, icon, actions, keywords)
 }
 
 func (srv *server) createRole(token, id, name string, actions []string) error {
@@ -497,7 +399,6 @@ func (srv *server) createRole(token, id, name string, actions []string) error {
 	if err != nil {
 		return err
 	}
-
 	return resourceClient.CreateRole(token, id, name, actions)
 }
 
@@ -510,6 +411,8 @@ func (srv *server) createGroup(token, id, name, description string) error {
 }
 
 // ////////////////////// rbac service ///////////////////////////////////////
+
+// GetRbacClient returns an RBAC client connected to the local RBAC service.
 func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 	client, err := globular_client.GetClient(srv.Address, "rbac.RbacService", "NewRbacService_Client")
@@ -520,11 +423,11 @@ func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := srv.GetRbacClient()
+	rbacClient, err := srv.GetRbacClient()
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
+	return rbacClient.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
 // /////////////////// event service functions ////////////////////////////////////
@@ -533,173 +436,155 @@ func (srv *server) getEventClient(address string) (*event_client.Event_Client, e
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
-
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
 }
 
-func (srv *server) publish(address, event string, data []byte) error {
-	eventClient, err := srv.getEventClient(address)
-	if err != nil {
-		return err
-	}
-	err = eventClient.Publish(event, data)
-	if err != nil {
-		fmt.Println("fail to publish event", event, srv.Address, "with error", err)
-	}
-	return err
-}
-
 func (srv *server) subscribe(address, evt string, listener func(evt *eventpb.Event)) error {
 	eventClient, err := srv.getEventClient(address)
 	if err != nil {
-		fmt.Println("fail to get event client with error: ", err)
+		slog.Error("get event client failed", "addr", address, "err", err)
 		return err
 	}
-
-	err = eventClient.Subscribe(evt, srv.Id, listener)
-	if err != nil {
-
-		fmt.Println("fail to subscribe to event with error: ", err)
+	if err := eventClient.Subscribe(evt, srv.Id, listener); err != nil {
+		slog.Error("subscribe failed", "event", evt, "id", srv.Id, "err", err)
 		return err
 	}
-
-	// register a listener...
 	return nil
 }
 
 func updateApplication(srv *server, application *resourcepb.Application) func(evt *eventpb.Event) {
 	return func(evt *eventpb.Event) {
-
 		descriptor := new(resourcepb.PackageDescriptor)
 		err := protojson.Unmarshal(evt.Data, descriptor)
-		applicationId := Utility.GenerateUUID(application.PublisherID + "%" + application.Name + "%" + application.Version)
 
-		// be sure the Id is set correctly.
+		applicationId := Utility.GenerateUUID(application.PublisherID + "%" + application.Name + "%" + application.Version)
 		application.Id = applicationId
 		descriptor.Id = application.Id
 
 		if err == nil {
-			token, err := security.GetLocalToken(srv.Mac)
-			if err != nil {
-				fmt.Println(err)
+			token, terr := security.GetLocalToken(srv.Mac)
+			if terr != nil {
 				return
 			}
 
-			// Here I will uninstall the application.
-
-			err = srv.uninstallApplication(token, applicationId)
-			if err == nil {
-				// Get the new package...
+			// uninstall current
+			if ierr := srv.uninstallApplication(token, applicationId); ierr == nil {
 				repository := descriptor.Repositories[0]
-				package_repository, err := GetRepositoryClient(repository)
-				if err != nil {
-					fmt.Println("570 fail to install application with error: ", err)
+				packageRepository, gerr := GetRepositoryClient(repository)
+				if gerr != nil {
 					return
 				}
 
-				bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
-				if err != nil {
-					fmt.Println("576 fail to install application with error: ", err)
+				bundle, derr := packageRepository.DownloadBundle(descriptor, "webapp")
+				if derr != nil {
+					slog.Error("install application: download bundle failed", "app", applicationId, "err", derr)
 					return
 				}
 
-				// Create the file.
 				r := bytes.NewReader(bundle.Binairies)
-
-				// Now I will install the applicaiton.
-				err = srv.installApplication(token, srv.Domain, descriptor.Id, descriptor.Name, descriptor.PublisherID, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, false)
-				if err != nil {
-					fmt.Println("588 fail to install application with error: ", err)
+				if ierr := srv.installApplication(
+					token, srv.Domain, descriptor.Id, descriptor.Name,
+					descriptor.PublisherID, descriptor.Version, descriptor.Description,
+					descriptor.Icon, descriptor.Alias, r, descriptor.Actions,
+					descriptor.Keywords, descriptor.Roles, descriptor.Groups, false,
+				); ierr != nil {
+					slog.Error("install application failed", "app", applicationId, "err", ierr)
 					return
 				}
-
 			}
 		}
 	}
 }
 
-// That service is use to give access to SQL.
-// port number must be pass as argument.
+// main runs the Application Manager service.
 func main() {
+	// If you prefer grpc logger, you can set it here:
+	// grpclog.SetLoggerV2(grpclog.NewLoggerV2(os.Stdout, os.Stdout, os.Stderr))
 
-	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
+	// Initialize service with default values.
+	s := new(server)
+	s.Name = string(applications_managerpb.File_applications_manager_proto.Services().Get(0).FullName())
+	s.Proto = applications_managerpb.File_applications_manager_proto.Path()
+	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	s.Port = defaultPort
+	s.Proxy = defaultProxy
+	s.Protocol = "grpc"
+	s.Domain, _ = config.GetDomain()
+	s.Address, _ = config.GetAddress()
+	s.Version = "0.0.1"
+	s.PublisherID = "localhost"
+	s.Description = "Application manager service"
+	s.Keywords = []string{"Install, Uninstall, Deploy applications"}
+	s.Repositories = make([]string, 0)
+	s.Discoveries = make([]string, 0)
+	s.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
+	s.Permissions = make([]interface{}, 1)
+	s.WebRoot = config.GetWebRootDir()
+	s.AllowAllOrigins = allow_all_origins
+	s.AllowedOrigins = allowed_origins
+	s.Process = -1
+	s.ProxyProcess = -1
+	s.KeepAlive = true
+	s.KeepUpToDate = true
 
-	// Set the log information in case of crash...
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	// Initialyse service with default values.
-	s_impl := new(server)
-	s_impl.Name = string(applications_managerpb.File_applications_manager_proto.Services().Get(0).FullName())
-	s_impl.Proto = applications_managerpb.File_applications_manager_proto.Path()
-	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	s_impl.Port = defaultPort
-	s_impl.Proxy = defaultProxy
-	s_impl.Protocol = "grpc"
-	s_impl.Domain, _ = config.GetDomain()
-	s_impl.Address, _ = config.GetAddress()
-	s_impl.Version = "0.0.1"
-	s_impl.PublisherID = "localhost"
-	s_impl.Description = "Application manager service"
-	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
-	s_impl.Repositories = make([]string, 0)
-	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
-	s_impl.Permissions = make([]interface{}, 1)
-	s_impl.WebRoot = config.GetWebRootDir()
-	s_impl.AllowAllOrigins = allow_all_origins
-	s_impl.AllowedOrigins = allowed_origins
-	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
-	s_impl.KeepAlive = true
-	s_impl.KeepUpToDate = true
-
-	// Register the client function, so it can be use for dynamic routing, (ex: ["GetFile", "round-robin"])
+	// Register the client constructor for dynamic routing
 	Utility.RegisterFunction("NewApplicationsManager_Client", applications_manager_client.NewApplicationsManager_Client)
 
-	// Give base info to retreive it configuration.
+	// ID / optional ConfigPath from args
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+		s.Id = os.Args[1]
 	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s.Id = os.Args[1]
+		s.ConfigPath = os.Args[2]
 	}
 
-	// Here I will retreive the list of connections from file if there are some...
-	err := s_impl.Init()
-	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+	// Init service (loads/creates config, builds gRPC server)
+	if err := s.Init(); err != nil {
+		slog.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
+		os.Exit(1)
 	}
 
-	if s_impl.Address == "" {
-		s_impl.Address, _ = config.GetAddress()
+	if s.Address == "" {
+		if addr, err := config.GetAddress(); err == nil {
+			s.Address = addr
+		}
 	}
 
-	// Register the echo services
-	applications_managerpb.RegisterApplicationManagerServiceServer(s_impl.grpcServer, s_impl)
-	reflection.Register(s_impl.grpcServer)
+	// Register service and reflection
+	applications_managerpb.RegisterApplicationManagerServiceServer(s.grpcServer, s)
+	reflection.Register(s.grpcServer)
 
-	// The user must part of owner in order to be able to deploy an application...
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	// Require owner on resource(0) to deploy an application
+	s.Permissions[0] = map[string]interface{}{
+		"action": "/applications_manager.ApplicationManagerService/DeployApplication",
+		"resources": []interface{}{
+			map[string]interface{}{"index": 0, "permission": "owner"},
+		},
+	}
 
-	// keep applications up to date...
+	// Keep applications up-to-date by subscribing to publisher:name events
 	go func() {
-		resource_client, err := s_impl.getResourceClient(s_impl.Address)
-		if err == nil {
-			// retreive all applications.
-			applications, err := resource_client.GetApplications("")
-			if err == nil {
-				for i := 0; i < len(applications); i++ {
-					application := applications[i]
-					evt := application.PublisherID + ":" + application.Name
-					s_impl.subscribe(s_impl.Address, evt, updateApplication(s_impl, application))
-				}
-			}
+		resourceClient, err := s.getResourceClient(s.Address)
+		if err != nil {
+			slog.Warn("resource client not ready; skipping auto-update hook", "err", err)
+			return
+		}
+		apps, err := resourceClient.GetApplications("")
+		if err != nil {
+			slog.Warn("get applications failed; skipping auto-update hook", "err", err)
+			return
+		}
+		for _, app := range apps {
+			evt := app.PublisherID + ":" + app.Name
+			_ = s.subscribe(s.Address, evt, updateApplication(s, app))
 		}
 	}()
 
-	// Start the service.
-	s_impl.StartService()
+	// Start the service (blocking)
+	if err := s.StartService(); err != nil {
+		slog.Error("service start failed", "service", s.Name, "err", err)
+		os.Exit(1)
+	}
 }

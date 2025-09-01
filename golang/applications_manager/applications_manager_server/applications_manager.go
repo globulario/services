@@ -78,8 +78,6 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 	// in case of local package I will try to find the package in the local directory...
 	path := config.GetGlobularExecPath() + "/applications/" + applicationId + "_" + PublisherID + "_" + version + ".tar.gz"
 
-	fmt.Println("try to get package ", path)
-
 	// so here I will try find package from the directory
 	if len(version) == 0 {
 		files, err := ioutil.ReadDir(config.GetGlobularExecPath() + "/applications")
@@ -228,7 +226,6 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 	// Here I will try to install the application from the local directory...
 	err = srv.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherID, rqst.Version)
 	if err == nil {
-		fmt.Println("application", rqst.ApplicationId, "was install localy...")
 		return &applications_managerpb.InstallApplicationResponse{
 			Result: true,
 		}, nil
@@ -433,10 +430,8 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 
 	if err := appendBaseTag(files[0], name); err != nil {
 		fmt.Println("Error:", err)
-	} else {
-		fmt.Println("Operation completed successfully.")
 	}
-
+	
 	// Copy the files to it final destination
 	abosolutePath := srv.WebRoot + "/" + name
 

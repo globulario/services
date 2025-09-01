@@ -491,8 +491,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		previousVersion, _ := resource_client_.GetApplicationVersion(name)
 
 		event_client_.Publish("update_"+applicationId+"_evt", []byte(version))
-
-		fmt.Println("previous version ", previousVersion, " current version ", version)
+  
 		if previousVersion != version {
 			message := `<div style="display: flex; flex-direction: column">
 				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.

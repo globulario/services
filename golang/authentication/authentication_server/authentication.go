@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	"io/ioutil"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -31,157 +31,121 @@ var (
 	configPath = config.GetConfigDir() + "/config.json"
 )
 
-// * Validate a token *
-func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
+// ---- logging helpers (no signature changes to public API) ----
 
+func logInternal(op string, err error, kv ...any) error {
+	args := append(kv, "err", err)
+	slog.Error(op, args...)
+	return status.Errorf(
+		codes.Internal,
+		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+	)
+}
+
+// ValidateToken validates a JWT and returns its client id and expiration.
+func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("ValidateToken:validate", err)
 	}
+	logInfo("ValidateToken:ok", "clientId", claims.Id, "exp", claims.StandardClaims.ExpiresAt)
 	return &authenticationpb.ValidateTokenRsp{
 		ClientId: claims.Id,
 		Expired:  claims.StandardClaims.ExpiresAt,
 	}, nil
 }
 
-// * Refresh token get a new token *
+// RefreshToken refreshes a token unless it’s been expired for more than 7 days.
 func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
-
-	// first of all I will validate the current token.
 	claims, err := security.ValidateToken(rqst.Token)
-	if err != nil {
-		if !strings.Contains(err.Error(), "token is expired") {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	if err != nil && !strings.Contains(err.Error(), "token is expired") {
+		return nil, logInternal("RefreshToken:validate", err)
 	}
 
 	if len(claims.UserDomain) == 0 {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain was found in the token")))
+		return nil, logInternal("RefreshToken:userDomain", errors.New("no user domain found in token"))
 	}
 
-	// If the token is older than seven day without being refresh then I retrun an error.
+	// refuse refresh if token expired > 7 days ago
 	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
+		return nil, logInternal("RefreshToken:tooOld", errors.New("the token cannot be refreshed after 7 days"))
 	}
 
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
+	tokenString, err := security.GenerateToken(
+		srv.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain,
+	)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("RefreshToken:generate", err)
 	}
 
-	// get the active session.
+	// session maintenance
 	session, err := srv.getSession(claims.Id)
 	if err != nil {
 		session = new(resourcepb.Session)
 		session.AccountId = claims.Id + "@" + claims.UserDomain
 	}
-
-	// set the last session time.
 	session.LastStateTime = time.Now().Unix()
 	session.State = resourcepb.SessionState_ONLINE
 
-	// get back the new expireAt
-	claims, _ = security.ValidateToken(tokenString)
-	session.ExpireAt = claims.StandardClaims.ExpiresAt
+	newClaims, _ := security.ValidateToken(tokenString)
+	session.ExpireAt = newClaims.StandardClaims.ExpiresAt
 
-	// srv.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
-	// save the session in the backend.
-	err = srv.updateSession(session)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = srv.updateSession(session); err != nil {
+		return nil, logInternal("RefreshToken:updateSession", err)
 	}
 
-	// return the token string.
-	return &authenticationpb.RefreshTokenRsp{
-		Token: tokenString,
-	}, nil
+	logInfo("RefreshToken:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
+	return &authenticationpb.RefreshTokenRsp{Token: tokenString}, nil
 }
 
-// * Set the account password *
+// SetPassword changes an account password and returns a fresh token.
 func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
-
-	// Get validated user id and token.
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Here I will get the account info.
 	account, err := srv.getAccount(rqst.AccountId)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetPassword:getAccount", err, "accountId", rqst.AccountId)
 	}
 
-	// test if the user is the sa.
 	domain, _ := config.GetDomain()
-
-	// The user must be the one who he pretend to be.
 	if account.Id+"@"+account.Domain != clientId {
 		if clientId != "sa@"+domain {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you can't change other account password")))
+			return nil, logInternal("SetPassword:permission", errors.New("you can't change another account's password"))
 		}
 	} else {
-		// Now I will validate the password received with the one in the account
-		err = srv.validatePassword(rqst.OldPassword, account.Password)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		if err = srv.validatePassword(rqst.OldPassword, account.Password); err != nil {
+			return nil, logInternal("SetPassword:validateOld", err, "accountId", rqst.AccountId)
 		}
 	}
 
-	// Now I will update the account...
-	err = srv.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = srv.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword); err != nil {
+		return nil, logInternal("SetPassword:change", err, "accountId", rqst.AccountId)
 	}
 
 	issuer, err := config.GetMacAddress()
 	if err != nil {
 		return nil, err
 	}
-
-	// Issue the token for the actual sever.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		// The application...
-		issuer = strings.Join(md["issuer"], "")
+		if v := strings.Join(md["issuer"], ""); v != "" {
+			issuer = v
+		}
 	}
 
-	// finaly I will call authenticate to generate the token string and set it at return...
 	tokenString, err := srv.authenticate(account.Id, rqst.NewPassword, issuer)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetPassword:authenticate", err, "accountId", rqst.AccountId)
 	}
 
-	// Set the password.
-	return &authenticationpb.SetPasswordResponse{
-		Token: tokenString,
-	}, nil
+	logInfo("SetPassword:ok", "accountId", rqst.AccountId)
+	return &authenticationpb.SetPasswordResponse{Token: tokenString}, nil
 }
 
-// Set the root password, the root password will be save in the configuration file.
+// SetRootPassword updates the root (sa) password in backend+config, returning a new root token.
 func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
-	// Get validated user id and token.
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -190,84 +154,51 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 	domain, _ := config.GetDomain()
 	if clientId != "sa@"+domain {
 		if !Utility.Exists(configPath) {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only sa can change root password")))
+			return nil, logInternal("SetRootPassword:permission", errors.New("only 'sa' can change root password"))
 		}
 	}
 
-	// The root password will be
 	if !Utility.Exists(configPath) {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+		return nil, logInternal("SetRootPassword:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
 	}
 
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetRootPassword:readConfig", err)
 	}
 
 	srvConfig := make(map[string]interface{})
-	err = json.Unmarshal(data, &srvConfig)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = json.Unmarshal(data, &srvConfig); err != nil {
+		return nil, logInternal("SetRootPassword:parseConfig", err)
 	}
 
-	// Now I go Globular config file I will get the password.
-	password := srvConfig["RootPassword"].(string)
+	password, _ := srvConfig["RootPassword"].(string)
 
-	// adminadmin is the default password...
 	if password == "adminadmin" {
 		if rqst.OldPassword != password {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
+			return nil, logInternal("SetRootPassword:defaultMismatch", errors.New("the given password doesn't match the existing one"))
 		}
 	} else {
-
-		// Here I will get the account info.
 		account, err := srv.getAccount("sa")
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, logInternal("SetRootPassword:getAccount", err)
 		}
-
-		// Now I will validate the password received with the one in the account
-		err = srv.validatePassword(rqst.OldPassword, account.Password)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		if err = srv.validatePassword(rqst.OldPassword, account.Password); err != nil {
+			return nil, logInternal("SetRootPassword:validateOld", err)
 		}
 	}
 
-	// Now I will update the account...
-	err = srv.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = srv.changeAccountPassword("sa", token, rqst.OldPassword, rqst.NewPassword); err != nil {
+		return nil, logInternal("SetRootPassword:change", err)
 	}
 
 	srvConfig["RootPassword"] = rqst.NewPassword
 	jsonStr, err := Utility.ToJson(srvConfig)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetRootPassword:marshalConfig", err)
 	}
-
-	err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
+		return nil, logInternal("SetRootPassword:writeConfig", err)
 	}
 
 	macAddress, err := config.GetMacAddress()
@@ -275,123 +206,89 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, err
 	}
 
-	// The token string
 	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", srvConfig["AdminEmail"].(string), srv.Domain)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetRootPassword:generateToken", err)
 	}
 
-	// Generate a token...
-	return &authenticationpb.SetRootPasswordResponse{
-		Token: tokenString,
-	}, nil
+	logInfo("SetRootPassword:ok")
+	return &authenticationpb.SetRootPasswordResponse{Token: tokenString}, nil
 }
 
-// Set the root email
+// SetRootEmail updates the admin email in the configuration.
 func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
-
-	// The root password will be
 	if !Utility.Exists(configPath) {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+		return nil, logInternal("SetRootEmail:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
 	}
 
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetRootEmail:readConfig", err)
 	}
 
-	config := make(map[string]interface{})
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	cfg := make(map[string]interface{})
+	if err = json.Unmarshal(data, &cfg); err != nil {
+		return nil, logInternal("SetRootEmail:parseConfig", err)
 	}
 
-	// Now I go Globular config file I will get the password.
-	email := config["AdminEmail"].(string)
+	email, _ := cfg["AdminEmail"].(string)
 	if email != rqst.OldEmail {
-
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the g1736628884iven email dosent match existing one")))
-
+		return nil, logInternal("SetRootEmail:mismatch", errors.New("the given email doesn't match the existing one"))
 	}
 
-	config["AdminEmail"] = rqst.NewEmail
-	jsonStr, err := Utility.ToJson(config)
+	cfg["AdminEmail"] = rqst.NewEmail
+	jsonStr, err := Utility.ToJson(cfg)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, logInternal("SetRootEmail:marshalConfig", err)
+	}
+	if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
+		return nil, logInternal("SetRootEmail:writeConfig", err)
 	}
 
-	err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
+	logInfo("SetRootEmail:ok", "newEmail", rqst.NewEmail)
 	return &authenticationpb.SetRootEmailResponse{}, nil
 }
 
-/**
- * This will set peer private and public key. The keys will by save
- * in the keypath.
- */
+/*
+setKey generates peer private/public keys for this host if the mac matches.
+*/
 func (srv *server) setKey(mac string) error {
-
-	// Get the mac address
 	macAddress, err := config.GetMacAddress()
 	if err != nil {
 		return err
 	}
 
-	// Now I will generate keys if not already exist.
 	if macAddress == mac {
+		logInfo("setKey:generate", "mac", mac)
 		return security.GeneratePeerKeys(mac)
 	}
-
 	return nil
 }
 
-// validateGoogleToken checks if the provided access token is valid
+// validateGoogleToken checks if the provided access token is valid via Google's tokeninfo endpoint.
 func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
 	validationURL := "https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=" + accessToken
 
-	// Make the HTTP request
 	resp, err := http.Get(validationURL)
 	if err != nil {
-		return false, fmt.Errorf("failed to validate token: %v", err)
+		return false, fmt.Errorf("failed to validate token: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return false, fmt.Errorf("failed to read response body: %v", err)
+		return false, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check HTTP status code
 	if resp.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("invalid token, status code: %d, response: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse JSON response
 	var tokenInfo map[string]interface{}
-	err = json.Unmarshal(body, &tokenInfo)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse JSON response: %v", err)
+	if err = json.Unmarshal(body, &tokenInfo); err != nil {
+		return false, fmt.Errorf("failed to parse JSON response: %w", err)
 	}
 
-	// Ensure the token has an `expires_in` field (indicates it's still valid)
 	if _, exists := tokenInfo["expires_in"]; !exists {
 		return false, errors.New("invalid access token: missing expiration info")
 	}
@@ -399,130 +296,90 @@ func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
 	return true, nil
 }
 
-/* Authenticate a user */
+/* authenticate authenticates either root (sa) via config or a regular account (password / LDAP / OAuth).
+It returns a signed JWT on success. */
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
-
-	fmt.Println("authenticate: ", accountId, issuer)
-
-	// If the user is the root...
+	// Root path
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
-
-		// The root password will be
 		if !Utility.Exists(configPath) {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+			return "", logInternal("authenticate:root:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
 		}
 
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return "", logInternal("authenticate:root:readConfig", err)
 		}
 
-		config := make(map[string]interface{})
-		err = json.Unmarshal(data, &config)
-		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		cfg := make(map[string]interface{})
+		if err = json.Unmarshal(data, &cfg); err != nil {
+			return "", logInternal("authenticate:root:parseConfig", err)
 		}
 
-		// Now I go Globular config file I will get the password.
-		password := config["RootPassword"].(string)
+		password, _ := cfg["RootPassword"].(string)
 
-		// adminadmin is the default password...
 		if password == "adminadmin" {
 			if pwd != password {
-				return "", status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
+				return "", logInternal("authenticate:root:defaultMismatch", errors.New("the given password doesn't match the existing one"))
 			}
 		} else {
-			// Now I will validate the password received with the one in the account
-			err = srv.validatePassword(pwd, password)
-			if err != nil {
-				return "", status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			if err = srv.validatePassword(pwd, password); err != nil {
+				return "", logInternal("authenticate:root:validate", err)
 			}
 		}
 
-		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), srv.Domain)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", cfg["AdminEmail"].(string), srv.Domain)
 		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return "", logInternal("authenticate:root:generate", err)
 		}
 
-		// Create the user file directory.
+		// prepare home folder if using "sa@domain"
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			srv.addResourceOwner(path, "file", "sa@"+srv.Domain, rbacpb.SubjectType_ACCOUNT)
+			_ = srv.addResourceOwner(path, "file", "sa@"+srv.Domain, rbacpb.SubjectType_ACCOUNT)
 		}
 
-		// Be sure the password is correct.
-		/*
-			err = srv.changeAccountPassword(accountId, tokenString, pwd, pwd)
-			if err != nil {
-				return "", status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}*/
-
-		// set back the password in the config file.
-		config["RootPassword"] = pwd
-		jsonStr, err := Utility.ToJson(config)
+		// persist updated root password (keep current)
+		cfg["RootPassword"] = pwd
+		jsonStr, err := Utility.ToJson(cfg)
 		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return "", logInternal("authenticate:root:marshalConfig", err)
+		}
+		if err = os.WriteFile(configPath, []byte(jsonStr), 0644); err != nil {
+			return "", logInternal("authenticate:root:writeConfig", err)
 		}
 
-		err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
-		if err != nil {
-			return "", status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		// save the password...
+		logInfo("authenticate:root:ok")
 		return tokenString, nil
 	}
 
-	// Here I will get the account info.
+	// Regular account path
 	account, err := srv.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
 
-	// Check if `pwd` is empty, indicating OAuth authentication
 	if pwd == "" {
+		// OAuth path
 		if account.RefreshToken == "" {
 			return "", errors.New("no password or refresh token provided")
 		}
 
-		// Call Google API to refresh the token
 		refreshURL := fmt.Sprintf("https://%s/refresh_google_token?refresh_token=%s", srv.Domain, account.RefreshToken)
 		resp, err := http.Get(refreshURL)
 		if err != nil {
-			return "", fmt.Errorf("failed to call refresh token API: %v", err)
+			return "", fmt.Errorf("failed to call refresh token API: %w", err)
 		}
 		defer resp.Body.Close()
 
-		// Read response body
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("failed to read response: %v", err)
+			return "", fmt.Errorf("failed to read response: %w", err)
 		}
 
-		// Parse the response (assuming it returns a JSON with "access_token")
 		var result map[string]string
-		err = json.Unmarshal(body, &result)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse JSON response: %v", err)
+		if err = json.Unmarshal(body, &result); err != nil {
+			return "", fmt.Errorf("failed to parse JSON response: %w", err)
 		}
 
 		accessToken, exists := result["access_token"]
@@ -530,33 +387,26 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			return "", errors.New("no access token found in response")
 		}
 
-		// Validate the Google token (optional, if needed)
 		valid, err := srv.validateGoogleToken(accessToken)
 		if err != nil || !valid {
-			return "", fmt.Errorf("invalid Google token: %v", err)
+			return "", fmt.Errorf("invalid Google token: %w", err)
 		}
-
 	} else {
-		err = srv.validatePassword(pwd, account.Password)
-		if err != nil {
-			srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
-			// Now if the LDAP service is configure I will try to authenticate with it...
+		// Password path (+ optional LDAP fallback)
+		if err = srv.validatePassword(pwd, account.Password); err != nil {
+			logInfo("authenticate:passwordMismatch", "accountId", account.Id)
 			if len(srv.LdapConnectionId) != 0 {
-				err := srv.authenticateLdap(account.Name, pwd)
-				if err != nil {
-					fmt.Println("fail to authenticate with error ", err)
+				if err := srv.authenticateLdap(account.Name, pwd); err != nil {
+					slog.Warn("authenticate:ldapFailed", "accountId", account.Id, "err", err)
 					return "", err
 				}
-				// set back the password.
-				// the old password can be left blank if the token was generated for sa.
+				// sync password from LDAP
 				token, err := security.GetLocalToken(srv.Mac)
 				if err != nil {
 					return "", err
 				}
-
-				err = srv.changeAccountPassword(account.Id, token, "", pwd)
-				if err != nil {
-					fmt.Println("fail to change password: ", account.Id, err)
+				if err = srv.changeAccountPassword(account.Id, token, "", pwd); err != nil {
+					slog.Warn("authenticate:syncPassword", "accountId", account.Id, "err", err)
 					return "", err
 				}
 			} else {
@@ -565,48 +415,40 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		}
 	}
 
-	// Now I will create the session and generate it token.
+	// create session + token
 	session := new(resourcepb.Session)
 	session.AccountId = account.Id + "@" + account.Domain
 
-	// The token string
 	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)
 	if err != nil {
-		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
-		return "", err
+		return "", logInternal("authenticate:generate", err)
 	}
 
-	// get the expire time.
 	claims, _ := security.ValidateToken(tokenString)
-
 	owner := claims.Id
 	if !strings.Contains(owner, "@") {
 		owner += "@" + claims.UserDomain
 	}
 
-	// Create the user file directory.
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
-
-	// be sure the user is the owner of that directory...
-	srv.addResourceOwner("/users/"+account.Id+"@"+account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
+	_ = srv.addResourceOwner("/users/"+account.Id+"@"+account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-	err = srv.updateSession(session)
-	if err != nil {
-		srv.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
-		return "", err
+
+	if err = srv.updateSession(session); err != nil {
+		return "", logInternal("authenticate:updateSession", err)
 	}
 
-	return tokenString, err
+	logInfo("authenticate:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
+	return tokenString, nil
 }
 
-// Process existing file...
-func (srv *server) processFiles() {
+// processFiles is currently a no-op placeholder.
+func (srv *server) processFiles() {}
 
-}
-
+// GetResourceClient returns a Resource service client.
 func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
@@ -616,6 +458,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 	return client.(*resource_client.Resource_Client), nil
 }
 
+// GetAuthenticationClient returns an Authentication service client.
 func GetAuthenticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
 	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
@@ -625,63 +468,49 @@ func GetAuthenticationClient(address string) (*authentication_client.Authenticat
 	return client.(*authentication_client.Authentication_Client), nil
 }
 
-// * Authenticate a user *
+// Authenticate authenticates an account and returns a signed token.
+// If Name is "sa", it authenticates against local config.
+// If issuer is empty and the account belongs to this domain, srv.Mac is used.
+// If local auth fails, peers are tried to locate the account.
 func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
+	var (
+		tokenString string
+		err         error
+	)
 
-	var tokenString string
-	var err error
-
-	// The issuer is the mac address from where the request come from.
-	// If the issuer is empty then I will use the mac address of the srv.
-	// The rqst.Name is the account id, if the account is part of the domain I will try to authenticate it locally.
 	if rqst.Name == "sa" {
 		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, srv.Mac)
 		if err != nil {
 			return nil, err
 		}
-
-		return &authenticationpb.AuthenticateRsp{
-			Token: tokenString,
-		}, nil
-
+		return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
 	}
 
 	if strings.Contains(rqst.Name, "@") {
-		domain := strings.Split(rqst.Name, "@")[1]
-		if domain == srv.Domain {
+		if domain := strings.Split(rqst.Name, "@")[1]; domain == srv.Domain {
 			rqst.Issuer = srv.Mac
 		}
 	}
 
-	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
 		rqst.Issuer = srv.Mac
 	} else if rqst.Issuer == srv.Mac {
-		// Try to authenticate on the server directly...
 		tokenString, err = srv.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 		if err == nil {
-			return &authenticationpb.AuthenticateRsp{
-				Token: tokenString,
-			}, nil
+			return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
 		}
 	}
 
-	// Now I will try each peer...
 	if err != nil {
 		peers, _ := srv.getPeers()
 		if len(peers) == 0 {
 			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
-
-			// no matter what happen the token must be remove...
 			defer Utility.RemoveString(srv.authentications_, uuid)
 			if Utility.Contains(srv.authentications_, uuid) {
-				return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
+				return nil, errors.New("failed to authenticate " + rqst.Name + " on " + rqst.Issuer)
 			}
-
-			// append the string in the list to cut infinite recursion
 			srv.authentications_ = append(srv.authentications_, uuid)
 
-			// I will try to authenticate the peer on other resource service...
 			for i := range peers {
 				peer := peers[i]
 				address := peer.Domain
@@ -691,20 +520,17 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 					address += ":" + Utility.ToString(peer.PortHttp)
 				}
 
-				resource_client_, err := GetResourceClient(address)
+				resourceClient, err := GetResourceClient(address)
 				if err == nil {
-					defer resource_client_.Close()
-					account, err := resource_client_.GetAccount(rqst.Name)
+					defer resourceClient.Close()
+					account, err := resourceClient.GetAccount(rqst.Name)
 					if err == nil {
-						// an account was found with that name...
-						authentication_client_, err := GetAuthenticationClient(address)
+						authClient, err := GetAuthenticationClient(address)
 						if err == nil {
-							defer authentication_client_.Close()
-							tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
+							defer authClient.Close()
+							tokenString, err := authClient.Authenticate(account.Id, rqst.Password)
 							if err == nil {
-								return &authenticationpb.AuthenticateRsp{
-									Token: tokenString,
-								}, nil
+								return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
 							}
 						}
 					}
@@ -712,19 +538,14 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 			}
 		}
 
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user "+rqst.Name+" from "+rqst.Issuer)))
+		return nil, logInternal("Authenticate:failed", errors.New("failed to authenticate user "+rqst.Name+" from "+rqst.Issuer))
 	}
 
-	return &authenticationpb.AuthenticateRsp{
-		Token: tokenString,
-	}, nil
+	return &authenticationpb.AuthenticateRsp{Token: tokenString}, nil
 }
 
-// * Generate a token for a peer with a given mac address *
+// GeneratePeerToken generates a token for a peer identified by MAC, issued for the caller.
 func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
-
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -733,10 +554,11 @@ func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb
 	userId := strings.Split(clientId, "@")[0]
 	userDomain := strings.Split(clientId, "@")[1]
 
-	// The generated token.
 	token, err := security.GenerateToken(srv.SessionTimeout, rqst.Mac, userId, "", "", userDomain)
+	if err != nil {
+		return nil, logInternal("GeneratePeerToken:generate", err)
+	}
 
-	return &authenticationpb.GeneratePeerTokenResponse{
-		Token: token,
-	}, err
+	logInfo("GeneratePeerToken:ok", "issuerMac", rqst.Mac, "userId", userId, "userDomain", userDomain)
+	return &authenticationpb.GeneratePeerTokenResponse{Token: token}, nil
 }

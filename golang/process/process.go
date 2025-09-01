@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -37,14 +37,15 @@ var (
 )
 
 /*
-KillServiceProcess terminates a running service process if its PID is set in the
-service configuration map. It sets:
+KillServiceProcess terminates a running service process if its PID is set in
+the service configuration map.
 
-  - s["Process"] = -1
-  - s["State"]   = "killed" (or "failed" with s["LastError"])
+Side effects on the given service map:
+  - sets s["Process"] = -1 on successful SIGTERM
+  - sets s["State"]   = "killed" on success
+  - sets s["State"]   = "failed" and s["LastError"] on error
 
-NOTE: This function does NOT persist the configuration to disk; the caller
-is responsible for saving it if needed.
+Note: This function does NOT persist the configuration; callers may choose to save.
 */
 func KillServiceProcess(s map[string]interface{}) error {
 	pid := -1
@@ -52,34 +53,41 @@ func KillServiceProcess(s map[string]interface{}) error {
 		pid = Utility.ToInt(s["Process"])
 	}
 
-	if pid != -1 {
-		proc, err := os.FindProcess(pid)
-		if err == nil {
-			if err := proc.Signal(syscall.SIGTERM); err == nil {
-				s["Process"] = -1
-				s["State"] = "killed"
-			} else {
-				s["State"] = "failed"
-				s["LastError"] = err.Error()
-			}
-		}
+	if pid == -1 {
+		return nil
 	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		slog.Warn("failed to find process to kill", "pid", pid, "err", err)
+		return nil
+	}
+
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		s["State"] = "failed"
+		s["LastError"] = err.Error()
+		slog.Error("failed to terminate process", "pid", pid, "err", err)
+		return nil
+	}
+
+	s["Process"] = -1
+	s["State"] = "killed"
+	slog.Info("service process terminated", "pid", pid)
 	return nil
 }
 
 /*
-StartServiceProcess launches the service binary defined by s["Path"] with the
-arguments: <id> <configPath>. It:
+StartServiceProcess launches the service binary defined by s["Path"] with
+arguments "<Id> <ConfigPath>". It:
 
-  - Assigns service ports (s["Port"] = port, s["Proxy"] = port+1)
-  - Starts the process
-  - Streams child stdout to the parent console using a *carriage-return aware*
-    copier so progress bars (using '\r') don’t flood the terminal.
-  - Waits for process exit in a goroutine and handles KeepAlive restarts
-  - Returns the child PID on success
+  - injects s["Port"]=port and s["Proxy"]=port+1
+  - starts the process
+  - streams child stdout to the parent console with CR-aware copying
+  - watches for exit in a goroutine and handles KeepAlive restarts
+  - returns the child PID on success
 
-It keeps the existing s fields and persists the configuration before/after
-startup, preserving the original behavior.
+The service map is persisted before and after startup, preserving the
+original behavior.
 */
 func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 	// Kill any previous instance tracked in config.
@@ -93,10 +101,10 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 
 	path, _ := s["Path"].(string)
 	if path == "" {
-		return -1, fmt.Errorf("no service path for %s%s", s["Name"], s["Id"])
+		return -1, fmt.Errorf("missing service binary path for %s%s", s["Name"], s["Id"])
 	}
 	if !Utility.Exists(path) {
-		return -1, fmt.Errorf("no service found at path %s; check install or ConfigPath %s", path, s["ConfigPath"])
+		return -1, fmt.Errorf("service binary not found at %s (config: %v)", path, s["ConfigPath"])
 	}
 
 	cmd := exec.Command(path, s["Id"].(string), s["ConfigPath"].(string))
@@ -132,23 +140,24 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 
 	// Start the process
 	if err := cmd.Start(); err != nil {
-		// Close pipe reader goroutine
 		_ = stdout.Close()
 		<-doneCopy
-		fmt.Println("fail to start service", s["Name"], err, "detail", stderr.String())
+		slog.Error("failed to start service", "name", s["Name"], "id", s["Id"], "err", err, "stderr", strings.TrimSpace(stderr.String()))
 		return -1, err
 	}
+
+	slog.Info("service process started", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "port", port, "proxy", port+1)
 
 	// Provide the PID immediately (matches original behavior)
 	waitUntilStart := make(chan int, 1)
 	waitUntilStart <- cmd.Process.Pid
 
 	// Supervise in background
-	go func(serviceId string) {
+	go func() {
 		err := cmd.Wait() // wait for process to exit
 
 		if err != nil {
-			fmt.Println("service "+s["Name"].(string)+" fail with error ", err, "detail", stderr.String())
+			slog.Error("service process exited with error", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "err", err, "stderr", strings.TrimSpace(stderr.String()))
 			s["State"] = "failed"
 		} else {
 			// Reload fresh config state from disk (original behavior)
@@ -156,6 +165,7 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 				_ = json.Unmarshal(data, &s)
 			}
 			s["State"] = "stopped"
+			slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid)
 		}
 
 		// Close stdout copier
@@ -164,32 +174,39 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 
 		// KeepAlive: auto-restart service and its proxy
 		if st, ok := s["State"].(string); ok && (st == "failed" || st == "killed") && s["KeepAlive"].(bool) {
+			slog.Info("keepalive: restarting service", "name", s["Name"], "id", s["Id"], "delay", "5s")
 			time.Sleep(5 * time.Second) // give time to free ports/files
+
 			if _, rerr := StartServiceProcess(s, port); rerr == nil {
 				// restart proxy if needed
 				localConf, _ := config.GetLocalConfig(true)
 				proxyPid := Utility.ToInt(s["ProxyProcess"])
 				if proxyPid != -1 {
 					if _, perr := os.FindProcess(proxyPid); perr != nil {
+						slog.Info("keepalive: restarting proxy (dead)", "name", s["Name"], "id", s["Id"])
 						_, _ = StartServiceProxyProcess(s,
 							localConf["CertificateAuthorityBundle"].(string),
 							localConf["Certificate"].(string))
 					}
 				} else {
+					slog.Info("keepalive: starting proxy", "name", s["Name"], "id", s["Id"])
 					_, _ = StartServiceProxyProcess(s,
 						localConf["CertificateAuthorityBundle"].(string),
 						localConf["Certificate"].(string))
 				}
+			} else {
+				slog.Error("keepalive: failed to restart service", "name", s["Name"], "id", s["Id"], "err", rerr)
 			}
 			return
 		}
 
 		if s["State"] == nil {
-			fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
+			// Align with prior behavior if state vanished
+			slog.Info("service process terminated; resetting pid", "name", s["Name"], "id", s["Id"], "prevPid", s["Process"])
 			s["Process"] = -1
 			_ = config.SaveServiceConfiguration(s)
 		}
-	}(s["Id"].(string))
+	}()
 
 	pid := <-waitUntilStart
 	return pid, nil
@@ -197,20 +214,23 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 
 /*
 StartServiceProxyProcess launches the gRPC-Web proxy (grpcwebproxy) for a running service.
-It reads TLS settings from the local Globular certs and configures CORS/timeouts.
+It reads TLS settings from local Globular certs and configures CORS/timeouts.
 
-Returns the proxy PID and persists s["ProxyProcess"] and s["State"]="running".
+Returns the proxy PID. Side effects:
+  - sets s["ProxyProcess"]
+  - sets s["State"]="running"
+  - persists configuration
 */
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string) (int, error) {
 	// The backend service must be running
 	processPid := Utility.ToInt(s["Process"])
 	if processPid == -1 {
-		return -1, errors.New("process pid must no be -1")
+		return -1, errors.New("service process pid must not be -1")
 	}
 
 	// Only one proxy per service instance
 	if pid := Utility.ToInt(s["ProxyProcess"]); pid != -1 {
-		return -1, fmt.Errorf("proxy already exist for service %s", s["Name"])
+		return -1, fmt.Errorf("proxy already exists for service %s", s["Name"])
 	}
 
 	servicePort := Utility.ToInt(s["Port"])
@@ -288,13 +308,18 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 						return -1, err
 					}
 				} else {
-					return -1, errors.New("the program grpcwebproxy is not install on the system")
+					return -1, errors.New("grpcwebproxy executable not found (system PATH or ./bin)")
 				}
 			}
 		} else {
 			return -1, startErr
 		}
 	}
+
+	slog.Info("grpcwebproxy started",
+		"service", s["Name"], "id", s["Id"],
+		"backend", backend, "port", proxyPort,
+		"tls", s["TLS"])
 
 	// Publish updated service configuration to listeners
 	str, _ := Utility.ToJson(s)
@@ -309,18 +334,18 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		var sc map[string]interface{}
 		_ = json.Unmarshal([]byte(str), &sc)
 
-		fmt.Println("Service", sc["Name"].(string)+":"+sc["Id"].(string),
-			"is running pid", processPid, "and lisen at port", sc["Port"],
-			"with proxy pid", proxy.Process.Pid, "lisen at port port", proxyPort)
-
 		wait <- proxy.Process.Pid
 
 		// Wait for proxy to exit and optionally restart if backend still alive
-		_ = proxy.Wait()
+		if err := proxy.Wait(); err != nil {
+			slog.Error("grpcwebproxy terminated with error", "service", s["Name"], "id", s["Id"], "err", err)
+		} else {
+			slog.Info("grpcwebproxy stopped", "service", s["Name"], "id", s["Id"])
+		}
 
 		data, err := os.ReadFile(sc["ConfigPath"].(string))
 		if err != nil {
-			fmt.Println("proxy process fail with error:", err)
+			slog.Error("failed to read service config after proxy exit", "path", sc["ConfigPath"], "err", err)
 			return
 		}
 		_ = json.Unmarshal(data, &sc)
@@ -328,9 +353,10 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		procPid := Utility.ToInt(sc["Process"])
 		if procPid != -1 && sc["KeepAlive"].(bool) {
 			if exist, err := Utility.PidExists(procPid); err == nil && exist {
+				slog.Info("keepalive: restarting grpcwebproxy", "service", sc["Name"], "id", sc["Id"])
 				_, _ = StartServiceProxyProcess(sc, certificateAuthorityBundle, certificate)
 			} else if err != nil {
-				fmt.Println("proxy process fail with error:", err)
+				slog.Error("keepalive: proxy restart check failed", "service", sc["Name"], "id", sc["Id"], "err", err)
 			}
 		}
 	}()
@@ -338,7 +364,11 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyPid := <-wait
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyPid
-	return proxyPid, config.SaveServiceConfiguration(s)
+	if err := config.SaveServiceConfiguration(s); err != nil {
+		slog.Error("failed to save service configuration after proxy start", "service", s["Name"], "id", s["Id"], "err", err)
+		return proxyPid, err
+	}
+	return proxyPid, nil
 }
 
 /*
@@ -379,9 +409,6 @@ func StartEtcdServer() error {
 	if Utility.Exists(cfgPath) {
 		if data, err := os.ReadFile(cfgPath); err == nil {
 			_ = yaml.Unmarshal(data, &nodeCfg)
-			if protocol == "https" && nodeCfg["tls"] != nil {
-				// already TLS-configured
-			}
 		}
 	}
 
@@ -436,7 +463,7 @@ func StartEtcdServer() error {
 	go func() {
 		select {
 		case sig := <-sigCh:
-			fmt.Printf("Received signal %v. Shutting down gracefully...\n", sig)
+			slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
 			cancel()
 		case <-ctx.Done():
 		}
@@ -445,15 +472,17 @@ func StartEtcdServer() error {
 	etcd.Stdout = os.Stdout
 	etcd.Stderr = os.Stderr
 
+	slog.Info("starting etcd", "config", cfgPath)
 	if err := etcd.Start(); err != nil {
-		log.Println("fail to start etcd", err)
+		slog.Error("failed to start etcd", "err", err)
 		return err
 	}
 	if err := etcd.Wait(); err != nil {
-		log.Println("etcd process terminated with error:", err)
+		slog.Error("etcd terminated with error", "err", err)
 		return err
 	}
-	fmt.Println("etcd has been shut down gracefully.")
+
+	slog.Info("etcd exited")
 	return nil
 }
 
@@ -480,7 +509,7 @@ func StartEnvoyProxy() error {
 	go func() {
 		select {
 		case sig := <-sigCh:
-			fmt.Printf("Received signal %v. Shutting down envoy gracefully...\n", sig)
+			slog.Info("received shutdown signal for envoy; terminating", "signal", sig)
 			cancel()
 		case <-ctx.Done():
 		}
@@ -489,15 +518,17 @@ func StartEnvoyProxy() error {
 	envoy.Stdout = os.Stdout
 	envoy.Stderr = os.Stderr
 
+	slog.Info("starting envoy", "config", cfgPath)
 	if err := envoy.Start(); err != nil {
-		log.Println("fail to start envoy proxy", err)
+		slog.Error("failed to start envoy", "err", err)
 		return err
 	}
 	if err := envoy.Wait(); err != nil {
-		log.Println("envoy process terminated with error:", err)
+		slog.Error("envoy terminated with error", "err", err)
 		return err
 	}
-	fmt.Println("envoy proxy has been shut down gracefully.")
+
+	slog.Info("envoy exited")
 	return nil
 }
 
@@ -514,6 +545,7 @@ Arguments:
 func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error {
 	// If Prometheus is already running, do nothing
 	if ids, err := Utility.GetProcessIdsByName("prometheus"); err == nil && len(ids) > 0 {
+		slog.Info("prometheus already running; skipping start")
 		return nil
 	}
 
@@ -571,6 +603,7 @@ scrape_configs:
 		if err := os.WriteFile(promYml, []byte(cfg), 0644); err != nil {
 			return err
 		}
+		slog.Info("generated prometheus config", "path", promYml)
 	}
 
 	alertYml := config.GetConfigDir() + "/alertmanager.yml"
@@ -597,6 +630,7 @@ inhibit_rules:
 		if err := os.WriteFile(alertYml, []byte(cfg), 0644); err != nil {
 			return err
 		}
+		slog.Info("generated alertmanager config", "path", alertYml)
 	}
 
 	args := []string{
@@ -613,6 +647,7 @@ inhibit_rules:
 			if err := os.WriteFile(webCfg, []byte(cfg), 0644); err != nil {
 				return err
 			}
+			slog.Info("generated prometheus TLS web config", "path", webCfg)
 		}
 		args = append(args, "--web.config.file", webCfg)
 	}
@@ -621,19 +656,20 @@ inhibit_rules:
 	prom.Dir = os.TempDir()
 	prom.SysProcAttr = &syscall.SysProcAttr{}
 
+	slog.Info("starting prometheus", "args", args)
 	if err := prom.Start(); err != nil {
-		log.Println("fail to start prometheus", err)
+		slog.Error("failed to start prometheus", "err", err)
 		return err
 	}
 
 	// Register metrics
 	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "globular_services_cpu_usage_counter",
-		Help: "Monitor the cpu usage of each services.",
+		Help: "Monitor the CPU usage of each service.",
 	}, []string{"id", "name"})
 	servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "globular_services_memory_usage_counter",
-		Help: "Monitor the memory usage of each services.",
+		Help: "Monitor the memory usage of each service.",
 	}, []string{"id", "name"})
 	prometheus.MustRegister(servicesCpuUsage, servicesMemoryUsage)
 
@@ -668,6 +704,7 @@ inhibit_rules:
 					}
 				}
 			case <-exit:
+				slog.Info("stopping process metrics feeder")
 				return
 			}
 		}
@@ -678,14 +715,18 @@ inhibit_rules:
 	alert.Dir = os.TempDir()
 	alert.SysProcAttr = &syscall.SysProcAttr{}
 	if err := alert.Start(); err != nil {
-		log.Println("fail to start prometheus alert manager", err)
+		slog.Warn("failed to start alertmanager", "err", err)
+	} else {
+		slog.Info("alertmanager started")
 	}
 
 	nodeExp := exec.Command("node_exporter")
 	nodeExp.Dir = os.TempDir()
 	nodeExp.SysProcAttr = &syscall.SysProcAttr{}
 	if err := nodeExp.Start(); err != nil {
-		log.Println("fail to start prometheus node exporter", err)
+		slog.Warn("failed to start node_exporter", "err", err)
+	} else {
+		slog.Info("node_exporter started")
 	}
 
 	return nil
@@ -701,7 +742,6 @@ of lines when stdout is piped.
 
 It writes:
   - '\r'  -> "\r\033[K" (CR + clear line)
-  - '\n'  -> '\n'
   - other -> byte as-is
 */
 func crAwareCopy(dst io.Writer, src io.Reader) {
@@ -711,17 +751,16 @@ func crAwareCopy(dst io.Writer, src io.Reader) {
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				// best-effort: surface the error once
-				fmt.Fprintln(dst, "\n[stream err]", err.Error())
+				_, _ = dst.Write([]byte("\n[stream error] " + err.Error() + "\n"))
 			}
 			return
 		}
-		switch b {
-		case '\r':
+		if b == '\r' {
 			// return to start of line and clear it
 			_, _ = dst.Write([]byte("\r\033[K"))
-		default:
-			_, _ = dst.Write([]byte{b})
+			continue
 		}
+		_, _ = dst.Write([]byte{b})
 	}
 }
 

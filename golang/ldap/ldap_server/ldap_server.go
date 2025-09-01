@@ -677,7 +677,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRq
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (srv *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConnectionRqst) (*ldappb.CreateConnectionRsp, error) {
-	fmt.Println("Try to create a new connection")
+
 	var c connection
 	var err error
 
@@ -1042,67 +1042,40 @@ func handleSearch(w ldapserver.ResponseWriter, m *ldapserver.Message) {
 
 // handleAdd return Success
 func handleAdd(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetAddRequest()
 
 	res := ldapserver.NewAddResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("Add: DN=%s, Attributes=%v", r.Entry(), r.Attributes())
 
 	w.Write(res)
 }
 
 // handleModify return Success
 func handleModify(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetModifyRequest()
-
 	res := ldapserver.NewModifyResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("Modify: DN=%s, Changes=%v", r.Object(), r.Changes())
-
 	w.Write(res)
 }
 
 // handleDelete return Success
 func handleDelete(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetDeleteRequest()
-
 	res := ldapserver.NewDeleteResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("Delete: DN=%s", r)
-
 	w.Write(res)
 }
 
 // handleAbandon return Success
 func handleAbandon(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetAbandonRequest()
-
 	res := ldapserver.NewResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("Abandon: MessageID=%d", r)
-
 	w.Write(res)
 }
 
 // handleExtendedRequest return Success
 func handleExtendedRequest(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetExtendedRequest()
-
 	res := ldapserver.NewExtendedResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("ExtendedRequest: OID=%s, Value=%s", r.RequestName(), r.RequestValue())
-
 	w.Write(res)
 }
 
 // handleCompare return Success
 func handleCompare(w ldapserver.ResponseWriter, m *ldapserver.Message) {
-	r := m.GetCompareRequest()
 
 	res := ldapserver.NewCompareResponse(ldapserver.LDAPResultSuccess)
-
-	fmt.Println("Compare response", r)
-
 	w.Write(res)
 }
 

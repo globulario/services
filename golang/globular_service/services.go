@@ -1,3 +1,5 @@
+// Package globular_service provides helpers to initialize, run, and package
+// Globular gRPC services with consistent config, TLS, keepalive and health setup.
 package globular_service
 
 import (
@@ -8,17 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"runtime"
-	"syscall"
-
-	//"runtime/pprof"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -28,7 +27,6 @@ import (
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
 
-	//"github.com/globulario/services/golang/config"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
@@ -37,186 +35,188 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// The client service interface.
+// Service describes the minimal contract a Globular service must implement.
+// NOTE: Public interface preserved verbatim.
 type Service interface {
-
 	/** Getter/Setter **/
 
-	// The id of a particular service instance.
+	// A unique instance identifier for the running service.
 	GetId() string
 	SetId(string)
 
-	// The name of a service, must be the gRpc Service name.
+	// The gRPC service name.
 	GetName() string
 	SetName(string)
 
-	// Return the server mac address
+	// Host machine MAC address.
 	GetMac() string
 	SetMac(string)
 
-	// The address where the configuration can from http lnk
+	// HTTP(S) address (host:port) where config can be fetched.
 	GetAddress() string
 	SetAddress(string)
 
-	// The description of the services.
+	// Human-readable description.
 	GetDescription() string
 	SetDescription(string)
 
-	// The plaform of the services.
+	// Platform string (GOOS_GOARCH).
 	SetPlatform(string)
 	GetPlatform() string
 
-	// The keywords.
+	// Search keywords.
 	GetKeywords() []string
 	SetKeywords([]string)
 
-	// The path of the executable.
+	// Absolute executable path.
 	GetPath() string
 	SetPath(string)
 
-	// The service state
+	// Current service state (starting/running/stopped).
 	GetState() string
 	SetState(string)
 
-	// The path of the configuration.
+	// Config file path (config.json).
 	GetConfigurationPath() string
 	SetConfigurationPath(string)
 
-	// The last error
+	// Last error encountered (for status).
 	GetLastError() string
 	SetLastError(string)
 
-	// The modeTime
+	// Executable modification time (unix seconds).
 	SetModTime(int64)
 	GetModTime() int64
 
-	// The path of the .proto file.
+	// .proto file absolute path.
 	GetProto() string
 	SetProto(string)
 
-	// The gRpc port.
+	// gRPC port.
 	GetPort() int
 	SetPort(int)
 
-	// The reverse proxy port (use by gRpc Web)
+	// Reverse proxy port for gRPC-Web.
 	GetProxy() int
 	SetProxy(int)
 
+	// Main process PID.
 	GetProcess() int
 	SetProcess(int)
 
+	// Proxy process PID.
 	GetProxyProcess() int
 	SetProxyProcess(int)
 
-	// Can be one of http/https/tls
+	// One of: http/https/tls (transport to reach config).
 	GetProtocol() string
 	SetProtocol(string)
 
+	// Discovery endpoints.
 	GetDiscoveries() []string
 	SetDiscoveries([]string)
 
+	// Repository endpoints.
 	GetRepositories() []string
 	SetRepositories([]string)
 
-	// Return true if all Origins are allowed to access the mircoservice.
+	// CORS: allow any origin?
 	GetAllowAllOrigins() bool
 	SetAllowAllOrigins(bool)
 
-	// If AllowAllOrigins is false then AllowedOrigins will contain the
-	// list of address that can reach the services.
-	GetAllowedOrigins() string // comma separated string.
+	// CORS: comma-separated list of allowed origins if not allowing all.
+	GetAllowedOrigins() string
 	SetAllowedOrigins(string)
 
-	// Can be a ip address or domain name.
+	// Domain of the service.
 	GetDomain() string
 	SetDomain(string)
 
-	// This information is use to keep the exec update to the last avalaible exec.
+	// Binary checksum used for update tracking.
 	GetChecksum() string
 	SetChecksum(string)
 
-	// TLS section
+	// TLS controls.
 
-	// If true the service run with TLS. The
+	// Whether to serve gRPC with TLS.
 	GetTls() bool
 	SetTls(bool)
 
-	// The certificate authority file
+	// CA file path trusted by the server.
 	GetCertAuthorityTrust() string
 	SetCertAuthorityTrust(string)
 
-	// The certificate file.
+	// Server certificate file path.
 	GetCertFile() string
 	SetCertFile(string)
 
-	// The key file.
+	// Server key file path.
 	GetKeyFile() string
 	SetKeyFile(string)
 
-	// The service version
+	// Service version (semver or similar).
 	GetVersion() string
 	SetVersion(string)
 
-	// The publisher id.
+	// Publisher identifier.
 	GetPublisherID() string
 	SetPublisherID(string)
 
+	// Auto-update flag.
 	GetKeepUpToDate() bool
 	SetKeepUptoDate(bool)
 
+	// Keepalive management by supervisor.
 	GetKeepAlive() bool
 	SetKeepAlive(bool)
 
-	GetPermissions() []interface{} // contains the action permission for the services.
+	// Action permissions metadata.
+	GetPermissions() []interface{}
 	SetPermissions([]interface{})
 
-	/** The list of requried service **/
+	/** Required dependencies **/
 	SetDependency(string)
 	GetDependencies() []string
 
-	/** Initialyse the service configuration **/
+	/** Lifecycle **/
+
+	// Initialize service (loads config, sets defaults, writes baseline config).
 	Init() error
 
-	/** Save the service configuration **/
+	// Persist service configuration to disk.
 	Save() error
 
-	/** Stop the service **/
+	// Stop the service (transition to stopped and cleanup).
 	StopService() error
 
-	/** Start the service **/
+	// Start the service (spawn gRPC server).
 	StartService() error
 
-	/** That function create the dist folder of the services that can be use to
-		to publish the services. The content of that folder must respect the structure,
-		(path)/
-	 **/
+	// Dist builds a publishable directory layout under the given path.
 	Dist(path string) (string, error)
 }
 
-/**
- * Initialise a globular service.
- */
+// InitService initializes common service attributes from CLI args, executable
+// location and configuration files, then persists the configuration.
+// Public signature preserved.
 func InitService(s Service) error {
-
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
-
 	s.SetPath(execPath)
+
+	// Determine configuration path & service id from arguments or defaults.
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])
 		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
-
-		// Now I will set the path where the configuation will be save in that case.
 		servicesDir := config.GetServicesDir()
 		dir, _ := osext.ExecutableFolder()
 		path := strings.ReplaceAll(dir, "\\", "/")
 
 		if !strings.HasPrefix(path, servicesDir) {
-			// this will create a new configuration config.json beside the exec if no configuration file
-			// already exist. Mostly use by development environnement.
+			// Development mode: keep config next to executable.
 			s.SetConfigurationPath(path + "/config.json")
 		} else {
 			servicesConfigDir := config.GetServicesConfigDir()
@@ -224,59 +224,51 @@ func InitService(s Service) error {
 			if Utility.Exists(configPath + "/config.json") {
 				s.SetConfigurationPath(configPath + "/config.json")
 			} else {
-				// so here no configuration exist at default configuration path and the
-				// service was started without argument. In that case I will create the configuration
-				// file beside the executable file.
 				s.SetConfigurationPath(path + "/config.json")
 			}
 		}
 	}
 
 	if len(s.GetConfigurationPath()) == 0 {
-		fmt.Println("fail to retreive configuration for service " + s.GetId())
-		return errors.New("fail to retreive configuration for service " + s.GetId())
+		err := fmt.Errorf("no configuration path determined for service %q", s.GetId())
+		slog.Error("InitService: configuration path missing", "service", s.GetName(), "id", s.GetId(), "err", err)
+		return err
 	}
 
-	// if the service configuration does not exist.
+	// Load or create configuration.
 	if Utility.Exists(s.GetConfigurationPath()) {
-		// Here I will get the configuration from the Configuration srv...
 		if len(s.GetId()) > 0 {
-			config_, err := config.GetServiceConfigurationById(s.GetId())
+			cfg, err := config.GetServiceConfigurationById(s.GetId())
 			if err != nil {
-				fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+				slog.Error("InitService: failed to read service configuration by id", "id", s.GetId(), "path", s.GetConfigurationPath(), "err", err)
 				return err
 			}
-
-			// If no configuration was found from the configuration server i will get it from the configuration file.
-			str, err := Utility.ToJson(config_)
+			str, err := Utility.ToJson(cfg)
 			if err != nil {
-				fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
+				slog.Error("InitService: failed to marshal configuration", "id", s.GetId(), "err", err)
 				return err
 			}
-
-			err = json.Unmarshal([]byte(str), &s)
-			if err != nil {
+			if err := json.Unmarshal([]byte(str), &s); err != nil {
+				slog.Error("InitService: failed to unmarshal configuration into service", "id", s.GetId(), "err", err)
 				return err
 			}
 		} else {
-			// Here I will simply get the configuration from the configuration file directly.
 			data, err := os.ReadFile(s.GetConfigurationPath())
 			if err != nil {
-				fmt.Println("fail read ", s.GetConfigurationPath(), "with error", err)
+				slog.Error("InitService: failed to read configuration file", "path", s.GetConfigurationPath(), "err", err)
 				return err
 			}
-
-			err = json.Unmarshal(data, &s)
-			if err != nil {
+			if err := json.Unmarshal(data, &s); err != nil {
+				slog.Error("InitService: invalid configuration JSON", "path", s.GetConfigurationPath(), "err", err)
 				return err
 			}
 		}
-
 	} else {
+		// No existing configuration; assign a new ID.
 		s.SetId(Utility.RandomUUID())
 	}
 
-	// set contextual values.
+	// Fill contextual values.
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
 	macAddress, _ := config.GetMacAddress()
@@ -285,129 +277,125 @@ func InitService(s Service) error {
 	s.SetAddress(address)
 	s.SetDomain(domain)
 
-	// here the service is runing...
+	// Startup state.
 	s.SetState("starting")
 	s.SetProcess(os.Getpid())
 
-	// Now the platform.
+	// Platform & checksum
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
+	slog.Info("InitService: initialized", "service", s.GetName(), "id", s.GetId(), "path", s.GetPath(), "config", s.GetConfigurationPath())
 	return SaveService(s)
 }
 
-/**
- * Save a globular service.
- */
+// SaveService persists the current service configuration.
+// Public signature preserved.
 func SaveService(s Service) error {
-	// Set current process
 	s.SetModTime(time.Now().Unix())
-	config_, err := Utility.ToMap(s)
+	cfg, err := Utility.ToMap(s)
 	if err != nil {
+		slog.Error("SaveService: failed to convert service to map", "service", s.GetName(), "err", err)
 		return err
 	}
-
-	return config.SaveServiceConfiguration(config_)
+	if err := config.SaveServiceConfiguration(cfg); err != nil {
+		slog.Error("SaveService: failed to save configuration", "service", s.GetName(), "err", err)
+		return err
+	}
+	return nil
 }
 
-/**
- * Generate the dist path with all necessary info in it.
- */
+// Dist generates a versioned distribution tree for the service under distPath.
+// Public signature preserved.
 func Dist(distPath string, s Service) (string, error) {
-
-	// Create the dist diectories...
 	path := distPath + "/" + s.GetPublisherID() + "/" + s.GetName() + "/" + s.GetVersion() + "/" + s.GetId()
-	Utility.CreateDirIfNotExist(path)
-
-	// copy the proto file.
-	err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherID()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto")
-	if err != nil {
-		return "", err
+	if err := Utility.CreateDirIfNotExist(path); err != nil {
+		return "", fmt.Errorf("Dist: create dir %q: %w", path, err)
 	}
 
-	// copy the config file.
-	config_path := s.GetPath()[0:strings.LastIndex(s.GetPath(), "/")] + "/config.json"
-	if !Utility.Exists(config_path) {
-		return "", errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
+	// Copy .proto
+	if err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherID()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto"); err != nil {
+		return "", fmt.Errorf("Dist: copy proto: %w", err)
 	}
 
-	err = Utility.Copy(config_path, path+"/config.json")
-	if err != nil {
-		return "", err
+	// Copy config.json
+	configPath := s.GetPath()[0:strings.LastIndex(s.GetPath(), "/")] + "/config.json"
+	if !Utility.Exists(configPath) {
+		return "", errors.New("Dist: missing config.json (run the service once to generate it)")
+	}
+	if err := Utility.Copy(configPath, path+"/config.json"); err != nil {
+		return "", fmt.Errorf("Dist: copy config.json: %w", err)
 	}
 
-	exec_name := s.GetPath()[strings.LastIndex(s.GetPath(), "/")+1:]
-	if !Utility.Exists(config_path) {
-		return "", errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
+	// Copy executable
+	execName := s.GetPath()[strings.LastIndex(s.GetPath(), "/")+1:]
+	if !Utility.Exists(configPath) {
+		return "", errors.New("Dist: missing config.json (run the service once to generate it)")
+	}
+	if err := Utility.Copy(s.GetPath(), path+"/"+execName); err != nil {
+		return "", fmt.Errorf("Dist: copy executable: %w", err)
 	}
 
-	err = Utility.Copy(s.GetPath(), path+"/"+exec_name)
-	if err != nil {
-		return "", err
-	}
-
-	return path, err
+	return path, nil
 }
 
-/** Create a service package **/
+// CreateServicePackage tars+gzips the dist output for a given platform.
+// Public signature preserved.
 func CreateServicePackage(s Service, distPath string, platform string) (string, error) {
-
-	// Take the information from the configuration...
 	id := s.GetPublisherID() + "%" + s.GetName() + "%" + s.GetVersion() + "%" + s.GetId() + "%" + platform
 
-	// So here I will create a directory and put file in it...
 	path, err := Dist(distPath, s)
 	if err != nil {
 		return "", err
 	}
 
-	// tar + gzip
 	var buf bytes.Buffer
 	Utility.CompressDir(path, &buf)
 
-	// write the .tar.gzip
-	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
+	outPath := os.TempDir() + string(os.PathSeparator) + id + ".tar.gz"
+	file, err := os.OpenFile(outPath, os.O_CREATE|os.O_RDWR, 0o755)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("CreateServicePackage: open %q: %w", outPath, err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, &buf); err != nil {
+		return "", fmt.Errorf("CreateServicePackage: write archive: %w", err)
 	}
 
-	defer fileToWrite.Close()
-
-	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		return "", err
+	if err := os.RemoveAll(path); err != nil {
+		return "", fmt.Errorf("CreateServicePackage: cleanup dist: %w", err)
 	}
 
-	// Remove the dir when the archive is created.
-	err = os.RemoveAll(path)
-	if err != nil {
-		return "", err
-	}
-
-	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
+	return outPath, nil
 }
 
-/**
- * Return the OS and the arch
- */
+// GetPlatform returns GOOS_GOARCH of the current runtime.
+// Public signature preserved.
 func GetPlatform() string {
-	platform := runtime.GOOS + "_" + runtime.GOARCH
-	return platform
+	return runtime.GOOS + "_" + runtime.GOARCH
 }
 
+// GetTLSConfig loads server TLS credentials and constructs a *tls.Config.
+// It logs errors with slog and returns nil on failure (caller must handle).
+// Public signature preserved (return type only).
 func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 	tlsCer, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {
-		log.Fatalf("Failed to get credentials: %v", err)
+		slog.Error("GetTLSConfig: load keypair failed", "cert", cert, "key", key, "err", err)
+		return nil
+	}
+
+	caBytes, err := os.ReadFile(ca)
+	if err != nil {
+		slog.Error("GetTLSConfig: read CA failed", "ca", ca, "err", err)
+		return nil
 	}
 
 	certPool := x509.NewCertPool()
-	clientCA, err := ioutil.ReadFile(ca)
-	if err != nil {
-		log.Fatalf("failed to read client ca cert: %s", err)
-	}
-	ok := certPool.AppendCertsFromPEM(clientCA)
-	if !ok {
-		log.Fatal("failed to append client certs")
+	if ok := certPool.AppendCertsFromPEM(caBytes); !ok {
+		slog.Error("GetTLSConfig: append CA certs failed")
+		return nil
 	}
 
 	return &tls.Config{
@@ -420,42 +408,36 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 				Intermediates: x509.NewCertPool(),
 				KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 			}
-
-			for _, cert := range rawCerts[1:] {
-				opts.Intermediates.AppendCertsFromPEM(cert)
+			for _, c := range rawCerts[1:] {
+				opts.Intermediates.AppendCertsFromPEM(c)
 			}
-
 			c, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
-				return errors.New("tls: failed to verify client certificate: " + err.Error())
+				return fmt.Errorf("tls: parse client cert: %w", err)
 			}
-			_, err = c.Verify(opts)
-			if err != nil {
-				return errors.New("tls: failed to verify client certificate: " + err.Error())
+			if _, err = c.Verify(opts); err != nil {
+				return fmt.Errorf("tls: verify client cert: %w", err)
 			}
 			return nil
 		},
 	}
 }
 
-// Here I will initilise the grpc server.
+// Keepalive / concurrency parameters for gRPC servers.
 const (
 	grpcKeepaliveTime        = 30 * time.Second
 	grpcKeepaliveTimeout     = 5 * time.Second
 	grpcKeepaliveMinTime     = 30 * time.Second
-	grpcMaxConcurrentStreams = 1000000
+	grpcMaxConcurrentStreams = 1_000_000
 )
 
-/**
- * Initilalsyse the grpc server that will run the service.
- * ** Here is an exemple how to use prometheus for monitoring and the websocket as proxy
- *    https://github.com/pion/ion-sfu/blob/master/cmd/signal/grpc/server/wrapped.go
- */
+// InitGrpcServer constructs a *grpc.Server with standard keepalive, metrics,
+// health, TLS (if enabled), and supplied interceptors.
+// Public signature preserved.
 func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) (*grpc.Server, error) {
-	var server *grpc.Server
 	var opts []grpc.ServerOption
 
-	// Connection management options
+	// Connection management.
 	opts = append(opts,
 		grpc.MaxConcurrentStreams(grpcMaxConcurrentStreams),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
@@ -468,204 +450,174 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 		}),
 	)
 
+	// TLS (if enabled).
 	if s.GetTls() {
-		// Create the TLS credentials
-		creds := credentials.NewTLS(GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust()))
-
-		// Create the gRPC server with the credentials
-		opts = append(opts, grpc.Creds(creds))
-		if unaryInterceptor != nil {
-			opts = append(opts, grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)))
+		cfg := GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust())
+		if cfg == nil {
+			return nil, fmt.Errorf("InitGrpcServer: TLS enabled but TLS config could not be created")
 		}
-
-		if streamInterceptor != nil {
-			opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
-		}
-
-	} else {
-		if unaryInterceptor != nil && streamInterceptor != nil {
-			opts = append(opts, grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)))
-			opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
-
-		} else {
-			opts = append(opts, grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
-			opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
-
-		}
+		opts = append(opts, grpc.Creds(credentials.NewTLS(cfg)))
 	}
 
-	// Here I will create the server.
-	server = grpc.NewServer(opts...)
+	// Interceptors + Prometheus.
+	switch {
+	case unaryInterceptor != nil && streamInterceptor != nil:
+		opts = append(
+			opts,
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)),
+			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)),
+		)
+	default:
+		opts = append(
+			opts,
+			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+		)
+	}
 
-	// display server health info...
-	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
-	grpc_prometheus.Register(server)
+	srv := grpc.NewServer(opts...)
 
-	return server, nil
+	// Health + metrics.
+	grpc_health_v1.RegisterHealthServer(srv, health.NewServer())
+	grpc_prometheus.Register(srv)
+
+	slog.Info("InitGrpcServer: gRPC server initialized",
+		"service", s.GetName(),
+		"tls", s.GetTls(),
+		"port", s.GetPort(),
+	)
+	return srv, nil
 }
 
 var event_client_ *event_client.Event_Client
 
+// getEventClient lazily initializes and returns a process-wide Event client.
 func getEventClient() (*event_client.Event_Client, error) {
-	if event_client_ == nil {
-		address, err := config.GetAddress()
-		if err != nil {
-			return nil, err
-		}
-
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
+	if event_client_ != nil {
+		return event_client_, nil
 	}
-
+	address, err := config.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
 	return event_client_, nil
 }
 
+// StartService starts the gRPC server, sets up config-file watching for live
+// reload notifications, and blocks until SIGINT/SIGTERM.
+// Public signature preserved.
 func StartService(s Service, srv *grpc.Server) error {
-
-	// First of all I will create a listener.
-	// Create the channel to listen on
-	var lis net.Listener
-	var err error
 	address := "0.0.0.0"
-
-	lis, err = net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
+	lis, err := net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
-		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
-		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)
-
+		err_ := fmt.Errorf("StartService: listen %s:%d: %w", address, s.GetPort(), err)
+		slog.Error("StartService: listen failed", "service", s.GetName(), "port", s.GetPort(), "err", err_)
 		s.SetLastError(err_.Error())
 		StopService(s, srv)
-
 		return err_
 	}
 
-	// Here I will make a signal hook to interrupt to exit cleanly.
+	// Serve gRPC in background.
 	go func() {
-		// no web-rpc srv.
 		if err := srv.Serve(lis); err != nil {
-			fmt.Println("service", s.GetName(), "exit with error", err)
-
+			slog.Error("StartService: gRPC Serve exited with error", "service", s.GetName(), "err", err)
 			s.SetLastError(err.Error())
-
-			// Stop the service.
 			StopService(s, srv)
-
 			return
 		}
 	}()
 
-	/*
-		// Now I will start the proxy...
-		options := NewWrapperedServerOptions("0.0.0.0:"+Utility.ToString(s.GetPort()), s.GetCertFile(), s.GetKeyFile(), true)
-
-		// Create the wrappered gRPC-Web server
-		wrapperedServer := NewWrapperedGRPCWebServer(options, srv)
-
-		// Start the server
-		if err := wrapperedServer.Serve(); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-	*/
-
-	// Wait for signal to stop.
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-
-	/**
-	Every breath you take
-	And every change you make
-	Every bond you break
-	Every step you take
-	I'll be watching you
-	*/
+	// Watch the configuration file for changes.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatal("NewWatcher failed: ", err)
-	}
-	defer watcher.Close()
+		slog.Error("StartService: fsnotify watcher creation failed", "err", err)
+		// keep serving but without live reload.
+	} else {
+		defer watcher.Close()
 
-	go func() {
-
-		defer close(ch)
-
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Op == fsnotify.Write {
-
-					// reinit the service...
-					config, err := config.GetServiceConfigurationById(s.GetId())
-					if err != nil {
-						data, err := json.Marshal(config)
-						if err == nil {
-							err = json.Unmarshal(data, &s)
-							if err == nil {
-								// Publish the configuration change event.
-								event_client_, err := getEventClient()
-								if err == nil {
-									event_client_.Publish("update_globular_service_configuration_evt", data)
+		go func() {
+			defer func() {
+				// If this goroutine exits, service will still stop on signal.
+			}()
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					if event.Op == fsnotify.Write {
+						cfg, err := config.GetServiceConfigurationById(s.GetId())
+						if err != nil {
+							// Could not fetch from config store; ignore this round.
+							slog.Warn("StartService: failed to fetch updated configuration", "service", s.GetName(), "err", err)
+							continue
+						}
+						if data, err := json.Marshal(cfg); err == nil {
+							if err := json.Unmarshal(data, &s); err == nil {
+								// Broadcast configuration change.
+                                if ec, e := getEventClient(); e == nil {
+									_ = ec.Publish("update_globular_service_configuration_evt", data)
 								}
 							}
-
 							if s.GetState() == "stopped" {
-								// Stop the service.
 								StopService(s, srv)
-
-								// exit program.
 								os.Exit(0)
 							}
 						}
 					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					slog.Error("StartService: fsnotify error", "err", err)
 				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				fmt.Println("error:", err)
 			}
+		}()
+
+		if err := watcher.Add(s.GetConfigurationPath()); err != nil {
+			slog.Error("StartService: watcher add failed", "path", s.GetConfigurationPath(), "err", err)
 		}
-
-	}()
-
-	// watch for configuration change
-	err = watcher.Add(s.GetConfigurationPath())
-	if err != nil {
-		log.Fatal("Add failed:", err)
 	}
 
-	// wait for the service to start.
-	time.Sleep(1 * time.Second) // wait for the service to start.
-
-	// Here I will set the service state to running.
+	// Mark running and persist.
+	time.Sleep(1 * time.Second) // tiny delay to ensure readiness for external monitors
 	s.SetState("running")
 	s.SetLastError("")
 	s.SetProcess(os.Getpid())
+	_ = SaveService(s)
 
-	// managed by globular.
-	SaveService(s)
+	slog.Info("StartService: service running",
+		"service", s.GetName(),
+		"id", s.GetId(),
+		"port", s.GetPort(),
+		"address", s.GetAddress(),
+		"domain", s.GetDomain(),
+	)
 
+	// Wait for termination signal.
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	<-ch
 
-	// Stop the service.
+	// Graceful shutdown.
+	slog.Info("StartService: shutdown signal received", "service", s.GetName())
 	StopService(s, srv)
-
-	// managed by globular.
 	return SaveService(s)
-
 }
 
+// StopService transitions the service to "stopped", clears PID and stops gRPC.
+// Public signature preserved.
 func StopService(s Service, srv *grpc.Server) error {
-
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")
-
-	// Stop the service.
-	srv.Stop()
+	if srv != nil {
+		srv.Stop()
+	}
+	slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
 	return nil
 }

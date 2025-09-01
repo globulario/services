@@ -50,7 +50,6 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		store.clients = make(map[string]*mongo.Client)
 	} else {
 		if store.clients[connectionId] != nil {
-			fmt.Println("Trying to ping connection:", connectionId)
 			err := store.clients[connectionId].Ping(ctx, nil)
 			if err == nil {
 				return nil // Already connected.
@@ -697,7 +696,7 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
  * Stop MongoDB instance.
  */
 func (store *MongoStore) stopMongod() error {
-	fmt.Println("Trying to stop MongoDB instance")
+
 	pids, err := Utility.GetProcessIdsByName("mongod")
 	if err == nil {
 		if len(pids) == 0 {
@@ -738,12 +737,9 @@ func (store *MongoStore) registerSa() error {
 	// Here I will create the super admin if it does not already exist.
 	dataPath := store.DataPath + "/mongodb-data"
 
-	fmt.Println("Testing if path", dataPath, "exists")
 	if !Utility.Exists(dataPath) {
 		// Kill MongoDB store if the process is already running...
-		fmt.Println("No MongoDB database exists, I will create one")
 
-		fmt.Println("Stopping existing MongoDB instance")
 		err := store.stopMongod()
 		if err != nil {
 			fmt.Println("Failed to stop current MongoDB server instance with error:", err)
@@ -758,18 +754,15 @@ func (store *MongoStore) registerSa() error {
 		}
 
 		// Wait until MongoDB stops.
-		fmt.Println("Starting MongoDB without authentication")
 		go startMongoDB(store.Port, dataPath, false, wait)
 
 		err = <-wait
-		fmt.Println("830")
 
 		if err != nil {
 			fmt.Println("Failed to start MongoDB with error:", err)
 			return err
 		}
 
-		fmt.Println("Creating SA user and setting authentication parameters")
 
 		// Now I will create a new user named SA and give it all admin write.
 		createSaScript := fmt.Sprintf(
@@ -780,20 +773,17 @@ func (store *MongoStore) registerSa() error {
 
 		if err != nil {
 			// Remove the mongodb-data
-			fmt.Println("839 Failed to run command mongosh with error:", err)
+			fmt.Println("Failed to run command mongosh with error:", err)
 			os.RemoveAll(dataPath)
 			return err
 		}
 
-		fmt.Println("Stopping MongoDB instance instance and restarting it with authentication")
 		err = store.stopMongod()
 		if err != nil {
-			fmt.Println("847 Failed to stop current MongoDB server instance with error:", err)
+			fmt.Println("Failed to stop current MongoDB server instance with error:", err)
 			return err
 		}
 	}
-
-	fmt.Println("Starting MongoDB server with authentication")
 
 	// Wait until MongoDB was started...
 	go startMongoDB(store.Port, dataPath, true, wait)
@@ -808,12 +798,12 @@ func (store *MongoStore) registerSa() error {
 }
 
 func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) error {
-	fmt.Println("Trying to start MongoDB at port:", port, "data path:", dataPath)
+
 	pids, _ := Utility.GetProcessIdsByName("mongod")
 	if pids != nil {
 		if len(pids) > 0 {
 			wait <- nil
-			fmt.Println("MongoDB already running with pid", pids)
+
 			return nil // MongoDB already running
 		}
 	}
@@ -847,7 +837,6 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) err
 		for {
 			select {
 			case <-done:
-				fmt.Println("MongoDB process terminated...")
 				wait <- nil // Unblock it...
 				break
 

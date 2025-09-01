@@ -76,7 +76,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	adminCluster.Keyspace = "system"                            // Use the 'system' keyspace for administrative tasks
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
-		fmt.Println("line 76 fail to create admin session: ", adminCluster.Hosts, err)
+		fmt.Println("fail to create admin session: ", adminCluster.Hosts, err)
 		return nil, err
 	}
 
@@ -84,7 +84,7 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 
 	// Create the keyspace.
 	if err := adminSession.Query(createKeyspaceQuery).Exec(); err != nil {
-		fmt.Println("line 84 fail to create keyspace", keyspace, "whith error", err)
+		fmt.Println("fail to create keyspace", keyspace, "whith error", err)
 		return nil, err
 	}
 
@@ -146,7 +146,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// So here I will authenticate the user and password.
 	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
-		fmt.Println("line 144 fail to create authentication client", err)
+		fmt.Println("fail to create authentication client", err)
 		return err
 	}
 
@@ -160,7 +160,7 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		token, err = authentication_client.Authenticate(user, password)
 		if err != nil {
 			if nbTry == 0 {
-				fmt.Println("line 155 fail to authenticate user", user, "with error", err)
+				fmt.Println("fail to authenticate user", user, "with error", err)
 				return err
 			}
 			nbTry--
@@ -192,13 +192,13 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	// Create the cluster.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
-		fmt.Println("line 184 fail to create keyspace", keyspace, "whith error", err)
+		fmt.Println("fail to create keyspace", keyspace, "whith error", err)
 		return err
 	}
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		fmt.Println("line 190 fail to create session", err)
+		fmt.Println("fail to create session", err)
 		return err
 	}
 
@@ -571,7 +571,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						var err error
 						entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 						if err != nil {
-							fmt.Println("572 error inserting data into array table "+keyspace+"."+typeName, err)
+							fmt.Println("error inserting data into array table "+keyspace+"."+typeName, err)
 						}
 
 						var _id string
@@ -592,7 +592,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
 						err = session.Query(createTable).Exec()
 						if err != nil {
-							fmt.Println("Error creating array table: ", createTable, err)
+							fmt.Println("error creating array table: ", createTable, err)
 						}
 
 						// I will insert the reference into the table.
@@ -604,7 +604,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("598 Error inserting data into array table "+sourceCollection+"_"+field, err)
+							fmt.Println("error inserting data into array table "+sourceCollection+"_"+field, err)
 							fmt.Println("Query: ", insertSQL)
 						}
 					} else if entity["$ref"] != nil {
@@ -637,7 +637,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 						err = session.Query(insertSQL, parameters...).Exec()
 
 						if err != nil {
-							fmt.Println("631 Error inserting data into array table "+sourceCollection+"_"+field, err)
+							fmt.Println("error inserting data into array table "+sourceCollection+"_"+field, err)
 							fmt.Println("Query: ", insertSQL, parameters)
 						}
 					}
@@ -650,7 +650,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 					// Create the table.
 					err := session.Query(createTable).Exec()
 					if err != nil {
-						fmt.Println("Error creating array table: ", createTable, err)
+						fmt.Println("error creating array table: ", createTable, err)
 					}
 
 					// Insert the value into the table.
@@ -661,7 +661,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 					err = session.Query(insertSQL, parameters...).Exec()
 					if err != nil {
-						fmt.Println("655 Error inserting data into array table "+keyspace+"."+arrayTableName, err)
+						fmt.Println("error inserting data into array table "+keyspace+"."+arrayTableName, err)
 						fmt.Println("Query: ", insertSQL)
 					}
 				}
@@ -685,7 +685,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				var err error
 				entity, err = store.insertData(connectionId, keyspace, typeName, entity)
 				if err != nil {
-					fmt.Println("679 Error inserting data into array table "+keyspace+"."+typeName, err)
+					fmt.Println("error inserting data into array table "+keyspace+"."+typeName, err)
 				}
 
 				// I will get the entity id.
@@ -710,7 +710,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("704 Error inserting data into array table "+sourceCollection+"_"+field+" with error:", err)
+					fmt.Println("error inserting data into array table "+sourceCollection+"_"+field+" with error:", err)
 					fmt.Println("Query: ", insertSQL)
 				}
 			} else if entity["$ref"] != nil {
@@ -745,7 +745,7 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 				err = session.Query(insertSQL, parameters...).Exec()
 
 				if err != nil {
-					fmt.Println("739 Error inserting data into array table "+sourceCollection+"_"+field, err)
+					fmt.Println("Error inserting data into array table "+sourceCollection+"_"+field, err)
 					fmt.Println("Query: ", insertSQL)
 				}
 

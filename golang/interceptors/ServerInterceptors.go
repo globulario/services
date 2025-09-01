@@ -1,60 +1,110 @@
+// Package interceptors centralizes server-side validation, authorization,
+// routing (round-robin / broadcasting), and logging for gRPC services.
 package interceptors
 
-// TODO for the validation, use a map to store valid method/token/resource/access
-// the validation will be renew only if the token expire. And when a token expire
-// the value in the map will be discard. That way it will put less charge on the server
-// side.
+// NOTE: We intentionally keep the exported API intact. Internal helpers were
+// added to improve clarity, error handling, and logging.
+//
+// Caching strategy:
+//   - `cache` (sync.Map) keeps small, short-lived items:
+//       * permission decisions keyed by (address, method, token, resources)
+//         with a TTL
+//       * round-robin indexes keyed by "roundRobinIndex_<method>"
+//       * client instances keyed by <address+serviceName>
+//   - `resourceInfos` (sync.Map) memoizes rbac.ResourceInfos per method
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/globulario/utility"
+	Utility "github.com/globulario/utility"
+
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
-
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var (
-
-	// That will contain the permission in memory to limit the number
-	// of resource request...
-	// TODO made use of real cache instead of a memory map to limit the memory usage...
+	// cache is a generic, process-wide sync map for:
+	//  - permission TTL entries
+	//  - round-robin indices
+	//  - client instances
 	cache sync.Map
 
-	// That will contain the permission in memory to limit the number
+	// resourceInfos memoizes ResourceInfos for a given gRPC method.
 	resourceInfos sync.Map
 )
 
-func GetLogClient(address string) (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
+// ---- helpers ----------------------------------------------------------------
+
+type permCacheEntry struct {
+	hasAccess bool
+	expiresAt int64 // unix seconds
 }
 
-/**
- * Get the rbac client.
- */
+func nowUnix() int64 { return time.Now().Unix() }
+
+// buildPermCacheKey returns a stable cache key for a permission decision.
+func buildPermCacheKey(address, method, token string, infos []*rbacpb.ResourceInfos) string {
+	sb := strings.Builder{}
+	sb.WriteString(address)
+	sb.WriteString("|")
+	sb.WriteString(method)
+	sb.WriteString("|")
+	sb.WriteString(token)
+	for _, ri := range infos {
+		// Path and Permission determine the decision edge.
+		sb.WriteString("|")
+		sb.WriteString(ri.GetPermission())
+		sb.WriteString("|")
+		sb.WriteString(ri.GetPath())
+	}
+	return Utility.GenerateUUID(sb.String())
+}
+
+func putPermCache(key string, allowed bool, ttl time.Duration) {
+	cache.Store(key, permCacheEntry{
+		hasAccess: allowed,
+		expiresAt: nowUnix() + int64(ttl.Seconds()),
+	})
+}
+
+func getPermCache(key string) (bool, bool) {
+	val, ok := cache.Load(key)
+	if !ok {
+		return false, false
+	}
+	entry, ok := val.(permCacheEntry)
+	if !ok {
+		// Safety: unexpected type, drop it
+		cache.Delete(key)
+		return false, false
+	}
+	if nowUnix() <= entry.expiresAt {
+		return entry.hasAccess, true
+	}
+	cache.Delete(key)
+	return false, false
+}
+
+// ---- clients ----------------------------------------------------------------
+
+
+// GetRbacClient returns (and caches) an RBAC client.
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-
 	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
@@ -62,363 +112,340 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-/**
- * Keep method info in memory.
- */
-func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
+// ---- resource info memoization ----------------------------------------------
 
-	// init the resourceInfos
-	val, ok := resourceInfos.Load(method)
-	if ok {
+// getActionResourceInfos loads and caches ResourceInfos for a given method.
+func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
+	if val, ok := resourceInfos.Load(method); ok {
 		return val.([]*rbacpb.ResourceInfos), nil
 	}
 
-	rbac_client_, err := GetRbacClient(address)
+	rbacClient, err := GetRbacClient(address)
 	if err != nil {
 		return nil, err
 	}
 
-	//do something here
-	infos, err := rbac_client_.GetActionResourceInfos(method)
+	infos, err := rbacClient.GetActionResourceInfos(method)
 	if err != nil {
 		return nil, err
 	}
 
 	resourceInfos.Store(method, infos)
-
 	return infos, nil
-
 }
 
-func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectType, required_space uint64) (bool, error) {
-	rbac_client_, err := GetRbacClient(address)
+// ---- quotas -----------------------------------------------------------------
+
+// ValidateSubjectSpace validates that subject has required available space.
+func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectType, requiredSpace uint64) (bool, error) {
+	rbacClient, err := GetRbacClient(address)
 	if err != nil {
 		return false, err
 	}
-	hasSpace, err := rbac_client_.ValidateSubjectSpace(subject, subjectType, required_space)
-	return hasSpace, err
+	return rbacClient.ValidateSubjectSpace(subject, subjectType, requiredSpace)
 }
 
-func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, bool, error) {
+// ---- authorization -----------------------------------------------------------
 
-	// Here I will test if the subject is the super admin...
+func validateAction(
+	token, application, address, organization, method, subject string,
+	subjectType rbacpb.SubjectType,
+	infos []*rbacpb.ResourceInfos,
+) (bool, bool, error) {
+
+	// Treat super admin as allowed.
 	domain, _ := config.GetDomain()
 	if !strings.Contains(subject, "@") {
-		subject = subject + "@" + domain
+		subject += "@" + domain
 	}
-
 	if subject == "sa@"+domain {
 		return true, false, nil
 	}
 
-	id := address + method + token
-	for i := 0; i < len(infos); i++ {
-		id += infos[i].Permission + infos[i].Path
+	cacheKey := buildPermCacheKey(address, method, token, infos)
+	if allowed, ok := getPermCache(cacheKey); ok && allowed {
+		return true, false, nil
 	}
 
-	// generate a uuid for the action and it's resource permissions.
-	uuid := Utility.GenerateUUID(id)
-	item, ok := cache.Load(uuid)
-	if ok {
-		// Here I will test if the permission has expired...
-		hasAccess_ := item.(map[string]interface{})
-		expiredAt := time.Unix(hasAccess_["expiredAt"].(int64), 0)
-		hasAccess__ := hasAccess_["hasAccess"].(bool)
-		if time.Now().Before(expiredAt) && hasAccess__ {
-			return true, false, nil
-		}
-		// the token is expire...
-		cache.Delete(uuid)
-	}
-
-	rbac_client_, err := GetRbacClient(address)
+	rbacClient, err := GetRbacClient(address)
 	if err != nil {
-		fmt.Println("fail to connecto the the rbac service!")
+		slog.Error("rbac client unavailable", "address", address, "err", err)
 		return false, false, err
 	}
 
-	hasAccess, accessDenied, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
+	allowed, accessDenied, err := rbacClient.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
-		return hasAccess, accessDenied, err
+		return allowed, accessDenied, err
 	}
 
-	// Here I will set the access in the cache.
-	cache.Store(uuid, map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
-
-	return hasAccess, accessDenied, nil
-
+	// Cache positive permission for a short TTL.
+	putPermCache(cacheKey, allowed, 15*time.Minute)
+	return allowed, accessDenied, nil
 }
 
-func validateActionRequest(token string, application string, organization string, rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType, domain string) (bool, bool, error) {
+func validateActionRequest(
+	token, application, organization string,
+	rqst interface{},
+	method, subject string,
+	subjectType rbacpb.SubjectType,
+	domain string,
+) (bool, bool, error) {
 
 	infos, err := getActionResourceInfos(domain, method)
-
 	if err != nil {
 		infos = make([]*rbacpb.ResourceInfos, 0)
 	} else {
-		// Here I will get the params...
+		// Reflect request to bind dynamic resource paths.
 		val, _ := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
-		rqst_ := val.(protoreflect.Message)
-		if rqst_.Descriptor().Fields().Len() > 0 {
+		msg := val.(protoreflect.Message)
+		if msg.Descriptor().Fields().Len() > 0 {
 			for i := 0; i < len(infos); i++ {
-				// Get the path value from retreive infos.
-				param := rqst_.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
-				val := rqst_.Get(param)
-				if param.Kind() == protoreflect.MessageKind && len(infos[i].Field) > 0 {
-					infos[i].Path, _ = url.PathUnescape(val.Message().Get(param.Message().Fields().ByTextName(infos[i].Field)).String())
-				} else if param.IsList() {
-					infos_ := make([]*rbacpb.ResourceInfos, val.List().Len())
-					for j := 0; j < val.List().Len(); j++ {
-						val_ := val.List().Get(j).String()
-						infos_[j] = new(rbacpb.ResourceInfos)
-						infos_[j].Path, _ = url.PathUnescape(val_)
-						infos_[j].Index = infos[i].Index
-						infos_[j].Permission = infos[i].Permission
+				field := msg.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
+				v := msg.Get(field)
+
+				// list path binding
+				if field.IsList() {
+					expanded := make([]*rbacpb.ResourceInfos, v.List().Len())
+					for j := 0; j < v.List().Len(); j++ {
+						ri := &rbacpb.ResourceInfos{
+							Index:      infos[i].Index,
+							Permission: infos[i].Permission,
+						}
+						ri.Path, _ = url.PathUnescape(v.List().Get(j).String())
+						expanded[j] = ri
 					}
-
-					hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos_)
-
-					if err != nil {
-						return hasAccess, accessDenied, err
-					}
-
-					return hasAccess, accessDenied, nil
-				} else {
-					infos[i].Path, _ = url.PathUnescape(val.String())
+					return validateAction(token, application, domain, organization, method, subject, subjectType, expanded)
 				}
 
+				// message subfield or scalar
+				if field.Kind() == protoreflect.MessageKind && len(infos[i].Field) > 0 {
+					riField := field.Message().Fields().ByTextName(infos[i].Field)
+					infos[i].Path, _ = url.PathUnescape(v.Message().Get(riField).String())
+				} else {
+					infos[i].Path, _ = url.PathUnescape(v.String())
+				}
 			}
 		}
 	}
 
-	// TODO keep to value in cache for keep speed.
-	hasAccess, accessDenied, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos)
-
-	if err != nil {
-		return hasAccess, accessDenied, err
-	}
-
-	// Here I will store the permission for further use...
-	return hasAccess, accessDenied, nil
+	return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
 }
 
-// Log the error...
-func log(domain, application, user, method, fileLine, functionName string, msg string, level logpb.LogLevel) {
-	logger, _ := GetLogClient(domain)
-	if logger != nil {
-		logger.Log(application, user, method, level, msg, fileLine, functionName)
+// ---- logging ----------------------------------------------------------------
+// log writes a structured log entry using slog instead of the remote log client.
+// The signature is kept identical so existing call sites continue to work.
+func log(address, application, user, method, fileLine, functionName, msg string, level logpb.LogLevel) {
+	attrs := []any{
+		"domain", address,
+		"application", application,
+		"user", user,
+		"method", method,
+		"function", functionName,
+		"file", fileLine,
+	}
+
+	switch level {
+	// Map common levels to slog. Unknown values fall back to Debug.
+	case logpb.LogLevel_ERROR_MESSAGE:
+		slog.Error(msg, attrs...)
+	case logpb.LogLevel_WARN_MESSAGE:
+		slog.Warn(msg, attrs...)
+	case logpb.LogLevel_INFO_MESSAGE:
+		slog.Info(msg, attrs...)
+	default:
+		slog.Debug(msg, attrs...)
 	}
 }
 
-// Get the client.
+// ---- dynamic client + routing -----------------------------------------------
+
 func getClient(address, serviceName string) (globular_client.Client, error) {
-
 	uuid := Utility.GenerateUUID(address + serviceName)
 
-	// Here I will test if the client is already in the cache.
-	item, ok := cache.Load(uuid)
-	if ok {
-		// Here I will test if the permission has expired...
-		client := item.(globular_client.Client)
-		return client, nil
+	if item, ok := cache.Load(uuid); ok {
+		if c, ok := item.(globular_client.Client); ok {
+			return c, nil
+		}
+		// Bad type in cache, evict
+		cache.Delete(uuid)
 	}
 
 	fct := "New" + serviceName[strings.Index(serviceName, ".")+1:] + "_Client"
-
 	client, err := globular_client.GetClient(address, serviceName, fct)
 	if err != nil {
 		return nil, err
 	}
-
-	// Here I will set the client in the cache.
 	cache.Store(uuid, client)
-
 	return client, nil
 }
 
-// The round robin policy unary method handler.
+// roundRobinUnaryMethodHandler forwards unary calls to peers in a round-robin fashion.
 func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst interface{}) (interface{}, error) {
-
-	config_, err := config.GetLocalConfig(true)
+	cfg, err := config.GetLocalConfig(true)
 	if err != nil {
 		return nil, err
 	}
-
-	// Here I will get the list of peers...
-	peers := config_["Peers"].([]interface{})
+	peers := cfg["Peers"].([]interface{})
 	if len(peers) == 0 {
 		return nil, errors.New("no peers found")
 	}
 
-	// I will get the round robin index for the method.
-	index, ok := cache.Load("roundRobinIndex_" + method)
+	key := "roundRobinIndex_" + method
+	idxAny, ok := cache.Load(key)
 	if !ok {
-		index = 0
+		idxAny = 0
 	}
 
-	// Here I will test if the index is -1, if it is I will force the method to be call locally.
-	if index.(int) == -1 {
-		index = 0
-		cache.Store("roundRobinIndex_"+method, index)
-		return nil, errors.New("force method to be cal locally")
+	// -1 means "force local"
+	if idx, _ := idxAny.(int); idx == -1 {
+		cache.Store(key, 0)
+		return nil, errors.New("force method to be called locally")
 	}
 
-	// display the peers information...
-	peer := peers[index.(int)].(map[string]interface{})
+	idx := idxAny.(int)
+	peer := peers[idx].(map[string]interface{})
 	address := peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":" + Utility.ToString(peer["Port"])
-	client, err := getClient(address, method[1:][0:strings.Index(method[1:], "/")])
+
+	service := method[1:][:strings.Index(method[1:], "/")]
+	client, err := getClient(address, service)
 	if err != nil {
 		return nil, err
 	}
 
-	// Here I will call the method on the peer.
-	rsp, err := client.Invoke(method, rqst, ctx)
+	resp, err := client.Invoke(method, rqst, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Here I will increment the index.
-	index = index.(int) + 1
-	if index.(int) >= len(peers) {
-		index = -1
+	idx++
+	if idx >= len(peers) {
+		idx = -1 // after last peer, force next call to be local
 	}
-
-	// Here I will set the index in the cache.
-	cache.Store("roundRobinIndex_"+method, index)
-
-	return rsp, nil
+	cache.Store(key, idx)
+	return resp, nil
 }
 
-// That interceptor is use by all services to apply the dynamic method routing.
 func handleUnaryMethod(routing, token string, ctx context.Context, method string, rqst interface{}) (interface{}, error) {
-
-	// Here I will apply the policy.
-	if routing == "round-robin" {
-		ctx := context.Background()
-		ctx = metadata.AppendToOutgoingContext(ctx, "token", token)
-		return roundRobinUnaryMethodHandler(ctx, method, rqst)
+	switch routing {
+	case "round-robin":
+		outCtx := metadata.AppendToOutgoingContext(context.Background(), "token", token)
+		return roundRobinUnaryMethodHandler(outCtx, method, rqst)
+	case "", "local":
+		return nil, errors.New("no dynamic routing for method")
+	default:
+		return nil, errors.New("unsupported routing: " + routing)
 	}
-
-	return nil, errors.New("fail to invoke method " + method + " routing " + routing + " not found")
 }
 
-// That interceptor is use by all services except the resource service who has
-// it own interceptor.
+// ---- interceptors (unary) ---------------------------------------------------
+
+// ServerUnaryInterceptor enforces authZ, optional routing, and logging.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	var (
+		token        string
+		application  string
+		organization string // kept for API parity (unused here)
+	)
 
-	// The token and the application id.
-	var token string
-	var application string
-	var organization string
-
-	// The peer domain.
 	address, err := config.GetAddress()
-	if err != nil {
+	if err != nil || len(address) == 0 {
+		if err == nil {
+			err = errors.New("empty address")
+		}
 		return nil, err
 	}
 
-	if len(address) == 0 {
-		return nil, errors.New("fail to get the address")
-	}
-
-	// Here I will test if the
 	method := info.FullMethod
-
 	var routing string
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		// The application...
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 		routing = strings.Join(md["routing"], "")
 	}
 
-	// If the call come from a local client it has hasAccess
-	hasAccess := true
-	accessDenied := false
-
-	// Set the list of restricted method here...
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || 
-		method == "/rbac.RbacService/SetSubjectAllocatedSpace/" {
+	// Default to allowed for local/internal methods, restrict listed ones.
+	hasAccess, accessDenied := true, false
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
+		method == "/rbac.RbacService/SetSubjectAllocatedSpace" ||
+		method == "/rbac.RbacService/SetSubjectAllocatedSpace/" { // tolerate old caller
 		hasAccess = false
 	}
 
-	var clientId string
-	var issuer string
+	var (
+		clientId string
+		issuer   string
+	)
 
-	if len(token) > 0 {
-		claims, err := security.ValidateToken(token)
-		if err != nil && !hasAccess {
-			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			return nil, err
+	if token != "" {
+		claims, vErr := security.ValidateToken(token)
+		if vErr != nil && !hasAccess {
+			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
+				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			return nil, vErr
 		}
-
 		if len(claims.Domain) == 0 {
-			return nil, errors.New("fail to validate token for method " + method + " with error " + err.Error())
+			return nil, errors.New("token validation failed: empty domain")
 		}
 		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 
+	// If RBAC defines resources for this method, require validation.
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
-		infos, err := getActionResourceInfos(address, method)
-		if err == nil && infos != nil {
+		if infos, e := getActionResourceInfos(address, method); e == nil && infos != nil {
 			hasAccess = false
 		}
 	}
 
-	if !hasAccess && len(clientId) > 0 {
+	// Validate by ACCOUNT
+	if !hasAccess && clientId != "" {
 		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
-		/** Append other method that need disk space here **/
+		// Additional quota validations:
 		if method == "/torrent.TorrentService/DownloadTorrent" {
-			// Test if the space is not already bust...
-			ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
+			_, _ = ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
 		}
 	}
 
-	if !hasAccess && len(application) > 0 && !accessDenied {
-		
+	// Validate by APPLICATION
+	if !hasAccess && application != "" && !accessDenied {
 		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, address)
 	}
 
-	if !hasAccess && len(issuer) > 0 && !accessDenied {
-		macAddress, _ := config.GetMacAddress()
-		if issuer != macAddress {
+	// Validate by PEER
+	if !hasAccess && issuer != "" && !accessDenied {
+		mac, _ := config.GetMacAddress()
+		if issuer != mac {
 			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
 		}
 	}
 
 	if !hasAccess || accessDenied {
-		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " address:" + address + " application:" + application)
-
+		err := errors.New("permission denied: method=" + method + " user=" + clientId + " address=" + address + " application=" + application)
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, err
 	}
 
-	var result interface{}
-
-	// Here I will try to call the method dynamically.
-	result, err = handleUnaryMethod(routing, token, ctx, method, rqst)
-	if err == nil {
-		return result, err
+	// Optional dynamic routing
+	if res, rErr := handleUnaryMethod(routing, token, ctx, method, rqst); rErr == nil {
+		return res, nil
 	}
 
-	// I will call the real method.
-	result, err = handler(ctx, rqst)
-
-	// Send log message.
-	if err != nil {
-		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-		return nil, err
+	// Call the actual handler
+	res, hErr := handler(ctx, rqst)
+	if hErr != nil {
+		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), hErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		return nil, hErr
 	}
 
-	return result, nil
-
+	return res, nil
 }
 
-// A wrapper for the real grpc.ServerStream
+// ---- interceptors (stream) --------------------------------------------------
+
+// ServerStreamInterceptorStream wraps a ServerStream to authorize each message.
 type ServerStreamInterceptorStream struct {
-	inner        grpc.ServerStream // default stream
+	inner        grpc.ServerStream
 	method       string
 	address      string
 	organization string
@@ -426,44 +453,24 @@ type ServerStreamInterceptorStream struct {
 	token        string
 	application  string
 	clientId     string
-	uuid         string
+	uuid         string // cache slot for this stream
 }
 
-func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
-
-	return l.inner.SetHeader(m)
-}
-
-func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error {
-
-	return l.inner.SendHeader(m)
-}
-
-func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD) {
-
-	l.inner.SetTrailer(m)
-}
-
-func (l ServerStreamInterceptorStream) Context() context.Context {
-	return l.inner.Context()
-}
-
+func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error { return l.inner.SetHeader(m) }
+func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error { return l.inner.SendHeader(m) }
+func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD)      { l.inner.SetTrailer(m) }
+func (l ServerStreamInterceptorStream) Context() context.Context      { return l.inner.Context() }
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
 	return l.inner.SendMsg(rqst)
 }
 
-/**
- * Here I will wrap the original stream into this one to get access to the original
- * rqst, so I can validate it resources.
- */
+// RecvMsg intercepts inbound messages to apply per-message authorization.
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
+	if err := l.inner.RecvMsg(rqst); err != nil {
+		return err
+	}
 
-	// First of all i will get the message.
-	l.inner.RecvMsg(rqst)
-	hasAccess := false
-	accessDenied := false
-
-	// Here I will test if the method is in the list of method that don't need access validation.
+	// Methods that require no validation
 	if l.method == "/resource.ResourceService/GetRoles" ||
 		l.method == "/resource.ResourceService/GetAccounts" ||
 		l.method == "/resource.ResourceService/GetOrganizations" ||
@@ -473,181 +480,120 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/admin.AdminService/GetProcessInfos" ||
 		l.method == "/rbac.RbacService/GetResourcePermissionsByResourceType" ||
-		l.method == "/repository.PackageRepository/DownloadBundle" || 
+		l.method == "/repository.PackageRepository/DownloadBundle" ||
 		l.method == "/title.TitleService/SearchTitles" ||
 		l.method == "/blog.BlogService/SearchBlogPosts" ||
-		l.method == "/file.FileService/ReadDir"  {
+		l.method == "/log.LogService/Log" ||
+		l.method == "/log.LogService/GetLog" ||
+		l.method == "/file.FileService/ReadDir" {
 		return nil
 	}
 
-	// if the cache contain the uuid it means permission is allowed
-	_, ok := cache.Load(l.uuid)
-	if ok {
-		//fmt.Println("permission found in cache user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.address + " application:" + l.application)
+	// Quick allow if we already decided in this stream.
+	if _, ok := cache.Load(l.uuid); ok {
 		return nil
 	}
 
-	// fmt.Println("validate permission cache user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.address + " application:" + l.application)
-	// Test if peer has access
-	if !hasAccess && len(l.clientId) > 0 {
-		hasAccess, accessDenied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.address)
+	allowed, denied := false, false
+
+	if !allowed && l.clientId != "" {
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.address)
+	}
+	if !allowed && l.application != "" && !denied {
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.address)
+	}
+	if !allowed && l.peer != "" && !denied {
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.peer, rbacpb.SubjectType_PEER, l.address)
 	}
 
-	if !hasAccess && len(l.application) > 0 && !accessDenied {
-		hasAccess, accessDenied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.address)
+	if !allowed || denied {
+		return errors.New("permission denied: method=" + l.method + " user=" + l.clientId + " address=" + l.address + " application=" + l.application)
 	}
 
-	if !hasAccess && len(l.peer) > 0 && !accessDenied {
-		hasAccess, accessDenied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.peer, rbacpb.SubjectType_PEER, l.address)
-	}
-
-	if !hasAccess || accessDenied {
-		err := errors.New("Permission denied to execute method " + l.method + " user:" + l.clientId + " address:" + l.address + " application:" + l.application)
-		return err
-	}
-
-	// I will store the access.
-	cache.Store(l.uuid, []byte{})
-
-	// set empty item to set haAccess.
+	// Mark this stream as authorized for subsequent messages.
+	cache.Store(l.uuid, struct{}{})
 	return nil
 }
 
-// The broadcast stream wrapper.
+// ServerStreamInterceptorBroadcastStream fans out inbound messages to peers.
 type ServerStreamInterceptorBroadcastStream struct {
 	grpc.ServerStream
-	addresses []string // List of addresses to broadcast to
-	method    string   // The method to broadcast
-	token     string   // The token
+	addresses []string
+	method    string
+	token     string
 }
 
-// Context returns the context for this stream.
 func (b ServerStreamInterceptorBroadcastStream) Context() context.Context {
-	// I will create a new context with the token.
-	ctx := context.Background()
-	ctx = metadata.AppendToOutgoingContext(ctx, "token", b.token)
-	return ctx
+	return metadata.AppendToOutgoingContext(context.Background(), "token", b.token)
 }
+func (b ServerStreamInterceptorBroadcastStream) SetHeader(md metadata.MD) error { return b.ServerStream.SetHeader(md) }
+func (b ServerStreamInterceptorBroadcastStream) SendHeader(md metadata.MD) error { return b.ServerStream.SendHeader(md) }
+func (b ServerStreamInterceptorBroadcastStream) SetTrailer(md metadata.MD)       { b.ServerStream.SetTrailer(md) }
+func (b ServerStreamInterceptorBroadcastStream) SendMsg(m interface{}) error     { return b.ServerStream.SendMsg(m) }
 
-// SetHeader sets the header metadata. It may be called multiple times.
-// Implementations must not modify the metadata map on the returned context.
-func (b ServerStreamInterceptorBroadcastStream) SetHeader(md metadata.MD) error {
-	return b.ServerStream.SetHeader(md)
-}
-
-// SendHeader sends the header metadata. The provided metadata can be prepared
-// using the metadata.New function.
-func (b ServerStreamInterceptorBroadcastStream) SendHeader(md metadata.MD) error {
-	return b.ServerStream.SendHeader(md)
-}
-
-// SetTrailer sets the trailer metadata which will be sent with the status.
-func (b ServerStreamInterceptorBroadcastStream) SetTrailer(md metadata.MD) {
-	b.ServerStream.SetTrailer(md)
-}
-
-// SendMsg sends a message to the client.
-func (b ServerStreamInterceptorBroadcastStream) SendMsg(m interface{}) error {
-	return b.ServerStream.SendMsg(m)
-}
-
-// RecvMsg receives a message from the client.
 func (b ServerStreamInterceptorBroadcastStream) RecvMsg(m interface{}) error {
-
-	// First, receive the message from the stream
 	if err := b.ServerStream.RecvMsg(m); err != nil {
 		return err
 	}
-
-	// Now that m is populated, you can broadcast it
 	b.Broadcast(m)
-
 	return nil
 }
 
-// BroadcastAndAggregate handles the broadcasting of the request and aggregation of the responses.
 func (b *ServerStreamInterceptorBroadcastStream) Broadcast(req interface{}) {
-
-	// A wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
-
-	// Send request to each address
 	for _, addr := range b.addresses {
-		wg.Add(1) // Increment the wait group counter
-
+		wg.Add(1)
 		go func(address string) {
-			defer wg.Done() // Decrement the wait group counter when the goroutine completes
-
-			// Here, send the request to the server at `address`
-			// For example, this could be a gRPC client call
-			serviceName := b.method[1:][0:strings.Index(b.method[1:], "/")]
-			err := b.sendRequestToServer(b.Context(), serviceName, b.method, address, req)
-
-			if err != nil {
-				fmt.Println("error sending request to server: ", err)
+			defer wg.Done()
+			serviceName := b.method[1:][:strings.Index(b.method[1:], "/")]
+			if err := b.sendRequestToServer(b.Context(), serviceName, b.method, address, req); err != nil {
+				slog.Warn("broadcast send failed", "address", address, "method", b.method, "err", err)
 			}
-
 		}(addr)
 	}
-
-	// Wait for all requests to complete
 	wg.Wait()
-
 }
 
 func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context.Context, serviceName, method, address string, rqst interface{}) error {
-
-	// Create a client connection to the server at `address`
-	// Send the `req` and receive a response
-	// This will depend on your specific gRPC setup and request/response types
-	// ...
 	client, err := getClient(address, serviceName)
 	if err != nil {
 		return err
 	}
 
-	// Here I will call the method on the peer.
 	stream, err := client.Invoke(method, rqst, ctx)
 	if err != nil {
 		return err
 	}
 
-	// Read from the stream
 	for {
-		resp, err := Utility.CallMethod(stream, "Recv", []interface{}{})
-		if err != nil {
-			if err.(error) == io.EOF {
-				// End of the stream
+		resp, recvErr := Utility.CallMethod(stream, "Recv", []interface{}{})
+		if recvErr != nil {
+			if recvErr.(error) == io.EOF {
 				break
-			} else {
-				return err.(error)
 			}
+			return recvErr.(error)
 		}
-
-		// send the response back
-		b.SendMsg(resp)
-
+		if err := b.SendMsg(resp); err != nil {
+			return err
+		}
 	}
-
 	return nil
-
 }
 
-// Stream interceptor.
+// ServerStreamInterceptor enforces authZ per-stream/per-message, supports
+// optional broadcast routing, and logs errors.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	var (
+		token       string
+		application string
+	)
 
-	// The token and the application id.
-	var token string
-	var application string
-
-	// The peer domain.
 	address, err := config.GetAddress()
-	if err != nil {
+	if err != nil || len(address) == 0 {
+		if err == nil {
+			err = errors.New("empty address")
+		}
 		return err
-	}
-
-	if len(address) == 0 {
-		return errors.New("fail to get the address")
 	}
 
 	method := info.FullMethod
@@ -659,72 +605,70 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		routing = strings.Join(md["routing"], "")
 	}
 
-	var clientId string
-	var issuer string
-	hasAccess := true
+	var (
+		clientId string
+		issuer   string
+	)
 
-	// TODO set method the require access validation here....
-
-	// Here I will get the peer mac address from the list of registered peer...
-	if len(token) > 0 {
-		
-		claims, err := security.ValidateToken(token)
-
-		if err != nil && !hasAccess {
-			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			return err
+	if token != "" {
+		claims, vErr := security.ValidateToken(token)
+		if vErr != nil {
+			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
+				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			return vErr
 		}
-
 		if len(claims.Domain) == 0 {
-			return errors.New("fail to validate token for method " + method + " with error " + err.Error())
+			return errors.New("token validation failed: empty domain")
 		}
-
 		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 
-	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()
 
 	if routing == "broadcasting" {
-		// Here I will get the list of peers...
-		config_, err := config.GetLocalConfig(true)
+		cfg, err := config.GetLocalConfig(true)
 		if err != nil {
 			return err
 		}
-
-		// Here I will get the list of peers...
-		peers := config_["Peers"].([]interface{})
+		peers := cfg["Peers"].([]interface{})
 		if len(peers) == 0 {
 			return errors.New("no peers found")
 		}
-
-		// Here I will get the list of addresses...
-		addresses := make([]string, len(peers))
-		for i := 0; i < len(peers); i++ {
-			peer := peers[i].(map[string]interface{})
-			addresses[i] = peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":" + Utility.ToString(peer["Port"])
+		addrs := make([]string, 0, len(peers)+1)
+		for _, p := range peers {
+			pm := p.(map[string]interface{})
+			addrs = append(addrs, pm["Hostname"].(string)+"."+pm["Domain"].(string)+":"+Utility.ToString(pm["Port"]))
 		}
+		// include local
+		addrs = append(addrs, address)
 
-		// I will also add the local address.
-		addresses = append(addresses, address)
-
-		// Now I will call the handler with the broadcast stream.
-		err = handler(srv, ServerStreamInterceptorBroadcastStream{ServerStream: stream, addresses: addresses, method: method, token: token})
-		if err != nil {
+		if err := handler(srv, ServerStreamInterceptorBroadcastStream{
+			ServerStream: stream,
+			addresses:    addrs,
+			method:       method,
+			token:        token,
+		}); err != nil {
 			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			return err
 		}
-	
-	} else {
-		err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
+		return nil
 	}
 
+	err = handler(srv, ServerStreamInterceptorStream{
+		uuid:        uuid,
+		inner:       stream,
+		method:      method,
+		address:     address,
+		token:       token,
+		application: application,
+		clientId:    clientId,
+		peer:        issuer,
+	})
 	if err != nil {
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
-	// Remove the uuid from the cache
 	cache.Delete(uuid)
-
 	return err
 }

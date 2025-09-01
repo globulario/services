@@ -21,7 +21,6 @@ var (
 
 // saveMessage stores an IMAP message in the backend database.
 func saveMessage(user string, mailBox string, body []byte, flags []string, date time.Time) error {
-	fmt.Println("---- imap ----> Saving message in the backend.")
 
 	// Prepare the message data
 	data := make(map[string]interface{})

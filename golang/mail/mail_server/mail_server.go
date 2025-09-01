@@ -545,8 +545,6 @@ type Attachment struct {
  */
 func (srv *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 
-	fmt.Println("mail_server sendEmail ", host, user, pwd, port)
-
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
 	msg.SetHeader("To", to...)
@@ -846,10 +844,8 @@ func main() {
 		}
 
 		// start imap srv.
-		fmt.Println("Start imap server on port ", s_impl.IMAP_Port)
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
-		fmt.Println("Start smtp server")
 		// start smtp server
 		smtp.StartSmtp(store, address, port, s_impl.Password, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 

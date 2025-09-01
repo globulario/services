@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,7 +17,6 @@ import (
 
 // get the thumbnail fil with help of youtube dl...
 func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
-	fmt.Println("download thumbnail for ", video_path)
 
 	if len(video_id) == 0 {
 		return "", errors.New("no video id was given")
@@ -525,7 +523,6 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 
 	// The number of view
 	movieCollector.OnHTML("#v-actions-left > div.vote-actions > div.rate-infos > span", func(e *colly.HTMLElement) {
-		fmt.Println(e.Text)
 		str := strings.Split(e.Text, " ")[0]
 		str = strings.ReplaceAll(str, ",", "")
 		currentVideo.Count = int64(Utility.ToInt(str))

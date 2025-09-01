@@ -175,10 +175,8 @@ func (client *Event_Client) run() error {
 
 			if err != nil {
 				return err
-			} else {
-				fmt.Println("event client reconnect successfully!")
 			}
-
+			
 		case <-keep_alive:
 			/** Nothing to do here...**/
 

@@ -43,7 +43,6 @@ func splitAddress(address string) (localPart, domain string, err error) {
 
 // Send sends an email using the specified sender, from address, to addresses, and message reader
 func (s *Sender) Send(from string, to []string, r io.Reader) error {
-	fmt.Println(from, "trying to send message to", to)
 
 	for _, addr := range to {
 		_, domain, err := splitAddress(addr)
@@ -52,7 +51,6 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		}
 
 		// Lookup MX records for the domain
-		fmt.Println("Looking up MX records for domain", domain)
 		mxs, err := net.LookupMX(domain)
 		if err != nil {
 			fmt.Println("Failed to lookup MX records for domain", domain, ":", err)
@@ -68,7 +66,6 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 		for _, mx := range mxs {
 			// Try connecting on port 587 first (preferred port for SMTP with STARTTLS)
 			for _, port := range []int{587, 465, 25} {
-				fmt.Println("Trying to connect to", mx.Host, "on port", port)
 				c, err := smtp.Dial(mx.Host + fmt.Sprintf(":%d", port))
 				if err != nil {
 					fmt.Println("Failed to connect to", mx.Host, "on port", port, ":", err)
@@ -135,7 +132,6 @@ func (s *Sender) Send(from string, to []string, r io.Reader) error {
 					return err
 				}
 
-				fmt.Println("Message sent to", addr)
 				success = true
 				break
 			}

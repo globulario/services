@@ -2,7 +2,7 @@ package blog_client
 
 import (
 	//"encoding/json"
-	"log"
+
 	"testing"
 )
 

@@ -27,6 +27,7 @@ go build  -buildvcs=false -o ./title/title_server ./title/title_server
 go build  -buildvcs=false -o ./torrent/torrent_server ./torrent/torrent_server
 go build  -buildvcs=false -o ./search/search_server ./search/search_server
 
+
 # start services...
 export ServicesRoot=/home/dave/Documents/globulario/services &
 ./authentication/authentication_server/authentication_server &
