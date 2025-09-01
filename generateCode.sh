@@ -1,8 +1,8 @@
 #!/bin/bash Run that command from inside your globular server.
 
 # push a new version
-git tag -a golang/v0.1.4 -m "golang v0.1.4"
-git push origin golang/v0.1.4
+git tag -a golang/v0.1.15 -m "golang v0.1.15"
+git push origin golang/v0.1.15
 
 # It's better to regenerate the whole thing when something change, so
 # all the code will be in the same gRpc version. Trust  me I lost one 
