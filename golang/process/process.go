@@ -56,10 +56,12 @@ func KillServiceProcess(s map[string]interface{}) error {
 		pid = Utility.ToInt(s["Process"])
 	}
 	if pid == -1 {
-		// Service already not running; ensure proxy is not lingering.
-		if err := KillServiceProxyProcess(s); err != nil {
-			slog.Warn("failed to terminate proxy for non-running service", "err", err, "service", s["Name"], "id", s["Id"])
-		}
+		// ensure proxy is down & runtime cleaned
+		_ = KillServiceProxyProcess(s)
+		s["State"] = "stopped"
+		s["Process"] = -1
+		_ = config.SaveServiceConfiguration(s)
+		config.StopLive(Utility.ToString(s["Id"]))
 		return nil
 	}
 
@@ -112,25 +114,23 @@ func KillServiceProcess(s map[string]interface{}) error {
 	}
 
 	// 4) Verify and update state
+	// Verify & update state
 	if alive, _ := isAlive(pid); alive {
 		err := fmt.Errorf("service pid %d did not exit after SIGTERM/SIGKILL", pid)
 		s["LastError"] = err.Error()
 		s["State"] = "failed"
 		_ = config.SaveServiceConfiguration(s)
-		slog.Error("failed to stop service", "pid", pid, "service", s["Name"], "id", s["Id"], "err", err)
 		return err
 	}
 
+	// Mark stopped in runtime; stop liveness
 	s["Process"] = -1
 	s["State"] = "stopped"
 	_ = config.SaveServiceConfiguration(s)
-	slog.Info("service process terminated", "pid", pid, "service", s["Name"], "id", s["Id"])
+	config.StopLive(Utility.ToString(s["Id"]))
 
-	// 5) Now that backend is truly dead, the proxy watcher’s check
-	//     (PidExists(procPid)) will be false → no restart. Still, clean up:
-	if err := KillServiceProxyProcess(s); err != nil {
-		slog.Warn("failed to terminate proxy after service kill", "err", err)
-	}
+	// Clean proxy afterwards
+	_ = KillServiceProxyProcess(s)
 	return nil
 }
 
@@ -269,11 +269,15 @@ func StartServiceProcessWithWriters(
 			"name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
 	}
 
-	// Supervise in background (unchanged logic; trimmed for brevity)
+	if _, err := config.StartLive(Utility.ToString(s["Id"]), 15); err != nil {
+		slog.Warn("failed to start etcd live lease", "id", s["Id"], "err", err)
+	}
+
+	// supervise in background (mostly unchanged)
 	go func() {
 		err := cmd.Wait()
 
-		// Close pipes and wait copy loops to finish
+		// close pipes and join copy goroutines
 		_ = stdout.Close()
 		_ = stderrR.Close()
 		<-doneStdout
@@ -282,24 +286,16 @@ func StartServiceProcessWithWriters(
 		if err != nil {
 			s["State"] = "failed"
 			s["LastError"] = err.Error()
-			slog.Error("service process exited with error",
-				"name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
+			slog.Error("service process exited with error", "name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
 		} else {
 			s["State"] = "stopped"
 			slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", pid)
 		}
 		s["Process"] = -1
-		if err := config.SaveServiceConfiguration(s); err != nil {
-			slog.Warn("failed to persist service state on exit",
-				"name", s["Name"], "id", s["Id"], "err", err)
-		}
+		_ = config.SaveServiceConfiguration(s)
+		config.StopLive(Utility.ToString(s["Id"]))
 
-		// KeepAlive path is unchanged (you can keep your existing code here)
-		// ...
-		if s["State"] == nil {
-			s["Process"] = -1
-			_ = config.SaveServiceConfiguration(s)
-		}
+		// (optional) keepalive restart logic here, reading *desired* from etcd
 	}()
 
 	return pid, nil
@@ -459,6 +455,8 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}()
 
 	proxyPid := <-wait
+
+	// Update runtime: ProxyProcess + State
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyPid
 	if err := config.SaveServiceConfiguration(s); err != nil {
@@ -514,11 +512,11 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		}
 	}
 
-	// Persist state
 	s["ProxyProcess"] = -1
 	if Utility.ToInt(s["Process"]) == -1 {
 		s["State"] = "stopped"
 	}
+	
 	return config.SaveServiceConfiguration(s)
 }
 

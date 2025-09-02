@@ -3005,7 +3005,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 		actions = application.Actions
 
-
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := srv.getPeer(subject)

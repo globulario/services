@@ -4,6 +4,7 @@ package globular_service
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -295,11 +297,11 @@ func SaveService(s Service) error {
 	s.SetModTime(time.Now().Unix())
 	cfg, err := Utility.ToMap(s)
 	if err != nil {
-		slog.Error("SaveService: failed to convert service to map", "service", s.GetName(), "err", err)
+		slog.Error("SaveService: to map failed", "service", s.GetName(), "err", err)
 		return err
 	}
 	if err := config.SaveServiceConfiguration(cfg); err != nil {
-		slog.Error("SaveService: failed to save configuration", "service", s.GetName(), "err", err)
+		slog.Error("SaveService: save failed", "service", s.GetName(), "err", err)
 		return err
 	}
 	return nil
@@ -507,6 +509,16 @@ func getEventClient() (*event_client.Event_Client, error) {
 	return event_client_, nil
 }
 
+// helper: get the etcd client from config package without exporting its client symbol
+func configEtcdClient() (*clientv3.Client, error) {
+	// nasty but simple: ask for our own config key and reuse the client's grpc conn
+	// better: expose a tiny getter in config, but keeping your public API unchanged here.
+	return clientv3.New(clientv3.Config{
+		Endpoints:   []string{strings.Split(strings.SplitN(Utility.ToString(config.GetAddress), ":", 2)[0], ",")[0] + ":2379"},
+		DialTimeout: 3 * time.Second,
+	})
+}
+
 // StartService starts the gRPC server, sets up config-file watching for live
 // reload notifications, and blocks until SIGINT/SIGTERM.
 // Public signature preserved.
@@ -515,7 +527,6 @@ func StartService(s Service, srv *grpc.Server) error {
 	lis, err := net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := fmt.Errorf("StartService: listen %s:%d: %w", address, s.GetPort(), err)
-		slog.Error("StartService: listen failed", "service", s.GetName(), "port", s.GetPort(), "err", err_)
 		s.SetLastError(err_.Error())
 		StopService(s, srv)
 		return err_
@@ -524,79 +535,53 @@ func StartService(s Service, srv *grpc.Server) error {
 	// Serve gRPC in background.
 	go func() {
 		if err := srv.Serve(lis); err != nil {
-			slog.Error("StartService: gRPC Serve exited with error", "service", s.GetName(), "err", err)
 			s.SetLastError(err.Error())
 			StopService(s, srv)
 			return
 		}
 	}()
 
-	// Watch the configuration file for changes.
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		slog.Error("StartService: fsnotify watcher creation failed", "err", err)
-		// keep serving but without live reload.
-	} else {
-		defer watcher.Close()
-
-		go func() {
-			defer func() {
-				// If this goroutine exits, service will still stop on signal.
-			}()
-			for {
-				select {
-				case event, ok := <-watcher.Events:
-					if !ok {
-						return
+	// Etcd watch for desired config changes on this service id
+	go func(id string) {
+		cli, err := configEtcdClient() // small wrapper below
+		if err != nil {
+			slog.Warn("StartService: etcd client init failed", "service", s.GetName(), "err", err)
+			return
+		}
+		key := "/globular/services/" + id + "/config"
+		wch := cli.Watch(context.Background(), key)
+		for w := range wch {
+			for _, ev := range w.Events {
+				if ev.IsCreate() || ev.IsModify() {
+					// Fetch merged (desired+runtime) via existing API to keep behavior
+					cfg, err := config.GetServiceConfigurationById(id)
+					if err != nil {
+						slog.Warn("StartService: failed to fetch updated configuration", "service", s.GetName(), "err", err)
+						continue
 					}
-					if event.Op == fsnotify.Write {
-						cfg, err := config.GetServiceConfigurationById(s.GetId())
-						if err != nil {
-							// Could not fetch from config store; ignore this round.
-							slog.Warn("StartService: failed to fetch updated configuration", "service", s.GetName(), "err", err)
-							continue
+					if data, err := json.Marshal(cfg); err == nil {
+						_ = json.Unmarshal(data, &s)
+						// broadcast like before
+						if ec, e := getEventClient(); e == nil {
+							_ = ec.Publish("update_globular_service_configuration_evt", data)
 						}
-						if data, err := json.Marshal(cfg); err == nil {
-							if err := json.Unmarshal(data, &s); err == nil {
-								// Broadcast configuration change.
-                                if ec, e := getEventClient(); e == nil {
-									_ = ec.Publish("update_globular_service_configuration_evt", data)
-								}
-							}
-							if s.GetState() == "stopped" {
-								StopService(s, srv)
-								os.Exit(0)
-							}
+						// Optional: honor a desired “ShouldStop” flag if you add one
+						if s.GetState() == "stopped" {
+							StopService(s, srv)
+							os.Exit(0)
 						}
 					}
-				case err, ok := <-watcher.Errors:
-					if !ok {
-						return
-					}
-					slog.Error("StartService: fsnotify error", "err", err)
 				}
 			}
-		}()
-
-		if err := watcher.Add(s.GetConfigurationPath()); err != nil {
-			slog.Error("StartService: watcher add failed", "path", s.GetConfigurationPath(), "err", err)
 		}
-	}
+	}(s.GetId())
 
-	// Mark running and persist.
-	time.Sleep(1 * time.Second) // tiny delay to ensure readiness for external monitors
+	// Mark running and persist runtime
+	time.Sleep(1 * time.Second)
 	s.SetState("running")
 	s.SetLastError("")
 	s.SetProcess(os.Getpid())
 	_ = SaveService(s)
-
-	slog.Info("StartService: service running",
-		"service", s.GetName(),
-		"id", s.GetId(),
-		"port", s.GetPort(),
-		"address", s.GetAddress(),
-		"domain", s.GetDomain(),
-	)
 
 	// Wait for termination signal.
 	ch := make(chan os.Signal, 1)
@@ -604,7 +589,6 @@ func StartService(s Service, srv *grpc.Server) error {
 	<-ch
 
 	// Graceful shutdown.
-	slog.Info("StartService: shutdown signal received", "service", s.GetName())
 	StopService(s, srv)
 	return SaveService(s)
 }
