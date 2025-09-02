@@ -4,11 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,6 +21,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"sync"
 	"syscall"
 	"time"
 
@@ -539,28 +545,12 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	}
 	return nil, errors.New("process running but query operation not permitted")
 }
-
-func findEtcdBinary() (string, error) {
-	if p, err := exec.LookPath("etcd"); err == nil {
-		return p, nil
-	}
-	if base := config.GetGlobularExecPath(); base != "" {
-		p := filepath.Join(base, "bin", "etcd")
-		if Utility.Exists(p) { return p, nil }
-	}
-	if exe, _ := os.Executable(); exe != "" {
-		p := filepath.Join(filepath.Dir(exe), "bin", "etcd")
-		if Utility.Exists(p) { return p, nil }
-	}
-	return "", fmt.Errorf("etcd binary not found in PATH, %q/bin, or ./bin — install etcd or place the binary accordingly", config.GetGlobularExecPath())
-}
-
-/*
-StartEtcdServer writes an etcd configuration (if needed) and starts the etcd
-process in the foreground, wiring stdout/stderr to the parent console. It also
-handles graceful shutdown on SIGINT/SIGTERM.
-*/
+// StartEtcdServer starts etcd in the background, waits until it's ready,
+// then returns. It no longer blocks for the lifetime of etcd.
 func StartEtcdServer() error {
+	const readyTimeout = 15 * time.Second
+	const probeEvery   = 200 * time.Millisecond
+
 	localConfig, err := config.GetLocalConfig(true)
 	if err != nil {
 		return err
@@ -587,6 +577,7 @@ func StartEtcdServer() error {
 
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
 
+	// seed with any existing cfg
 	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
 		if data, err := os.ReadFile(cfgPath); err == nil {
@@ -597,19 +588,22 @@ func StartEtcdServer() error {
 	// Decide final scheme (may fall back to http if TLS files missing)
 	scheme := protocol
 	wantTLS := (protocol == "https")
+	var certFile, keyFile, caFile string
+
 	if wantTLS {
 		domain, _ := config.GetDomain()
 		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
-		certFile := certDir + "/server.crt"
-		keyFile := certDir + "/server.pem"
-		caFile := certDir + "/ca.crt"
+		certFile = certDir + "/server.crt"
+		keyFile  = certDir + "/server.pem"
+		caFile   = certDir + "/ca.crt"
+
 		if !(Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile)) {
 			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
 				"cert", certFile, "key", keyFile, "ca", caFile)
 			wantTLS = false
 			scheme = "http"
 		} else {
-			// set TLS blocks now; URLs set below will keep "https"
+			// etcd TLS sections (URLs set below keep "https://")
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
@@ -625,25 +619,23 @@ func StartEtcdServer() error {
 		}
 	}
 	if !wantTLS {
-		// ensure no leftover TLS sections from previous runs
 		delete(nodeCfg, "client-transport-security")
 		delete(nodeCfg, "peer-transport-security")
 	}
 
-	// Single-socket listeners (avoid duplicate binds)
-	listenClientURLs := scheme + "://0.0.0.0:2379"
-	listenPeerURLs := scheme + "://0.0.0.0:2380"
-	advertiseClientURLs := scheme + "://" + host + ":2379"
+	// Listeners + advertised addresses
+	listenClientURLs         := scheme + "://0.0.0.0:2379"
+	listenPeerURLs           := scheme + "://0.0.0.0:2380"
+	advertiseClientURLs      := scheme + "://" + host + ":2379"
 	initialAdvertisePeerURLs := scheme + "://" + host + ":2380"
 
-	// Base cluster config
-	nodeCfg["name"] = name
-	nodeCfg["data-dir"] = dataDir
-	nodeCfg["listen-client-urls"] = listenClientURLs
-	nodeCfg["listen-peer-urls"] = listenPeerURLs
-	nodeCfg["advertise-client-urls"] = advertiseClientURLs
-	nodeCfg["initial-advertise-peer-urls"] = initialAdvertisePeerURLs
-	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
+	nodeCfg["name"]                         = name
+	nodeCfg["data-dir"]                     = dataDir
+	nodeCfg["listen-client-urls"]           = listenClientURLs
+	nodeCfg["listen-peer-urls"]             = listenPeerURLs
+	nodeCfg["advertise-client-urls"]        = advertiseClientURLs
+	nodeCfg["initial-advertise-peer-urls"]  = initialAdvertisePeerURLs
+	nodeCfg["initial-cluster-token"]        = "etcd-cluster-1"
 
 	// initial-cluster
 	initialCluster := name + "=" + initialAdvertisePeerURLs
@@ -666,6 +658,7 @@ func StartEtcdServer() error {
 		nodeCfg["initial-cluster-state"] = "new"
 	}
 
+	// write config
 	out, err := yaml.Marshal(nodeCfg)
 	if err != nil {
 		return err
@@ -680,7 +673,7 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	// Log FINAL URLs (after fallback decision)
+	// FINAL URLs (after fallback decision)
 	slog.Info("starting etcd",
 		"config", cfgPath,
 		"listen-client-urls", listenClientURLs,
@@ -700,36 +693,154 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	// graceful shutdown
+	// Hold the child in a package var so StopEtcdServer() can kill it
+	setEtcdCmd(cmd)
+
+	// Watch for unexpected early exit while we probe readiness
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cmd.Wait() }()
+
+	// Graceful shutdown on SIGINT/SIGTERM
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
 	go func() {
 		sig := <-sigCh
 		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
-		if cmd.Process == nil {
-			return
-		}
-		if runtime.GOOS == "windows" {
-			_ = cmd.Process.Kill()
-			return
-		}
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		time.AfterFunc(5*time.Second, func() {
-			if err := cmd.Process.Signal(syscall.Signal(0)); err == nil {
-				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-				_ = cmd.Process.Kill()
-			}
-		})
+		_ = StopEtcdServer()
 	}()
 
-	if err := cmd.Wait(); err != nil {
-		slog.Error("etcd terminated with error", "err", err)
-		return err
+	// ---- Readiness probe: try /health (preferred) then TCP dial fallback
+	deadline := time.Now().Add(readyTimeout)
+	healthURL := scheme + "://127.0.0.1:2379/health"
+
+	var httpClient *http.Client
+	if scheme == "https" && wantTLS {
+		// Trust your CA for readiness probe; if this fails, we’ll fall back to TCP
+		cp := x509.NewCertPool()
+		if pem, err := os.ReadFile(caFile); err == nil && cp.AppendCertsFromPEM(pem) {
+			httpClient = &http.Client{
+				Timeout: 1 * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{RootCAs: cp},
+				},
+			}
+		} else {
+			// In case CA is odd, we still probe with insecure TLS
+			httpClient = &http.Client{
+				Timeout: 1 * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+		}
+	} else {
+		httpClient = &http.Client{Timeout: 1 * time.Second}
 	}
-	slog.Info("etcd exited")
+
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-waitErr:
+			if err == nil {
+				return fmt.Errorf("etcd exited before becoming ready")
+			}
+			return fmt.Errorf("etcd exited early: %w", err)
+		default:
+		}
+
+		// Try HTTP /health
+		if resp, err := httpClient.Get(healthURL); err == nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				slog.Info("etcd is ready")
+				return nil
+			}
+		}
+
+		// Fallback: plain TCP dial (port open)
+		if conn, err := net.DialTimeout("tcp", "127.0.0.1:2379", 500*time.Millisecond); err == nil {
+			_ = conn.Close()
+			// We prefer /health, but if the port is open consistently we can proceed.
+			slog.Info("etcd TCP port open; proceeding")
+			return nil
+		}
+
+		time.Sleep(probeEvery)
+	}
+
+	// Timed out waiting; make sure process is not already dead
+	select {
+	case err := <-waitErr:
+		if err == nil {
+			return fmt.Errorf("etcd exited before becoming ready")
+		}
+		return fmt.Errorf("etcd exited early: %w", err)
+	default:
+	}
+
+	_ = StopEtcdServer()
+	return fmt.Errorf("etcd did not become ready within %s", readyTimeout)
+}
+
+// ---------------- helpers ----------------
+
+var etcdCmdMu sync.Mutex
+var etcdCmd   *exec.Cmd
+
+func setEtcdCmd(c *exec.Cmd) {
+	etcdCmdMu.Lock()
+	defer etcdCmdMu.Unlock()
+	etcdCmd = c
+}
+
+// StopEtcdServer gracefully stops the etcd process started by StartEtcdServer.
+func StopEtcdServer() error {
+	etcdCmdMu.Lock()
+	c := etcdCmd
+	etcdCmd = nil
+	etcdCmdMu.Unlock()
+
+	if c == nil || c.Process == nil {
+		return nil
+	}
+
+	if runtime.GOOS == "windows" {
+		_ = c.Process.Kill()
+		return nil
+	}
+
+	// Try SIGTERM on group and process
+	_ = syscall.Kill(-c.Process.Pid, syscall.SIGTERM)
+	_ = c.Process.Signal(syscall.SIGTERM)
+
+	// Wait a bit, then SIGKILL if needed
+	done := make(chan struct{}, 1)
+	go func() { _, _ = c.Process.Wait(); done <- struct{}{} }()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		_ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
+		_ = c.Process.Kill()
+	}
 	return nil
+}
+
+func findEtcdBinary() (string, error) {
+	if p, err := exec.LookPath("etcd"); err == nil {
+		return p, nil
+	}
+	// common fallback
+	candidates := []string{
+		"/usr/local/bin/etcd",
+		"/usr/bin/etcd",
+	}
+	for _, p := range candidates {
+		if Utility.Exists(p) {
+			return p, nil
+		}
+	}
+	return "", errors.New("etcd binary not found in PATH")
 }
 
 /*
