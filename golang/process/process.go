@@ -36,33 +36,20 @@ var (
 	servicesMemoryUsage *prometheus.GaugeVec
 )
 
-// --- small helpers ---
-
-func isAlive(pid int) (bool, error) {
-	return Utility.PidExists(pid)
-}
-
-func isDead(pid int) (bool, error) {
-	alive, err := isAlive(pid)
-	return !alive, err
-}
-
-func waitGone(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if ok, _ := Utility.PidExists(pid); !ok {
-			return true
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-	return false
-}
-
 /*
-KillServiceProcess sends SIGTERM (or Kill on Windows), waits for exit,
-escalates to SIGKILL after a short timeout, and only returns once the
-process is really gone. Then it clears state and kills the proxy.
+KillServiceProcess terminates a running service process if its PID is set in
+the service configuration map.
+
+Side effects on the given service map:
+  - sets s["Process"] = -1 on successful SIGTERM
+  - sets s["State"]   = "killed" on success
+  - sets s["State"]   = "failed" and s["LastError"] on error
+
+Note: This function does NOT persist the configuration; callers may choose to save.
 */
+// KillServiceProcess sends SIGTERM (or Kill on Windows), waits for exit,
+// escalates to SIGKILL after a short timeout, and only returns once the
+// process is really gone. Then it clears state and kills the proxy.
 func KillServiceProcess(s map[string]interface{}) error {
 	pid := -1
 	if s["Process"] != nil {
@@ -81,8 +68,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 		// Process handle not found ⇒ treat as gone, clean state and proxy.
 		slog.Warn("failed to find process to kill (treating as dead)", "pid", pid, "err", err)
 		s["Process"] = -1
-		s["ProcessPGID"] = -1
-		s["State"] = "killed"
+		s["State"] = "stopped"
 		_ = config.SaveServiceConfiguration(s)
 		if err := KillServiceProxyProcess(s); err != nil {
 			slog.Warn("failed to terminate proxy after missing process", "err", err)
@@ -90,32 +76,47 @@ func KillServiceProcess(s map[string]interface{}) error {
 		return nil
 	}
 
-	// Group id if we have one
-	pgid := Utility.ToInt(s["ProcessPGID"])
-
 	// 1) Try graceful stop first
 	if runtime.GOOS == "windows" {
+		// No SIGTERM on Windows; Kill does the job
 		_ = proc.Kill()
 	} else {
-		// prefer process-group signal
-		if pgid > 0 {
-			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		// Prefer group-terminate if you started service with Setpgid: true
+		// (negative pid sends to process group). Fall back to single PID.
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+			_ = proc.Signal(syscall.SIGTERM)
 		}
-		_ = proc.Signal(syscall.SIGTERM)
 	}
 
 	// 2) Wait up to 5s for the process to die
-	if !waitGone(pid, 5*time.Second) {
-		// 3) If still alive, escalate to hard kill
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		dead, _ := isDead(pid)
+		if dead {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	// 3) If still alive, escalate to hard kill
+	if alive, _ := isAlive(pid); alive {
 		if runtime.GOOS == "windows" {
 			_ = proc.Kill()
 		} else {
-			if pgid > 0 {
-				_ = syscall.Kill(-pgid, syscall.SIGKILL)
-			}
+			// Try group kill first, then PID kill
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
 			_ = proc.Kill()
 		}
-		_ = waitGone(pid, 2*time.Second)
+
+		// Final, short wait
+		escDeadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(escDeadline) {
+			dead, _ := isDead(pid)
+			if dead {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	// 4) Verify and update state
@@ -129,16 +130,25 @@ func KillServiceProcess(s map[string]interface{}) error {
 	}
 
 	s["Process"] = -1
-	s["ProcessPGID"] = -1
-	s["State"] = "killed"
+	s["State"] = "stopped"
 	_ = config.SaveServiceConfiguration(s)
 	slog.Info("service process terminated", "pid", pid, "service", s["Name"], "id", s["Id"])
 
-	// Backend is truly dead; ensure proxy is gone too.
+	// 5) Now that backend is truly dead, the proxy watcher’s check
+	//     (PidExists(procPid)) will be false → no restart. Still, clean up:
 	if err := KillServiceProxyProcess(s); err != nil {
 		slog.Warn("failed to terminate proxy after service kill", "err", err)
 	}
 	return nil
+}
+
+func isAlive(pid int) (bool, error) {
+	return Utility.PidExists(pid) // your helper already returns (bool, error)
+}
+
+func isDead(pid int) (bool, error) {
+	alive, err := isAlive(pid)
+	return !alive, err
 }
 
 /*
@@ -175,12 +185,7 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 	cmd := exec.Command(path, s["Id"].(string), s["ConfigPath"].(string))
 	cmd.Dir = filepath.Dir(path)
 
-	// Separate process group; on Linux also inherit Pdeathsig so child dies if parent does.
-	if runtime.GOOS == "windows" {
-		// nothing special
-	} else if runtime.GOOS == "linux" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
-	} else {
+	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
 
@@ -196,7 +201,6 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 	// Normalize stored path, reset pid
 	s["Path"] = strings.ReplaceAll(path, "\\", "/")
 	s["Process"] = -1
-	s["ProcessPGID"] = -1
 
 	// Persist initial config (with Port/Proxy)
 	if err := config.SaveServiceConfiguration(s); err != nil {
@@ -221,42 +225,18 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 		return -1, err
 	}
 
-	// Record PID and PGID
-	pid := cmd.Process.Pid
-	var pgid int
-	if runtime.GOOS != "windows" {
-		if g, gerr := syscall.Getpgid(pid); gerr == nil {
-			pgid = g
-		} else {
-			pgid = pid
-		}
-	}
-	s["Process"] = pid
-	s["ProcessPGID"] = pgid
-	_ = config.SaveServiceConfiguration(s)
-
-	slog.Info("service process started", "name", s["Name"], "id", s["Id"], "pid", pid, "pgid", pgid, "port", port, "proxy", port+1)
+	slog.Info("service process started", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "port", port, "proxy", port+1)
 
 	// Provide the PID immediately (matches original behavior)
 	waitUntilStart := make(chan int, 1)
-	waitUntilStart <- pid
+	waitUntilStart <- cmd.Process.Pid
 
 	// Supervise in background
 	go func() {
 		err := cmd.Wait() // wait for process to exit
 
 		if err != nil {
-			// classify signal-termination as info
-			var ee *exec.ExitError
-			if errors.As(err, &ee) {
-				if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-					slog.Info("service process terminated by signal", "name", s["Name"], "id", s["Id"], "pid", pid, "signal", ws.Signal().String())
-				} else {
-					slog.Error("service process exited with error", "name", s["Name"], "id", s["Id"], "pid", pid, "err", err, "stderr", strings.TrimSpace(stderr.String()))
-				}
-			} else {
-				slog.Error("service process exited with error", "name", s["Name"], "id", s["Id"], "pid", pid, "err", err, "stderr", strings.TrimSpace(stderr.String()))
-			}
+			slog.Error("service process exited with error", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "err", err, "stderr", strings.TrimSpace(stderr.String()))
 			s["State"] = "failed"
 		} else {
 			// Reload fresh config state from disk (original behavior)
@@ -264,7 +244,7 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 				_ = json.Unmarshal(data, &s)
 			}
 			s["State"] = "stopped"
-			slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", pid)
+			slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid)
 		}
 
 		// Close stdout copier
@@ -303,12 +283,12 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 			// Align with prior behavior if state vanished
 			slog.Info("service process terminated; resetting pid", "name", s["Name"], "id", s["Id"], "prevPid", s["Process"])
 			s["Process"] = -1
-			s["ProcessPGID"] = -1
 			_ = config.SaveServiceConfiguration(s)
 		}
 	}()
 
-	return <-waitUntilStart, nil
+	pid := <-waitUntilStart
+	return pid, nil
 }
 
 /*
@@ -317,7 +297,6 @@ It reads TLS settings from local Globular certs and configures CORS/timeouts.
 
 Returns the proxy PID. Side effects:
   - sets s["ProxyProcess"]
-  - sets s["ProxyPGID"]
   - sets s["State"]="running"
   - persists configuration
 */
@@ -383,13 +362,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 	proxy := exec.Command(cmdName, args...)
 	proxy.Dir = filepath.Dir(cmdName)
+	proxy.SysProcAttr = &syscall.SysProcAttr{}
 
-	// Separate process group; on Linux also Pdeathsig
-	if runtime.GOOS == "windows" {
-		// nothing special
-	} else if runtime.GOOS == "linux" {
-		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
-	} else {
+	if runtime.GOOS != "windows" {
 		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
 
@@ -400,12 +375,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 			if Utility.Exists(config.GetGlobularExecPath() + "/bin/" + cmdName) {
 				proxy = exec.Command(config.GetGlobularExecPath()+"/bin/"+cmdName, args...)
 				proxy.Dir = config.GetGlobularExecPath() + "/bin/"
-				// keep same SysProcAttr
-				if runtime.GOOS == "linux" {
-					proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
-				} else if runtime.GOOS != "windows" {
-					proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-				}
 				if err := proxy.Start(); err != nil {
 					return -1, err
 				}
@@ -418,11 +387,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				if Utility.Exists(exPath + "/bin/" + cmdName) {
 					proxy = exec.Command(exPath+"/bin/"+cmdName, args...)
 					proxy.Dir = exPath + "/bin/"
-					if runtime.GOOS == "linux" {
-						proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
-					} else if runtime.GOOS != "windows" {
-						proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-					}
 					if err := proxy.Start(); err != nil {
 						return -1, err
 					}
@@ -435,35 +399,14 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		}
 	}
 
-	// Record PID and PGID
-	proxyPid := proxy.Process.Pid
-	var proxyPGID int
-	if runtime.GOOS != "windows" {
-		if g, gerr := syscall.Getpgid(proxyPid); gerr == nil {
-			proxyPGID = g
-		} else {
-			proxyPGID = proxyPid
-		}
-	}
-
 	slog.Info("grpcwebproxy started",
 		"service", s["Name"], "id", s["Id"],
 		"backend", backend, "port", proxyPort,
-		"pid", proxyPid, "pgid", proxyPGID,
 		"tls", s["TLS"])
 
 	// Publish updated service configuration to listeners
 	str, _ := Utility.ToJson(s)
 	wait := make(chan int, 1)
-
-	// Persist running state (pid/pgid) now
-	s["State"] = "running"
-	s["ProxyProcess"] = proxyPid
-	s["ProxyPGID"] = proxyPGID
-	if err := config.SaveServiceConfiguration(s); err != nil {
-		slog.Error("failed to save service configuration after proxy start", "service", s["Name"], "id", s["Id"], "err", err)
-		// continue anyway; watcher will clean up on exit
-	}
 
 	go func() {
 		address, _ := config.GetAddress()
@@ -474,89 +417,72 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		var sc map[string]interface{}
 		_ = json.Unmarshal([]byte(str), &sc)
 
-		wait <- proxyPid
+		wait <- proxy.Process.Pid
 
-		// Wait for proxy to exit
+		// Wait for proxy to exit and optionally restart if backend still alive
 		if err := proxy.Wait(); err != nil {
-			// classify termination by signal as INFO
-			var ee *exec.ExitError
-			if errors.As(err, &ee) {
-				if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-					slog.Info("grpcwebproxy terminated by signal", "service", sc["Name"], "id", sc["Id"], "signal", ws.Signal().String())
-				} else {
-					slog.Error("grpcwebproxy exited with error", "service", sc["Name"], "id", sc["Id"], "err", err)
-				}
-			} else {
-				slog.Error("grpcwebproxy wait returned error", "service", sc["Name"], "id", sc["Id"], "err", err)
-			}
+			slog.Error("grpcwebproxy terminated with error", "service", s["Name"], "id", s["Id"], "err", err)
 		} else {
-			slog.Info("grpcwebproxy stopped", "service", sc["Name"], "id", sc["Id"])
+			slog.Info("grpcwebproxy stopped", "service", s["Name"], "id", s["Id"])
 		}
 
-		// Refresh config from disk to avoid stale snapshot
-		if data, rerr := os.ReadFile(sc["ConfigPath"].(string)); rerr == nil {
-			_ = json.Unmarshal(data, &sc)
-		}
-
-		// Mark proxy gone (unless immediately restarting)
-		sc["ProxyProcess"] = -1
-		sc["ProxyPGID"] = -1
-		_ = config.SaveServiceConfiguration(sc)
-
-		// If backend is down, never restart
-		if Utility.ToInt(sc["Process"]) == -1 {
+		data, err := os.ReadFile(sc["ConfigPath"].(string))
+		if err != nil {
+			slog.Error("failed to read service config after proxy exit", "path", sc["ConfigPath"], "err", err)
 			return
 		}
+		_ = json.Unmarshal(data, &sc)
 
-		// Only restart if backend still running and keepalive is true
 		procPid := Utility.ToInt(sc["Process"])
-		if procPid != -1 {
-			if keepAlive, _ := sc["KeepAlive"].(bool); keepAlive {
-				if exist, err := Utility.PidExists(procPid); err == nil && exist {
-					slog.Info("keepalive: restarting grpcwebproxy", "service", sc["Name"], "id", sc["Id"])
-					_, _ = StartServiceProxyProcess(sc, certificateAuthorityBundle, certificate)
-				} else if err != nil {
-					slog.Error("keepalive: proxy restart check failed", "service", sc["Name"], "id", sc["Id"], "err", err)
-				}
+		if procPid != -1 && sc["KeepAlive"].(bool) {
+			if exist, err := Utility.PidExists(procPid); err == nil && exist {
+				slog.Info("keepalive: restarting grpcwebproxy", "service", sc["Name"], "id", sc["Id"])
+				_, _ = StartServiceProxyProcess(sc, certificateAuthorityBundle, certificate)
+			} else if err != nil {
+				slog.Error("keepalive: proxy restart check failed", "service", sc["Name"], "id", sc["Id"], "err", err)
 			}
 		}
 	}()
 
-	return <-wait, nil
+	proxyPid := <-wait
+	s["State"] = "running"
+	s["ProxyProcess"] = proxyPid
+	if err := config.SaveServiceConfiguration(s); err != nil {
+		slog.Error("failed to save service configuration after proxy start", "service", s["Name"], "id", s["Id"], "err", err)
+		return proxyPid, err
+	}
+	return proxyPid, nil
 }
 
 // KillServiceProxyProcess terminates the grpcwebproxy for a service if present.
-// It uses process-group signals where available and waits until the process is gone.
 func KillServiceProxyProcess(s map[string]interface{}) error {
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid <= 0 {
 		return nil
 	}
-	pgid := Utility.ToInt(s["ProxyPGID"])
 
-	// Graceful group term first (on Unix), then PID term
-	if runtime.GOOS != "windows" && pgid > 0 {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	}
-	if proc, err := os.FindProcess(pid); err == nil {
+	proc, err := os.FindProcess(pid)
+	if err == nil {
+		// Try graceful stop
 		_ = proc.Signal(syscall.SIGTERM)
 	}
 
 	// Wait for exit
-	if !waitGone(pid, 5*time.Second) {
-		// Force kill
-		if runtime.GOOS != "windows" && pgid > 0 {
-			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if ok, _ := Utility.PidExists(pid); !ok {
+			break
 		}
-		if proc, err := os.FindProcess(pid); err == nil {
-			_ = proc.Kill()
-		}
-		_ = waitGone(pid, 2*time.Second)
+		time.Sleep(200 * time.Millisecond)
 	}
 
-	// Mark proxy gone in config
+	// Force kill if still alive
+	if ok, _ := Utility.PidExists(pid); ok {
+		_ = proc.Kill()
+	}
+
+	// Important: mark proxy gone in config
 	s["ProxyProcess"] = -1
-	s["ProxyPGID"] = -1
 	if Utility.ToInt(s["Process"]) == -1 {
 		s["State"] = "stopped"
 	}
@@ -711,11 +637,11 @@ func StartEnvoyProxy() error {
 	envoy.Stderr = os.Stderr
 
 	slog.Info("starting envoy", "config", cfgPath)
-	if err := envoys.Start(); err != nil { // NOTE: keep original call style if different
+	if err := envoy.Start(); err != nil {
 		slog.Error("failed to start envoy", "err", err)
 		return err
 	}
-	if err := envoys.Wait(); err != nil {
+	if err := envoy.Wait(); err != nil {
 		slog.Error("envoy terminated with error", "err", err)
 		return err
 	}
