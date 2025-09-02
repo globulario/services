@@ -998,23 +998,26 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 		fmt.Println("fsnotify watcher error:", err)
 		return
 	}
-	defer watcher.Close()
+	// CHANGE: don't defer Close here; we close once at the end after stopping the goroutine.
+	// defer watcher.Close()
 
 	// stop on SIGINT/SIGTERM as a fallback
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(ch)
 
-	// bust cache on writes to main config.json
+	// CHANGE: watch the parent directory of config.json instead of the file itself.
 	configPath := GetConfigDir() + "/config.json"
-	if Utility.Exists(configPath) {
-		if err := watcher.Add(configPath); err != nil {
-			fmt.Println("watcher add error:", err)
-			// keep going; not fatal
-		}
+	configDir := filepath.Dir(configPath)
+	if err := watcher.Add(configDir); err != nil {
+		fmt.Println("watcher add error:", err)
+		// keep going; not fatal
 	}
 
+	// used to stop the goroutine cleanly
 	eventsDone := make(chan struct{})
+
+	// CHANGE: re-arm logic & robust event filtering for config.json only.
 	go func() {
 		defer close(eventsDone)
 		for {
@@ -1023,9 +1026,21 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				if !ok {
 					return
 				}
-				if evt.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
-					config_ = nil // bust cache
+				// Normalize separators and focus on the target file only.
+				name := strings.ReplaceAll(evt.Name, "\\", "/")
+				if name == strings.ReplaceAll(configPath, "\\", "/") &&
+					(evt.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0) {
+
+					// bust cache on any meaningful change
+					config_ = nil
+
+					// If the file was replaced (rename/remove), editors often write temp
+					// files and swap them in. Since we watch the directory, we’ll still
+					// get the event, but we may want to ensure future writes are seen.
+					// It's safe to (re)watch the directory; Add is idempotent for the same path.
+					_ = watcher.Add(configDir)
 				}
+
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -1147,7 +1162,7 @@ loop:
 		}
 	}
 
-	// graceful shutdown of watcher goroutine
+	// CHANGE: graceful shutdown — close watcher once, then wait for goroutine to exit.
 	_ = watcher.Close()
 	<-eventsDone
 
@@ -1299,12 +1314,28 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	copyMap := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(data), &copyMap)
 
+	// NEW: make the request non-blocking with timeouts
+	done := make(chan error, 1)
 	infos := map[string]interface{}{
 		"service_config": copyMap,
-		"return":         make(chan error),
+		"return":         done,
 	}
-	saveServiceConfigChan <- infos
-	return <-infos["return"].(chan error)
+
+	// don’t block forever if the worker goroutine isn’t available
+	select {
+	case saveServiceConfigChan <- infos:
+		// sent
+	case <-time.After(3 * time.Second):
+		return errors.New("config worker not available (timeout sending)")
+	}
+
+	// don’t block forever waiting on a result
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		return errors.New("config save timed out")
+	}
 }
 
 // GetServicesConfigurationsByName returns all service configurations with a given "Name".
