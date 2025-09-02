@@ -594,17 +594,49 @@ func StartEtcdServer() error {
 		}
 	}
 
-	// ---- single-socket client listener to avoid "address already in use"
-	// Option A (recommended): one socket for all interfaces
-	listenClientURLs := protocol + "://0.0.0.0:2379"
+	// Decide final scheme (may fall back to http if TLS files missing)
+	scheme := protocol
+	wantTLS := (protocol == "https")
+	if wantTLS {
+		domain, _ := config.GetDomain()
+		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
+		certFile := certDir + "/server.crt"
+		keyFile := certDir + "/server.pem"
+		caFile := certDir + "/ca.crt"
+		if !(Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile)) {
+			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
+				"cert", certFile, "key", keyFile, "ca", caFile)
+			wantTLS = false
+			scheme = "http"
+		} else {
+			// set TLS blocks now; URLs set below will keep "https"
+			nodeCfg["client-transport-security"] = map[string]interface{}{
+				"cert-file":        certFile,
+				"key-file":         keyFile,
+				"client-cert-auth": true,
+				"trusted-ca-file":  caFile,
+			}
+			nodeCfg["peer-transport-security"] = map[string]interface{}{
+				"cert-file":        certFile,
+				"key-file":         keyFile,
+				"client-cert-auth": true,
+				"trusted-ca-file":  caFile,
+			}
+		}
+	}
+	if !wantTLS {
+		// ensure no leftover TLS sections from previous runs
+		delete(nodeCfg, "client-transport-security")
+		delete(nodeCfg, "peer-transport-security")
+	}
 
-	// Peers also single-socket
-	listenPeerURLs := protocol + "://0.0.0.0:2380"
+	// Single-socket listeners (avoid duplicate binds)
+	listenClientURLs := scheme + "://0.0.0.0:2379"
+	listenPeerURLs := scheme + "://0.0.0.0:2380"
+	advertiseClientURLs := scheme + "://" + host + ":2379"
+	initialAdvertisePeerURLs := scheme + "://" + host + ":2380"
 
-	// What we tell clients to dial (your code dials the FQDN)
-	advertiseClientURLs := protocol + "://" + host + ":2379"
-	initialAdvertisePeerURLs := protocol + "://" + host + ":2380"
-
+	// Base cluster config
 	nodeCfg["name"] = name
 	nodeCfg["data-dir"] = dataDir
 	nodeCfg["listen-client-urls"] = listenClientURLs
@@ -621,7 +653,7 @@ func StartEtcdServer() error {
 			ph := Utility.ToString(peer["Hostname"])
 			pd := Utility.ToString(peer["Domain"])
 			if ph != "" && pd != "" {
-				initialCluster += "," + ph + "=" + protocol + "://" + ph + "." + pd + ":2380"
+				initialCluster += "," + ph + "=" + scheme + "://" + ph + "." + pd + ":2380"
 			}
 		}
 	}
@@ -632,35 +664,6 @@ func StartEtcdServer() error {
 		nodeCfg["initial-cluster-state"] = "existing"
 	} else {
 		nodeCfg["initial-cluster-state"] = "new"
-	}
-
-	// TLS only if all files exist; else stay HTTP without changing the listen URLs above
-	if protocol == "https" {
-		domain, _ := config.GetDomain()
-		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
-		certFile := certDir + "/server.crt"
-		keyFile := certDir + "/server.pem"
-		caFile := certDir + "/ca.crt"
-
-		if Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile) {
-			nodeCfg["client-transport-security"] = map[string]interface{}{
-				"cert-file":        certFile,
-				"key-file":         keyFile,
-				"client-cert-auth": true,
-				"trusted-ca-file":  caFile,
-			}
-			nodeCfg["peer-transport-security"] = map[string]interface{}{
-				"cert-file":        certFile,
-				"key-file":         keyFile,
-				"client-cert-auth": true,
-				"trusted-ca-file":  caFile,
-			}
-		} else {
-			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
-				"cert", certFile, "key", keyFile, "ca", caFile)
-			// Keep the HTTP listen URLs already set above (no duplicate binds).
-			protocol = "http"
-		}
 	}
 
 	out, err := yaml.Marshal(nodeCfg)
@@ -677,6 +680,7 @@ func StartEtcdServer() error {
 		return err
 	}
 
+	// Log FINAL URLs (after fallback decision)
 	slog.Info("starting etcd",
 		"config", cfgPath,
 		"listen-client-urls", listenClientURLs,
