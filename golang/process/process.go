@@ -551,12 +551,12 @@ func StartEtcdServer() error {
 	if err != nil {
 		return err
 	}
-	protocol := Utility.ToString(localConfig["Protocol"])
-	if protocol == "" {
-		protocol = "http"
+	scheme := Utility.ToString(localConfig["Protocol"])
+	if scheme == "" {
+		scheme = "http"
 	}
 
-	// host we’ll bind/advertise (strip port)
+	// host we’ll ADVERTISE (strip port)
 	hostPort, _ := config.GetAddress()
 	host := hostPort
 	if i := strings.Index(hostPort, ":"); i > 0 {
@@ -581,56 +581,19 @@ func StartEtcdServer() error {
 		}
 	}
 
-	// ---- base cluster settings
-	nodeCfg["name"] = name
-	nodeCfg["data-dir"] = dataDir
-	nodeCfg["listen-peer-urls"] = protocol + "://" + host + ":2380"
-	nodeCfg["listen-client-urls"] = protocol + "://" + host + ":2379"
-	nodeCfg["advertise-client-urls"] = protocol + "://" + host + ":2379"
-	nodeCfg["initial-advertise-peer-urls"] = protocol + "://" + host + ":2380"
-	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
-
-	// Build initial-cluster
-	initialCluster := name + "=" + protocol + "://" + host + ":2380"
-	if peers, ok := localConfig["Peers"].([]interface{}); ok {
-		for _, raw := range peers {
-			peer := raw.(map[string]interface{})
-			ph := Utility.ToString(peer["Hostname"])
-			pd := Utility.ToString(peer["Domain"])
-			if ph != "" && pd != "" {
-				initialCluster += "," + ph + "=" + protocol + "://" + ph + "." + pd + ":2380"
-			}
-		}
-	}
-	nodeCfg["initial-cluster"] = initialCluster
-
-	// initial-cluster-state: detect from data dir
-	state := "new"
-	if Utility.Exists(filepath.Join(dataDir, "member")) {
-		state = "existing"
-	}
-	nodeCfg["initial-cluster-state"] = state
-
-	// ---- TLS (both client & peer) when protocol == https
-	if protocol == "https" {
+	// ---- TLS check; if requested but missing files, fall back to http
+	var certDir string
+	if scheme == "https" {
 		domain, _ := config.GetDomain()
-		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
-
+		certDir = config.GetConfigDir() + "/tls/" + name + "." + domain
 		certFile := certDir + "/server.crt"
 		keyFile := certDir + "/server.pem"
 		caFile := certDir + "/ca.crt"
-
-		// If any required TLS file is missing, fall back to HTTP cleanly.
 		if !Utility.Exists(certFile) || !Utility.Exists(keyFile) || !Utility.Exists(caFile) {
 			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
 				"cert", certFile, "key", keyFile, "ca", caFile)
-			protocol = "http"
-			nodeCfg["listen-peer-urls"] = "http://" + host + ":2380"
-			nodeCfg["listen-client-urls"] = "http://" + host + ":2379"
-			nodeCfg["advertise-client-urls"] = "http://" + host + ":2379"
-			nodeCfg["initial-advertise-peer-urls"] = "http://" + host + ":2380"
+			scheme = "http"
 		} else {
-			// etcd YAML keys for TLS:
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
@@ -645,6 +608,42 @@ func StartEtcdServer() error {
 			}
 		}
 	}
+
+	// ---- base cluster settings
+	// LISTEN on all interfaces + loopback; ADVERTISE the FQDN
+	listenClient := fmt.Sprintf("%s://0.0.0.0:2379,%s://127.0.0.1:2379", scheme, scheme)
+	listenPeer := fmt.Sprintf("%s://0.0.0.0:2380", scheme)
+	advClient := fmt.Sprintf("%s://%s:2379", scheme, host)
+	advPeer := fmt.Sprintf("%s://%s:2380", scheme, host)
+
+	nodeCfg["name"] = name
+	nodeCfg["data-dir"] = dataDir
+	nodeCfg["listen-peer-urls"] = listenPeer
+	nodeCfg["listen-client-urls"] = listenClient
+	nodeCfg["advertise-client-urls"] = advClient
+	nodeCfg["initial-advertise-peer-urls"] = advPeer
+	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
+
+	// Build initial-cluster
+	initialCluster := fmt.Sprintf("%s=%s", name, advPeer)
+	if peers, ok := localConfig["Peers"].([]interface{}); ok {
+		for _, raw := range peers {
+			peer := raw.(map[string]interface{})
+			ph := Utility.ToString(peer["Hostname"])
+			pd := Utility.ToString(peer["Domain"])
+			if ph != "" && pd != "" {
+				initialCluster += fmt.Sprintf(",%s=%s://%s.%s:2380", ph, scheme, ph, pd)
+			}
+		}
+	}
+	nodeCfg["initial-cluster"] = initialCluster
+
+	// new vs existing member
+	state := "new"
+	if Utility.Exists(filepath.Join(dataDir, "member")) {
+		state = "existing"
+	}
+	nodeCfg["initial-cluster-state"] = state
 
 	// ---- write config
 	out, err := yaml.Marshal(nodeCfg)
@@ -666,7 +665,7 @@ func StartEtcdServer() error {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	}
 
-	slog.Info("starting etcd", "config", cfgPath)
+	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", listenClient, "advertise-client-urls", advClient)
 	if err := cmd.Start(); err != nil {
 		slog.Error("failed to start etcd", "err", err)
 		return err
@@ -691,9 +690,8 @@ func StartEtcdServer() error {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 
-		// Give it a moment; if still up, send SIGKILL
+		// If still alive after 5s, SIGKILL
 		time.AfterFunc(5*time.Second, func() {
-			// Check if still alive; if so, kill hard
 			if pErr := cmd.Process.Signal(syscall.Signal(0)); pErr == nil {
 				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				_ = cmd.Process.Kill()
