@@ -33,10 +33,17 @@ var (
 	getServicesConfigChan               = make(chan map[string]interface{})
 	getServiceConfigurationByIdChan     = make(chan map[string]interface{})
 	getServicesConfigurationsByNameChan = make(chan map[string]interface{})
-	exit                                = make(chan bool)
+	exit                                = make(chan bool, 1)
 
 	// background loop state
 	isInit bool
+)
+
+// Lock handling parameters
+const (
+	lockSuffix  = ".lock"
+	maxLockAge  = 2 * time.Minute  // consider lock stale after this
+	waitLockTTL = 15 * time.Second // maximum time to wait for a lock
 )
 
 // ============================================================================
@@ -147,9 +154,13 @@ func GetDomain() (string, error) {
 // or an empty string if missing.
 func GetLocalServerCerificateKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
-		p := GetConfigDir() + "/tls/" + cfg["Name"].(string) + "." + cfg["Domain"].(string) + "/server.pem"
-		if Utility.Exists(p) {
-			return p
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.pem"
+			if Utility.Exists(p) {
+				return p
+			}
 		}
 	}
 	return ""
@@ -159,9 +170,13 @@ func GetLocalServerCerificateKeyPath() string {
 // or an empty string if missing.
 func GetLocalClientCerificateKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
-		p := GetConfigDir() + "/tls/" + cfg["Name"].(string) + "." + cfg["Domain"].(string) + "/client.pem"
-		if Utility.Exists(p) {
-			return p
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/client.pem"
+			if Utility.Exists(p) {
+				return p
+			}
 		}
 	}
 	return ""
@@ -282,19 +297,6 @@ func hasServiceConfigs(dir string) bool {
 }
 
 // GetServicesConfigDir returns the directory containing service configs (config.json).
-// Priority:
-//   1) If GetServicesRoot() is set and contains any config.json (recursively), return it.
-//   2) If running "Globular*" binary:
-//        - parent-of-exec + "/services" if it contains configs
-//        - fallback to GetConfigDir() + "/services" if it contains configs
-//   3) Otherwise (running a service or other binary):
-//        - GetServicesRoot() if it contains configs
-//        - GetConfigDir() + "/services" if it contains configs
-//        - GetServicesDir() (auto-detected) if it contains configs
-//   4) OS defaults (if nothing above found):
-//        - Linux/FreeBSD/Darwin: "/etc/globular/config/services"
-//        - Windows: "<ProgramFiles>/globular/config/services"
-//   5) Dev fallback using runtime.Caller to infer repo layout.
 func GetServicesConfigDir() string {
 	// 1) Explicit override via ServicesRoot (only if it actually has configs)
 	if root := GetServicesRoot(); hasServiceConfigs(root) {
@@ -307,7 +309,7 @@ func GetServicesConfigDir() string {
 	execName := filepath.Base(os.Args[0])
 
 	// 2) Running the Globular launcher?
-	if strings.HasPrefix(execName, "Globular") {
+	if strings.HasPrefix(strings.ToLower(execName), "globular") {
 		// Parent-of-exec "/services"
 		if idx := strings.LastIndex(execDir, "/"); idx > 0 {
 			parentServices := execDir[:idx] + "/services"
@@ -469,7 +471,9 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 func OrderDependencys(services []map[string]interface{}) ([]string, error) {
 	serviceMap := make(map[string]map[string]interface{})
 	for _, s := range services {
-		serviceMap[s["Name"].(string)] = s
+		if n, ok := s["Name"].(string); ok && n != "" {
+			serviceMap[n] = s
+		}
 	}
 
 	var ordered []string
@@ -616,7 +620,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	return cfg, nil
 }
 
-// GetRemoteConfig fetches remote /config over HTTP(S).
+// GetRemoteConfig fetches remote /config over HTTP(S)).
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	if address == "" {
 		return nil, errors.New("fail to get remote config no address was given")
@@ -695,7 +699,9 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 		return nil, err
 	}
 	for _, s := range services {
-		cfg["Services"].(map[string]interface{})[s["Id"].(string)] = s
+		if id, _ := s["Id"].(string); id != "" {
+			cfg["Services"].(map[string]interface{})[id] = s
+		}
 	}
 
 	if name, _ := cfg["Name"].(string); name == "" {
@@ -718,8 +724,8 @@ func GetServiceMethods(name string, PublisherID string, version string) ([]strin
 
 	var path string
 	for _, c := range configs {
-		if c["PublisherID"] == PublisherID && c["Version"] == version {
-			path = c["ConfigPath"].(string)
+		if Utility.ToString(c["PublisherID"]) == PublisherID && Utility.ToString(c["Version"]) == version {
+			path = Utility.ToString(c["ConfigPath"])
 			break
 		}
 	}
@@ -764,12 +770,79 @@ func GetServiceMethods(name string, PublisherID string, version string) ([]strin
 // Synchronized access to service configurations (background loop & helpers)
 // ============================================================================
 
+// ----- Lock helpers (bounded & stale-safe) -----
+
+func lockFile(path string) string {
+	// replace trailing ".json" (if present) by ".lock", else just append
+	if strings.HasSuffix(strings.ToLower(path), ".json") {
+		return path[:len(path)-len(".json")] + lockSuffix
+	}
+	return path + lockSuffix
+}
+
+func isLocked(path string) bool {
+	lf := lockFile(path)
+	if !Utility.Exists(lf) {
+		return false
+	}
+	// stale detection
+	if info, err := os.Stat(lf); err == nil {
+		if time.Since(info.ModTime()) > maxLockAge {
+			// stale -> best effort cleanup
+			_ = os.Remove(lf)
+			return false
+		}
+	}
+	return true
+}
+
+func writeLock(path string) error {
+	lf := lockFile(path)
+	content := fmt.Sprintf("pid=%d time=%d\n", os.Getpid(), time.Now().Unix())
+	return Utility.WriteStringToFile(lf, content)
+}
+
+func unlock(path string) {
+	lf := lockFile(path)
+	_ = os.Remove(lf)
+}
+
+func waitForUnlock(path string, ttl time.Duration) error {
+	deadline := time.Now().Add(ttl)
+	for isLocked(path) {
+		if time.Now().After(deadline) {
+			// force-break on timeout
+			_ = os.Remove(lockFile(path))
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
+func removeAllLocks() {
+	// Remove top-level config lock
+	_ = os.Remove(lockFile(GetConfigDir() + "/config.json"))
+
+	// Remove service config locks under services config dir
+	root := GetServicesConfigDir()
+	if root == "" || !Utility.Exists(root) {
+		return
+	}
+	// We only know Utility.FindFileByName(name), not glob, so target "config.lock"
+	// which matches config.json -> config.lock files.
+	if locks, err := Utility.FindFileByName(root, "config.lock"); err == nil {
+		for _, l := range locks {
+			_ = os.Remove(l)
+		}
+	}
+}
+
 // initServiceConfiguration loads, normalizes, and enriches a service config.
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
-	for isLocked(path) {
-		time.Sleep(50 * time.Millisecond)
-	}
+
+	_ = waitForUnlock(path, waitLockTTL)
 
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -793,16 +866,15 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 		return nil, err
 	}
 
-	if s["Protocol"] == nil || s["Name"] == nil {
-		return s, nil
-	}
+	// Keep configuration path
+	s["ConfigPath"] = path
 
 	// Ensure ID
-	if s["Id"] == nil {
+	if s["Id"] == nil || Utility.ToString(s["Id"]) == "" {
 		s["Id"] = Utility.RandomUUID()
 	}
 
-	// Fix Path if missing
+	// Fix Path if missing/dangling
 	if sp, ok := s["Path"].(string); ok && sp != "" && !Utility.Exists(sp) {
 		execname := filepath.Base(sp)
 		if files, err := Utility.FindFileByName(serviceDir, execname); err == nil && len(files) > 0 {
@@ -810,54 +882,56 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 		}
 	}
 
-	// Keep configuration path
-	s["ConfigPath"] = path
-
-	// Set Root for services
-	if s["Root"] != nil {
-		if s["Name"] == "file.FileService" {
+	// Set Root defaults for services (only if Root key is present)
+	if _, hasRoot := s["Root"]; hasRoot {
+		if Utility.ToString(s["Name"]) == "file.FileService" {
 			s["Root"] = GetDataDir() + "/files"
 		} else {
 			s["Root"] = GetDataDir()
 		}
 	}
 
-	// Resolve .proto path if missing
-	if protoPath, ok := s["Proto"].(string); ok && !Utility.Exists(protoPath) {
-		execPath := s["Path"].(string)
-		execName := filepath.Base(execPath)
+	// Resolve .proto path if missing/dangling
+	if protoPath, ok := s["Proto"].(string); ok && protoPath != "" && !Utility.Exists(protoPath) {
+		execPath := Utility.ToString(s["Path"])
+		if execPath != "" {
+			execName := filepath.Base(execPath)
 
-		protoName := execName
-		if i := strings.Index(protoName, "."); i != -1 {
-			protoName = protoName[:i]
-		}
-		if strings.Contains(protoName, "_server") {
-			protoName = protoName[:strings.LastIndex(protoName, "_server")]
-		}
-		protoName += ".proto"
+			protoName := execName
+			if i := strings.Index(protoName, "."); i != -1 {
+				protoName = protoName[:i]
+			}
+			if strings.Contains(protoName, "_server") {
+				protoName = protoName[:strings.LastIndex(protoName, "_server")]
+			}
+			protoName += ".proto"
 
-		base := execPath[:strings.Index(execPath, "/services/")] + "/services"
-		if Utility.Exists(base) {
-			if files, err := Utility.FindFileByName(base, protoName); err == nil && len(files) > 0 {
-				s["Proto"] = files[0]
-			} else {
-				// try service name
-				protoName = s["Name"].(string) + ".proto"
-				if files, err := Utility.FindFileByName(base, protoName); err == nil && len(files) > 0 {
-					s["Proto"] = files[0]
+			if baseIdx := strings.Index(execPath, "/services/"); baseIdx != -1 {
+				base := execPath[:baseIdx] + "/services"
+				if Utility.Exists(base) {
+					if files, err := Utility.FindFileByName(base, protoName); err == nil && len(files) > 0 {
+						s["Proto"] = files[0]
+					} else {
+						// try service name
+						pn := Utility.ToString(s["Name"]) + ".proto"
+						if files, err := Utility.FindFileByName(base, pn); err == nil && len(files) > 0 {
+							s["Proto"] = files[0]
+						}
+					}
 				}
 			}
 		}
 	}
 
 	// TLS settings inherited from globule when protocol is https
-	if cert, _ := localConfig["Certificate"].(string); cert != "" && localConfig["Protocol"] == "https" {
+	if cert, _ := localConfig["Certificate"].(string); cert != "" && Utility.ToString(localConfig["Protocol"]) == "https" {
 		s["TLS"] = true
-		name := localConfig["Name"].(string)
-		domain := localConfig["Domain"].(string)
-		s["KeyFile"] = GetConfigDir() + "/tls/" + name + "." + domain + "/server.pem"
-		s["CertFile"] = GetConfigDir() + "/tls/" + name + "." + domain + "/server.crt"
-		s["CertAuthorityTrust"] = GetConfigDir() + "/tls/" + name + "." + domain + "/ca.crt"
+		name := Utility.ToString(localConfig["Name"])
+		domain := Utility.ToString(localConfig["Domain"])
+		base := GetConfigDir() + "/tls/" + name + "." + domain
+		s["KeyFile"] = base + "/server.pem"
+		s["CertFile"] = base + "/server.crt"
+		s["CertAuthorityTrust"] = base + "/ca.crt"
 		if s["CertificateAuthorityBundle"] != nil {
 			s["CertificateAuthorityBundle"] = localConfig["CertificateAuthorityBundle"]
 		}
@@ -888,37 +962,181 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	return s, nil
 }
 
-// isLocked checks for a sibling .lock file next to the json path.
-func isLocked(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	return Utility.Exists(lock)
-}
-
-func lock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	return Utility.WriteStringToFile(lock, "") == nil
-}
-
-func unlock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	for Utility.Exists(lock) {
-		time.Sleep(10 * time.Millisecond)
-		_ = os.Remove(lock)
+func setServiceConfiguration(index int, services []map[string]interface{}) {
+	s := services[index]
+	path := strings.ReplaceAll(Utility.ToString(s["ConfigPath"]), "\\", "/")
+	if s["ModTime"] == nil {
+		s["ModTime"] = int64(0)
 	}
-	return true
-}
-
-func removeAllLocks() {
-	if locks, err := Utility.FindFileByName(GetServicesConfigDir(), "config.lock"); err == nil {
-		for _, l := range locks {
-			_ = os.Remove(l)
+	if Utility.Exists(path) {
+		if info, err := os.Stat(path); err == nil && Utility.ToInt(s["ModTime"]) < int(Utility.ToInt(info.ModTime().Unix())) {
+			if s2, err := initServiceConfiguration(path, GetServicesDir()); err == nil {
+				s2["ModTime"] = info.ModTime().Unix()
+				services[index] = s2
+			}
 		}
 	}
-	if locks, err := Utility.FindFileByName(GetConfigDir(), "config.lock"); err == nil {
-		for _, l := range locks {
-			_ = os.Remove(l)
+}
+
+// accesServiceConfigurationFile is the single goroutine that watches config
+// changes and services read/write requests via channels.
+func accesServiceConfigurationFile(services []map[string]interface{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		fmt.Println("fsnotify watcher error:", err)
+		return
+	}
+	defer watcher.Close()
+
+	// stop on SIGINT/SIGTERM as a fallback
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(ch)
+
+	// bust cache on writes to main config.json
+	configPath := GetConfigDir() + "/config.json"
+	if Utility.Exists(configPath) {
+		if err := watcher.Add(configPath); err != nil {
+			fmt.Println("watcher add error:", err)
+			// keep going; not fatal
 		}
 	}
+
+	eventsDone := make(chan struct{})
+	go func() {
+		defer close(eventsDone)
+		for {
+			select {
+			case evt, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if evt.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) != 0 {
+					config_ = nil // bust cache
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				fmt.Println("fsnotify error:", err)
+			}
+		}
+	}()
+
+loop:
+	for {
+		select {
+		case <-exit:
+			break loop
+		case <-ch:
+			// external signal; exit loop
+			break loop
+
+		case infos := <-saveServiceConfigChan:
+			s := infos["service_config"].(map[string]interface{})
+			path := Utility.ToString(s["ConfigPath"])
+			ret := infos["return"].(chan error)
+
+			jsonStr, err := Utility.ToJson(s)
+			if err != nil {
+				ret <- err
+				continue
+			}
+			if jsonStr == "" || path == "" {
+				ret <- errors.New("no configuration to save or missing ConfigPath")
+				continue
+			}
+
+			// detect change vs in-memory copy
+			index := -1
+			hasChange := true
+			for i := range services {
+				if Utility.ToString(services[i]["Id"]) == Utility.ToString(s["Id"]) {
+					index = i
+					break
+				}
+			}
+			if index == -1 {
+				index = len(services)
+				services = append(services, s)
+			} else {
+				prevJSON, _ := Utility.ToJson(services[index])
+				hasChange = prevJSON != jsonStr
+			}
+
+			if hasChange {
+				_ = waitForUnlock(path, waitLockTTL)
+				if err := writeLock(path); err != nil {
+					ret <- err
+					continue
+				}
+				err = os.WriteFile(path, []byte(jsonStr), 0o644)
+				unlock(path)
+				if err != nil {
+					ret <- err
+					continue
+				}
+				services[index]["ModTime"] = int64(0)
+				setServiceConfiguration(index, services)
+			}
+			ret <- nil
+
+		case infos := <-getServicesConfigChan:
+			copyList := make([]map[string]interface{}, 0, len(services))
+			for i := range services {
+				setServiceConfiguration(i, services)
+				data, _ := Utility.ToJson(services[i])
+				m := make(map[string]interface{})
+				_ = json.Unmarshal([]byte(data), &m)
+				copyList = append(copyList, m)
+			}
+			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": copyList}
+
+		case infos := <-getServiceConfigurationByIdChan:
+			id := infos["id"].(string)
+			var s map[string]interface{}
+			for i := range services {
+				if Utility.ToString(services[i]["Id"]) == id ||
+					Utility.ToString(services[i]["Name"]) == id ||
+					strings.ReplaceAll(Utility.ToString(services[i]["ConfigPath"]), "\\", "/") == id {
+					setServiceConfiguration(i, services)
+					data, _ := Utility.ToJson(services[i])
+					_ = json.Unmarshal([]byte(data), &s)
+					break
+				}
+			}
+			var err error
+			if s == nil {
+				err = fmt.Errorf("no service found with id %s", id)
+			}
+			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
+
+		case infos := <-getServicesConfigurationsByNameChan:
+			name := infos["name"].(string)
+			var out []map[string]interface{}
+			for i := range services {
+				if Utility.ToString(services[i]["Name"]) == name {
+					setServiceConfiguration(i, services)
+					data, _ := Utility.ToJson(services[i])
+					m := make(map[string]interface{})
+					_ = json.Unmarshal([]byte(data), &m)
+					out = append(out, m)
+				}
+			}
+			var err error
+			if len(out) == 0 {
+				err = fmt.Errorf("no services found with name %s", name)
+			}
+			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": out, "error": err}
+		}
+	}
+
+	// graceful shutdown of watcher goroutine
+	_ = watcher.Close()
+	<-eventsDone
+
+	// on exit, remove leftover locks
+	removeAllLocks()
 }
 
 // initConfig initializes in-memory service configuration cache and starts the
@@ -928,10 +1146,8 @@ func initConfig() error {
 		return nil
 	}
 
-	// Cleanup any leftover locks when running under Globular
-	if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") {
-		removeAllLocks()
-	}
+	// Always cleanup leftover locks on startup
+	removeAllLocks()
 
 	serviceConfigDir := GetServicesConfigDir()
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
@@ -939,7 +1155,7 @@ func initConfig() error {
 
 	if err != nil || len(files) == 0 {
 		// mac/darwin app bundle install migration helper
-		if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular") && runtime.GOOS == "darwin" {
+		if runtime.GOOS == "darwin" {
 			dir := GetRootDir()
 			if Utility.Exists(dir + "/etc/globular/config/services") {
 				if !Utility.Exists("/etc/globular/config/services") {
@@ -952,7 +1168,7 @@ func initConfig() error {
 						if !e.IsDir() {
 							src := dir + "/bin/" + e.Name()
 							_ = Utility.Move(src, "/usr/local/bin/")
-							_ = os.Chmod(src, 0o755)
+							_ = os.Chmod("/usr/local/bin/"+e.Name(), 0o755)
 						}
 					}
 				}
@@ -981,7 +1197,7 @@ func initConfig() error {
 	}
 
 	serviceDir := GetServicesDir()
-	execname := filepath.Base(os.Args[0])
+	execname := strings.ToLower(filepath.Base(os.Args[0]))
 
 	for _, path := range files {
 		s, err := initServiceConfiguration(path, serviceDir)
@@ -991,8 +1207,9 @@ func initConfig() error {
 		s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/")
 		services = append(services, s)
 
-		if strings.HasPrefix(execname, "Globular") {
-			if sp, _ := s["Path"].(string); sp != "" && !Utility.Exists(sp) {
+		// If running under globular launcher, fix dangling service path on disk
+		if strings.HasPrefix(execname, "globular") {
+			if sp := Utility.ToString(s["Path"]); sp != "" && !Utility.Exists(sp) {
 				serviceName := filepath.Base(sp)
 				if found, err := Utility.FindFileByName(serviceDir, serviceName); err == nil && len(found) > 0 {
 					s["Path"] = found[0]
@@ -1010,157 +1227,15 @@ func initConfig() error {
 	return nil
 }
 
-func setServiceConfiguration(index int, services []map[string]interface{}) {
-	s := services[index]
-	path := strings.ReplaceAll(s["ConfigPath"].(string), "\\", "/")
-	if s["ModTime"] == nil {
-		s["ModTime"] = int64(0)
-	}
-	if Utility.Exists(path) {
-		if info, err := os.Stat(path); err == nil && Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
-			if s2, err := initServiceConfiguration(path, GetServicesDir()); err == nil {
-				s2["ModTime"] = info.ModTime().Unix()
-				services[index] = s2
-			}
-		}
-	}
-}
-
-// accesServiceConfigurationFile is the single goroutine that watches config
-// changes and services read/write requests via channels.
-func accesServiceConfigurationFile(services []map[string]interface{}) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		fmt.Println("fsnotify watcher error:", err)
-		return
-	}
-	defer watcher.Close()
-
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-	defer close(ch)
-
-	go func() {
-		for evt := range watcher.Events {
-			if evt.Op == fsnotify.Write {
-				config_ = nil // bust cache
-			}
-		}
-	}()
-
-	configPath := GetConfigDir() + "/config.json"
-	if err := watcher.Add(configPath); err != nil {
-		fmt.Println("watcher add error:", err)
-		return
-	}
-
-	for {
-		select {
-		case <-exit:
-			return
-
-		case infos := <-saveServiceConfigChan:
-			s := infos["service_config"].(map[string]interface{})
-			path := s["ConfigPath"].(string)
-			ret := infos["return"].(chan error)
-
-			jsonStr, err := Utility.ToJson(s)
-			if err != nil {
-				ret <- err
-				continue
-			}
-			if jsonStr == "" {
-				ret <- errors.New("no configuration to save")
-				continue
-			}
-
-			// detect change vs in-memory copy
-			index := -1
-			hasChange := true
-			for i := range services {
-				if services[i]["Id"] == s["Id"] {
-					index = i
-					break
-				}
-			}
-			if index == -1 {
-				index = len(services)
-				services = append(services, s)
-			} else {
-				prevJSON, _ := Utility.ToJson(services[index])
-				hasChange = prevJSON != jsonStr
-			}
-
-			if hasChange {
-				for isLocked(path) {
-					time.Sleep(50 * time.Millisecond)
-				}
-				lock(path)
-				err = os.WriteFile(path, []byte(jsonStr), 0o644)
-				unlock(path)
-				if err != nil {
-					ret <- err
-					continue
-				}
-				services[index]["ModTime"] = int64(0)
-				setServiceConfiguration(index, services)
-			}
-			ret <- nil
-
-		case infos := <-getServicesConfigChan:
-			copyList := make([]map[string]interface{}, 0, len(services))
-			for i := range services {
-				setServiceConfiguration(i, services)
-				data, _ := Utility.ToJson(services[i])
-				m := make(map[string]interface{})
-				_ = json.Unmarshal([]byte(data), &m)
-				copyList = append(copyList, m)
-			}
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": copyList}
-
-		case infos := <-getServiceConfigurationByIdChan:
-			id := infos["id"].(string)
-			var s map[string]interface{}
-			for i := range services {
-				if services[i]["Id"].(string) == id ||
-					services[i]["Name"].(string) == id ||
-					strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
-					setServiceConfiguration(i, services)
-					data, _ := Utility.ToJson(services[i])
-					_ = json.Unmarshal([]byte(data), &s)
-					break
-				}
-			}
-			var err error
-			if s == nil {
-				err = fmt.Errorf("no service found with id %s", id)
-			}
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
-
-		case infos := <-getServicesConfigurationsByNameChan:
-			name := infos["name"].(string)
-			var out []map[string]interface{}
-			for i := range services {
-				if services[i]["Name"] == name {
-					setServiceConfiguration(i, services)
-					data, _ := Utility.ToJson(services[i])
-					m := make(map[string]interface{})
-					_ = json.Unmarshal([]byte(data), &m)
-					out = append(out, m)
-				}
-			}
-			var err error
-			if len(out) == 0 {
-				err = fmt.Errorf("no services found with name %s", name)
-			}
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": out, "error": err}
-		}
-	}
-}
-
-// Exit stops the background configuration processing goroutine.
+// Exit stops the background configuration processing goroutine and removes any locks.
 func Exit() {
-	exit <- true
+	// non-blocking send in case Exit is called multiple times
+	select {
+	case exit <- true:
+	default:
+	}
+	// best-effort cleanup
+	removeAllLocks()
 }
 
 // GetServicesConfigurations returns all installed service configurations.
@@ -1180,7 +1255,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 // SaveServiceConfiguration persists a service configuration to its ConfigPath.
 func SaveServiceConfiguration(s map[string]interface{}) error {
-	configPath, _ := s["ConfigPath"].(string)
+	configPath := Utility.ToString(s["ConfigPath"])
 	if configPath == "" {
 		return errors.New("no configuration path was given")
 	}
@@ -1191,7 +1266,13 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(configPath, []byte(jsonStr), 0o644)
+		_ = waitForUnlock(configPath, waitLockTTL)
+		if err := writeLock(configPath); err != nil {
+			return err
+		}
+		err = os.WriteFile(configPath, []byte(jsonStr), 0o644)
+		unlock(configPath)
+		return err
 	}
 
 	if err := initConfig(); err != nil {
@@ -1234,7 +1315,6 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 	if err := initConfig(); err != nil {
 		return nil, err
 	}
-
 	infos := map[string]interface{}{
 		"id":     id,
 		"return": make(chan map[string]interface{}),
