@@ -540,23 +540,37 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
+func findEtcdBinary() (string, error) {
+	if p, err := exec.LookPath("etcd"); err == nil {
+		return p, nil
+	}
+	if base := config.GetGlobularExecPath(); base != "" {
+		p := filepath.Join(base, "bin", "etcd")
+		if Utility.Exists(p) { return p, nil }
+	}
+	if exe, _ := os.Executable(); exe != "" {
+		p := filepath.Join(filepath.Dir(exe), "bin", "etcd")
+		if Utility.Exists(p) { return p, nil }
+	}
+	return "", fmt.Errorf("etcd binary not found in PATH, %q/bin, or ./bin — install etcd or place the binary accordingly", config.GetGlobularExecPath())
+}
+
 /*
 StartEtcdServer writes an etcd configuration (if needed) and starts the etcd
 process in the foreground, wiring stdout/stderr to the parent console. It also
 handles graceful shutdown on SIGINT/SIGTERM.
 */
 func StartEtcdServer() error {
-	// ---- load local settings safely
 	localConfig, err := config.GetLocalConfig(true)
 	if err != nil {
 		return err
 	}
-	scheme := Utility.ToString(localConfig["Protocol"])
-	if scheme == "" {
-		scheme = "http"
+	protocol := Utility.ToString(localConfig["Protocol"])
+	if protocol == "" {
+		protocol = "http"
 	}
 
-	// host we’ll ADVERTISE (strip port)
+	// host we advertise (no port)
 	hostPort, _ := config.GetAddress()
 	host := hostPort
 	if i := strings.Index(hostPort, ":"); i > 0 {
@@ -573,7 +587,6 @@ func StartEtcdServer() error {
 
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
 
-	// ---- seed with any existing cfg
 	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
 		if data, err := os.ReadFile(cfgPath); err == nil {
@@ -581,19 +594,55 @@ func StartEtcdServer() error {
 		}
 	}
 
-	// ---- TLS check; if requested but missing files, fall back to http
-	var certDir string
-	if scheme == "https" {
+	// ---- single-socket client listener to avoid "address already in use"
+	// Option A (recommended): one socket for all interfaces
+	listenClientURLs := protocol + "://0.0.0.0:2379"
+
+	// Peers also single-socket
+	listenPeerURLs := protocol + "://0.0.0.0:2380"
+
+	// What we tell clients to dial (your code dials the FQDN)
+	advertiseClientURLs := protocol + "://" + host + ":2379"
+	initialAdvertisePeerURLs := protocol + "://" + host + ":2380"
+
+	nodeCfg["name"] = name
+	nodeCfg["data-dir"] = dataDir
+	nodeCfg["listen-client-urls"] = listenClientURLs
+	nodeCfg["listen-peer-urls"] = listenPeerURLs
+	nodeCfg["advertise-client-urls"] = advertiseClientURLs
+	nodeCfg["initial-advertise-peer-urls"] = initialAdvertisePeerURLs
+	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
+
+	// initial-cluster
+	initialCluster := name + "=" + initialAdvertisePeerURLs
+	if peers, ok := localConfig["Peers"].([]interface{}); ok {
+		for _, raw := range peers {
+			peer := raw.(map[string]interface{})
+			ph := Utility.ToString(peer["Hostname"])
+			pd := Utility.ToString(peer["Domain"])
+			if ph != "" && pd != "" {
+				initialCluster += "," + ph + "=" + protocol + "://" + ph + "." + pd + ":2380"
+			}
+		}
+	}
+	nodeCfg["initial-cluster"] = initialCluster
+
+	// cluster state
+	if Utility.Exists(filepath.Join(dataDir, "member")) {
+		nodeCfg["initial-cluster-state"] = "existing"
+	} else {
+		nodeCfg["initial-cluster-state"] = "new"
+	}
+
+	// TLS only if all files exist; else stay HTTP without changing the listen URLs above
+	if protocol == "https" {
 		domain, _ := config.GetDomain()
-		certDir = config.GetConfigDir() + "/tls/" + name + "." + domain
+		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
 		certFile := certDir + "/server.crt"
 		keyFile := certDir + "/server.pem"
 		caFile := certDir + "/ca.crt"
-		if !Utility.Exists(certFile) || !Utility.Exists(keyFile) || !Utility.Exists(caFile) {
-			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
-				"cert", certFile, "key", keyFile, "ca", caFile)
-			scheme = "http"
-		} else {
+
+		if Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile) {
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
@@ -606,46 +655,14 @@ func StartEtcdServer() error {
 				"client-cert-auth": true,
 				"trusted-ca-file":  caFile,
 			}
+		} else {
+			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
+				"cert", certFile, "key", keyFile, "ca", caFile)
+			// Keep the HTTP listen URLs already set above (no duplicate binds).
+			protocol = "http"
 		}
 	}
 
-	// ---- base cluster settings
-	// LISTEN on all interfaces + loopback; ADVERTISE the FQDN
-	listenClient := fmt.Sprintf("%s://0.0.0.0:2379,%s://127.0.0.1:2379", scheme, scheme)
-	listenPeer := fmt.Sprintf("%s://0.0.0.0:2380", scheme)
-	advClient := fmt.Sprintf("%s://%s:2379", scheme, host)
-	advPeer := fmt.Sprintf("%s://%s:2380", scheme, host)
-
-	nodeCfg["name"] = name
-	nodeCfg["data-dir"] = dataDir
-	nodeCfg["listen-peer-urls"] = listenPeer
-	nodeCfg["listen-client-urls"] = listenClient
-	nodeCfg["advertise-client-urls"] = advClient
-	nodeCfg["initial-advertise-peer-urls"] = advPeer
-	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
-
-	// Build initial-cluster
-	initialCluster := fmt.Sprintf("%s=%s", name, advPeer)
-	if peers, ok := localConfig["Peers"].([]interface{}); ok {
-		for _, raw := range peers {
-			peer := raw.(map[string]interface{})
-			ph := Utility.ToString(peer["Hostname"])
-			pd := Utility.ToString(peer["Domain"])
-			if ph != "" && pd != "" {
-				initialCluster += fmt.Sprintf(",%s=%s://%s.%s:2380", ph, scheme, ph, pd)
-			}
-		}
-	}
-	nodeCfg["initial-cluster"] = initialCluster
-
-	// new vs existing member
-	state := "new"
-	if Utility.Exists(filepath.Join(dataDir, "member")) {
-		state = "existing"
-	}
-	nodeCfg["initial-cluster-state"] = state
-
-	// ---- write config
 	out, err := yaml.Marshal(nodeCfg)
 	if err != nil {
 		return err
@@ -654,28 +671,35 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	// ---- start etcd (single waiter; don’t Wait() in the signal goroutine)
-	cmd := exec.Command("etcd", "--config-file", cfgPath)
+	etcdPath, err := findEtcdBinary()
+	if err != nil {
+		slog.Error("cannot start etcd", "err", err)
+		return err
+	}
+
+	slog.Info("starting etcd",
+		"config", cfgPath,
+		"listen-client-urls", listenClientURLs,
+		"advertise-client-urls", advertiseClientURLs,
+	)
+
+	cmd := exec.Command(etcdPath, "--config-file", cfgPath)
 	cmd.Dir = os.TempDir()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	// On Unix, ensure child dies with parent and allow group signals.
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	}
 
-	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", listenClient, "advertise-client-urls", advClient)
 	if err := cmd.Start(); err != nil {
 		slog.Error("failed to start etcd", "err", err)
 		return err
 	}
 
-	// graceful shutdown on SIGINT/SIGTERM (no second Wait)
+	// graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
-
 	go func() {
 		sig := <-sigCh
 		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
@@ -686,25 +710,20 @@ func StartEtcdServer() error {
 			_ = cmd.Process.Kill()
 			return
 		}
-		// Try SIGTERM on the whole group, then the process
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		_ = cmd.Process.Signal(syscall.SIGTERM)
-
-		// If still alive after 5s, SIGKILL
 		time.AfterFunc(5*time.Second, func() {
-			if pErr := cmd.Process.Signal(syscall.Signal(0)); pErr == nil {
+			if err := cmd.Process.Signal(syscall.Signal(0)); err == nil {
 				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 				_ = cmd.Process.Kill()
 			}
 		})
 	}()
 
-	// single waiter here
 	if err := cmd.Wait(); err != nil {
 		slog.Error("etcd terminated with error", "err", err)
 		return err
 	}
-
 	slog.Info("etcd exited")
 	return nil
 }
