@@ -99,23 +99,15 @@ func KillServiceProcess(s map[string]interface{}) error {
 	}
 
 	// 3) If still alive, escalate to hard kill
-	if alive, _ := isAlive(pid); alive {
-		if runtime.GOOS == "windows" {
-			_ = proc.Kill()
-		} else {
-			// Try group kill first, then PID kill
-			_ = syscall.Kill(-pid, syscall.SIGKILL)
-			_ = proc.Kill()
-		}
-
-		// Final, short wait
-		escDeadline := time.Now().Add(2 * time.Second)
-		for time.Now().Before(escDeadline) {
-			dead, _ := isDead(pid)
-			if dead {
-				break
+	if alive, _ := isAlive(pid); alive && runtime.GOOS != "windows" {
+		bin := filepath.Base(Utility.ToString(s["Path"]))
+		if ids, _ := Utility.GetProcessIdsByName(bin); len(ids) > 0 {
+			for _, id := range ids {
+				// try group then pid
+				_ = syscall.Kill(-id, syscall.SIGKILL)
+				_ = syscall.Kill(id, syscall.SIGKILL)
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 
@@ -478,58 +470,57 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 // KillServiceProxyProcess terminates the grpcwebproxy for a service if present.
 func KillServiceProxyProcess(s map[string]interface{}) error {
-    pid := Utility.ToInt(s["ProxyProcess"])
-    if pid <= 0 {
-        return nil
-    }
+	pid := Utility.ToInt(s["ProxyProcess"])
+	if pid <= 0 {
+		return nil
+	}
 
-    proc, _ := os.FindProcess(pid)
+	proc, _ := os.FindProcess(pid)
 
-    // Graceful first
-    if runtime.GOOS == "windows" {
-        _ = proc.Kill()
-    } else {
-		
-        // if we started with Setpgid=true, kill the whole group
-        _ = syscall.Kill(-pid, syscall.SIGTERM)
-        _ = proc.Signal(syscall.SIGTERM)
-    }
+	// Graceful first
+	if runtime.GOOS == "windows" {
+		_ = proc.Kill()
+	} else {
 
-    // Wait up to 5s
-    deadline := time.Now().Add(5 * time.Second)
-    for time.Now().Before(deadline) {
-        if ok, _ := Utility.PidExists(pid); !ok {
-            break
-        }
-        time.Sleep(150 * time.Millisecond)
-    }
+		// if we started with Setpgid=true, kill the whole group
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
+		_ = proc.Signal(syscall.SIGTERM)
+	}
 
-    // Escalate if needed
-    if ok, _ := Utility.PidExists(pid); ok {
-        if runtime.GOOS == "windows" {
-            _ = proc.Kill()
-        } else {
-            _ = syscall.Kill(-pid, syscall.SIGKILL)
-            _ = proc.Kill()
-        }
-        // short final wait
-        esc := time.Now().Add(2 * time.Second)
-        for time.Now().Before(esc) {
-            if ok, _ := Utility.PidExists(pid); !ok {
-                break
-            }
-            time.Sleep(100 * time.Millisecond)
-        }
-    }
+	// Wait up to 5s
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if ok, _ := Utility.PidExists(pid); !ok {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
 
-    // Persist state
-    s["ProxyProcess"] = -1
-    if Utility.ToInt(s["Process"]) == -1 {
-        s["State"] = "stopped"
-    }
-    return config.SaveServiceConfiguration(s)
+	// Escalate if needed
+	if ok, _ := Utility.PidExists(pid); ok {
+		if runtime.GOOS == "windows" {
+			_ = proc.Kill()
+		} else {
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+			_ = proc.Kill()
+		}
+		// short final wait
+		esc := time.Now().Add(2 * time.Second)
+		for time.Now().Before(esc) {
+			if ok, _ := Utility.PidExists(pid); !ok {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// Persist state
+	s["ProxyProcess"] = -1
+	if Utility.ToInt(s["Process"]) == -1 {
+		s["State"] = "stopped"
+	}
+	return config.SaveServiceConfiguration(s)
 }
-
 
 /*
 GetProcessRunningStatus checks if a given PID represents a currently running process.

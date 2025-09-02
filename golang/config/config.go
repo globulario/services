@@ -959,17 +959,12 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 		s["SessionTimeout"] = localConfig["SessionTimeout"]
 	}
 
-	// Process state fixup
-	pid := Utility.ToInt(s["Process"])
-	if pid > 0 {
+	// Process state fixup (authoritative)
+	if pid := Utility.ToInt(s["Process"]); pid > 0 {
 		if alive, _ := Utility.PidExists(pid); !alive {
 			s["Process"] = -1
-			if Utility.ToInt(s["ProxyProcess"]) == -1 {
-				s["State"] = "stopped"
-			} else {
-				s["State"] = "running" // proxy alive, backend dead? (rare)
-			}
-			// best-effort persist
+			s["ProxyProcess"] = -1 // don't claim running if only a proxy lingers
+			s["State"] = "stopped"
 			if jsonStr, err := Utility.ToJson(s); err == nil {
 				_ = os.WriteFile(path, []byte(jsonStr), 0o644)
 			}
@@ -1066,7 +1061,9 @@ loop:
 
 			// detect change vs in-memory copy
 			index := -1
-			hasChange := true
+			onDisk, _ := os.ReadFile(path)
+			hasChange := string(onDisk) != jsonStr
+
 			for i := range services {
 				if Utility.ToString(services[i]["Id"]) == Utility.ToString(s["Id"]) {
 					index = i
@@ -1093,6 +1090,8 @@ loop:
 					ret <- err
 					continue
 				}
+				// keep the cache in sync
+				services[index] = s
 				services[index]["ModTime"] = int64(0)
 				setServiceConfiguration(index, services)
 			}
