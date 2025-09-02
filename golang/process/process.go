@@ -47,38 +47,108 @@ Side effects on the given service map:
 
 Note: This function does NOT persist the configuration; callers may choose to save.
 */
+// KillServiceProcess sends SIGTERM (or Kill on Windows), waits for exit,
+// escalates to SIGKILL after a short timeout, and only returns once the
+// process is really gone. Then it clears state and kills the proxy.
 func KillServiceProcess(s map[string]interface{}) error {
 	pid := -1
 	if s["Process"] != nil {
 		pid = Utility.ToInt(s["Process"])
 	}
-
 	if pid == -1 {
+		// Service already not running; ensure proxy is not lingering.
+		if err := KillServiceProxyProcess(s); err != nil {
+			slog.Warn("failed to terminate proxy for non-running service", "err", err, "service", s["Name"], "id", s["Id"])
+		}
 		return nil
 	}
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		slog.Warn("failed to find process to kill", "pid", pid, "err", err)
+		// Process handle not found ⇒ treat as gone, clean state and proxy.
+		slog.Warn("failed to find process to kill (treating as dead)", "pid", pid, "err", err)
+		s["Process"] = -1
+		s["State"] = "killed"
+		_ = config.SaveServiceConfiguration(s)
+		if err := KillServiceProxyProcess(s); err != nil {
+			slog.Warn("failed to terminate proxy after missing process", "err", err)
+		}
 		return nil
 	}
 
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		s["State"] = "failed"
+	// 1) Try graceful stop first
+	if runtime.GOOS == "windows" {
+		// No SIGTERM on Windows; Kill does the job
+		_ = proc.Kill()
+	} else {
+		// Prefer group-terminate if you started service with Setpgid: true
+		// (negative pid sends to process group). Fall back to single PID.
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+			_ = proc.Signal(syscall.SIGTERM)
+		}
+	}
+
+	// 2) Wait up to 5s for the process to die
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		dead, _ := isDead(pid)
+		if dead {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	// 3) If still alive, escalate to hard kill
+	if alive, _ := isAlive(pid); alive {
+		if runtime.GOOS == "windows" {
+			_ = proc.Kill()
+		} else {
+			// Try group kill first, then PID kill
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+			_ = proc.Kill()
+		}
+
+		// Final, short wait
+		escDeadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(escDeadline) {
+			dead, _ := isDead(pid)
+			if dead {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// 4) Verify and update state
+	if alive, _ := isAlive(pid); alive {
+		err := fmt.Errorf("service pid %d did not exit after SIGTERM/SIGKILL", pid)
 		s["LastError"] = err.Error()
-		slog.Error("failed to terminate process", "pid", pid, "err", err)
-		return nil
+		s["State"] = "failed"
+		_ = config.SaveServiceConfiguration(s)
+		slog.Error("failed to stop service", "pid", pid, "service", s["Name"], "id", s["Id"], "err", err)
+		return err
 	}
 
 	s["Process"] = -1
 	s["State"] = "killed"
-	slog.Info("service process terminated", "pid", pid)
+	_ = config.SaveServiceConfiguration(s)
+	slog.Info("service process terminated", "pid", pid, "service", s["Name"], "id", s["Id"])
 
+	// 5) Now that backend is truly dead, the proxy watcher’s check
+	//     (PidExists(procPid)) will be false → no restart. Still, clean up:
 	if err := KillServiceProxyProcess(s); err != nil {
 		slog.Warn("failed to terminate proxy after service kill", "err", err)
 	}
-	
 	return nil
+}
+
+func isAlive(pid int) (bool, error) {
+	return Utility.PidExists(pid) // your helper already returns (bool, error)
+}
+
+func isDead(pid int) (bool, error) {
+	alive, err := isAlive(pid)
+	return !alive, err
 }
 
 /*
@@ -114,6 +184,10 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 
 	cmd := exec.Command(path, s["Id"].(string), s["ConfigPath"].(string))
 	cmd.Dir = filepath.Dir(path)
+
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 
 	// --- stdout: CR-aware to avoid terminal spam ---
 	stdout, err := cmd.StdoutPipe()
@@ -290,6 +364,10 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxy.Dir = filepath.Dir(cmdName)
 	proxy.SysProcAttr = &syscall.SysProcAttr{}
 
+	if runtime.GOOS != "windows" {
+		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
+
 	startErr := proxy.Start()
 	if startErr != nil {
 		// Try fallback locations (preserve original behavior)
@@ -378,37 +456,37 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 // KillServiceProxyProcess terminates the grpcwebproxy for a service if present.
 func KillServiceProxyProcess(s map[string]interface{}) error {
-    pid := Utility.ToInt(s["ProxyProcess"])
-    if pid <= 0 {
-        return nil
-    }
+	pid := Utility.ToInt(s["ProxyProcess"])
+	if pid <= 0 {
+		return nil
+	}
 
-    proc, err := os.FindProcess(pid)
-    if err == nil {
-        // Try graceful stop
-        _ = proc.Signal(syscall.SIGTERM)
-    }
+	proc, err := os.FindProcess(pid)
+	if err == nil {
+		// Try graceful stop
+		_ = proc.Signal(syscall.SIGTERM)
+	}
 
-    // Wait for exit
-    deadline := time.Now().Add(5 * time.Second)
-    for time.Now().Before(deadline) {
-        if ok, _ := Utility.PidExists(pid); !ok {
-            break
-        }
-        time.Sleep(200 * time.Millisecond)
-    }
+	// Wait for exit
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if ok, _ := Utility.PidExists(pid); !ok {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 
-    // Force kill if still alive
-    if ok, _ := Utility.PidExists(pid); ok {
-        _ = proc.Kill()
-    }
+	// Force kill if still alive
+	if ok, _ := Utility.PidExists(pid); ok {
+		_ = proc.Kill()
+	}
 
-    // Important: mark proxy gone in config
-    s["ProxyProcess"] = -1
-    if Utility.ToInt(s["Process"]) == -1 {
-        s["State"] = "stopped"
-    }
-    return config.SaveServiceConfiguration(s)
+	// Important: mark proxy gone in config
+	s["ProxyProcess"] = -1
+	if Utility.ToInt(s["Process"]) == -1 {
+		s["State"] = "stopped"
+	}
+	return config.SaveServiceConfiguration(s)
 }
 
 /*
