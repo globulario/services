@@ -959,6 +959,23 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 		s["SessionTimeout"] = localConfig["SessionTimeout"]
 	}
 
+	// Process state fixup
+	pid := Utility.ToInt(s["Process"])
+	if pid > 0 {
+		if alive, _ := Utility.PidExists(pid); !alive {
+			s["Process"] = -1
+			if Utility.ToInt(s["ProxyProcess"]) == -1 {
+				s["State"] = "stopped"
+			} else {
+				s["State"] = "running" // proxy alive, backend dead? (rare)
+			}
+			// best-effort persist
+			if jsonStr, err := Utility.ToJson(s); err == nil {
+				_ = os.WriteFile(path, []byte(jsonStr), 0o644)
+			}
+		}
+	}
+
 	return s, nil
 }
 

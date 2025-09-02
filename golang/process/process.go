@@ -166,145 +166,152 @@ original behavior.
 */
 // --- NEW: public wrapper remains compatible ---
 func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
-    return StartServiceProcessWithWriters(s, port, os.Stdout, os.Stderr)
+	return StartServiceProcessWithWriters(s, port, os.Stdout, os.Stderr)
 }
 
 // --- NEW: leveled writers variant ---
 func StartServiceProcessWithWriters(
-    s map[string]interface{},
-    port int,
-    stdoutWriter io.Writer, // nil => os.Stdout
-    stderrWriter io.Writer, // nil => os.Stderr
+	s map[string]interface{},
+	port int,
+	stdoutWriter io.Writer, // nil => os.Stdout
+	stderrWriter io.Writer, // nil => os.Stderr
 ) (int, error) {
-    if stdoutWriter == nil {
-        stdoutWriter = os.Stdout
-    }
-    if stderrWriter == nil {
-        stderrWriter = os.Stderr
-    }
+	if stdoutWriter == nil {
+		stdoutWriter = os.Stdout
+	}
+	if stderrWriter == nil {
+		stderrWriter = os.Stderr
+	}
 
-    // Kill any previous instance
-    if err := KillServiceProcess(s); err != nil {
-        return -1, err
-    }
+	// Kill any previous instance
+	if err := KillServiceProcess(s); err != nil {
+		return -1, err
+	}
 
-    // Inject ports
-    s["Port"] = port
-    s["Proxy"] = port + 1
+	// Inject ports
+	s["Port"] = port
+	s["Proxy"] = port + 1
 
-    path, _ := s["Path"].(string)
-    if path == "" {
-        return -1, fmt.Errorf("missing service binary path for %s%s", s["Name"], s["Id"])
-    }
-    if !Utility.Exists(path) {
-        return -1, fmt.Errorf("service binary not found at %s (config: %v)", path, s["ConfigPath"])
-    }
+	path, _ := s["Path"].(string)
+	if path == "" {
+		return -1, fmt.Errorf("missing service binary path for %s%s", s["Name"], s["Id"])
+	}
+	if !Utility.Exists(path) {
+		return -1, fmt.Errorf("service binary not found at %s (config: %v)", path, s["ConfigPath"])
+	}
 
-    cmd := exec.Command(path, s["Id"].(string), s["ConfigPath"].(string))
-    cmd.Dir = filepath.Dir(path)
-    if runtime.GOOS != "windows" {
-        cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-    }
+	cmd := exec.Command(path, s["Id"].(string), s["ConfigPath"].(string))
+	cmd.Dir = filepath.Dir(path)
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	}
 
-    // stdout pipe -> CR-aware copier into provided writer
-    stdout, err := cmd.StdoutPipe()
-    if err != nil {
-        return -1, err
-    }
+	// stdout pipe -> CR-aware copier into provided writer
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return -1, err
+	}
 
-    // stderr pipe -> line copier into provided writer (keep buffer for start error details)
-    stderrR, err := cmd.StderrPipe()
-    if err != nil {
-        return -1, err
-    }
-    var startErrBuf bytes.Buffer // only for Start() failure path
+	// stderr pipe -> line copier into provided writer (keep buffer for start error details)
+	stderrR, err := cmd.StderrPipe()
+	if err != nil {
+		return -1, err
+	}
+	var startErrBuf bytes.Buffer // only for Start() failure path
 
-    // Normalize stored path, reset pid; persist config (unchanged)
-    s["Path"] = strings.ReplaceAll(path, "\\", "/")
-    s["Process"] = -1
-    if err := config.SaveServiceConfiguration(s); err != nil {
-        return -1, fmt.Errorf("save service config: %w", err)
-    }
+	// Normalize stored path, reset pid; persist config (unchanged)
+	s["Path"] = strings.ReplaceAll(path, "\\", "/")
+	s["Process"] = -1
+	if err := config.SaveServiceConfiguration(s); err != nil {
+		return -1, fmt.Errorf("save service config: %w", err)
+	}
 
-    // Start streaming BEFORE starting the process
-    doneStdout := make(chan struct{})
-    go func() {
-        crAwareCopy(stdoutWriter, stdout)
-        close(doneStdout)
-    }()
+	// Start streaming BEFORE starting the process
+	doneStdout := make(chan struct{})
+	go func() {
+		crAwareCopy(stdoutWriter, stdout)
+		close(doneStdout)
+	}()
 
-    doneStderr := make(chan struct{})
-    go func() {
-        // We don’t need CR handling for stderr; line-wise copy is good.
-        // But keep a tee into startErrBuf for Start() failure reporting.
-        tee := io.TeeReader(stderrR, &startErrBuf)
-        reader := bufio.NewReader(tee)
-        for {
-            line, err := reader.ReadBytes('\n')
-            if len(line) > 0 {
-                _, _ = stderrWriter.Write(line)
-            }
-            if err != nil {
-                if !errors.Is(err, io.EOF) {
-                    _, _ = stderrWriter.Write([]byte("\n[stderr stream error] " + err.Error() + "\n"))
-                }
-                break
-            }
-        }
-        close(doneStderr)
-    }()
+	doneStderr := make(chan struct{})
+	go func() {
+		// We don’t need CR handling for stderr; line-wise copy is good.
+		// But keep a tee into startErrBuf for Start() failure reporting.
+		tee := io.TeeReader(stderrR, &startErrBuf)
+		reader := bufio.NewReader(tee)
+		for {
+			line, err := reader.ReadBytes('\n')
+			if len(line) > 0 {
+				_, _ = stderrWriter.Write(line)
+			}
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					_, _ = stderrWriter.Write([]byte("\n[stderr stream error] " + err.Error() + "\n"))
+				}
+				break
+			}
+		}
+		close(doneStderr)
+	}()
 
-    if err := cmd.Start(); err != nil {
-        // close and drain goroutines
-        _ = stdout.Close()
-        _ = stderrR.Close()
-        <-doneStdout
-        <-doneStderr
-        slog.Error("failed to start service",
-            "name", s["Name"], "id", s["Id"], "err", err,
-            "stderr", strings.TrimSpace(startErrBuf.String()))
-        return -1, err
-    }
+	if err := cmd.Start(); err != nil {
+		// close and drain goroutines
+		_ = stdout.Close()
+		_ = stderrR.Close()
+		<-doneStdout
+		<-doneStderr
+		slog.Error("failed to start service",
+			"name", s["Name"], "id", s["Id"], "err", err,
+			"stderr", strings.TrimSpace(startErrBuf.String()))
+		return -1, err
+	}
 
-    slog.Info("service process started", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "port", port, "proxy", port+1)
+	slog.Info("service process started", "name", s["Name"], "id", s["Id"], "pid", cmd.Process.Pid, "port", port, "proxy", port+1)
 
-    // Hand back PID immediately
-    pid := cmd.Process.Pid
+	// Hand back PID immediately
+	pid := cmd.Process.Pid
+	s["Process"] = pid
+	s["State"] = "running"
+	if err := config.SaveServiceConfiguration(s); err != nil {
+		slog.Warn("failed to persist service pid/state after start",
+			"name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
+	}
 
-    // Supervise in background (unchanged logic; trimmed for brevity)
-    go func() {
-        err := cmd.Wait()
+	// Supervise in background (unchanged logic; trimmed for brevity)
+	go func() {
+		err := cmd.Wait()
 
-        // Close pipes and wait copy loops to finish
-        _ = stdout.Close()
-        _ = stderrR.Close()
-        <-doneStdout
-        <-doneStderr
+		// Close pipes and wait copy loops to finish
+		_ = stdout.Close()
+		_ = stderrR.Close()
+		<-doneStdout
+		<-doneStderr
 
-        if err != nil {
-            slog.Error("service process exited with error",
-                "name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
-            s["State"] = "failed"
-        } else {
-            // Reload persisted config state (same as before)
-            if data, rerr := os.ReadFile(s["ConfigPath"].(string)); rerr == nil {
-                _ = json.Unmarshal(data, &s)
-            }
-            s["State"] = "stopped"
-            slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", pid)
-        }
+		if err != nil {
+			s["State"] = "failed"
+			s["LastError"] = err.Error()
+			slog.Error("service process exited with error",
+				"name", s["Name"], "id", s["Id"], "pid", pid, "err", err)
+		} else {
+			s["State"] = "stopped"
+			slog.Info("service process stopped", "name", s["Name"], "id", s["Id"], "pid", pid)
+		}
+		s["Process"] = -1
+		if err := config.SaveServiceConfiguration(s); err != nil {
+			slog.Warn("failed to persist service state on exit",
+				"name", s["Name"], "id", s["Id"], "err", err)
+		}
 
-        // KeepAlive path is unchanged (you can keep your existing code here)
-        // ...
-        if s["State"] == nil {
-            s["Process"] = -1
-            _ = config.SaveServiceConfiguration(s)
-        }
-    }()
+		// KeepAlive path is unchanged (you can keep your existing code here)
+		// ...
+		if s["State"] == nil {
+			s["Process"] = -1
+			_ = config.SaveServiceConfiguration(s)
+		}
+	}()
 
-    return pid, nil
+	return pid, nil
 }
-
 
 /*
 StartServiceProxyProcess launches the gRPC-Web proxy (grpcwebproxy) for a running service.
@@ -380,7 +387,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxy.SysProcAttr = &syscall.SysProcAttr{}
 
 	if runtime.GOOS != "windows" {
-		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM} // Linux: child gets SIGTERM if parent exits
 	}
 
 	startErr := proxy.Start()
@@ -471,38 +478,58 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 // KillServiceProxyProcess terminates the grpcwebproxy for a service if present.
 func KillServiceProxyProcess(s map[string]interface{}) error {
-	pid := Utility.ToInt(s["ProxyProcess"])
-	if pid <= 0 {
-		return nil
-	}
+    pid := Utility.ToInt(s["ProxyProcess"])
+    if pid <= 0 {
+        return nil
+    }
 
-	proc, err := os.FindProcess(pid)
-	if err == nil {
-		// Try graceful stop
-		_ = proc.Signal(syscall.SIGTERM)
-	}
+    proc, _ := os.FindProcess(pid)
 
-	// Wait for exit
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if ok, _ := Utility.PidExists(pid); !ok {
-			break
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
+    // Graceful first
+    if runtime.GOOS == "windows" {
+        _ = proc.Kill()
+    } else {
+		
+        // if we started with Setpgid=true, kill the whole group
+        _ = syscall.Kill(-pid, syscall.SIGTERM)
+        _ = proc.Signal(syscall.SIGTERM)
+    }
 
-	// Force kill if still alive
-	if ok, _ := Utility.PidExists(pid); ok {
-		_ = proc.Kill()
-	}
+    // Wait up to 5s
+    deadline := time.Now().Add(5 * time.Second)
+    for time.Now().Before(deadline) {
+        if ok, _ := Utility.PidExists(pid); !ok {
+            break
+        }
+        time.Sleep(150 * time.Millisecond)
+    }
 
-	// Important: mark proxy gone in config
-	s["ProxyProcess"] = -1
-	if Utility.ToInt(s["Process"]) == -1 {
-		s["State"] = "stopped"
-	}
-	return config.SaveServiceConfiguration(s)
+    // Escalate if needed
+    if ok, _ := Utility.PidExists(pid); ok {
+        if runtime.GOOS == "windows" {
+            _ = proc.Kill()
+        } else {
+            _ = syscall.Kill(-pid, syscall.SIGKILL)
+            _ = proc.Kill()
+        }
+        // short final wait
+        esc := time.Now().Add(2 * time.Second)
+        for time.Now().Before(esc) {
+            if ok, _ := Utility.PidExists(pid); !ok {
+                break
+            }
+            time.Sleep(100 * time.Millisecond)
+        }
+    }
+
+    // Persist state
+    s["ProxyProcess"] = -1
+    if Utility.ToInt(s["Process"]) == -1 {
+        s["State"] = "stopped"
+    }
+    return config.SaveServiceConfiguration(s)
 }
+
 
 /*
 GetProcessRunningStatus checks if a given PID represents a currently running process.
