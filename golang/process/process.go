@@ -613,29 +613,36 @@ func StartEtcdServer() error {
 
 	// ---- TLS (both client & peer) when protocol == https
 	if protocol == "https" {
-		// certs layout: /etc/globular/config/tls/<name>.<domain>/{server.crt,server.pem,ca.crt}
 		domain, _ := config.GetDomain()
 		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
 
-		// sanity check (optional but helpful)
-		for _, p := range []string{certDir + "/server.crt", certDir + "/server.pem", certDir + "/ca.crt"} {
-			if !Utility.Exists(p) {
-				return fmt.Errorf("missing TLS file for etcd: %s", p)
-			}
-		}
+		certFile := certDir + "/server.crt"
+		keyFile := certDir + "/server.pem"
+		caFile := certDir + "/ca.crt"
 
-		// These keys match etcd’s YAML schema.
-		nodeCfg["client-transport-security"] = map[string]interface{}{
-			"cert-file":        certDir + "/server.crt",
-			"key-file":         certDir + "/server.pem",
-			"client-cert-auth": true,
-			"trusted-ca-file":  certDir + "/ca.crt",
-		}
-		nodeCfg["peer-transport-security"] = map[string]interface{}{
-			"cert-file":        certDir + "/server.crt", // reuse, or point to dedicated peer certs if you have them
-			"key-file":         certDir + "/server.pem",
-			"client-cert-auth": true,                    // require peer client certs
-			"trusted-ca-file":  certDir + "/ca.crt",
+		// If any required TLS file is missing, fall back to HTTP cleanly.
+		if !Utility.Exists(certFile) || !Utility.Exists(keyFile) || !Utility.Exists(caFile) {
+			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
+				"cert", certFile, "key", keyFile, "ca", caFile)
+			protocol = "http"
+			nodeCfg["listen-peer-urls"] = "http://" + host + ":2380"
+			nodeCfg["listen-client-urls"] = "http://" + host + ":2379"
+			nodeCfg["advertise-client-urls"] = "http://" + host + ":2379"
+			nodeCfg["initial-advertise-peer-urls"] = "http://" + host + ":2380"
+		} else {
+			// etcd YAML keys for TLS:
+			nodeCfg["client-transport-security"] = map[string]interface{}{
+				"cert-file":        certFile,
+				"key-file":         keyFile,
+				"client-cert-auth": true,
+				"trusted-ca-file":  caFile,
+			}
+			nodeCfg["peer-transport-security"] = map[string]interface{}{
+				"cert-file":        certFile,
+				"key-file":         keyFile,
+				"client-cert-auth": true,
+				"trusted-ca-file":  caFile,
+			}
 		}
 	}
 
@@ -648,52 +655,54 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	// ---- start etcd
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "etcd", "--config-file", cfgPath)
+	// ---- start etcd (single waiter; don’t Wait() in the signal goroutine)
+	cmd := exec.Command("etcd", "--config-file", cfgPath)
 	cmd.Dir = os.TempDir()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// graceful shutdown on SIGINT/SIGTERM
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-sigCh
-		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
-		// Try graceful first
-		if cmd.Process != nil {
-			if runtime.GOOS == "windows" {
-				_ = cmd.Process.Kill() // best-effort on Windows
-			} else {
-				_ = cmd.Process.Signal(syscall.SIGTERM)
-				// give it a moment, then hard kill if needed
-				timer := time.NewTimer(5 * time.Second)
-				defer timer.Stop()
-				done := make(chan struct{}, 1)
-				go func() {
-					_ = cmd.Wait()
-					done <- struct{}{}
-				}()
-				select {
-				case <-done:
-				case <-timer.C:
-					_ = cmd.Process.Kill()
-				}
-			}
-		}
-		cancel()
-	}()
+	// On Unix, ensure child dies with parent and allow group signals.
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	}
 
 	slog.Info("starting etcd", "config", cfgPath)
 	if err := cmd.Start(); err != nil {
 		slog.Error("failed to start etcd", "err", err)
 		return err
 	}
-	err = cmd.Wait()
-	if err != nil {
+
+	// graceful shutdown on SIGINT/SIGTERM (no second Wait)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	go func() {
+		sig := <-sigCh
+		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
+		if cmd.Process == nil {
+			return
+		}
+		if runtime.GOOS == "windows" {
+			_ = cmd.Process.Kill()
+			return
+		}
+		// Try SIGTERM on the whole group, then the process
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+
+		// Give it a moment; if still up, send SIGKILL
+		time.AfterFunc(5*time.Second, func() {
+			// Check if still alive; if so, kill hard
+			if pErr := cmd.Process.Signal(syscall.Signal(0)); pErr == nil {
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				_ = cmd.Process.Kill()
+			}
+		})
+	}()
+
+	// single waiter here
+	if err := cmd.Wait(); err != nil {
 		slog.Error("etcd terminated with error", "err", err)
 		return err
 	}

@@ -8,15 +8,12 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/emicklei/proto"
-	"github.com/fsnotify/fsnotify"
 	Utility "github.com/globulario/utility"
 )
 
