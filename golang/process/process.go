@@ -516,7 +516,7 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 	if Utility.ToInt(s["Process"]) == -1 {
 		s["State"] = "stopped"
 	}
-	
+
 	return config.SaveServiceConfiguration(s)
 }
 
@@ -546,87 +546,154 @@ process in the foreground, wiring stdout/stderr to the parent console. It also
 handles graceful shutdown on SIGINT/SIGTERM.
 */
 func StartEtcdServer() error {
+	// ---- load local settings safely
 	localConfig, err := config.GetLocalConfig(true)
 	if err != nil {
 		return err
 	}
-	protocol := localConfig["Protocol"].(string)
+	protocol := Utility.ToString(localConfig["Protocol"])
+	if protocol == "" {
+		protocol = "http"
+	}
 
-	nodeCfg := make(map[string]interface{})
+	// host we’ll bind/advertise (strip port)
+	hostPort, _ := config.GetAddress()
+	host := hostPort
+	if i := strings.Index(hostPort, ":"); i > 0 {
+		host = hostPort[:i]
+	}
+
+	name := Utility.ToString(localConfig["Name"])
+	if name == "" {
+		name, _ = config.GetName()
+	}
+
+	dataDir := config.GetDataDir() + "/etcd-data"
+	_ = Utility.CreateDirIfNotExist(dataDir)
+
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
 
+	// ---- seed with any existing cfg
+	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
 		if data, err := os.ReadFile(cfgPath); err == nil {
 			_ = yaml.Unmarshal(data, &nodeCfg)
 		}
 	}
 
-	address, _ := config.GetAddress()
-	if strings.Contains(address, ":") {
-		address = strings.Split(address, ":")[0]
-	}
-
-	nodeCfg["name"] = localConfig["Name"]
-	nodeCfg["data-dir"] = config.GetDataDir() + "/etcd-data"
-	nodeCfg["listen-peer-urls"] = protocol + "://" + address + ":2380"
-	nodeCfg["listen-client-urls"] = protocol + "://" + address + ":2379"
-	nodeCfg["advertise-client-urls"] = protocol + "://" + address + ":2379"
-	nodeCfg["initial-advertise-peer-urls"] = protocol + "://" + address + ":2380"
-	nodeCfg["initial-cluster"] = localConfig["Name"].(string) + "=" + protocol + "://" + address + ":2380"
+	// ---- base cluster settings
+	nodeCfg["name"] = name
+	nodeCfg["data-dir"] = dataDir
+	nodeCfg["listen-peer-urls"] = protocol + "://" + host + ":2380"
+	nodeCfg["listen-client-urls"] = protocol + "://" + host + ":2379"
+	nodeCfg["advertise-client-urls"] = protocol + "://" + host + ":2379"
+	nodeCfg["initial-advertise-peer-urls"] = protocol + "://" + host + ":2380"
 	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
-	nodeCfg["initial-cluster-state"] = "new"
 
+	// Build initial-cluster
+	initialCluster := name + "=" + protocol + "://" + host + ":2380"
+	if peers, ok := localConfig["Peers"].([]interface{}); ok {
+		for _, raw := range peers {
+			peer := raw.(map[string]interface{})
+			ph := Utility.ToString(peer["Hostname"])
+			pd := Utility.ToString(peer["Domain"])
+			if ph != "" && pd != "" {
+				initialCluster += "," + ph + "=" + protocol + "://" + ph + "." + pd + ":2380"
+			}
+		}
+	}
+	nodeCfg["initial-cluster"] = initialCluster
+
+	// initial-cluster-state: detect from data dir
+	state := "new"
+	if Utility.Exists(filepath.Join(dataDir, "member")) {
+		state = "existing"
+	}
+	nodeCfg["initial-cluster-state"] = state
+
+	// ---- TLS (both client & peer) when protocol == https
 	if protocol == "https" {
-		certDir := config.GetConfigDir() + "/tls/" + address
-		nodeCfg["tls"] = map[string]interface{}{
+		// certs layout: /etc/globular/config/tls/<name>.<domain>/{server.crt,server.pem,ca.crt}
+		domain, _ := config.GetDomain()
+		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
+
+		// sanity check (optional but helpful)
+		for _, p := range []string{certDir + "/server.crt", certDir + "/server.pem", certDir + "/ca.crt"} {
+			if !Utility.Exists(p) {
+				return fmt.Errorf("missing TLS file for etcd: %s", p)
+			}
+		}
+
+		// These keys match etcd’s YAML schema.
+		nodeCfg["client-transport-security"] = map[string]interface{}{
 			"cert-file":        certDir + "/server.crt",
 			"key-file":         certDir + "/server.pem",
 			"client-cert-auth": true,
 			"trusted-ca-file":  certDir + "/ca.crt",
 		}
-	}
-
-	if localConfig["Peers"] != nil {
-		for _, p := range localConfig["Peers"].([]interface{}) {
-			peer := p.(map[string]interface{})
-			nodeCfg["initial-cluster"] = nodeCfg["initial-cluster"].(string) + "," +
-				peer["Hostname"].(string) + "=" + protocol + "://" + peer["Hostname"].(string) + "." + peer["Domain"].(string) + ":2380"
+		nodeCfg["peer-transport-security"] = map[string]interface{}{
+			"cert-file":        certDir + "/server.crt", // reuse, or point to dedicated peer certs if you have them
+			"key-file":         certDir + "/server.pem",
+			"client-cert-auth": true,                    // require peer client certs
+			"trusted-ca-file":  certDir + "/ca.crt",
 		}
 	}
 
+	// ---- write config
 	out, err := yaml.Marshal(nodeCfg)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(cfgPath, out, 0644); err != nil {
+	if err := os.WriteFile(cfgPath, out, 0o644); err != nil {
 		return err
 	}
 
-	etcd := exec.Command("etcd", "--config-file", cfgPath)
-	etcd.Dir = os.TempDir()
+	// ---- start etcd
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	cmd := exec.CommandContext(ctx, "etcd", "--config-file", cfgPath)
+	cmd.Dir = os.TempDir()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// graceful shutdown on SIGINT/SIGTERM
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		select {
-		case sig := <-sigCh:
-			slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
-			cancel()
-		case <-ctx.Done():
+		sig := <-sigCh
+		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
+		// Try graceful first
+		if cmd.Process != nil {
+			if runtime.GOOS == "windows" {
+				_ = cmd.Process.Kill() // best-effort on Windows
+			} else {
+				_ = cmd.Process.Signal(syscall.SIGTERM)
+				// give it a moment, then hard kill if needed
+				timer := time.NewTimer(5 * time.Second)
+				defer timer.Stop()
+				done := make(chan struct{}, 1)
+				go func() {
+					_ = cmd.Wait()
+					done <- struct{}{}
+				}()
+				select {
+				case <-done:
+				case <-timer.C:
+					_ = cmd.Process.Kill()
+				}
+			}
 		}
+		cancel()
 	}()
 
-	etcd.Stdout = os.Stdout
-	etcd.Stderr = os.Stderr
-
 	slog.Info("starting etcd", "config", cfgPath)
-	if err := etcd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		slog.Error("failed to start etcd", "err", err)
 		return err
 	}
-	if err := etcd.Wait(); err != nil {
+	err = cmd.Wait()
+	if err != nil {
 		slog.Error("etcd terminated with error", "err", err)
 		return err
 	}
