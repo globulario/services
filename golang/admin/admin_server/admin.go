@@ -42,17 +42,34 @@ const chunkSize = 5 * 1024 // 5KB stream chunk
 // Process management
 // ----------------------------------------------------------------------------
 
+// HasRunningProcess checks if there are any running processes with the specified name.
+// It retrieves the process IDs matching the given name and returns a response indicating
+// whether any such processes are currently running.
+//
+// Parameters:
+//   ctx - The context for the request, used for cancellation and deadlines.
+//   rqst - The request containing the name of the process to check.
+//
+// Returns:
+//   *adminpb.HasRunningProcessResponse - The response indicating if any matching processes are running.
+//   error - An error if the process lookup fails.
 func (admin_server *server) HasRunningProcess(ctx context.Context, rqst *adminpb.HasRunningProcessRequest) (*adminpb.HasRunningProcessResponse, error) {
 	ids, err := Utility.GetProcessIdsByName(rqst.Name)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%v", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.HasRunningProcessResponse{Result: len(ids) > 0}, nil
 }
 
+// Update handles a streaming update request for the server executable.
+// It receives chunks of data and platform information from the client,
+// verifies the platform compatibility, and checks if the update is necessary
+// by comparing checksums. If an update is required, it backs up the existing
+// executable, writes the new data, and attempts to terminate the running process.
+// Returns an error if any step fails or if no update is needed.
 func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) error {
 	var (
 		buf      bytes.Buffer
@@ -123,6 +140,10 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	return nil
 }
 
+// DownloadGlobular streams the Globular executable file to the client based on the requested platform.
+// It validates the platform against the server's OS and architecture, checks for the existence of the executable,
+// and reads the file in chunks, sending each chunk through the gRPC stream.
+// Returns an error if the platform is invalid, the executable is missing, or any I/O or streaming error occurs.
 func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularRequest, stream adminpb.AdminService_DownloadGlobularServer) error {
 	platform := strings.TrimSpace(rqst.Platform)
 	if platform == "" {
@@ -167,33 +188,43 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 	return nil
 }
 
+// KillProcess terminates a process with the specified PID.
+// It receives a KillProcessRequest containing the PID of the process to kill.
+// If the process termination fails, it returns an internal error with details.
+// On success, it returns an empty KillProcessResponse.
 func (admin_server *server) KillProcess(ctx context.Context, rqst *adminpb.KillProcessRequest) (*adminpb.KillProcessResponse, error) {
 	pid := int(rqst.Pid)
 	if err := Utility.TerminateProcess(pid, 0); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.KillProcessResponse{}, nil
 }
 
+// KillProcesses terminates all processes matching the specified name provided in the request.
+// It uses the Utility.KillProcessByName function to perform the termination.
+// Returns an error if the process termination fails, otherwise returns an empty response.
 func (admin_server *server) KillProcesses(ctx context.Context, rqst *adminpb.KillProcessesRequest) (*adminpb.KillProcessesResponse, error) {
 	if err := Utility.KillProcessByName(rqst.Name); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.KillProcessesResponse{}, nil
 }
 
+// GetPids retrieves the process IDs (PIDs) of all running processes that match the given name.
+// It takes a context and a GetPidsRequest containing the process name to search for.
+// Returns a GetPidsResponse with a list of matching PIDs, or an error if the operation fails.
 func (admin_server *server) GetPids(ctx context.Context, rqst *adminpb.GetPidsRequest) (*adminpb.GetPidsResponse, error) {
 	pidsRaw, err := Utility.GetProcessIdsByName(rqst.Name)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	pids := make([]int32, len(pidsRaw))
@@ -203,6 +234,11 @@ func (admin_server *server) GetPids(ctx context.Context, rqst *adminpb.GetPidsRe
 	return &adminpb.GetPidsResponse{Pids: pids}, nil
 }
 
+// RunCmd executes a system command as specified in the RunCmdRequest and streams the output back to the client.
+// The command to execute, its arguments, working directory, and blocking behavior are provided in the request.
+// If blocking is true, the command's output is read line by line and sent to the client until completion.
+// If blocking is false, the command is started and its process ID is sent to the client immediately.
+// Returns an error if the command fails to start or execute.
 func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.AdminService_RunCmdServer) error {
 	baseCmd := rqst.Cmd
 	cmdArgs := rqst.Args
@@ -218,7 +254,7 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 		if err != nil {
 			return status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 			)
 		}
 		output := make(chan string)
@@ -244,14 +280,14 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 			slog.Error("runcmd: start failed", "err", err, "cmd", baseCmd, "args", cmdArgs)
 			return status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 			)
 		}
 		if err := cmd.Wait(); err != nil {
 			slog.Error("runcmd: wait failed", "err", err, "cmd", baseCmd)
 			return status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 			)
 		}
 
@@ -271,7 +307,7 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 		slog.Error("runcmd: start failed", "err", err, "cmd", baseCmd, "args", cmdArgs)
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	var pid int32
@@ -286,32 +322,59 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 // Environment variables
 // ----------------------------------------------------------------------------
 
+// SetEnvironmentVariable sets an environment variable on the server.
+//
+// It receives a SetEnvironmentVariableRequest containing the name and value of the environment variable to set.
+// If the operation is successful, it returns an empty SetEnvironmentVariableResponse.
+// If an error occurs while setting the environment variable, it returns an appropriate gRPC error.
+//
+// Parameters:
+//   ctx - The context for the request.
+//   rqst - The request containing the environment variable name and value.
+//
+// Returns:
+//   *adminpb.SetEnvironmentVariableResponse - The response object.
+//   error - An error if the operation fails.
 func (admin_server *server) SetEnvironmentVariable(ctx context.Context, rqst *adminpb.SetEnvironmentVariableRequest) (*adminpb.SetEnvironmentVariableResponse, error) {
 	if err := Utility.SetEnvironmentVariable(rqst.Name, rqst.Value); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.SetEnvironmentVariableResponse{}, nil
 }
 
+// GetEnvironmentVariable retrieves the value of the specified environment variable.
+// It takes a context and a GetEnvironmentVariableRequest containing the variable name.
+// Returns a GetEnvironmentVariableResponse with the variable's value, or an error if retrieval fails.
 func (admin_server *server) GetEnvironmentVariable(ctx context.Context, rqst *adminpb.GetEnvironmentVariableRequest) (*adminpb.GetEnvironmentVariableResponse, error) {
 	value, err := Utility.GetEnvironmentVariable(rqst.Name)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.GetEnvironmentVariableResponse{Value: value}, nil
 }
 
+// UnsetEnvironmentVariable handles a request to unset an environment variable on the server.
+// It receives the name of the environment variable to unset from the request and attempts to remove it.
+// If the operation fails, it returns an internal error with details; otherwise, it returns a successful response.
+//
+// Parameters:
+//   - ctx: The context for the request, used for cancellation and deadlines.
+//   - rqst: The request containing the name of the environment variable to unset.
+//
+// Returns:
+//   - *adminpb.UnsetEnvironmentVariableResponse: The response indicating success.
+//   - error: An error if the environment variable could not be unset.
 func (admin_server *server) UnsetEnvironmentVariable(ctx context.Context, rqst *adminpb.UnsetEnvironmentVariableRequest) (*adminpb.UnsetEnvironmentVariableResponse, error) {
 	if err := Utility.UnsetEnvironmentVariable(rqst.Name); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return &adminpb.UnsetEnvironmentVariableResponse{}, nil
@@ -321,6 +384,13 @@ func (admin_server *server) UnsetEnvironmentVariable(ctx context.Context, rqst *
 // Certificates & (GLOBAL) config
 // ----------------------------------------------------------------------------
 
+// GetCertificates generates and installs client certificates for a specified domain.
+// It accepts parameters such as domain, port, certificate path, country, state, city,
+// organization, and alternate domains from the request. If the path is not provided,
+// it defaults to the system's temporary directory. The function calls
+// security.InstallClientCertificates to create the certificates and returns the key,
+// certificate, and CA certificate in the response. In case of an error, it returns
+// an appropriate gRPC status error.
 func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.GetCertificatesRequest) (*adminpb.GetCertificatesResponse, error) {
 	path := strings.TrimSpace(rqst.Path)
 	if path == "" {
@@ -343,7 +413,7 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -354,7 +424,13 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 	}, nil
 }
 
-// SaveConfig now writes the *global* Globular configuration JSON into etcd
+
+// SaveConfig saves the provided configuration to the system.
+// It performs the following steps:
+// 1. Validates and pretty-prints the JSON configuration from the request.
+// 2. Persists the configuration to etcd as the source of truth.
+// 3. Optionally notifies listeners that the global configuration has changed.
+// Returns an error if the configuration is invalid or if persistence fails.
 func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveConfigRequest) (*adminpb.SaveConfigRequest, error) {
 	pretty, err := Utility.PrettyPrint([]byte(rqst.Config))
 	if err != nil {
@@ -365,7 +441,7 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 	if err := putSystemConfigEtcd(string(pretty)); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -420,6 +496,12 @@ func publishEvent(topic string, payload []byte) error {
 // Host/process info & files
 // ----------------------------------------------------------------------------
 
+// GetProcessInfos streams information about running processes to the client.
+// It continuously retrieves the list of processes and sends matching process information
+// based on the request filters (PID and Name) via the provided gRPC stream.
+// If a specific PID or Name is requested, only matching processes are sent and the stream ends.
+// Otherwise, the method streams all processes every second until the client cancels the request.
+// Returns an error if process information cannot be retrieved or if sending the response fails.
 func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest, stream adminpb.AdminService_GetProcessInfosServer) error {
 	for {
 		if err := stream.Context().Err(); err != nil {
@@ -430,7 +512,7 @@ func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest
 		if err != nil {
 			return status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 			)
 		}
 
@@ -490,12 +572,18 @@ func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest
 	}
 }
 
+// GetFileInfo retrieves information about a file or directory specified by the request path.
+// It normalizes the path, checks for existence, and gathers metadata such as name, size,
+// modification time, and whether it is a directory. If the path is a directory, it also
+// lists its immediate children and includes their metadata in the response.
+// Returns a GetFileInfoResponse containing the file or directory information, or an error
+// if the path does not exist or cannot be accessed.
 func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFileInfoRequest) (*adminpb.GetFileInfoResponse, error) {
 	path := strings.ReplaceAll(rqst.Path, "\\", "/")
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(
+			"%s", Utility.JsonErrorStr(
 				Utility.FunctionName(),
 				Utility.FileLine(),
 				errors.New("no dir found at path "+rqst.Path),
@@ -524,7 +612,7 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -547,7 +635,12 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	return &adminpb.GetFileInfoResponse{Info: result}, nil
 }
 
-// GetAvailableHosts scans the local network and returns discovered hosts.
+
+// GetAvailableHosts scans the local network for available hosts using the "arp-scan" utility.
+// It discovers the network gateway and parses the scan output to collect host information,
+// including IP addresses, MAC addresses, and hostnames. The function attempts to resolve
+// hostnames for each discovered IP and enriches the information for the host matching the server's MAC address.
+// Returns a GetAvailableHostsResponse containing the list of discovered hosts, or an error if the scan fails.
 func (srv *server) GetAvailableHosts(ctx context.Context, rqst *adminpb.GetAvailableHostsRequest) (*adminpb.GetAvailableHostsResponse, error) {
 	cmd := exec.Command("arp-scan", "--localnet")
 	output, err := cmd.CombinedOutput()
