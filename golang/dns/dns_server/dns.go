@@ -26,7 +26,7 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("SetA unmanaged domain", "domain", rqst.Domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	domain := strings.ToLower(rqst.Domain)
@@ -41,7 +41,7 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetA unmarshal", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -52,12 +52,12 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetA marshal", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetA setItem", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Persist TTL and log success.
@@ -73,7 +73,7 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("RemoveA unmanaged domain", "domain", rqst.Domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	domain := strings.ToLower(rqst.Domain)
@@ -85,13 +85,13 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
 		srv.Logger.Error("RemoveA getItem", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	values := make([]string, 0)
 	if err := json.Unmarshal(data, &values); err != nil {
 		srv.Logger.Error("RemoveA unmarshal", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if Utility.Contains(values, rqst.A) {
@@ -101,7 +101,7 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 	if len(values) == 0 {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveA removeItem", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(domain)
@@ -111,11 +111,11 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 		data, err = json.Marshal(values)
 		if err != nil {
 			srv.Logger.Error("RemoveA marshal", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveA setItem", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("A value removed", "domain", domain, "uuid", uuid, "ipv4", rqst.A, "remaining", len(values))
 	}
@@ -136,7 +136,7 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	}
 	values := make([]string, 0)
 	if err := json.Unmarshal(data, &values); err != nil {
-		return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return orderIPsByPrivacy(values), srv.getTtl(uuid), nil
 }
@@ -154,7 +154,7 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 	}
 	values := make([]string, 0)
 	if err := json.Unmarshal(data, &values); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	values = orderIPsByPrivacy(values)
 	return &dnspb.GetAResponse{A: values}, nil
@@ -169,7 +169,7 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("SetAAAA unmanaged domain", "domain", rqst.Domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	domain := strings.ToLower(rqst.Domain)
@@ -182,7 +182,7 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetAAAA unmarshal", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if !Utility.Contains(values, rqst.Aaaa) {
@@ -191,11 +191,11 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetAAAA marshal", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetAAAA setItem", "domain", domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("AAAA record set",
@@ -213,7 +213,7 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
 		srv.Logger.Error("RemoveAAAA unmanaged domain", "domain", rqst.Domain, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
@@ -222,7 +222,7 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("RemoveAAAA unmarshal", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -233,7 +233,7 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 	if len(values) == 0 {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveAAAA removeItem", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(domain)
@@ -243,11 +243,11 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 		data, err = json.Marshal(values)
 		if err != nil {
 			srv.Logger.Error("RemoveAAAA marshal", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveAAAA setItem", "domain", domain, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("AAAA value removed", "domain", domain, "uuid", uuid, "ipv6", rqst.Aaaa, "remaining", len(values))
 	}
@@ -266,7 +266,7 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		return nil, 0, err
@@ -288,7 +288,7 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(values) == 0 {
@@ -306,7 +306,7 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 	values, err := json.Marshal(rqst.Values)
 	if err != nil {
 		srv.Logger.Error("SetText marshal", "id", rqst.Id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
@@ -316,19 +316,19 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 		values_ := make([]string, 0)
 		if err := json.Unmarshal(data, &values_); err != nil {
 			srv.Logger.Error("SetText unmarshal-existing", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		values_ = append(values_, rqst.Values...)
 		values, err = json.Marshal(values_)
 		if err != nil {
 			srv.Logger.Error("SetText marshal-merged", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
 	if err := srv.store.SetItem(uuid, values); err != nil {
 		srv.Logger.Error("SetText setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("TXT set", "id", id, "uuid", uuid, "values", len(rqst.Values), "ttl", rqst.Ttl)
@@ -344,7 +344,7 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		return nil, 0, err
@@ -362,7 +362,7 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	return &dnspb.GetTextResponse{Values: values}, nil
@@ -374,7 +374,7 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	if err := srv.store.RemoveItem(uuid); err != nil {
 		srv.Logger.Error("RemoveText removeItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if rbac_client_, err := srv.GetRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -398,7 +398,7 @@ func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetNs unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -413,11 +413,11 @@ func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetNs marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetNs setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("NS set", "id", id, "uuid", uuid, "ns", ns, "ttl", rqst.Ttl)
@@ -435,7 +435,7 @@ func (srv *server) getNs(id string) ([]string, uint32, error) {
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		parts := strings.Split(id, ".")
@@ -455,7 +455,7 @@ func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.
 	values := make([]string, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	return &dnspb.GetNsResponse{Ns: values}, nil
@@ -473,14 +473,14 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("RemoveNs unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
 	if len(values) == 0 {
 		err := errors.New("no value found for domain " + id)
 		srv.Logger.Error("RemoveNs empty", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	ns := strings.ToLower(rqst.Ns)
@@ -494,7 +494,7 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 	if len(values) == 0 {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveNs removeItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -504,11 +504,11 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 		data, err = json.Marshal(values)
 		if err != nil {
 			srv.Logger.Error("RemoveNs marshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveNs setItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("NS value removed", "id", id, "uuid", uuid, "ns", ns, "remaining", len(values))
 	}
@@ -525,7 +525,7 @@ func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*
 	uuid := Utility.GenerateUUID("CName:" + id)
 	if err := srv.store.SetItem(uuid, []byte(rqst.Cname)); err != nil {
 		srv.Logger.Error("SetCName setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("CNAME set", "id", id, "uuid", uuid, "target", rqst.Cname, "ttl", rqst.Ttl)
@@ -537,7 +537,7 @@ func (srv *server) getCName(id string) (string, uint32, error) {
 	uuid := Utility.GenerateUUID("CName:" + id)
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
-		return "", 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return "", 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return string(data), srv.getTtl(uuid), nil
 }
@@ -547,7 +547,7 @@ func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*
 	uuid := Utility.GenerateUUID("CName:" + id)
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &dnspb.GetCNameResponse{Cname: string(data)}, nil
 }
@@ -557,7 +557,7 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 	uuid := Utility.GenerateUUID("CName:" + id)
 	if err := srv.store.RemoveItem(uuid); err != nil {
 		srv.Logger.Error("RemoveCName removeItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if rbac_client_, err := srv.GetRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -585,7 +585,7 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetMx unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -604,11 +604,11 @@ func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetMx marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetMx setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_ = srv.setTtl(uuid, rqst.Ttl)
@@ -632,7 +632,7 @@ func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 	values := make([]*dnspb.MX, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(values) > 0 && len(mx) > 0 {
@@ -655,7 +655,7 @@ func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.
 	values := make([]*dnspb.MX, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(rqst.Mx) > 0 {
@@ -677,14 +677,14 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("RemoveMx unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
 	if len(values) == 0 {
 		err := errors.New("no value found for domain " + id)
 		srv.Logger.Error("RemoveMx empty", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for i := range values {
@@ -697,19 +697,19 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 	data, err = json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("RemoveMx marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(values) > 0 {
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveMx setItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("MX value removed", "id", id, "uuid", uuid, "host", rqst.Mx, "remaining", len(values))
 	} else {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveMx removeItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -738,7 +738,7 @@ func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnsp
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetSoa unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -760,11 +760,11 @@ func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnsp
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetSoa marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetSoa setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("SOA set", "id", id, "uuid", uuid, "ns", rqst.Soa.GetNs(), "ttl", rqst.Ttl)
@@ -810,7 +810,7 @@ func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnsp
 	values := make([]*dnspb.SOA, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(rqst.Ns) > 0 {
@@ -835,13 +835,13 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("RemoveSoa unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(values) == 0 {
 		err := errors.New("no value found for domain " + id)
 		srv.Logger.Error("RemoveSoa empty", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !strings.HasSuffix(rqst.Ns, ".") {
 		rqst.Ns += "."
@@ -860,19 +860,19 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
 	data, err = json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("RemoveSoa marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(values) > 0 {
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveSoa setItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("SOA value removed", "id", id, "uuid", uuid, "ns", rqst.Ns, "remaining", len(values))
 	} else {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveSoa removeItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -895,7 +895,7 @@ func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnsp
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetUri unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	for i := range values {
@@ -912,11 +912,11 @@ func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnsp
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetUri marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetUri setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("URI set",
@@ -932,7 +932,7 @@ func (srv *server) getUri(id, target string) ([]*dnspb.URI, uint32, error) {
 	values := make([]*dnspb.URI, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(target) > 0 {
@@ -952,7 +952,7 @@ func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnsp
 	values := make([]*dnspb.URI, 0)
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(rqst.Target) > 0 {
@@ -974,13 +974,13 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 	if err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("RemoveUri unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	if len(values) == 0 {
 		err := errors.New("no value found for domain " + id)
 		srv.Logger.Error("RemoveUri empty", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	for i := range values {
 		if values[i].Target == rqst.Target {
@@ -992,19 +992,19 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 	data, err = json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("RemoveUri marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(values) > 0 {
 		if err := srv.store.SetItem(uuid, data); err != nil {
 			srv.Logger.Error("RemoveUri setItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		srv.Logger.Info("URI value removed", "id", id, "uuid", uuid, "target", rqst.Target, "remaining", len(values))
 	} else {
 		if err := srv.store.RemoveItem(uuid); err != nil {
 			srv.Logger.Error("RemoveUri removeItem", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if rbac_client_, err := srv.GetRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -1023,13 +1023,13 @@ func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*
 	values, err := json.Marshal(rqst.Afsdb)
 	if err != nil {
 		srv.Logger.Error("SetAfsdb marshal", "id", rqst.Id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	if err := srv.store.SetItem(uuid, values); err != nil {
 		srv.Logger.Error("SetAfsdb setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("AFSDB set", "id", id, "uuid", uuid, "subtype", rqst.Afsdb.GetSubtype(), "host", rqst.Afsdb.GetHostname(), "ttl", rqst.Ttl)
@@ -1045,7 +1045,7 @@ func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 	}
 	afsdb := new(dnspb.AFSDB)
 	if err := json.Unmarshal(data, afsdb); err != nil {
-		return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return afsdb, srv.getTtl(uuid), nil
 }
@@ -1055,11 +1055,11 @@ func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	data, err := srv.store.GetItem(uuid)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	afsdb := new(dnspb.AFSDB)
 	if err := json.Unmarshal(data, afsdb); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &dnspb.GetAfsdbResponse{Result: afsdb}, nil
 }
@@ -1069,7 +1069,7 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	if err := srv.store.RemoveItem(uuid); err != nil {
 		srv.Logger.Error("RemoveAfsdb removeItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if rbac_client_, err := srv.GetRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
@@ -1090,7 +1090,7 @@ func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnsp
 	if data, err := srv.store.GetItem(uuid); err == nil {
 		if err := json.Unmarshal(data, &values); err != nil {
 			srv.Logger.Error("SetCaa unmarshal", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1108,11 +1108,11 @@ func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnsp
 	data, err := json.Marshal(values)
 	if err != nil {
 		srv.Logger.Error("SetCaa marshal", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.store.SetItem(uuid, data); err != nil {
 		srv.Logger.Error("SetCaa setItem", "id", id, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setTtl(uuid, rqst.Ttl)
 	srv.Logger.Info("CAA set", "id", id, "uuid", uuid, "tag", rqst.Caa.GetTag(), "domain", rqst.Caa.GetDomain(), "ttl", rqst.Ttl)

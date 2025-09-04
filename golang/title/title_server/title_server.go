@@ -532,7 +532,7 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	filePaths := []string{}
@@ -648,7 +648,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Index the title and put it in the search engine.
@@ -663,7 +663,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now I will get the title thumbnail...
@@ -688,7 +688,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Title.ID)
@@ -698,7 +698,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 	}
@@ -715,7 +715,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// send event to update the audio infos
@@ -730,14 +730,14 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_, err = index.GetInternal([]byte(generateUUID(rqst.Title.ID)))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID)
@@ -863,7 +863,7 @@ func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.DeleteTitleResponse{}, nil
@@ -1044,7 +1044,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if title.Poster != nil && len(title.Poster.ContentUrl) == 0 {
@@ -1059,7 +1059,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if video == nil {
@@ -1104,7 +1104,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1124,7 +1124,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now I will get the association for that title.
@@ -1135,7 +1135,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1153,7 +1153,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
@@ -1312,7 +1312,7 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.DissociateFileWithTitleResponse{}, nil
@@ -1329,7 +1329,7 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if fileInfo.IsDir() {
@@ -1352,7 +1352,7 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1411,7 +1411,7 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(titles) == 0 {
@@ -1436,7 +1436,7 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Index the title and put it in the search engine.
@@ -1445,7 +1445,7 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Associated original object here...
@@ -1456,7 +1456,7 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1469,7 +1469,7 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	uuid := generateUUID(rqst.PublisherID)
@@ -1477,14 +1477,14 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// TODO remove asscociated videos...
@@ -1539,7 +1539,7 @@ func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublis
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.GetPublisherByIdResponse{
@@ -1594,7 +1594,7 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.CreatePersonResponse{}, nil
@@ -1612,14 +1612,14 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	person, err := srv.getPersonById(rqst.IndexPath, rqst.PersonId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	uuid := generateUUID(rqst.PersonId)
@@ -1627,14 +1627,14 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now the person dosent exist anymore I will save the video from it acting list
@@ -1685,7 +1685,7 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.GetPersonByIdResponse{
@@ -1762,14 +1762,14 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_, err = index.GetInternal([]byte(generateUUID(video.ID)))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// update the video metadata
@@ -1788,7 +1788,7 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 				if !Utility.Exists(absolutefilePath) {
 					return nil, status.Errorf(
 						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+						"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 			}
 
@@ -1812,7 +1812,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.CreateVideoResponse{}, nil
@@ -1866,7 +1866,7 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	filePaths := []string{}
@@ -1909,7 +1909,7 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.DeleteVideoResponse{}, nil
@@ -2024,7 +2024,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if fileInfo.IsDir() {
@@ -2047,7 +2047,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2132,7 +2132,7 @@ func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Return the store association values...
@@ -2146,7 +2146,7 @@ func (srv *server) SearchPersons(rqst *titlepb.SearchPersonsRequest, stream titl
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
@@ -2243,7 +2243,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
@@ -2535,7 +2535,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	rqst.Audio.UUID = generateUUID(rqst.Audio.ID)
@@ -2545,7 +2545,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// so here I will set the ownership of the info
@@ -2553,7 +2553,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	permissions, _ := rbac_client_.GetResourcePermissions(rqst.Audio.ID)
@@ -2563,7 +2563,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2574,7 +2574,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2589,7 +2589,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	}
@@ -2598,7 +2598,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// send event to update the audio infos
@@ -2642,7 +2642,7 @@ func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	filePaths := []string{}
@@ -2723,7 +2723,7 @@ func (srv *server) GetAlbum(ctx context.Context, rqst *titlepb.GetAlbumRequest) 
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.GetAlbumResponse{Album: album}, nil
@@ -2735,7 +2735,7 @@ func (srv *server) DeleteAudio(ctx context.Context, rqst *titlepb.DeleteAudioReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.DeleteAudioResponse{}, nil
@@ -2794,7 +2794,7 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	uuid := generateUUID(rqst.AlbumId)
@@ -2802,14 +2802,14 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = index.DeleteInternal([]byte(uuid))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// TODO remove asscociated files...
@@ -2850,7 +2850,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if fileInfo.IsDir() {
@@ -2873,7 +2873,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 

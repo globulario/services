@@ -529,7 +529,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConne
 		// codes.
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// close the connection when done.
@@ -544,7 +544,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConne
 		fmt.Println("fail to save connection ", err)
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// test if the connection is reacheable.
@@ -553,7 +553,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConne
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
 	}
 
@@ -578,7 +578,7 @@ func (srv *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConne
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// return success.
@@ -600,7 +600,7 @@ func (srv *server) ping(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	defer db.Close()
@@ -623,7 +623,7 @@ func (srv *server) Ping(ctx context.Context, rqst *sqlpb.PingConnectionRqst) (*s
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &sqlpb.PingConnectionRsp{
@@ -656,7 +656,7 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	defer db.Close()
@@ -671,7 +671,7 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 		if err != nil {
 			return status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
 		}
 	}
@@ -682,7 +682,7 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	defer rows.Close()
@@ -692,7 +692,7 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// The columns type.
@@ -700,7 +700,7 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// In header is not guaranty to contain a column type.
@@ -830,7 +830,7 @@ func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	defer db.Close()
@@ -852,7 +852,7 @@ func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		var execErr error
@@ -862,18 +862,18 @@ func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst)
 				err = errors.New(fmt.Sprint("update failed: %v, unable to rollback: %v\n", execErr, rollbackErr))
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			err = errors.New(fmt.Sprint("update failed: %v", execErr))
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if err := tx.Commit(); err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		// without transaction
@@ -883,7 +883,7 @@ func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// So here I will stream affected row if there one.
@@ -891,7 +891,7 @@ func (srv *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// I will send back the last id and the number of affected rows to the caller.

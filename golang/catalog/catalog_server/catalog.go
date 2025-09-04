@@ -50,7 +50,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 			false)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		connection := make(map[string]interface{})
@@ -101,7 +101,7 @@ func (srv *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
@@ -109,7 +109,7 @@ func (srv *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 	id, err := srv.persistenceClient.InsertOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", jsonStr, "")
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.SaveUnitOfMeasureResponse{Id: id}, nil
@@ -131,14 +131,14 @@ func (srv *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.S
 	data, err := protojson.Marshal(propertyDefinition)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PropertyDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.SavePropertyDefinitionResponse{Id: _id}, nil
@@ -159,7 +159,7 @@ func (srv *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 	data, err := protojson.Marshal(itemDefinition)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
@@ -172,7 +172,7 @@ func (srv *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.SaveItemDefinitionResponse{Id: _id}, nil
@@ -191,7 +191,7 @@ func (srv *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 	data, err := protojson.Marshal(inventory)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_id := Utility.GenerateUUID(inventory.LocalisationId + inventory.PacakgeId)
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
@@ -203,7 +203,7 @@ func (srv *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.SaveInventoryResponse{Id: _id}, nil
@@ -222,7 +222,7 @@ func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 	data, err := protojson.Marshal(instance)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_id := Utility.GenerateUUID(instance.Id)
@@ -235,7 +235,7 @@ func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.SaveItemInstanceResponse{Id: _id}, nil
@@ -254,13 +254,13 @@ func (srv *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 	data, err := protojson.Marshal(manufacturer)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Manufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SaveManufacturerResponse{Id: _id}, nil
 }
@@ -278,13 +278,13 @@ func (srv *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 	data, err := protojson.Marshal(supplier)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SaveSupplierResponse{Id: _id}, nil
 }
@@ -310,7 +310,7 @@ func (srv *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 	data, err := protojson.Marshal(localisation)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
@@ -321,7 +321,7 @@ func (srv *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Localisation", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SaveLocalisationResponse{Id: _id}, nil
 }
@@ -365,7 +365,7 @@ func (srv *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 	data, err := protojson.Marshal(package_)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
@@ -376,7 +376,7 @@ func (srv *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Package", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SavePackageResponse{Id: _id}, nil
 }
@@ -400,18 +400,18 @@ func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	// ensure both referenced docs exist
 	if _, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Package.RefDbName, rqst.PackageSupplier.Package.RefColId, `{"_id":"`+rqst.PackageSupplier.Package.RefObjId+`"}`, ""); err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if _, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.PackageSupplier.Supplier.RefDbName, rqst.PackageSupplier.Supplier.RefColId, `{"_id":"`+rqst.PackageSupplier.Supplier.RefObjId+`"}`, ""); err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_id := Utility.GenerateUUID(packageSupplier.Id)
 	data, err := protojson.Marshal(packageSupplier)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
@@ -422,7 +422,7 @@ func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SavePackageSupplierResponse{Id: _id}, nil
 }
@@ -437,11 +437,11 @@ func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 
 	if _, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Item.RefDbName, rqst.ItemManafacturer.Item.RefColId, `{"_id":"`+rqst.ItemManafacturer.Item.RefObjId+`"}`, ""); err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if _, err := srv.persistenceClient.FindOne(connection["Id"].(string), rqst.ItemManafacturer.Manufacturer.RefDbName, rqst.ItemManafacturer.Manufacturer.RefColId, `{"_id":"`+rqst.ItemManafacturer.Manufacturer.RefObjId+`"}`, ""); err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	itemManafacturer := rqst.ItemManafacturer
@@ -449,7 +449,7 @@ func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	data, err := protojson.Marshal(itemManafacturer)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 
@@ -460,7 +460,7 @@ func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "ItemManufacturer", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SaveItemManufacturerResponse{Id: _id}, nil
 }
@@ -478,13 +478,13 @@ func (srv *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 	data, err := protojson.Marshal(category)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := `{ "_id" : "` + _id + `",` + string(data)[1:]
 	err = srv.persistenceClient.ReplaceOne(connection["Id"].(string), connection["Name"].(string), "Category", `{ "_id" : "`+_id+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.SaveCategoryResponse{Id: _id}, nil
 }
@@ -499,7 +499,7 @@ func (srv *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	data, err := protojson.Marshal(rqst.Category)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := string(data)
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -509,7 +509,7 @@ func (srv *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	err = srv.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.AppendItemDefinitionCategoryResponse{Result: true}, nil
 }
@@ -524,7 +524,7 @@ func (srv *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	data, err := protojson.Marshal(rqst.Category)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr := string(data)
 	jsonStr = strings.Replace(jsonStr, "refObjId", "$id", -1)
@@ -534,7 +534,7 @@ func (srv *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 
 	err = srv.persistenceClient.UpdateOne(connection["Id"].(string), connection["Name"].(string), rqst.ItemDefinition.RefColId, `{ "_id" : "`+rqst.ItemDefinition.RefObjId+`"}`, jsonStr, `[]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.RemoveItemDefinitionCategoryResponse{Result: true}, nil
 }
@@ -566,7 +566,7 @@ func (srv *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemI
 
 	instance := new(catalogpb.ItemInstance)
 	if err := protojson.Unmarshal([]byte(jsonStr), instance); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.GetItemInstanceResponse{ItemInstance: instance}, nil
@@ -582,7 +582,7 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
@@ -590,11 +590,11 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -603,7 +603,7 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 
 	instances := new(catalogpb.ItemInstances)
 	if err := protojson.Unmarshal([]byte(jsonStr), instances); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetItemInstancesResponse{ItemInstances: instances.ItemInstances}, nil
 }
@@ -632,7 +632,7 @@ func (srv *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIte
 
 	definition := new(catalogpb.ItemDefinition)
 	if err := protojson.Unmarshal([]byte(jsonStr), definition); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetItemDefinitionResponse{ItemDefinition: definition}, nil
 }
@@ -646,18 +646,18 @@ func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
 	}
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -666,7 +666,7 @@ func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 
 	inventories := new(catalogpb.Inventories)
 	if err := protojson.Unmarshal([]byte(jsonStr), inventories); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetInventoriesResponse{Inventories: inventories.Inventories}, nil
 }
@@ -680,7 +680,7 @@ func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
@@ -688,12 +688,12 @@ func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -702,7 +702,7 @@ func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 
 	definitions := new(catalogpb.ItemDefinitions)
 	if err := protojson.Unmarshal([]byte(jsonStr), definitions); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetItemDefinitionsResponse{ItemDefinitions: definitions.ItemDefinitions}, nil
 }
@@ -731,7 +731,7 @@ func (srv *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierR
 
 	supplier := new(catalogpb.Supplier)
 	if err := protojson.Unmarshal([]byte(jsonStr), supplier); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetSupplierResponse{Supplier: supplier}, nil
 }
@@ -745,18 +745,18 @@ func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
 	}
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -765,7 +765,7 @@ func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 
 	suppliers := new(catalogpb.Suppliers)
 	if err := protojson.Unmarshal([]byte(jsonStr), suppliers); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetSuppliersResponse{Suppliers: suppliers.Suppliers}, nil
 }
@@ -785,23 +785,23 @@ func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", query, `[{"Projection":{"_id":1}}]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	results := make([]map[string]interface{}, 0)
 	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	packagesSupplier := make([]*catalogpb.PackageSupplier, 0)
 	for i := 0; i < len(results); i++ {
 		obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+results[i]["_id"].(string)+`"}`, `[{"Projection":{"_id":0}}]`)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		jsonStr, _ := Utility.ToJson(obj)
@@ -811,7 +811,7 @@ func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 
 		ps := new(catalogpb.PackageSupplier)
 		if err := protojson.Unmarshal([]byte(jsonStr), ps); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		packagesSupplier = append(packagesSupplier, ps)
 	}
@@ -833,11 +833,11 @@ func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 
 	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -846,7 +846,7 @@ func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 
 	package_ := new(catalogpb.Package)
 	if err := protojson.Unmarshal([]byte(jsonStr), package_); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &catalogpb.GetPackageResponse{Pacakge: package_}, nil
@@ -861,16 +861,16 @@ func (srv *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesR
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Package", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -879,7 +879,7 @@ func (srv *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesR
 
 	packages := new(catalogpb.Packages)
 	if err := protojson.Unmarshal([]byte(jsonStr), packages); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetPackagesResponse{Packages: packages.Packages}, nil
 }
@@ -920,7 +920,7 @@ func (srv *server) getLocalisation(localisationId string, connectionId string) (
 func (srv *server) GetLocalisation(ctx context.Context, rqst *catalogpb.GetLocalisationRequest) (*catalogpb.GetLocalisationResponse, error) {
 	localisation, err := srv.getLocalisation(rqst.LocalisationId, rqst.ConnectionId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetLocalisationResponse{Localisation: localisation}, nil
 }
@@ -961,7 +961,7 @@ func (srv *server) getLocalisations(query string, options string, connectionId s
 func (srv *server) GetLocalisations(ctx context.Context, rqst *catalogpb.GetLocalisationsRequest) (*catalogpb.GetLocalisationsResponse, error) {
 	localisations, err := srv.getLocalisations(rqst.Query, rqst.Options, rqst.ConnectionId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetLocalisationsResponse{Localisations: localisations}, nil
 }
@@ -1002,7 +1002,7 @@ func (srv *server) getCategory(categoryId string, connectionId string) (*catalog
 func (srv *server) GetCategory(ctx context.Context, rqst *catalogpb.GetCategoryRequest) (*catalogpb.GetCategoryResponse, error) {
 	category, err := srv.getCategory(rqst.CategoryId, rqst.ConnectionId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetCategoryResponse{Category: category}, nil
 }
@@ -1043,7 +1043,7 @@ func (srv *server) getCategories(query string, options string, connectionId stri
 func (srv *server) GetCategories(ctx context.Context, rqst *catalogpb.GetCategoriesRequest) (*catalogpb.GetCategoriesResponse, error) {
 	categories, err := srv.getCategories(rqst.Query, rqst.Options, rqst.ConnectionId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetCategoriesResponse{Categories: categories}, nil
 }
@@ -1063,11 +1063,11 @@ func (srv *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManuf
 
 	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1075,7 +1075,7 @@ func (srv *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManuf
 
 	manufacturer := new(catalogpb.Manufacturer)
 	if err := protojson.Unmarshal([]byte(jsonStr), manufacturer); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetManufacturerResponse{Manufacturer: manufacturer}, nil
 }
@@ -1114,7 +1114,7 @@ func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
@@ -1122,11 +1122,11 @@ func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1135,7 +1135,7 @@ func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 
 	manufacturers := new(catalogpb.Manufacturers)
 	if err := protojson.Unmarshal([]byte(jsonStr), manufacturers); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetManufacturersResponse{Manufacturers: manufacturers.Manufacturers}, nil
 }
@@ -1149,7 +1149,7 @@ func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 
 	options, err := srv.getOptionsString(rqst.Options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if len(rqst.Query) == 0 {
 		rqst.Query = ``
@@ -1157,11 +1157,11 @@ func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 
 	values, err := srv.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1170,7 +1170,7 @@ func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 
 	unitOfMeasures := new(catalogpb.UnitOfMeasures)
 	if err := protojson.Unmarshal([]byte(jsonStr), unitOfMeasures); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetUnitOfMeasuresResponse{UnitOfMeasures: unitOfMeasures.UnitOfMeasures}, nil
 }
@@ -1190,11 +1190,11 @@ func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 
 	obj, err := srv.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr, err := Utility.ToJson(obj)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1202,7 +1202,7 @@ func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 
 	unitOfMeasure := new(catalogpb.UnitOfMeasure)
 	if err := protojson.Unmarshal([]byte(jsonStr), unitOfMeasure); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.GetUnitOfMeasureResponse{UnitOfMeasure: unitOfMeasure}, nil
 }
@@ -1219,7 +1219,7 @@ func (srv *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePack
 	package_ := rqst.Package
 	_id := Utility.GenerateUUID(package_.Id + package_.LanguageCode)
 	if err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Package", `{"_id":"`+_id+`"}`, ""); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.DeletePackageResponse{Result: true}, nil
 }
@@ -1234,7 +1234,7 @@ func (srv *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.De
 	packageSupplier := rqst.PackageSupplier
 	_id := Utility.GenerateUUID(packageSupplier.Id)
 	if err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+_id+`"}`, ""); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.DeletePackageSupplierResponse{Result: true}, nil
 }
@@ -1249,7 +1249,7 @@ func (srv *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSup
 	supplier := rqst.Supplier
 	_id := Utility.GenerateUUID(supplier.Id)
 	if err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Supplier", `{"_id":"`+_id+`"}`, ""); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.DeleteSupplierResponse{Result: true}, nil
 }
@@ -1320,7 +1320,7 @@ func (srv *server) deleteLocalisation(localisation *catalogpb.Localisation, conn
 
 func (srv *server) DeleteLocalisation(ctx context.Context, rqst *catalogpb.DeleteLocalisationRequest) (*catalogpb.DeleteLocalisationResponse, error) {
 	if err := srv.deleteLocalisation(rqst.Localisation, rqst.ConnectionId); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.DeleteLocalisationResponse{Result: true}, nil
 }
@@ -1335,7 +1335,7 @@ func (srv *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteIn
 	inventory := rqst.Inventory
 	_id := Utility.GenerateUUID(inventory.LocalisationId + inventory.PacakgeId)
 	if err := srv.persistenceClient.DeleteOne(connection["Id"].(string), connection["Name"].(string), "Inventory", `{"_id":"`+_id+`"}`, ""); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &catalogpb.DeleteInventoryResponse{Result: true}, nil
 }

@@ -163,7 +163,7 @@ and returns the created Conversation.
 func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	uuid := Utility.RandomUUID()
@@ -183,13 +183,13 @@ func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	if err := srv.saveConversation(c); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.addParticipantConversation(clientId, uuid); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.addResourceOwner(uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("conversation created", "uuid", uuid, "owner", clientId, "name", rqst.Name)
@@ -202,7 +202,7 @@ GetConversations returns all conversations in which the given account is indexed
 func (srv *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
 	cs, err := srv.getConversations(rqst.Creator)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.GetConversationsResponse{Conversations: cs}, nil
 }
@@ -213,26 +213,26 @@ KickoutFromConversation removes an account from a conversation. Only the owner m
 func (srv *server) KickoutFromConversation(ctx context.Context, rqst *conversationpb.KickoutFromConversationRequest) (*conversationpb.KickoutFromConversationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if _, err := srv.getConversation(rqst.ConversationUuid); err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	isOwner, _, err := srv.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !isOwner {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner of the conversation can kick out a participant")))
 	}
 
 	if err := srv.removeConversationParticipant(rqst.Account, rqst.ConversationUuid); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.removeParticipantConversation(rqst.Account, rqst.ConversationUuid); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("participant kicked out", "conversation", rqst.ConversationUuid, "by", clientId, "account", rqst.Account)
@@ -294,16 +294,16 @@ the caller simply leaves the conversation.
 func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if _, _, err := srv.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid); err != nil {
 		// Not owner → leave
 		if err := srv.removeConversationParticipant(clientId, rqst.ConversationUuid); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if err := srv.removeParticipantConversation(clientId, rqst.ConversationUuid); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		slog.Info("non-owner left conversation", "conversation", rqst.ConversationUuid, "account", clientId)
 		return &conversationpb.DeleteConversationResponse{}, nil
@@ -311,11 +311,11 @@ func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 
 	c, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.deleteConversation(clientId, c); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.DeleteConversationResponse{}, nil
 }
@@ -327,7 +327,7 @@ func (srv *server) FindConversations(ctx context.Context, rqst *conversationpb.F
 	paths := []string{srv.Root + "/conversations/search_data"}
 	results, err := srv.search_engine.SearchDocuments(paths, rqst.Language, []string{"name", "keywords"}, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetSize)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	list := []*conversationpb.Conversation{}
 	for _, r := range results.Results {
@@ -352,7 +352,7 @@ func (srv *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 		if len(token) > 0 {
 			claims, err := security.ValidateToken(token)
 			if err != nil {
-				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if len(claims.UserDomain) == 0 {
 				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
@@ -383,7 +383,7 @@ Disconnect ends the control stream for the authenticated client.
 func (srv *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	quit := map[string]interface{}{"action": "disconnect", "uuid": rqst.Uuid, "clientId": clientId}
 	srv.actions <- quit
@@ -402,7 +402,7 @@ func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 		if len(token) > 0 {
 			claims, err := security.ValidateToken(token)
 			if err != nil {
-				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if len(claims.UserDomain) == 0 {
 				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
@@ -418,23 +418,23 @@ func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 
 	conn, err := srv.getConversationConnection(rqst.ConversationUuid)
 	if err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.addConversationParticipant(clientId, rqst.ConversationUuid); err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	conv, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
-		return status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Backlog (if any)
 	if data, err := conn.GetItem(rqst.ConversationUuid + "/*"); err == nil && data != nil {
 		results := []interface{}{}
 		if err := json.Unmarshal(data, &results); err != nil {
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if len(results) == 0 {
 			_ = stream.Send(&conversationpb.JoinConversationResponse{Msg: nil, Conversation: conv})
@@ -447,7 +447,7 @@ func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 				results[i].(map[string]interface{})["uuid"].(string),
 			)
 			if err != nil {
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if i == 0 {
 				_ = stream.Send(&conversationpb.JoinConversationResponse{Msg: m, Conversation: conv})
@@ -467,19 +467,19 @@ LeaveConversation detaches the authenticated user from the given conversation.
 func (srv *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	leave := map[string]interface{}{"action": "leave", "name": rqst.ConversationUuid, "uuid": rqst.ConnectionUuid, "clientId": clientId}
 	srv.actions <- leave
 
 	if err := srv.removeConversationParticipant(clientId, rqst.ConversationUuid); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	conv, err := srv.getConversation(rqst.ConversationUuid)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("left conversation", "conversation", rqst.ConversationUuid, "clientId", clientId)
@@ -495,7 +495,7 @@ Caller must be the owner of the conversation.
 func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.SendInvitationRequest) (*conversationpb.SendInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if clientId != rqst.Invitation.From {
@@ -505,7 +505,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	domain, _ := config.GetDomain()
 	hasAccess, _, err := srv.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !hasAccess {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner can invite users")))
@@ -513,7 +513,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 
 	conv, err := srv.getConversation(rqst.Invitation.Conversation)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if Utility.Contains(conv.Participants, rqst.Invitation.To) {
 		return nil, status.Errorf(codes.AlreadyExists, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already participating")))
@@ -556,7 +556,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 
 	conv.Invitations.Invitations = append(conv.Invitations.Invitations, rqst.Invitation)
 	if err := srv.saveConversation(conv); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("invitation sent", "conversation", rqst.Invitation.Conversation, "from", rqst.Invitation.From, "to", rqst.Invitation.To)
@@ -634,13 +634,13 @@ AcceptInvitation accepts an invitation for the authenticated user.
 func (srv *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.AcceptInvitationRequest) (*conversationpb.AcceptInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.To {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.addParticipantConversation(rqst.Invitation.To, rqst.Invitation.Conversation)
 	slog.Info("invitation accepted", "conversation", rqst.Invitation.Conversation, "account", rqst.Invitation.To)
@@ -653,13 +653,13 @@ DeclineInvitation declines an invitation for the authenticated user.
 func (srv *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.DeclineInvitationRequest) (*conversationpb.DeclineInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.To {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	slog.Info("invitation declined", "conversation", rqst.Invitation.Conversation, "account", rqst.Invitation.To)
 	return &conversationpb.DeclineInvitationResponse{}, nil
@@ -671,13 +671,13 @@ RevokeInvitation revokes an invitation previously sent by the authenticated user
 func (srv *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.RevokeInvitationRequest) (*conversationpb.RevokeInvitationResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.From {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation sender")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	slog.Info("invitation revoked", "conversation", rqst.Invitation.Conversation, "by", rqst.Invitation.From)
 	return &conversationpb.RevokeInvitationResponse{}, nil
@@ -689,18 +689,18 @@ GetReceivedInvitations returns invitations received by the authenticated account
 func (srv *server) GetReceivedInvitations(ctx context.Context, rqst *conversationpb.GetReceivedInvitationsRequest) (*conversationpb.GetReceivedInvitationsResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Account {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
 	}
 	b, err := srv.store.GetItem(clientId + "_received_invitations")
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	rcv := new(conversationpb.Invitations)
 	if err := protojson.Unmarshal(b, rcv); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.GetReceivedInvitationsResponse{Invitations: rcv}, nil
 }
@@ -711,7 +711,7 @@ GetSentInvitations returns invitations sent by the authenticated account.
 func (srv *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.GetSentInvitationsRequest) (*conversationpb.GetSentInvitationsResponse, error) {
 	clientId, _, err := security.GetClientId(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Account {
 		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
@@ -720,7 +720,7 @@ func (srv *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 	sent := &conversationpb.Invitations{Invitations: []*conversationpb.Invitation{}}
 	if err == nil {
 		if err := protojson.Unmarshal(b, sent); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	return &conversationpb.GetSentInvitationsResponse{Invitations: sent}, nil
@@ -770,7 +770,7 @@ SendMessage persists and broadcasts a message to participants of a conversation.
 */
 func (srv *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
 	if err := srv.sendMessage(rqst.Msg); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.SendMessageResponse{}, nil
 }
@@ -780,7 +780,7 @@ DeleteMessage removes a specific message from a conversation.
 */
 func (srv *server) DeleteMessage(ctx context.Context, rqst *conversationpb.DeleteMessageRequest) (*conversationpb.DeleteMessageResponse, error) {
 	if err := srv.deleteMessages(rqst.Conversation, rqst.Uuid); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	slog.Info("message deleted", "conversation", rqst.Conversation, "uuid", rqst.Uuid)
 	return &conversationpb.DeleteMessageResponse{}, nil
@@ -796,7 +796,7 @@ func (srv *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream
 func (srv *server) getMessage(conversation, uuid string) (*conversationpb.Message, error) {
 	conn, err := srv.getConversationConnection(conversation)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	data, err := conn.GetItem(conversation + "/" + uuid)
 	if err != nil {
@@ -823,7 +823,7 @@ LikeMessage toggles a 'like' on a message by the authenticated account.
 func (srv *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMessageRqst) (*conversationpb.LikeMessageResponse, error) {
 	msg, err := srv.getMessage(rqst.Conversation, rqst.Message)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if msg.Author == rqst.Account {
 		return nil, status.Errorf(codes.FailedPrecondition, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot like your own message")))
@@ -835,7 +835,7 @@ func (srv *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMes
 		msg.Likes = Utility.RemoveString(msg.Likes, rqst.Account)
 	}
 	if err := srv.sendMessage(msg); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.LikeMessageResponse{}, nil
 }
@@ -846,7 +846,7 @@ DislikeMessage toggles a 'dislike' on a message by the authenticated account.
 func (srv *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
 	msg, err := srv.getMessage(rqst.Conversation, rqst.Message)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if msg.Author == rqst.Account {
 		return nil, status.Errorf(codes.FailedPrecondition, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot dislike your own message")))
@@ -858,7 +858,7 @@ func (srv *server) DislikeMessage(ctx context.Context, rqst *conversationpb.Disl
 		msg.Dislikes = Utility.RemoveString(msg.Dislikes, rqst.Account)
 	}
 	if err := srv.sendMessage(msg); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.DislikeMessageResponse{}, nil
 }
@@ -891,7 +891,7 @@ GetConversation returns the conversation by its ID.
 func (srv *server) GetConversation(ctx context.Context, rqst *conversationpb.GetConversationRequest) (*conversationpb.GetConversationResponse, error) {
 	c, err := srv.getConversation(rqst.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.GetConversationResponse{Conversation: c}, nil
 }

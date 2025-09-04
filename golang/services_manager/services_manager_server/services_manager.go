@@ -34,7 +34,7 @@ func (srv *server) UninstallService(ctx context.Context, rqst *services_managerp
 		return nil, err
 	}
 	if err := srv.uninstallService(token, rqst.PublisherID, rqst.ServiceId, rqst.Version, rqst.DeletePermissions); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &services_managerpb.UninstallServiceResponse{Result: true}, nil
 }
@@ -133,8 +133,8 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 			"Repositories": toIfaceSlice(descriptor.Repositories),
 			"Discoveries":  toIfaceSlice(descriptor.Discoveries),
 			// defaults / preserved
-			"KeepAlive":     true,
-			"KeepUpToDate":  false,
+			"KeepAlive":       true,
+			"KeepUpToDate":    false,
 			"AllowAllOrigins": true,
 			"AllowedOrigins":  "",
 			"TLS":             false,
@@ -259,10 +259,10 @@ func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.
 	}
 	descriptor, err := resourceClient.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherID, rqst.Version)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.installService(token, descriptor); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &services_managerpb.InstallServiceResponse{Result: true}, nil
 }
@@ -302,7 +302,7 @@ func (srv *server) stopServiceInstance(serviceId string) error {
 // Stop a service
 func (srv *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
 	if err := srv.stopServiceInstance(rqst.ServiceId); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &services_managerpb.StopServiceInstanceResponse{Result: true}, nil
 }
@@ -341,7 +341,7 @@ func (srv *server) startServiceInstance(serviceId string) error {
 // Start a service
 func (srv *server) StartServiceInstance(ctx context.Context, rqst *services_managerpb.StartServiceInstanceRequest) (*services_managerpb.StartServiceInstanceResponse, error) {
 	if err := srv.startServiceInstance(rqst.ServiceId); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &services_managerpb.StartServiceInstanceResponse{}, nil
 }
@@ -350,20 +350,20 @@ func (srv *server) StartServiceInstance(ctx context.Context, rqst *services_mana
 func (srv *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for _, s := range services {
 		if s["Id"].(string) != srv.GetId() {
 			if err := srv.stopServiceInstance(s["Id"].(string)); err != nil {
-				return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	}
 	for _, s := range services {
 		if s["Id"].(string) != srv.GetId() {
 			if err := srv.startServiceInstance(s["Id"].(string)); err != nil {
-				return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	}
@@ -373,7 +373,7 @@ func (srv *server) RestartAllServices(ctx context.Context, rqst *services_manage
 func (srv *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	rsp := &services_managerpb.GetServicesConfigurationResponse{Services: make([]*structpb.Struct, len(services))}
 	for i := range services {
@@ -385,19 +385,19 @@ func (srv *server) GetServicesConfiguration(ctx context.Context, rqst *services_
 func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
 	s := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(rqst.Config), &s); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := config.SaveServiceConfiguration(s); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.stopServiceInstance(s["Id"].(string)); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.startServiceInstance(s["Id"].(string)); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.publishUpdateServiceConfigEvent(s); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &services_managerpb.SaveServiceConfigResponse{}, nil
 }
@@ -406,7 +406,7 @@ func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_manager
 func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	actions := make([]string, 0)
 

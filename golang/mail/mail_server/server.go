@@ -24,9 +24,9 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/mail/mail_client"
-	"github.com/globulario/services/golang/mail/mailpb"
 	"github.com/globulario/services/golang/mail/mail_server/imap"
 	"github.com/globulario/services/golang/mail/mail_server/smtp"
+	"github.com/globulario/services/golang/mail/mailpb"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	Utility "github.com/globulario/utility"
 
@@ -115,7 +115,7 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// SMTP/IMAP
-	Connections        map[string]connection
+	Connections         map[string]connection
 	Persistence_address string
 	SMTP_Port           int
 	SMTPS_Port          int // SSL
@@ -486,7 +486,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *mailpb.CreateConn
 	srv.Connections[c.Id] = c
 
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &mailpb.CreateConnectionRsp{Result: true}, nil
@@ -505,7 +505,7 @@ func (srv *server) DeleteConnection(ctx context.Context, rqst *mailpb.DeleteConn
 	if _, ok := srv.Connections[id]; ok {
 		delete(srv.Connections, id)
 		if err := srv.Save(); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -539,7 +539,7 @@ func (srv *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*
 		conn.Host, conn.User, conn.Password, int(conn.Port),
 		rqst.Email.From, rqst.Email.To, ccs, rqst.Email.Subject, rqst.Email.Body,
 		nil, bodyType); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &mailpb.SendEmailRsp{Result: true}, nil
@@ -568,7 +568,7 @@ func (srv *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 				return status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection with id "+id)))
 			}
 			if err := srv.sendEmail(conn.Host, conn.User, conn.Password, int(conn.Port), from, to, cc, subject, body, attachments, bodyType); err != nil {
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if err := stream.SendAndClose(&mailpb.SendEmailWithAttachementsRsp{Result: true}); err != nil {
 				return status.Errorf(codes.Internal, "stream close failed: %v", err)
@@ -576,7 +576,7 @@ func (srv *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 			return nil
 		}
 		if err != nil {
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		id = rqst.Id

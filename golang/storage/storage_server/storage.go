@@ -6,9 +6,9 @@ import (
 	"errors"
 	"io"
 
-	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -45,7 +45,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateC
 	srv.Connections[conn.Id] = conn
 
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	logger.Info("connection created/updated", "id", conn.Id, "name", conn.Name, "type", conn.Type.String())
@@ -68,7 +68,7 @@ func (srv *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteC
 	delete(srv.Connections, id)
 
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	logger.Info("connection deleted", "id", id)
@@ -100,7 +100,7 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 	}
 
 	if err := store.Open(rqst.GetOptions()); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.stores[rqst.GetId()] = store
@@ -121,7 +121,7 @@ func (srv *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*stora
 	}
 
 	if err := store.Close(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	logger.Info("store closed", "id", rqst.GetId())
@@ -141,7 +141,7 @@ func (srv *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) 
 	}
 
 	if err := store.SetItem(rqst.GetKey(), rqst.GetValue()); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &storagepb.SetItemResponse{Result: true}, nil
 }
@@ -179,7 +179,7 @@ func (srv *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServ
 	}
 
 	if err := store.SetItem(rqst.GetKey(), buffer.Bytes()); err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func (srv *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.Stor
 
 	value, err := store.GetItem(rqst.GetKey())
 	if err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	reader := bytes.NewReader(value)
@@ -233,7 +233,7 @@ func (srv *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemReq
 	}
 
 	if err := store.RemoveItem(rqst.GetKey()); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &storagepb.RemoveItemResponse{Result: true}, nil
 }
@@ -251,7 +251,7 @@ func (srv *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*st
 	}
 
 	if err := store.Clear(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &storagepb.ClearResponse{Result: true}, nil
 }
@@ -269,7 +269,7 @@ func (srv *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*stor
 	}
 
 	if err := store.Drop(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	delete(srv.stores, rqst.GetId())
 

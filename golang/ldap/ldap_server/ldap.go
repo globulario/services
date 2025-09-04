@@ -24,7 +24,7 @@ func (srv *server) Synchronize(ctx context.Context, rqst *ldappb.SynchronizeRequ
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &ldappb.SynchronizeResponse{}, nil
@@ -130,7 +130,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		for id, _ := range srv.Connections {
@@ -175,7 +175,7 @@ func (srv *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConn
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// In that case I will save it in file.
@@ -183,13 +183,13 @@ func (srv *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConn
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &ldappb.CreateConnectionRsp{
@@ -219,7 +219,7 @@ func (srv *server) DeleteConnection(ctx context.Context, rqst *ldappb.DeleteConn
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// return success.
@@ -456,7 +456,7 @@ func (srv *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I got the results.
@@ -464,7 +464,7 @@ func (srv *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &ldappb.SearchResp{

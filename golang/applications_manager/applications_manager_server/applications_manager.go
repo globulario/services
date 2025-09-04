@@ -64,7 +64,7 @@ func (srv *server) UninstallApplication(ctx context.Context, rqst *applications_
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &applications_managerpb.UninstallApplicationResponse{
@@ -244,7 +244,7 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(descriptor.Repositories) == 0 {
@@ -263,14 +263,14 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// Create the file.
@@ -281,7 +281,7 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 	}
@@ -431,7 +431,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 	if err := appendBaseTag(files[0], name); err != nil {
 		fmt.Println("Error:", err)
 	}
-	
+
 	// Copy the files to it final destination
 	abosolutePath := srv.WebRoot + "/" + name
 

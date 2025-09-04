@@ -1250,7 +1250,6 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 	return err
 }
 
-
 // formatDuration renders a duration as HH:MM:SS.000 (WebVTT-style).
 func formatDuration(d time.Duration) string {
 	totalMs := d.Milliseconds()
@@ -1409,9 +1408,9 @@ func extractSubtitleTracks(videoPath string) error {
 
 // generateVideoPreview creates preview.gif and preview.mp4 next to the source,
 // under "<dir>/.hidden/<name>/".
-// - GIF: sampled window starting at ~10% into the video, duration = `duration` seconds,
-//   palettegen/paletteuse pipeline for quality.
-// - MP4: short, silent H.264 clip using either NVENC or libx264.
+//   - GIF: sampled window starting at ~10% into the video, duration = `duration` seconds,
+//     palettegen/paletteuse pipeline for quality.
+//   - MP4: short, silent H.264 clip using either NVENC or libx264.
 //
 // It will skip work if outputs already exist unless `force` is true.
 func (s *server) generateVideoPreview(path string, fps, scale, duration int, force bool) error {
@@ -1566,7 +1565,6 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 	return nil
 }
 
-
 // createVttFile generates a WEBVTT file (thumbnails.vtt) inside the given output
 // directory using the JPG thumbnails present there. Each thumbnail is assumed to
 // represent a frame covering a window of 1/fps seconds.
@@ -1676,15 +1674,14 @@ func createVttFile(output string, fps float32) error {
 	return nil
 }
 
-
 // createVideoTimeLine extracts periodic thumbnails to build a timeline strip and
 // then generates a WEBVTT (thumbnails.vtt) that indexes those images.
 //
 // Parameters:
-//  - path: file path to a video file or an HLS directory (ending with playlist.m3u8 or its parent dir)
-//  - width: output thumbnail height in pixels (video is scaled preserving AR), default 180 if 0
-//  - fps: frames per second for timeline sampling (0 -> default 0.2, i.e., 1 frame per 5s)
-//  - force: if true, regenerates timeline even if it already exists
+//   - path: file path to a video file or an HLS directory (ending with playlist.m3u8 or its parent dir)
+//   - width: output thumbnail height in pixels (video is scaled preserving AR), default 180 if 0
+//   - fps: frames per second for timeline sampling (0 -> default 0.2, i.e., 1 frame per 5s)
+//   - force: if true, regenerates timeline even if it already exists
 //
 // Returns an error if the input is invalid or the ffmpeg step fails.
 func (s *server) createVideoTimeLine(path string, width int, fps float32, force bool) error {
@@ -1786,7 +1783,6 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 	return nil
 }
 
-
 // getVideoInfos returns metadata for a media path in the same shape that ffprobe
 // would produce for "format:tags:comment" (base64-encoded JSON blob).
 //
@@ -1797,7 +1793,8 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 //   - For regular media files: defers to Utility.ReadMetadata(path).
 //
 // The returned map is of the form:
-//   {"format": {"tags": {"comment": "<base64 JSON of titlepb.Title or titlepb.Video>"}}}
+//
+//	{"format": {"tags": {"comment": "<base64 JSON of titlepb.Title or titlepb.Video>"}}}
 func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 	p := filepath.ToSlash(path)
 
@@ -1880,7 +1877,7 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 // buildInfoMapFromJSON wraps a raw JSON blob (Title or Video) into the ffprobe-like
 // structure expected elsewhere in the pipeline:
 //
-//   {"format": {"tags": {"comment": "<base64(JSON)>"}}}
+//	{"format": {"tags": {"comment": "<base64(JSON)>"}}}
 //
 // The JSON is base64-encoded and placed under "format.tags.comment".
 func buildInfoMapFromJSON(jsonBlob []byte) map[string]interface{} {
@@ -2366,7 +2363,6 @@ func mdInt(m map[string]interface{}, key string) int {
 	return 0
 }
 
-
 // Create a VTT file for a video.
 func (s *server) CreateVttFile(ctx context.Context, rqst *mediapb.CreateVttFileRequest) (*mediapb.CreateVttFileResponse, error) {
 
@@ -2398,7 +2394,7 @@ func (srv *server) CreateVideoTimeLine(ctx context.Context, rqst *mediapb.Create
 		log.Status = "fail"
 		srv.publishConvertionLogEvent(log)
 		srv.publishConvertionLogError(rqst.Path, err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	log.Status = "done"
@@ -2420,7 +2416,7 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 
 	info, err := srv.getFileInfo(token, p)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	convert := func(path string) error {
@@ -2438,7 +2434,7 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 			srv.publishConvertionLogError(path, err)
 			log.Status = "fail"
 			srv.publishConvertionLogEvent(log)
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		log.Status = "done"
@@ -2475,7 +2471,7 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertV
 
 	info, err := srv.getFileInfo(token, p)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	needsPreconversion := func(path string) bool {
@@ -2500,7 +2496,7 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertV
 				srv.publishConvertionLogError(path, err)
 				log.Status = "fail"
 				srv.publishConvertionLogEvent(log)
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			log.Status = "done"
 			srv.publishConvertionLogEvent(log)
@@ -2521,7 +2517,7 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertV
 			srv.publishConvertionLogError(path, err)
 			log.Status = "fail"
 			srv.publishConvertionLogEvent(log)
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		log.Status = "done"
@@ -2999,7 +2995,7 @@ func (srv *server) StartProcessAudio(ctx context.Context, rqst *mediapb.StartPro
 	path := srv.formatPath(rqst.Path)
 	audios := append(Utility.GetFilePathsByExtension(path, ".mp3"), Utility.GetFilePathsByExtension(path, ".flac")...)
 	if err := srv.generateAudioPlaylist(path, token, audios); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.StartProcessAudioResponse{}, nil
 }
@@ -3013,7 +3009,7 @@ func (srv *server) IsProcessVideo(ctx context.Context, _ *mediapb.IsProcessVideo
 func (srv *server) StopProcessVideo(ctx context.Context, _ *mediapb.StopProcessVideoRequest) (*mediapb.StopProcessVideoResponse, error) {
 	srv.isProcessing = false
 	if err := Utility.KillProcessByName("ffmpeg"); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.StopProcessVideoResponse{}, nil
 }
@@ -3027,7 +3023,7 @@ func (srv *server) SetVideoConversion(ctx context.Context, rqst *mediapb.SetVide
 		srv.scheduler.Start()
 	}
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetVideoConversionResponse{}, nil
 }
@@ -3035,7 +3031,7 @@ func (srv *server) SetVideoConversion(ctx context.Context, rqst *mediapb.SetVide
 func (srv *server) SetVideoStreamConversion(ctx context.Context, rqst *mediapb.SetVideoStreamConversionRequest) (*mediapb.SetVideoStreamConversionResponse, error) {
 	srv.AutomaticStreamConversion = rqst.Value
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetVideoStreamConversionResponse{}, nil
 }
@@ -3048,7 +3044,7 @@ func (srv *server) SetStartVideoConversionHour(ctx context.Context, rqst *mediap
 		srv.scheduler.Start()
 	}
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetStartVideoConversionHourResponse{}, nil
 }
@@ -3056,12 +3052,10 @@ func (srv *server) SetStartVideoConversionHour(ctx context.Context, rqst *mediap
 func (srv *server) SetMaximumVideoConversionDelay(ctx context.Context, rqst *mediapb.SetMaximumVideoConversionDelayRequest) (*mediapb.SetMaximumVideoConversionDelayResponse, error) {
 	srv.MaximumVideoConversionDelay = rqst.Value
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetMaximumVideoConversionDelayResponse{}, nil
 }
-
-
 
 // Conversion errors/logs management
 func (srv *server) GetVideoConversionErrors(ctx context.Context, _ *mediapb.GetVideoConversionErrorsRequest) (*mediapb.GetVideoConversionErrorsResponse, error) {
@@ -3103,7 +3097,6 @@ func (srv *server) GetVideoConversionLogs(ctx context.Context, _ *mediapb.GetVid
 	return &mediapb.GetVideoConversionLogsResponse{Logs: logs}, nil
 }
 
-
 // CreateVideoPreview generates preview images and a short preview clip for a video.
 func (srv *server) CreateVideoPreview(ctx context.Context, rqst *mediapb.CreateVideoPreviewRequest) (*mediapb.CreateVideoPreviewResponse, error) {
 	path := srv.formatPath(rqst.Path)
@@ -3116,13 +3109,13 @@ func (srv *server) CreateVideoPreview(ctx context.Context, rqst *mediapb.CreateV
 
 	if err := srv.createVideoPreview(path, int(rqst.Nb), int(rqst.Height), true); err != nil {
 		log.Error("create video preview: failed", "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.generateVideoPreview(path, 10, 320, 30, true); err != nil {
 		log.Error("generate gif preview: failed", "err", err)
 		srv.publishConvertionLogError(rqst.Path, err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	log.Info("create video preview: done")
@@ -3145,7 +3138,7 @@ func (srv *server) GeneratePlaylist(ctx context.Context, rqst *mediapb.GenerateP
 
 	if err := srv.generatePlaylist(path, token); err != nil {
 		slog.With("path", path).Error("generate playlist failed", "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.With("path", path).Info("generate playlist: done")
@@ -3252,7 +3245,7 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 
 	playlistDir, playlist, info, err := srv.getYTDLPInfos(rqst.Url, dest, rqst.Format)
 	if err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	titleClient, err := getTitleClient()

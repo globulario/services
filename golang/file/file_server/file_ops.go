@@ -167,18 +167,18 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 		case fi, ok := <-filesInfoChan:
 			if !ok {
 				if err := <-errChan; err != nil {
-					return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 				return nil
 			}
 			if err := stream.Send(&filepb.ReadDirResponse{Info: fi}); err != nil {
 				if strings.Contains(err.Error(), "context canceled") {
-					return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 			}
 		case err := <-errChan:
 			if err != nil {
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			return nil
 		}
@@ -190,7 +190,7 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 	p := srv.formatPath(rqst.GetPath())
 	f, err := os.Open(p)
 	if err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	defer f.Close()
 	buf := make([]byte, 5*1024)
@@ -201,7 +201,7 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 		}
 		if err != nil {
 			if err != io.EOF {
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			break
 		}
@@ -218,7 +218,7 @@ func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 		if err != nil {
 			if err == io.EOF {
 				if err := os.WriteFile(path, data, 0644); err != nil {
-					return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 				if err := stream.SendAndClose(&filepb.SaveFileResponse{Result: true}); err != nil {
 					slog.Error("save send/close failed", "err", err)
@@ -226,7 +226,7 @@ func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 				}
 				return nil
 			}
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
@@ -248,7 +248,7 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 	cache.RemoveItem(filepath.Dir(p))
 	rbac, err := getRbacClient()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = rbac.DeleteResourcePermissions(rqst.GetPath())
 
@@ -271,7 +271,7 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 		_ = srv.generatePlaylist(dir, token)
 	}
 	if err := os.Remove(p); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &filepb.DeleteFileResponse{Result: true}, nil
 }
@@ -280,24 +280,23 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 func (srv *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
 	pdfg, err := wkhtmltopdf.NewPDFGenerator()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	pdfg.AddPage(wkhtmltopdf.NewPageReader(strings.NewReader(rqst.Html)))
 	if err := pdfg.Create(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	path := filepath.Join(os.TempDir(), Utility.RandomUUID())
 	defer os.Remove(path)
 	if err := pdfg.WriteFile(path); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &filepb.HtmlToPdfResponse{Pdf: b}, nil
 }
-
 
 func getThumbnails(info *filepb.FileInfo) []interface{} {
 	// The array of thumbnail
@@ -353,7 +352,7 @@ func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest)
 		return nil, err
 	}
 	if err := os.WriteFile(filepath.Join(p, rqst.Name), []byte(rqst.Lnk), 0644); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setOwner(token, rqst.Path+"/"+rqst.Name)
 	return &filepb.CreateLnkResponse{}, nil
@@ -364,15 +363,15 @@ func (srv *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFi
 	p := srv.formatPath(rqst.Path)
 	if Utility.Exists(p) {
 		if err := os.Remove(p); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	sheets := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(rqst.Data), &sheets); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := srv.writeExcelFile(p, sheets); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &filepb.WriteExcelFileResponse{Result: true}, nil
 }
@@ -419,11 +418,11 @@ func (srv *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMeta
 	p := srv.formatPath(rqst.Path)
 	md, err := ExtractMetada(p)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	obj, err := structpb.NewStruct(md)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &filepb.GetFileMetadataResponse{Result: obj}, nil
 }

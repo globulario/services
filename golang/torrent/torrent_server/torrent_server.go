@@ -958,7 +958,7 @@ func (srv *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.Download
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &torrentpb.DownloadTorrentResponse{}, nil

@@ -43,7 +43,7 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	accountId := rqst.AccountId
@@ -54,7 +54,7 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	account := values.(map[string]interface{})
@@ -106,7 +106,7 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
@@ -203,7 +203,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if _domain != domain {
@@ -211,7 +211,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			return &resourcepb.GetAccountRsp{
 				Account: a, // Return the token string.
@@ -232,7 +232,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 		fmt.Println("fail to retreive account:", accountId, " from database with error:", err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	account := values.(map[string]interface{})
@@ -343,7 +343,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
 	}
 
@@ -366,7 +366,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.AccountId + `"}`
@@ -375,7 +375,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	account := values.(map[string]interface{})
@@ -390,7 +390,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -412,7 +412,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Create bcrypt...
@@ -420,7 +420,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// so here the sa password has change so I need to update the backend password and reconnect to the persistence service.
@@ -434,7 +434,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -446,7 +446,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.SetAccountPasswordRsp{}, nil
@@ -519,7 +519,7 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 func (srv *server) getAccount(query string, options string) ([]*resourcepb.Account, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if query == "" {
@@ -528,7 +528,7 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 
 	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, options)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var results []*resourcepb.Account
@@ -609,7 +609,7 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 		values = append(values, a)
 		if len(values) >= maxSize {
 			if err := stream.Send(&resourcepb.GetAccountsRsp{Accounts: values}); err != nil {
-				return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = values[:0]
 		}
@@ -617,7 +617,7 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 
 	if len(values) > 0 {
 		if err := stream.Send(&resourcepb.GetAccountsRsp{Accounts: values}); err != nil {
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -650,7 +650,7 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	accountId := rqst.AccountId
@@ -682,7 +682,7 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, srv.Address)
@@ -710,7 +710,7 @@ func (srv *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExi
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// find account on other domain.
@@ -720,7 +720,7 @@ func (srv *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExi
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			// return true.
@@ -827,7 +827,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	account := values.(map[string]interface{})
@@ -894,7 +894,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	name := account["name"].(string)
@@ -949,7 +949,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Remove the user database.
@@ -957,7 +957,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Remove the file...
@@ -982,14 +982,14 @@ func (srv *server) CreateReference(ctx context.Context, rqst *resourcepb.CreateR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = srv.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// reference was created...
@@ -1002,14 +1002,14 @@ func (srv *server) DeleteReference(ctx context.Context, rqst *resourcepb.DeleteR
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = srv.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.DeleteReferenceRsp{}, nil
@@ -1032,7 +1032,7 @@ func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now I will set the reference for
@@ -1064,7 +1064,7 @@ func (srv *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.RoleId + `"}`
@@ -1075,7 +1075,7 @@ func (srv *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 
@@ -1083,7 +1083,7 @@ func (srv *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1190,7 +1190,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// No I will stream the result over the networks.
@@ -1273,7 +1273,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = make([]*resourcepb.Role, 0)
 		}
@@ -1289,7 +1289,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -1309,7 +1309,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if localDomain != domain {
@@ -1382,7 +1382,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// TODO delete role permissions
@@ -1407,7 +1407,7 @@ func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleA
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if localDomain != domain {
@@ -1430,7 +1430,7 @@ func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	role := values.(map[string]interface{})
@@ -1476,7 +1476,7 @@ func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleA
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1499,7 +1499,7 @@ func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.Remov
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for i := 0; i < len(values); i++ {
@@ -1546,7 +1546,7 @@ func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.Remov
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			srv.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{}, srv.Address)
@@ -1568,7 +1568,7 @@ func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.Remove
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if localDomain != domain {
@@ -1591,7 +1591,7 @@ func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.Remove
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	role := values.(map[string]interface{})
@@ -1639,7 +1639,7 @@ func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.Remove
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -1664,7 +1664,7 @@ func (srv *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccou
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
@@ -1686,14 +1686,14 @@ func (srv *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.Remov
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = srv.deleteReference(p, rqst.RoleId, rqst.AccountId, "roles", "Accounts")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
@@ -1861,7 +1861,7 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := protojson.Marshal(rqst.Application)
@@ -1878,7 +1878,7 @@ func (srv *server) UpdateApplication(ctx context.Context, rqst *resourcepb.Updat
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.ApplicationId + `"}`
@@ -1887,7 +1887,7 @@ func (srv *server) UpdateApplication(ctx context.Context, rqst *resourcepb.Updat
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, srv.Address)
@@ -1903,7 +1903,7 @@ func (srv *server) DeleteApplication(ctx context.Context, rqst *resourcepb.Delet
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// TODO delete dir permission associate with the application.
@@ -1919,7 +1919,7 @@ func (srv *server) GetApplicationVersion(ctx context.Context, rqst *resourcepb.G
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var q string
@@ -1942,7 +1942,7 @@ func (srv *server) GetApplicationVersion(ctx context.Context, rqst *resourcepb.G
 	} else {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetApplicationVersionRsp{
@@ -1957,7 +1957,7 @@ func (srv *server) GetApplicationAlias(ctx context.Context, rqst *resourcepb.Get
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.Id + `"}`
@@ -1967,7 +1967,7 @@ func (srv *server) GetApplicationAlias(ctx context.Context, rqst *resourcepb.Get
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetApplicationAliasRsp{
@@ -1980,7 +1980,7 @@ func (srv *server) GetApplicationIcon(ctx context.Context, rqst *resourcepb.GetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.Id + `"}`
@@ -1990,7 +1990,7 @@ func (srv *server) GetApplicationIcon(ctx context.Context, rqst *resourcepb.GetA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetApplicationIconRsp{
@@ -2013,7 +2013,7 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	application := values.(map[string]interface{})
@@ -2056,7 +2056,7 @@ func (srv *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.A
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2080,7 +2080,7 @@ func (srv *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	application := values.(map[string]interface{})
@@ -2127,7 +2127,7 @@ func (srv *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2160,7 +2160,7 @@ func (srv *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for i := 0; i < len(values); i++ {
@@ -2205,7 +2205,7 @@ func (srv *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcep
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	}
@@ -2440,7 +2440,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
@@ -2455,7 +2455,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			return &resourcepb.RegisterPeerRsp{
@@ -2495,7 +2495,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// Save the received values on the db
@@ -2518,14 +2518,14 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// Here I wiil save the public key in the keys directory.
@@ -2533,7 +2533,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// set the remote peer in /etc/hosts
@@ -2622,7 +2622,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I wiil save the public key in the keys directory.
@@ -2630,7 +2630,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// actions will need to be set by admin latter...
@@ -2638,7 +2638,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := protojson.Marshal(rqst.Peer)
@@ -2681,7 +2681,7 @@ func (srv *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPee
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetPeerPublicKeyRsp{PublicKey: public_key}, nil
@@ -2694,7 +2694,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
@@ -2710,7 +2710,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Add actions require by peer...
@@ -2769,7 +2769,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + Utility.GenerateUUID(rqst.Peer.Mac) + `"}`
@@ -2780,7 +2780,7 @@ func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := protojson.Marshal(rqst.Peer)
@@ -2822,7 +2822,7 @@ func (srv *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.Ge
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -2830,7 +2830,7 @@ func (srv *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.Ge
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetPeerApprovalStateRsp{State: peer.GetState()}, nil
@@ -2907,7 +2907,7 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// No I will stream the result over the networks.
@@ -2928,7 +2928,7 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = make([]*resourcepb.Peer, 0)
 		}
@@ -2944,7 +2944,7 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -2975,7 +2975,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// init the peer object.
@@ -2992,7 +2992,7 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// update peer values.
@@ -3012,14 +3012,14 @@ func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, setValues_, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// signal peers changes...
@@ -3058,7 +3058,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// the peer was not found.
@@ -3078,7 +3078,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Delete permissions
@@ -3208,7 +3208,7 @@ func (srv *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerA
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{}, srv.Address)
@@ -3238,7 +3238,7 @@ func (srv *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.Remove
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	peer := values.(map[string]interface{})
@@ -3273,7 +3273,7 @@ func (srv *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.Remove
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -3296,7 +3296,7 @@ func (srv *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.Remov
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for i := 0; i < len(values); i++ {
@@ -3330,7 +3330,7 @@ func (srv *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.Remov
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	}
@@ -3371,7 +3371,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// test if the given domain is the local domain.
@@ -3401,7 +3401,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// accounts...
@@ -3455,7 +3455,7 @@ func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.Upda
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.OrganizationId + `"}`
@@ -3466,7 +3466,7 @@ func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.Upda
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 
@@ -3474,7 +3474,7 @@ func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.Upda
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -3503,7 +3503,7 @@ func (srv *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, strea
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// No I will stream the result over the networks.
@@ -3613,7 +3613,7 @@ func (srv *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, strea
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = make([]*resourcepb.Organization, 0)
 		}
@@ -3629,7 +3629,7 @@ func (srv *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, strea
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -3650,7 +3650,7 @@ func (srv *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
@@ -3674,7 +3674,7 @@ func (srv *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.Ad
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
@@ -3698,7 +3698,7 @@ func (srv *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.Add
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
@@ -3722,7 +3722,7 @@ func (srv *server) AddOrganizationApplication(ctx context.Context, rqst *resourc
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
@@ -3835,7 +3835,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if localDomain != domain {
@@ -3861,7 +3861,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 		}
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	organization := values.(map[string]interface{})
@@ -3966,7 +3966,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.deleteResourcePermissions(organizationId)
@@ -3986,7 +3986,7 @@ func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroup
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.GroupId + `"}`
@@ -3997,14 +3997,14 @@ func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroup
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Groups", q, rqst.Values, "")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -4029,7 +4029,7 @@ func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroup
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := json.Marshal(rqst.Group)
@@ -4124,7 +4124,7 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// No I will stream the result over the networks.
@@ -4181,7 +4181,7 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = make([]*resourcepb.Group, 0)
 		}
@@ -4197,7 +4197,7 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -4216,7 +4216,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		if localDomain != domain {
@@ -4244,7 +4244,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	group := values.(map[string]interface{})
@@ -4292,7 +4292,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	groupId = group["_id"].(string) + "@" + group["domain"].(string)
@@ -4325,7 +4325,7 @@ func (srv *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.A
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
@@ -4346,14 +4346,14 @@ func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = srv.deleteReference(p, rqst.GroupId, rqst.AccountId, "groups", "Accounts")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
@@ -4372,7 +4372,7 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.Notification.Id + `"}`
@@ -4403,14 +4403,14 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 				if err != nil {
 					return nil, status.Errorf(
 						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+						"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 
 				err = client.CreateNotification(rqst.Notification)
 				if err != nil {
 					return nil, status.Errorf(
 						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+						"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
 
 				return &resourcepb.CreateNotificationRsp{}, nil
@@ -4425,7 +4425,7 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	jsonStr, err := json.Marshal(rqst.Notification)
@@ -4475,7 +4475,7 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// No I will stream the result over the networks.
@@ -4496,7 +4496,7 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			values = make([]*resourcepb.Notification, 0)
 		}
@@ -4512,7 +4512,7 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -4546,7 +4546,7 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.Id + `"}`
@@ -4555,7 +4555,7 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("delete_notification_"+rqst.Id+"_evt", []byte{}, srv.Address)
@@ -4592,7 +4592,7 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var query string
@@ -4610,7 +4610,7 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	srv.publishEvent("clear_notification_evt", []byte{}, srv.Address)
@@ -4624,7 +4624,7 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	notificationType := int32(rqst.NotificationType)
@@ -4653,7 +4653,7 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Send event to all concern client.
@@ -4678,14 +4678,14 @@ func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackag
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	kewordsStr, err := Utility.ToJson(rqst.Keywords)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var query string
@@ -4703,7 +4703,7 @@ func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackag
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	descriptors := make([]*resourcepb.PackageDescriptor, len(data))
@@ -4794,7 +4794,7 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var query string
@@ -4812,7 +4812,7 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if len(values) == 0 {
@@ -4973,7 +4973,7 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	query := rqst.Query
@@ -4985,7 +4985,7 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	descriptors := make([]*resourcepb.PackageDescriptor, 0)
@@ -5100,7 +5100,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var q string
@@ -5129,7 +5129,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// little fix...
@@ -5140,7 +5140,7 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Packages", q, "")
@@ -5162,7 +5162,7 @@ func (srv *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + rqst.Id + `"}`
@@ -5171,7 +5171,7 @@ func (srv *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcep
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I will retreive the values from the db and
@@ -5190,7 +5190,7 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Generate the bundle id....
@@ -5201,7 +5201,7 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 		srv.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	q := `{"_id":"` + id + `"}`
@@ -5274,7 +5274,7 @@ func (srv *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSes
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.UpdateSessionResponse{}, nil
@@ -5286,7 +5286,7 @@ func (srv *server) RemoveSession(ctx context.Context, rqst *resourcepb.RemoveSes
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	var q string
@@ -5305,7 +5305,7 @@ func (srv *server) RemoveSession(ctx context.Context, rqst *resourcepb.RemoveSes
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.RemoveSessionResponse{}, nil
@@ -5316,7 +5316,7 @@ func (srv *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessions
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	query := rqst.Query
@@ -5329,7 +5329,7 @@ func (srv *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessions
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
 			query = `SELECT * FROM Sessions WHERE `
@@ -5344,7 +5344,7 @@ func (srv *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessions
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	sessions_ := make([]*resourcepb.Session, 0)
@@ -5414,7 +5414,7 @@ func (srv *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessionRe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.GetSessionResponse{
@@ -5432,7 +5432,7 @@ func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallH
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Keep the id portion only...
@@ -5473,7 +5473,7 @@ func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallH
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	calls := make([]*resourcepb.Call, len(results))
@@ -5531,7 +5531,7 @@ func (srv *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	} else {
@@ -5539,7 +5539,7 @@ func (srv *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -5551,7 +5551,7 @@ func (srv *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 	} else {
@@ -5559,7 +5559,7 @@ func (srv *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -5609,7 +5609,7 @@ func (srv *server) DeleteCall(ctx context.Context, rqst *resourcepb.DeleteCallRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.DeleteCallRsp{}, nil
@@ -5622,7 +5622,7 @@ func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Keep the id portion only...
@@ -5657,7 +5657,7 @@ func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRq
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Delete the call.

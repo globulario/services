@@ -343,6 +343,6 @@ err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Back
 if err != nil {
     return nil, status.Errorf(
         codes.Internal,
-        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 }
 ```

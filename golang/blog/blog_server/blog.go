@@ -51,24 +51,24 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	// Save
 	if err := srv.saveBlogPost(clientId, blogPost); err != nil {
 		slog.Error("saveBlogPost failed", "uuid", uuid, "author", clientId, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Owner
 	if err := srv.addResourceOwner(uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
 		slog.Error("addResourceOwner failed", "uuid", uuid, "author", clientId, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Index
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := index.Index(uuid, blogPost); err != nil {
 		slog.Error("index.Index failed", "uuid", uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Store a trimmed version internally (no full Text)
@@ -78,11 +78,11 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		if err := index.SetInternal([]byte(uuid), raw); err != nil {
 			slog.Error("index.SetInternal failed", "uuid", uuid, "err", err)
 			// not fatal for creation, but return error for consistency
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		slog.Error("protojson.Marshal failed", "uuid", uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	blogPost.Text = text
 
@@ -102,18 +102,18 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 
 	if err := srv.saveBlogPost(clientId, rqst.BlogPost); err != nil {
 		slog.Error("saveBlogPost failed", "uuid", rqst.BlogPost.Uuid, "author", clientId, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := index.Index(rqst.BlogPost.Uuid, rqst.BlogPost); err != nil {
 		slog.Error("index.Index failed", "uuid", rqst.BlogPost.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Store trimmed copy internally
@@ -122,11 +122,11 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 	if raw, err := protojson.Marshal(rqst.BlogPost); err == nil {
 		if err := index.SetInternal([]byte(rqst.BlogPost.Uuid), raw); err != nil {
 			slog.Error("index.SetInternal failed", "uuid", rqst.BlogPost.Uuid, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
 		slog.Error("protojson.Marshal failed", "uuid", rqst.BlogPost.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	rqst.BlogPost.Text = keep
 
@@ -162,7 +162,7 @@ func (srv *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsReque
 	for i := 0; i < max && i < len(blogs); i++ {
 		if err := stream.Send(&blogpb.GetBlogPostsByAuthorsResponse{BlogPost: blogs[i]}); err != nil {
 			slog.Error("stream.Send failed", "idx", i, "uuid", blogs[i].Uuid, "err", err)
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -187,7 +187,7 @@ func (srv *server) GetBlogPosts(rqst *blogpb.GetBlogPostsRequest, stream blogpb.
 		}
 		if err := stream.Send(&blogpb.GetBlogPostsResponse{BlogPost: b}); err != nil {
 			slog.Error("stream.Send failed", "uuid", id, "err", err)
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 	return nil
@@ -200,7 +200,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
@@ -232,7 +232,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 	}
 	if err := stream.Send(&blogpb.SearchBlogPostsResponse{Result: &blogpb.SearchBlogPostsResponse_Summary{Summary: summary}}); err != nil {
 		slog.Error("stream.Send summary failed", "err", err)
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Hits
@@ -268,7 +268,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 
 		if err := stream.Send(&blogpb.SearchBlogPostsResponse{Result: &blogpb.SearchBlogPostsResponse_Hit{Hit: h}}); err != nil {
 			slog.Error("stream.Send hit failed", "idx", i, "uuid", id, "err", err)
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -292,7 +292,7 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 
 	if err := stream.Send(&blogpb.SearchBlogPostsResponse{Result: &blogpb.SearchBlogPostsResponse_Facets{Facets: facets}}); err != nil {
 		slog.Error("stream.Send facets failed", "err", err)
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return nil
@@ -309,22 +309,22 @@ func (srv *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 
 	if err := srv.deleteBlogPost(clientId, rqst.Uuid); err != nil {
 		slog.Error("deleteBlogPost failed", "uuid", rqst.Uuid, "author", clientId, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		slog.Error("getIndex failed", "path", rqst.IndexPath, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := index.Delete(rqst.Uuid); err != nil {
 		slog.Error("index.Delete failed", "uuid", rqst.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if err := index.DeleteInternal([]byte(rqst.Uuid)); err != nil {
 		slog.Error("index.DeleteInternal failed", "uuid", rqst.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("blog post deleted", "uuid", rqst.Uuid, "author", clientId)
@@ -343,14 +343,14 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 
 	if rqst.Emoji.AccountId != clientId {
 		err := errors.New("you can't comment for another account")
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Validate emoji JSON (content not used further here, but format is verified)
 	tmp := make(map[string]interface{}, 0)
 	if err := json.Unmarshal([]byte(rqst.Emoji.Emoji), &tmp); err != nil {
 		slog.Error("invalid emoji JSON", "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	rqst.Emoji.CreationTime = time.Now().Unix()
@@ -358,7 +358,7 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 	blog, err := srv.getBlogPost(rqst.Uuid)
 	if err != nil {
 		slog.Error("getBlogPost failed", "uuid", rqst.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if blog.Uuid == rqst.Emoji.Parent {
@@ -370,7 +370,7 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 		comment, err := srv.getBlogComment(rqst.Emoji.Parent, blog)
 		if err != nil {
 			slog.Error("getBlogComment failed", "parent", rqst.Emoji.Parent, "err", err)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		if comment.Emotions == nil {
 			comment.Emotions = make([]*blogpb.Emoji, 0)
@@ -380,7 +380,7 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 
 	if err := srv.saveBlogPost(blog.Author, blog); err != nil {
 		slog.Error("saveBlogPost failed after AddEmoji", "uuid", blog.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("emoji added", "post_uuid", rqst.Uuid, "parent", rqst.Emoji.Parent, "by", clientId)
@@ -408,13 +408,13 @@ func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 
 	if rqst.Comment.AccountId != clientId {
 		err := errors.New("you can't comment for another account")
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	blog, err := srv.getBlogPost(rqst.Uuid)
 	if err != nil {
 		slog.Error("getBlogPost failed", "uuid", rqst.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	rqst.Comment.CreationTime = time.Now().Unix()
@@ -425,12 +425,12 @@ func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 		if len(parentUuid) > 0 {
 			if blog.Comments == nil {
 				err := errors.New("no parent comment comment found")
-				return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			parentComment, err := srv.getBlogComment(parentUuid, blog)
 			if err != nil {
 				slog.Error("getBlogComment failed", "parent", parentUuid, "err", err)
-				return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			parentComment.Comments = append(parentComment.Comments, rqst.Comment)
 		}
@@ -443,7 +443,7 @@ func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 
 	if err := srv.saveBlogPost(clientId, blog); err != nil {
 		slog.Error("saveBlogPost failed after AddComment", "uuid", blog.Uuid, "err", err)
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("comment added", "post_uuid", rqst.Uuid, "comment_uuid", rqst.Comment.Uuid, "by", clientId)

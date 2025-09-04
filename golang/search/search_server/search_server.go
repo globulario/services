@@ -435,7 +435,7 @@ func (srv *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocu
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &searchpb.DeleteDocumentResponse{}, nil
@@ -475,7 +475,7 @@ func (srv *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJson
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &searchpb.IndexJsonObjectResponse{}, nil

@@ -96,7 +96,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 
 	// Publish the service package.
 	if err := srv.publishPackageDescriptor(descriptor); err != nil {
-		e := status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		e := status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		slog.Error("PublishService failed to publish descriptor", "serviceId", rqst.ServiceId, "err", err)
 		return nil, e
 	}
@@ -182,7 +182,7 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 	}
 
 	if err := srv.publishPackageDescriptor(descriptor); err != nil {
-		e := status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		e := status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		slog.Error("PublishApplication failed to publish descriptor", "name", rqst.Name, "err", err)
 		return nil, e
 	}

@@ -163,7 +163,7 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 			return err
 		}
 
-		if  err := fileClient.DeleteFile(token, archivePath); err != nil {
+		if err := fileClient.DeleteFile(token, archivePath); err != nil {
 			slog.Warn("upload dir: cleanup remote archive failed", "remotePath", archivePath, "err", err)
 		}
 
@@ -339,7 +339,7 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 	}
 	srv.Public = append(srv.Public, p)
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	slog.Info("public dir added", "path", p)
 	return &filepb.AddPublicDirResponse{}, nil
@@ -356,7 +356,7 @@ func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePubli
 	}
 	srv.Public = Utility.RemoveString(srv.Public, p)
 	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	slog.Info("public dir removed", "path", p)
 	return &filepb.RemovePublicDirResponse{}, nil
@@ -597,7 +597,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 
 	if createTempDir {
 		if err := Utility.CreateDirIfNotExist(tmp); err != nil {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 		defer os.RemoveAll(tmp)
 
@@ -608,11 +608,11 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 				fileName := p[strings.LastIndex(p, "/"):]
 				if info.IsDir() {
 					if err := Utility.CopyDir(p, filepath.Join(tmp, fileName)); err != nil {
-						return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+						return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 					}
 				} else {
 					if err := Utility.CopyFile(p, filepath.Join(tmp, fileName)); err != nil {
-						return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+						return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 					}
 				}
 			}
@@ -621,7 +621,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 
 	var buf bytes.Buffer
 	if _, err := Utility.CompressDir(tmp, &buf); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	dest := "/users/" + clientId + "/" + rqst.GetName() + ".tar.gz"
@@ -631,7 +631,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 	}
 
 	if err := os.WriteFile(srv.Root+dest, buf.Bytes(), 0644); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("archive created", "dest", dest)
@@ -641,7 +641,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
 	path := srv.formatPath(rqst.GetPath())
 	if err := Utility.CreateDirIfNotExist(filepath.Join(path, rqst.GetName())); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	_, token, err := security.GetClientId(ctx)
@@ -696,7 +696,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	// Delete resource permissions
 	rbacClient, err := getRbacClient()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Recursively remove all sub-dir and file permissions
@@ -717,7 +717,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 
 	// Remove the directory itself
 	if err := os.RemoveAll(path); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	slog.Info("dir deleted", "path", path)
@@ -917,7 +917,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	cache.RemoveItem(path)
 
 	if err := os.Rename(filepath.Join(path, rqst.OldName), filepath.Join(path, rqst.NewName)); err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Associate titles
@@ -954,7 +954,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		for i := 0; i < len(filePerms); i++ {
 			p := filePerms[i]
 			if strings.HasPrefix(p.Path, from) {
-				if  err := rbacClient.DeleteResourcePermissions(p.Path); err != nil {
+				if err := rbacClient.DeleteResourcePermissions(p.Path); err != nil {
 					slog.Warn("rename: delete old permission failed", "path", p.Path, "err", err)
 				}
 				p.Path = strings.ReplaceAll(p.Path, from, dest)
@@ -964,7 +964,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 			}
 		}
 	} else if perm != nil {
-		if  err := rbacClient.DeleteResourcePermissions(from); err != nil {
+		if err := rbacClient.DeleteResourcePermissions(from); err != nil {
 			slog.Warn("rename: delete file permission failed", "path", from, "err", err)
 		}
 		perm.Path = dest
