@@ -85,7 +85,7 @@ func (srv *server) storeFor(id string) (monitoring_store.Store, error) {
 		slog.Warn("store not found", "conn_id", id)
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 	return store, nil
@@ -95,7 +95,7 @@ func (srv *server) storeFor(id string) (monitoring_store.Store, error) {
 func grpcErr(err error) error {
 	return status.Errorf(
 		codes.Internal,
-		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 	)
 }
 

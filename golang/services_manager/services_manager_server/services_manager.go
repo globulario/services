@@ -238,7 +238,7 @@ func findServiceExecutable(dir string, name string, id string) (string, error) {
 	return "", errors.New("no executable found in " + dir)
 }
 
-func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
+func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
@@ -253,7 +253,7 @@ func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.
 	if err != nil {
 		return nil, err
 	}
-	resourceClient, err := GetResourceClient(rqst.DicorveryId)
+	resourceClient, err := getResourceClient(rqst.DicorveryId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to connect to "+rqst.DicorveryId)))
 	}

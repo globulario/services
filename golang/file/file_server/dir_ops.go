@@ -332,10 +332,10 @@ func (srv *server) publishReloadDirEvent(path string) {
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	p := toSlash(rqst.Path)
 	if !Utility.Exists(p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if Utility.Contains(srv.Public, p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("Path %s already exist in Public paths", p)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s already exist in public paths", p)))
 	}
 	srv.Public = append(srv.Public, p)
 	if err := srv.Save(); err != nil {
@@ -349,10 +349,10 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
 	p := toSlash(rqst.Path)
 	if !Utility.Exists(p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if !Utility.Contains(srv.Public, p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("Path %s doesn't exist in Public paths", p)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s doesn't exist in public paths", p)))
 	}
 	srv.Public = Utility.RemoveString(srv.Public, p)
 	if err := srv.Save(); err != nil {
@@ -587,7 +587,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 			p = srv.formatPath(p)
 		}
 		if !Utility.Exists(p) {
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file exist for path %s", p)))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file exist for path %s", p)))
 		}
 		if info, _ := os.Stat(p); info.IsDir() {
 			tmp = p
@@ -659,7 +659,7 @@ func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest)
 func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
 	path := srv.formatPath(rqst.GetPath())
 	if !Utility.Exists(path) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
 	}
 
 	cache.RemoveItem(path)

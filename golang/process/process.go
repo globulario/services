@@ -151,8 +151,12 @@ func StartServiceProcessWithWriters(
 	stdoutWriter io.Writer,
 	stderrWriter io.Writer,
 ) (int, error) {
-	if stdoutWriter == nil { stdoutWriter = os.Stdout }
-	if stderrWriter == nil { stderrWriter = os.Stderr }
+	if stdoutWriter == nil {
+		stdoutWriter = os.Stdout
+	}
+	if stderrWriter == nil {
+		stderrWriter = os.Stderr
+	}
 
 	// Kill any previous instance
 	if err := KillServiceProcess(s); err != nil {
@@ -181,9 +185,13 @@ func StartServiceProcessWithWriters(
 	}
 
 	stdout, err := cmd.StdoutPipe()
-	if err != nil { return -1, err }
+	if err != nil {
+		return -1, err
+	}
 	stderrR, err := cmd.StderrPipe()
-	if err != nil { return -1, err }
+	if err != nil {
+		return -1, err
+	}
 	var startErrBuf bytes.Buffer
 
 	doneStdout := make(chan struct{})
@@ -195,7 +203,9 @@ func StartServiceProcessWithWriters(
 		r := bufio.NewReader(tee)
 		for {
 			line, e := r.ReadBytes('\n')
-			if len(line) > 0 { _, _ = stderrWriter.Write(line) }
+			if len(line) > 0 {
+				_, _ = stderrWriter.Write(line)
+			}
 			if e != nil {
 				if !errors.Is(e, io.EOF) {
 					_, _ = stderrWriter.Write([]byte("\n[stderr stream error] " + e.Error() + "\n"))
@@ -207,8 +217,10 @@ func StartServiceProcessWithWriters(
 	}()
 
 	if err := cmd.Start(); err != nil {
-		_ = stdout.Close(); _ = stderrR.Close()
-		<-doneStdout; <-doneStderr
+		_ = stdout.Close()
+		_ = stderrR.Close()
+		<-doneStdout
+		<-doneStderr
 		slog.Error("failed to start service", "name", s["Name"], "id", s["Id"], "err", err,
 			"stderr", strings.TrimSpace(startErrBuf.String()))
 		return -1, err
@@ -232,8 +244,10 @@ func StartServiceProcessWithWriters(
 	// Supervise
 	go func() {
 		err := cmd.Wait()
-		_ = stdout.Close(); _ = stderrR.Close()
-		<-doneStdout; <-doneStderr
+		_ = stdout.Close()
+		_ = stderrR.Close()
+		<-doneStdout
+		<-doneStderr
 
 		state := "stopped"
 		if err != nil {
@@ -245,9 +259,14 @@ func StartServiceProcessWithWriters(
 		}
 
 		_ = config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
-			"Process":   -1,
-			"State":     state,
-			"LastError": func() string { if err != nil { return err.Error() }; return "" }(),
+			"Process": -1,
+			"State":   state,
+			"LastError": func() string {
+				if err != nil {
+					return err.Error()
+				}
+				return ""
+			}(),
 		})
 
 		config.StopLive(Utility.ToString(s["Id"]))
@@ -346,7 +365,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				}
 			} else {
 				ex, err := os.Executable()
-				if err != nil { return -1, err }
+				if err != nil {
+					return -1, err
+				}
 				exPath := filepath.Dir(ex)
 				if Utility.Exists(exPath + "/bin/" + cmdName) {
 					proxy = exec.Command(exPath+"/bin/"+cmdName, args...)
@@ -415,12 +436,16 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 // KillServiceProxyProcess terminates the grpcwebproxy for a service if present and updates etcd runtime.
 func KillServiceProxyProcess(s map[string]interface{}) error {
 	pid := Utility.ToInt(s["ProxyProcess"])
-	if pid <= 0 { return nil }
+	if pid <= 0 {
+		return nil
+	}
 
 	proc, _ := os.FindProcess(pid)
 
 	// Graceful first
-	if runtime.GOOS == "windows" { _ = proc.Kill() } else {
+	if runtime.GOOS == "windows" {
+		_ = proc.Kill()
+	} else {
 		_ = syscall.Kill(-pid, syscall.SIGTERM)
 		_ = proc.Signal(syscall.SIGTERM)
 	}
@@ -428,26 +453,34 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 	// Wait up to 5s
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if ok, _ := Utility.PidExists(pid); !ok { break }
+		if ok, _ := Utility.PidExists(pid); !ok {
+			break
+		}
 		time.Sleep(150 * time.Millisecond)
 	}
 
 	// Escalate if needed
 	if ok, _ := Utility.PidExists(pid); ok {
-		if runtime.GOOS == "windows" { _ = proc.Kill() } else {
+		if runtime.GOOS == "windows" {
+			_ = proc.Kill()
+		} else {
 			_ = syscall.Kill(-pid, syscall.SIGKILL)
 			_ = proc.Kill()
 		}
 		// short final wait
 		esc := time.Now().Add(2 * time.Second)
 		for time.Now().Before(esc) {
-			if ok, _ := Utility.PidExists(pid); !ok { break }
+			if ok, _ := Utility.PidExists(pid); !ok {
+				break
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
 	state := "running"
-	if Utility.ToInt(s["Process"]) == -1 { state = "stopped" }
+	if Utility.ToInt(s["Process"]) == -1 {
+		state = "stopped"
+	}
 	return config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
 		"ProxyProcess": -1,
 		"State":        state,
@@ -462,9 +495,15 @@ is not running or the operation is not permitted.
 */
 func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	proc, err := os.FindProcess(pid)
-	if err != nil { return nil, err }
-	if err := proc.Signal(syscall.Signal(0)); err == nil { return proc, nil }
-	if err == syscall.ESRCH { return nil, errors.New("process not running") }
+	if err != nil {
+		return nil, err
+	}
+	if err := proc.Signal(syscall.Signal(0)); err == nil {
+		return proc, nil
+	}
+	if err == syscall.ESRCH {
+		return nil, errors.New("process not running")
+	}
 	return nil, errors.New("process running but query operation not permitted")
 }
 
@@ -475,17 +514,25 @@ func StartEtcdServer() error {
 	const probeEvery = 200 * time.Millisecond
 
 	localConfig, err := config.GetLocalConfig(true)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	protocol := Utility.ToString(localConfig["Protocol"])
-	if protocol == "" { protocol = "http" }
+	if protocol == "" {
+		protocol = "http"
+	}
 
 	// host we advertise (no port)
 	hostPort, _ := config.GetAddress()
 	host := hostPort
-	if i := strings.Index(hostPort, ":"); i > 0 { host = hostPort[:i] }
+	if i := strings.Index(hostPort, ":"); i > 0 {
+		host = hostPort[:i]
+	}
 
 	name := Utility.ToString(localConfig["Name"])
-	if name == "" { name, _ = config.GetName() }
+	if name == "" {
+		name, _ = config.GetName()
+	}
 
 	dataDir := config.GetDataDir() + "/etcd-data"
 	_ = Utility.CreateDirIfNotExist(dataDir)
@@ -494,7 +541,9 @@ func StartEtcdServer() error {
 	// seed with any existing cfg
 	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
-		if data, err := os.ReadFile(cfgPath); err == nil { _ = yaml.Unmarshal(data, &nodeCfg) }
+		if data, err := os.ReadFile(cfgPath); err == nil {
+			_ = yaml.Unmarshal(data, &nodeCfg)
+		}
 	}
 
 	// Decide final scheme (may fall back to http if TLS files missing)
@@ -527,7 +576,10 @@ func StartEtcdServer() error {
 			}
 		}
 	}
-	if !wantTLS { delete(nodeCfg, "client-transport-security"); delete(nodeCfg, "peer-transport-security") }
+	if !wantTLS {
+		delete(nodeCfg, "client-transport-security")
+		delete(nodeCfg, "peer-transport-security")
+	}
 
 	// Listeners + advertised addresses
 	listenClientURLs := scheme + "://0.0.0.0:2379"
@@ -548,7 +600,8 @@ func StartEtcdServer() error {
 	if peers, ok := localConfig["Peers"].([]interface{}); ok {
 		for _, raw := range peers {
 			peer := raw.(map[string]interface{})
-			ph := Utility.ToString(peer["Hostname"]) ; pd := Utility.ToString(peer["Domain"])
+			ph := Utility.ToString(peer["Hostname"])
+			pd := Utility.ToString(peer["Domain"])
 			if ph != "" && pd != "" {
 				initialCluster += "," + ph + "=" + scheme + "://" + ph + "." + pd + ":2380"
 			}
@@ -557,15 +610,26 @@ func StartEtcdServer() error {
 	nodeCfg["initial-cluster"] = initialCluster
 
 	// cluster state
-	if Utility.Exists(filepath.Join(dataDir, "member")) { nodeCfg["initial-cluster-state"] = "existing" } else { nodeCfg["initial-cluster-state"] = "new" }
+	if Utility.Exists(filepath.Join(dataDir, "member")) {
+		nodeCfg["initial-cluster-state"] = "existing"
+	} else {
+		nodeCfg["initial-cluster-state"] = "new"
+	}
 
 	// write config
 	out, err := yaml.Marshal(nodeCfg)
-	if err != nil { return err }
-	if err := os.WriteFile(cfgPath, out, 0o644); err != nil { return err }
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(cfgPath, out, 0o644); err != nil {
+		return err
+	}
 
 	etcdPath, err := findEtcdBinary()
-	if err != nil { slog.Error("cannot start etcd", "err", err); return err }
+	if err != nil {
+		slog.Error("cannot start etcd", "err", err)
+		return err
+	}
 
 	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", listenClientURLs, "advertise-client-urls", advertiseClientURLs)
 
@@ -573,9 +637,14 @@ func StartEtcdServer() error {
 	cmd.Dir = os.TempDir()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if runtime.GOOS != "windows" { cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM} }
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	}
 
-	if err := cmd.Start(); err != nil { slog.Error("failed to start etcd", "err", err); return err }
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to start etcd", "err", err)
+		return err
+	}
 	setEtcdCmd(cmd)
 
 	waitErr := make(chan error, 1)
@@ -584,7 +653,11 @@ func StartEtcdServer() error {
 	// Graceful shutdown on SIGINT/SIGTERM
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() { sig := <-sigCh; slog.Info("received shutdown signal for etcd; terminating", "signal", sig); _ = StopEtcdServer() }()
+	go func() {
+		sig := <-sigCh
+		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
+		_ = StopEtcdServer()
+	}()
 
 	// Readiness probe
 	deadline := time.Now().Add(readyTimeout)
@@ -593,22 +666,47 @@ func StartEtcdServer() error {
 	if scheme == "https" && wantTLS {
 		cp := x509.NewCertPool()
 		if pem, err := os.ReadFile(caFile); err == nil && cp.AppendCertsFromPEM(pem) {
-			httpClient = &http.Client{ Timeout: 1 * time.Second, Transport: &http.Transport{ TLSClientConfig: &tls.Config{RootCAs: cp} } }
+			httpClient = &http.Client{Timeout: 1 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: cp}}}
 		} else {
-			httpClient = &http.Client{ Timeout: 1 * time.Second, Transport: &http.Transport{ TLSClientConfig: &tls.Config{InsecureSkipVerify: true} } }
+			httpClient = &http.Client{Timeout: 1 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 		}
 	} else {
 		httpClient = &http.Client{Timeout: 1 * time.Second}
 	}
 
 	for time.Now().Before(deadline) {
-		select { case err := <-waitErr: if err == nil { return fmt.Errorf("etcd exited before becoming ready") } ; return fmt.Errorf("etcd exited early: %w", err) ; default: }
-		if resp, err := httpClient.Get(healthURL); err == nil { _, _ = io.Copy(io.Discard, resp.Body); _ = resp.Body.Close(); if resp.StatusCode == http.StatusOK { slog.Info("etcd is ready"); return nil } }
-		if conn, err := net.DialTimeout("tcp", "127.0.0.1:2379", 500*time.Millisecond); err == nil { _ = conn.Close(); slog.Info("etcd TCP port open; proceeding"); return nil }
+		select {
+		case err := <-waitErr:
+			if err == nil {
+				return fmt.Errorf("etcd exited before becoming ready")
+			}
+			return fmt.Errorf("etcd exited early: %w", err)
+		default:
+		}
+		if resp, err := httpClient.Get(healthURL); err == nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				slog.Info("etcd is ready")
+				return nil
+			}
+		}
+		if conn, err := net.DialTimeout("tcp", "127.0.0.1:2379", 500*time.Millisecond); err == nil {
+			_ = conn.Close()
+			slog.Info("etcd TCP port open; proceeding")
+			return nil
+		}
 		time.Sleep(probeEvery)
 	}
 
-	select { case err := <-waitErr: if err == nil { return fmt.Errorf("etcd exited before becoming ready") } ; return fmt.Errorf("etcd exited early: %w", err) ; default: }
+	select {
+	case err := <-waitErr:
+		if err == nil {
+			return fmt.Errorf("etcd exited before becoming ready")
+		}
+		return fmt.Errorf("etcd exited early: %w", err)
+	default:
+	}
 	_ = StopEtcdServer()
 	return fmt.Errorf("etcd did not become ready within %s", readyTimeout)
 }
@@ -622,21 +720,40 @@ func setEtcdCmd(c *exec.Cmd) { etcdCmdMu.Lock(); defer etcdCmdMu.Unlock(); etcdC
 
 // StopEtcdServer gracefully stops the etcd process started by StartEtcdServer.
 func StopEtcdServer() error {
-	etcdCmdMu.Lock(); c := etcdCmd; etcdCmd = nil; etcdCmdMu.Unlock()
-	if c == nil || c.Process == nil { return nil }
-	if runtime.GOOS == "windows" { _ = c.Process.Kill(); return nil }
+	etcdCmdMu.Lock()
+	c := etcdCmd
+	etcdCmd = nil
+	etcdCmdMu.Unlock()
+	if c == nil || c.Process == nil {
+		return nil
+	}
+	if runtime.GOOS == "windows" {
+		_ = c.Process.Kill()
+		return nil
+	}
 	_ = syscall.Kill(-c.Process.Pid, syscall.SIGTERM)
 	_ = c.Process.Signal(syscall.SIGTERM)
 	done := make(chan struct{}, 1)
 	go func() { _, _ = c.Process.Wait(); done <- struct{}{} }()
-	select { case <-done: case <-time.After(5 * time.Second): _ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL); _ = c.Process.Kill() }
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		_ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
+		_ = c.Process.Kill()
+	}
 	return nil
 }
 
 func findEtcdBinary() (string, error) {
-	if p, err := exec.LookPath("etcd"); err == nil { return p, nil }
+	if p, err := exec.LookPath("etcd"); err == nil {
+		return p, nil
+	}
 	candidates := []string{"/usr/local/bin/etcd", "/usr/bin/etcd"}
-	for _, p := range candidates { if Utility.Exists(p) { return p, nil } }
+	for _, p := range candidates {
+		if Utility.Exists(p) {
+			return p, nil
+		}
+	}
 	return "", errors.New("etcd binary not found in PATH")
 }
 
@@ -648,7 +765,9 @@ It returns an error if the config file is missing or Envoy fails to start.
 */
 func StartEnvoyProxy() error {
 	cfgPath := config.GetConfigDir() + "/envoy.yml"
-	if !Utility.Exists(cfgPath) { return errors.New("no envoy configuration file found at path " + cfgPath) }
+	if !Utility.Exists(cfgPath) {
+		return errors.New("no envoy configuration file found at path " + cfgPath)
+	}
 
 	envoy := exec.Command("envoy", "-c", cfgPath, "-l", "warn")
 	envoy.Dir = os.TempDir()
@@ -658,14 +777,27 @@ func StartEnvoyProxy() error {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() { select { case sig := <-sigCh: slog.Info("received shutdown signal for envoy; terminating", "signal", sig); cancel() ; case <-ctx.Done(): } }()
+	go func() {
+		select {
+		case sig := <-sigCh:
+			slog.Info("received shutdown signal for envoy; terminating", "signal", sig)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 
 	envoy.Stdout = os.Stdout
 	envoy.Stderr = os.Stderr
 
 	slog.Info("starting envoy", "config", cfgPath)
-	if err := envoy.Start(); err != nil { slog.Error("failed to start envoy", "err", err); return err }
-	if err := envoy.Wait(); err != nil { slog.Error("envoy terminated with error", "err", err); return err }
+	if err := envoy.Start(); err != nil {
+		slog.Error("failed to start envoy", "err", err)
+		return err
+	}
+	if err := envoy.Wait(); err != nil {
+		slog.Error("envoy terminated with error", "err", err)
+		return err
+	}
 	slog.Info("envoy exited")
 	return nil
 }
@@ -738,7 +870,9 @@ scrape_configs:
     scheme: http
 `
 		}
-		if err := os.WriteFile(promYml, []byte(cfg), 0644); err != nil { return err }
+		if err := os.WriteFile(promYml, []byte(cfg), 0644); err != nil {
+			return err
+		}
 		slog.Info("generated prometheus config", "path", promYml)
 	}
 
@@ -763,7 +897,9 @@ inhibit_rules:
     severity: 'warning'
   equal: ['alertname', 'dev', 'instance']
 `
-		if err := os.WriteFile(alertYml, []byte(cfg), 0644); err != nil { return err }
+		if err := os.WriteFile(alertYml, []byte(cfg), 0644); err != nil {
+			return err
+		}
 		slog.Info("generated alertmanager config", "path", alertYml)
 	}
 
@@ -778,7 +914,9 @@ inhibit_rules:
 			cfg := "tls_server_config:\n" +
 				" cert_file: " + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalCertificate() + "\n" +
 				" key_file: " + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalServerCerificateKeyPath() + "\n"
-			if err := os.WriteFile(webCfg, []byte(cfg), 0644); err != nil { return err }
+			if err := os.WriteFile(webCfg, []byte(cfg), 0644); err != nil {
+				return err
+			}
 			slog.Info("generated prometheus TLS web config", "path", webCfg)
 		}
 		args = append(args, "--web.config.file", webCfg)
@@ -789,11 +927,14 @@ inhibit_rules:
 	prom.SysProcAttr = &syscall.SysProcAttr{}
 
 	slog.Info("starting prometheus", "args", args)
-	if err := prom.Start(); err != nil { slog.Error("failed to start prometheus", "err", err); return err }
+	if err := prom.Start(); err != nil {
+		slog.Error("failed to start prometheus", "err", err)
+		return err
+	}
 
 	// Register metrics
-	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{ Name: "globular_services_cpu_usage_counter", Help: "Monitor the CPU usage of each service.", }, []string{"id", "name"})
-	servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{ Name: "globular_services_memory_usage_counter", Help: "Monitor the memory usage of each service.", }, []string{"id", "name"})
+	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "globular_services_cpu_usage_counter", Help: "Monitor the CPU usage of each service."}, []string{"id", "name"})
+	servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "globular_services_memory_usage_counter", Help: "Monitor the memory usage of each service."}, []string{"id", "name"})
 	prometheus.MustRegister(servicesCpuUsage, servicesMemoryUsage)
 
 	// Feed metrics periodically
@@ -804,7 +945,9 @@ inhibit_rules:
 			select {
 			case <-ticker.C:
 				execName := "Globular"
-				if runtime.GOOS == "windows" { execName += ".exe" }
+				if runtime.GOOS == "windows" {
+					execName += ".exe"
+				}
 				if pids, err := Utility.GetProcessIdsByName(execName); err == nil {
 					for _, pid := range pids {
 						if stat, err := pidusage.GetStat(pid); err == nil {
@@ -835,12 +978,20 @@ inhibit_rules:
 	alert := exec.Command("alertmanager", "--config.file", alertYml)
 	alert.Dir = os.TempDir()
 	alert.SysProcAttr = &syscall.SysProcAttr{}
-	if err := alert.Start(); err != nil { slog.Warn("failed to start alertmanager", "err", err) } else { slog.Info("alertmanager started") }
+	if err := alert.Start(); err != nil {
+		slog.Warn("failed to start alertmanager", "err", err)
+	} else {
+		slog.Info("alertmanager started")
+	}
 
 	nodeExp := exec.Command("node_exporter")
 	nodeExp.Dir = os.TempDir()
 	nodeExp.SysProcAttr = &syscall.SysProcAttr{}
-	if err := nodeExp.Start(); err != nil { slog.Warn("failed to start node_exporter", "err", err) } else { slog.Info("node_exporter started") }
+	if err := nodeExp.Start(); err != nil {
+		slog.Warn("failed to start node_exporter", "err", err)
+	} else {
+		slog.Info("node_exporter started")
+	}
 
 	return nil
 }
@@ -867,16 +1018,23 @@ func crAwareCopy(dst io.Writer, src io.Reader) {
 			}
 			return
 		}
-		if b == '\r' { _, _ = dst.Write([]byte("\r\033[K")); continue }
+		if b == '\r' {
+			_, _ = dst.Write([]byte("\r\033[K"))
+			continue
+		}
 		_, _ = dst.Write([]byte{b})
 	}
 }
 
 // Local event client helper (unchanged signature/behavior)
 func getEventClient(address string) (*event_client.Event_Client, error) {
-	if address == "" { address, _ = config.GetAddress() }
+	if address == "" {
+		address, _ = config.GetAddress()
+	}
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return client.(*event_client.Event_Client), nil
 }

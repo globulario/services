@@ -119,11 +119,11 @@ type server struct {
 	videoConversionLogs   *sync.Map
 	scheduler             *gocron.Scheduler
 
-	isProcessing             bool
-	isProcessingAudio        bool
-	AutomaticVideoConversion bool
-	AutomaticStreamConversion bool
-	StartVideoConversionHour   string
+	isProcessing                bool
+	isProcessingAudio           bool
+	AutomaticVideoConversion    bool
+	AutomaticStreamConversion   bool
+	StartVideoConversionHour    string
 	MaximumVideoConversionDelay string
 }
 
@@ -593,7 +593,7 @@ func main() {
 		srv.ConfigPath = args[1]
 	}
 
-		// Set service permissions (unchanged structure)
+	// Set service permissions (unchanged structure)
 	srv.Permissions[0] = map[string]interface{}{
 		"action": "/file.FileService/UploadVideo",
 		"resources": []interface{}{
@@ -657,7 +657,6 @@ func main() {
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		srv.Address = a
 	}
-
 
 	// Register client ctor
 	Utility.RegisterFunction("NewMediaService_Client", media_client.NewMediaService_Client)

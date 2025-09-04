@@ -1,7 +1,6 @@
 package persistence_store
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,12 +8,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
-
-	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -155,7 +151,7 @@ func (store *MongoStore) Count(ctx context.Context, connectionId string, databas
 
 func (store *MongoStore) CreateDatabase(ctx context.Context, connectionId string, name string) error {
 	// MongoDB creates databases lazily on first write.
-	return errors.New("MongoDB will create your database at the first insert.")
+	return errors.New("database will be created at the first insert")
 }
 
 /**
@@ -562,161 +558,163 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
 	return nil
 }
 
-/**
- * Stop MongoDB instance.
- */
-func (store *MongoStore) stopMongod() error {
-	pids, err := Utility.GetProcessIdsByName("mongod")
-	if err != nil {
-		slog.Error("failed to get mongod pids", "err", err)
-		return nil
-	}
-	if len(pids) == 0 {
-		slog.Info("no mongod instance found")
-		return nil
-	}
+/////////////////
+// MongoDB management (start/stop, SA creation).
+// /**
+//  * Stop MongoDB instance.
+//  */
+// func (store *MongoStore) stopMongod() error {
+// 	pids, err := Utility.GetProcessIdsByName("mongod")
+// 	if err != nil {
+// 		slog.Error("failed to get mongod pids", "err", err)
+// 		return nil
+// 	}
+// 	if len(pids) == 0 {
+// 		slog.Info("no mongod instance found")
+// 		return nil
+// 	}
 
-	closeCmd := exec.Command("mongosh", "--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand({ shutdown: 1 });")
-	closeCmd.Dir = os.TempDir()
+// 	closeCmd := exec.Command("mongosh", "--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand({ shutdown: 1 });")
+// 	closeCmd.Dir = os.TempDir()
 
-	if err := closeCmd.Run(); err != nil {
-		pids, _ := Utility.GetProcessIdsByName("mongod")
-		if len(pids) == 0 {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
+// 	if err := closeCmd.Run(); err != nil {
+// 		pids, _ := Utility.GetProcessIdsByName("mongod")
+// 		if len(pids) == 0 {
+// 			return nil
+// 		}
+// 		return err
+// 	}
+// 	return nil
+// }
 
-/**
- * Create the super administrator in the DB. Not the SA global account!!!
- */
-func (store *MongoStore) registerSa() error {
-	// Validate mongod availability
-	wait := make(chan error)
-	Utility.RunCmd("mongod", os.TempDir(), []string{"--version"}, wait)
-	if err := <-wait; err != nil {
-		return err
-	}
+// /**
+//  * Create the super administrator in the DB. Not the SA global account!!!
+//  */
+// func (store *MongoStore) registerSa() error {
+// 	// Validate mongod availability
+// 	wait := make(chan error)
+// 	Utility.RunCmd("mongod", os.TempDir(), []string{"--version"}, wait)
+// 	if err := <-wait; err != nil {
+// 		return err
+// 	}
 
-	dataPath := store.DataPath + "/mongodb-data"
+// 	dataPath := store.DataPath + "/mongodb-data"
 
-	if !Utility.Exists(dataPath) {
-		// Ensure no running mongod.
-		if err := store.stopMongod(); err != nil {
-			slog.Error("failed to stop mongod", "err", err)
-			return err
-		}
+// 	if !Utility.Exists(dataPath) {
+// 		// Ensure no running mongod.
+// 		if err := store.stopMongod(); err != nil {
+// 			slog.Error("failed to stop mongod", "err", err)
+// 			return err
+// 		}
 
-		// Create data dir.
-		if err := os.MkdirAll(dataPath, os.ModeDir); err != nil {
-			slog.Error("failed to create data dir", "path", dataPath, "err", err)
-			return err
-		}
+// 		// Create data dir.
+// 		if err := os.MkdirAll(dataPath, os.ModeDir); err != nil {
+// 			slog.Error("failed to create data dir", "path", dataPath, "err", err)
+// 			return err
+// 		}
 
-		// Start without auth to create SA.
-		go startMongoDB(store.Port, dataPath, false, wait)
-		if err := <-wait; err != nil {
-			slog.Error("failed to start mongod (no auth)", "err", err)
-			return err
-		}
+// 		// Start without auth to create SA.
+// 		go startMongoDB(store.Port, dataPath, false, wait)
+// 		if err := <-wait; err != nil {
+// 			slog.Error("failed to start mongod (no auth)", "err", err)
+// 			return err
+// 		}
 
-		createSaScript := fmt.Sprintf(
-			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`,
-			store.User, store.Password,
-		)
+// 		createSaScript := fmt.Sprintf(
+// 			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`,
+// 			store.User, store.Password,
+// 		)
 
-		Utility.RunCmd("mongosh", os.TempDir(), []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", createSaScript}, wait)
-		if err := <-wait; err != nil {
-			slog.Error("failed to create SA user", "err", err)
-			_ = os.RemoveAll(dataPath)
-			return err
-		}
+// 		Utility.RunCmd("mongosh", os.TempDir(), []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", createSaScript}, wait)
+// 		if err := <-wait; err != nil {
+// 			slog.Error("failed to create SA user", "err", err)
+// 			_ = os.RemoveAll(dataPath)
+// 			return err
+// 		}
 
-		if err := store.stopMongod(); err != nil {
-			slog.Error("failed to stop mongod after SA creation", "err", err)
-			return err
-		}
-	}
+// 		if err := store.stopMongod(); err != nil {
+// 			slog.Error("failed to stop mongod after SA creation", "err", err)
+// 			return err
+// 		}
+// 	}
 
-	// Start with auth.
-	go startMongoDB(store.Port, dataPath, true, wait)
-	if err := <-wait; err != nil {
-		slog.Error("failed to start mongod (auth)", "err", err)
-		return err
-	}
+// 	// Start with auth.
+// 	go startMongoDB(store.Port, dataPath, true, wait)
+// 	if err := <-wait; err != nil {
+// 		slog.Error("failed to start mongod (auth)", "err", err)
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) error {
-	pids, _ := Utility.GetProcessIdsByName("mongod")
-	if pids != nil && len(pids) > 0 {
-		wait <- nil
-		return nil // MongoDB already running
-	}
+// func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) error {
+// 	pids, _ := Utility.GetProcessIdsByName("mongod")
+// 	if len(pids) > 0 {
+// 		wait <- nil
+// 		return nil // MongoDB already running
+// 	}
 
-	cmdArgs := []string{"--port", strconv.Itoa(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath}
-	if withAuth {
-		cmdArgs = append([]string{"--auth"}, cmdArgs...)
-	}
+// 	cmdArgs := []string{"--port", strconv.Itoa(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath}
+// 	if withAuth {
+// 		cmdArgs = append([]string{"--auth"}, cmdArgs...)
+// 	}
 
-	cmd := exec.Command("mongod", cmdArgs...)
-	cmd.Dir = filepath.Dir(dataPath)
+// 	cmd := exec.Command("mongod", cmdArgs...)
+// 	cmd.Dir = filepath.Dir(dataPath)
 
-	pid := -1
+// 	pid := -1
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		slog.Error("mongod stdout pipe failed", "err", err)
-		return err
-	}
+// 	stdout, err := cmd.StdoutPipe()
+// 	if err != nil {
+// 		slog.Error("mongod stdout pipe failed", "err", err)
+// 		return err
+// 	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+// 	var stderr bytes.Buffer
+// 	cmd.Stderr = &stderr
 
-	output := make(chan string)
-	done := make(chan bool)
+// 	output := make(chan string)
+// 	done := make(chan bool)
 
-	// Process message until the command is done.
-	go func() {
-		for {
-			select {
-			case <-done:
-				wait <- nil
-				return
-			case result := <-output:
-				if cmd.Process != nil {
-					pid = cmd.Process.Pid
-				}
-				if withAuth {
-					if strings.Contains(result, "Waiting for connections") {
-						slog.Info("mongod started (auth)", "pid", pid)
-						time.Sleep(time.Second)
-						wait <- nil
-					}
-				} else {
-					if strings.Contains(result, "Operating System") {
-						slog.Info("mongod starting (no auth)", "pid", pid)
-						time.Sleep(5 * time.Second)
-						wait <- nil
-					}
-				}
-			}
-		}
-	}()
+// 	// Process message until the command is done.
+// 	go func() {
+// 		for {
+// 			select {
+// 			case <-done:
+// 				wait <- nil
+// 				return
+// 			case result := <-output:
+// 				if cmd.Process != nil {
+// 					pid = cmd.Process.Pid
+// 				}
+// 				if withAuth {
+// 					if strings.Contains(result, "Waiting for connections") {
+// 						slog.Info("mongod started (auth)", "pid", pid)
+// 						time.Sleep(time.Second)
+// 						wait <- nil
+// 					}
+// 				} else {
+// 					if strings.Contains(result, "Operating System") {
+// 						slog.Info("mongod starting (no auth)", "pid", pid)
+// 						time.Sleep(5 * time.Second)
+// 						wait <- nil
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}()
 
-	// Start reading the output
-	go Utility.ReadOutput(output, stdout)
-	if err := cmd.Run(); err != nil {
-		slog.Error("mongod run failed", "err", fmt.Sprint(err)+": "+stderr.String(),
-			"args", strings.Join(cmdArgs, " "))
-		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
-	}
+// 	// Start reading the output
+// 	go Utility.ReadOutput(output, stdout)
+// 	if err := cmd.Run(); err != nil {
+// 		slog.Error("mongod run failed", "err", fmt.Sprint(err)+": "+stderr.String(),
+// 			"args", strings.Join(cmdArgs, " "))
+// 		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
+// 	}
 
-	_ = cmd.Wait()
-	_ = stdout.Close()
-	done <- true
-	return nil
-}
+// 	_ = cmd.Wait()
+// 	_ = stdout.Close()
+// 	done <- true
+// 	return nil
+// }

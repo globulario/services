@@ -38,11 +38,14 @@ func logInternal(op string, err error, kv ...any) error {
 	slog.Error(op, args...)
 	return status.Errorf(
 		codes.Internal,
-		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 	)
 }
 
-// ValidateToken validates a JWT and returns its client id and expiration.
+// ValidateToken validates the provided JWT token and returns the associated client ID and expiration time.
+// It takes a context and a ValidateTokenRqst containing the token to be validated.
+// On success, it returns a ValidateTokenRsp with the client ID and token expiration timestamp.
+// If validation fails, it returns an error.
 func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil {
@@ -55,7 +58,20 @@ func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.Val
 	}, nil
 }
 
-// RefreshToken refreshes a token unless it’s been expired for more than 7 days.
+// RefreshToken handles the refresh of an expired or soon-to-expire authentication token.
+// It validates the provided token, checks if the token is eligible for refresh (not expired for more than 7 days),
+// and generates a new token with updated expiration. The function also maintains the user's session state,
+// updating the session's last activity time and expiration. Returns the new token if successful, or an error otherwise.
+//
+// Parameters:
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the token to be refreshed.
+//
+// Returns:
+//
+//	*authenticationpb.RefreshTokenRsp - The response containing the new token.
+//	error - An error if the token cannot be refreshed or session update fails.
 func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil && !strings.Contains(err.Error(), "token is expired") {
@@ -98,7 +114,21 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 	return &authenticationpb.RefreshTokenRsp{Token: tokenString}, nil
 }
 
-// SetPassword changes an account password and returns a fresh token.
+// SetPassword changes the password for a specified account.
+// It verifies the client's identity and permissions before allowing the password change.
+// If the client is the account owner, the old password must be validated.
+// If the client is a service account (sa@domain), it can change any account's password without old password validation.
+// After successfully changing the password, a new authentication token is generated and returned.
+//
+// Parameters:
+//
+//	ctx - The context for the request, containing metadata and authentication information.
+//	rqst - The SetPasswordRequest containing the account ID, old password, and new password.
+//
+// Returns:
+//
+//	*SetPasswordResponse containing the new authentication token if successful.
+//	error if any validation or operation fails.
 func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -144,7 +174,12 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 	return &authenticationpb.SetPasswordResponse{Token: tokenString}, nil
 }
 
-// SetRootPassword updates the root (sa) password in backend+config, returning a new root token.
+// SetRootPassword changes the root ("sa") account password.
+// Only the "sa" user is allowed to perform this operation.
+// The function verifies the old password, updates the password in the account and configuration file,
+// and returns a new authentication token for the "sa" user.
+// Returns an error if permission is denied, configuration is missing, password validation fails,
+// or any step in the update process fails.
 func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
@@ -215,7 +250,12 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 	return &authenticationpb.SetRootPasswordResponse{Token: tokenString}, nil
 }
 
-// SetRootEmail updates the admin email in the configuration.
+// SetRootEmail updates the root administrator email in the server configuration.
+// It verifies the existence of the configuration file, reads and parses its contents,
+// checks that the provided old email matches the current administrator email,
+// and then updates it to the new email. The updated configuration is written back to disk.
+// Returns an error if the configuration file is missing, cannot be read or parsed,
+// if the old email does not match, or if the updated configuration cannot be saved.
 func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
 	if !Utility.Exists(configPath) {
 		return nil, logInternal("SetRootEmail:missingConfig", errors.New("no configuration found at "+`"`+configPath+`"`))
@@ -296,8 +336,11 @@ func (srv *server) validateGoogleToken(accessToken string) (bool, error) {
 	return true, nil
 }
 
-/* authenticate authenticates either root (sa) via config or a regular account (password / LDAP / OAuth).
-It returns a signed JWT on success. */
+/*
+	authenticate authenticates either root (sa) via config or a regular account (password / LDAP / OAuth).
+
+It returns a signed JWT on success.
+*/
 func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	// Root path
 	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
@@ -448,8 +491,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 // processFiles is currently a no-op placeholder.
 func (srv *server) processFiles() {}
 
-// GetResourceClient returns a Resource service client.
-func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
+func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
@@ -459,7 +501,7 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
 }
 
 // GetAuthenticationClient returns an Authentication service client.
-func GetAuthenticationClient(address string) (*authentication_client.Authentication_Client, error) {
+func getAuthenticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
 	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
 	if err != nil {
@@ -520,12 +562,12 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 					address += ":" + Utility.ToString(peer.PortHttp)
 				}
 
-				resourceClient, err := GetResourceClient(address)
+				resourceClient, err := getResourceClient(address)
 				if err == nil {
 					defer resourceClient.Close()
 					account, err := resourceClient.GetAccount(rqst.Name)
 					if err == nil {
-						authClient, err := GetAuthenticationClient(address)
+						authClient, err := getAuthenticationClient(address)
 						if err == nil {
 							defer authClient.Close()
 							tokenString, err := authClient.Authenticate(account.Id, rqst.Password)

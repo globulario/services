@@ -265,7 +265,7 @@ func (srv *server) log(info *logpb.LogInfo) error {
 			return nil
 		}
 	}
-	
+
 	// Stable id per (level|app|method|line)
 	info.Id = Utility.GenerateUUID(level + "|" + info.Application + "|" + info.Method + "|" + info.Line)
 
@@ -370,7 +370,7 @@ func (srv *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp,
 	if err := srv.log(rqst.Info); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -550,7 +550,6 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 	return stream.Send(&logpb.GetLogRsp{Infos: out})
 }
 
-
 // DeleteLog removes a specific log entry and updates its (level, app) index.
 //
 // It expects rqst.Log to include a valid Id and Level/Application fields
@@ -559,7 +558,7 @@ func (srv *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*l
 	if rqst == nil || rqst.Log == nil {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no log was provided")),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no log was provided")),
 		)
 	}
 
@@ -567,7 +566,7 @@ func (srv *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*l
 	if err := srv.logs.RemoveItem(rqst.Log.Id); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -601,7 +600,7 @@ func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst)
 	if query == "" {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no query was given")),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no query was given")),
 		)
 	}
 
@@ -609,7 +608,7 @@ func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst)
 	if len(parts) != 3 {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the query must be something like /debug/application/*'")),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the query must be something like /debug/application/*'")),
 		)
 	}
 
@@ -620,7 +619,7 @@ func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 
@@ -628,7 +627,7 @@ func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst)
 	if err := json.Unmarshal(data, &ids); err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 

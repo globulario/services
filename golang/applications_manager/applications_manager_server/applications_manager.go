@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,7 +46,11 @@ func (srv *server) uninstallApplication(token, id string) error {
 
 }
 
-// Uninstall application...
+// UninstallApplication handles the uninstallation of an application specified by the request.
+// It optionally removes the application's permissions if requested.
+// The function retrieves the client token from the context, performs the uninstallation,
+// and returns a response indicating the result.
+// Returns an error if the client token cannot be retrieved or if the uninstallation fails.
 func (srv *server) UninstallApplication(ctx context.Context, rqst *applications_managerpb.UninstallApplicationRequest) (*applications_managerpb.UninstallApplicationResponse, error) {
 
 	// Here I will also remove the application permissions...
@@ -80,7 +83,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 
 	// so here I will try find package from the directory
 	if len(version) == 0 {
-		files, err := ioutil.ReadDir(config.GetGlobularExecPath() + "/applications")
+		files, err := os.ReadDir(config.GetGlobularExecPath() + "/applications")
 		if err != nil {
 			return err
 		}
@@ -111,7 +114,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 
 		// So now I will get the application descriptor
 		descriptor := make(map[string]interface{})
-		jsonStr, err := ioutil.ReadFile(_extracted_path_ + "/descriptor.json")
+		jsonStr, err := os.ReadFile(_extracted_path_ + "/descriptor.json")
 		if err != nil {
 			return err
 		}
@@ -122,7 +125,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 			return err
 		}
 
-		bundle, err := ioutil.ReadFile(_extracted_path_ + "/bundle.tar.gz")
+		bundle, err := os.ReadFile(_extracted_path_ + "/bundle.tar.gz")
 		if err != nil {
 			return err
 		}
@@ -196,7 +199,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
+func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
@@ -215,7 +218,21 @@ func GetRepositoryClient(address string) (*repository_client.Repository_Service_
 	return client.(*repository_client.Repository_Service_Client), nil
 }
 
-// Install web Application
+// InstallApplication attempts to install an application specified in the request.
+// It first tries to install the application from a local package. If that fails,
+// it connects to the discovery service to retrieve the application's package descriptor,
+// then downloads the application bundle from the available repositories and installs it.
+// Returns a response indicating success or an error if the installation fails at any step.
+//
+// Parameters:
+//
+//	ctx - The context for the request, used for authentication and cancellation.
+//	rqst - The InstallApplicationRequest containing application details.
+//
+// Returns:
+//
+//	*applications_managerpb.InstallApplicationResponse - The response indicating the result of the installation.
+//	error - An error if the installation fails.
 func (srv *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
 	_, token, err := security.GetClientId(ctx)
@@ -232,12 +249,12 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 	}
 
 	// Connect to the dicovery services
-	resource_client_, err := GetResourceClient(rqst.DiscoveryId)
+	resource_client_, err := getResourceClient(rqst.DiscoveryId)
 
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to "+rqst.DiscoveryId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to "+rqst.DiscoveryId)))
 	}
 
 	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ApplicationId, rqst.PublisherID, rqst.Version)
@@ -248,13 +265,9 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 	}
 
 	if len(descriptor.Repositories) == 0 {
-
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service repository was found for application "+descriptor.Id)))
-		}
-
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service repository was found for application "+descriptor.Id)))
 	}
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
@@ -292,36 +305,9 @@ func (srv *server) InstallApplication(ctx context.Context, rqst *applications_ma
 
 }
 
-func isValidHTML(filePath string) bool {
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return false
-	}
-	defer file.Close()
-
-	// Parse the HTML content
-	tokenizer := html.NewTokenizer(file)
-
-	for {
-		tokenType := tokenizer.Next()
-
-		switch tokenType {
-		case html.ErrorToken:
-			// End of the file
-			return true
-		case html.StartTagToken, html.SelfClosingTagToken:
-			// Continue parsing
-		default:
-			// If an unexpected token is encountered, it's not valid HTML
-			return false
-		}
-	}
-}
-
 func appendBaseTag(filePath, base string) error {
 	// Read the content of the HTML file
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
@@ -350,7 +336,7 @@ func appendBaseTag(filePath, base string) error {
 		}
 
 		// Write the modified content back to the file
-		if err := ioutil.WriteFile(filePath, buffer.Bytes(), 0644); err != nil {
+		if err := os.WriteFile(filePath, buffer.Bytes(), 0644); err != nil {
 			return err
 		}
 	}
@@ -469,7 +455,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 	}
 
 	// Now I will create/update roles define in the application descriptor...
-	for i := 0; i < len(roles); i++ {
+	for i := range roles {
 		role := roles[i]
 		err = srv.createRole(token, role.Id, role.Name, role.Actions)
 		if err != nil {
@@ -477,7 +463,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 		}
 	}
 
-	for i := 0; i < len(groups); i++ {
+	for i := range groups {
 		group := groups[i]
 		err = srv.createGroup(token, group.Id, group.Name, group.Description)
 		if err != nil {
@@ -502,7 +488,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 	}
 
 	// here is a little workaround to be sure the bundle.js file will not be cached in the brower...
-	_, err = ioutil.ReadFile(abosolutePath + "/index.html")
+	_, err = os.ReadFile(abosolutePath + "/index.html")
 	if err != nil {
 		return err
 	}

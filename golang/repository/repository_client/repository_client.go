@@ -143,19 +143,19 @@ func (client *Repository_Service_Client) SetPort(port int) { client.port = port 
 func (client *Repository_Service_Client) GetPort() int { return client.port }
 
 // Set the client instance id.
-func (client *Repository_Service_Client) SetId(id string)      { client.id = id }
-func (client *Repository_Service_Client) SetName(name string)  { client.name = name }
-func (client *Repository_Service_Client) SetMac(mac string)    { client.mac = mac }
+func (client *Repository_Service_Client) SetId(id string)         { client.id = id }
+func (client *Repository_Service_Client) SetName(name string)     { client.name = name }
+func (client *Repository_Service_Client) SetMac(mac string)       { client.mac = mac }
 func (client *Repository_Service_Client) SetDomain(domain string) { client.domain = domain }
 func (client *Repository_Service_Client) SetState(state string)   { client.state = state }
 
 ////////////////// TLS ///////////////////
 
-func (client *Repository_Service_Client) HasTLS() bool         { return client.hasTLS }
-func (client *Repository_Service_Client) GetCertFile() string  { return client.certFile }
-func (client *Repository_Service_Client) GetKeyFile() string   { return client.keyFile }
-func (client *Repository_Service_Client) GetCaFile() string    { return client.caFile }
-func (client *Repository_Service_Client) SetTLS(hasTls bool)   { client.hasTLS = hasTls }
+func (client *Repository_Service_Client) HasTLS() bool                { return client.hasTLS }
+func (client *Repository_Service_Client) GetCertFile() string         { return client.certFile }
+func (client *Repository_Service_Client) GetKeyFile() string          { return client.keyFile }
+func (client *Repository_Service_Client) GetCaFile() string           { return client.caFile }
+func (client *Repository_Service_Client) SetTLS(hasTls bool)          { client.hasTLS = hasTls }
 func (client *Repository_Service_Client) SetCertFile(certFile string) { client.certFile = certFile }
 func (client *Repository_Service_Client) SetKeyFile(keyFile string)   { client.keyFile = keyFile }
 func (client *Repository_Service_Client) SetCaFile(caFile string)     { client.caFile = caFile }
@@ -198,7 +198,7 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
-func GetResourceClient(address string) (*resource_client.Resource_Client, error) {
+func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
@@ -214,7 +214,7 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = platform
 
-	resource_client_, err := GetResourceClient(client.address)
+	resource_client_, err := getResourceClient(client.address)
 	if err != nil {
 		return -1, err
 	}
@@ -306,7 +306,7 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func GetEventClient(address string) (*event_client.Event_Client, error) {
+func getEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
@@ -325,7 +325,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		user += "@" + client.GetDomain()
 	}
 
-	resource_client_, err := GetResourceClient(address)
+	resource_client_, err := getResourceClient(address)
 	if err != nil {
 		return -1, err
 	}
@@ -362,7 +362,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 
 	if len(applications) > 0 {
-		event_client_, err := GetEventClient(address)
+		event_client_, err := getEventClient(address)
 		if err != nil {
 			return -1, err
 		}

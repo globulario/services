@@ -98,82 +98,100 @@ type server struct {
 
 // -------------------- Globular getters/setters --------------------
 
-func (srv *server) GetConfigurationPath() string            { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)        { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                      { return srv.Address }
-func (srv *server) SetAddress(address string)               { srv.Address = address }
-func (srv *server) GetProcess() int                         { return srv.Process }
-func (srv *server) SetProcess(pid int)                      { if pid == -1 && cache != nil { _ = cache.Close() }; srv.Process = pid }
-func (srv *server) GetProxyProcess() int                    { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)                 { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                        { return srv.State }
-func (srv *server) SetState(state string)                   { srv.State = state }
-func (srv *server) GetLastError() string                    { return srv.LastError }
-func (srv *server) SetLastError(err string)                 { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)                { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                       { return srv.ModTime }
-func (srv *server) GetId() string                           { return srv.Id }
-func (srv *server) SetId(id string)                         { srv.Id = id }
-func (srv *server) GetName() string                         { return srv.Name }
-func (srv *server) SetName(name string)                     { srv.Name = name }
-func (srv *server) GetDescription() string                  { return srv.Description }
-func (srv *server) SetDescription(description string)       { srv.Description = description }
-func (srv *server) GetMac() string                          { return srv.Mac }
-func (srv *server) SetMac(mac string)                       { srv.Mac = mac }
-func (srv *server) GetKeywords() []string                   { return srv.Keywords }
-func (srv *server) SetKeywords(k []string)                  { srv.Keywords = k }
-func (srv *server) GetRepositories() []string               { return srv.Repositories }
-func (srv *server) SetRepositories(v []string)              { srv.Repositories = v }
-func (srv *server) GetDiscoveries() []string                { return srv.Discoveries }
-func (srv *server) SetDiscoveries(v []string)               { srv.Discoveries = v }
-func (srv *server) Dist(path string) (string, error)        { return globular.Dist(path, srv) }
-func (srv *server) GetDependencies() []string               { if srv.Dependencies == nil { srv.Dependencies = []string{} }; return srv.Dependencies }
-func (srv *server) SetDependency(dep string)                { if !Utility.Contains(srv.GetDependencies(), dep) { srv.Dependencies = append(srv.Dependencies, dep) } }
-func (srv *server) GetChecksum() string                     { return srv.Checksum }
-func (srv *server) SetChecksum(sum string)                  { srv.Checksum = sum }
-func (srv *server) GetPlatform() string                     { return srv.Plaform }
-func (srv *server) SetPlatform(platform string)             { srv.Plaform = platform }
-func (srv *server) GetPath() string                         { return srv.Path }
-func (srv *server) SetPath(path string)                     { srv.Path = path }
-func (srv *server) GetProto() string                        { return srv.Proto }
-func (srv *server) SetProto(proto string)                   { srv.Proto = proto }
-func (srv *server) GetPort() int                            { return srv.Port }
-func (srv *server) SetPort(port int)                        { srv.Port = port }
-func (srv *server) GetProxy() int                           { return srv.Proxy }
-func (srv *server) SetProxy(proxy int)                      { srv.Proxy = proxy }
-func (srv *server) GetProtocol() string                     { return srv.Protocol }
-func (srv *server) SetProtocol(protocol string)             { srv.Protocol = protocol }
-func (srv *server) GetAllowAllOrigins() bool                { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(b bool)               { srv.AllowAllOrigins = b }
-func (srv *server) GetAllowedOrigins() string               { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(s string)              { srv.AllowedOrigins = s }
-func (srv *server) GetDomain() string                       { return srv.Domain }
-func (srv *server) SetDomain(domain string)                 { srv.Domain = domain }
-func (srv *server) GetTls() bool                            { return srv.TLS }
-func (srv *server) SetTls(hasTls bool)                      { srv.TLS = hasTls }
-func (srv *server) GetCertAuthorityTrust() string           { return srv.CertAuthorityTrust }
-func (srv *server) SetCertAuthorityTrust(ca string)         { srv.CertAuthorityTrust = ca }
-func (srv *server) GetCertFile() string                     { return srv.CertFile }
-func (srv *server) SetCertFile(certFile string)             { srv.CertFile = certFile }
-func (srv *server) GetKeyFile() string                      { return srv.KeyFile }
-func (srv *server) SetKeyFile(keyFile string)               { srv.KeyFile = keyFile }
-func (srv *server) GetVersion() string                      { return srv.Version }
-func (srv *server) SetVersion(version string)               { srv.Version = version }
-func (srv *server) GetPublisherID() string                  { return srv.PublisherID }
-func (srv *server) SetPublisherID(p string)                 { srv.PublisherID = p }
-func (srv *server) GetKeepUpToDate() bool                   { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(val bool)                { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool                      { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)                   { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}           { return srv.Permissions }
-func (srv *server) SetPermissions(p []interface{})          { srv.Permissions = p }
+func (srv *server) GetConfigurationPath() string     { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
+func (srv *server) GetAddress() string               { return srv.Address }
+func (srv *server) SetAddress(address string)        { srv.Address = address }
+func (srv *server) GetProcess() int                  { return srv.Process }
+func (srv *server) SetProcess(pid int) {
+	if pid == -1 && cache != nil {
+		_ = cache.Close()
+	}
+	srv.Process = pid
+}
+func (srv *server) GetProxyProcess() int              { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)           { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                  { return srv.State }
+func (srv *server) SetState(state string)             { srv.State = state }
+func (srv *server) GetLastError() string              { return srv.LastError }
+func (srv *server) SetLastError(err string)           { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)          { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                 { return srv.ModTime }
+func (srv *server) GetId() string                     { return srv.Id }
+func (srv *server) SetId(id string)                   { srv.Id = id }
+func (srv *server) GetName() string                   { return srv.Name }
+func (srv *server) SetName(name string)               { srv.Name = name }
+func (srv *server) GetDescription() string            { return srv.Description }
+func (srv *server) SetDescription(description string) { srv.Description = description }
+func (srv *server) GetMac() string                    { return srv.Mac }
+func (srv *server) SetMac(mac string)                 { srv.Mac = mac }
+func (srv *server) GetKeywords() []string             { return srv.Keywords }
+func (srv *server) SetKeywords(k []string)            { srv.Keywords = k }
+func (srv *server) GetRepositories() []string         { return srv.Repositories }
+func (srv *server) SetRepositories(v []string)        { srv.Repositories = v }
+func (srv *server) GetDiscoveries() []string          { return srv.Discoveries }
+func (srv *server) SetDiscoveries(v []string)         { srv.Discoveries = v }
+func (srv *server) Dist(path string) (string, error)  { return globular.Dist(path, srv) }
+func (srv *server) GetDependencies() []string {
+	if srv.Dependencies == nil {
+		srv.Dependencies = []string{}
+	}
+	return srv.Dependencies
+}
+func (srv *server) SetDependency(dep string) {
+	if !Utility.Contains(srv.GetDependencies(), dep) {
+		srv.Dependencies = append(srv.Dependencies, dep)
+	}
+}
+func (srv *server) GetChecksum() string             { return srv.Checksum }
+func (srv *server) SetChecksum(sum string)          { srv.Checksum = sum }
+func (srv *server) GetPlatform() string             { return srv.Plaform }
+func (srv *server) SetPlatform(platform string)     { srv.Plaform = platform }
+func (srv *server) GetPath() string                 { return srv.Path }
+func (srv *server) SetPath(path string)             { srv.Path = path }
+func (srv *server) GetProto() string                { return srv.Proto }
+func (srv *server) SetProto(proto string)           { srv.Proto = proto }
+func (srv *server) GetPort() int                    { return srv.Port }
+func (srv *server) SetPort(port int)                { srv.Port = port }
+func (srv *server) GetProxy() int                   { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)              { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string             { return srv.Protocol }
+func (srv *server) SetProtocol(protocol string)     { srv.Protocol = protocol }
+func (srv *server) GetAllowAllOrigins() bool        { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(b bool)       { srv.AllowAllOrigins = b }
+func (srv *server) GetAllowedOrigins() string       { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(s string)      { srv.AllowedOrigins = s }
+func (srv *server) GetDomain() string               { return srv.Domain }
+func (srv *server) SetDomain(domain string)         { srv.Domain = domain }
+func (srv *server) GetTls() bool                    { return srv.TLS }
+func (srv *server) SetTls(hasTls bool)              { srv.TLS = hasTls }
+func (srv *server) GetCertAuthorityTrust() string   { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string) { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string             { return srv.CertFile }
+func (srv *server) SetCertFile(certFile string)     { srv.CertFile = certFile }
+func (srv *server) GetKeyFile() string              { return srv.KeyFile }
+func (srv *server) SetKeyFile(keyFile string)       { srv.KeyFile = keyFile }
+func (srv *server) GetVersion() string              { return srv.Version }
+func (srv *server) SetVersion(version string)       { srv.Version = version }
+func (srv *server) GetPublisherID() string          { return srv.PublisherID }
+func (srv *server) SetPublisherID(p string)         { srv.PublisherID = p }
+func (srv *server) GetKeepUpToDate() bool           { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)        { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
 // -------------------- Lifecycle --------------------
 
 func (srv *server) Init() error {
-	if err := globular.InitService(srv); err != nil { return err }
+	if err := globular.InitService(srv); err != nil {
+		return err
+	}
 	gs, err := globular.InitGrpcServer(srv)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	srv.grpcServer = gs
 	logger.Info("grpc server initialized", "service", srv.Name, "port", srv.Port, "proxy", srv.Proxy)
 	return nil
@@ -191,35 +209,48 @@ func getEventClient() (*event_client.Event_Client, error) {
 	address, _ := config.GetAddress()
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	c, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
-	if err != nil { logger.Error("connect event client failed", "err", err); return nil, err }
+	if err != nil {
+		logger.Error("connect event client failed", "err", err)
+		return nil, err
+	}
 	return c.(*event_client.Event_Client), nil
 }
 func getTitleClient() (*title_client.Title_Client, error) {
 	address, _ := config.GetAddress()
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
 	c, err := globular_client.GetClient(address, "title.TitleService", "NewTitleService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return c.(*title_client.Title_Client), nil
 }
 func getRbacClient() (*rbac_client.Rbac_Client, error) {
 	address, _ := config.GetAddress()
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 	c, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return c.(*rbac_client.Rbac_Client), nil
 }
 func (srv *server) setOwner(token, path string) error {
 	var clientId string
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
-		if err != nil { return err }
-		if len(claims.UserDomain) == 0 { return errors.New("no user domain found in token") }
+		if err != nil {
+			return err
+		}
+		if len(claims.UserDomain) == 0 {
+			return errors.New("no user domain found in token")
+		}
 		clientId = claims.Id + "@" + claims.UserDomain
 	} else {
 		return errors.New("no token was given")
 	}
 	rbac, err := getRbacClient()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if strings.Contains(path, "/files/users/") {
 		path = path[strings.Index(path, "/users/"):]
 	}
@@ -228,34 +259,47 @@ func (srv *server) setOwner(token, path string) error {
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
 	c, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return c.(*authentication_client.Authentication_Client), nil
 }
 func getMediaClient() (*media_client.Media_Client, error) {
 	address, _ := config.GetAddress()
 	Utility.RegisterFunction("NewMediaService_Client", media_client.NewMediaService_Client)
 	c, err := globular_client.GetClient(address, "media.MediaService", "NewMediaService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return c.(*media_client.Media_Client), nil
 }
 func (srv *server) GetSearchClient() (*search_client.Search_Client, error) {
 	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
 	c, err := globular_client.GetClient(srv.Address, "search.SearchService", "NewSearchService_Client")
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return c.(*search_client.Search_Client), nil
 }
 func (srv *server) IndexJsonObject(indexationPath, jsonStr string, lang string, idField string, textFields []string, data string) error {
-	c, err := srv.GetSearchClient(); if err != nil { return err }
+	c, err := srv.GetSearchClient()
+	if err != nil {
+		return err
+	}
 	return c.IndexJsonObject(indexationPath, jsonStr, lang, idField, textFields, data)
 }
 
 // Temp file cleanup
 func removeTempFiles(rootDir string) error {
 	return filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		if info != nil && !info.IsDir() && strings.HasSuffix(info.Name(), ".temp.mp4") {
 			logger.Info("removing temp file", "path", path)
-			if err := os.Remove(path); err != nil { return fmt.Errorf("remove %s: %v", path, err) }
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("remove %s: %v", path, err)
+			}
 		}
 		return nil
 	})
@@ -276,7 +320,9 @@ func (srv *server) startRemoveTempFiles() {
 // Indexing by MIME
 func (srv *server) indexFile(path string) error {
 	fileInfos, err := getFileInfo(srv, path, -1, -1)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if fileInfos.Mime == "application/pdf" {
 		return srv.indexPdfFile(path, fileInfos)
 	} else if strings.HasPrefix(fileInfos.Mime, "text") {
@@ -332,20 +378,20 @@ func main() {
 
 	// Default permissions (compact, no nil slots)
 	s.Permissions = []interface{}{
-		map[string]interface{}{"action": "/file.FileService/ReadDir",         "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateDir",       "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteDir",       "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/Rename",          "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/GetFileInfo",     "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/ReadFile",        "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/SaveFile",        "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteFile",      "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/GetThumbnails",   "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/WriteExcelFile",  "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateArchive",   "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/FileUploadHandler","resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/UploadFile",      "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateLnk",       "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateArchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/UploadFile", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}},
+		map[string]interface{}{"action": "/file.FileService/CreateLnk", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
 	}
 
 	// CLI flags BEFORE touching config
@@ -359,17 +405,36 @@ func main() {
 		case "--describe":
 			s.Process = os.Getpid()
 			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" { s.Domain = strings.ToLower(v) } else { s.Domain = "localhost" }
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" { s.Address = strings.ToLower(v) } else { s.Address = "localhost:" + Utility.ToString(s.Port) }
+			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+				s.Domain = strings.ToLower(v)
+			} else {
+				s.Domain = "localhost"
+			}
+			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+				s.Address = strings.ToLower(v)
+			} else {
+				s.Address = "localhost:" + Utility.ToString(s.Port)
+			}
 			b, err := globular.DescribeJSON(s)
-			if err != nil { logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err); os.Exit(2) }
-			os.Stdout.Write(b); os.Stdout.Write([]byte("\n"))
+			if err != nil {
+				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+				os.Exit(2)
+			}
+			os.Stdout.Write(b)
+			os.Stdout.Write([]byte("\n"))
 			return
 		case "--health":
-			if s.Port == 0 || s.Name == "" { logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port); os.Exit(2) }
+			if s.Port == 0 || s.Name == "" {
+				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+				os.Exit(2)
+			}
 			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil { logger.Error("health error", "service", s.Name, "id", s.Id, "err", err); os.Exit(2) }
-			os.Stdout.Write(b); os.Stdout.Write([]byte("\n"))
+			if err != nil {
+				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+				os.Exit(2)
+			}
+			os.Stdout.Write(b)
+			os.Stdout.Write([]byte("\n"))
 			return
 		}
 	}
@@ -378,12 +443,19 @@ func main() {
 	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
 		s.Id = args[0]
 	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]; s.ConfigPath = args[1]
+		s.Id = args[0]
+		s.ConfigPath = args[1]
 	}
 
 	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil { s.Domain = d } else { s.Domain = "localhost" }
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" { s.Address = a }
+	if d, err := config.GetDomain(); err == nil {
+		s.Domain = d
+	} else {
+		s.Domain = "localhost"
+	}
+	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
+		s.Address = a
+	}
 
 	start := time.Now()
 	if err := s.Init(); err != nil {
@@ -391,7 +463,9 @@ func main() {
 		os.Exit(1)
 	}
 	if s.Address == "" {
-		if addr, _ := config.GetAddress(); addr != "" { s.Address = addr }
+		if addr, _ := config.GetAddress(); addr != "" {
+			s.Address = addr
+		}
 	}
 
 	// Select cache backend

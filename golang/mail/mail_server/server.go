@@ -619,8 +619,8 @@ func (srv *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 // Persistence client helper (exported as requested)
 // -----------------------------------------------------------------------------
 
-// GetPersistenceClient returns a connected persistence client for the given address.
-func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
+// getPersistenceClient returns a connected persistence client for the given address.
+func getPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
@@ -747,7 +747,7 @@ func main() {
 		smtp.Backend_port = port
 		imap.Backend_password = srv.Password
 
-		store, err := GetPersistenceClient(srv.Persistence_address)
+		store, err := getPersistenceClient(srv.Persistence_address)
 		if err != nil {
 			logger.Error("persistence connect failed", "address", srv.Persistence_address, "err", err)
 			os.Exit(1)

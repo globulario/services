@@ -49,20 +49,20 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 // server implements the LogService and Globular service contract.
 type server struct {
 	// Core metadata managed by Globular
-	Id          string
-	Name        string
-	Mac         string
-	Domain      string
-	Address     string
-	Path        string
-	Proto       string
-	Port        int
-	Proxy       int
-	Protocol    string
-	Version     string
-	PublisherID string
-	Description string
-	Keywords    []string
+	Id           string
+	Name         string
+	Mac          string
+	Domain       string
+	Address      string
+	Path         string
+	Proto        string
+	Port         int
+	Proxy        int
+	Protocol     string
+	Version      string
+	PublisherID  string
+	Description  string
+	Keywords     []string
 	Repositories []string
 	Discoveries  []string
 
@@ -122,35 +122,37 @@ func (srv *server) SetProcess(pid int) {
 	srv.Process = pid
 }
 
-func (srv *server) GetProxyProcess() int        { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)     { srv.ProxyProcess = pid }
-func (srv *server) GetChecksum() string         { return srv.Checksum }
-func (srv *server) SetChecksum(sum string)      { srv.Checksum = sum }
-func (srv *server) GetPlatform() string         { return srv.Plaform }
-func (srv *server) SetPlatform(p string)        { srv.Plaform = p }
-func (srv *server) GetState() string            { return srv.State }
-func (srv *server) SetState(state string)       { srv.State = state }
-func (srv *server) GetLastError() string        { return srv.LastError }
-func (srv *server) SetLastError(e string)       { srv.LastError = e }
-func (srv *server) SetModTime(mt int64)         { srv.ModTime = mt }
-func (srv *server) GetModTime() int64           { return srv.ModTime }
-func (srv *server) GetId() string               { return srv.Id }
-func (srv *server) SetId(id string)             { srv.Id = id }
-func (srv *server) GetName() string             { return srv.Name }
-func (srv *server) SetName(name string)         { srv.Name = name }
-func (srv *server) GetDescription() string      { return srv.Description }
-func (srv *server) SetDescription(d string)     { srv.Description = d }
-func (srv *server) GetMac() string              { return srv.Mac }
-func (srv *server) SetMac(mac string)           { srv.Mac = mac }
-func (srv *server) GetKeywords() []string       { return srv.Keywords }
-func (srv *server) SetKeywords(k []string)      { srv.Keywords = k }
-func (srv *server) GetRepositories() []string   { return srv.Repositories }
-func (srv *server) SetRepositories(r []string)  { srv.Repositories = r }
-func (srv *server) GetDiscoveries() []string    { return srv.Discoveries }
-func (srv *server) SetDiscoveries(d []string)   { srv.Discoveries = d }
-func (srv *server) GetConfigPort() int          { return srv.ConfigPort }
-func (srv *server) SetConfigPort(p int)         { srv.ConfigPort = p }
-func (srv *server) GetConfigAddress() string    { return srv.GetDomain() + ":" + Utility.ToString(srv.ConfigPort) }
+func (srv *server) GetProxyProcess() int       { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)    { srv.ProxyProcess = pid }
+func (srv *server) GetChecksum() string        { return srv.Checksum }
+func (srv *server) SetChecksum(sum string)     { srv.Checksum = sum }
+func (srv *server) GetPlatform() string        { return srv.Plaform }
+func (srv *server) SetPlatform(p string)       { srv.Plaform = p }
+func (srv *server) GetState() string           { return srv.State }
+func (srv *server) SetState(state string)      { srv.State = state }
+func (srv *server) GetLastError() string       { return srv.LastError }
+func (srv *server) SetLastError(e string)      { srv.LastError = e }
+func (srv *server) SetModTime(mt int64)        { srv.ModTime = mt }
+func (srv *server) GetModTime() int64          { return srv.ModTime }
+func (srv *server) GetId() string              { return srv.Id }
+func (srv *server) SetId(id string)            { srv.Id = id }
+func (srv *server) GetName() string            { return srv.Name }
+func (srv *server) SetName(name string)        { srv.Name = name }
+func (srv *server) GetDescription() string     { return srv.Description }
+func (srv *server) SetDescription(d string)    { srv.Description = d }
+func (srv *server) GetMac() string             { return srv.Mac }
+func (srv *server) SetMac(mac string)          { srv.Mac = mac }
+func (srv *server) GetKeywords() []string      { return srv.Keywords }
+func (srv *server) SetKeywords(k []string)     { srv.Keywords = k }
+func (srv *server) GetRepositories() []string  { return srv.Repositories }
+func (srv *server) SetRepositories(r []string) { srv.Repositories = r }
+func (srv *server) GetDiscoveries() []string   { return srv.Discoveries }
+func (srv *server) SetDiscoveries(d []string)  { srv.Discoveries = d }
+func (srv *server) GetConfigPort() int         { return srv.ConfigPort }
+func (srv *server) SetConfigPort(p int)        { srv.ConfigPort = p }
+func (srv *server) GetConfigAddress() string {
+	return srv.GetDomain() + ":" + Utility.ToString(srv.ConfigPort)
+}
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
 
 func (srv *server) GetDependencies() []string {
@@ -168,22 +170,22 @@ func (srv *server) SetDependency(dep string) {
 	}
 }
 
-func (srv *server) GetPath() string             { return srv.Path }
-func (srv *server) SetPath(p string)            { srv.Path = p }
-func (srv *server) GetProto() string            { return srv.Proto }
-func (srv *server) SetProto(p string)           { srv.Proto = p }
-func (srv *server) GetPort() int                { return srv.Port }
-func (srv *server) SetPort(p int)               { srv.Port = p }
-func (srv *server) GetProxy() int               { return srv.Proxy }
-func (srv *server) SetProxy(px int)             { srv.Proxy = px }
-func (srv *server) GetProtocol() string         { return srv.Protocol }
-func (srv *server) SetProtocol(proto string)    { srv.Protocol = proto }
-func (srv *server) GetAllowAllOrigins() bool    { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(v bool)   { srv.AllowAllOrigins = v }
-func (srv *server) GetAllowedOrigins() string   { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(v string)  { srv.AllowedOrigins = v }
-func (srv *server) GetDomain() string           { return srv.Domain }
-func (srv *server) SetDomain(d string)          { srv.Domain = d }
+func (srv *server) GetPath() string            { return srv.Path }
+func (srv *server) SetPath(p string)           { srv.Path = p }
+func (srv *server) GetProto() string           { return srv.Proto }
+func (srv *server) SetProto(p string)          { srv.Proto = p }
+func (srv *server) GetPort() int               { return srv.Port }
+func (srv *server) SetPort(p int)              { srv.Port = p }
+func (srv *server) GetProxy() int              { return srv.Proxy }
+func (srv *server) SetProxy(px int)            { srv.Proxy = px }
+func (srv *server) GetProtocol() string        { return srv.Protocol }
+func (srv *server) SetProtocol(proto string)   { srv.Protocol = proto }
+func (srv *server) GetAllowAllOrigins() bool   { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(v bool)  { srv.AllowAllOrigins = v }
+func (srv *server) GetAllowedOrigins() string  { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(v string) { srv.AllowedOrigins = v }
+func (srv *server) GetDomain() string          { return srv.Domain }
+func (srv *server) SetDomain(d string)         { srv.Domain = d }
 
 func (srv *server) GetTls() bool                    { return srv.TLS }
 func (srv *server) SetTls(v bool)                   { srv.TLS = v }
@@ -194,16 +196,16 @@ func (srv *server) SetCertFile(cf string)           { srv.CertFile = cf }
 func (srv *server) GetKeyFile() string              { return srv.KeyFile }
 func (srv *server) SetKeyFile(kf string)            { srv.KeyFile = kf }
 
-func (srv *server) GetVersion() string                { return srv.Version }
-func (srv *server) SetVersion(v string)               { srv.Version = v }
-func (srv *server) GetPublisherID() string            { return srv.PublisherID }
-func (srv *server) SetPublisherID(v string)           { srv.PublisherID = v }
-func (srv *server) GetKeepUpToDate() bool             { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(v bool)            { srv.KeepUpToDate = v }
-func (srv *server) GetKeepAlive() bool                { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(v bool)               { srv.KeepAlive = v }
-func (srv *server) GetPermissions() []interface{}     { return srv.Permissions }
-func (srv *server) SetPermissions(p []interface{})    { srv.Permissions = p }
+func (srv *server) GetVersion() string             { return srv.Version }
+func (srv *server) SetVersion(v string)            { srv.Version = v }
+func (srv *server) GetPublisherID() string         { return srv.PublisherID }
+func (srv *server) SetPublisherID(v string)        { srv.PublisherID = v }
+func (srv *server) GetKeepUpToDate() bool          { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(v bool)         { srv.KeepUpToDate = v }
+func (srv *server) GetKeepAlive() bool             { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(v bool)            { srv.KeepAlive = v }
+func (srv *server) GetPermissions() []interface{}  { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{}) { srv.Permissions = p }
 
 // --- Lifecycle ---
 
@@ -219,9 +221,9 @@ func (srv *server) Init() error {
 	return nil
 }
 
-func (srv *server) Save() error              { return globular.SaveService(srv) }
-func (srv *server) StartService() error      { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error       { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) Save() error         { return globular.SaveService(srv) }
+func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
 
 // --- Optional: event helpers ---
 
@@ -241,8 +243,6 @@ func (srv *server) publish(event string, data []byte) error {
 	}
 	return ec.Publish(event, data)
 }
-
-
 
 // -----------------------------------------------------------------------------
 // main
@@ -274,8 +274,8 @@ func main() {
 	srv.KeepUpToDate = true
 	srv.Monitoring_Port = 9092
 	srv.Root = config.GetDataDir()
-	srv.RetentionHours = 24 * 7  // 7 days
-	srv.SweepEverySeconds = 300  // 5 minutes
+	srv.RetentionHours = 24 * 7 // 7 days
+	srv.SweepEverySeconds = 300 // 5 minutes
 
 	// Register client ctor for this service.
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)

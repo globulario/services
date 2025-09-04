@@ -144,7 +144,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRq
 		// fail to authenticate.
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Authentication fail for user "+rqst.Login)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Authentication fail for user "+rqst.Login)))
 	}
 
 	return &ldappb.AuthenticateRsp{
@@ -180,12 +180,6 @@ func (srv *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConn
 
 	// In that case I will save it in file.
 	err = srv.Save()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -235,7 +229,7 @@ func (srv *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldappb.C
 	if _, ok := srv.Connections[id]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
 	}
 
 	srv.Connections[id].conn.Close()
@@ -285,11 +279,11 @@ func (srv *server) synchronize() error {
 		}
 
 		// Print group info.
-		for i := 0; i < len(groupsInfo); i++ {
+		for i := range groupsInfo {
 			name := groupsInfo[i][0].([]string)[0]
 			id := Utility.GenerateUUID(groupsInfo[i][1].([]string)[0])
-			_, err := srv.getGroup(id)
-			if err != nil {
+			_, groupErr := srv.getGroup(id)
+			if groupErr != nil {
 				srv.createGroup(token, id, name, "") // The group member will be set latter in that function.
 			}
 		}
@@ -302,7 +296,7 @@ func (srv *server) synchronize() error {
 			return err
 		}
 
-		for i := 0; i < len(accountsInfo); i++ {
+		for i := range accountsInfo {
 			// Print the list of account...
 			// I will not set the password...
 			if len(accountsInfo[i]) > 0 {
@@ -330,7 +324,6 @@ func (srv *server) synchronize() error {
 									}
 								}
 
-								a, err = srv.getAccount(id)
 
 								// Now I will update the groups user list...
 								if err == nil {
@@ -449,7 +442,7 @@ func (srv *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb
 	if _, ok := srv.Connections[id]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
 	}
 
 	results, err := srv.search(id, rqst.Search.BaseDN, rqst.Search.Filter, rqst.Search.Attributes)
