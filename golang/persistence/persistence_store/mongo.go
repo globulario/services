@@ -3,17 +3,16 @@ package persistence_store
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
-
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/url"
-	"os"
 
 	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson"
@@ -36,11 +35,13 @@ type MongoStore struct {
 
 /**
  * Connect to the remote/local MongoDB store.
- * TODO: Add more connection options via the optionsStr and options package.
+ * Supports:
+ *   - optionsStr as a full MongoDB URI (e.g., mongodb://user:pass@host:port/?authSource=admin)
+ *   - or default credential-based connection using host, port, user, password.
  */
 func (store *MongoStore) Connect(connectionId string, host string, port int32, user string, password string, database string, timeout int32, optionsStr string) error {
 	if timeout == 0 {
-		timeout = 500 // Default timeout value.
+		timeout = 500 // Default timeout value (ms).
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Millisecond)
@@ -48,55 +49,57 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 
 	if store.clients == nil {
 		store.clients = make(map[string]*mongo.Client)
-	} else {
-		if store.clients[connectionId] != nil {
-			err := store.clients[connectionId].Ping(ctx, nil)
-			if err == nil {
-				return nil // Already connected.
-			}
+	} else if cl := store.clients[connectionId]; cl != nil {
+		// If already connected and reachable, no-op.
+		if err := cl.Ping(ctx, nil); err == nil {
+			return nil
 		}
 	}
 
-	var opts []*options.ClientOptions
-	var client *mongo.Client
-	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
+	var (
+		client *mongo.Client
+		err    error
+	)
+
+	// Prefer URI if supplied in optionsStr.
+	if strings.HasPrefix(optionsStr, "mongodb://") || strings.HasPrefix(optionsStr, "mongodb+srv://") {
+		clientOpts := options.Client().ApplyURI(optionsStr)
+		client, err = mongo.Connect(ctx, clientOpts)
 		if err != nil {
-			return err
-		}
-		client, err = mongo.NewClient(opts...)
-		if err != nil {
+			slog.Error("mongo connect via URI failed", "id", connectionId, "err", err)
 			return err
 		}
 	} else {
-		password_ := url.QueryEscape(password)
-		user_ := url.QueryEscape(user)
+		// Build credentialed client options.
+		// NOTE: Credentials expect raw strings, no need to URL-escape.
+		userEsc := user
+		passEsc := password
 
-		clientOpts := options.Client().SetHosts([]string{host}).SetAuth(
-			options.Credential{
+		clientOpts := options.Client().
+			SetHosts([]string{fmt.Sprintf("%s:%d", host, port)}).
+			SetAuth(options.Credential{
 				AuthSource:    "admin",
 				AuthMechanism: "SCRAM-SHA-256",
-				Username:      user_,
-				Password:      password_,
-			},
-		)
+				Username:      userEsc,
+				Password:      passEsc,
+			})
 
-		var err error
-		client, err = mongo.NewClient(clientOpts)
+		client, err = mongo.Connect(ctx, clientOpts)
 		if err != nil {
-			fmt.Println("Failed to create client connection with error:", err)
+			slog.Error("mongo connect failed", "id", connectionId, "host", host, "port", port, "err", err)
 			return err
 		}
 	}
 
-	err := client.Connect(ctx)
-	if err != nil {
-		fmt.Println("Failed to connect with error:", err)
-		return err
+	// Verify connectivity now.
+	if pingErr := client.Ping(ctx, nil); pingErr != nil {
+		_ = client.Disconnect(context.Background())
+		slog.Error("mongo ping failed after connect", "id", connectionId, "err", pingErr)
+		return pingErr
 	}
 
 	store.clients[connectionId] = client
-
+	slog.Info("mongo connected", "id", connectionId, "host", host, "port", port)
 	return nil
 }
 
@@ -104,18 +107,17 @@ func (store *MongoStore) Disconnect(connectionId string) error {
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-
-	// Close the connection
 	err := store.clients[connectionId].Disconnect(context.Background())
-	// Remove it from the map.
 	delete(store.clients, connectionId)
-
+	if err != nil {
+		slog.Error("mongo disconnect failed", "id", connectionId, "err", err)
+	} else {
+		slog.Info("mongo disconnected", "id", connectionId)
+	}
 	return err
 }
 
-func (store *MongoStore) GetStoreType() string {
-	return "MONGO"
-}
+func (store *MongoStore) GetStoreType() string { return "MONGO" }
 
 /**
  * Return nil on success.
@@ -124,7 +126,6 @@ func (store *MongoStore) Ping(ctx context.Context, connectionId string) error {
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-
 	return store.clients[connectionId].Ping(ctx, nil)
 }
 
@@ -138,16 +139,14 @@ func (store *MongoStore) Count(ctx context.Context, connectionId string, databas
 
 	var opts []*options.CountOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
-			return int64(0), err
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
+			return 0, err
 		}
 	}
 
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
-		return int64(0), err
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
+		return 0, err
 	}
 
 	count, err := store.clients[connectionId].Database(database).Collection(collection).CountDocuments(ctx, q, opts...)
@@ -155,6 +154,7 @@ func (store *MongoStore) Count(ctx context.Context, connectionId string, databas
 }
 
 func (store *MongoStore) CreateDatabase(ctx context.Context, connectionId string, name string) error {
+	// MongoDB creates databases lazily on first write.
 	return errors.New("MongoDB will create your database at the first insert.")
 }
 
@@ -165,7 +165,6 @@ func (store *MongoStore) DeleteDatabase(ctx context.Context, connectionId string
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-
 	return store.clients[connectionId].Database(name).Drop(ctx)
 }
 
@@ -177,24 +176,16 @@ func (store *MongoStore) CreateCollection(ctx context.Context, connectionId stri
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	db := store.clients[connectionId].Database(database)
-	if db == nil {
-		return errors.New("Database " + database + " does not exist!")
-	}
-
 	var opts []*options.CreateCollectionOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	err := db.CreateCollection(ctx, name, opts...)
-	if err != nil {
+	if err := store.clients[connectionId].Database(database).CreateCollection(ctx, name, opts...); err != nil {
 		return errors.New("Failed to create collection " + name + " with error: " + err.Error())
 	}
-
 	return nil
 }
 
@@ -205,9 +196,7 @@ func (store *MongoStore) DeleteCollection(ctx context.Context, connectionId stri
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-
-	err := store.clients[connectionId].Database(database).Collection(name).Drop(ctx)
-	return err
+	return store.clients[connectionId].Database(database).Collection(name).Drop(ctx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,22 +213,17 @@ func (store *MongoStore) InsertOne(ctx context.Context, connectionId string, dat
 
 	var opts []*options.InsertOneOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
-			return int64(0), err
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
+			return nil, err
 		}
 	}
 
-	// Get the collection object.
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
-
-	result, err := collection_.InsertOne(ctx, entity, opts...)
-
+	coll := store.clients[connectionId].Database(database).Collection(collection)
+	res, err := coll.InsertOne(ctx, entity, opts...)
 	if err != nil {
 		return nil, err
 	}
-
-	return result.InsertedID, nil
+	return res.InsertedID, nil
 }
 
 /**
@@ -252,22 +236,17 @@ func (store *MongoStore) InsertMany(ctx context.Context, connectionId string, da
 
 	var opts []*options.InsertManyOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return nil, err
 		}
 	}
 
-	// Get the collection object.
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
-
-	// Return store.clients[connectionId].Ping(ctx, nil)
-	insertManyResult, err := collection_.InsertMany(ctx, entities, opts...)
+	coll := store.clients[connectionId].Database(database).Collection(collection)
+	res, err := coll.InsertMany(ctx, entities, opts...)
 	if err != nil {
 		return nil, err
 	}
-
-	return insertManyResult.InsertedIDs, nil
+	return res.InsertedIDs, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,53 +261,37 @@ func (store *MongoStore) Find(ctx context.Context, connectionId string, database
 		return nil, errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return nil, errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return nil, errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return nil, err
 	}
 
 	var opts []*options.FindOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return nil, err
 		}
 	}
 
-	cur, err := collection_.Find(ctx, q, opts...)
+	cur, err := coll.Find(ctx, q, opts...)
 	if err != nil {
 		return nil, err
 	}
-
 	defer cur.Close(context.Background())
-	results := make([]interface{}, 0)
 
+	results := make([]interface{}, 0)
 	for cur.Next(ctx) {
 		entity := make(map[string]interface{})
-		err := cur.Decode(&entity)
-		if err != nil {
+		if err := cur.Decode(&entity); err != nil {
 			return nil, err
 		}
-		// In that case, I will return the whole entity
 		results = append(results, entity)
 	}
-
-	// In case of error
 	if err := cur.Err(); err != nil {
 		return results, err
 	}
-
 	return results, nil
 }
 
@@ -340,31 +303,21 @@ func (store *MongoStore) Aggregate(ctx context.Context, connectionId string, dat
 		return nil, errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return nil, errors.New("No database found with name " + database)
-	}
-
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return nil, errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
 	p := make([]interface{}, 0)
-	err := json.Unmarshal([]byte(pipeline), &p)
-	if err != nil {
+	if err := json.Unmarshal([]byte(pipeline), &p); err != nil {
 		return nil, err
 	}
 
 	var opts []*options.AggregateOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return nil, err
 		}
 	}
 
-	cur, err := collection_.Aggregate(ctx, p, opts...)
+	cur, err := coll.Aggregate(ctx, p, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -373,19 +326,14 @@ func (store *MongoStore) Aggregate(ctx context.Context, connectionId string, dat
 	results := make([]interface{}, 0)
 	for cur.Next(ctx) {
 		entity := make(map[string]interface{})
-		err := cur.Decode(&entity)
-		if err != nil {
+		if err := cur.Decode(&entity); err != nil {
 			return nil, err
 		}
-		// In that case, I will return the whole entity
 		results = append(results, entity)
 	}
-
-	// In case of error
 	if err := cur.Err(); err != nil {
 		return nil, err
 	}
-
 	return results, nil
 }
 
@@ -397,35 +345,24 @@ func (store *MongoStore) FindOne(ctx context.Context, connectionId string, datab
 		return nil, errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return nil, errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return nil, errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return nil, err
 	}
 
 	var opts []*options.FindOneOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return nil, err
 		}
 	}
 
 	entity := make(map[string]interface{})
-	err = collection_.FindOne(ctx, q, opts...).Decode(&entity)
-	if err != nil {
+	if err := coll.FindOne(ctx, q, opts...).Decode(&entity); err != nil {
 		return nil, err
 	}
-
 	return entity, nil
 }
 
@@ -441,41 +378,28 @@ func (store *MongoStore) Update(ctx context.Context, connectionId string, databa
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return err
 	}
 
-	v := new(bson.D)
-	err = bson.UnmarshalExtJSON([]byte(value), true, &v)
-	if err != nil {
+	// Update document (must contain update operators like $set).
+	var v bson.D
+	if err := bson.UnmarshalExtJSON([]byte(value), true, &v); err != nil {
 		return err
 	}
 
 	var opts []*options.UpdateOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	_, err = collection_.UpdateMany(ctx, q, v, opts...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := coll.UpdateMany(ctx, q, v, opts...)
+	return err
 }
 
 /**
@@ -486,41 +410,27 @@ func (store *MongoStore) UpdateOne(ctx context.Context, connectionId string, dat
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return err
 	}
 
-	v := new(bson.D)
-	err = bson.UnmarshalExtJSON([]byte(value), true, &v)
-	if err != nil {
+	var v bson.D
+	if err := bson.UnmarshalExtJSON([]byte(value), true, &v); err != nil {
 		return err
 	}
 
 	var opts []*options.UpdateOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	_, err = collection_.UpdateOne(ctx, q, v, opts...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := coll.UpdateOne(ctx, q, v, opts...)
+	return err
 }
 
 /**
@@ -531,42 +441,28 @@ func (store *MongoStore) ReplaceOne(ctx context.Context, connectionId string, da
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return err
 	}
 
-	v := new(bson.D)
-	err = bson.UnmarshalExtJSON([]byte(value), true, &v)
-	if err != nil {
+	// Replacement document (no operators).
+	var v bson.D
+	if err := bson.UnmarshalExtJSON([]byte(value), true, &v); err != nil {
 		return err
 	}
 
 	var opts []*options.ReplaceOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	_, err = collection_.ReplaceOne(ctx, q, v, opts...)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := coll.ReplaceOne(ctx, q, v, opts...)
+	return err
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -581,35 +477,22 @@ func (store *MongoStore) Delete(ctx context.Context, connectionId string, databa
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return err
 	}
 
 	var opts []*options.DeleteOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	_, err = collection_.DeleteMany(ctx, q, opts...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := coll.DeleteMany(ctx, q, opts...)
+	return err
 }
 
 /**
@@ -620,35 +503,22 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	if store.clients[connectionId].Database(database) == nil {
-		return errors.New("No database found with name " + database)
-	}
+	coll := store.clients[connectionId].Database(database).Collection(collection)
 
-	if store.clients[connectionId].Database(database).Collection(collection) == nil {
-		return errors.New("No collection found with name " + collection)
-	}
-
-	collection_ := store.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
-	err := json.Unmarshal([]byte(query), &q)
-	if err != nil {
+	if err := json.Unmarshal([]byte(query), &q); err != nil {
 		return err
 	}
 
 	var opts []*options.DeleteOptions
 	if len(optionsStr) > 0 {
-		err := json.Unmarshal([]byte(optionsStr), &opts)
-		if err != nil {
+		if err := json.Unmarshal([]byte(optionsStr), &opts); err != nil {
 			return err
 		}
 	}
 
-	_, err = collection_.DeleteOne(ctx, q, opts...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := coll.DeleteOne(ctx, q, opts...)
+	return err
 }
 
 /**
@@ -656,13 +526,11 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
  * Roles example: [{ role: "myReadOnlyRole", db: "mytest"}]
  */
 func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
-	// Here I will retrieve the path of the MongoDB and use it to find the MongoDB command.
-
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	cmd := "mongosh" // Now mongosh since version 6
+	cmd := "mongosh" // mongosh since MongoDB 6+
 	args := []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port)}
 
 	// If the command needs authentication.
@@ -676,7 +544,9 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 	cmd_.Dir = os.TempDir()
 
 	err := cmd_.Run()
-
+	if err != nil {
+		slog.Error("mongosh admin cmd failed", "script", script, "err", err)
+	}
 	return err
 }
 
@@ -688,7 +558,7 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-
+	// Not implemented; keep signature.
 	return nil
 }
 
@@ -696,133 +566,110 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
  * Stop MongoDB instance.
  */
 func (store *MongoStore) stopMongod() error {
-
 	pids, err := Utility.GetProcessIdsByName("mongod")
-	if err == nil {
-		if len(pids) == 0 {
-			fmt.Println("No MongoDB instance found")
-			return nil
-		}
-	} else {
-		fmt.Println("Failed to retrieve MongoDB instance with error", err)
+	if err != nil {
+		slog.Error("failed to get mongod pids", "err", err)
+		return nil
+	}
+	if len(pids) == 0 {
+		slog.Info("no mongod instance found")
 		return nil
 	}
 
-	cmd := "mongosh"
-	closeCmd := exec.Command(cmd, "--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand({ shutdown: 1 });")
+	closeCmd := exec.Command("mongosh", "--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", "db=db.getSiblingDB('admin');db.adminCommand({ shutdown: 1 });")
 	closeCmd.Dir = os.TempDir()
 
-	err = closeCmd.Run()
-	if err != nil {
+	if err := closeCmd.Run(); err != nil {
 		pids, _ := Utility.GetProcessIdsByName("mongod")
 		if len(pids) == 0 {
 			return nil
 		}
+		return err
 	}
-	return err
+	return nil
 }
 
 /**
  * Create the super administrator in the DB. Not the SA global account!!!
  */
 func (store *MongoStore) registerSa() error {
-	// Here I will test if MongoDB exists on the store.
+	// Validate mongod availability
 	wait := make(chan error)
 	Utility.RunCmd("mongod", os.TempDir(), []string{"--version"}, wait)
-	err := <-wait
-	if err != nil {
+	if err := <-wait; err != nil {
 		return err
 	}
 
-	// Here I will create the super admin if it does not already exist.
 	dataPath := store.DataPath + "/mongodb-data"
 
 	if !Utility.Exists(dataPath) {
-		// Kill MongoDB store if the process is already running...
-
-		err := store.stopMongod()
-		if err != nil {
-			fmt.Println("Failed to stop current MongoDB server instance with error:", err)
+		// Ensure no running mongod.
+		if err := store.stopMongod(); err != nil {
+			slog.Error("failed to stop mongod", "err", err)
 			return err
 		}
 
-		// Here I will create the directory
-		err = os.MkdirAll(dataPath, os.ModeDir)
-		if err != nil {
-			fmt.Println("Failed to create data `"+dataPath+"` dir with error:", err)
+		// Create data dir.
+		if err := os.MkdirAll(dataPath, os.ModeDir); err != nil {
+			slog.Error("failed to create data dir", "path", dataPath, "err", err)
 			return err
 		}
 
-		// Wait until MongoDB stops.
+		// Start without auth to create SA.
 		go startMongoDB(store.Port, dataPath, false, wait)
-
-		err = <-wait
-
-		if err != nil {
-			fmt.Println("Failed to start MongoDB with error:", err)
+		if err := <-wait; err != nil {
+			slog.Error("failed to start mongod (no auth)", "err", err)
 			return err
 		}
 
-
-		// Now I will create a new user named SA and give it all admin write.
 		createSaScript := fmt.Sprintf(
-			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, store.User, store.Password) // Must be changed...
+			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`,
+			store.User, store.Password,
+		)
 
 		Utility.RunCmd("mongosh", os.TempDir(), []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port), "--eval", createSaScript}, wait)
-		err = <-wait
-
-		if err != nil {
-			// Remove the mongodb-data
-			fmt.Println("Failed to run command mongosh with error:", err)
-			os.RemoveAll(dataPath)
+		if err := <-wait; err != nil {
+			slog.Error("failed to create SA user", "err", err)
+			_ = os.RemoveAll(dataPath)
 			return err
 		}
 
-		err = store.stopMongod()
-		if err != nil {
-			fmt.Println("Failed to stop current MongoDB server instance with error:", err)
+		if err := store.stopMongod(); err != nil {
+			slog.Error("failed to stop mongod after SA creation", "err", err)
 			return err
 		}
 	}
 
-	// Wait until MongoDB was started...
+	// Start with auth.
 	go startMongoDB(store.Port, dataPath, true, wait)
-	err = <-wait
-	if err != nil {
-		fmt.Println("Failed to start MongoDB with error:", err)
+	if err := <-wait; err != nil {
+		slog.Error("failed to start mongod (auth)", "err", err)
 		return err
 	}
 
-	// Get the list of all services method.
 	return nil
 }
 
 func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) error {
-
 	pids, _ := Utility.GetProcessIdsByName("mongod")
-	if pids != nil {
-		if len(pids) > 0 {
-			wait <- nil
-
-			return nil // MongoDB already running
-		}
+	if pids != nil && len(pids) > 0 {
+		wait <- nil
+		return nil // MongoDB already running
 	}
 
-	baseCmd := "mongod"
 	cmdArgs := []string{"--port", strconv.Itoa(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath}
-
 	if withAuth {
 		cmdArgs = append([]string{"--auth"}, cmdArgs...)
 	}
 
-	cmd := exec.Command(baseCmd, cmdArgs...)
+	cmd := exec.Command("mongod", cmdArgs...)
 	cmd.Dir = filepath.Dir(dataPath)
 
 	pid := -1
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("Failed to connect stdout with error:", err)
+		slog.Error("mongod stdout pipe failed", "err", err)
 		return err
 	}
 
@@ -837,50 +684,39 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan error) err
 		for {
 			select {
 			case <-done:
-				wait <- nil // Unblock it...
-				break
-
+				wait <- nil
+				return
 			case result := <-output:
 				if cmd.Process != nil {
 					pid = cmd.Process.Pid
 				}
-
 				if withAuth {
 					if strings.Contains(result, "Waiting for connections") {
-						fmt.Println("Waiting for MongoDB to start...")
-						time.Sleep(time.Second * 1)
-						fmt.Println("MongoDB is running with pid:", pid)
-						wait <- nil // Unblock it...
+						slog.Info("mongod started (auth)", "pid", pid)
+						time.Sleep(time.Second)
+						wait <- nil
 					}
 				} else {
 					if strings.Contains(result, "Operating System") {
-						fmt.Println("Waiting for MongoDB to start...")
-						time.Sleep(time.Second * 5)
-
-						fmt.Println("MongoDB is running with pid:", pid)
-
-						wait <- nil // Unblock it...
+						slog.Info("mongod starting (no auth)", "pid", pid)
+						time.Sleep(5 * time.Second)
+						wait <- nil
 					}
 				}
-				//fmt.Println("mongod:", pid, result)
 			}
 		}
 	}()
 
 	// Start reading the output
 	go Utility.ReadOutput(output, stdout)
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println("Failed to run MongoDB with error", fmt.Sprint(err)+": "+stderr.String())
-		fmt.Println("mongod", "--port", strconv.Itoa(port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
+	if err := cmd.Run(); err != nil {
+		slog.Error("mongod run failed", "err", fmt.Sprint(err)+": "+stderr.String(),
+			"args", strings.Join(cmdArgs, " "))
 		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
 	}
 
-	cmd.Wait()
-
-	// Close the output.
-	stdout.Close()
+	_ = cmd.Wait()
+	_ = stdout.Close()
 	done <- true
-
 	return nil
 }

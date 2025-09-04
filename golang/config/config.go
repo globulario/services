@@ -24,23 +24,6 @@ import (
 var (
 	// in-memory cache of local config when lazy=true
 	config_ map[string]interface{}
-
-	// service-config access channels (serialized access)
-	saveServiceConfigChan               = make(chan map[string]interface{})
-	getServicesConfigChan               = make(chan map[string]interface{})
-	getServiceConfigurationByIdChan     = make(chan map[string]interface{})
-	getServicesConfigurationsByNameChan = make(chan map[string]interface{})
-	exit                                = make(chan bool, 1)
-
-	// background loop state
-	isInit bool
-)
-
-// Lock handling parameters
-const (
-	lockSuffix  = ".lock"
-	maxLockAge  = 2 * time.Minute  // consider lock stale after this
-	waitLockTTL = 15 * time.Second // maximum time to wait for a lock
 )
 
 // ============================================================================
@@ -234,46 +217,6 @@ func GetPublicDirs() []string {
 	return public
 }
 
-// GetServicesDir tries to resolve the services directory from various common locations.
-func GetServicesDir() string {
-	if dir := GetServicesRoot(); dir != "" {
-		return dir
-	}
-
-	root := GetRootDir()
-
-	if Utility.Exists(root + "/services") {
-		return root + "/services"
-	}
-	parent := root
-	if i := strings.LastIndex(root, "/"); i > 0 {
-		parent = root[:i]
-	}
-	if Utility.Exists(parent + "/services") {
-		return parent + "/services"
-	}
-	if strings.Contains(root, "/services/") {
-		return root[:strings.LastIndex(root, "/services/")] + "/services"
-	}
-
-	var programFilePath string
-	if runtime.GOOS == "windows" {
-		if runtime.GOARCH == "386" {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-		} else {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
-		}
-		programFilePath += "/Globular"
-	} else {
-		programFilePath = "/usr/local/share/globular"
-	}
-
-	if Utility.Exists(programFilePath + "/services") {
-		return programFilePath + "/services"
-	}
-	return ""
-}
-
 // GetServicesRoot forces services to be read from a configured root directory, if set.
 func GetServicesRoot() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
@@ -284,64 +227,13 @@ func GetServicesRoot() string {
 	return ""
 }
 
-// hasServiceConfigs returns true if at least one "config.json" exists somewhere under dir.
-func hasServiceConfigs(dir string) bool {
-	if dir == "" || !Utility.Exists(dir) {
-		return false
-	}
-	files, err := Utility.FindFileByName(dir, "config.json")
-	return err == nil && len(files) > 0
-}
-
-// GetServicesConfigDir returns the directory containing service configs (config.json).
+// GetServicesConfigDir returns a deterministic directory to *represent* service configs.
+// We no longer depend on per-service config.json files; this is kept for compatibility
+// where a path is needed (e.g., logs/UI), and for packaging layouts.
 func GetServicesConfigDir() string {
-	// 1) Explicit override via ServicesRoot (only if it actually has configs)
-	if root := GetServicesRoot(); hasServiceConfigs(root) {
+	if root := GetServicesRoot(); root != "" {
 		return root
 	}
-
-	// Gather executable context
-	execDir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	execDir = strings.ReplaceAll(execDir, "\\", "/")
-	execName := filepath.Base(os.Args[0])
-
-	// 2) Running the Globular launcher?
-	if strings.HasPrefix(strings.ToLower(execName), "globular") {
-		// Parent-of-exec "/services"
-		if idx := strings.LastIndex(execDir, "/"); idx > 0 {
-			parentServices := execDir[:idx] + "/services"
-			if hasServiceConfigs(parentServices) {
-				return parentServices
-			}
-		}
-		// ConfigDir "/services"
-		cfgServices := GetConfigDir() + "/services"
-		if hasServiceConfigs(cfgServices) {
-			return cfgServices
-		}
-	}
-
-	// 3) Not the Globular launcher (likely a service binary)
-
-	// Try ServicesRoot again (in case it was set but empty earlier)
-	if root := GetServicesRoot(); hasServiceConfigs(root) {
-		return root
-	}
-
-	// ConfigDir "/services"
-	if cfg := GetConfigDir(); cfg != "" {
-		cfgServices := cfg + "/services"
-		if hasServiceConfigs(cfgServices) {
-			return cfgServices
-		}
-	}
-
-	// Auto-detected services dir
-	if d := GetServicesDir(); hasServiceConfigs(d) {
-		return d
-	}
-
-	// 4) OS-specific defaults
 	if runtime.GOOS == "windows" {
 		var programFiles string
 		if runtime.GOARCH == "386" {
@@ -350,32 +242,12 @@ func GetServicesConfigDir() string {
 			programFiles, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
 		}
 		if programFiles != "" {
-			winServices := strings.ReplaceAll(programFiles, "\\", "/") + "/globular/config/services"
-			if hasServiceConfigs(winServices) {
-				return winServices
-			}
+			return strings.ReplaceAll(programFiles, "\\", "/") + "/globular/config/services"
 		}
-	} else {
-		etcServices := "/etc/globular/config/services"
-		if hasServiceConfigs(etcServices) {
-			return etcServices
-		}
+		return "C:/Program Files/globular/config/services"
 	}
-
-	// 5) Dev environment fallback: infer path from this file location
-	if _, filename, _, ok := runtime.Caller(0); ok {
-		filename = strings.ReplaceAll(filename, "\\", "/")
-		const marker = "/services/golang/config/"
-		if strings.Contains(filename, marker) {
-			devRoot := filename[:strings.Index(filename, "/config/")]
-			if hasServiceConfigs(devRoot) {
-				return devRoot
-			}
-		}
-	}
-
-	// Nothing found
-	return ""
+	// linux / freebsd / darwin
+	return "/etc/globular/config/services"
 }
 
 // GetConfigDir returns the OS-specific directory where Globular config resides.
@@ -437,34 +309,9 @@ func GetToken(mac string) (string, error) {
 }
 
 // ============================================================================
-// Small helpers for manipulating []map[string]any (kept for compatibility)
-// ============================================================================
-
-func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
-	return append(array[:index], append([]map[string]interface{}{value}, array[index:]...)...)
-}
-func removeObject(array []map[string]interface{}, index int) []map[string]interface{} {
-	return append(array[:index], array[index+1:]...)
-}
-func moveObject(array []map[string]interface{}, srcIndex int, dstIndex int) []map[string]interface{} {
-	value := array[srcIndex]
-	return insertObject(removeObject(array, srcIndex), value, dstIndex)
-}
-func getObjectIndex(value, name string, objects []map[string]interface{}) int {
-	for i := range objects {
-		if objects[i][name].(string) == value {
-			return i
-		}
-	}
-	return -1
-}
-
-// ============================================================================
 // Service dependency ordering & retrieval
 // ============================================================================
 
-// OrderDependencys topologically sorts service names so that dependencies appear
-// before dependent services. It expects each service to have "Name" and "Dependencies".
 func OrderDependencys(services []map[string]interface{}) ([]string, error) {
 	serviceMap := make(map[string]map[string]interface{})
 	for _, s := range services {
@@ -512,7 +359,6 @@ func OrderDependencys(services []map[string]interface{}) ([]string, error) {
 	return ordered, nil
 }
 
-// GetOrderedServicesConfigurations returns service configs ordered by dependencies.
 func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	svcs, err := GetServicesConfigurations()
 	if err != nil {
@@ -534,7 +380,10 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	return out, nil
 }
 
-// GetRemoteServiceConfig fetches remote /config and returns the service config by ID or Name.
+// ============================================================================
+// Remote config (HTTP) – unchanged (used for other hosts)
+// ============================================================================
+
 func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
 	if address == "" {
 		return nil, errors.New("fail to get remote service Config: no address was given")
@@ -617,7 +466,6 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	return cfg, nil
 }
 
-// GetRemoteConfig fetches remote /config over HTTP(S)).
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	if address == "" {
 		return nil, errors.New("fail to get remote config no address was given")
@@ -663,44 +511,73 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	return cfg, nil
 }
 
-// GetLocalConfig reads and returns the local server configuration from disk.
-// If lazy=true, it returns a cached copy (and does not load service configs).
+// ============================================================================
+// Local config (now etcd-first; file fallback)
+// ============================================================================
+
+// GetLocalConfig returns the local server configuration. When lazy=true, it caches
+// the map and does NOT expand the Services list. When lazy=false, it merges the
+// etcd service desired+runtime docs into cfg["Services"] for convenience.
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if lazy && config_ != nil {
 		return config_, nil
 	}
 
-	cfgPath := GetConfigDir() + "/config.json"
-	if !Utility.Exists(cfgPath) {
-		return nil, fmt.Errorf("no local Globular configuration found at path %s", cfgPath)
+	// 1) Try etcd system config
+	cfg := map[string]interface{}{}
+	if c, err := etcdClient(); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if res, err := c.Get(ctx, "/globular/system/config"); err == nil && len(res.Kvs) == 1 {
+			if jerr := json.Unmarshal(res.Kvs[0].Value, &cfg); jerr == nil {
+				if lazy {
+					config_ = cfg
+					return cfg, nil
+				}
+				// expand services from etcd
+				cfg["Services"] = make(map[string]interface{})
+				if svcs, err := GetServicesConfigurations(); err == nil {
+					for _, s := range svcs {
+						if id, _ := s["Id"].(string); id != "" {
+							cfg["Services"].(map[string]interface{})[id] = s
+						}
+					}
+				}
+				if name, _ := cfg["Name"].(string); name == "" {
+					if n, err := GetName(); err == nil {
+						cfg["Name"] = n
+					}
+				}
+				return cfg, nil
+			}
+		}
 	}
 
+	// 2) Fallback to file (bootstrap/compat)
+	cfgPath := GetConfigDir() + "/config.json"
+	if !Utility.Exists(cfgPath) {
+		return nil, fmt.Errorf("no local Globular configuration found (etcd empty and no file at %s)", cfgPath)
+	}
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return nil, err
 	}
-	cfg := make(map[string]interface{})
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-
 	if lazy {
 		config_ = cfg
 		return cfg, nil
 	}
 
-	// Expand services (full mode)
 	cfg["Services"] = make(map[string]interface{})
-	services, err := GetServicesConfigurations()
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range services {
-		if id, _ := s["Id"].(string); id != "" {
-			cfg["Services"].(map[string]interface{})[id] = s
+	if svcs, err := GetServicesConfigurations(); err == nil {
+		for _, s := range svcs {
+			if id, _ := s["Id"].(string); id != "" {
+				cfg["Services"].(map[string]interface{})[id] = s
+			}
 		}
 	}
-
 	if name, _ := cfg["Name"].(string); name == "" {
 		if n, err := GetName(); err == nil {
 			cfg["Name"] = n
@@ -709,8 +586,13 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	return cfg, nil
 }
 
+// ============================================================================
+// Methods discovery (.proto) — no more service config.json
+// ============================================================================
+
 // GetServiceMethods parses the .proto for the given service (PublisherID+version)
 // and returns the fully qualified gRPC method paths.
+// Now reads the .proto path from the etcd service document ("Proto" field).
 func GetServiceMethods(name string, PublisherID string, version string) ([]string, error) {
 	methods := make([]string, 0)
 
@@ -719,18 +601,33 @@ func GetServiceMethods(name string, PublisherID string, version string) ([]strin
 		return nil, err
 	}
 
-	var path string
+	var protoPath string
 	for _, c := range configs {
 		if Utility.ToString(c["PublisherID"]) == PublisherID && Utility.ToString(c["Version"]) == version {
-			path = Utility.ToString(c["ConfigPath"])
+			// Prefer explicit Proto path in etcd
+			protoPath = Utility.ToString(c["Proto"])
+			// Legacy fallback (not recommended): if Proto missing, try alongside binary
+			if protoPath == "" {
+				bin := Utility.ToString(c["Path"])
+				if bin != "" {
+					dir := filepath.Dir(bin)
+					base := Utility.ToString(c["Name"])
+					if base != "" {
+						p := filepath.Join(dir, base+".proto")
+						if Utility.Exists(p) {
+							protoPath = p
+						}
+					}
+				}
+			}
 			break
 		}
 	}
-	if path == "" {
-		return nil, fmt.Errorf("no service found with name %s version %s and publisher id %s", name, version, PublisherID)
+	if protoPath == "" {
+		return nil, fmt.Errorf("no .proto path found for service %s version %s publisher %s", name, version, PublisherID)
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(protoPath)
 	if err != nil {
 		return nil, err
 	}

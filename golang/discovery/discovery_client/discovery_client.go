@@ -2,13 +2,11 @@ package discovery_client
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
-	"encoding/json"
-	"errors"
-	"io/ioutil"
-
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -19,7 +17,7 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// echo Client Service
+// Discovery Client
 ////////////////////////////////////////////////////////////////////////////////
 
 type Dicovery_Client struct {
@@ -66,13 +64,10 @@ type Dicovery_Client struct {
 // Create a connection to the service.
 func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, error) {
 	client := new(Dicovery_Client)
-	err := globular.InitClient(client, address, id)
-	if err != nil {
+	if err := globular.InitClient(client, address, id); err != nil {
 		return nil, err
 	}
-
-	err = client.Reconnect()
-	if err != nil {
+	if err := client.Reconnect(); err != nil {
 		return nil, err
 	}
 	return client, nil
@@ -80,26 +75,20 @@ func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, er
 
 func (client *Dicovery_Client) Reconnect() error {
 	var err error
-	nb_try_connect := 10
-
-	for i := 0; i < nb_try_connect; i++ {
+	const tries = 10
+	for i := 0; i < tries; i++ {
 		client.cc, err = globular.GetClientConnection(client)
 		if err == nil {
 			client.c = discoverypb.NewPackageDiscoveryClient(client.cc)
 			break
 		}
-
-		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
-
 	return err
 }
 
 // The address where the client can connect.
-func (client *Dicovery_Client) SetAddress(address string) {
-	client.address = address
-}
+func (client *Dicovery_Client) SetAddress(address string) { client.address = address }
 
 func (client *Dicovery_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
@@ -112,210 +101,145 @@ func (client *Dicovery_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
-
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
+	if token, err := security.GetLocalToken(client.GetMac()); err == nil {
+		md := metadata.New(map[string]string{
+			"token":   string(token),
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
 }
 
 // Return the domain
-func (client *Dicovery_Client) GetDomain() string {
-	return client.domain
-}
+func (client *Dicovery_Client) GetDomain() string { return client.domain }
 
 // Return the address
-func (client *Dicovery_Client) GetAddress() string {
-	return client.address
-}
+func (client *Dicovery_Client) GetAddress() string { return client.address }
 
 // Return the last know connection state
-func (client *Dicovery_Client) GetState() string {
-	return client.state
-}
+func (client *Dicovery_Client) GetState() string { return client.state }
 
 // Return the id of the service instance
-func (client *Dicovery_Client) GetId() string {
-	return client.id
-}
+func (client *Dicovery_Client) GetId() string { return client.id }
 
 // Return the name of the service
-func (client *Dicovery_Client) GetName() string {
-	return client.name
-}
+func (client *Dicovery_Client) GetName() string { return client.name }
 
-func (client *Dicovery_Client) GetMac() string {
-	return client.mac
-}
+func (client *Dicovery_Client) GetMac() string { return client.mac }
 
 // must be close when no more needed.
-func (client *Dicovery_Client) Close() {
-	client.cc.Close()
-}
+func (client *Dicovery_Client) Close() { client.cc.Close() }
 
 // Set grpc_service port.
-func (client *Dicovery_Client) SetPort(port int) {
-	client.port = port
-}
+func (client *Dicovery_Client) SetPort(port int) { client.port = port }
 
 // Return the grpc port number
-func (client *Dicovery_Client) GetPort() int {
-	return client.port
-}
+func (client *Dicovery_Client) GetPort() int { return client.port }
 
 // Set the client instance id.
-func (client *Dicovery_Client) SetId(id string) {
-	client.id = id
-}
+func (client *Dicovery_Client) SetId(id string) { client.id = id }
 
 // Set the client name.
-func (client *Dicovery_Client) SetName(name string) {
-	client.name = name
-}
+func (client *Dicovery_Client) SetName(name string) { client.name = name }
 
-func (client *Dicovery_Client) SetMac(mac string) {
-	client.mac = mac
-}
+func (client *Dicovery_Client) SetMac(mac string) { client.mac = mac }
 
 // Set the domain.
-func (client *Dicovery_Client) SetDomain(domain string) {
-	client.domain = domain
-}
+func (client *Dicovery_Client) SetDomain(domain string) { client.domain = domain }
 
-func (client *Dicovery_Client) SetState(state string) {
-	client.state = state
-}
+func (client *Dicovery_Client) SetState(state string) { client.state = state }
 
 ////////////////// TLS ///////////////////
 
-// Get if the client is secure.
-func (client *Dicovery_Client) HasTLS() bool {
-	return client.hasTLS
-}
+func (client *Dicovery_Client) HasTLS() bool                 { return client.hasTLS }
+func (client *Dicovery_Client) GetCertFile() string          { return client.certFile }
+func (client *Dicovery_Client) GetKeyFile() string           { return client.keyFile }
+func (client *Dicovery_Client) GetCaFile() string            { return client.caFile }
+func (client *Dicovery_Client) SetTLS(hasTls bool)           { client.hasTLS = hasTls }
+func (client *Dicovery_Client) SetCertFile(certFile string)  { client.certFile = certFile }
+func (client *Dicovery_Client) SetKeyFile(keyFile string)    { client.keyFile = keyFile }
+func (client *Dicovery_Client) SetCaFile(caFile string)      { client.caFile = caFile }
 
-// Get the TLS certificate file path
-func (client *Dicovery_Client) GetCertFile() string {
-	return client.certFile
-}
+////////////////// API //////////////////////
 
-// Get the TLS key file path
-func (client *Dicovery_Client) GetKeyFile() string {
-	return client.keyFile
-}
-
-// Get the TLS key file path
-func (client *Dicovery_Client) GetCaFile() string {
-	return client.caFile
-}
-
-// Set the client is a secure client.
-func (client *Dicovery_Client) SetTLS(hasTls bool) {
-	client.hasTLS = hasTls
-}
-
-// Set TLS certificate file path
-func (client *Dicovery_Client) SetCertFile(certFile string) {
-	client.certFile = certFile
-}
-
-// Set TLS key file path
-func (client *Dicovery_Client) SetKeyFile(keyFile string) {
-	client.keyFile = keyFile
-}
-
-// Set TLS authority trust certificate file path
-func (client *Dicovery_Client) SetCaFile(caFile string) {
-	client.caFile = caFile
-}
-
-////////////////// Api //////////////////////
-
-/**
- * Publish a service from a runing globular server.
- */
+// PublishService publishes a service stored in etcd.
+// NOTE: the `configPath` parameter now strictly means service **Id or Name**.
 func (client *Dicovery_Client) PublishService(user, organization, token, domain, configPath, platform string) error {
-
-	// Here I will try to read the service configuation from the path.
-	configs, _ := Utility.FindFileByName(configPath, "config.json")
-	if len(configs) == 0 {
-		return errors.New("no configuration file was found")
+	idOrName := strings.TrimSpace(configPath)
+	if idOrName == "" {
+		return errors.New("no service id or name provided")
 	}
 
-	s := make(map[string]interface{})
-	data, err := ioutil.ReadFile(configs[0])
-	if err != nil {
-		return err
+	// etcd lookup only (config.json is gone)
+	s, err := config.GetServiceConfigurationById(idOrName)
+	if err != nil || s == nil {
+		return errors.New("service not found in etcd")
 	}
 
-	err = json.Unmarshal(data, &s)
-	if err != nil {
-		return err
+	// Keywords → []string
+	var keywords []string
+	switch kv := s["Keywords"].(type) {
+	case []interface{}:
+		for _, it := range kv {
+			if str, ok := it.(string); ok {
+				keywords = append(keywords, str)
+			}
+		}
+	case []string:
+		keywords = kv
 	}
 
-	keywords := make([]string, 0)
-	if s["Keywords"] != nil {
-		for i := 0; i < len(s["Keywords"].([]interface{})); i++ {
-			keywords = append(keywords, s["Keywords"].([]interface{})[i].(string))
-		}
-	}
-	/*
-		if s["Repositories"] == nil {
-			s["Repositories"] = []interface{}{domain}
-		}
-
-		repositories := s["Repositories"].([]interface{})
-		if len(repositories) == 0 {
-			repositories = []interface{}{"localhost"}
-		}
-
-		if s["Discoveries"] == nil {
-			return errors.New("no discovery was set on that server")
-		}
-	*/
-
-	discoveries := []interface{}{domain}
-	repositories := []interface{}{domain}
+	// Defaults
+	discoveries := []string{domain}
+	repositories := []string{domain}
 
 	if !strings.Contains(user, "@") {
 		user += "@" + client.GetDomain()
 	}
 
-	for i := 0; i < len(discoveries); i++ {
-		rqst := new(discoverypb.PublishServiceRequest)
-		rqst.User = user
-		rqst.Organization = organization
-		rqst.Description = s["Description"].(string)
-		rqst.DiscoveryId = discoveries[i].(string)
-		rqst.RepositoryId = repositories[0].(string)
-		rqst.Keywords = keywords
-		rqst.Version = s["Version"].(string)
-		rqst.ServiceId = s["Id"].(string)
-		rqst.ServiceName = s["Name"].(string)
-		rqst.Platform = platform
-
-		// Set the token into the context and send the request.
-		ctx := client.GetCtx()
-		if len(token) > 0 {
-			md, _ := metadata.FromOutgoingContext(ctx)
-			if len(md.Get("token")) != 0 {
-				md.Set("token", token)
-			}
-			ctx = metadata.NewOutgoingContext(context.Background(), md)
+	for _, disc := range discoveries {
+		rqst := &discoverypb.PublishServiceRequest{
+			User:         user,
+			Organization: organization,
+			Description:  Utility.ToString(s["Description"]),
+			DiscoveryId:  disc,
+			RepositoryId: repositories[0],
+			Keywords:     keywords,
+			Version:      Utility.ToString(s["Version"]),
+			ServiceId:    Utility.ToString(s["Id"]),
+			ServiceName:  Utility.ToString(s["Name"]),
+			Platform:     platform,
 		}
 
-		client.c.PublishService(ctx, rqst)
-	}
+		// attach/override token in context if provided
+		ctx := client.GetCtx()
+		if token != "" {
+			if md, ok := metadata.FromOutgoingContext(ctx); ok {
+				if len(md.Get("token")) != 0 {
+					md.Set("token", token)
+					ctx = metadata.NewOutgoingContext(context.Background(), md)
+				}
+			}
+		}
 
+		if _, err := client.c.PublishService(ctx, rqst); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-/**
- * Publish an application on the server.
- */
-func (client *Dicovery_Client) PublishApplication(token, user, organization, path, name, address, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
-	// TODO upload the package and publish the application after see old admin client code bundle from the path...
+// PublishApplication stays the same (explicit fields).
+func (client *Dicovery_Client) PublishApplication(
+	token, user, organization, path, name, address, version, description, icon, alias,
+	repositoryId, discoveryId string,
+	actions, keywords []string,
+	roles []*resourcepb.Role,
+	groups []*resourcepb.Group,
+) error {
 	if len(token) == 0 {
 		return errors.New("no token was provided")
 	}
@@ -343,20 +267,15 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 	}
 
 	ctx := client.GetCtx()
-	if len(token) > 0 {
-		md, _ := metadata.FromOutgoingContext(ctx)
-
-		if len(md.Get("token")) != 0 {
-			md.Set("token", token)
+	if token != "" {
+		if md, ok := metadata.FromOutgoingContext(ctx); ok {
+			if len(md.Get("token")) != 0 {
+				md.Set("token", token)
+				ctx = metadata.NewOutgoingContext(context.Background(), md)
+			}
 		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
 	_, err := client.c.PublishApplication(ctx, rqst)
-
-	if err != nil {
-		return err
-	}
-
 	return err
 }

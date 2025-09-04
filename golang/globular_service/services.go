@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/interceptors"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
@@ -37,7 +38,8 @@ import (
 )
 
 // Service describes the minimal contract a Globular service must implement.
-// NOTE: Public interface preserved verbatim.
+// NOTE: Public interface preserved verbatim (even fields that are now deprecated
+// due to etcd-only configuration).
 type Service interface {
 	/** Getter/Setter **/
 
@@ -53,7 +55,7 @@ type Service interface {
 	GetMac() string
 	SetMac(string)
 
-	// HTTP(S) address (host:port) where config can be fetched.
+	// HTTP(S) address (host:port) where config can be fetched (informational).
 	GetAddress() string
 	SetAddress(string)
 
@@ -73,11 +75,11 @@ type Service interface {
 	GetPath() string
 	SetPath(string)
 
-	// Current service state (starting/running/stopped).
+	// Current service state (starting/running/stopped/failed).
 	GetState() string
 	SetState(string)
 
-	// Config file path (config.json).
+	// Deprecated: file-based config path (unused in etcd mode, kept for compat).
 	GetConfigurationPath() string
 	SetConfigurationPath(string)
 
@@ -109,7 +111,7 @@ type Service interface {
 	GetProxyProcess() int
 	SetProxyProcess(int)
 
-	// One of: http/https/tls (transport to reach config).
+	// One of: http/https (transport to reach the service externally).
 	GetProtocol() string
 	SetProtocol(string)
 
@@ -138,20 +140,12 @@ type Service interface {
 	SetChecksum(string)
 
 	// TLS controls.
-
-	// Whether to serve gRPC with TLS.
 	GetTls() bool
 	SetTls(bool)
-
-	// CA file path trusted by the server.
 	GetCertAuthorityTrust() string
 	SetCertAuthorityTrust(string)
-
-	// Server certificate file path.
 	GetCertFile() string
 	SetCertFile(string)
-
-	// Server key file path.
 	GetKeyFile() string
 	SetKeyFile(string)
 
@@ -181,10 +175,10 @@ type Service interface {
 
 	/** Lifecycle **/
 
-	// Initialize service (loads config, sets defaults, writes baseline config).
+	// Initialize service (loads desired from etcd, sets defaults, writes baseline desired/runtime).
 	Init() error
 
-	// Persist service configuration to disk.
+	// Persist service configuration (desired + runtime split handled under the hood).
 	Save() error
 
 	// Stop the service (transition to stopped and cleanup).
@@ -197,101 +191,66 @@ type Service interface {
 	Dist(path string) (string, error)
 }
 
+// ------------------------------
+// Initialization / persistence
+// ------------------------------
+
 // InitService initializes common service attributes from CLI args, executable
-// location and configuration files, then persists the configuration.
+// location, then loads desired from etcd (no config.json). If no desired config
+// exists, a new one is created with sensible defaults.
 // Public signature preserved.
 func InitService(s Service) error {
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 	s.SetPath(execPath)
 
-	// Determine configuration path & service id from arguments or defaults.
-	if len(os.Args) == 3 {
+	// ID from arg[1] (supervisor launches child with the Id only)
+	if len(os.Args) >= 2 {
 		s.SetId(os.Args[1])
-		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
-	} else if len(os.Args) == 2 {
-		s.SetId(os.Args[1])
-	} else if len(os.Args) == 1 {
-		servicesDir := config.GetServicesDir()
-		dir, _ := osext.ExecutableFolder()
-		path := strings.ReplaceAll(dir, "\\", "/")
-
-		if !strings.HasPrefix(path, servicesDir) {
-			// Development mode: keep config next to executable.
-			s.SetConfigurationPath(path + "/config.json")
-		} else {
-			servicesConfigDir := config.GetServicesConfigDir()
-			configPath := strings.Replace(path, servicesDir, servicesConfigDir, -1)
-			if Utility.Exists(configPath + "/config.json") {
-				s.SetConfigurationPath(configPath + "/config.json")
-			} else {
-				s.SetConfigurationPath(path + "/config.json")
-			}
-		}
 	}
-
-	if len(s.GetConfigurationPath()) == 0 {
-		err := fmt.Errorf("no configuration path determined for service %q", s.GetId())
-		slog.Error("InitService: configuration path missing", "service", s.GetName(), "id", s.GetId(), "err", err)
-		return err
-	}
-
-	// Load or create configuration.
-	if Utility.Exists(s.GetConfigurationPath()) {
-		if len(s.GetId()) > 0 {
-			cfg, err := config.GetServiceConfigurationById(s.GetId())
-			if err != nil {
-				slog.Error("InitService: failed to read service configuration by id", "id", s.GetId(), "path", s.GetConfigurationPath(), "err", err)
-				return err
-			}
-			str, err := Utility.ToJson(cfg)
-			if err != nil {
-				slog.Error("InitService: failed to marshal configuration", "id", s.GetId(), "err", err)
-				return err
-			}
-			if err := json.Unmarshal([]byte(str), &s); err != nil {
-				slog.Error("InitService: failed to unmarshal configuration into service", "id", s.GetId(), "err", err)
-				return err
-			}
-		} else {
-			data, err := os.ReadFile(s.GetConfigurationPath())
-			if err != nil {
-				slog.Error("InitService: failed to read configuration file", "path", s.GetConfigurationPath(), "err", err)
-				return err
-			}
-			if err := json.Unmarshal(data, &s); err != nil {
-				slog.Error("InitService: invalid configuration JSON", "path", s.GetConfigurationPath(), "err", err)
-				return err
-			}
-		}
-	} else {
-		// No existing configuration; assign a new ID.
+	if s.GetId() == "" {
 		s.SetId(Utility.RandomUUID())
 	}
 
-	// Fill contextual values.
+	// Contextual values.
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
-	macAddress, _ := config.GetMacAddress()
+	mac, _ := config.GetMacAddress()
 
-	s.SetMac(macAddress)
+	s.SetMac(mac)
 	s.SetAddress(address)
 	s.SetDomain(domain)
 
-	// Startup state.
+	// Startup runtime.
 	s.SetState("starting")
 	s.SetProcess(os.Getpid())
 
-	// Platform & checksum
+	// Platform & checksum.
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
-	slog.Info("InitService: initialized", "service", s.GetName(), "id", s.GetId(), "path", s.GetPath(), "config", s.GetConfigurationPath())
+	// Try to load desired from etcd and apply to this instance.
+	if cfg, err := config.GetServiceConfigurationById(s.GetId()); err == nil && cfg != nil {
+		applyDesiredToService(s, cfg)
+	} else {
+		// No existing desired; set conservative defaults if missing.
+		if s.GetPort() == 0 {
+			// leave 0 = caller decides; supervisor usually injects.
+		}
+		if s.GetProxy() == 0 && s.GetPort() != 0 {
+			s.SetProxy(s.GetPort() + 1)
+		}
+		if s.GetProtocol() == "" {
+			s.SetProtocol("http")
+		}
+	}
+
+	// Persist initial snapshot (desired + starting runtime)
 	return SaveService(s)
 }
 
-// SaveService persists the current service configuration.
-// Public signature preserved.
+// SaveService persists the current service configuration to etcd (desired + runtime
+// handled by config package). Public signature preserved.
 func SaveService(s Service) error {
 	s.SetModTime(time.Now().Unix())
 	cfg, err := Utility.ToMap(s)
@@ -306,7 +265,12 @@ func SaveService(s Service) error {
 	return nil
 }
 
+// ------------------------------
+// Packaging (no config.json)
+// ------------------------------
+
 // Dist generates a versioned distribution tree for the service under distPath.
+// It copies the executable and the .proto file. (config.json was removed.)
 // Public signature preserved.
 func Dist(distPath string, s Service) (string, error) {
 	path := distPath + "/" + s.GetPublisherID() + "/" + s.GetName() + "/" + s.GetVersion() + "/" + s.GetId()
@@ -314,27 +278,31 @@ func Dist(distPath string, s Service) (string, error) {
 		return "", fmt.Errorf("Dist: create dir %q: %w", path, err)
 	}
 
-	// Copy .proto
-	if err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherID()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto"); err != nil {
-		return "", fmt.Errorf("Dist: copy proto: %w", err)
-	}
-
-	// Copy config.json
-	configPath := s.GetPath()[0:strings.LastIndex(s.GetPath(), "/")] + "/config.json"
-	if !Utility.Exists(configPath) {
-		return "", errors.New("Dist: missing config.json (run the service once to generate it)")
-	}
-	if err := Utility.Copy(configPath, path+"/config.json"); err != nil {
-		return "", fmt.Errorf("Dist: copy config.json: %w", err)
+	// Copy .proto if present
+	if p := s.GetProto(); p != "" && Utility.Exists(p) {
+		if err := Utility.Copy(p, distPath+"/"+s.GetPublisherID()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto"); err != nil {
+			return "", fmt.Errorf("Dist: copy proto: %w", err)
+		}
 	}
 
 	// Copy executable
 	execName := s.GetPath()[strings.LastIndex(s.GetPath(), "/")+1:]
-	if !Utility.Exists(configPath) {
-		return "", errors.New("Dist: missing config.json (run the service once to generate it)")
-	}
 	if err := Utility.Copy(s.GetPath(), path+"/"+execName); err != nil {
 		return "", fmt.Errorf("Dist: copy executable: %w", err)
+	}
+
+	// Optional: write a minimal metadata.json for tooling
+	meta := map[string]any{
+		"id":           s.GetId(),
+		"name":         s.GetName(),
+		"version":      s.GetVersion(),
+		"publisher":    s.GetPublisherID(),
+		"proto":        s.GetName() + ".proto",
+		"executable":   execName,
+		"generated_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if b, err := json.MarshalIndent(meta, "", "  "); err == nil {
+		_ = os.WriteFile(path+"/metadata.json", b, 0o644)
 	}
 
 	return path, nil
@@ -376,6 +344,10 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
 func GetPlatform() string {
 	return runtime.GOOS + "_" + runtime.GOARCH
 }
+
+// ------------------------------
+// TLS helpers
+// ------------------------------
 
 // GetTLSConfig loads server TLS credentials and constructs a *tls.Config.
 // It logs errors with slog and returns nil on failure (caller must handle).
@@ -435,7 +407,7 @@ const (
 // InitGrpcServer constructs a *grpc.Server with standard keepalive, metrics,
 // health, TLS (if enabled), and supplied interceptors.
 // Public signature preserved.
-func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) (*grpc.Server, error) {
+func InitGrpcServer(s Service) (*grpc.Server, error) {
 	var opts []grpc.ServerOption
 
 	// Connection management.
@@ -458,6 +430,12 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 			return nil, fmt.Errorf("InitGrpcServer: TLS enabled but TLS config could not be created")
 		}
 		opts = append(opts, grpc.Creds(credentials.NewTLS(cfg)))
+	}
+
+	// Lazily obtain interceptors. This does not touch etcd at import time.
+	unaryInterceptor, streamInterceptor, err := interceptors.Load()
+	if err != nil {
+		return nil, err
 	}
 
 	// Interceptors + Prometheus.
@@ -508,18 +486,12 @@ func getEventClient() (*event_client.Event_Client, error) {
 	return event_client_, nil
 }
 
-// helper: get the etcd client from config package without exporting its client symbol
-func configEtcdClient() (*clientv3.Client, error) {
-	// nasty but simple: ask for our own config key and reuse the client's grpc conn
-	// better: expose a tiny getter in config, but keeping your public API unchanged here.
-	return clientv3.New(clientv3.Config{
-		Endpoints:   []string{strings.Split(strings.SplitN(Utility.ToString(config.GetAddress), ":", 2)[0], ",")[0] + ":2379"},
-		DialTimeout: 3 * time.Second,
-	})
-}
+// ------------------------------
+// Service run + etcd watch
+// ------------------------------
 
-// StartService starts the gRPC server, sets up config-file watching for live
-// reload notifications, and blocks until SIGINT/SIGTERM.
+// StartService starts the gRPC server, sets up etcd watch for desired
+// configuration changes on this service id, and blocks until SIGINT/SIGTERM.
 // Public signature preserved.
 func StartService(s Service, srv *grpc.Server) error {
 	address := "0.0.0.0"
@@ -527,7 +499,10 @@ func StartService(s Service, srv *grpc.Server) error {
 	if err != nil {
 		err_ := fmt.Errorf("StartService: listen %s:%d: %w", address, s.GetPort(), err)
 		s.SetLastError(err_.Error())
-		StopService(s, srv)
+		_ = putRuntimeStopped(s, err_.Error())
+		if srv != nil {
+			srv.Stop()
+		}
 		return err_
 	}
 
@@ -535,52 +510,16 @@ func StartService(s Service, srv *grpc.Server) error {
 	go func() {
 		if err := srv.Serve(lis); err != nil {
 			s.SetLastError(err.Error())
-			StopService(s, srv)
+			_ = putRuntimeFailed(s, err.Error())
 			return
 		}
 	}()
 
-	// Etcd watch for desired config changes on this service id
-	go func(id string) {
-		cli, err := configEtcdClient() // small wrapper below
-		if err != nil {
-			slog.Warn("StartService: etcd client init failed", "service", s.GetName(), "err", err)
-			return
-		}
-		key := "/globular/services/" + id + "/config"
-		wch := cli.Watch(context.Background(), key)
-		for w := range wch {
-			for _, ev := range w.Events {
-				if ev.IsCreate() || ev.IsModify() {
-					// Fetch merged (desired+runtime) via existing API to keep behavior
-					cfg, err := config.GetServiceConfigurationById(id)
-					if err != nil {
-						slog.Warn("StartService: failed to fetch updated configuration", "service", s.GetName(), "err", err)
-						continue
-					}
-					if data, err := json.Marshal(cfg); err == nil {
-						_ = json.Unmarshal(data, &s)
-						// broadcast like before
-						if ec, e := getEventClient(); e == nil {
-							_ = ec.Publish("update_globular_service_configuration_evt", data)
-						}
-						// Optional: honor a desired “ShouldStop” flag if you add one
-						if s.GetState() == "stopped" {
-							StopService(s, srv)
-							os.Exit(0)
-						}
-					}
-				}
-			}
-		}
-	}(s.GetId())
+	// Mark running and persist runtime only (avoid clobbering desired).
+	_ = putRuntimeRunning(s)
 
-	// Mark running and persist runtime
-	time.Sleep(1 * time.Second)
-	s.SetState("running")
-	s.SetLastError("")
-	s.SetProcess(os.Getpid())
-	_ = SaveService(s)
+	// Etcd watch for desired config changes on this service id.
+	go watchDesiredConfig(s, srv)
 
 	// Wait for termination signal.
 	ch := make(chan os.Signal, 1)
@@ -589,7 +528,7 @@ func StartService(s Service, srv *grpc.Server) error {
 
 	// Graceful shutdown.
 	StopService(s, srv)
-	return SaveService(s)
+	return nil
 }
 
 // StopService transitions the service to "stopped", clears PID and stops gRPC.
@@ -598,9 +537,217 @@ func StopService(s Service, srv *grpc.Server) error {
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")
+	_ = putRuntimeStopped(s, "")
 	if srv != nil {
 		srv.Stop()
 	}
 	slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
 	return nil
+}
+
+// ------------------------------
+// etcd helpers (local client + watch)
+// ------------------------------
+
+func etcdClientLocal() (*clientv3.Client, error) {
+	hostPort, _ := config.GetAddress()
+	host := hostPort
+	if i := strings.Index(hostPort, ":"); i > 0 {
+		host = hostPort[:i]
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	endpoints := []string{"127.0.0.1:2379", host + ":2379"}
+	endpoints = unique(endpoints)
+	return clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 3 * time.Second,
+		// Insecure etcd (HTTP) is the default in this stack; adjust if you enable TLS.
+	})
+}
+
+func unique(ss []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func watchDesiredConfig(s Service, srv *grpc.Server) {
+	cli, err := etcdClientLocal()
+	if err != nil {
+		slog.Warn("StartService: etcd client init failed", "service", s.GetName(), "err", err)
+		return
+	}
+	key := "/globular/services/" + s.GetId() + "/config"
+	wch := cli.Watch(context.Background(), key)
+	for w := range wch {
+		for _, ev := range w.Events {
+			if ev.IsCreate() || ev.IsModify() {
+				cfg, err := config.GetServiceConfigurationById(s.GetId())
+				if err != nil {
+					slog.Warn("watchDesiredConfig: fetch updated configuration failed", "service", s.GetName(), "err", err)
+					continue
+				}
+
+				// Compare relevant fields before applying.
+				oldPort := s.GetPort()
+				oldProxy := s.GetProxy()
+				applyDesiredToService(s, cfg)
+
+				// Broadcast to event bus (keeps legacy listeners working)
+				if ec, e := getEventClient(); e == nil {
+					if b, e2 := json.Marshal(cfg); e2 == nil {
+						_ = ec.Publish("update_globular_service_configuration_evt", b)
+					}
+				}
+
+				// If ports changed, we cannot rebind live; log guidance
+				if s.GetPort() != oldPort || s.GetProxy() != oldProxy {
+					slog.Warn("port/proxy change detected in desired; restart required to take effect",
+						"service", s.GetName(), "id", s.GetId(),
+						"old_port", oldPort, "new_port", s.GetPort(),
+						"old_proxy", oldProxy, "new_proxy", s.GetProxy())
+				}
+			}
+		}
+	}
+}
+
+// applyDesiredToService copies expected desired fields from a map onto the Service via setters.
+func applyDesiredToService(s Service, m map[string]any) {
+	if m == nil {
+		return
+	}
+	// Simple scalar fields
+	if v := Utility.ToString(m["Id"]); v != "" {
+		s.SetId(v)
+	}
+	if v := Utility.ToString(m["Name"]); v != "" {
+		s.SetName(v)
+	}
+	if v := Utility.ToString(m["Description"]); v != "" {
+		s.SetDescription(v)
+	}
+	if v := Utility.ToString(m["Domain"]); v != "" {
+		s.SetDomain(v)
+	}
+	if v := Utility.ToString(m["Address"]); v != "" {
+		s.SetAddress(v)
+	}
+	if v := Utility.ToString(m["Protocol"]); v != "" {
+		s.SetProtocol(v)
+	}
+	if v := Utility.ToString(m["Checksum"]); v != "" {
+		s.SetChecksum(v)
+	}
+	if v := Utility.ToString(m["PublisherID"]); v != "" {
+		s.SetPublisherID(v)
+	}
+	if v := Utility.ToString(m["Version"]); v != "" {
+		s.SetVersion(v)
+	}
+	if v := Utility.ToString(m["Proto"]); v != "" {
+		s.SetProto(v)
+	}
+	if v := Utility.ToString(m["Path"]); v != "" {
+		s.SetPath(v)
+	}
+
+	// Arrays
+	if v, ok := m["Keywords"].([]any); ok {
+		var out []string
+		for _, x := range v {
+			out = append(out, Utility.ToString(x))
+		}
+		s.SetKeywords(out)
+	}
+	if v, ok := m["Discoveries"].([]any); ok {
+		var out []string
+		for _, x := range v {
+			out = append(out, Utility.ToString(x))
+		}
+		s.SetDiscoveries(out)
+	}
+	if v, ok := m["Repositories"].([]any); ok {
+		var out []string
+		for _, x := range v {
+			out = append(out, Utility.ToString(x))
+		}
+		s.SetRepositories(out)
+	}
+	if v, ok := m["Permissions"].([]any); ok {
+		// pass-through []any
+		s.SetPermissions(v)
+	}
+	if v, ok := m["Dependencies"].([]any); ok {
+		var out []string
+		for _, x := range v {
+			out = append(out, Utility.ToString(x))
+		}
+		// clear then set to preserve semantics
+		for _, d := range out {
+			s.SetDependency(d)
+		}
+	}
+
+	// Ports & TLS
+	s.SetPort(Utility.ToInt(m["Port"]))
+	s.SetProxy(Utility.ToInt(m["Proxy"]))
+	s.SetTls(Utility.ToBool(m["TLS"]))
+	if v := Utility.ToString(m["CertAuthorityTrust"]); v != "" {
+		s.SetCertAuthorityTrust(v)
+	}
+	if v := Utility.ToString(m["CertFile"]); v != "" {
+		s.SetCertFile(v)
+	}
+	if v := Utility.ToString(m["KeyFile"]); v != "" {
+		s.SetKeyFile(v)
+	}
+
+	// CORS
+	s.SetAllowAllOrigins(Utility.ToBool(m["AllowAllOrigins"]))
+	if v := Utility.ToString(m["AllowedOrigins"]); v != "" {
+		s.SetAllowedOrigins(v)
+	}
+
+	// Keepalive/update flags
+	s.SetKeepAlive(Utility.ToBool(m["KeepAlive"]))
+	s.SetKeepUptoDate(Utility.ToBool(m["KeepUpToDate"]))
+}
+
+// ------------------------------
+// runtime setters in etcd
+// ------------------------------
+
+func putRuntimeRunning(s Service) error {
+	return config.PutRuntime(s.GetId(), map[string]any{
+		"Process":   os.Getpid(),
+		"State":     "running",
+		"LastError": "",
+	})
+}
+
+func putRuntimeFailed(s Service, lastErr string) error {
+	return config.PutRuntime(s.GetId(), map[string]any{
+		"Process":   os.Getpid(),
+		"State":     "failed",
+		"LastError": lastErr,
+	})
+}
+
+func putRuntimeStopped(s Service, lastErr string) error {
+	return config.PutRuntime(s.GetId(), map[string]any{
+		"Process":   -1,
+		"State":     "stopped",
+		"LastError": lastErr,
+	})
 }

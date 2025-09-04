@@ -2,8 +2,7 @@ package imap
 
 import (
 	"errors"
-	// "io/ioutil"
-	"io/ioutil"
+	"io"
 	"time"
 
 	b64 "encoding/base64"
@@ -13,14 +12,19 @@ import (
 	Utility "github.com/globulario/utility"
 )
 
+// -----------------------------------------------------------------------------
+// Mailbox implementation
+// -----------------------------------------------------------------------------
+
 type MailBox_impl struct {
 	name       string
 	user       string
 	subscribed bool
 }
 
+// NewMailBox creates the mailbox metadata for a user if missing and returns a
+// MailBox_impl handle. It preserves the original prototype.
 func NewMailBox(user string, name string) *MailBox_impl {
-
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
@@ -28,38 +32,39 @@ func NewMailBox(user string, name string) *MailBox_impl {
 	info := new(imap.MailboxInfo)
 	info.Name = name
 	info.Delimiter = "/"
+
 	jsonStr, err := Utility.ToJson(info)
 	if err != nil {
+		logger.Error("NewMailBox: marshal MailboxInfo failed", "user", user, "name", name, "err", err)
 		return nil
 	}
-	connectionId := user + "_db"
 
-	// Here I will retreive the info from the database.
+	connectionId := user + "_db"
 	query := `{"Name":"` + name + `"}`
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
-
 	if err != nil || count < 1 {
-		Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
+		if _, insErr := Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, ""); insErr != nil {
+			logger.Error("NewMailBox: insert mailbox metadata failed",
+				"user", user, "name", name, "err", insErr)
+		}
 	}
 	return box
 }
 
+// getMailBox returns the mailbox if it exists; otherwise an error.
 func getMailBox(user string, name string) (*MailBox_impl, error) {
-
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
 
-	info := new(imap.MailboxInfo)
-	info.Name = name
-	info.Delimiter = "/"
-
 	connectionId := user + "_db"
-
-	// Here I will retreive the info from the database.
 	query := `{"Name":"` + name + `"}`
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil || count < 1 {
+		if err == nil {
+			err = errors.New("mailbox not found")
+		}
+		logger.Warn("getMailBox: mailbox does not exist", "user", user, "name", name, "err", err)
 		return nil, errors.New("No mail box found with name " + name)
 	}
 	return box, nil
@@ -70,23 +75,28 @@ func (mbox *MailBox_impl) Name() string {
 	return mbox.name
 }
 
-// Info returns this mailbox info.
+// Info returns this mailbox info loaded from the backend.
 func (mbox *MailBox_impl) Info() (*imap.MailboxInfo, error) {
-
-	// TODO Get box info from the server.
 	connectionId := mbox.user + "_db"
 	query := `{"Name":"` + mbox.name + `"}`
-	info_, err := Store.FindOne(connectionId, connectionId, "MailBoxes", query, "")
+	infoMap, err := Store.FindOne(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil {
+		logger.Error("Info: FindOne failed", "user", mbox.user, "mailbox", mbox.name, "err", err)
 		return nil, err
 	}
 
-	// Now I will insert the message into the inbox of the user.
 	info := new(imap.MailboxInfo)
-	info.Name = info_["Name"].(string)
-	info.Delimiter = info_["Delimiter"].(string)
+	if v, ok := infoMap["Name"].(string); ok {
+		info.Name = v
+	} else {
+		info.Name = mbox.name
+	}
+	if v, ok := infoMap["Delimiter"].(string); ok {
+		info.Delimiter = v
+	} else {
+		info.Delimiter = "/"
+	}
 	return info, nil
-
 }
 
 func (mbox *MailBox_impl) uidNext() uint32 {
@@ -101,38 +111,70 @@ func (mbox *MailBox_impl) uidNext() uint32 {
 	return uid
 }
 
-// Return the list of message from the bakend.
+// getMessages returns all messages for the mailbox from the backend.
 func (mbox *MailBox_impl) getMessages() []*Message {
-
 	messages := make([]*Message, 0)
 	connectionId := mbox.user + "_db"
 
-	// Get the message from the mailbox.
 	data, err := Store.Find(connectionId, connectionId, mbox.Name(), "", "")
 	if err != nil {
+		logger.Error("getMessages: backend Find failed", "user", mbox.user, "mailbox", mbox.name, "err", err)
 		return messages
 	}
 
-	// return the messages.
 	for i := 0; i < len(data); i++ {
-		msg := data[i].(map[string]interface{})
-		m := new(Message)
-		m.Uid = uint32(msg["Uid"].(float64)) // set the actual index
-		data, err := b64.StdEncoding.DecodeString(msg["Body"].(string))
-		if err == nil {
-			m.Body = data
+		row, ok := data[i].(map[string]interface{})
+		if !ok {
+			continue
 		}
-		flags := msg["Flags"].([]interface{})
-		m.Flags = make([]string, 0)
-		for j := 0; j < len(flags); j++ {
-			if len(flags[j].(string)) > 0 {
-				m.Flags = append(m.Flags, flags[j].(string))
+
+		m := new(Message)
+
+		// Uid
+		if u, ok := row["Uid"].(float64); ok {
+			m.Uid = uint32(u)
+		}
+
+		// Body (stored as base64-encoded string)
+		if s, ok := row["Body"].(string); ok && s != "" {
+			if dec, err := b64.StdEncoding.DecodeString(s); err == nil {
+				m.Body = dec
+			} else {
+				logger.Warn("getMessages: base64 decode failed", "uid", m.Uid, "err", err)
 			}
 		}
 
-		m.Size = uint32(msg["Size"].(float64))
-		layout := "2020-11-02T01:45:47.764336457Z"
-		m.Date, _ = time.Parse(layout, msg["Date"].(string))
+		// Flags
+		if fl, ok := row["Flags"].([]interface{}); ok {
+			m.Flags = make([]string, 0, len(fl))
+			for _, f := range fl {
+				if fs, ok := f.(string); ok && fs != "" {
+					m.Flags = append(m.Flags, fs)
+				}
+			}
+		}
+
+		// Size
+		if sz, ok := row["Size"].(float64); ok {
+			m.Size = uint32(sz)
+		}
+
+		// Date
+		if ds, ok := row["Date"].(string); ok && ds != "" {
+			// Persisted layout used by prior code.
+			const layout = "2020-11-02T01:45:47.764336457Z"
+			if t, err := time.Parse(layout, ds); err == nil {
+				m.Date = t
+			} else {
+				// Best effort: try RFC3339
+				if t2, err2 := time.Parse(time.RFC3339Nano, ds); err2 == nil {
+					m.Date = t2
+				} else {
+					logger.Warn("getMessages: date parse failed", "uid", m.Uid, "value", ds, "err_primary", err, "err_fallback", err2)
+				}
+			}
+		}
+
 		messages = append(messages, m)
 	}
 
@@ -140,7 +182,6 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 }
 
 func (mbox *MailBox_impl) unseenSeqNum() uint32 {
-
 	messages := mbox.getMessages()
 	for i, msg := range messages {
 		seqNum := uint32(i + 1)
@@ -151,7 +192,6 @@ func (mbox *MailBox_impl) unseenSeqNum() uint32 {
 				break
 			}
 		}
-
 		if !seen {
 			return seqNum
 		}
@@ -160,7 +200,6 @@ func (mbox *MailBox_impl) unseenSeqNum() uint32 {
 }
 
 func (mbox *MailBox_impl) flags() []string {
-
 	flagsMap := make(map[string]bool)
 	messages := mbox.getMessages()
 	for _, msg := range messages {
@@ -170,7 +209,6 @@ func (mbox *MailBox_impl) flags() []string {
 			}
 		}
 	}
-
 	var flags []string
 	for f := range flagsMap {
 		flags = append(flags, f)
@@ -178,12 +216,8 @@ func (mbox *MailBox_impl) flags() []string {
 	return flags
 }
 
-// Status returns this mailbox status. The fields Name, Flags, PermanentFlags
-// and UnseenSeqNum in the returned MailboxStatus must be always populated.
-// This function does not affect the state of any messages in the mailbox. See
-// RFC 3501 section 6.3.10 for a list of items that can be requested.
+// Status returns this mailbox status. Public prototype preserved.
 func (mbox *MailBox_impl) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
-
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.Flags = mbox.flags()
 	status.PermanentFlags = []string{"\\*"}
@@ -207,30 +241,19 @@ func (mbox *MailBox_impl) Status(items []imap.StatusItem) (*imap.MailboxStatus, 
 	return status, nil
 }
 
-// SetSubscribed adds or removes the mailbox to the server's set of "active"
-// or "subscribed" mailboxes.
+// SetSubscribed marks the mailbox as (un)subscribed. Public prototype preserved.
 func (mbox *MailBox_impl) SetSubscribed(subscribed bool) error {
 	mbox.subscribed = subscribed
 	return nil
 }
 
-// Check requests a checkpoint of the currently selected mailbox. A checkpoint
-// refers to any implementation-dependent housekeeping associated with the
-// mailbox (e.g., resolving the server's in-memory state of the mailbox with
-// the state on its disk). A checkpoint MAY take a non-instantaneous amount of
-// real time to complete. If a server implementation has no such housekeeping
-// considerations, CHECK is equivalent to NOOP.
+// Check performs a mailbox checkpoint (no-op here). Public prototype preserved.
 func (mbox *MailBox_impl) Check() error {
 	return nil
 }
 
-// ListMessages returns a list of messages. seqset must be interpreted as UIDs
-// if uid is set to true and as message sequence numbers otherwise. See RFC
-// 3501 section 6.4.5 for a list of items that can be requested.
-//
-// Messages must be sent to ch. When the function returns, ch must be closed.
+// ListMessages streams messages that match seqSet into ch. Public prototype preserved.
 func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-
 	defer close(ch)
 	messages := mbox.getMessages()
 
@@ -249,6 +272,7 @@ func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []im
 
 		m, err := msg.Fetch(seqNum, items)
 		if err != nil {
+			logger.Warn("ListMessages: fetch failed", "uid_mode", uid, "id", id, "err", err)
 			continue
 		}
 
@@ -258,55 +282,51 @@ func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []im
 	return nil
 }
 
-// SearchMessages searches messages. The returned list must contain UIDs if
-// uid is set to true, or sequence numbers otherwise.
+// SearchMessages returns IDs of messages that match criteria. Public prototype preserved.
 func (mbox *MailBox_impl) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
-
 	var ids []uint32
 	messages := mbox.getMessages()
+
 	for i, msg := range messages {
 		seqNum := uint32(i + 1)
 
 		ok, err := msg.Match(seqNum, criteria)
 		if err != nil || !ok {
+			if err != nil {
+				logger.Warn("SearchMessages: match failed", "seq", seqNum, "uid", msg.Uid, "err", err)
+			}
 			continue
 		}
 
-		var id uint32
 		if uid {
-			id = msg.Uid
+			ids = append(ids, msg.Uid)
 		} else {
-			id = seqNum
+			ids = append(ids, seqNum)
 		}
-		ids = append(ids, id)
 	}
 	return ids, nil
 }
 
-// CreateMessage appends a new message to this mailbox. The \Recent flag will
-// be added no matter flags is empty or not. If date is nil, the current time
-// will be used.
-//
-// If the Backend implements Updater, it must notify the client immediately
-// via a mailbox update.
+// CreateMessage appends a new message to the mailbox. Public prototype preserved.
 func (mbox *MailBox_impl) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
-
 	if date.IsZero() {
 		date = time.Now()
 	}
 
-	b, err := ioutil.ReadAll(body)
+	b, err := io.ReadAll(body)
 	if err != nil {
+		logger.Error("CreateMessage: read body failed", "user", mbox.user, "mailbox", mbox.name, "err", err)
 		return err
 	}
 
-	return saveMessage(mbox.user, mbox.name, b, flags, date)
+	if err := saveMessage(mbox.user, mbox.name, b, flags, date); err != nil {
+		logger.Error("CreateMessage: save failed", "user", mbox.user, "mailbox", mbox.name, "err", err)
+		return err
+	}
+	return nil
 }
 
-// UpdateMessagesFlags alters flags for the specified message(s).
-//
-// If the Backend implements Updater, it must notify the client immediately
-// via a message update.
+// UpdateMessagesFlags updates message flags for a set. Public prototype preserved.
 func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
 	messages := mbox.getMessages()
 
@@ -323,32 +343,29 @@ func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op 
 
 		msg.Flags = backendutil.UpdateFlags(msg.Flags, op, flags)
 
-		// Here I will save the message into the database.
+		// Persist updated flags
 		connectionId := mbox.user + "_db"
 		jsonStr, _ := Utility.ToJson(msg.Flags)
-
-		err := Store.UpdateOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, `{ "$set":{"Flags":`+jsonStr+`}}`, "")
-		if err != nil {
+		if err := Store.UpdateOne(
+			connectionId, connectionId, mbox.name,
+			`{"Uid":`+Utility.ToString(msg.Uid)+`}`,
+			`{ "$set":{"Flags":`+jsonStr+`}}`,
+			"",
+		); err != nil {
+			logger.Error("UpdateMessagesFlags: persist failed",
+				"user", mbox.user, "mailbox", mbox.name, "uid", msg.Uid, "err", err)
 			return err
 		}
-
 	}
 	return nil
 }
 
-// CopyMessages copies the specified message(s) to the end of the specified
-// destination mailbox. The flags and internal date of the message(s) SHOULD
-// be preserved, and the Recent flag SHOULD be set, in the copy.
-//
-// If the destination mailbox does not exist, a server SHOULD return an error.
-// It SHOULD NOT automatically create the mailbox.
-//
-// If the Backend implements Updater, it must notify the client immediately
-// via a mailbox update.
+// CopyMessages copies selected messages to another mailbox. Public prototype preserved.
 func (mbox *MailBox_impl) CopyMessages(uid bool, seqset *imap.SeqSet, destName string) error {
-
 	dest, err := getMailBox(mbox.user, destName)
 	if err != nil {
+		logger.Error("CopyMessages: destination mailbox not found",
+			"user", mbox.user, "src", mbox.name, "dest", destName, "err", err)
 		return err
 	}
 
@@ -363,19 +380,17 @@ func (mbox *MailBox_impl) CopyMessages(uid bool, seqset *imap.SeqSet, destName s
 		if !seqset.Contains(id) {
 			continue
 		}
-
-		// save the message in the backend.
-		saveMessage(dest.user, dest.name, msg.Body, msg.Flags, time.Now())
+		if err := saveMessage(dest.user, dest.name, msg.Body, msg.Flags, time.Now()); err != nil {
+			logger.Error("CopyMessages: save to dest failed",
+				"user", mbox.user, "src", mbox.name, "dest", destName, "uid", msg.Uid, "err", err)
+			return err
+		}
 	}
 
 	return nil
 }
 
-// Expunge permanently removes all messages that have the \Deleted flag set
-// from the currently selected mailbox.
-//
-// If the Backend implements Updater, it must notify the client immediately
-// via an expunge update.
+// Expunge removes all \Deleted messages permanently. Public prototype preserved.
 func (mbox *MailBox_impl) Expunge() error {
 	messages := mbox.getMessages()
 
@@ -389,14 +404,17 @@ func (mbox *MailBox_impl) Expunge() error {
 			}
 		}
 		if deleted {
-			// mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
 			connectionId := mbox.user + "_db"
-			err := Store.DeleteOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, "")
-			if err != nil {
+			if err := Store.DeleteOne(
+				connectionId, connectionId, mbox.name,
+				`{"Uid":`+Utility.ToString(msg.Uid)+`}`,
+				"",
+			); err != nil {
+				logger.Error("Expunge: delete failed",
+					"user", mbox.user, "mailbox", mbox.name, "uid", msg.Uid, "err", err)
 				return err
 			}
 		}
 	}
-
 	return nil
 }

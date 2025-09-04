@@ -4,13 +4,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -24,9 +26,12 @@ import (
 var (
 	defaultPort       = 10017
 	defaultProxy      = 10018
-	allow_all_origins = true
-	allowed_origins   = ""
+	allowAllOrigins   = true
+	allowedOriginsStr = ""
 )
+
+// --- logger to STDERR so stdout stays clean for JSON outputs ---
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 // -----------------------------------------------------------------------------
 // Service implementation
@@ -83,171 +88,174 @@ type server struct {
 
 // --- Globular getters/setters (unchanged signatures) ---
 
-func (srv *server) GetConfigurationPath() string        { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)    { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                  { return srv.Address }
-func (srv *server) SetAddress(address string)           { srv.Address = address }
-func (srv *server) GetProcess() int                     { return srv.Process }
-func (srv *server) SetProcess(pid int)                  { srv.Process = pid }
-func (srv *server) GetProxyProcess() int                { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)             { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                    { return srv.State }
-func (srv *server) SetState(state string)               { srv.State = state }
-func (srv *server) GetLastError() string                { return srv.LastError }
-func (srv *server) SetLastError(err string)             { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)            { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                   { return srv.ModTime }
-func (srv *server) GetId() string                       { return srv.Id }
-func (srv *server) SetId(id string)                     { srv.Id = id }
-func (srv *server) GetName() string                     { return srv.Name }
-func (srv *server) SetName(name string)                 { srv.Name = name }
-func (srv *server) GetMac() string                      { return srv.Mac }
-func (srv *server) SetMac(mac string)                   { srv.Mac = mac }
-func (srv *server) GetChecksum() string                 { return srv.Checksum }
-func (srv *server) SetChecksum(checksum string)         { srv.Checksum = checksum }
-func (srv *server) GetPlatform() string                 { return srv.Plaform }
-func (srv *server) SetPlatform(platform string)         { srv.Plaform = platform }
-func (srv *server) GetDescription() string              { return srv.Description }
-func (srv *server) SetDescription(description string)   { srv.Description = description }
-func (srv *server) GetKeywords() []string               { return srv.Keywords }
-func (srv *server) SetKeywords(keywords []string)       { srv.Keywords = keywords }
-func (srv *server) GetRepositories() []string           { return srv.Repositories }
-func (srv *server) SetRepositories(repositories []string) { srv.Repositories = repositories }
-func (srv *server) GetDiscoveries() []string            { return srv.Discoveries }
-func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = discoveries }
-func (srv *server) Dist(path string) (string, error)    { return globular.Dist(path, srv) }
+func (srv *server) GetConfigurationPath() string           { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string)       { srv.ConfigPath = path }
+func (srv *server) GetAddress() string                     { return srv.Address }
+func (srv *server) SetAddress(address string)              { srv.Address = address }
+func (srv *server) GetProcess() int                        { return srv.Process }
+func (srv *server) SetProcess(pid int)                     { srv.Process = pid }
+func (srv *server) GetProxyProcess() int                   { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)                { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                       { return srv.State }
+func (srv *server) SetState(state string)                  { srv.State = state }
+func (srv *server) GetLastError() string                   { return srv.LastError }
+func (srv *server) SetLastError(err string)                { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)               { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                      { return srv.ModTime }
+func (srv *server) GetId() string                          { return srv.Id }
+func (srv *server) SetId(id string)                        { srv.Id = id }
+func (srv *server) GetName() string                        { return srv.Name }
+func (srv *server) SetName(name string)                    { srv.Name = name }
+func (srv *server) GetMac() string                         { return srv.Mac }
+func (srv *server) SetMac(mac string)                      { srv.Mac = mac }
+func (srv *server) GetChecksum() string                    { return srv.Checksum }
+func (srv *server) SetChecksum(checksum string)            { srv.Checksum = checksum }
+func (srv *server) GetPlatform() string                    { return srv.Plaform }
+func (srv *server) SetPlatform(platform string)            { srv.Plaform = platform }
+func (srv *server) GetDescription() string                 { return srv.Description }
+func (srv *server) SetDescription(description string)      { srv.Description = description }
+func (srv *server) GetKeywords() []string                  { return srv.Keywords }
+func (srv *server) SetKeywords(keywords []string)          { srv.Keywords = keywords }
+func (srv *server) GetRepositories() []string              { return srv.Repositories }
+func (srv *server) SetRepositories(v []string)             { srv.Repositories = v }
+func (srv *server) GetDiscoveries() []string               { return srv.Discoveries }
+func (srv *server) SetDiscoveries(v []string)              { srv.Discoveries = v }
+func (srv *server) Dist(path string) (string, error)       { return globular.Dist(path, srv) }
 func (srv *server) GetDependencies() []string {
-	if srv.Dependencies == nil {
-		srv.Dependencies = make([]string, 0)
-	}
+	if srv.Dependencies == nil { srv.Dependencies = []string{} }
 	return srv.Dependencies
 }
-func (srv *server) SetDependency(dependency string) {
-	if srv.Dependencies == nil {
-		srv.Dependencies = make([]string, 0)
-	}
-	if !Utility.Contains(srv.Dependencies, dependency) {
-		srv.Dependencies = append(srv.Dependencies, dependency)
+func (srv *server) SetDependency(dep string) {
+	if srv.Dependencies == nil { srv.Dependencies = []string{} }
+	if !Utility.Contains(srv.Dependencies, dep) {
+		srv.Dependencies = append(srv.Dependencies, dep)
 	}
 }
-func (srv *server) GetPath() string                 { return srv.Path }
-func (srv *server) SetPath(path string)             { srv.Path = path }
-func (srv *server) GetProto() string                { return srv.Proto }
-func (srv *server) SetProto(proto string)           { srv.Proto = proto }
-func (srv *server) GetPort() int                    { return srv.Port }
-func (srv *server) SetPort(port int)                { srv.Port = port }
-func (srv *server) GetProxy() int                   { return srv.Proxy }
-func (srv *server) SetProxy(proxy int)              { srv.Proxy = proxy }
-func (srv *server) GetProtocol() string             { return srv.Protocol }
-func (srv *server) SetProtocol(protocol string)     { srv.Protocol = protocol }
-func (srv *server) GetAllowAllOrigins() bool        { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(v bool)       { srv.AllowAllOrigins = v }
-func (srv *server) GetAllowedOrigins() string       { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(v string)      { srv.AllowedOrigins = v }
-func (srv *server) GetDomain() string               { return srv.Domain }
-func (srv *server) SetDomain(domain string)         { srv.Domain = domain }
-func (srv *server) GetTls() bool                    { return srv.TLS }
-func (srv *server) SetTls(hasTls bool)              { srv.TLS = hasTls }
-func (srv *server) GetCertAuthorityTrust() string   { return srv.CertAuthorityTrust }
-func (srv *server) SetCertAuthorityTrust(ca string) { srv.CertAuthorityTrust = ca }
-func (srv *server) GetCertFile() string             { return srv.CertFile }
-func (srv *server) SetCertFile(certFile string)     { srv.CertFile = certFile }
-func (srv *server) GetKeyFile() string              { return srv.KeyFile }
-func (srv *server) SetKeyFile(keyFile string)       { srv.KeyFile = keyFile }
-func (srv *server) GetVersion() string              { return srv.Version }
-func (srv *server) SetVersion(version string)       { srv.Version = version }
-func (srv *server) GetPublisherID() string          { return srv.PublisherID }
-func (srv *server) SetPublisherID(PublisherID string) { srv.PublisherID = PublisherID }
-func (srv *server) GetKeepUpToDate() bool           { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(val bool)        { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
-func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
+func (srv *server) GetPath() string                    { return srv.Path }
+func (srv *server) SetPath(path string)                { srv.Path = path }
+func (srv *server) GetProto() string                   { return srv.Proto }
+func (srv *server) SetProto(proto string)              { srv.Proto = proto }
+func (srv *server) GetPort() int                       { return srv.Port }
+func (srv *server) SetPort(port int)                   { srv.Port = port }
+func (srv *server) GetProxy() int                      { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)                 { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string                { return srv.Protocol }
+func (srv *server) SetProtocol(protocol string)        { srv.Protocol = protocol }
+func (srv *server) GetAllowAllOrigins() bool           { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(v bool)          { srv.AllowAllOrigins = v }
+func (srv *server) GetAllowedOrigins() string          { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(v string)         { srv.AllowedOrigins = v }
+func (srv *server) GetDomain() string                  { return srv.Domain }
+func (srv *server) SetDomain(domain string)            { srv.Domain = domain }
+func (srv *server) GetTls() bool                       { return srv.TLS }
+func (srv *server) SetTls(hasTls bool)                 { srv.TLS = hasTls }
+func (srv *server) GetCertAuthorityTrust() string      { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string)    { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string                { return srv.CertFile }
+func (srv *server) SetCertFile(certFile string)        { srv.CertFile = certFile }
+func (srv *server) GetKeyFile() string                 { return srv.KeyFile }
+func (srv *server) SetKeyFile(keyFile string)          { srv.KeyFile = keyFile }
+func (srv *server) GetVersion() string                 { return srv.Version }
+func (srv *server) SetVersion(version string)          { srv.Version = version }
+func (srv *server) GetPublisherID() string             { return srv.PublisherID }
+func (srv *server) SetPublisherID(v string)            { srv.PublisherID = v }
+func (srv *server) GetKeepUpToDate() bool              { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)           { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool                 { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)              { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}      { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{})     { srv.Permissions = p }
 
-// GetPersistenceClient returns a Persistence client bound to the given address.
+// -----------------------------------------------------------------------------
+// Clients & Init
+// -----------------------------------------------------------------------------
+
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 	return client.(*persistence_client.Persistence_Client), nil
 }
-
-// GetEventClient returns an Event client bound to the given address.
 func GetEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 	return client.(*event_client.Event_Client), nil
 }
 
-// Init initializes the service configuration and gRPC server, and connects to dependencies.
 func (srv *server) Init() error {
-	// Initialize config.
-	if err := globular.InitService(srv); err != nil {
-		slog.Error("init service failed", "service", srv.Name, "id", srv.Id, "err", err)
-		return err
-	}
+	// Initialize config (no interceptors args here—wired internally like your auth template).
+	if err := globular.InitService(srv); err != nil { return err }
 
-	// Initialize gRPC server.
-	grpcSrv, err := globular.InitGrpcServer(srv, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
-	if err != nil {
-		slog.Error("init grpc server failed", "service", srv.Name, "err", err)
-		return err
-	}
-	srv.grpcServer = grpcSrv
+	gs, err := globular.InitGrpcServer(srv)
+	if err != nil { return err }
+	srv.grpcServer = gs
 
-	// Connect to Persistence.
-	if srv.Services["Persistence"] != nil {
-		cfg := srv.Services["Persistence"].(map[string]interface{})
-		addr := cfg["Address"].(string)
-		srv.persistenceClient, err = GetPersistenceClient(addr)
-		if err != nil {
-			slog.Error("connect persistence failed", "address", addr, "err", err)
+	// Optional dependency wiring from Services map (if provided by config).
+	var addr string
+	var ok bool
+
+	if srv.Services != nil {
+		if raw, found := srv.Services["Persistence"]; found {
+			if cfg, cast := raw.(map[string]interface{}); cast {
+				if addr, ok = cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					if cli, e := GetPersistenceClient(addr); e == nil {
+						srv.persistenceClient = cli
+					} else {
+						logger.Warn("connect persistence failed", "address", addr, "err", e)
+					}
+				}
+			}
+		}
+		if raw, found := srv.Services["Event"]; found {
+			if cfg, cast := raw.(map[string]interface{}); cast {
+				if addr, ok = cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					if cli, e := GetEventClient(addr); e == nil {
+						srv.eventClient = cli
+					} else {
+						logger.Warn("connect event failed", "address", addr, "err", e)
+					}
+				}
+			}
 		}
 	}
 
-	// Connect to Event.
-	if srv.Services["Event"] != nil {
-		cfg := srv.Services["Event"].(map[string]interface{})
-		addr := cfg["Address"].(string)
-		srv.eventClient, err = GetEventClient(addr)
-		if err != nil {
-			slog.Error("connect event failed", "address", addr, "err", err)
-		}
-	}
-
-	slog.Info("service initialized", "service", srv.Name, "id", srv.Id, "address", srv.Address)
 	return nil
 }
 
-// Save persists the current service configuration to disk.
-func (srv *server) Save() error { return globular.SaveService(srv) }
+func (srv *server) Save() error         { return globular.SaveService(srv) }
+func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
 
-// StartService starts the gRPC server and proxy if configured.
-func (srv *server) StartService() error {
-	slog.Info("starting service", "service", srv.Name, "port", srv.Port, "proxy", srv.Proxy, "protocol", srv.Protocol)
-	return globular.StartService(srv, srv.grpcServer)
-}
+// -----------------------------------------------------------------------------
+// Usage
+// -----------------------------------------------------------------------------
 
-// StopService gracefully stops the gRPC server.
-func (srv *server) StopService() error {
-	slog.Info("stopping service", "service", srv.Name)
-	return globular.StopService(srv, srv.grpcServer)
+func printUsage() {
+	exe := filepath.Base(os.Args[0])
+	os.Stdout.WriteString(`
+Usage: ` + exe + ` [options] <id> [configPath]
+
+Options:
+  --describe      Print service description as JSON (no etcd/config access)
+  --health        Print service health as JSON (no etcd/config access)
+
+Arguments:
+  <id>            Service instance ID
+  [configPath]    Optional path to configuration file
+
+Example:
+  ` + exe + ` catalog-1 /etc/globular/catalog/config.json
+
+`)
 }
 
 // -----------------------------------------------------------------------------
 // Entrypoint
 // -----------------------------------------------------------------------------
 
-// main boots the Catalog service and blocks until the gRPC server stops.
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
-
+	// Build a skeleton service (no etcd/config yet)
 	s := new(server)
 	s.Name = string(catalogpb.File_catalog_proto.Services().Get(0).FullName())
 	s.Proto = catalogpb.File_catalog_proto.Path()
@@ -255,52 +263,109 @@ func main() {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Domain, _ = config.GetDomain()
-	s.Address, _ = config.GetAddress()
 	s.Version = "0.0.1"
-	s.Keywords = make([]string, 0)
-	s.Repositories = make([]string, 0)
-	s.Discoveries = make([]string, 0)
-	s.Dependencies = make([]string, 0)
+	s.PublisherID = "localhost"
+	s.Description = "Catalog service"
+	s.Keywords = []string{}
+	s.Repositories = []string{}
+	s.Discoveries = []string{}
+	s.Dependencies = []string{}
+	s.Permissions = []interface{}{}
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true
 	s.KeepUpToDate = true
-	s.AllowAllOrigins = allow_all_origins
-	s.AllowedOrigins = allowed_origins
+	s.AllowAllOrigins = allowAllOrigins
+	s.AllowedOrigins = allowedOriginsStr
 
+	// Register client ctor for dynamic routing
 	Utility.RegisterFunction("NewCatalogService_Client", catalog_client.NewCatalogService_Client)
 
-	// Default dependency config from local address.
-	s.Services = make(map[string]interface{})
-	s.Services["Persistence"] = map[string]interface{}{"Address": s.Address}
-	s.Services["Event"] = map[string]interface{}{"Address": s.Address}
-
-	// ID / config path from args.
-	if len(os.Args) == 2 {
-		s.Id = os.Args[1]
-	} else if len(os.Args) == 3 {
-		s.Id = os.Args[1]
-		s.ConfigPath = os.Args[2]
+	// CLI flags BEFORE touching config
+	args := os.Args[1:]
+	if len(args) == 0 {
+		printUsage()
+		return
+	}
+	for _, a := range args {
+		switch strings.ToLower(a) {
+		case "--describe":
+			s.Process = os.Getpid()
+			s.State = "starting"
+			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" { s.Domain = strings.ToLower(v) } else { s.Domain = "localhost" }
+			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" { s.Address = strings.ToLower(v) } else { s.Address = "localhost:" + Utility.ToString(s.Port) }
+			b, err := globular.DescribeJSON(s)
+			if err != nil { logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err); os.Exit(2) }
+			os.Stdout.Write(b); os.Stdout.Write([]byte("\n"))
+			return
+		case "--health":
+			if s.Port == 0 || s.Name == "" { logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port); os.Exit(2) }
+			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+			if err != nil { logger.Error("health error", "service", s.Name, "id", s.Id, "err", err); os.Exit(2) }
+			os.Stdout.Write(b); os.Stdout.Write([]byte("\n"))
+			return
+		}
 	}
 
-	// Init service.
+	// Optional positional args: <id> [configPath]
+	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+		s.Id = args[0]
+	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+		s.Id = args[0]
+		s.ConfigPath = args[1]
+	}
+
+	// Safe to touch config now
+	if d, err := config.GetDomain(); err == nil { s.Domain = d } else { s.Domain = "localhost" }
+	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" { s.Address = a }
+
+	start := time.Now()
 	if err := s.Init(); err != nil {
-		slog.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
+		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
-	if s.Address == "" {
-		s.Address, _ = config.GetAddress()
+
+	// Default dependencies set to local address if not provided by config
+	if s.Services == nil {
+		s.Services = map[string]interface{}{
+			"Persistence": map[string]interface{}{"Address": s.Address},
+			"Event":       map[string]interface{}{"Address": s.Address},
+		}
 	}
 
-	// Register gRPC service.
+	// Bind again now that Services likely loaded from config during Init
+	// (if Init read a config file that overrides Services).
+	if s.persistenceClient == nil || s.eventClient == nil {
+		if raw, ok := s.Services["Persistence"]; ok {
+			if cfg, cast := raw.(map[string]interface{}); cast {
+				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					if cli, e := GetPersistenceClient(addr); e == nil { s.persistenceClient = cli }
+				}
+			}
+		}
+		if raw, ok := s.Services["Event"]; ok {
+			if cfg, cast := raw.(map[string]interface{}); cast {
+				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					if cli, e := GetEventClient(addr); e == nil { s.eventClient = cli }
+				}
+			}
+		}
+	}
+
+	// gRPC registration
 	catalogpb.RegisterCatalogServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
-	slog.Info("gRPC service registered", "service", s.Name, "port", s.Port)
 
-	// Serve.
+	logger.Info("service ready",
+		"service", s.Name,
+		"port", s.Port,
+		"proxy", s.Proxy,
+		"protocol", s.Protocol,
+		"domain", s.Domain,
+		"listen_ms", time.Since(start).Milliseconds())
+
 	if err := s.StartService(); err != nil {
-		slog.Error("service start failed", "err", err)
+		logger.Error("service start failed", "err", err)
 		os.Exit(1)
 	}
 }

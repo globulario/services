@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +15,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	Utility "github.com/globulario/utility"
+
+	// NEW: zap logger so we can control etcd client verbosity
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // =============================
@@ -27,7 +31,7 @@ var (
 	cliErr  error
 
 	// live leases tracked by supervisor (id -> lease)
-	liveMu    sync.Mutex
+	liveMu     sync.Mutex
 	liveLeases = map[string]*LiveLease{}
 )
 
@@ -47,6 +51,44 @@ func etcdKey(id, leaf string) string {
 	return etcdPrefix + id + "/" + leaf
 }
 
+// etcdZapLoggerFromEnv returns a zap.Logger for the etcd client.
+// GLOB_ETCD_LOG: silent|error|warn|info|debug (default: silent)
+func etcdZapLoggerFromEnv() *zap.Logger {
+	level := strings.ToLower(strings.TrimSpace(os.Getenv("GLOB_ETCD_LOG")))
+	switch level {
+	case "", "silent", "off", "none":
+		return zap.NewNop()
+	case "error":
+		cfg := zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zapcore.ErrorLevel)
+		cfg.EncoderConfig.TimeKey = "ts"
+		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		l, _ := cfg.Build()
+		return l
+	case "warn", "warning":
+		cfg := zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+		cfg.EncoderConfig.TimeKey = "ts"
+		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		l, _ := cfg.Build()
+		return l
+	case "info":
+		cfg := zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+		cfg.EncoderConfig.TimeKey = "ts"
+		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		l, _ := cfg.Build()
+		return l
+	case "debug":
+		cfg := zap.NewDevelopmentConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+		l, _ := cfg.Build()
+		return l
+	default:
+		return zap.NewNop()
+	}
+}
+
 func etcdClient() (*clientv3.Client, error) {
 	cliOnce.Do(func() {
 		endpoints := detectEtcdEndpoints()
@@ -59,22 +101,31 @@ func etcdClient() (*clientv3.Client, error) {
 			DialKeepAliveTime:    10 * time.Second,
 			DialKeepAliveTimeout: 3 * time.Second,
 			DialOptions:          []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+			// KEY: control etcd client verbosity here
+			Logger: etcdZapLoggerFromEnv(),
+			// (Alternative is LogConfig, but Logger is simplest & works across etcd 3.5.x)
 		})
 	})
 	return cli, cliErr
 }
 
-// Derive endpoints from local config/address (best-effort).
+// Derive endpoints from local env (best-effort, no config lookups).
 func detectEtcdEndpoints() []string {
-	hostPort, _ := GetAddress()
-	host := hostPort
-	if i := strings.Index(hostPort, ":"); i > 0 {
-		host = hostPort[:i]
+	if v := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); v != "" {
+		parts := strings.Split(v, ",")
+		var eps []string
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				eps = append(eps, p)
+			}
+		}
+		if len(eps) > 0 {
+			return eps
+		}
 	}
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	return []string{host + ":2379"}
+	// safe default without touching config
+	return []string{"127.0.0.1:2379"}
 }
 
 // =============================
@@ -135,10 +186,6 @@ func mergeDesiredRuntime(desired, runtime map[string]interface{}) map[string]int
 // Public API (etcd-backed)
 // =============================
 
-// SaveServiceConfiguration now writes:
-//   - desired → /globular/services/<id>/config
-//   - runtime → /globular/services/<id>/runtime
-// It preserves your existing call sites.
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -235,14 +282,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			r = map[string]interface{}{}
 		}
 		m := mergeDesiredRuntime(d, r)
-
-		// keep compatibility fields you enrich today
-		if m["ConfigPath"] == nil {
-			// best-effort: put a “virtual” path pointing to where it *would* be
-			// so existing logging doesn’t panic.
-			dir := GetServicesConfigDir()
-			m["ConfigPath"] = filepath.Join(dir, id, "config.json")
-		}
 		out = append(out, m)
 	}
 	return out, nil

@@ -2,172 +2,213 @@ package imap
 
 import (
 	"errors"
-	//	"log"
-
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 	Utility "github.com/globulario/utility"
 )
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // The User implementation
 ////////////////////////////////////////////////////////////////////////////////
 
+// User_impl implements go-imap's backend.User for a single authenticated user.
+// It expects the persistence Store and related globals to be set by the service.
+// Public prototypes are preserved for compatibility.
 type User_impl struct {
-	// contain values from MONGO
+	// info contains values loaded from the persistence layer (e.g., Mongo).
 	info map[string]interface{}
 }
 
 // Username returns this user's username.
+// Public prototype preserved.
 func (user *User_impl) Username() string {
-	return user.info["name"].(string)
+	if user.info == nil {
+		logger.Warn("Username: user.info is nil")
+		return ""
+	}
+	v, ok := user.info["name"].(string)
+	if !ok {
+		logger.Warn("Username: missing or invalid 'name' in user.info")
+		return ""
+	}
+	return v
 }
 
 // ListMailboxes returns a list of mailboxes belonging to this user. If
-// subscribed is set to true, only returns subscribed mailboxes.
+// subscribed is true, only returns subscribed mailboxes.
+// Public prototype preserved.
 func (user *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error) {
+	username := user.Username()
+	if username == "" {
+		return nil, errors.New("ListMailboxes: empty username")
+	}
 
-	boxes := make([]backend.Mailbox, 0)
-	connectionId := user.Username() + "_db"
-	// Get list of other mail box here.
+	connectionId := username + "_db"
+
+	// Fetch all mailbox metadata for this user.
 	values, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
-
 	if err != nil {
+		logger.Error("ListMailboxes: backend Find failed", "user", username, "err", err)
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
+	boxes := make([]backend.Mailbox, 0, len(values)+1)
 
 	for i := 0; i < len(values); i++ {
-		val := values[i].(map[string]interface{})
-		box := NewMailBox(user.Username(), val["Name"].(string))
-		boxes = append(boxes, box)
+		val, ok := values[i].(map[string]interface{})
+		if !ok {
+			logger.Warn("ListMailboxes: invalid mailbox record", "user", username, "index", i)
+			continue
+		}
+		name, ok := val["Name"].(string)
+		if !ok || name == "" {
+			logger.Warn("ListMailboxes: mailbox record missing Name", "user", username, "index", i)
+			continue
+		}
+		box := NewMailBox(username, name)
+		if box != nil {
+			boxes = append(boxes, box)
+		}
 	}
 
+	// Ensure at least INBOX exists by default.
 	if len(values) == 0 {
-		// By default INBOX must exist on the backend, that the default mailbox.
-		inbox := NewMailBox(user.Username(), "INBOX")
-		boxes = append(boxes, inbox)
-
+		inbox := NewMailBox(username, "INBOX")
+		if inbox != nil {
+			boxes = append(boxes, inbox)
+		}
 	}
 
+	// NOTE: 'subscribed' filtering is not persisted here; if you later store
+	// subscription state, you can filter boxes based on that.
 	return boxes, nil
 }
 
-// GetMailbox returns a mailbox. If it doesn't exist, it returns
-// ErrNoSuchMailbox.
+// GetMailbox returns a mailbox. If it doesn't exist, it returns ErrNoSuchMailbox.
+// Public prototype preserved.
 func (user *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
+	username := user.Username()
+	if username == "" {
+		return nil, errors.New("GetMailbox: empty username")
+	}
+	if name == "" {
+		return nil, errors.New("GetMailbox: empty mailbox name")
+	}
 
-	connectionId := user.Username() + "_db"
+	connectionId := username + "_db"
 	query := `{"Name":"` + name + `"}`
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil || count < 1 {
+		if err == nil {
+			err = errors.New("no such mailbox")
+		}
+		logger.Warn("GetMailbox: mailbox not found", "user", username, "name", name, "err", err)
 		return nil, errors.New("No mail box found with name " + name)
 	}
 
-	return NewMailBox(user.Username(), name), nil
+	return NewMailBox(username, name), nil
 }
 
 // CreateMailbox creates a new mailbox.
-//
-// If the mailbox already exists, an error must be returned. If the mailbox
-// name is suffixed with the server's hierarchy separator character, this is a
-// declaration that the client intends to create mailbox names under this name
-// in the hierarchy.
-//
-// If the server's hierarchy separator character appears elsewhere in the
-// name, the server SHOULD create any superior hierarchical names that are
-// needed for the CREATE command to be successfully completed.  In other
-// words, an attempt to create "foo/bar/zap" on a server in which "/" is the
-// hierarchy separator character SHOULD create foo/ and foo/bar/ if they do
-// not already exist.
-//
-// If a new mailbox is created with the same name as a mailbox which was
-// deleted, its unique identifiers MUST be greater than any unique identifiers
-// used in the previous incarnation of the mailbox UNLESS the new incarnation
-// has a different unique identifier validity value.
+// Public prototype preserved.
 func (user *User_impl) CreateMailbox(name string) error {
+	username := user.Username()
+	if username == "" {
+		return errors.New("CreateMailbox: empty username")
+	}
+	if name == "" {
+		return errors.New("CreateMailbox: empty mailbox name")
+	}
 
 	info := new(imap.MailboxInfo)
 	info.Name = name
 	info.Delimiter = "/"
+
 	jsonStr, err := Utility.ToJson(info)
 	if err != nil {
+		logger.Error("CreateMailbox: marshal MailboxInfo failed", "user", username, "name", name, "err", err)
 		return err
 	}
-	connectionId := user.Username() + "_db"
-	_, err = Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
 
+	connectionId := username + "_db"
+	if _, err := Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, ""); err != nil {
+		logger.Error("CreateMailbox: insert failed", "user", username, "name", name, "err", err)
+		return err
+	}
+
+	logger.Info("CreateMailbox: created", "user", username, "name", name)
 	return err
 }
 
-// DeleteMailbox permanently remove the mailbox with the given name. It is an
-// error to // attempt to delete INBOX or a mailbox name that does not exist.
-//
-// The DELETE command MUST NOT remove inferior hierarchical names. For
-// example, if a mailbox "foo" has an inferior "foo.bar" (assuming "." is the
-// hierarchy delimiter character), removing "foo" MUST NOT remove "foo.bar".
-//
-// The value of the highest-used unique identifier of the deleted mailbox MUST
-// be preserved so that a new mailbox created with the same name will not
-// reuse the identifiers of the former incarnation, UNLESS the new incarnation
-// has a different unique identifier validity value.
+// DeleteMailbox permanently removes the mailbox with the given name.
+// Public prototype preserved.
 func (user *User_impl) DeleteMailbox(name string) error {
+	username := user.Username()
+	if username == "" {
+		return errors.New("DeleteMailbox: empty username")
+	}
+	if name == "" {
+		return errors.New("DeleteMailbox: empty mailbox name")
+	}
 
-	connectionId := user.Username() + "_db"
+	connectionId := username + "_db"
 
-	// First I will delete the entry in MailBoxes...
-	err := Store.DeleteOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+name+`"}`, "")
-	if err != nil {
+	// Remove mailbox metadata entry
+	if err := Store.DeleteOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+name+`"}`, ""); err != nil {
+		logger.Error("DeleteMailbox: delete metadata failed", "user", username, "name", name, "err", err)
 		return err
 	}
 
-	err = Store.DeleteCollection(connectionId, connectionId, name)
+	// Drop the collection holding message documents
+	if err := Store.DeleteCollection(connectionId, connectionId, name); err != nil {
+		logger.Error("DeleteMailbox: delete collection failed", "user", username, "name", name, "err", err)
+		return err
+	}
 
-	return err
+	logger.Info("DeleteMailbox: removed", "user", username, "name", name)
+	return nil
 }
 
-// RenameMailbox changes the name of a mailbox. It is an error to attempt to
-// rename from a mailbox name that does not exist or to a mailbox name that
-// already exists.
-//
-// If the name has inferior hierarchical names, then the inferior hierarchical
-// names MUST also be renamed.  For example, a rename of "foo" to "zap" will
-// rename "foo/bar" (assuming "/" is the hierarchy delimiter character) to
-// "zap/bar".
-//
-// If the server's hierarchy separator character appears in the name, the
-// server SHOULD create any superior hierarchical names that are needed for
-// the RENAME command to complete successfully.  In other words, an attempt to
-// rename "foo/bar/zap" to baz/rag/zowie on a server in which "/" is the
-// hierarchy separator character SHOULD create baz/ and baz/rag/ if they do
-// not already exist.
-//
-// The value of the highest-used unique identifier of the old mailbox name
-// MUST be preserved so that a new mailbox created with the same name will not
-// reuse the identifiers of the former incarnation, UNLESS the new incarnation
-// has a different unique identifier validity value.
-//
-// Renaming INBOX is permitted, and has special behavior.  It moves all
-// messages in INBOX to a new mailbox with the given name, leaving INBOX
-// empty.  If the server implementation supports inferior hierarchical names
-// of INBOX, these are unaffected by a rename of INBOX.
+// RenameMailbox changes the name of a mailbox, and renames its underlying collection.
+// Public prototype preserved.
 func (user *User_impl) RenameMailbox(existingName, newName string) error {
-	connectionId := user.Username() + "_db"
+	username := user.Username()
+	if username == "" {
+		return errors.New("RenameMailbox: empty username")
+	}
+	if existingName == "" || newName == "" {
+		return errors.New("RenameMailbox: missing existing or new name")
+	}
 
-	// I will rename the
-	err := Store.UpdateOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+existingName+`"}`, `{"$set":{"Name":"`+newName+`"}}`, "")
-	if err != nil {
+	connectionId := username + "_db"
+
+	// Update mailbox metadata document
+	if err := Store.UpdateOne(
+		connectionId, connectionId, "MailBoxes",
+		`{"Name":"`+existingName+`"}`,
+		`{"$set":{"Name":"`+newName+`"}}`,
+		"",
+	); err != nil {
+		logger.Error("RenameMailbox: update metadata failed", "user", username, "from", existingName, "to", newName, "err", err)
 		return err
 	}
 
-	return renameCollection(connectionId, existingName, newName)
+	// Rename the actual collection with admin privileges
+	if err := renameCollection(connectionId, existingName, newName); err != nil {
+		logger.Error("RenameMailbox: rename collection failed", "user", username, "from", existingName, "to", newName, "err", err)
+		return err
+	}
+
+	logger.Info("RenameMailbox: renamed", "user", username, "from", existingName, "to", newName)
+	return nil
 }
 
 // Logout is called when this User will no longer be used, likely because the
 // client closed the connection.
+// Public prototype preserved.
 func (user *User_impl) Logout() error {
-	return nil //Store.Disconnect(user.Username() + "_db")
+	// If you maintain per-user connections, you could disconnect here:
+	// return Store.Disconnect(user.Username() + "_db")
+	return nil
 }

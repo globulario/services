@@ -48,7 +48,7 @@ func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.Val
 	if err != nil {
 		return nil, logInternal("ValidateToken:validate", err)
 	}
-	logInfo("ValidateToken:ok", "clientId", claims.Id, "exp", claims.StandardClaims.ExpiresAt)
+	slog.Info("ValidateToken:ok", "clientId", claims.Id, "exp", claims.StandardClaims.ExpiresAt)
 	return &authenticationpb.ValidateTokenRsp{
 		ClientId: claims.Id,
 		Expired:  claims.StandardClaims.ExpiresAt,
@@ -94,7 +94,7 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 		return nil, logInternal("RefreshToken:updateSession", err)
 	}
 
-	logInfo("RefreshToken:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
+	slog.Info("RefreshToken:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
 	return &authenticationpb.RefreshTokenRsp{Token: tokenString}, nil
 }
 
@@ -140,7 +140,7 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 		return nil, logInternal("SetPassword:authenticate", err, "accountId", rqst.AccountId)
 	}
 
-	logInfo("SetPassword:ok", "accountId", rqst.AccountId)
+	slog.Info("SetPassword:ok", "accountId", rqst.AccountId)
 	return &authenticationpb.SetPasswordResponse{Token: tokenString}, nil
 }
 
@@ -211,7 +211,7 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, logInternal("SetRootPassword:generateToken", err)
 	}
 
-	logInfo("SetRootPassword:ok")
+	slog.Info("SetRootPassword:ok")
 	return &authenticationpb.SetRootPasswordResponse{Token: tokenString}, nil
 }
 
@@ -245,7 +245,7 @@ func (srv *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetR
 		return nil, logInternal("SetRootEmail:writeConfig", err)
 	}
 
-	logInfo("SetRootEmail:ok", "newEmail", rqst.NewEmail)
+	slog.Info("SetRootEmail:ok", "newEmail", rqst.NewEmail)
 	return &authenticationpb.SetRootEmailResponse{}, nil
 }
 
@@ -259,7 +259,7 @@ func (srv *server) setKey(mac string) error {
 	}
 
 	if macAddress == mac {
-		logInfo("setKey:generate", "mac", mac)
+		slog.Info("setKey:generate", "mac", mac)
 		return security.GeneratePeerKeys(mac)
 	}
 	return nil
@@ -349,7 +349,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			return "", logInternal("authenticate:root:writeConfig", err)
 		}
 
-		logInfo("authenticate:root:ok")
+		slog.Info("authenticate:root:ok")
 		return tokenString, nil
 	}
 
@@ -394,7 +394,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	} else {
 		// Password path (+ optional LDAP fallback)
 		if err = srv.validatePassword(pwd, account.Password); err != nil {
-			logInfo("authenticate:passwordMismatch", "accountId", account.Id)
+			slog.Info("authenticate:passwordMismatch", "accountId", account.Id)
 			if len(srv.LdapConnectionId) != 0 {
 				if err := srv.authenticateLdap(account.Name, pwd); err != nil {
 					slog.Warn("authenticate:ldapFailed", "accountId", account.Id, "err", err)
@@ -441,7 +441,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		return "", logInternal("authenticate:updateSession", err)
 	}
 
-	logInfo("authenticate:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
+	slog.Info("authenticate:ok", "accountId", session.AccountId, "exp", session.ExpireAt)
 	return tokenString, nil
 }
 
@@ -559,6 +559,6 @@ func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb
 		return nil, logInternal("GeneratePeerToken:generate", err)
 	}
 
-	logInfo("GeneratePeerToken:ok", "issuerMac", rqst.Mac, "userId", userId, "userDomain", userDomain)
+	slog.Info("GeneratePeerToken:ok", "issuerMac", rqst.Mac, "userId", userId, "userDomain", userDomain)
 	return &authenticationpb.GeneratePeerTokenResponse{Token: token}, nil
 }

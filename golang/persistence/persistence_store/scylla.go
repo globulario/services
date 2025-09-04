@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
@@ -18,7 +19,7 @@ import (
 	"github.com/gocql/gocql"
 )
 
-// Connection represent a connection to a SQL database.
+// ScyllaConnection represents a connection to a Scylla/Cassandra-compatible database.
 type ScyllaConnection struct {
 	Id       string
 	Host     string
@@ -30,29 +31,32 @@ type ScyllaConnection struct {
  * The SCYLLA store.
  */
 type ScyllaStore struct {
-
-	/** the connections... */
-	connections map[string]*ScyllaConnection
-
-	/** the lock. */
-	lock sync.Mutex
+	connections map[string]*ScyllaConnection // live connections keyed by connection id
+	lock        sync.Mutex                   // guards connections
 }
 
-func (store *ScyllaStore) GetStoreType() string {
-	return "SCYLLA"
+// GetStoreType returns the constant store type name used by the service.
+func (store *ScyllaStore) GetStoreType() string { return "SCYLLA" }
+
+// ucFirst uppercases the first rune of a string (replacement for deprecated strings.Title use-cases).
+func ucFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
 
 /**
- * Create a new SCYLLA store.
+ * createKeyspace creates (if needed) and returns a configured cluster for the given keyspace.
+ * It also ensures a session to "system" to run administrative queries.
  */
 func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.ClusterConfig, error) {
-
 	if len(keyspace) == 0 {
 		return nil, errors.New("the database is required")
 	}
-
-	keyspace = strings.ToLower(keyspace)
-	keyspace = strings.ReplaceAll(keyspace, "-", "_")
+	keyspace = strings.ToLower(strings.ReplaceAll(keyspace, "-", "_"))
 
 	// Get the connection.
 	store.lock.Lock()
@@ -60,7 +64,6 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 	store.lock.Unlock()
 	if connection == nil {
 		return nil, errors.New("the connection does not exist")
-
 	}
 
 	createKeyspaceQuery := `
@@ -70,51 +73,60 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 		'replication_factor': 3
 	}`
 
-	// Create the admin session.
-	adminCluster := gocql.NewCluster()                          // Replace with your SCYLLA cluster IP address
-	adminCluster.Hosts = []string{connection.Host, "127.0.0.1"} // add local host as well.
-	adminCluster.Keyspace = "system"                            // Use the 'system' keyspace for administrative tasks
+	// Create an admin session against the system keyspace.
+	adminCluster := gocql.NewCluster(connection.Host, "127.0.0.1")
+	adminCluster.Keyspace = "system"
+	adminCluster.Port = 9042
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
-		fmt.Println("fail to create admin session: ", adminCluster.Hosts, err)
+		slog.Error("scylla: create admin session failed", "hosts", adminCluster.Hosts, "err", err)
 		return nil, err
 	}
-
 	defer adminSession.Close()
 
-	// Create the keyspace.
 	if err := adminSession.Query(createKeyspaceQuery).Exec(); err != nil {
-		fmt.Println("fail to create keyspace", keyspace, "whith error", err)
+		slog.Error("scylla: create keyspace failed", "keyspace", keyspace, "err", err)
 		return nil, err
 	}
 
-	// The cluster address...
-	cluster := gocql.NewCluster() // Set your SCYLLA cluster address here
-	cluster.Keyspace = keyspace   // Set your keyspace name here
+	// Cluster configured for the created/existing keyspace.
+	cluster := gocql.NewCluster(connection.Host, "127.0.0.1")
+	cluster.Keyspace = keyspace
 	cluster.Consistency = gocql.Quorum
-	cluster.Hosts = []string{connection.Host, "127.0.0.1"}
 	cluster.Port = 9042
-
 	return cluster, nil
 }
 
 /**
- * Connect to the database.
+ * Connect establishes (or reuses) a session to the target keyspace.
  */
 func (store *ScyllaStore) Connect(id string, host string, port int32, user string, password string, keyspace string, timeout int32, options_str string) error {
-
 	if len(id) == 0 {
 		return errors.New("the connection id is required")
 	}
+	if len(host) == 0 {
+		return errors.New("the host is required")
+	}
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
+	}
+	if len(user) == 0 {
+		return errors.New("the user is required")
+	}
+	if len(password) == 0 {
+		return errors.New("the password is required")
+	}
+	if len(keyspace) == 0 {
+		return errors.New("the database is required")
+	}
 
+	// Reuse an existing session if already present for this keyspace.
 	if store.connections != nil {
 		store.lock.Lock()
-		if _, ok := store.connections[id]; ok {
-			if store.connections[id].sessions != nil {
-				if _, ok := store.connections[id].sessions[keyspace]; ok {
-					store.lock.Unlock()
-					return nil
-				}
+		if c, ok := store.connections[id]; ok && c.sessions != nil {
+			if _, ok := c.sessions[keyspace]; ok {
+				store.lock.Unlock()
+				return nil
 			}
 		}
 		store.lock.Unlock()
@@ -122,144 +134,101 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 		store.connections = make(map[string]*ScyllaConnection)
 	}
 
-	if len(host) == 0 {
-		return errors.New("the host is required")
-	}
-
-	if strings.Contains(host, ":") {
-		host = strings.Split(host, ":")[0]
-	}
-
-	if len(user) == 0 {
-		return errors.New("the user is required")
-
-	}
-
-	if len(password) == 0 {
-		return errors.New("the password is required")
-	}
-
-	if len(keyspace) == 0 {
-		return errors.New("the database is required")
-	}
-
-	// So here I will authenticate the user and password.
-	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
+	// Authenticate through the authentication service (retry up to 5 times).
+	authClient, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
-		fmt.Println("fail to create authentication client", err)
+		slog.Error("scylla: create auth client failed", "host", host, "err", err)
 		return err
 	}
-
-	// Authenticate the user, I will try 5 times.
-	nbTry := 5
 	var token string
-	for nbTry > 0 {
-
-		var err error
-		// Authenticate the user.
-		token, err = authentication_client.Authenticate(user, password)
-		if err != nil {
-			if nbTry == 0 {
-				fmt.Println("fail to authenticate user", user, "with error", err)
-				return err
-			}
-			nbTry--
-			time.Sleep(1 * time.Second)
-		} else if err == nil {
+	for tries := 5; tries > 0; tries-- {
+		token, err = authClient.Authenticate(user, password)
+		if err == nil {
 			break
 		}
-
+		if tries == 1 {
+			slog.Error("scylla: authenticate failed", "user", user, "err", err)
+			return err
+		}
+		time.Sleep(time.Second)
 	}
 
-	var connection *ScyllaConnection
-	if _, ok := store.connections[id]; ok {
-		connection = store.connections[id]
-	} else {
-		// Now I will save the connection.
+	// Create/remember the connection object.
+	store.lock.Lock()
+	connection := store.connections[id]
+	if connection == nil {
 		connection = &ScyllaConnection{
 			Id:       id,
 			Host:     host,
 			Token:    token,
 			sessions: make(map[string]*gocql.Session),
 		}
+		store.connections[id] = connection
 	}
-
-	// save the connection before creating the cluster.
-	store.lock.Lock()
-	store.connections[id] = connection
 	store.lock.Unlock()
 
-	// Create the cluster.
+	// Ensure keyspace exists and open a session.
 	cluster, err := store.createKeyspace(id, keyspace)
 	if err != nil {
-		fmt.Println("fail to create keyspace", keyspace, "whith error", err)
+		slog.Error("scylla: create keyspace failed", "keyspace", keyspace, "err", err)
 		return err
 	}
-
 	session, err := cluster.CreateSession()
 	if err != nil {
-		fmt.Println("fail to create session", err)
+		slog.Error("scylla: create session failed", "keyspace", keyspace, "err", err)
 		return err
 	}
-
-	// Save the session for that keyspace.
 	connection.sessions[keyspace] = session
 
-	// Create the table if it does not exist.
-	count, _ := store.Count(context.Background(), id, "", "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
+	// Ensure user_data row exists (for non-SA/local_resource).
+	count, _ := store.Count(context.Background(), id, keyspace, "user_data", `SELECT * FROM user_data WHERE id='`+user+`'`, "")
 	if count == 0 && id != "local_resource" && user != "sa" {
-		_, err := store.InsertOne(context.Background(), id, keyspace, "user_data", map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "email": ""}, "")
-		if err != nil {
+		if _, err := store.InsertOne(context.Background(), id, keyspace, "user_data",
+			map[string]interface{}{"id": user, "first_name": "", "last_name": "", "middle_name": "", "profile_picture": "", "email": ""}, "",
+		); err != nil {
 			return err
 		}
 	}
 
+	slog.Info("scylla: connected", "id", id, "host", host, "keyspace", keyspace)
 	return nil
 }
 
+// GetSession returns any available session for a given connection.
 func (store *ScyllaStore) GetSession(connectionId string) *gocql.Session {
-	// Get the connection.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
-
 	if connection == nil {
 		return nil
 	}
-
-	// Get the first found session.
 	for _, session := range connection.sessions {
 		return session
 	}
-
 	return nil
 }
 
 /**
- * Disconnect from the database.
+ * Disconnect closes all sessions for the given connection id.
  */
 func (store *ScyllaStore) Disconnect(connectionId string) error {
-	// close all sessions for that connection.
 	if store.connections != nil {
-		if _, ok := store.connections[connectionId]; ok {
-			store.lock.Lock()
-			if store.connections[connectionId].sessions != nil {
-				for _, session := range store.connections[connectionId].sessions {
-					session.Close()
-				}
+		store.lock.Lock()
+		if c, ok := store.connections[connectionId]; ok && c.sessions != nil {
+			for _, session := range c.sessions {
+				session.Close()
 			}
-			store.lock.Unlock()
 		}
+		store.lock.Unlock()
 	}
+	slog.Info("scylla: disconnected", "id", connectionId)
 	return nil
 }
 
 /**
- * Ping the database.
+ * Ping runs a simple query to validate connectivity.
  */
 func (store *ScyllaStore) Ping(ctx context.Context, connectionId string) error {
-
-	// Get the connection.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
@@ -267,79 +236,64 @@ func (store *ScyllaStore) Ping(ctx context.Context, connectionId string) error {
 		return errors.New("the connection does not exist")
 	}
 
-	// Get the first found session.
 	var session *gocql.Session
 	for _, s := range connection.sessions {
 		session = s
 		break
 	}
-
 	if session == nil {
 		return errors.New("the session does not exist")
 	}
 
-	// Execute a simple query to check connectivity
-	if err := session.Query("SELECT release_version FROM system.local").Exec(); err != nil {
-		fmt.Printf("Failed to execute query: %v\n", err)
+	if err := session.Query("SELECT release_version FROM system.local").WithContext(ctx).Exec(); err != nil {
+		slog.Error("scylla: ping failed", "err", err)
 		return err
 	}
-
 	return nil
 }
 
 /**
- * Create a new database (keyspace)
+ * CreateDatabase ensures the keyspace exists.
  */
 func (store *ScyllaStore) CreateDatabase(ctx context.Context, connectionId string, keyspace string) error {
-
 	if len(keyspace) == 0 {
 		return errors.New("the database is required")
 	}
-
 	_, err := store.createKeyspace(connectionId, keyspace)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func camelToSnake(input string) string {
 	var result bytes.Buffer
-	for i, runeValue := range input {
-		if i > 0 && unicode.IsUpper(runeValue) {
+	for i, r := range input {
+		if i > 0 && unicode.IsUpper(r) {
 			result.WriteRune('_')
 		}
-		result.WriteRune(unicode.ToLower(runeValue))
+		result.WriteRune(unicode.ToLower(r))
 	}
 	return result.String()
 }
 
 func snakeToCamel(input string) string {
-
 	var result bytes.Buffer
 	upper := false
-
-	for _, runeValue := range input {
-		if runeValue == '_' {
+	for _, r := range input {
+		if r == '_' {
 			upper = true
+			continue
+		}
+		if upper {
+			result.WriteRune(unicode.ToUpper(r))
+			upper = false
 		} else {
-			if upper {
-				result.WriteRune(unicode.ToUpper(runeValue))
-				upper = false
-			} else {
-				result.WriteRune(runeValue)
-			}
+			result.WriteRune(r)
 		}
 	}
-
 	return result.String()
 }
 
 func deduceColumnType(value interface{}) string {
-
 	goType := reflect.TypeOf(value)
-
 	switch goType.Kind() {
 	case reflect.Bool:
 		return "boolean"
@@ -356,146 +310,119 @@ func deduceColumnType(value interface{}) string {
 	case reflect.Map:
 		return "map"
 	default:
-		//fmt.Println("unsupported data type: %s", goType.String())
 		return ""
 	}
 }
 
 func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, tableName string, data map[string]interface{}) error {
-
 	if data["_id"] == nil && data["id"] == nil {
 		return errors.New("the _id is required")
 	}
 
-	// Prepare the CREATE TABLE query
 	createTableQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (", keyspace, tableName)
 
-	// Iterate through the map's fields and deduce the data types
 	for fieldName, value := range data {
-		if value != nil {
-			fieldType := deduceColumnType(value)
-			if fieldType != "unknow" {
-				if fieldType != "array" {
-					fieldName = camelToSnake(fieldName)
-					createTableQuery += fieldName + " " + fieldType + ", "
-				}
-			}
+		if value == nil {
+			continue
 		}
+		fieldType := deduceColumnType(value)
+		if fieldType == "" || fieldType == "array" {
+			continue
+		}
+		createTableQuery += camelToSnake(fieldName) + " " + fieldType + ", "
 	}
 
-	// scylla does not support _id, so I will replace it with id.
+	// Replace _id by id (Scylla uses id here).
 	createTableQuery = strings.ReplaceAll(createTableQuery, "_id", "id")
-
-	if !strings.Contains(createTableQuery, "id") {
+	if !strings.Contains(createTableQuery, "id ") {
 		createTableQuery += "id text, "
 	}
 
-	// Add the primary key
 	createTableQuery += "PRIMARY KEY (id));"
 
-	// Execute the CREATE TABLE query
-	err := session.Query(createTableQuery).Exec()
-	if err != nil {
-		fmt.Println("Failed to create table ", tableName, "with error:", err)
+	if err := session.Query(createTableQuery).Exec(); err != nil {
+		slog.Error("scylla: create table failed", "table", tableName, "err", err)
+		return err
 	}
-
-	return err
+	return nil
 }
 
 func deleteKeyspace(host, keyspace string) error {
-
-	// Create the admin session.
-	adminCluster := gocql.NewCluster()               // Replace with your SCYLLA cluster IP address
-	adminCluster.Hosts = []string{host, "127.0.0.1"} // add local host as well.
-	adminCluster.Keyspace = "system"                 // Use the 'system' keyspace for administrative tasks
+	adminCluster := gocql.NewCluster(host, "127.0.0.1")
+	adminCluster.Keyspace = "system"
+	adminCluster.Port = 9042
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
 		return err
 	}
-
 	defer adminSession.Close()
 
 	query := fmt.Sprintf("DROP KEYSPACE IF EXISTS %s;", keyspace)
 	return adminSession.Query(query).Exec()
 }
 
+/**
+ * DeleteDatabase drops a keyspace.
+ */
 func (store *ScyllaStore) DeleteDatabase(ctx context.Context, connectionId string, keyspace string) error {
 	if len(keyspace) == 0 {
 		return errors.New("the database is required")
 	}
-
-	// I will get the session for that keyspace.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
-
 	if connection == nil {
 		return errors.New("the connection does not exist")
 	}
-
-	// Drop the keyspace.
 	if err := deleteKeyspace(connection.Host, keyspace); err != nil {
-		fmt.Println("Fail to drop keyspace ", err)
+		slog.Error("scylla: drop keyspace failed", "keyspace", keyspace, "err", err)
 		return err
 	}
-
 	return nil
 }
 
+/**
+ * Count executes a query (or a full table scan if query is empty) and returns the number of rows.
+ */
 func (store *ScyllaStore) Count(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) (int64, error) {
-
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s.%s", keyspace, table)
 	}
-
-	// Execute the query.
 	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return 0, err
 	}
-
 	return int64(len(entities)), nil
 }
 
 func (store *ScyllaStore) getSession(connectionId, keyspace string) (*gocql.Session, error) {
-
 	if len(keyspace) == 0 {
 		return nil, errors.New("the database is required")
 	}
-
 	if len(connectionId) == 0 {
 		return nil, errors.New("the connection id is required")
 	}
 
-	// I will get the session for that keyspace.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
-
 	if connection == nil {
-		return nil, errors.New("the connection " + connectionId + "does not exist")
+		return nil, errors.New("the connection " + connectionId + " does not exist")
 	}
 
-	// Get the first found session.
-	session, ok := connection.sessions[keyspace]
-	if !ok {
-
-		if connectionId == "local_resource" {
-			// return the first session.
-			for _, session := range connection.sessions {
-				return session, nil
-			}
+	if session, ok := connection.sessions[keyspace]; ok {
+		return session, nil
+	}
+	// Fallback for local_resource: return any session.
+	if connectionId == "local_resource" {
+		for _, session := range connection.sessions {
+			return session, nil
 		}
-
-		return nil, errors.New("connection with id " + connectionId + " does not have a session for keyspace " + keyspace)
 	}
-
-	return session, nil
+	return nil, errors.New("connection with id " + connectionId + " does not have a session for keyspace " + keyspace)
 }
 
 func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
-
-	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return nil, err
@@ -503,29 +430,25 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 
 	var id string
 	if data["id"] != nil {
-		id = data["id"].(string)
+		id = Utility.ToString(data["id"])
 	} else if data["_id"] != nil {
-		id = data["_id"].(string)
+		id = Utility.ToString(data["_id"])
 	}
-
 	if len(id) == 0 {
 		return nil, errors.New("the id is required")
 	}
 
-	// I will check if the data already exist.
+	// Exists?
 	query := fmt.Sprintf("SELECT * FROM %s.%s WHERE id='%s'", keyspace, tableName, id)
 	if data["domain"] != nil {
 		query += fmt.Sprintf(" AND domain='%s'", data["domain"])
 	}
-
-	values_, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, "")
-	if err == nil {
+	if values_, err := store.FindOne(context.Background(), connectionId, keyspace, tableName, query, ""); err == nil {
 		return values_.(map[string]interface{}), nil
 	}
 
-	// Create the table.
+	// Ensure table exists with appropriate columns.
 	if err := store.createScyllaTable(session, keyspace, tableName, data); err != nil {
-		fmt.Println("Fail to create table ", err)
 		return nil, err
 	}
 
@@ -537,250 +460,153 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 			continue
 		}
 		goType := reflect.TypeOf(value)
+
 		if goType.Kind() == reflect.Slice {
-			// This is an array column, insert the values into the array table
-			sliceValue := reflect.ValueOf(data[column])
+			// Array handling: either entity refs or scalar arrays.
+			sliceValue := reflect.ValueOf(value)
 			length := sliceValue.Len()
+			field := camelToSnake(column)
 
 			for i := 0; i < length; i++ {
 				element := sliceValue.Index(i)
 				valueType := reflect.TypeOf(element.Interface())
-				field := camelToSnake(column)
 
 				if valueType.Kind() == reflect.Map {
 					entity := element.Interface().(map[string]interface{})
 
-					if entity["typeName"] != nil {
-						typeName := entity["typeName"].(string)
+					if entity["typeName"] != nil || entity["$ref"] != nil {
+						// Determine target type and id.
+						typeName := Utility.ToString(entity["typeName"])
+						if typeName == "" {
+							typeName = Utility.ToString(entity["$ref"])
+						}
 						if !strings.HasSuffix(typeName, "s") {
 							typeName += "s"
 						}
+						typeName = ucFirst(typeName)
 
-						// be sure that the first letter is upper case.
-						typeName = strings.Title(typeName)
-
-						// set the domain in case is define with localhost value.
-						localDomain, _ := config.GetDomain()
+						// Domain hygiene.
 						if entity["domain"] == nil {
-							entity["domain"] = localDomain
+							if localDomain, _ := config.GetDomain(); localDomain != "" {
+								entity["domain"] = localDomain
+							}
 						} else if entity["domain"] == "localhost" {
-							entity["domain"] = localDomain
+							if localDomain, _ := config.GetDomain(); localDomain != "" {
+								entity["domain"] = localDomain
+							}
 						}
 
-						// I will save the entity itself.
-						var err error
-						entity, err = store.insertData(connectionId, keyspace, typeName, entity)
-						if err != nil {
-							fmt.Println("error inserting data into array table "+keyspace+"."+typeName, err)
+						// Insert/ensure target entity if full doc provided.
+						if entity["typeName"] != nil {
+							var err error
+							entity, err = store.insertData(connectionId, keyspace, typeName, entity)
+							if err != nil {
+								slog.Error("scylla: insert nested entity failed", "table", keyspace+"."+typeName, "err", err)
+								continue
+							}
 						}
 
-						var _id string
-
-						// I will get the entity id.
-						if entity["id"] != nil {
-							_id = Utility.ToString(entity["id"])
-						} else if entity["_id"] != nil {
+						// Target id from either persisted doc or $id.
+						_id := Utility.ToString(entity["id"])
+						if _id == "" {
 							_id = Utility.ToString(entity["_id"])
-						} else {
+						}
+						if _id == "" {
+							_id = Utility.ToString(entity["$id"])
+						}
+						if _id == "" {
 							return nil, errors.New("the entity does not have an id")
 						}
 
+						// Reference table: <source>_<field>(source_id, target_id)
 						sourceCollection := tableName
-
-						// He I will create the reference table.
-						// I will create the table if not already exist.
-						createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-						err = session.Query(createTable).Exec()
-						if err != nil {
-							fmt.Println("error creating array table: ", createTable, err)
+						createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.%s_%s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`, keyspace, sourceCollection, field)
+						if err := session.Query(createTable).Exec(); err != nil {
+							slog.Error("scylla: create ref table failed", "table", sourceCollection+"_"+field, "err", err)
 						}
 
-						// I will insert the reference into the table.
-						insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
-						parameters := make([]interface{}, 0)
-						parameters = append(parameters, id)
-						parameters = append(parameters, _id)
-
-						err = session.Query(insertSQL, parameters...).Exec()
-
-						if err != nil {
-							fmt.Println("error inserting data into array table "+sourceCollection+"_"+field, err)
-							fmt.Println("Query: ", insertSQL)
-						}
-					} else if entity["$ref"] != nil {
-						typeName := entity["$ref"].(string)
-						if !strings.HasSuffix(typeName, "s") {
-							typeName += "s"
-						}
-
-						// be sure that the first letter is upper case.
-						typeName = strings.Title(typeName)
-
-						// I will get the entity id.
-						_id := Utility.ToString(entity["$id"])
-						sourceCollection := tableName
-
-						// He I will create the reference table.
-						// I will create the table if not already exist.
-						createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-						err = session.Query(createTable).Exec()
-						if err != nil {
-							fmt.Println("Error creating array table: ", createTable, err)
-						}
-
-						// I will insert the reference into the table.
-						insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
-						parameters := make([]interface{}, 0)
-						parameters = append(parameters, id)
-						parameters = append(parameters, _id)
-
-						err = session.Query(insertSQL, parameters...).Exec()
-
-						if err != nil {
-							fmt.Println("error inserting data into array table "+sourceCollection+"_"+field, err)
-							fmt.Println("Query: ", insertSQL, parameters)
+						insertSQL := fmt.Sprintf("INSERT INTO %s.%s_%s (source_id, target_id) VALUES (?, ?);", keyspace, sourceCollection, field)
+						if err := session.Query(insertSQL, id, _id).Exec(); err != nil {
+							slog.Error("scylla: insert ref failed", "table", sourceCollection+"_"+field, "err", err)
 						}
 					}
-
-				} else if !element.IsNil() && element.IsValid() {
-
-					arrayTableName := tableName + "_" + field
-					createTable := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, PRIMARY KEY ((value, %s_id)));", arrayTableName, deduceColumnType(element.Interface()), tableName, tableName)
-
-					// Create the table.
-					err := session.Query(createTable).Exec()
-					if err != nil {
-						fmt.Println("error creating array table: ", createTable, err)
+				} else if element.IsValid() && !element.IsNil() {
+					// Scalar array -> create <table>_<field>(value <type>, <table>_id text, PRIMARY KEY ((value, <table>_id)))
+					arrayTable := tableName + "_" + field
+					createTable := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (value %s, %s_id TEXT, PRIMARY KEY ((value, %s_id)));",
+						keyspace, arrayTable, deduceColumnType(element.Interface()), tableName, tableName)
+					if err := session.Query(createTable).Exec(); err != nil {
+						slog.Error("scylla: create array table failed", "table", keyspace+"."+arrayTable, "err", err)
 					}
-
-					// Insert the value into the table.
-					insertSQL := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?);", keyspace, arrayTableName, tableName)
-					parameters := make([]interface{}, 0)
-					parameters = append(parameters, element.Interface())
-					parameters = append(parameters, id)
-
-					err = session.Query(insertSQL, parameters...).Exec()
-					if err != nil {
-						fmt.Println("error inserting data into array table "+keyspace+"."+arrayTableName, err)
-						fmt.Println("Query: ", insertSQL)
+					insertSQL := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?);", keyspace, arrayTable, tableName)
+					if err := session.Query(insertSQL, element.Interface(), id).Exec(); err != nil {
+						slog.Error("scylla: insert array value failed", "table", keyspace+"."+arrayTable, "err", err)
 					}
 				}
 			}
 
 		} else if goType.Kind() == reflect.Map {
+			// Embedded single entity => reference table too.
 			entity := value.(map[string]interface{})
-
-			if entity["typeName"] != nil {
-
-				typeName := entity["typeName"].(string)
-
+			if entity["typeName"] != nil || entity["$ref"] != nil {
+				typeName := Utility.ToString(entity["typeName"])
+				if typeName == "" {
+					typeName = Utility.ToString(entity["$ref"])
+				}
 				if !strings.HasSuffix(typeName, "s") {
 					typeName += "s"
 				}
+				typeName = ucFirst(typeName)
 
-				// be sure that the first letter is upper case.
-				typeName = strings.Title(typeName)
-
-				// I will save the entity itself.
-				var err error
-				entity, err = store.insertData(connectionId, keyspace, typeName, entity)
-				if err != nil {
-					fmt.Println("error inserting data into array table "+keyspace+"."+typeName, err)
+				if entity["typeName"] != nil {
+					var err error
+					entity, err = store.insertData(connectionId, keyspace, typeName, entity)
+					if err != nil {
+						slog.Error("scylla: insert nested entity failed", "table", keyspace+"."+typeName, "err", err)
+					}
 				}
 
-				// I will get the entity id.
-				_id := Utility.ToString(entity["_id"])
+				_id := Utility.ToString(entity["id"])
+				if _id == "" {
+					_id = Utility.ToString(entity["_id"])
+				}
+				if _id == "" {
+					_id = Utility.ToString(entity["$id"])
+				}
+
 				sourceCollection := tableName
-				field := column
-
-				// He I will create the reference table.
-				// I will create the table if not already exist.
-				createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-				err = session.Query(createTable).Exec()
-				if err == nil {
-					fmt.Println("Table created: ", sourceCollection+"_"+field)
+				field := camelToSnake(column)
+				createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.%s_%s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`, keyspace, sourceCollection, field)
+				if err := session.Query(createTable).Exec(); err == nil {
+					slog.Info("scylla: ref table ensured", "table", sourceCollection+"_"+field)
 				}
-
-				// I will insert the reference into the table.
-				insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
-				parameters := make([]interface{}, 0)
-				parameters = append(parameters, id)
-				parameters = append(parameters, _id)
-
-				err = session.Query(insertSQL, parameters...).Exec()
-
-				if err != nil {
-					fmt.Println("error inserting data into array table "+sourceCollection+"_"+field+" with error:", err)
-					fmt.Println("Query: ", insertSQL)
+				insertSQL := fmt.Sprintf("INSERT INTO %s.%s_%s (source_id, target_id) VALUES (?, ?);", keyspace, sourceCollection, field)
+				if err := session.Query(insertSQL, id, _id).Exec(); err != nil {
+					slog.Error("scylla: insert ref failed", "table", sourceCollection+"_"+field, "err", err)
 				}
-			} else if entity["$ref"] != nil {
-				typeName := entity["$ref"].(string)
-
-				if !strings.HasSuffix(typeName, "s") {
-					typeName += "s"
-				}
-
-				// be sure that the first letter is upper case.
-				typeName = strings.Title(typeName)
-
-				// I will get the entity id.
-				_id := Utility.ToString(entity["$id"])
-				sourceCollection := tableName
-				field := column
-
-				// He I will create the reference table.
-				// I will create the table if not already exist.
-				createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
-				err = session.Query(createTable).Exec()
-				if err == nil {
-					fmt.Println("Table created: ", sourceCollection+"_"+field)
-				}
-
-				// I will insert the reference into the table.
-				insertSQL := fmt.Sprintf("INSERT INTO " + sourceCollection + "_" + field + " (source_id, target_id) VALUES (?, ?);")
-				parameters := make([]interface{}, 0)
-				parameters = append(parameters, id)
-				parameters = append(parameters, _id)
-
-				err = session.Query(insertSQL, parameters...).Exec()
-
-				if err != nil {
-					fmt.Println("Error inserting data into array table "+sourceCollection+"_"+field, err)
-					fmt.Println("Query: ", insertSQL)
-				}
-
 			}
-
 		} else if column != "typeName" {
-			column = camelToSnake(column)
-			columns = append(columns, column)
+			columns = append(columns, camelToSnake(column))
 			values = append(values, value)
 		}
 	}
 
-	// be sure the first letter of the table name is upper case.
-	tableName = strings.Title(tableName)
+	// Make table name initial uppercase (previous code used strings.Title).
+	tableName = ucFirst(tableName)
 
+	// Build and run INSERT for scalar columns.
 	query = fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (", keyspace, tableName, joinStrings(columns, ", "))
 	placeholders := make([]string, len(columns))
-
 	for i := range columns {
 		placeholders[i] = "?"
 	}
-
-	query += joinStrings(placeholders, ", ")
-	query += ");"
-
-	// scylla does not support _id, so I will replace it with id.
+	query += joinStrings(placeholders, ", ") + ");"
 	query = strings.ReplaceAll(query, "_id", "id")
 
-	// Execute the CREATE TABLE query
-	err = session.Query(query, values...).Exec()
-	if err != nil {
-		fmt.Println("Failed to insert entity ", err)
+	if err := session.Query(query, values...).Exec(); err != nil {
+		slog.Error("scylla: insert entity failed", "table", keyspace+"."+tableName, "err", err)
 		return nil, err
 	}
-
 	return data, nil
 }
 
@@ -795,144 +621,119 @@ func joinStrings(slice []string, separator string) string {
 	return result
 }
 
+/**
+ * InsertOne inserts a single entity (creating tables/references as needed) and returns it.
+ */
 func (store *ScyllaStore) InsertOne(ctx context.Context, connectionId string, keyspace string, table string, data interface{}, options string) (interface{}, error) {
-
 	entity, err := Utility.ToMap(data)
 	if err != nil {
 		return nil, err
 	}
-
-	// Generate the INSERT statement
-	entity, err = store.insertData(connectionId, keyspace, table, entity)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity, nil
+	return store.insertData(connectionId, keyspace, table, entity)
 }
 
+/**
+ * InsertMany inserts multiple entities.
+ */
 func (store *ScyllaStore) InsertMany(ctx context.Context, connectionId string, keyspace string, table string, entities []interface{}, options string) ([]interface{}, error) {
-
-	// I will get the session for that keyspace.
 	for _, data := range entities {
-		var err error
 		entity, err := Utility.ToMap(data)
-		entity, err = store.insertData(connectionId, keyspace, table, entity)
-		// insert the entity.
 		if err != nil {
 			return nil, err
 		}
+		if _, err := store.insertData(connectionId, keyspace, table, entity); err != nil {
+			return nil, err
+		}
 	}
-
 	return entities, nil
 }
 
 func (store *ScyllaStore) getParameters(condition string, values []interface{}) string {
 	query := ""
-	if condition == "$and" {
-
+	switch condition {
+	case "$and":
 		for _, v := range values {
 			value := v.(map[string]interface{})
-			for key, v := range value {
+			for key, vv := range value {
 				if key == "_id" {
 					key = "id"
-					if strings.Contains(v.(string), "@") {
-						v = strings.Split(v.(string), "@")[0]
+					if s, ok := vv.(string); ok && strings.Contains(s, "@") {
+						vv = strings.Split(s, "@")[0]
 					}
 				}
-
 				key = camelToSnake(key)
-				if reflect.TypeOf(v).Kind() == reflect.String {
-					query += fmt.Sprintf("%s = '%v' AND ", key, v)
+				if reflect.TypeOf(vv).Kind() == reflect.String {
+					query += fmt.Sprintf("%s = '%v' AND ", key, vv)
 				}
-
 			}
 		}
 		query = strings.TrimSuffix(query, " AND ")
-
-	} else if condition == "$or" {
-
+	case "$or":
 		for _, v := range values {
 			value := v.(map[string]interface{})
-			for key, v := range value {
+			for key, vv := range value {
 				if key == "_id" {
 					key = "id"
-					if strings.Contains(v.(string), "@") {
-						v = strings.Split(v.(string), "@")[0]
+					if s, ok := vv.(string); ok && strings.Contains(s, "@") {
+						vv = strings.Split(s, "@")[0]
 					}
 				}
 				key = camelToSnake(key)
-				if reflect.TypeOf(v).Kind() == reflect.String {
-					query += fmt.Sprintf("%s = '%v' OR ", key, v)
+				if reflect.TypeOf(vv).Kind() == reflect.String {
+					query += fmt.Sprintf("%s = '%v' OR ", key, vv)
 				}
-
 			}
 		}
 		query = strings.TrimSuffix(query, " OR ")
-
 	}
-
 	return query
 }
 
 func (store *ScyllaStore) formatQuery(keyspace, table, q string) (string, error) {
-
-	var query string
-
 	if q == "{}" {
-		query = fmt.Sprintf("SELECT * FROM %s.%s", keyspace, table)
-	} else {
-
-		parameters := make(map[string]interface{}, 0)
-		err := json.Unmarshal([]byte(q), &parameters)
-		if err != nil {
-			fmt.Println("Error unmarshalling query: ", q, "with error", err)
-			return "", err
-		}
-
-		// I will build the query here.
-		query = fmt.Sprintf("SELECT * FROM %s.%s WHERE ", keyspace, table)
-		for key, value := range parameters {
-			if key == "_id" {
-				key = "id"
-				if strings.Contains(value.(string), "@") {
-					value = strings.Split(value.(string), "@")[0]
-				}
-			}
-
-			key = camelToSnake(key)
-
-			if reflect.TypeOf(value).Kind() == reflect.String {
-				query += fmt.Sprintf("%s = '%v' AND ", key, value)
-			} else if reflect.TypeOf(value).Kind() == reflect.Slice {
-				if key == "$and" || key == "$or" || key == "$regex" {
-					query += store.getParameters(key, value.([]interface{}))
-				}
-			} else if reflect.TypeOf(value).Kind() == reflect.Map {
-				// is not really a regex but is the only way to do it.
-				for k, v := range value.(map[string]interface{}) {
-					if k == "$regex" {
-						query += fmt.Sprintf("%s LIKE '%v%%' AND ", key, v)
-					}
-				}
-			}
-
-		}
-
-		query = strings.TrimSuffix(query, " AND ")
+		return fmt.Sprintf("SELECT * FROM %s.%s", keyspace, table), nil
 	}
 
-	return query, nil
+	params := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(q), &params); err != nil {
+		slog.Error("scylla: unmarshal query failed", "q", q, "err", err)
+		return "", err
+	}
+
+	query := fmt.Sprintf("SELECT * FROM %s.%s WHERE ", keyspace, table)
+	for key, value := range params {
+		if key == "_id" {
+			key = "id"
+			if s, ok := value.(string); ok && strings.Contains(s, "@") {
+				value = strings.Split(s, "@")[0]
+			}
+		}
+		key = camelToSnake(key)
+
+		switch reflect.TypeOf(value).Kind() {
+		case reflect.String:
+			query += fmt.Sprintf("%s = '%v' AND ", key, value)
+		case reflect.Slice:
+			if key == "$and" || key == "$or" || key == "$regex" {
+				query += store.getParameters(key, value.([]interface{}))
+			}
+		case reflect.Map:
+			for k, v := range value.(map[string]interface{}) {
+				if k == "$regex" {
+					query += fmt.Sprintf("%s LIKE '%v%%' AND ", key, v)
+				}
+			}
+		}
+	}
+	return strings.TrimSuffix(query, " AND "), nil
 }
 
 func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName string, entity map[string]interface{}) error {
-
-	// the field name...
 	field := strings.ReplaceAll(tableName, strings.Split(tableName, "_")[0]+"_", "")
 	field = snakeToCamel(field)
 
 	if entity[field] != nil {
-		return nil // The array is already initialized.
+		return nil
 	}
 
 	session, err := store.getSession(connectionId, keyspace)
@@ -940,69 +741,51 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName st
 		return err
 	}
 
-	// Get the array table.
 	query := fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ? ALLOW FILTERING;", keyspace, tableName)
 	iter := session.Query(query, entity["_id"]).Iter()
 	defer iter.Close()
-	array := []interface{}{}
 
+	array := []interface{}{}
 	for {
-		// New map each iteration
 		row := make(map[string]interface{})
 		if !iter.MapScan(row) {
 			break
 		}
-
-		// Do things with row
 		if targetId, ok := row["target_id"]; ok {
-
 			tableName_ := field
-
-			// Do things with row
 			if field == "members" {
 				tableName_ = "accounts"
 			}
-
 			array = append(array, map[string]interface{}{"$ref": tableName_, "$id": targetId, "$db": keyspace})
 		}
 	}
 
-	// I will get the entity type name.
 	entity[field] = array
-
 	if len(array) == 0 {
 		return errors.New("no entities found")
 	}
-
 	return nil
-
 }
 
 /**
- * Initialize the array values.
+ * initArrayValues initializes scalar array fields from their side tables.
  */
 func (store *ScyllaStore) initArrayValues(connectionId, keyspace, tableName string, entity map[string]interface{}) error {
-
-	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return err
 	}
 
-	// Get the array table.
 	query := fmt.Sprintf("SELECT value FROM %s.%s WHERE %s_id = ? ALLOW FILTERING;", keyspace, tableName, entity["typeName"])
 	iter := session.Query(query, entity["_id"]).Iter()
 	defer iter.Close()
 
 	array := []interface{}{}
-
 	for {
-		// New map each iteration
 		row := make(map[string]interface{})
 		if !iter.MapScan(row) {
 			break
 		}
-		// Do things with row
 		if value, ok := row["value"]; ok {
 			array = append(array, value)
 		}
@@ -1011,39 +794,34 @@ func (store *ScyllaStore) initArrayValues(connectionId, keyspace, tableName stri
 	field := strings.ReplaceAll(tableName, strings.Split(tableName, "_")[0]+"_", "")
 	field = snakeToCamel(field)
 	entity[field] = array
-
 	return nil
 }
 
 func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, entity map[string]interface{}) (map[string]interface{}, error) {
-
 	if len(typeName) == 0 {
 		return nil, errors.New("the type name is required")
 	}
 
-	// I will convert the column names to camel case.
+	// Convert column names to camelCase.
 	for key, value := range entity {
 		delete(entity, key)
 		entity[snakeToCamel(key)] = value
 	}
 
-	// I will replace the _id by id.
+	// Normalize id/_id
 	if entity["id"] != nil {
 		entity["_id"] = entity["id"]
 		delete(entity, "id")
 	}
-
 	if entity["_id"] == nil {
 		return nil, errors.New("the _id is required")
 	}
 
-	// I will set the type name.
 	entity["typeName"] = typeName
-
 	if entity["domain"] == nil {
-		// be sure the domain is set...
-		localDomain, _ := config.GetDomain()
-		entity["domain"] = localDomain
+		if localDomain, _ := config.GetDomain(); localDomain != "" {
+			entity["domain"] = localDomain
+		}
 	}
 
 	session, err := store.getSession(connectionId, keyspace)
@@ -1051,52 +829,32 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 		return nil, err
 	}
 
-	// Retreive the list of all tables in teh keyspace.
-	query := fmt.Sprintf("SELECT table_name FROM system_schema.tables WHERE keyspace_name = '%s'", keyspace)
-
-	iter := session.Query(query).Iter()
+	// Tables in keyspace for initializing arrays.
+	iter := session.Query(fmt.Sprintf("SELECT table_name FROM system_schema.tables WHERE keyspace_name = '%s'", keyspace)).Iter()
 	defer iter.Close()
 
 	var tableName string
-	tableNames := []string{}
-
 	for iter.Scan(&tableName) {
-		tableNames = append(tableNames, tableName)
-	}
-
-	// Now, tableNames contains a list of table names in the specified keyspace.
-	for _, tableName := range tableNames {
-
-		// I will ignore the array tables.
 		if strings.HasPrefix(strings.ToLower(tableName), strings.ToLower(typeName)+"_") {
-			// I will initialize the array of entities.
-			err := store.initArrayEntities(connectionId, keyspace, tableName, entity)
-
-			// I will initialize the array values.
-			if err != nil {
-				store.initArrayValues(connectionId, keyspace, tableName, entity)
+			// entities first, then scalar fallback
+			if err := store.initArrayEntities(connectionId, keyspace, tableName, entity); err != nil {
+				_ = store.initArrayValues(connectionId, keyspace, tableName, entity)
 			}
 		}
-
 	}
-
 	return entity, nil
-
 }
 
 /**
- * Find entities.
+ * find runs a SELECT (raw or JSON-based) and returns fully-initialized entities.
  */
 func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]map[string]interface{}, error) {
-
 	if len(keyspace) == 0 {
 		return nil, errors.New("the database is required")
 	}
-
 	if len(connectionId) == 0 {
 		return nil, errors.New("the connection id is required")
 	}
-
 	if len(table) == 0 {
 		return nil, errors.New("the table is required")
 	}
@@ -1106,319 +864,264 @@ func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]m
 		return nil, err
 	}
 
-	// set the table name.
 	if len(query) == 0 {
 		return nil, errors.New("query is empty")
-	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
-		var err error
-		query, err = store.formatQuery(keyspace, table, query)
-		query += " ALLOW FILTERING"
-		if err != nil {
+	}
+	if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
+		if query, err = store.formatQuery(keyspace, table, query); err != nil {
 			return nil, err
 		}
+		query += " ALLOW FILTERING"
 	}
 
-	// Execute the query.
 	iter := session.Query(query).Iter()
 	defer iter.Close()
 
-	// Initialize a slice to store the results.
 	results := []map[string]interface{}{}
 	for {
 		row := make(map[string]interface{})
 		if !iter.MapScan(row) {
 			break
 		}
-
-		// init
 		entity, err := store.initEntity(connectionId, keyspace, table, row)
 		if err == nil {
 			results = append(results, entity)
 		}
-
 	}
-
 	return results, nil
 }
 
+/**
+ * FindOne returns a single entity matching the query.
+ */
 func (store *ScyllaStore) FindOne(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) (interface{}, error) {
-
 	results, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return nil, err
 	}
-
 	if len(results) == 0 {
 		return nil, errors.New("no entity found")
 	}
-
 	return results[0], nil
-
 }
 
+/**
+ * Find returns all entities matching the query.
+ */
 func (store *ScyllaStore) Find(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) ([]interface{}, error) {
-
 	results, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return nil, err
 	}
-
-	results_ := make([]interface{}, len(results))
-	for i, result := range results {
-		results_[i] = result
+	out := make([]interface{}, len(results))
+	for i := range results {
+		out[i] = results[i]
 	}
-
-	return results_, nil
+	return out, nil
 }
 
 func (store *ScyllaStore) deleteEntity(connectionId string, keyspace string, table string, entity map[string]interface{}) error {
-
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return err
 	}
 
-	// I will delete the entity.
-	query := fmt.Sprintf("DELETE FROM %s.%s WHERE id = ?", keyspace, table)
-	err = session.Query(query, entity["_id"]).Exec()
-	if err != nil {
-		fmt.Println("fail to delete entity with error: ", err)
+	// Delete entity row.
+	if err := session.Query(fmt.Sprintf("DELETE FROM %s.%s WHERE id = ?", keyspace, table), entity["_id"]).Exec(); err != nil {
+		slog.Error("scylla: delete entity failed", "table", keyspace+"."+table, "err", err)
 		return err
 	}
 
-	// Now I will delete the references.
+	// Delete references.
 	for column, value := range entity {
+		if reflect.TypeOf(value).Kind() != reflect.Slice {
+			continue
+		}
 
-		if reflect.TypeOf(value).Kind() == reflect.Slice {
+		sliceValue := reflect.ValueOf(value)
+		field := camelToSnake(column)
+		for i := 0; i < sliceValue.Len(); i++ {
+			element := sliceValue.Index(i)
+			valueType := reflect.TypeOf(element.Interface())
 
-			sliceValue := reflect.ValueOf(value)
-			length := sliceValue.Len()
-
-			for i := 0; i < length; i++ {
-				element := sliceValue.Index(i)
-				valueType := reflect.TypeOf(element.Interface())
-				field := camelToSnake(column)
-
-				if valueType.Kind() == reflect.Map {
-					entity_ := element.Interface().(map[string]interface{})
-					if entity_["typeName"] != nil {
-
-						// I will delete the reference.
-						query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
-						err := session.Query(query, entity["_id"], entity_["id"]).Exec()
-						if err == nil {
-							fmt.Println("reference deleted: ", query)
-						}
-					} else if entity_["$ref"] != nil {
-						// I will delete the reference.
-						query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
-						err := session.Query(query, entity["_id"], entity_["$id"]).Exec()
-						if err == nil {
-							fmt.Println("reference deleted: ", query)
-						}
+			if valueType.Kind() == reflect.Map {
+				entity_ := element.Interface().(map[string]interface{})
+				var tid interface{}
+				if entity_["id"] != nil {
+					tid = entity_["id"]
+				} else if entity_["$id"] != nil {
+					tid = entity_["$id"]
+				}
+				if tid != nil {
+					q := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE source_id = ? AND target_id = ?", keyspace, table, field)
+					if err := session.Query(q, entity["_id"], tid).Exec(); err == nil {
+						slog.Info("scylla: ref deleted", "table", table+"_"+field)
 					}
-
-				} else {
-					// I will delete the reference.
-					query := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE %s_id = ? AND value = ?", keyspace, table, field, table)
-					err := session.Query(query, entity["_id"], element.Interface()).Exec()
-					if err != nil {
-						fmt.Println("Error deleting reference: ", err)
-					}
+				}
+			} else {
+				q := fmt.Sprintf("DELETE FROM %s.%s_%s WHERE %s_id = ? AND value = ?", keyspace, table, field, table)
+				if err := session.Query(q, entity["_id"], element.Interface()).Exec(); err != nil {
+					slog.Error("scylla: delete array value failed", "table", table+"_"+field, "err", err)
 				}
 			}
 		}
 	}
-
 	return nil
 }
 
+/**
+ * ReplaceOne replaces the first entity matching query with value (JSON).
+ * If options contains {"upsert":true}, inserts when not found.
+ */
 func (store *ScyllaStore) ReplaceOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-
 	upsert := false
 	if len(options) > 0 {
-		options_ := make([]map[string]interface{}, 0)
-		err := json.Unmarshal([]byte(options), &options_)
-		if err == nil {
-			if options_[0]["upsert"] != nil {
-				upsert = options_[0]["upsert"].(bool)
+		var opts []map[string]interface{}
+		if err := json.Unmarshal([]byte(options), &opts); err == nil {
+			if v, ok := opts[0]["upsert"].(bool); ok {
+				upsert = v
 			}
 		}
 	}
 
-	// I will insert the new entity.
 	data := make(map[string]interface{})
-	err := json.Unmarshal([]byte(value), &data)
-	if err != nil {
+	if err := json.Unmarshal([]byte(value), &data); err != nil {
 		return err
 	}
 
-	// I will get the entity.
 	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil && !upsert {
-		fmt.Println("Error finding entity: ", err)
+		slog.Error("scylla: replace find failed", "err", err)
 		return err
 	}
 
-	// I will delete the entity.
 	if len(entities) > 0 {
-		err = store.deleteEntity(connectionId, keyspace, table, entities[0])
-		if err != nil {
-			fmt.Println("Error deleting entity: ", err)
+		if err := store.deleteEntity(connectionId, keyspace, table, entities[0]); err != nil {
+			slog.Error("scylla: replace delete failed", "err", err)
 			return err
 		}
 	}
 
-	// I will insert the entity.
 	_, err = store.insertData(connectionId, keyspace, table, data)
 	if err != nil {
-		fmt.Println("Error inserting entity: ", err)
+		slog.Error("scylla: replace insert failed", "err", err)
 	}
 	return err
 }
 
+/**
+ * Update modifies fields using a {$set:{...}} document for all entities matching query.
+ */
 func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-
-	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
-
 		return err
 	}
 
-	values_ := make(map[string]interface{}, 0)
-	err = json.Unmarshal([]byte(value), &values_)
-	if err != nil {
-		fmt.Println("Error unmarshalling value: ", value, err)
+	values_ := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(value), &values_); err != nil {
+		slog.Error("scylla: update unmarshal failed", "err", err)
 		return err
 	}
-
 	if values_["$set"] == nil {
-		return errors.New("no $set operator allowed in UpdateOne")
+		return errors.New("no $set operator in Update")
 	}
 
-	query, err = store.formatQuery(keyspace, table, query)
-	if err != nil {
+	if query, err = store.formatQuery(keyspace, table, query); err != nil {
 		return err
 	}
-
 	query += " ALLOW FILTERING"
 
-	// I will get the entities.
 	entities, err := store.find(connectionId, keyspace, table, query)
-
 	if err != nil {
-		fmt.Println("fail to find entities with error: ", err)
+		slog.Error("scylla: update find failed", "err", err)
 		return err
 	}
-
 	if len(entities) == 0 {
 		return errors.New("no entity found")
 	}
 
 	for _, entity := range entities {
-
-		// Here I will retreive the fiedls
 		fields := make([]interface{}, 0)
-		values := make([]interface{}, 0)
-
+		vals := make([]interface{}, 0)
 		arrayFields := make([]string, 0)
 
-		for key, value := range values_["$set"].(map[string]interface{}) {
-
-			// here I will test if the value is an array.
-			if reflect.TypeOf(value).Kind() == reflect.Slice {
-				arrayFields = append(arrayFields, key) // I will process the array later.
+		for k, v := range values_["$set"].(map[string]interface{}) {
+			if reflect.TypeOf(v).Kind() == reflect.Slice {
+				arrayFields = append(arrayFields, k)
 			} else {
-				fields = append(fields, camelToSnake(key))
-				values = append(values, value)
+				fields = append(fields, camelToSnake(k))
+				vals = append(vals, v)
 			}
 		}
 
-		query := "SELECT * FROM " + table + " WHERE id = ?"
-		values = append(values, entity["_id"])
+		baseQuery := "SELECT * FROM " + table + " WHERE id = ?"
+		vals = append(vals, entity["_id"])
 
-		q, err := generateUpdateTableQuery(table, fields, query)
+		q, err := generateUpdateTableQuery(table, fields, baseQuery) // preserved external helper
 		if err != nil {
 			return err
 		}
-
-		// Execute the query
-		err = session.Query(q, values...).Exec()
-		if err != nil {
+		if err := session.Query(q, vals...).Exec(); err != nil {
 			return err
 		}
 
-		// I will update the array fields.
+		// Update array fields by re-writing side tables.
 		for _, field := range arrayFields {
-
-			// I will get the values
 			values := values_["$set"].(map[string]interface{})[field].([]interface{})
+			arrayTable := table + "_" + field
 
-			// I will get the array table.
-			arrayTableName := table + "_" + field
-
-			// I will delete existing values one by one because allow filtering dosent work...
-			for _, value := range entity[field].([]interface{}) {
-				deleteQuery := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTableName, table)
-				err = session.Query(deleteQuery, entity["_id"], value).Exec()
-				if err != nil {
-					fmt.Println("Error deleting value: ", deleteQuery, err)
+			// Delete current values
+			for _, v := range entity[field].([]interface{}) {
+				delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTable, table)
+				if err := session.Query(delQ, entity["_id"], v).Exec(); err != nil {
+					slog.Error("scylla: delete array value failed", "table", arrayTable, "err", err)
 				}
 			}
-
-			// I will insert the new values.
-			for _, value := range values {
-				insertQuery := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTableName, table)
-				err = session.Query(insertQuery, value, entity["_id"]).Exec()
-				if err != nil {
-					fmt.Println("Error inserting value: ", insertQuery, err)
+			// Insert new values
+			for _, v := range values {
+				insQ := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTable, table)
+				if err := session.Query(insQ, v, entity["_id"]).Exec(); err != nil {
+					slog.Error("scylla: insert array value failed", "table", arrayTable, "err", err)
 				}
 			}
-
 		}
-
 	}
-
-	return err
+	return nil
 }
 
+/**
+ * UpdateOne modifies fields using a {$set:{...}} document for the first entity matching query.
+ */
 func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, keyspace string, table string, query string, value string, options string) error {
-
-	values_ := make(map[string]interface{}, 0)
-	err := json.Unmarshal([]byte(value), &values_)
-	if err != nil {
-		fmt.Println("Error unmarshalling value: ", value, err)
+	values_ := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(value), &values_); err != nil {
+		slog.Error("scylla: updateOne unmarshal failed", "err", err)
 		return err
 	}
-
 	if values_["$set"] == nil {
-		return errors.New("no $set operator allowed in UpdateOne")
+		return errors.New("no $set operator in UpdateOne")
 	}
 
-	query, err = store.formatQuery(keyspace, table, query)
-	if err != nil {
+	var err error
+	if query, err = store.formatQuery(keyspace, table, query); err != nil {
 		return err
 	}
 
-	// Here I will retreive the fiedls
 	fields := make([]interface{}, 0)
-	values := make([]interface{}, 0)
-
+	vals := make([]interface{}, 0)
 	arrayFields := make([]string, 0)
 
-	for key, value := range values_["$set"].(map[string]interface{}) {
-		// here I will test if the value is an array.
-		if reflect.TypeOf(value).Kind() == reflect.Slice {
-			arrayFields = append(arrayFields, key) // I will process the array later.
+	for k, v := range values_["$set"].(map[string]interface{}) {
+		if reflect.TypeOf(v).Kind() == reflect.Slice {
+			arrayFields = append(arrayFields, k)
 		} else {
-			fields = append(fields, camelToSnake(key))
-			values = append(values, value)
+			fields = append(fields, camelToSnake(k))
+			vals = append(vals, v)
 		}
-
 	}
 
-	q, err := generateUpdateTableQuery(keyspace+"."+table, fields, query)
+	q, err := generateUpdateTableQuery(keyspace+"."+table, fields, query) // preserved external helper
 	if err != nil {
 		return err
 	}
@@ -1427,248 +1130,192 @@ func (store *ScyllaStore) UpdateOne(ctx context.Context, connectionId string, ke
 	if err != nil {
 		return err
 	}
-
-	// Execute the query
-	err = session.Query(q, values...).Exec()
-	if err != nil {
-		fmt.Println("Error executing query: ", q, err)
+	if err := session.Query(q, vals...).Exec(); err != nil {
+		slog.Error("scylla: updateOne exec failed", "q", q, "err", err)
 	}
 
-	// I will get the entity.
 	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return err
 	}
-
 	if len(entities) == 0 {
 		return errors.New("no entity found")
 	}
-
 	entity := entities[0]
 
-	// I will update the array fields.
 	for _, field := range arrayFields {
-		// I will get the values
 		values := values_["$set"].(map[string]interface{})[field].([]interface{})
+		arrayTable := table + "_" + field
 
-		// I will get the array table.
-		arrayTableName := table + "_" + field
-
-		// I will delete existing values one by one because allow filtering dosent work...
-		for _, value := range entity[field].([]interface{}) {
-			deleteQuery := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTableName, table)
-			err = session.Query(deleteQuery, entity["_id"], value).Exec()
-			if err != nil {
-				fmt.Println("Error deleting value: ", deleteQuery, err)
+		for _, v := range entity[field].([]interface{}) {
+			delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE %s_id = ? AND value = ?", keyspace, arrayTable, table)
+			if err := session.Query(delQ, entity["_id"], v).Exec(); err != nil {
+				slog.Error("scylla: delete array value failed", "table", arrayTable, "err", err)
 			}
 		}
-
-		// I will insert the new values.
-		for _, value := range values {
-			insertQuery := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTableName, table)
-			err = session.Query(insertQuery, value, entity["_id"]).Exec()
-			if err != nil {
-				fmt.Println("Error inserting value: ", insertQuery, err)
+		for _, v := range values {
+			insQ := fmt.Sprintf("INSERT INTO %s.%s (value, %s_id) VALUES (?, ?)", keyspace, arrayTable, table)
+			if err := session.Query(insQ, v, entity["_id"]).Exec(); err != nil {
+				slog.Error("scylla: insert array value failed", "table", arrayTable, "err", err)
 			}
 		}
-
 	}
-
-	return err
+	return nil
 }
 
+/**
+ * Delete removes all entities that match the query (and their references).
+ */
 func (store *ScyllaStore) Delete(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
-
-	// I will get the entity.
-	entity, err := store.find(connectionId, keyspace, table, query)
+	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return err
 	}
-
-	// I will delete the entity.
-	for _, entity := range entity {
-		err = store.deleteEntity(connectionId, keyspace, table, entity)
-		if err != nil {
+	for _, e := range entities {
+		if err := store.deleteEntity(connectionId, keyspace, table, e); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
+/**
+ * DeleteOne removes the first entity that matches the query (and its references).
+ */
 func (store *ScyllaStore) DeleteOne(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) error {
-
-	// I will get the entity.
-	entity, err := store.find(connectionId, keyspace, table, query)
+	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return err
 	}
-
-	// I will delete the entity.
-	if len(entity) > 0 {
-		err = store.deleteEntity(connectionId, keyspace, table, entity[0])
-		if err != nil {
+	if len(entities) > 0 {
+		if err := store.deleteEntity(connectionId, keyspace, table, entities[0]); err != nil {
 			return err
 		}
 	}
-
 	return nil
-
 }
 
+/**
+ * Aggregate is not implemented for Scylla store.
+ */
 func (store *ScyllaStore) Aggregate(ctx context.Context, connectionId string, keyspace string, table string, pipeline string, optionsStr string) ([]interface{}, error) {
 	return nil, errors.New("not implemented")
 }
 
+/**
+ * CreateTable creates a table with a given set of extra fields (id TEXT is implicit).
+ */
 func (store *ScyllaStore) CreateTable(ctx context.Context, connectionId string, db string, table string, fields []string) error {
-
-	// I will get the session for that keyspace.
 	session, err := store.getSession(connectionId, db)
 	if err != nil {
 		return err
 	}
-
-	// Here I will create the keyspace if not already exist.
-	_, err = store.createKeyspace(connectionId, db)
-	if err != nil {
+	if _, err := store.createKeyspace(connectionId, db); err != nil {
 		return err
 	}
-
-	// Create the table
 	createTable := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (id TEXT PRIMARY KEY, %s);", table, strings.Join(fields, ", "))
-
-	// Execute the CREATE TABLE query
-	err = session.Query(createTable).Exec()
-	if err != nil {
-		fmt.Println("Failed to create table ", table, "with error:", err)
+	if err := session.Query(createTable).Exec(); err != nil {
+		slog.Error("scylla: create table failed", "table", table, "err", err)
 		return err
 	}
-
 	return nil
 }
 
-// The collection will be created when the first entity is inserted...
+// CreateCollection is not used; collections (tables) are created on first insert or via CreateTable.
 func (store *ScyllaStore) CreateCollection(ctx context.Context, connectionId string, keyspace string, collection string, options string) error {
 	return errors.New("not implemented")
 }
 
 func dropTable(session *gocql.Session, keyspace, tableName string) error {
-	query := fmt.Sprintf("DROP TABLE IF EXISTS %s.%s;", keyspace, tableName)
-	return session.Query(query).Exec()
+	return session.Query(fmt.Sprintf("DROP TABLE IF EXISTS %s.%s;", keyspace, tableName)).Exec()
 }
 
+/**
+ * DeleteCollection drops a table in the provided keyspace.
+ */
 func (store *ScyllaStore) DeleteCollection(ctx context.Context, connectionId string, keyspace string, collection string) error {
 	if len(keyspace) == 0 {
 		return errors.New("the database is required")
 	}
-
 	if len(collection) == 0 {
 		return errors.New("the collection is required")
 	}
-
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return err
 	}
-
-	// Drop the table.
 	if err := dropTable(session, keyspace, collection); err != nil {
-		fmt.Println("Fail to drop table ", err)
+		slog.Error("scylla: drop table failed", "table", collection, "err", err)
 		return err
 	}
-
 	return nil
 }
 
 func splitCQLScript(script string) []string {
 	var statements []string
-	var currentStatement strings.Builder
-
+	var current strings.Builder
 	inString := false
-	for _, runeValue := range script {
-		char := string(runeValue)
-
-		// Toggle the inString flag if we encounter a single quote
-		if char == "'" {
+	for _, r := range script {
+		ch := string(r)
+		if ch == "'" {
 			inString = !inString
 		}
-
-		// Add the character to the current statement
-		currentStatement.WriteString(char)
-
-		// If we encounter a semicolon and we're not inside a string, end the current statement
-		if char == ";" && !inString {
-			statements = append(statements, strings.TrimSpace(currentStatement.String()))
-			currentStatement.Reset()
+		current.WriteString(ch)
+		if ch == ";" && !inString {
+			statements = append(statements, strings.TrimSpace(current.String()))
+			current.Reset()
 		}
 	}
-
-	// Add any remaining part of the script as the last statement
-	if currentStatement.Len() > 0 {
-		statements = append(statements, strings.TrimSpace(currentStatement.String()))
+	if current.Len() > 0 {
+		statements = append(statements, strings.TrimSpace(current.String()))
 	}
-
 	return statements
 }
 
+/**
+ * RunAdminCmd authenticates the user-password pair and executes CQL script statements as admin.
+ */
 func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
-
-	// I will get the host.
 	store.lock.Lock()
 	connection := store.connections[connectionId]
 	store.lock.Unlock()
 	if connection == nil {
 		return errors.New("the connection does not exist")
 	}
-
 	host := connection.Host
 
-	// validate the user and password.
-	// So here I will authenticate the user and password.
-	authentication_client, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
+	authClient, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
 	if err != nil {
 		return err
 	}
-
-	// Authenticate the user, I will try 5 times.
-	nbTry := 5
-	for nbTry > 0 {
-
-		var err error
-		// Authenticate the user.
-		_, err = authentication_client.Authenticate(user, password)
-		if err != nil && nbTry == 0 {
-			fmt.Println("Fail to authenticate user ", user, err)
-			return err
-		} else if err == nil {
+	for tries := 5; tries > 0; tries-- {
+		if _, err = authClient.Authenticate(user, password); err == nil {
 			break
 		}
-
-		time.Sleep(1 * time.Second)
+		if tries == 1 {
+			slog.Error("scylla: admin auth failed", "user", user, "err", err)
+			return err
+		}
+		time.Sleep(time.Second)
 	}
 
-	// Create the admin session.
-	adminCluster := gocql.NewCluster()                          // Replace with your SCYLLA cluster IP address
-	adminCluster.Hosts = []string{connection.Host, "127.0.0.1"} // add local host as well.
-	adminCluster.Keyspace = "system"                            // Use the 'system' keyspace for administrative tasks
+	adminCluster := gocql.NewCluster(connection.Host, "127.0.0.1")
+	adminCluster.Keyspace = "system"
+	adminCluster.Port = 9042
 	adminSession, err := adminCluster.CreateSession()
 	if err != nil {
 		return err
 	}
+	defer adminSession.Close()
 
-	// Execute the CREATE TABLE query
-	// Split the script into individual statements
-	statements := splitCQLScript(script) //strings.Split(script, ";")
-	for _, statement := range statements {
-		// Remove leading/trailing spaces and execute the statement
-		statement = strings.TrimSpace(statement)
-		if statement != "" {
-			if err := adminSession.Query(statement).Exec(); err != nil {
-				fmt.Println("Error executing script:", err)
-				return err
-			}
+	for _, stmt := range splitCQLScript(script) {
+		if stmt == "" {
+			continue
+		}
+		if err := adminSession.Query(stmt).Exec(); err != nil {
+			slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
+			return err
 		}
 	}
-
 	return nil
 }

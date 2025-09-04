@@ -36,6 +36,28 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// ---- lazy loader (no side-effects at import time) ---------------------------
+
+var (
+	initOnce sync.Once
+	loadErr  error
+)
+
+// lazyInit is intentionally a no-op for now. Keep it for future one-time setup.
+// IMPORTANT: Do NOT call config/etcd here; this must stay side-effect free
+// so that importing this package doesn't touch external systems.
+func lazyInit() {
+	// no-op (reserved for future one-time prep)
+}
+
+// Load returns the unary and stream interceptors, ensuring any one-time
+// initialization has completed. It never does heavy work at import time.
+func Load() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
+	initOnce.Do(lazyInit)
+	return ServerUnaryInterceptor, ServerStreamInterceptor, loadErr
+}
+
+
 var (
 	// cache is a generic, process-wide sync map for:
 	//  - permission TTL entries
@@ -46,6 +68,7 @@ var (
 	// resourceInfos memoizes ResourceInfos for a given gRPC method.
 	resourceInfos sync.Map
 )
+
 
 // ---- helpers ----------------------------------------------------------------
 

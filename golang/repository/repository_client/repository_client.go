@@ -1,8 +1,15 @@
 package repository_client
 
 import (
+	"bytes"
 	"context"
-	"fmt"
+	"encoding/gob"
+	"errors"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -17,22 +24,12 @@ import (
 	Utility "github.com/globulario/utility"
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"bytes"
-	"encoding/gob"
-	"encoding/json"
-	"errors"
-	"io"
-	"io/ioutil"
-	"os"
-	"strings"
-
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// echo Client Service
+// Repository Client
 ////////////////////////////////////////////////////////////////////////////////
 
 type Repository_Service_Client struct {
@@ -79,42 +76,31 @@ type Repository_Service_Client struct {
 // Create a connection to the service.
 func NewRepositoryService_Client(address string, id string) (*Repository_Service_Client, error) {
 	client := new(Repository_Service_Client)
-	err := globular_client.InitClient(client, address, id)
-	if err != nil {
+	if err := globular_client.InitClient(client, address, id); err != nil {
 		return nil, err
 	}
-
-	err = client.Reconnect()
-	if err != nil {
+	if err := client.Reconnect(); err != nil {
 		return nil, err
 	}
-
 	return client, nil
 }
 
 func (client *Repository_Service_Client) Reconnect() error {
-
 	var err error
-	nb_try_connect := 10
-
-	for i := 0; i < nb_try_connect; i++ {
+	const nbTry = 10
+	for i := 0; i < nbTry; i++ {
 		client.cc, err = globular_client.GetClientConnection(client)
 		if err == nil {
 			client.c = repositorypb.NewPackageRepositoryClient(client.cc)
 			break
 		}
-
-		// wait 500 millisecond before next try
 		time.Sleep(500 * time.Millisecond)
 	}
-
 	return err
 }
 
 // The address where the client can connect.
-func (client *Repository_Service_Client) SetAddress(address string) {
-	client.address = address
-}
+func (client *Repository_Service_Client) SetAddress(address string) { client.address = address }
 
 func (client *Repository_Service_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
@@ -127,122 +113,52 @@ func (client *Repository_Service_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular_client.GetClientContext(client)
 	}
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
+	if token, err := security.GetLocalToken(client.GetMac()); err == nil {
+		md := metadata.New(map[string]string{
+			"token":   string(token),
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
 }
 
 // Return the last know connection state
-func (client *Repository_Service_Client) GetState() string {
-	return client.state
-}
-
-// Return the domain
-func (client *Repository_Service_Client) GetDomain() string {
-	return client.domain
-}
-
-// Return the address
-func (client *Repository_Service_Client) GetAddress() string {
-	return client.address
-}
-
-// Return the id of the service instance
-func (client *Repository_Service_Client) GetId() string {
-	return client.id
-}
-
-// Return the name of the service
-func (client *Repository_Service_Client) GetName() string {
-	return client.name
-}
-
-func (client *Repository_Service_Client) GetMac() string {
-	return client.mac
-}
+func (client *Repository_Service_Client) GetState() string   { return client.state }
+func (client *Repository_Service_Client) GetDomain() string  { return client.domain }
+func (client *Repository_Service_Client) GetAddress() string { return client.address }
+func (client *Repository_Service_Client) GetId() string      { return client.id }
+func (client *Repository_Service_Client) GetName() string    { return client.name }
+func (client *Repository_Service_Client) GetMac() string     { return client.mac }
 
 // must be close when no more needed.
-func (client *Repository_Service_Client) Close() {
-	client.cc.Close()
-}
+func (client *Repository_Service_Client) Close() { client.cc.Close() }
 
 // Set grpc_service port.
-func (client *Repository_Service_Client) SetPort(port int) {
-	client.port = port
-}
+func (client *Repository_Service_Client) SetPort(port int) { client.port = port }
 
 // Return the grpc port number
-func (client *Repository_Service_Client) GetPort() int {
-	return client.port
-}
+func (client *Repository_Service_Client) GetPort() int { return client.port }
 
 // Set the client instance id.
-func (client *Repository_Service_Client) SetId(id string) {
-	client.id = id
-}
-
-// Set the client name.
-func (client *Repository_Service_Client) SetName(name string) {
-	client.name = name
-}
-
-func (client *Repository_Service_Client) SetMac(mac string) {
-	client.mac = mac
-}
-
-// Set the domain.
-func (client *Repository_Service_Client) SetDomain(domain string) {
-	client.domain = domain
-}
-
-func (client *Repository_Service_Client) SetState(state string) {
-	client.state = state
-}
+func (client *Repository_Service_Client) SetId(id string)      { client.id = id }
+func (client *Repository_Service_Client) SetName(name string)  { client.name = name }
+func (client *Repository_Service_Client) SetMac(mac string)    { client.mac = mac }
+func (client *Repository_Service_Client) SetDomain(domain string) { client.domain = domain }
+func (client *Repository_Service_Client) SetState(state string)   { client.state = state }
 
 ////////////////// TLS ///////////////////
 
-// Get if the client is secure.
-func (client *Repository_Service_Client) HasTLS() bool {
-	return client.hasTLS
-}
-
-// Get the TLS certificate file path
-func (client *Repository_Service_Client) GetCertFile() string {
-	return client.certFile
-}
-
-// Get the TLS key file path
-func (client *Repository_Service_Client) GetKeyFile() string {
-	return client.keyFile
-}
-
-// Get the TLS key file path
-func (client *Repository_Service_Client) GetCaFile() string {
-	return client.caFile
-}
-
-// Set the client is a secure client.
-func (client *Repository_Service_Client) SetTLS(hasTls bool) {
-	client.hasTLS = hasTls
-}
-
-// Set TLS certificate file path
-func (client *Repository_Service_Client) SetCertFile(certFile string) {
-	client.certFile = certFile
-}
-
-// Set TLS key file path
-func (client *Repository_Service_Client) SetKeyFile(keyFile string) {
-	client.keyFile = keyFile
-}
-
-// Set TLS authority trust certificate file path
-func (client *Repository_Service_Client) SetCaFile(caFile string) {
-	client.caFile = caFile
-}
+func (client *Repository_Service_Client) HasTLS() bool         { return client.hasTLS }
+func (client *Repository_Service_Client) GetCertFile() string  { return client.certFile }
+func (client *Repository_Service_Client) GetKeyFile() string   { return client.keyFile }
+func (client *Repository_Service_Client) GetCaFile() string    { return client.caFile }
+func (client *Repository_Service_Client) SetTLS(hasTls bool)   { client.hasTLS = hasTls }
+func (client *Repository_Service_Client) SetCertFile(certFile string) { client.certFile = certFile }
+func (client *Repository_Service_Client) SetKeyFile(keyFile string)   { client.keyFile = keyFile }
+func (client *Repository_Service_Client) SetCaFile(caFile string)     { client.caFile = caFile }
 
 ////////////////// Api //////////////////////
 
@@ -250,44 +166,35 @@ func (client *Repository_Service_Client) SetCaFile(caFile string) {
  * Download bundle from a repository and return it as an object in memory.
  */
 func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
-
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
 		Platform:    platform,
 	}
-
 	stream, err := client.c.DownloadBundle(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
 
-	// Here I will create the final array
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			// end of stream...
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
-
-		_, err = buffer.Write(msg.Data)
-		if err != nil {
+		if _, err = buffer.Write(msg.Data); err != nil {
 			return nil, err
 		}
 	}
 
-	// The buffer that contain the
 	dec := gob.NewDecoder(&buffer)
 	bundle := new(resourcepb.PackageBundle)
-	err = dec.Decode(bundle)
-	if err != nil {
+	if err := dec.Decode(bundle); err != nil {
 		return nil, err
 	}
-
-	return bundle, err
+	return bundle, nil
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
@@ -304,15 +211,11 @@ func GetResourceClient(address string) (*resource_client.Resource_Client, error)
  * Upload a service bundle.
  */
 func (client *Repository_Service_Client) UploadBundle(token, discoveryId, serviceId, PublisherID, version, platform, packagePath string) (int, error) {
-
-	// The service bundle...
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = platform
 
-	// Here I will find the service descriptor from the given information.
 	resource_client_, err := GetResourceClient(client.address)
 	if err != nil {
-		resource_client_ = nil
 		return -1, err
 	}
 
@@ -320,18 +223,16 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 	if err != nil {
 		return -1, err
 	}
-
 	bundle.PackageDescriptor = descriptor
+
 	if !Utility.Exists(packagePath) {
 		return -1, errors.New("No package found at path " + packagePath)
 	}
 
-	/*bundle.Binairies*/
 	data, err := ioutil.ReadFile(packagePath)
 	if err == nil {
 		bundle.Binairies = data
 	}
-
 	return client.uploadBundle(token, bundle, len(data))
 }
 
@@ -339,29 +240,25 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
  * Upload a bundle into the service repository.
  */
 func (client *Repository_Service_Client) uploadBundle(token string, bundle *resourcepb.PackageBundle, total int) (int, error) {
-
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	// Open the stream...
 	stream, err := client.c.UploadBundle(ctx)
 	if err != nil {
 		return -1, err
 	}
 
-	const BufferSize = 1024 * 5 // the chunck size.
+	const BufferSize = 1024 * 5
 	var size int
 	var buffer bytes.Buffer
-	enc := gob.NewEncoder(&buffer) // Will write to network.
-	err = enc.Encode(bundle)
-	if err != nil {
+	enc := gob.NewEncoder(&buffer)
+	if err := enc.Encode(bundle); err != nil {
 		return -1, err
 	}
 
@@ -369,36 +266,32 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 	bar := progressbar.Default(100)
 	for {
 		var data [BufferSize]byte
-		bytesread, err := buffer.Read(data[0:BufferSize])
+		bytesread, rerr := buffer.Read(data[0:BufferSize])
 		if bytesread > 0 {
-			rqst := &repositorypb.UploadBundleRequest{
-				Data: data[0:bytesread],
+			if err := stream.Send(&repositorypb.UploadBundleRequest{Data: data[0:bytesread]}); err != nil {
+				return -1, err
 			}
-			// send the data to the server.
-			err = stream.Send(rqst)
 		}
-
 		size += bytesread
-		if percent_ != int(float64(size)/float64(total)*100) {
-			percent_ = int(float64(size) / float64(total) * 100)
-			bar.Set(percent_)
+		if total > 0 {
+			next := int(float64(size) / float64(total) * 100)
+			if next != percent_ {
+				percent_ = next
+				bar.Set(percent_)
+			}
 		}
-
-		if err == io.EOF {
-			err = nil
+		if rerr == io.EOF {
 			break
-		} else if err != nil {
-			return -1, err
+		}
+		if rerr != nil {
+			return -1, rerr
 		}
 	}
 
-	_, err = stream.CloseAndRecv()
-	if err != nil && err != io.EOF {
+	if _, err := stream.CloseAndRecv(); err != nil && err != io.EOF {
 		return -1, err
 	}
-
 	return size, nil
-
 }
 
 /**
@@ -417,7 +310,6 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
-
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
@@ -427,7 +319,6 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
  *  Create the application bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, address, name, version string) (int, error) {
-
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	if !strings.Contains(user, "@") {
@@ -444,13 +335,10 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		PublisherID = organization
 	}
 
-	// Now I will open the data and create a archive from it.
-	// The path of the archive that contain the service package.
 	packagePath, err := client.createPackageArchive(PublisherID, name, version, "webapp", path)
 	if err != nil {
 		return -1, err
 	}
-
 	defer os.RemoveAll(packagePath)
 
 	rbac_client_, err := GetRbacClient(address)
@@ -461,14 +349,11 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	resource_path := PublisherID + "|" + name + "|" + version
 
 	if len(organization) > 0 {
-		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
-		if err != nil {
+		if err := rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION); err != nil {
 			return -1, err
 		}
-
 	} else if len(user) > 0 {
-		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
-		if err != nil {
+		if err := rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT); err != nil {
 			return -1, err
 		}
 	}
@@ -477,32 +362,22 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	applications, _ := resource_client_.GetApplications(`{"_id":"` + applicationId + `"}`)
 
 	if len(applications) > 0 {
-
-		// If the version has change I will notify current users and undate the applications.
 		event_client_, err := GetEventClient(address)
 		if err != nil {
 			return -1, err
 		}
 
 		application := applications[0]
-
-		// Send application notification...
-		// Retreive the actual application installed version.
 		previousVersion, _ := resource_client_.GetApplicationVersion(name)
 
 		event_client_.Publish("update_"+applicationId+"_evt", []byte(version))
-  
+
 		if previousVersion != version {
 			message := `<div style="display: flex; flex-direction: column">
-				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.
-				  </div>
-				  <div>
-					Press <span style="font-weight: 500;">f5</span> to refresh the page.
-				  </div>
-				</div>
-				`
+				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.</div>
+				  <div>Press <span style="font-weight: 500;">f5</span> to refresh the page.</div>
+				</div>`
 
-			// That service made user of persistence service.
 			notification := new(resourcepb.Notification)
 			notification.Id = Utility.RandomUUID()
 			notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
@@ -510,173 +385,171 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			notification.Recipient = application.Name
 			notification.Date = time.Now().Unix()
 			notification.Mac, _ = config.GetMacAddress()
-
 			notification.Sender = `{"_id":"` + application.Id + `", "name":"` + application.Name + `","icon":"` + application.Icon + `", "alias":"` + application.Alias + `"}`
 
-			err = resource_client_.CreateNotification(notification)
-			if err != nil {
+			if err := resource_client_.CreateNotification(notification); err != nil {
 				return -1, err
 			}
-
-			jsonStr, err := protojson.Marshal(notification)
-			if err != nil {
-				return -1, err
-			}
-
-			err = event_client_.Publish(application.Id+"_notification_event", []byte(jsonStr))
-			if err != nil {
+			if jsonStr, err := protojson.Marshal(notification); err == nil {
+				if err := event_client_.Publish(application.Id+"_notification_event", []byte(jsonStr)); err != nil {
+					return -1, err
+				}
+			} else {
 				return -1, err
 			}
 		}
 	}
 
-	// Upload the bundle to the repository server.
 	return client.UploadBundle(token, address, name, PublisherID, version, "webapp", packagePath)
-
 }
 
 /**
  * Create the service bundle and push it on the server
+ *
+ * `path` can be either:
+ *   - a service Id or Name present in etcd (preferred), or
+ *   - a legacy folder path (fallback) containing the service files.
  */
-func (client *Repository_Service_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) error {
+func (client *Repository_Service_Client) UploadServicePackage(user, organization, token, domain, path string, platform string) error {
+	path = strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
 
-	// Here I will try to read the service configuation from the path.
-	configs, _ := Utility.FindFileByName(path, "config.json")
-	if len(configs) == 0 {
-		return errors.New("no configuration file was found")
-	}
-
-	s := make(map[string]interface{})
-	data, err := ioutil.ReadFile(configs[0])
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(data, &s)
-	if err != nil {
-		return err
-	}
-
-	// Find proto by name
-	if !Utility.Exists(s["Proto"].(string)) {
-		return errors.New("No prototype file was found at path '" + s["Proto"].(string) + "'")
-	}
-
-	// set the correct information inside the configuration
-	if len(token) > 0 {
-		claims, err := security.ValidateToken(token)
-		if err != nil {
-			return err
+	// Resolve service configuration from etcd first
+	var s map[string]interface{}
+	if cfg, err := config.GetServiceConfigurationById(path); err == nil && cfg != nil {
+		s = cfg
+	} else if Utility.Exists(path) {
+		// Legacy fallback: use a directory path; we still need enough fields in `s`
+		// Try to infer from directory name when possible
+		base := filepath.Base(path)
+		s = map[string]interface{}{
+			"Id":          base,
+			"Name":        base,
+			"Version":     "0.0.0",
+			"PublisherID": "",
+			"Path":        path, // we'll treat this as a folder root below
 		}
-		if !strings.Contains(user, "@") {
-			if len(claims.UserDomain) == 0 {
-				return errors.New("no user domain was found in the token")
+	} else {
+		return errors.New("service not found in etcd and path does not exist")
+	}
+
+	// Ensure required fields
+	id := Utility.ToString(s["Id"])
+	name := Utility.ToString(s["Name"])
+	version := Utility.ToString(s["Version"])
+	execPath := Utility.ToString(s["Path"])
+	protoPath := Utility.ToString(s["Proto"])
+
+	// PublisherID resolution (etcd may already have it)
+	pubID := Utility.ToString(s["PublisherID"])
+	if pubID == "" {
+		if len(organization) > 0 {
+			pubID = organization
+		} else {
+			if !strings.Contains(user, "@") {
+				if len(token) > 0 {
+					claims, err := security.ValidateToken(token)
+					if err != nil {
+						return err
+					}
+					if claims.UserDomain == "" {
+						return errors.New("no user domain found in token")
+					}
+					user += "@" + claims.UserDomain
+				}
 			}
-			user += "@" + claims.UserDomain
+			pubID = user
 		}
 	}
 
-	PublisherID := user
-	if len(organization) > 0 {
-		PublisherID = organization
+	// Determine source directory to package
+	var srcDir string
+	info, err := os.Stat(path)
+	if Utility.Exists(path) && err == nil && info.IsDir() {
+		srcDir = path
+	} else if execPath != "" && Utility.Exists(execPath) {
+		srcDir = filepath.Dir(execPath)
+	} else {
+		return errors.New("cannot determine service source directory to package")
 	}
 
-	s["PublisherID"] = PublisherID
+	// Validate proto (try absolute first; if missing, try same dir by name guess)
+	if protoPath == "" || !Utility.Exists(protoPath) {
+		guess := filepath.Join(srcDir, name+".proto")
+		if Utility.Exists(guess) {
+			protoPath = guess
+		} else {
+			return errors.New("proto file not found; set 'Proto' in etcd or place " + name + ".proto in service directory")
+		}
+	}
 
-	jsonStr, _ := Utility.ToJson(&s)
-	ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
+	// Temp bundle layout: <tmp>/<pub>/<name>/<version>/<id>
+	tmpDir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + pubID + "%" + name + "%" + version + "%" + id + "%" + platform
+	destRoot := tmpDir + "/" + pubID + "/" + name + "/" + version + "/" + id
+	defer os.RemoveAll(tmpDir)
 
-	// First of all I will create the archive for the service.
-	// If a path is given I will take it entire content. If not
-	// the proto, the config and the executable only will be taken.
-
-	// So here I will create set the good file structure in a temp directory and
-	// copy file in it that will be the bundle to be use...
-	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherID"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
-	path_ := tmp_dir + "/" + s["PublisherID"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
-	defer os.RemoveAll(tmp_dir)
-
-	// I will create the directory
-	Utility.CreateDirIfNotExist(path)
-
-	// Now I will copy the content of the given path into it...
-	err = Utility.CopyDir(path+"/.", path_)
-
-	if err != nil {
+	if err := Utility.CreateDirIfNotExist(destRoot); err != nil {
 		return err
 	}
 
-	// Now I will copy the proto file into the directory Version
-	proto := strings.ReplaceAll(s["Proto"].(string), "\\", "/")
-	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherID"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
-	if err != nil {
+	// Copy service folder contents
+	if err := Utility.CopyDir(srcDir+"/.", destRoot); err != nil {
 		return err
 	}
 
-	// The path of the archive that contain the service package.
-	packagePath, err := client.createPackageArchive(s["PublisherID"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
-	if err != nil {
+	// Copy proto under <pub>/<name>/<version>/
+	protoDstDir := filepath.Join(tmpDir, pubID, name, version)
+	if err := Utility.CreateDirIfNotExist(strings.ReplaceAll(protoDstDir, "\\", "/")); err != nil {
+		return err
+	}
+	if err := Utility.CopyFile(protoPath, filepath.Join(protoDstDir, filepath.Base(protoPath))); err != nil {
 		return err
 	}
 
-	// Remove the file when it's transfer on the server...
+	// Create archive and upload
+	packagePath, err := client.createPackageArchive(pubID, id, version, platform, tmpDir)
+	if err != nil {
+		return err
+	}
 	defer os.RemoveAll(packagePath)
 
-	// Upload the bundle to the repository server.
-	_, err = client.UploadBundle(token, domain, s["Id"].(string), s["PublisherID"].(string), s["Version"].(string), platform, packagePath)
-	if err != nil {
+	if _, err := client.UploadBundle(token, domain, id, pubID, version, platform, packagePath); err != nil {
 		return err
 	}
 
+	// RBAC ownership
 	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return err
 	}
-
-	resource_path := s["PublisherID"].(string) + "|" + s["Id"].(string) + "|" + s["Name"].(string) + "|" + s["Version"].(string)
-
-	if len(organization) > 0 {
-
-		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
-		if err != nil {
+	resourcePath := pubID + "|" + id + "|" + name + "|" + version
+	if organization != "" {
+		if err := rbac_client_.AddResourceOwner(resourcePath, "package", organization, rbacpb.SubjectType_ORGANIZATION); err != nil {
 			return err
 		}
-
-	} else if len(user) > 0 {
-		fmt.Println("add resource owner ", resource_path, user)
-		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
-		if err != nil {
+	} else if user != "" {
+		if err := rbac_client_.AddResourceOwner(resourcePath, "package", user, rbacpb.SubjectType_ACCOUNT); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
 /** Create a service package **/
 func (client *Repository_Service_Client) createPackageArchive(PublisherID string, id string, version string, platform string, path string) (string, error) {
-
-	// Take the information from the configuration...
 	archive_name := id + "%" + version + "%" + id + "%" + platform
 
-	// tar + gzip
 	var buf bytes.Buffer
 	Utility.CompressDir(path, &buf)
 
-	// write the .tar.gzip
-	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+archive_name+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
+	outPath := os.TempDir() + string(os.PathSeparator) + archive_name + ".tar.gz"
+	fileToWrite, err := os.OpenFile(outPath, os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
 		return "", err
 	}
-	// close the file.
 	defer fileToWrite.Close()
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		return "", err
 	}
-
-	if err != nil {
-		return "", err
-	}
-	return os.TempDir() + string(os.PathSeparator) + archive_name + ".tar.gz", nil
+	return outPath, nil
 }
