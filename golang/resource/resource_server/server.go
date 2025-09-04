@@ -1089,7 +1089,7 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 
 		} else if p.GetStoreType() == "SCYLLA" {
 			// the foreign key is not supported by SCYLLA.
-			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`)
+			createTable := `CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`
 			session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
 
 			if session == nil {
