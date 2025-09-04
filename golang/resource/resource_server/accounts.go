@@ -22,6 +22,155 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func (srv *server) createGroup(id, name, owner, description string, members []string) error {
+
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	// test if the given domain is the local domain.
+	if strings.Contains(id, "@") {
+		domain := strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+		if domain != localDomain {
+			return errors.New("you can't register group " + id + " with domain " + domain + " on domain " + localDomain)
+		}
+	}
+
+	// Get the persistence connection
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	q := `{"_id":"` + id + `"}`
+
+	// Here I will first look if a peer with a same name already exist on the
+	// resources...
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Groups", q, "")
+	if count > 0 {
+		return errors.New("Group with name '" + id + "' already exist!")
+	}
+
+	// No authorization exist for that peer I will insert it.
+	// Here will create the new peer.
+	g := make(map[string]interface{}, 0)
+	g["_id"] = id
+	g["name"] = name
+	g["description"] = description
+	g["domain"] = localDomain
+	g["typeName"] = "Group"
+
+	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
+	if err != nil {
+		return err
+	}
+
+	// Create references.
+	for i := range members {
+
+		if !strings.Contains(members[i], "@") {
+			members[i] = members[i] + "@" + localDomain
+		}
+
+		err := srv.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Now create the resource permission.
+	srv.addResourceOwner(id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	logger.Info("group created", "group_id", id, "owner", owner)
+	return nil
+}
+
+/**
+ * Create account dir for all account in the database if not already exist.
+ */
+func (srv *server) CreateAccountDir() error {
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	q := `{}`
+
+	// Make sure some account exist on the server.
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
+	if count == 0 {
+		return errors.New("no account exist in the database")
+	}
+
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(accounts); i++ {
+
+		a := accounts[i].(map[string]interface{})
+		id := a["_id"].(string)
+		domain := a["domain"].(string)
+		path := "/users/" + id + "@" + domain
+		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
+			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+			srv.addResourceOwner(path, "file", id+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+		}
+	}
+
+	return nil
+}
+
+func (srv *server) createRole(id, name, owner string, description string, actions []string) error {
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	// test if the given domain is the local domain.
+	if strings.Contains(id, "@") {
+		domain := strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+		if domain != localDomain {
+			return errors.New("you can't create role " + id + " with domain " + domain + " on domain " + localDomain)
+		}
+	}
+
+	// That service made user of persistence service.
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	q := `{"_id":"` + id + `"}`
+
+	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", q, ``)
+	if err == nil {
+		return errors.New("role named " + name + " already exist!")
+	}
+
+	// Here will create the new role.
+	role := make(map[string]interface{})
+	role["_id"] = id
+	role["name"] = name
+	role["actions"] = actions
+	role["domain"] = localDomain
+	role["description"] = description
+	role["typeName"] = "Role"
+
+	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", role, "")
+	if err != nil {
+		return err
+	}
+
+	if name != "guest" && name != "admin" {
+		srv.addResourceOwner(id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+	}
+
+	return nil
+}
+
 /**
  *  hashPassword return the bcrypt hash of the password.
  */

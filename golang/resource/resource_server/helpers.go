@@ -1,9 +1,10 @@
 package main
 
 import (
-
+	"encoding/json"
 	"strings"
 
+	Utility "github.com/globulario/utility"
 )
 
 // sanitizeName returns a safe identifier for DB/user names.
@@ -58,3 +59,22 @@ func anyToSlice(v interface{}) ([]interface{}, bool) {
 }
 
 
+
+// That function is necessary to serialyse reference and kept field orders
+func serialyseObject(obj map[string]interface{}) string {
+	// Here I will save the role.
+	jsonStr, _ := Utility.ToJson(obj)
+	jsonStr = strings.ReplaceAll(jsonStr, `"$ref"`, `"__a__"`)
+	jsonStr = strings.ReplaceAll(jsonStr, `"$id"`, `"__b__"`)
+	jsonStr = strings.ReplaceAll(jsonStr, `"$db"`, `"__c__"`)
+
+	obj_ := make(map[string]interface{}, 0)
+
+	json.Unmarshal([]byte(jsonStr), &obj_)
+	jsonStr, _ = Utility.ToJson(obj_)
+	jsonStr = strings.ReplaceAll(jsonStr, `"__a__"`, `"$ref"`)
+	jsonStr = strings.ReplaceAll(jsonStr, `"__b__"`, `"$id"`)
+	jsonStr = strings.ReplaceAll(jsonStr, `"__c__"`, `"$db"`)
+
+	return jsonStr
+}

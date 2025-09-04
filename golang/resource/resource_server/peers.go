@@ -17,6 +17,51 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+func (srv *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
+
+	client, err := getResourceClient(address)
+	if err != nil {
+		logger.Error("fail to connect with remote resource service", "error", err)
+		return nil, err
+	}
+
+	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(peers) == 0 {
+		return nil, errors.New("no peer found with mac address " + mac + " at address " + address)
+	}
+
+	return peers[0], nil
+
+}
+
+/** Retreive the peer public key */
+func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
+
+	if len(mac) == 0 {
+		mac = srv.Mac
+	}
+
+	if mac == srv.Mac {
+		key, err := security.GetPeerKey(mac)
+		if err != nil {
+			return "", err
+		}
+
+		return string(key), nil
+	}
+
+	client, err := getResourceClient(address)
+	if err != nil {
+		return "", err
+	}
+
+	return client.GetPeerPublicKey(mac)
+}
+
 func initPeer(values interface{}) *resourcepb.Peer {
 	values_ := values.(map[string]interface{})
 	state := resourcepb.PeerApprovalState(int32(Utility.ToInt(values_["state"])))

@@ -11,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
+	"github.com/txn2/txeh"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -947,4 +948,56 @@ func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.Se
 	return &resourcepb.SetPackageDescriptorResponse{
 		Result: true,
 	}, nil
+}
+
+/** Set the host if it's part of the same local network. */
+func (srv *server) setLocalHosts(peer *resourcepb.Peer) error {
+
+	// Finaly I will set the domain in the hosts file...
+	hosts, err := txeh.NewHostsDefault()
+	address := peer.GetHostname()
+	if peer.GetDomain() != "localhost" {
+		address = address + "." + peer.GetDomain()
+	}
+
+	if err != nil {
+		logger.Error("fail to set host entry", "address", address, "error", err)
+		return err
+	}
+
+	if peer.ExternalIpAddress == Utility.MyIP() {
+		hosts.AddHost(peer.LocalIpAddress, address)
+	}
+
+	err = hosts.Save()
+	if err != nil {
+		logger.Error("fail to save hosts", "ip", peer.LocalIpAddress, "address", address, "error", err)
+		return err
+	}
+
+	return nil
+}
+
+/** Set the host if it's part of the same local network. */
+func (srv *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
+	// Finaly I will set the domain in the hosts file...
+	hosts, err := txeh.NewHostsDefault()
+	if err != nil {
+		return err
+	}
+
+	domain := peer.GetDomain()
+
+	if peer.ExternalIpAddress == Utility.MyIP() {
+		hosts.RemoveHost(domain)
+	} else {
+		return errors.New("the peer is not on the same local network")
+	}
+
+	err = hosts.Save()
+	if err != nil {
+		logger.Error("fail to save hosts file", "error", err)
+	}
+
+	return err
 }

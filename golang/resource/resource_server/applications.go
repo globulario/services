@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -122,6 +123,127 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 	}
 
 	return &resourcepb.CreateApplicationRsp{}, nil
+}
+
+
+/**
+ * Delete application Data from the backend.
+ */
+func (srv *server) deleteApplication(applicationId string) error {
+
+	if strings.Contains(applicationId, "@") {
+		domain := strings.Split(applicationId, "@")[1]
+		applicationId = strings.Split(applicationId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return err
+		}
+
+		if localDomain != domain {
+			return errors.New("i cant's delete object from domain " + domain + " from domain " + localDomain)
+		}
+	}
+
+	// That service made user of persistence service.
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	q := `{"_id":"` + applicationId + `"}`
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", q, ``)
+	if err != nil {
+		return err
+	}
+
+	// I will remove all the access to the application, before removing the application.
+	srv.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
+	srv.deleteResourcePermissions(applicationId)
+
+	application := values.(map[string]interface{})
+
+	// I will remove it from organization...
+	if application["organizations"] != nil {
+
+		var organizations []interface{}
+		switch values.(map[string]interface{})["organizations"].(type) {
+		case primitive.A:
+			organizations = []interface{}(values.(map[string]interface{})["organizations"].(primitive.A))
+		case []interface{}:
+			organizations = values.(map[string]interface{})["organizations"].([]interface{})
+		}
+		for i := 0; i < len(organizations); i++ {
+			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
+			srv.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
+		}
+	}
+
+	// I will remove the directory.
+	err = os.RemoveAll(application["path"].(string))
+	if err != nil {
+		return err
+	}
+
+	var name string
+	if application["name"] != nil {
+		name = application["name"].(string)
+	} else if application["Name"] != nil {
+		name = application["Name"].(string)
+	}
+
+	// Set the database name.
+	db := name
+	db = strings.ReplaceAll(db, ".", "_")
+	db = strings.ReplaceAll(db, "@", "_")
+	db = strings.ReplaceAll(db, "-", "_")
+	db = strings.ReplaceAll(db, " ", "_")
+	db += "_db"
+
+	// Now I will remove the database create for the application.
+	err = p.DeleteDatabase(context.Background(), "local_resource", db)
+	if err != nil {
+		return err
+	}
+
+	// Finaly I will remove the entry in  the table.
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Applications", q, "")
+	if err != nil {
+		return err
+	}
+
+	// Drop the application user.
+	// Here I will drop the db user.
+	var dropUserScript string
+	if p.GetStoreType() == "MONGO" {
+		dropUserScript = fmt.Sprintf(
+			`db=db.getSiblingDB('admin');db.dropUser('%s', {w: 'majority', wtimeout: 4000})`,
+			applicationId)
+	} else if p.GetStoreType() == "SCYLLA" {
+		dropUserScript = fmt.Sprintf("DROP KEYSPACE IF EXISTS %s;", applicationId)
+	} else if p.GetStoreType() == "SQL" {
+		dropUserScript = fmt.Sprintf("DROP DATABASE IF EXISTS %s;", applicationId)
+	} else {
+		return errors.New("unknown backend type " + p.GetStoreType())
+	}
+
+	// I will execute the sript with the admin function.
+	// TODO implement drop user for scylla and sql
+	if p.GetStoreType() == "MONGO" {
+		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, dropUserScript)
+		if err != nil {
+			return err
+		}
+	}
+
+	// set back the domain part
+	applicationId = application["_id"].(string) + "@" + application["domain"].(string)
+
+	srv.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
+	srv.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
+
+	return nil
 }
 
 // DeleteApplication deletes an application identified by the given ApplicationId.
