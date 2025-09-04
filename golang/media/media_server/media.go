@@ -1360,7 +1360,7 @@ func (srv *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *mediapb.Co
 
 	p := srv.formatPath(rqst.Path)
 	if !Utility.Exists(p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
 
 	info, err := srv.getFileInfo(token, p)
@@ -1427,7 +1427,7 @@ func (srv *server) ConvertVideoToHls(ctx context.Context, rqst *mediapb.ConvertV
 
 	p := srv.formatPath(rqst.Path)
 	if !Utility.Exists(p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
 
 	info, err := srv.getFileInfo(token, p)
@@ -2046,7 +2046,7 @@ func (srv *server) StartProcessVideo(ctx context.Context, rqst *mediapb.StartPro
 		return nil, err
 	}
 	if srv.isProcessing {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("conversion is already running")))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("conversion is already running")))
 	}
 
 	dirs := make([]string, 0)
@@ -2247,4 +2247,151 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 	}
 
 	return nil
+}
+// Clear the video conversion errors
+func (srv *server) ClearVideoConversionErrors(ctx context.Context, rqst *mediapb.ClearVideoConversionErrorsRequest) (*mediapb.ClearVideoConversionErrorsResponse, error) {
+	srv.videoConversionErrors.Range(func(key, value interface{}) bool {
+		srv.videoConversionErrors.Delete(key)
+		return true
+	})
+
+	return &mediapb.ClearVideoConversionErrorsResponse{}, nil
+}
+
+// Clear a specific video conversion error
+func (srv *server) ClearVideoConversionError(ctx context.Context, rqst *mediapb.ClearVideoConversionErrorRequest) (*mediapb.ClearVideoConversionErrorResponse, error) {
+	srv.videoConversionErrors.Delete(rqst.Path)
+	return &mediapb.ClearVideoConversionErrorResponse{}, nil
+}
+
+// Clear a specific video conversion log
+func (srv *server) ClearVideoConversionLogs(ctx context.Context, rqst *mediapb.ClearVideoConversionLogsRequest) (*mediapb.ClearVideoConversionLogsResponse, error) {
+
+	srv.videoConversionLogs.Range(func(key, value interface{}) bool {
+		srv.videoConversionLogs.Delete(key)
+		return true
+	})
+
+	return &mediapb.ClearVideoConversionLogsResponse{}, nil
+}
+
+
+// Create a VTT file for a video.
+func (s *server) CreateVttFile(ctx context.Context, rqst *mediapb.CreateVttFileRequest) (*mediapb.CreateVttFileResponse, error) {
+
+	err := createVttFile(rqst.Path, rqst.Fps)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mediapb.CreateVttFileResponse{}, nil
+}
+
+// Return the list of failed video conversion.
+func (srv *server) GetVideoConversionErrors(ctx context.Context, rqst *mediapb.GetVideoConversionErrorsRequest) (*mediapb.GetVideoConversionErrorsResponse, error) {
+	video_conversion_errors := make([]*mediapb.VideoConversionError, 0)
+
+	srv.videoConversionErrors.Range(func(key, value interface{}) bool {
+		video_conversion_errors = append(video_conversion_errors, &mediapb.VideoConversionError{Path: key.(string), Error: value.(string)})
+		return true
+	})
+
+	return &mediapb.GetVideoConversionErrorsResponse{Errors: video_conversion_errors}, nil
+}
+
+// Return the list of log messages
+func (srv *server) GetVideoConversionLogs(ctx context.Context, rqst *mediapb.GetVideoConversionLogsRequest) (*mediapb.GetVideoConversionLogsResponse, error) {
+	logs := make([]*mediapb.VideoConversionLog, 0)
+
+	srv.videoConversionLogs.Range(func(key, value interface{}) bool {
+		logs = append(logs, value.(*mediapb.VideoConversionLog))
+		return true
+	})
+
+	return &mediapb.GetVideoConversionLogsResponse{Logs: logs}, nil
+}
+
+// Set the maximum delay when conversion can run, it will finish actual conversion but it will not begin new conversion past this delay.
+func (srv *server) SetMaximumVideoConversionDelay(ctx context.Context, rqst *mediapb.SetMaximumVideoConversionDelayRequest) (*mediapb.SetMaximumVideoConversionDelayResponse, error) {
+	srv.MaximumVideoConversionDelay = rqst.Value
+	err := srv.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &mediapb.SetMaximumVideoConversionDelayResponse{}, nil
+}
+
+// Set the hour when the video conversion must start.
+func (srv *server) SetStartVideoConversionHour(ctx context.Context, rqst *mediapb.SetStartVideoConversionHourRequest) (*mediapb.SetStartVideoConversionHourResponse, error) {
+	srv.StartVideoConversionHour = rqst.Value
+
+	// remove actual process video...
+	srv.scheduler.Remove(processVideos)
+
+	if srv.AutomaticVideoConversion {
+		srv.scheduler.Every(1).Day().At(srv.StartVideoConversionHour).Do(processVideos, srv)
+		srv.scheduler.Start()
+	}
+
+	err := srv.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &mediapb.SetStartVideoConversionHourResponse{}, nil
+}
+
+
+// Set video processing.
+func (srv *server) SetVideoConversion(ctx context.Context, rqst *mediapb.SetVideoConversionRequest) (*mediapb.SetVideoConversionResponse, error) {
+
+	srv.AutomaticVideoConversion = rqst.Value
+	// remove process video...
+	srv.scheduler.Remove(processVideos)
+
+	if srv.AutomaticVideoConversion {
+		srv.scheduler.Every(1).Day().At(srv.StartVideoConversionHour).Do(processVideos, srv)
+		srv.scheduler.Start()
+	}
+
+	err := srv.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &mediapb.SetVideoConversionResponse{}, nil
+}
+
+// Set video stream conversion.
+func (srv *server) SetVideoStreamConversion(ctx context.Context, rqst *mediapb.SetVideoStreamConversionRequest) (*mediapb.SetVideoStreamConversionResponse, error) {
+	srv.AutomaticStreamConversion = rqst.Value
+	err := srv.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &mediapb.SetVideoStreamConversionResponse{}, nil
+}
+
+
+// Stop process video on the server.
+func (srv *server) StopProcessVideo(ctx context.Context, rqst *mediapb.StopProcessVideoRequest) (*mediapb.StopProcessVideoResponse, error) {
+
+	srv.isProcessing = false
+
+	// kill current procession...
+	err := Utility.KillProcessByName("ffmpeg")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &mediapb.StopProcessVideoResponse{}, nil
 }

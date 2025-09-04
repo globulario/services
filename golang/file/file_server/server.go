@@ -33,8 +33,8 @@ import (
 // -------------------- Defaults & globals --------------------
 
 var (
-	defaultPort  = 10043
-	defaultProxy = 10044
+	defaultPort  = 10000
+	defaultProxy = defaultPort + 1
 
 	allowAllOrigins   = true
 	allowedOriginsStr = ""

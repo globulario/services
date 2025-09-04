@@ -4,25 +4,28 @@ import (
 	"github.com/globulario/services/golang/search/searchpb"
 )
 
-/**
- * A key value data store.
- */
-type SearchEngine interface {
+// -----------------------------------------------------------------------------
+// engine.go (interface) — public prototype left unchanged, just light docs
+// -----------------------------------------------------------------------------
 
-	// Get the store version.
+// SearchEngine defines the JSON search/index operations used by the service.
+//
+// NOTE: This section mirrors the original engine.go content but with
+// comments for clarity. The signatures are identical to preserve ABI.
+type SearchEngine interface {
+	// GetVersion returns a human-readable version label of the engine.
 	GetVersion() string
 
-	// JSON document search functionalities
-
-	// Set a document from list of db from given paths...
+	// SearchDocuments searches across one or more index paths and returns
+	// a SearchResults message with highlighted fragments.
 	SearchDocuments(paths []string, language string, fields []string, query string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error)
 
-	// Delete a document with a given path and id.
+	// DeleteDocument deletes a document id from a specific index path.
 	DeleteDocument(path string, id string) error
 
-	// Index a given object.
+	// IndexJsonObject indexes an object (or array of objects) provided as JSON.
 	IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error
 
-	// Count the number of document in a db.
+	// Count returns the number of documents in an index, or -1 on error.
 	Count(path string) int32
 }

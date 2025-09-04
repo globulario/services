@@ -1,38 +1,44 @@
-// Package main provides a minimal Echo gRPC service wired for Globular.
-// It exposes a service with structured logging via slog and a clean,
-// well-documented server type that satisfies Globular's service contract.
+// Package main wires the Title gRPC service for Globular with clean logging,
+// CLI describe/health handlers, and documented getters/setters matching the
+// Globular service contract.
 package main
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
-	// NOTE: only import config AFTER we’ve gated --describe/--health paths from calling it
+	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/echo/echo_client"
-	"github.com/globulario/services/golang/echo/echopb"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/globulario/services/golang/title/title_client"
+	"github.com/globulario/services/golang/title/titlepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
-// Default ports.
+// Defaults & CORS
 var (
-	defaultPort  = 10000
-	defaultProxy = defaultPort + 1
-
-	// Allow all origins by default.
+	defaultPort       = 10000
+	defaultProxy      = defaultPort + 1
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
 )
 
-// server implements Globular service plumbing + Echo RPCs.
+// logger is the service-wide structured logger.
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	Level: slog.LevelInfo,
+}))
+
+// server implements Globular plumbing and Title RPC dependencies.
 type server struct {
 	// Core metadata
 	Id          string
@@ -48,25 +54,25 @@ type server struct {
 	Version     string
 	PublisherID string
 	Description string
-	Keywords    []string
+	Keywords     []string
 	Repositories []string
 	Discoveries  []string
 
 	// Policy / ops
-	AllowAllOrigins    bool
-	AllowedOrigins     string
-	KeepUpToDate       bool
-	Plaform            string
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{}
-	Dependencies       []string
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	State              string
-	ModTime            int64
+	AllowAllOrigins bool
+	AllowedOrigins  string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Permissions     []interface{}
+	Dependencies    []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	State           string
+	ModTime         int64
 
 	// TLS
 	TLS                bool
@@ -76,9 +82,16 @@ type server struct {
 
 	// Runtime
 	grpcServer *grpc.Server
+
+	// Cache for search indices and associations
+	CacheAddress           string
+	CacheReplicationFactor int
+	CacheType              string
+	indexs                 map[string]bleve.Index
+	associations           *sync.Map
 }
 
-// --- Globular service contract (getters/setters) ---
+// ---------------- Globular contract: documented getters/setters ----------------
 
 // GetConfigurationPath returns the path to the service configuration file.
 func (srv *server) GetConfigurationPath() string { return srv.ConfigPath }
@@ -86,28 +99,43 @@ func (srv *server) GetConfigurationPath() string { return srv.ConfigPath }
 // SetConfigurationPath sets the path to the service configuration file.
 func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
 
-// GetAddress returns the HTTP address where /config can be reached.
+// GetAddress returns the HTTP address where the /config endpoint is served.
 func (srv *server) GetAddress() string { return srv.Address }
 
-// SetAddress sets the HTTP address where /config can be reached.
+// SetAddress sets the HTTP address where the /config endpoint is served.
 func (srv *server) SetAddress(address string) { srv.Address = address }
 
-// GetProcess returns the process id of the service, or -1 if not started.
+// GetProcess returns the process id of the service (or -1 if not started).
 func (srv *server) GetProcess() int { return srv.Process }
 
-// SetProcess records the process id of the service.
-func (srv *server) SetProcess(pid int) { srv.Process = pid }
+// SetProcess records the process id. When pid == -1, it closes indices and stores.
+func (srv *server) SetProcess(pid int) {
+	if pid == -1 {
+		// Close indices
+		for _, idx := range srv.indexs {
+			_ = idx.Close()
+		}
+		// Close association stores
+		if srv.associations != nil {
+			srv.associations.Range(func(_ any, v any) bool {
+				v.(storage_store.Store).Close()
+				return true
+			})
+		}
+	}
+	srv.Process = pid
+}
 
-// GetProxyProcess returns the reverse-proxy process id, or -1 if not started.
+// GetProxyProcess returns the reverse-proxy process id (or -1 if not started).
 func (srv *server) GetProxyProcess() int { return srv.ProxyProcess }
 
 // SetProxyProcess records the reverse-proxy process id.
 func (srv *server) SetProxyProcess(pid int) { srv.ProxyProcess = pid }
 
-// GetState returns the current service state (e.g., "running").
+// GetState returns the current service lifecycle state (e.g. "running").
 func (srv *server) GetState() string { return srv.State }
 
-// SetState updates the current service state.
+// SetState updates the current service lifecycle state.
 func (srv *server) SetState(state string) { srv.State = state }
 
 // GetLastError returns the last error message recorded by the service.
@@ -140,7 +168,7 @@ func (srv *server) GetDescription() string { return srv.Description }
 // SetDescription sets the service description.
 func (srv *server) SetDescription(description string) { srv.Description = description }
 
-// GetMac returns the MAC address of the host (if set by the platform).
+// GetMac returns the MAC address of the host (if provided by the platform).
 func (srv *server) GetMac() string { return srv.Mac }
 
 // SetMac sets the MAC address of the host.
@@ -164,7 +192,7 @@ func (srv *server) GetDiscoveries() []string { return srv.Discoveries }
 // SetDiscoveries sets discovery endpoints for the service.
 func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = discoveries }
 
-// Dist packages (distributes) the service into the given path using Globular.
+// Dist packages the service into the given path using Globular.
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
 
 // GetDependencies returns the list of dependent services.
@@ -192,7 +220,7 @@ func (srv *server) GetChecksum() string { return srv.Checksum }
 func (srv *server) SetChecksum(checksum string) { srv.Checksum = checksum }
 
 // GetPlatform returns the service platform (e.g., "linux/amd64").
-func (srv *server) GetPlatform() string { return srv.Plaform }
+func (srv *server) GetPlatform() string { return srv.Plaform } // preserve original field name
 
 // SetPlatform sets the service platform (e.g., "linux/amd64").
 func (srv *server) SetPlatform(platform string) { srv.Plaform = platform }
@@ -301,11 +329,9 @@ func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions =
 
 // Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
-	// Create or load the service configuration via Globular.
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
-
 	gs, err := globular.InitGrpcServer(srv)
 	if err != nil {
 		return err
@@ -314,7 +340,7 @@ func (srv *server) Init() error {
 	return nil
 }
 
-// Save persists the current configuration to disk.
+// Save persists the current configuration.
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
 // StartService begins serving gRPC (and proxy if configured).
@@ -323,113 +349,141 @@ func (srv *server) StartService() error { return globular.StartService(srv, srv.
 // StopService gracefully stops the running gRPC server.
 func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
 
-// Stop stops the service via gRPC.
-func (srv *server) Stop(ctx context.Context, _ *echopb.StopRequest) (*echopb.StopResponse, error) {
-	return &echopb.StopResponse{}, srv.StopService()
+// ---------------- Helper clients & events ----------------
+
+// getRbacClient returns a connected RBAC client.
+func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	c, err := globular_client.GetClient(srv.Address, "rbac.RbacService", "NewRbacService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return c.(*rbac_client.Rbac_Client), nil
 }
 
-// --- main entrypoint ---
-var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-	Level: slog.LevelInfo,
-}))
+// getEventClient returns a connected Event client.
+func (srv *server) getEventClient() (*event_client.Event_Client, error) {
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	c, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return c.(*event_client.Event_Client), nil
+}
 
-// main configures and starts the Echo service.
+// publish sends a named event with data on the event bus.
+func (srv *server) publish(event string, data []byte) error {
+	client, err := srv.getEventClient()
+	if err != nil {
+		return err
+	}
+	return client.Publish(event, data)
+}
 
+// ---------------- main entrypoint ----------------
 
-
+// main configures and starts the Title service.
 func main() {
 	srv := new(server)
 
-	// Fill ONLY fields that do NOT call into config/etcd yet.
-	srv.Name = string(echopb.File_echo_proto.Services().Get(0).FullName())
-	srv.Proto = echopb.File_echo_proto.Path()
+	// Static defaults that do not require etcd reads.
+	srv.Name = string(titlepb.File_title_proto.Services().Get(0).FullName())
+	srv.Proto = titlepb.File_title_proto.Path()
 	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
 	srv.Version = "0.0.1"
 	srv.PublisherID = "localhost"
-	srv.Description = "The Hello World of gRPC services."
-	srv.Keywords = []string{"Example", "Echo", "Test", "Service"}
+	srv.Description = "Finds Title information and associates it with files."
+	srv.Keywords = []string{"Search", "Movie", "Title", "Episode", "MultiMedia", "IMDB"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 0)
+	srv.Permissions = make([]interface{}, 8)
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins
 	srv.AllowedOrigins = allowedOriginsStr
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
+	srv.associations = new(sync.Map)
+	srv.CacheType = "BADGER"
+	srv.CacheAddress = srv.Address
+	srv.CacheReplicationFactor = 3
 
-	// ---- CLI flags handled BEFORE any call that might touch etcd ----
+	// Register Title client factory (used elsewhere in service).
+	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
+
+	// Permissions (unchanged semantics).
+	srv.Permissions[0] = map[string]interface{}{"action": "/title.TitleService/DeleteVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	srv.Permissions[1] = map[string]interface{}{"action": "/title.TitleService/CreateVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+	srv.Permissions[2] = map[string]interface{}{"action": "/title.TitleService/DeleteAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	srv.Permissions[3] = map[string]interface{}{"action": "/title.TitleService/CreateAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+	srv.Permissions[4] = map[string]interface{}{"action": "/title.TitleService/DeleteTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	srv.Permissions[5] = map[string]interface{}{"action": "/title.TitleService/CreateTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
+	srv.Permissions[6] = map[string]interface{}{"action": "/title.TitleService/AssociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
+	srv.Permissions[7] = map[string]interface{}{"action": "/title.TitleService/DissociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
+
+	// --------------- CLI: --describe / --health ---------------
 	args := os.Args[1:]
+	if len(args) > 0 {
+		for _, a := range args {
+			switch strings.ToLower(a) {
+			case "--describe":
+				srv.Process = os.Getpid()
+				srv.State = "starting"
 
-	// if no args are provided, print usage information
-	if len(args) == 0 {
-		printUsage()
-		return
-	}
+				// Provide environment-driven defaults without etcd.
+				if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+					srv.Domain = strings.ToLower(v)
+				} else {
+					srv.Domain = "localhost"
+				}
+				if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+					srv.Address = strings.ToLower(v)
+				} else {
+					srv.Address = "localhost:" + Utility.ToString(srv.Port)
+				}
 
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			// best-effort runtime fields without hitting etcd
-			srv.Process = os.Getpid()
-			srv.State = "starting"
+				b, err := globular.DescribeJSON(srv)
+				if err != nil {
+					logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+					os.Exit(2)
+				}
+				_, _ = os.Stdout.Write(b)
+				_, _ = os.Stdout.Write([]byte("\n"))
+				return
 
-			// Provide harmless defaults for Domain/Address that don’t need etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
+			case "--health":
+				if srv.Port == 0 || srv.Name == "" {
+					logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+					os.Exit(2)
+				}
+				b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+					Timeout:     1500 * time.Millisecond,
+					ServiceName: "",
+				})
+				if err != nil {
+					logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+					os.Exit(2)
+				}
+				_, _ = os.Stdout.Write(b)
+				_, _ = os.Stdout.Write([]byte("\n"))
+				return
 			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				// address here is informational; using grpc port keeps it truthful
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
+		}
 
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "", // overall
-			})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
+		// Positional args
+		if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+			srv.Id = args[0]
+		} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+			srv.Id = args[0]
+			srv.ConfigPath = args[1]
 		}
 	}
 
-	// Optional positional args (unchanged)
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		srv.Id = args[0]
-		srv.ConfigPath = args[1]
-	}
-
-	// Now it’s safe to read local config (may try etcd or file fallback)
-	// If etcd isn’t up, your config package will fall back to /etc/globular/config/config.json.
+	// Safe to fetch config now (file/etcd as configured).
 	if d, err := config.GetDomain(); err == nil {
 		srv.Domain = d
 	} else {
@@ -439,17 +493,18 @@ func main() {
 		srv.Address = a
 	}
 
-	// Register client ctor
-	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
-
 	start := time.Now()
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 
-	echopb.RegisterEchoServiceServer(srv.grpcServer, srv)
+	titlepb.RegisterTitleServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
+
+	if srv.CacheAddress == "localhost" || srv.CacheAddress == "" {
+		srv.CacheAddress = srv.Address
+	}
 
 	logger.Info("service ready",
 		"service", srv.Name,
@@ -463,16 +518,4 @@ func main() {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
-}
-
-func printUsage() {
-	fmt.Println("Usage:")
-	fmt.Println("  echo_server [service_id] [config_path]")
-	fmt.Println("Options:")
-	fmt.Println("  --describe    Print service metadata as JSON and exit")
-	fmt.Println("  --health      Print service health as JSON and exit")
-	fmt.Println("Examples:")
-	fmt.Println("  echo_server my-echo-id /etc/globular/echo/config.json")
-	fmt.Println("  echo_server --describe")
-	fmt.Println("  echo_server --health")
 }

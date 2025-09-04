@@ -1,6 +1,7 @@
-// Package main implements the Repository gRPC service wired for Globular.
-// It provides structured logging via slog, clean getters/setters that satisfy
-// Globular's service contract, and CLI utilities: --describe and --health.
+// Package main wires the Torrent gRPC service into the Globular runtime.
+// It follows the same layout as the "echo" reference: structured logging via
+// slog, --describe/--health fast‑paths, clear errors, and documented public
+// methods that satisfy Globular's service contract.
 package main
 
 import (
@@ -11,15 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anacrolix/torrent"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/repository/repository_client"
-	"github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/torrent/torrent_client"
+	"github.com/globulario/services/golang/torrent/torrentpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -33,39 +34,41 @@ var (
 	defaultPort  = 10000
 	defaultProxy = defaultPort + 1
 
-	allowAllOrigins   = true // allow all by default
-	allowedOriginsStr = ""   // comma-separated list (if not allowAllOrigins)
+	allowAllOrigins   = true
+	allowedOriginsStr = ""
 )
 
+// logger is a process-wide structured logger.
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
 // -----------------------------------------------------------------------------
-// Server
+// server implements Globular plumbing + Torrent runtime fields
 // -----------------------------------------------------------------------------
 
-// server implements Globular service plumbing + Repository RPCs (see repository.go).
 type server struct {
 	// Core metadata
-	Id           string
-	Mac          string
-	Name         string
-	Domain       string
-	Address      string
-	Path         string
-	Proto        string
-	Port         int
-	Proxy        int
-	Protocol     string
-	Version      string
-	PublisherID  string
-	Description  string
+	Id          string
+	Mac         string
+	Name        string
+	Domain      string
+	Address     string
+	Path        string
+	Proto       string
+	Port        int
+	Proxy       int
+	Protocol    string
+	Version     string
+	PublisherID string
+	Description string
 	Keywords     []string
 	Repositories []string
 	Discoveries  []string
 
-	// Ops / policy
+	// Policy / ops
 	AllowAllOrigins bool
 	AllowedOrigins  string
 	KeepUpToDate    bool
-	Plaform         string // NOTE: field spelling preserved for compatibility
+	Plaform         string
 	Checksum        string
 	KeepAlive       bool
 	Permissions     []interface{}
@@ -86,23 +89,22 @@ type server struct {
 	// Runtime
 	grpcServer *grpc.Server
 
-	// Service-specific
-	Root string // base data dir (packages-repository lives under this)
-}
-
-// SetPermissions implements globular_service.Service.
-func (srv *server) SetPermissions(permissions []interface{}) {
-	srv.Permissions = permissions
+	// Torrent-specific runtime
+	DownloadDir string       // where files are downloaded before being copied
+	Seed        bool         // keep seeding after completion
+	torrent_client_ *torrent.Client
+	actions         chan map[string]interface{} // internal action bus
+	done            chan bool                   // shutdown signal
 }
 
 // -----------------------------------------------------------------------------
-// Globular service contract (documented getters/setters)
+// Globular service contract (getters/setters) — documented and consistent
 // -----------------------------------------------------------------------------
 
-// GetConfigurationPath returns the path to the service configuration file.
+// GetConfigurationPath returns the path to this service's configuration file.
 func (srv *server) GetConfigurationPath() string { return srv.ConfigPath }
 
-// SetConfigurationPath sets the path to the service configuration file.
+// SetConfigurationPath sets the path to this service's configuration file.
 func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
 
 // GetAddress returns the HTTP address where /config can be reached.
@@ -153,17 +155,17 @@ func (srv *server) GetName() string { return srv.Name }
 // SetName sets the gRPC service name.
 func (srv *server) SetName(name string) { srv.Name = name }
 
-// GetMac returns the MAC address of the host (if set by the platform).
-func (srv *server) GetMac() string { return srv.Mac }
-
-// SetMac sets the MAC address of the host.
-func (srv *server) SetMac(mac string) { srv.Mac = mac }
-
 // GetDescription returns the service description.
 func (srv *server) GetDescription() string { return srv.Description }
 
 // SetDescription sets the service description.
 func (srv *server) SetDescription(description string) { srv.Description = description }
+
+// GetMac returns the MAC address of the host (if set by the platform).
+func (srv *server) GetMac() string { return srv.Mac }
+
+// SetMac sets the MAC address of the host.
+func (srv *server) SetMac(mac string) { srv.Mac = mac }
 
 // GetKeywords returns the service keywords.
 func (srv *server) GetKeywords() []string { return srv.Keywords }
@@ -185,11 +187,6 @@ func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = disc
 
 // Dist packages (distributes) the service into the given path using Globular.
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
-
-// GetPermissions returns the permissions associated with the service.
-func (srv *server) GetPermissions() []interface{} {
-	return srv.Permissions
-}
 
 // GetDependencies returns the list of dependent services.
 func (srv *server) GetDependencies() []string {
@@ -317,18 +314,17 @@ func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
 // SetKeepAlive toggles keep-alive behavior.
 func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 
-// -----------------------------------------------------------------------------
-// Lifecycle
-// -----------------------------------------------------------------------------
+// GetPermissions returns the action permissions configured for this service.
+func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
+
+// SetPermissions sets the action permissions for this service.
+func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
 // Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
-	// Create or load the service configuration via Globular.
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
-
-	// If your Globular requires interceptors:
 	gs, err := globular.InitGrpcServer(srv)
 	if err != nil {
 		return err
@@ -346,121 +342,77 @@ func (srv *server) StartService() error { return globular.StartService(srv, srv.
 // StopService gracefully stops the running gRPC server.
 func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
 
-// -----------------------------------------------------------------------------
-// Resource manager helpers (Repository needs these)
-// -----------------------------------------------------------------------------
-
-// getResourceClient returns a connected Resource service client.
-func (srv *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	address, _ := config.GetAddress()
-	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
+/**
+ * Get the rbac client.
+ */
+func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
-	return client.(*resource_client.Resource_Client), nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
-// getPackageBundleChecksum returns the checksum stored for a bundle id.
-func (srv *server) getPackageBundleChecksum(id string) (string, error) {
-	resourceClient, err := srv.getResourceClient()
+func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
-		return "", err
-	}
-	return resourceClient.GetPackageBundleChecksum(id)
-}
-
-// setPackageBundle persists bundle metadata in the Resource service.
-func (srv *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
-	resourceClient, err := srv.getResourceClient()
-	if err != nil {
-		_ = srv.logServiceError("setPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return err
 	}
-	if err := resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor); err != nil {
-		_ = srv.logServiceError("setPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
-		return err
-	}
-	return nil
+
+	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
+	return err
 }
 
-// -----------------------------------------------------------------------------
-// Log service helpers (kept for compatibility with your existing logging)
-// -----------------------------------------------------------------------------
 
-// GetLogClient returns a connected Log service client.
-func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
-	address, _ := config.GetAddress()
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
+// getEventClient returns a connected Event client.
+func (srv *server) getEventClient() (*event_client.Event_Client, error) {
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	c, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
-	return client.(*log_client.Log_Client), nil
+	return c.(*event_client.Event_Client), nil
 }
 
-// logServiceInfo sends an info log to the Log service.
-func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	logClient, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logClient.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
-}
-
-// logServiceError sends an error log to the Log service.
-func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
-	logClient, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logClient.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
 
 // -----------------------------------------------------------------------------
-// CLI / entrypoint
+// main — follows the "echo" server layout with --describe and --health
 // -----------------------------------------------------------------------------
-
-var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-	Level: slog.LevelInfo,
-}))
 
 func main() {
-	s := new(server)
+	srv := new(server)
 
 	// Fill ONLY fields that do NOT call into config/etcd yet.
-	s.Name = string(repositorypb.File_repository_proto.Services().Get(0).FullName())
-	s.Proto = repositorypb.File_repository_proto.Path()
-	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	s.Port = defaultPort
-	s.Proxy = defaultProxy
-	s.Protocol = "grpc"
-	s.Version = "0.0.1"
-	s.PublisherID = "localhost"
-	s.Description = "Repository service where packages are stored."
-	s.Keywords = []string{"Repo", "Repository", "Package", "Service"}
-	s.Repositories = make([]string, 0)
-	s.Discoveries = make([]string, 0)
-	s.Dependencies = []string{
-		"resource.ResourceService",
-		"log.LogService",
-		"applications_manager.ApplicationManagerService",
-	}
-	s.Permissions = make([]interface{}, 0)
-	s.Process = -1
-	s.ProxyProcess = -1
-	s.AllowAllOrigins = allowAllOrigins
-	s.AllowedOrigins = allowedOriginsStr
-	s.KeepAlive = true
-	s.KeepUpToDate = true
+	srv.Name = string(torrentpb.File_torrent_proto.Services().Get(0).FullName())
+	srv.Proto = torrentpb.File_torrent_proto.Path()
+	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	srv.Port = defaultPort
+	srv.Proxy = defaultProxy
+	srv.Protocol = "grpc"
+	srv.Version = "0.0.1"
+	srv.PublisherID = "localhost"
+	srv.Description = "Torrent gRPC service for Globular."
+	srv.Keywords = []string{"Torrent", "Download", "P2P", "Service"}
+	srv.Repositories = make([]string, 0)
+	srv.Discoveries = make([]string, 0)
+	srv.Dependencies = make([]string, 0)
+	srv.Permissions = make([]interface{}, 0)
+	srv.Process = -1
+	srv.ProxyProcess = -1
+	srv.AllowAllOrigins = allowAllOrigins
+	srv.AllowedOrigins = allowedOriginsStr
+	srv.KeepAlive = true
+	srv.KeepUpToDate = true
+	srv.DownloadDir = config.GetDataDir() + "/torrents"
+	srv.Seed = false
 
-	// Default data dir for repo storage
-	s.Root = config.GetDataDir()
+	// Register public client ctor for other services
+	Utility.RegisterFunction("NewTorrentService_Client", torrent_client.NewTorrentService_Client)
 
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
 
-	// no args -> usage
 	if len(args) == 0 {
 		printUsage()
 		return
@@ -470,101 +422,123 @@ func main() {
 		switch strings.ToLower(a) {
 		case "--describe":
 			// best-effort runtime fields without hitting etcd
-			s.Process = os.Getpid()
-			s.State = "starting"
+			srv.Process = os.Getpid()
+			srv.State = "starting"
 
-			// Provide harmless defaults for Domain/Address that don’t need etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
+			// Provide defaults that don’t require etcd
+			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" { srv.Domain = strings.ToLower(v) } else { srv.Domain = "localhost" }
+			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" { srv.Address = strings.ToLower(v) } else { srv.Address = "localhost:" + Utility.ToString(srv.Port) }
 
-			b, err := globular.DescribeJSON(s)
+			b, err := globular.DescribeJSON(srv)
 			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
 				os.Exit(2)
 			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
+			_, _ = os.Stdout.Write(b); _, _ = os.Stdout.Write([]byte("\n"))
 			return
 
 		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+			if srv.Port == 0 || srv.Name == "" {
+				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
 				os.Exit(2)
 			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "", // overall
-			})
+			b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
 			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
 				os.Exit(2)
 			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
+			_, _ = os.Stdout.Write(b); _, _ = os.Stdout.Write([]byte("\n"))
 			return
 		}
 	}
 
 	// Optional positional args (unchanged)
 	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
+		srv.Id = args[0]
 	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+		srv.Id = args[0]
+		srv.ConfigPath = args[1]
 	}
 
-	// Safe to read local config now (file or etcd fallback handled by config pkg)
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
-		s.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
-	}
-
-	// Register client ctor for Repository (kept for compatibility)
-	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
+	// Now it’s safe to read local config (may use etcd or file fallback)
+	if d, err := config.GetDomain(); err == nil { srv.Domain = d } else { srv.Domain = "localhost" }
+	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" { srv.Address = a }
 
 	start := time.Now()
-	if err := s.Init(); err != nil {
-		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
+	if err := srv.Init(); err != nil {
+		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 
-	repositorypb.RegisterPackageRepositoryServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
+	// gRPC wiring
+	torrentpb.RegisterTorrentServiceServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
+
+	// Action channels and permissions
+	srv.actions = make(chan map[string]interface{})
+	srv.done = make(chan bool)
+	srv.Permissions = append(srv.Permissions, map[string]interface{}{
+		"action": "/torrent.TorrentService/DownloadTorrentRequest",
+		"resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}},
+	})
+
+	// Torrent client init
+	if err := Utility.CreateDirIfNotExist(srv.DownloadDir); err != nil {
+		logger.Error("ensure download dir failed", "dir", srv.DownloadDir, "err", err)
+		os.Exit(1)
+	}
+	cfg := torrent.NewDefaultClientConfig()
+	cfg.DataDir = srv.DownloadDir
+	cfg.Seed = srv.Seed
+	client, err := torrent.NewClient(cfg)
+	if err != nil {
+		logger.Error("torrent client start failed", "err", err)
+		os.Exit(1)
+	}
+	srv.torrent_client_ = client
+
+	// Start the torrent processor loop (defined in torrent.go).
+	srv.processTorrent()
+
+	// Resume previously saved links asynchronously.
+	go func() {
+		lnks, err := srv.readTorrentLnks()
+		if err != nil {
+			logger.Warn("read saved torrent links failed", "err", err)
+			return
+		}
+		for _, lnk := range lnks {
+			logger.Info("resuming torrent", "name", lnk.Name)
+			if err := srv.downloadTorrent(lnk.Lnk, lnk.Dir, lnk.Seed, lnk.Owner); err != nil {
+				logger.Error("resume torrent failed", "name", lnk.Name, "err", err)
+			}
+		}
+	}()
 
 	logger.Info("service ready",
-		"service", s.Name,
-		"port", s.Port,
-		"proxy", s.Proxy,
-		"protocol", s.Protocol,
-		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"service", srv.Name,
+		"port", srv.Port,
+		"proxy", srv.Proxy,
+		"protocol", srv.Protocol,
+		"domain", srv.Domain,
+		"download_dir", srv.DownloadDir,
+		"listen_ms", time.Since(start).Milliseconds(),
+	)
 
-	if err := s.StartService(); err != nil {
-		logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
+	if err := srv.StartService(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 }
 
 func printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  repository_server [service_id] [config_path]")
+	fmt.Println("  torrent_server [service_id] [config_path]")
 	fmt.Println("Options:")
 	fmt.Println("  --describe    Print service metadata as JSON and exit")
 	fmt.Println("  --health      Print service health as JSON and exit")
 	fmt.Println("Examples:")
-	fmt.Println("  repository_server my-repo-id /etc/globular/repository/config.json")
-	fmt.Println("  repository_server --describe")
-	fmt.Println("  repository_server --health")
+	fmt.Println("  torrent_server my-id /etc/globular/torrent/config.json")
+	fmt.Println("  torrent_server --describe")
+	fmt.Println("  torrent_server --health")
 }

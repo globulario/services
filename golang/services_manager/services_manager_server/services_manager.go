@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,169 +27,174 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// Uninstall a service...
+
+// UninstallService removes a service from the current node.
+// It authenticates with the token extracted from ctx and delegates to uninstallService.
+// Public signature preserved.
 func (srv *server) UninstallService(ctx context.Context, rqst *services_managerpb.UninstallServiceRequest) (*services_managerpb.UninstallServiceResponse, error) {
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
+		logger.Error("failed to get client token for uninstall", "serviceId", rqst.ServiceId, "err", err)
 		return nil, err
 	}
+
 	if err := srv.uninstallService(token, rqst.PublisherID, rqst.ServiceId, rqst.Version, rqst.DeletePermissions); err != nil {
+		logger.Error("uninstall service failed",
+			"serviceId", rqst.ServiceId,
+			"publisherId", rqst.PublisherID,
+			"version", rqst.Version,
+			"err", err,
+		)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	logger.Info("service uninstalled", "serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version)
 	return &services_managerpb.UninstallServiceResponse{Result: true}, nil
 }
 
+// GetRepositoryClient returns a repository client for the given address.
+// Public signature preserved.
 func GetRepositoryClient(address string) (*repository_client.Repository_Service_Client, error) {
 	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
 	client, err := globular_client.GetClient(address, "repository.PackageRepository", "NewRepositoryService_Client")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connect repository at %s: %w", address, err)
 	}
 	return client.(*repository_client.Repository_Service_Client), nil
 }
 
-// Install/Update a service on globular instance.
+// installService downloads, expands and installs a service bundle, then writes its config to etcd.
+// It preserves relevant previous config flags if a previous version exists.
 func (srv *server) installService(token string, descriptor *resourcepb.PackageDescriptor) error {
 	if len(descriptor.Repositories) == 0 {
-		return errors.New("no service repository was found for service " + descriptor.Id)
+		return fmt.Errorf("no service repository found for service %s", descriptor.Id)
 	}
 
-	for i := 0; i < len(descriptor.Repositories); i++ {
-		repoClient, err := GetRepositoryClient(descriptor.Repositories[i])
+	for _, repoAddr := range descriptor.Repositories {
+		repoClient, err := GetRepositoryClient(repoAddr)
 		if err != nil {
-			return err
+			return fmt.Errorf("get repository client (%s): %w", repoAddr, err)
 		}
 
 		bundle, err := repoClient.DownloadBundle(descriptor, globular.GetPlatform())
 		if err != nil {
-			return err
+			return fmt.Errorf("download bundle (%s@%s) from %s: %w", descriptor.Id, descriptor.Version, repoAddr, err)
 		}
 
-		// Uninstall any existing version first (best-effort)
+		// Best-effort uninstall of previous version.
 		if prev, _ := config.GetServiceConfigurationById(descriptor.Id); prev != nil {
-			_ = srv.uninstallService(token, descriptor.PublisherID, descriptor.Id, Utility.ToString(prev["Version"]), false)
+			if err := srv.uninstallService(token, descriptor.PublisherID, descriptor.Id, Utility.ToString(prev["Version"]), false); err != nil {
+				logger.Warn("failed to uninstall previous version (continuing)",
+					"serviceId", descriptor.Id, "prevVersion", Utility.ToString(prev["Version"]), "err", err)
+			}
 		}
 
-		// Extract bundle
-		r := bytes.NewReader(bundle.Binairies)
-		extractedPath, err := Utility.ExtractTarGz(r)
+		// Extract bundle to a temp dir.
+		extractedPath, err := Utility.ExtractTarGz(bytes.NewReader(bundle.Binairies))
 		if err != nil {
-			return err
+			return fmt.Errorf("extract bundle (%s@%s): %w", descriptor.Id, descriptor.Version, err)
 		}
-		defer os.RemoveAll(extractedPath)
+		defer func() {
+			if rmErr := os.RemoveAll(extractedPath); rmErr != nil {
+				logger.Warn("cleanup extracted bundle failed", "path", extractedPath, "err", rmErr)
+			}
+		}()
 
-		// Copy into services tree
-		base := srv.Root + "/services/"
+		// Copy to <root>/services/<PublisherID>/...
+		base := filepath.Join(srv.Root, "services")
 		if err := Utility.CreateDirIfNotExist(base); err != nil {
-			return err
+			return fmt.Errorf("ensure services dir: %w", err)
 		}
-		if err := Utility.CopyDir(extractedPath+"/"+descriptor.PublisherID, base); err != nil {
-			return err
+		if err := Utility.CopyDir(filepath.Join(extractedPath, descriptor.PublisherID), base); err != nil {
+			return fmt.Errorf("copy bundle to services tree: %w", err)
 		}
 
-		installRoot := base + descriptor.PublisherID + "/" + descriptor.Name + "/" + descriptor.Version + "/" + descriptor.Id
+		installRoot := filepath.Join(base, descriptor.PublisherID, descriptor.Name, descriptor.Version, descriptor.Id)
 
-		// preinst
-		if Utility.Exists(installRoot + "/preinst") {
-			if err := exec.Command("/bin/sh", installRoot+"/preinst").Run(); err != nil {
-				defer os.RemoveAll(installRoot)
-				return err
+		// preinst hook
+		if Utility.Exists(filepath.Join(installRoot, "preinst")) {
+			if err := exec.Command("/bin/sh", filepath.Join(installRoot, "preinst")).Run(); err != nil {
+				_ = os.RemoveAll(installRoot)
+				return fmt.Errorf("preinst failed: %w", err)
 			}
 		}
 
 		// Locate executable
 		execPath, err := findServiceExecutable(installRoot, descriptor.Name, descriptor.Id)
 		if err != nil {
-			return err
+			return fmt.Errorf("find service executable: %w", err)
 		}
 		if err := os.Chmod(execPath, 0o755); err != nil {
+			return fmt.Errorf("chmod executable: %w", err)
+		}
+
+		// Locate proto (prefer published path; fallback to local)
+		protoPath, err := findProtoPath(srv.Root, descriptor.PublisherID, descriptor.Name, descriptor.Version, installRoot)
+		if err != nil {
 			return err
 		}
 
-		// Locate proto (we copy proto under <pub>/<name>/<version>/ by packaging code)
-		protos, _ := Utility.FindFileByName(srv.Root+"/services/"+descriptor.PublisherID+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
-		if len(protos) == 0 {
-			// fallback: search inside installRoot
-			protos, _ = Utility.FindFileByName(installRoot, ".proto")
-			if len(protos) == 0 {
-				return errors.New("no .proto file found for service " + descriptor.Id)
-			}
-		}
-		protoPath := protos[0]
-
 		// Preserve previous runtime prefs if any
-		prev, _ := config.GetServiceConfigurationById(descriptor.Id)
+		prevCfg, _ := config.GetServiceConfigurationById(descriptor.Id)
 
-		// Build desired config to save in etcd
-		s := map[string]interface{}{
+		// Build desired config
+		cfg := map[string]interface{}{
 			"Id":           descriptor.Id,
 			"Name":         descriptor.Name,
 			"PublisherID":  descriptor.PublisherID,
 			"Version":      descriptor.Version,
 			"Description":  descriptor.Description,
 			"Keywords":     descriptor.Keywords,
-			"Path":         strings.ReplaceAll(execPath, "\\", "/"),
-			"Proto":        strings.ReplaceAll(protoPath, "\\", "/"),
+			"Path":         toSlash(execPath),
+			"Proto":        toSlash(protoPath),
 			"Repositories": toIfaceSlice(descriptor.Repositories),
 			"Discoveries":  toIfaceSlice(descriptor.Discoveries),
-			// defaults / preserved
+
+			// Defaults / runtime
 			"KeepAlive":       true,
 			"KeepUpToDate":    false,
 			"AllowAllOrigins": true,
 			"AllowedOrigins":  "",
 			"TLS":             false,
-			"Port":            0,  // will be assigned at start
-			"Proxy":           0,  // will be assigned at start
+			"Port":            0,  // to be assigned at start
+			"Proxy":           0,  // to be assigned at start
 			"Process":         -1, // runtime
 			"ProxyProcess":    -1, // runtime
 			"State":           "stopped",
 			"LastError":       "",
 		}
 
-		if prev != nil {
-			if v, ok := prev["KeepAlive"]; ok {
-				s["KeepAlive"] = v
-			}
-			if v, ok := prev["KeepUpToDate"]; ok {
-				s["KeepUpToDate"] = v
-			}
-			// preserve custom CORS/TLS if they existed
-			if v, ok := prev["TLS"]; ok {
-				s["TLS"] = v
-			}
-			if v, ok := prev["AllowAllOrigins"]; ok {
-				s["AllowAllOrigins"] = v
-			}
-			if v, ok := prev["AllowedOrigins"]; ok {
-				s["AllowedOrigins"] = v
+		// Preserve selected fields from previous config
+		if prevCfg != nil {
+			copyIfPresent(prevCfg, cfg, "KeepAlive", "KeepUpToDate", "TLS", "AllowAllOrigins", "AllowedOrigins")
+		}
+
+		// Save config to etcd
+		if err := config.SaveServiceConfiguration(cfg); err != nil {
+			return fmt.Errorf("save service configuration (%s): %w", descriptor.Id, err)
+		}
+
+		// postinst hook
+		if Utility.Exists(filepath.Join(installRoot, "postinst")) {
+			if err := exec.Command("/bin/sh", filepath.Join(installRoot, "postinst")).Run(); err != nil {
+				_ = os.RemoveAll(installRoot)
+				return fmt.Errorf("postinst failed: %w", err)
 			}
 		}
 
-		// Save desired/runtime into etcd
-		if err := config.SaveServiceConfiguration(s); err != nil {
-			return err
-		}
-
-		// Post-install hook
-		if Utility.Exists(installRoot + "/postinst") {
-			if err := exec.Command("/bin/sh", installRoot+"/postinst").Run(); err != nil {
-				defer os.RemoveAll(installRoot)
-				return err
+		// Merge discoveries
+		if mergeDiscoveries(&srv.Discoveries, descriptor.Discoveries) {
+			if err := srv.Save(); err != nil {
+				logger.Warn("failed to persist service-manager after discoveries merge", "err", err)
 			}
 		}
 
-		// Merge server discoveries with descriptor ones and persist service-manager if changed
-		needSave := false
-		for _, d := range descriptor.Discoveries {
-			if !Utility.Contains(srv.Discoveries, d) {
-				srv.Discoveries = append(srv.Discoveries, d)
-				needSave = true
-			}
-		}
-		if needSave {
-			_ = srv.Save()
-		}
-
+		logger.Info("service installed",
+			"serviceId", descriptor.Id,
+			"publisherId", descriptor.PublisherID,
+			"version", descriptor.Version,
+			"exec", execPath,
+			"proto", protoPath)
 		return nil
 	}
 
@@ -204,7 +209,42 @@ func toIfaceSlice(in []string) []interface{} {
 	return out
 }
 
-func findServiceExecutable(dir string, name string, id string) (string, error) {
+func toSlash(s string) string { return strings.ReplaceAll(s, "\\", "/") }
+
+func copyIfPresent(src, dst map[string]interface{}, keys ...string) {
+	for _, k := range keys {
+		if v, ok := src[k]; ok {
+			dst[k] = v
+		}
+	}
+}
+
+func mergeDiscoveries(dst *[]string, src []string) bool {
+	changed := false
+	for _, d := range src {
+		if !Utility.Contains(*dst, d) {
+			*dst = append(*dst, d)
+			changed = true
+		}
+	}
+	return changed
+}
+
+func findProtoPath(root, publisher, name, version, fallbackRoot string) (string, error) {
+	// First look under <root>/services/<publisher>/<name>/<version>/
+	serviceRoot := filepath.Join(root, "services", publisher, name, version)
+	protos, _ := Utility.FindFileByName(serviceRoot, ".proto")
+	if len(protos) == 0 {
+		// fallback: search inside installRoot
+		protos, _ = Utility.FindFileByName(fallbackRoot, ".proto")
+		if len(protos) == 0 {
+			return "", fmt.Errorf("no .proto file found for service under %s or %s", serviceRoot, fallbackRoot)
+		}
+	}
+	return protos[0], nil
+}
+
+func findServiceExecutable(dir, name, id string) (string, error) {
 	// Prefer exact name/id, then first executable file.
 	candidates := []string{
 		filepath.Join(dir, name),
@@ -217,9 +257,10 @@ func findServiceExecutable(dir string, name string, id string) (string, error) {
 			return c, nil
 		}
 	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read dir %s: %w", dir, err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -235,45 +276,58 @@ func findServiceExecutable(dir string, name string, id string) (string, error) {
 			return full, nil
 		}
 	}
-	return "", errors.New("no executable found in " + dir)
+	return "", fmt.Errorf("no executable found in %s", dir)
 }
 
 func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connect resource at %s: %w", address, err)
 	}
 	return client.(*resource_client.Resource_Client), nil
 }
 
-// Install/Update a service on globular instance.
+// InstallService installs (or updates) a service by fetching its descriptor from a resource service
+// identified by rqst.DicorveryId, then delegates to installService.
+// Public signature preserved.
 func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
+		logger.Error("failed to get client token for install", "serviceId", rqst.ServiceId, "err", err)
 		return nil, err
 	}
+
 	resourceClient, err := getResourceClient(rqst.DicorveryId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to connect to "+rqst.DicorveryId)))
+		logger.Error("failed to connect to discovery/resource", "discoveryId", rqst.DicorveryId, "err", err)
+		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("connect to %s: %w", rqst.DicorveryId, err)))
 	}
+
 	descriptor, err := resourceClient.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherID, rqst.Version)
 	if err != nil {
+		logger.Error("get package descriptor failed",
+			"serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	if err := srv.installService(token, descriptor); err != nil {
+		logger.Error("install service failed",
+			"serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	return &services_managerpb.InstallServiceResponse{Result: true}, nil
 }
 
 func (srv *server) stopServiceInstance(serviceId string) error {
 	if serviceId == srv.GetId() {
-		return errors.New("the service manager could not stop itself")
+		return errors.New("service manager cannot stop itself")
 	}
+
 	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
-		return err
+		return fmt.Errorf("get service config by id (%s): %w", serviceId, err)
 	}
 	if s != nil {
 		return srv.stopService(s)
@@ -281,16 +335,16 @@ func (srv *server) stopServiceInstance(serviceId string) error {
 
 	services, err := config.GetServicesConfigurationsByName(serviceId)
 	if err != nil {
-		return err
+		return fmt.Errorf("get services by name (%s): %w", serviceId, err)
 	}
 	for _, sc := range services {
 		id := sc["Id"].(string)
 		cfg, err := config.GetServiceConfigurationById(id)
 		if err != nil {
-			return err
+			return fmt.Errorf("get service config by id (%s): %w", id, err)
 		}
 		if cfg == nil {
-			return errors.New("no service found with id " + id)
+			return fmt.Errorf("no service found with id %s", id)
 		}
 		if err := srv.stopService(cfg); err != nil {
 			return err
@@ -299,149 +353,192 @@ func (srv *server) stopServiceInstance(serviceId string) error {
 	return nil
 }
 
-// Stop a service
+// StopServiceInstance stops a running service instance by ID or Name.
+// Public signature preserved.
 func (srv *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
 	if err := srv.stopServiceInstance(rqst.ServiceId); err != nil {
+		logger.Error("stop service failed", "serviceId", rqst.ServiceId, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	logger.Info("service stopped", "serviceId", rqst.ServiceId)
 	return &services_managerpb.StopServiceInstanceResponse{Result: true}, nil
 }
 
 func (srv *server) startServiceInstance(serviceId string) error {
 	if serviceId == srv.GetId() {
-		return errors.New("the service manager could not start itself")
+		return errors.New("service manager cannot start itself")
 	}
 
-	// Read global server config (still file-based)
-	globularCfg := make(map[string]interface{})
-	data, err := ioutil.ReadFile(config.GetConfigDir() + "/config.json")
+	// Load global server config file (legacy)
+	data, err := os.ReadFile(filepath.Join(config.GetConfigDir(), "config.json"))
 	if err != nil {
-		return err
+		return fmt.Errorf("read global config: %w", err)
 	}
-	if err := json.Unmarshal(data, &globularCfg); err != nil {
-		return err
+	var _globularCfg map[string]interface{}
+	if err := json.Unmarshal(data, &_globularCfg); err != nil {
+		return fmt.Errorf("parse global config: %w", err)
 	}
 
 	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
-		return err
+		return fmt.Errorf("get service config by id (%s): %w", serviceId, err)
+	}
+	if s == nil {
+		return fmt.Errorf("no service configuration found for id %s", serviceId)
 	}
 
 	port := Utility.ToInt(s["Port"])
 	pid, err := process.StartServiceProcess(s, port)
 	if err != nil {
-		return err
+		return fmt.Errorf("start service process: %w", err)
 	}
 
 	s["Process"] = pid
 	s["State"] = "running"
-	return srv.publishUpdateServiceConfigEvent(s)
+
+	if err := srv.publishUpdateServiceConfigEvent(s); err != nil {
+		logger.Warn("failed to publish update config event after start", "serviceId", serviceId, "err", err)
+	}
+	return nil
 }
 
-// Start a service
+// StartServiceInstance starts a service instance by ID or Name.
+// Public signature preserved.
 func (srv *server) StartServiceInstance(ctx context.Context, rqst *services_managerpb.StartServiceInstanceRequest) (*services_managerpb.StartServiceInstanceResponse, error) {
 	if err := srv.startServiceInstance(rqst.ServiceId); err != nil {
+		logger.Error("start service failed", "serviceId", rqst.ServiceId, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	logger.Info("service started", "serviceId", rqst.ServiceId)
 	return &services_managerpb.StartServiceInstanceResponse{}, nil
 }
 
-// Restart all Services also the http(s)
+// RestartAllServices stops and then restarts all services except the service-manager itself.
+// Public signature preserved.
 func (srv *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
+		logger.Error("get services configurations failed", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	for _, s := range services {
-		if s["Id"].(string) != srv.GetId() {
-			if err := srv.stopServiceInstance(s["Id"].(string)); err != nil {
-				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
+		id := Utility.ToString(s["Id"])
+		if id == srv.GetId() {
+			continue
+		}
+		if err := srv.stopServiceInstance(id); err != nil {
+			logger.Error("stop service during restart-all failed", "serviceId", id, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
+
 	for _, s := range services {
-		if s["Id"].(string) != srv.GetId() {
-			if err := srv.startServiceInstance(s["Id"].(string)); err != nil {
-				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
+		id := Utility.ToString(s["Id"])
+		if id == srv.GetId() {
+			continue
+		}
+		if err := srv.startServiceInstance(id); err != nil {
+			logger.Error("start service during restart-all failed", "serviceId", id, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
+
+	logger.Info("all services restarted")
 	return &services_managerpb.RestartAllServicesResponse{}, nil
 }
 
+// GetServicesConfiguration returns the list of all service configurations (as Struct).
+// Public signature preserved.
 func (srv *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
+		logger.Error("get services configurations failed", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	rsp := &services_managerpb.GetServicesConfigurationResponse{Services: make([]*structpb.Struct, len(services))}
+
+	resp := &services_managerpb.GetServicesConfigurationResponse{Services: make([]*structpb.Struct, len(services))}
 	for i := range services {
-		rsp.Services[i], _ = structpb.NewStruct(services[i])
+		resp.Services[i], _ = structpb.NewStruct(services[i])
 	}
-	return rsp, nil
+	return resp, nil
 }
 
+// SaveServiceConfig persists a given service configuration (JSON), restarts the service,
+// and broadcasts the update event.
+// Public signature preserved.
 func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
-	s := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(rqst.Config), &s); err != nil {
+	cfg := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(rqst.Config), &cfg); err != nil {
+		logger.Error("invalid service config JSON", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := config.SaveServiceConfiguration(s); err != nil {
+
+	if err := config.SaveServiceConfiguration(cfg); err != nil {
+		logger.Error("save service configuration failed", "serviceId", cfg["Id"], "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := srv.stopServiceInstance(s["Id"].(string)); err != nil {
+
+	id := Utility.ToString(cfg["Id"])
+	if err := srv.stopServiceInstance(id); err != nil {
+		logger.Error("stop service after save config failed", "serviceId", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := srv.startServiceInstance(s["Id"].(string)); err != nil {
+	if err := srv.startServiceInstance(id); err != nil {
+		logger.Error("start service after save config failed", "serviceId", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := srv.publishUpdateServiceConfigEvent(s); err != nil {
+	if err := srv.publishUpdateServiceConfigEvent(cfg); err != nil {
+		logger.Warn("publish update service config event failed", "serviceId", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	logger.Info("service configuration saved and service restarted", "serviceId", id)
 	return &services_managerpb.SaveServiceConfigResponse{}, nil
 }
 
-// Collect all gRPC action paths by parsing .proto files from etcd-provided configs.
+// GetAllActions parses all known .proto files referenced by service configs,
+// and returns the list of fully-qualified gRPC method paths (e.g. /pkg.Service/Method).
+// Public signature preserved.
 func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
+		logger.Error("get services configurations failed", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	actions := make([]string, 0)
+
+	actions := make([]string, 0, 64)
 
 	for _, svc := range services {
 		path := Utility.ToString(svc["Proto"])
 		if path == "" || !Utility.Exists(path) {
-			// skip services without proto on disk
+			// skip services without on-disk proto
 			continue
 		}
-		reader, _ := os.Open(path)
-		defer reader.Close()
 
-		parser := proto.NewParser(reader)
-		definition, _ := parser.Parse()
+		reader, err := os.Open(path)
+		if err != nil {
+			logger.Warn("open proto failed", "path", path, "err", err)
+			continue
+		}
 
-		stack := make([]interface{}, 0)
-		proto.Walk(definition,
-			proto.WithPackage(func(p *proto.Package) { stack = append(stack, p) }),
-			proto.WithService(func(s *proto.Service) { stack = append(stack, s) }),
-			proto.WithRPC(func(r *proto.RPC) { stack = append(stack, r) }),
-		)
+		def, perr := proto.NewParser(reader).Parse()
+		_ = reader.Close()
+		if perr != nil {
+			logger.Warn("parse proto failed", "path", path, "err", perr)
+			continue
+		}
 
 		var pkg, svcName string
-		for len(stack) > 0 {
-			var x interface{}
-			x, stack = stack[0], stack[1:]
-			switch v := x.(type) {
-			case *proto.Package:
-				pkg = v.Name
-			case *proto.Service:
-				svcName = v.Name
-			case *proto.RPC:
-				actions = append(actions, "/"+pkg+"."+svcName+"/"+v.Name)
-			}
-		}
+		proto.Walk(def,
+			proto.WithPackage(func(p *proto.Package) { pkg = p.Name }),
+			proto.WithService(func(s *proto.Service) { svcName = s.Name }),
+			proto.WithRPC(func(r *proto.RPC) {
+				if pkg != "" && svcName != "" && r != nil {
+					actions = append(actions, "/"+pkg+"."+svcName+"/"+r.Name)
+				}
+			}),
+		)
 	}
 
 	return &services_managerpb.GetAllActionsResponse{Actions: actions}, nil

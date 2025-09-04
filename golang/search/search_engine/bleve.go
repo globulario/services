@@ -1,213 +1,260 @@
+// Package search_engine provides a Bleve-based implementation of the
+// SearchEngine interface. This refactor improves error messages, removes
+// printlns, adds structured logging via slog, and keeps public prototypes
+// unchanged. It targets bleve/v2.
 package search_engine
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/search/searchpb"
 	Utility "github.com/globulario/utility"
 )
 
-/**
- * A key value data store.
- */
+// logger is a lightweight, local slog logger for this engine.
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+// BleveSearchEngine implements SearchEngine on top of Bleve.
 type BleveSearchEngine struct {
-	indexs map[string]bleve.Index
+	mu     sync.RWMutex           // protects indexs
+	indexs map[string]bleve.Index // path -> index
 }
 
-// Create a new search engine.
+// NewBleveSearchEngine creates a new Bleve-powered search engine.
 func NewBleveSearchEngine() *BleveSearchEngine {
-	// init the indexs map.
-	return &BleveSearchEngine{indexs: make(map[string]bleve.Index, 0)}
+	return &BleveSearchEngine{indexs: make(map[string]bleve.Index)}
 }
 
-/**
- * Return indexation for a given path...
- */
+// getIndex returns or opens/creates an index at the given path.
+// It validates the path and ensures the parent directory exists.
 func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
-
-	if len(path) == 0 {
-		return nil, errors.New("path is empty")
+	if strings.TrimSpace(path) == "" {
+		return nil, errors.New("index path is empty")
 	}
 
-	if engine.indexs[path] != nil {
+	// Normalize path for the current OS.
+	path = filepath.Clean(path)
+
+	engine.mu.RLock()
+	idx := engine.indexs[path]
+	engine.mu.RUnlock()
+
+	// If we already have an index cached, ensure the on-disk path still exists.
+	if idx != nil {
 		if !Utility.Exists(path) {
-			if engine.indexs[path] != nil {
-				engine.indexs[path].Close()
-				delete(engine.indexs, path)
-			}
-			return nil, errors.New("path: '" + path + "' does not exist")
+			engine.mu.Lock()
+			_ = idx.Close()
+			delete(engine.indexs, path)
+			engine.mu.Unlock()
+			return nil, fmt.Errorf("index path does not exist: %s", path)
+		}
+		return idx, nil
+	}
+
+	// Ensure directory exists before creating/opening the index.
+	if !Utility.Exists(path) {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			return nil, fmt.Errorf("create index directory failed: %w", err)
 		}
 	}
 
-	if engine.indexs[path] == nil {
-
-		index, err := bleve.Open(path) // try to open existing index.
+	// Try to open; if it fails because it doesn't exist, create it.
+	index, err := bleve.Open(path)
+	if err != nil {
+		mapping := bleve.NewIndexMapping()
+		index, err = bleve.New(path, mapping)
 		if err != nil {
-			fmt.Println("failed to open index with error: ", err)
-			mapping := bleve.NewIndexMapping()
-			var err error
-			index, err = bleve.New(path, mapping)
-			if err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("open/create bleve index failed: %w", err)
 		}
-
-		engine.indexs[path] = index
+		logger.Info("created bleve index", "path", path)
+	} else {
+		logger.Debug("opened bleve index", "path", path)
 	}
 
-	return engine.indexs[path], nil
+	engine.mu.Lock()
+	engine.indexs[path] = index
+	engine.mu.Unlock()
+	return index, nil
 }
 
-// Get the store version.
-func (engine *BleveSearchEngine) GetVersion() string {
-	return "2.0"
-}
+// GetVersion returns the underlying query engine version label.
+func (engine *BleveSearchEngine) GetVersion() string { return "2.x" }
 
-// Set a document from list of db from given paths...
-func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
+// SearchDocuments executes a query against one or more index paths.
+// Public prototype preserved.
+func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) { //nolint
+	results := &searchpb.SearchResults{Results: make([]*searchpb.SearchResult, 0)}
 
-	results := new(searchpb.SearchResults)
-	results.Results = make([]*searchpb.SearchResult, 0)
-	for i := 0; i < len(paths); i++ {
-		index, _ := engine.getIndex(paths[i])
-		if index != nil {
+	if len(paths) == 0 {
+		return nil, errors.New("no index paths supplied")
+	}
+	if strings.TrimSpace(q) == "" {
+		return nil, errors.New("query string is empty")
+	}
 
-			query := bleve.NewQueryStringQuery(q)
-			searchRequest := bleve.NewSearchRequest(query)
-			searchRequest.Fields = fields
-			searchRequest.From = int(offset)
-			searchRequest.Size = int(pageSize)
-			searchRequest.Highlight = bleve.NewHighlightWithStyle("html")
-			searchResult, _ := index.Search(searchRequest)
+	for _, p := range paths {
+		index, err := engine.getIndex(p)
+		if err != nil {
+			logger.Warn("skip index (unavailable)", "path", p, "err", err)
+			continue
+		}
 
-			// Now from the result I will
-			if searchResult != nil {
-				fmt.Println("found ", len(searchResult.Hits), " results")
-				// Now I will return the data
-				for _, val := range searchResult.Hits {
-					id := val.ID
-					raw, err := index.GetInternal([]byte(id))
-					if err == nil {
-						result := new(searchpb.SearchResult)
-						result.Data = string(raw)
+		query := bleve.NewQueryStringQuery(q)
+		sr := bleve.NewSearchRequest(query)
+		sr.Fields = fields
+		sr.From = int(offset)
+		sr.Size = int(pageSize)
+		// Always return HTML highlights; snippetLength can be honored by client when rendering.
+		sr.Highlight = bleve.NewHighlightWithStyle("html")
 
-						result.DocId = id
-						result.Rank = int32(val.Score * 100)
+		searchResult, err := index.Search(sr)
+		if err != nil {
+			logger.Error("search failed", "path", p, "err", err)
+			continue
+		}
 
-						// serialyse the fragment and set it as snippet.
-						data, err := Utility.ToJson(val.Fragments)
-						if err == nil {
-							result.Snippet = string(data)
-						}
-						results.Results = append(results.Results, result)
-					} else {
-						fmt.Println("fait to retreiv raw data with error: ", err)
-					}
-				}
+		for _, hit := range searchResult.Hits {
+			id := hit.ID
+			// Retrieve the raw user payload stored via SetInternal
+			raw, err := index.GetInternal([]byte(id))
+			if err != nil {
+				logger.Warn("get raw data failed", "path", p, "id", id, "err", err)
+				continue
 			}
+
+			res := &searchpb.SearchResult{
+				Data:   string(raw),
+				DocId:  id,
+				Rank:   int32(hit.Score * 100),
+				Snippet: func() string {
+					if len(hit.Fragments) == 0 {
+						return ""
+					}
+					data, err := Utility.ToJson(hit.Fragments)
+					if err != nil {
+						logger.Warn("fragment marshal failed", "id", id, "err", err)
+						return ""
+					}
+					return string(data)
+				}(),
+			}
+			results.Results = append(results.Results, res)
 		}
 	}
 
 	if len(results.Results) == 0 {
 		return nil, errors.New("no results found")
 	}
-
 	return results, nil
 }
 
-// Delete a document with a given path and id.
+// DeleteDocument removes a document from the specified index by id.
+// Public prototype preserved.
 func (engine *BleveSearchEngine) DeleteDocument(path string, id string) error {
-
+	if strings.TrimSpace(id) == "" {
+		return errors.New("document id is empty")
+	}
 	index, err := engine.getIndex(path)
 	if err != nil {
 		return err
 	}
-
-	err = index.Delete(id)
-	if err != nil {
-		return err
+	if err := index.Delete(id); err != nil {
+		return fmt.Errorf("delete document %q failed: %w", id, err)
 	}
-
 	return nil
 }
 
-func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
-	if len(id) == 0 {
-		return errors.New("no id field found")
+// indexJsonObject indexes a single JSON object and stores the raw payload.
+// Internal helper; public prototype remains IndexJsonObject below.
+func (engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj map[string]interface{}, language string, idField string, indexs []string, data string) error { //nolint
+	if strings.TrimSpace(idField) == "" {
+		return errors.New("id field name is empty")
 	}
 
-	id_ := obj[id].(string)
-	if len(id_) == 0 {
-		return errors.New("id is empty field: " + id)
+	rawID, ok := obj[idField]
+	if !ok {
+		return fmt.Errorf("missing id field %q", idField)
+	}
+	id, ok := rawID.(string)
+	if !ok || strings.TrimSpace(id) == "" {
+		return fmt.Errorf("id field %q must be a non-empty string", idField)
 	}
 
-	err := index.Index(id_, obj)
-	if err != nil {
-		return err
+	if err := index.Index(id, obj); err != nil {
+		return fmt.Errorf("index document %q failed: %w", id, err)
 	}
 
-	// Associated original object here...
-	if len(data) > 0 {
-		err = index.SetInternal([]byte(id_), []byte(data))
-	} else {
-		data_, err := Utility.ToJson(obj)
-		if err == nil {
-			err = index.SetInternal([]byte(id_), []byte(data_))
-			if err != nil {
-				return err
-			}
+	// Persist original JSON alongside the index for retrieval.
+	if data != "" {
+		if err := index.SetInternal([]byte(id), []byte(data)); err != nil {
+			return fmt.Errorf("store raw data for %q failed: %w", id, err)
 		}
+		return nil
 	}
 
-	return err
+	dataJSON, err := Utility.ToJson(obj)
+	if err != nil {
+		return fmt.Errorf("serialize object for %q failed: %w", id, err)
+	}
+	if err := index.SetInternal([]byte(id), []byte(dataJSON)); err != nil {
+		return fmt.Errorf("store raw data for %q failed: %w", id, err)
+	}
+	return nil
 }
 
-// Index a given object.
-func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
-
+// IndexJsonObject indexes a JSON string which may represent an object
+// or an array of objects. Public prototype preserved.
+func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error { //nolint
 	index, err := engine.getIndex(path)
 	if err != nil {
 		return err
 	}
 
 	var obj interface{}
-	err = json.Unmarshal([]byte(jsonStr), &obj)
-	if err != nil {
-		return err
+	if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
 	}
 
-	// Now I will append the object into the database.
 	switch v := obj.(type) {
 	case map[string]interface{}:
-		err = engine.indexJsonObject(index, v, language, id, indexs, data)
-
+		return engine.indexJsonObject(index, v, language, id, indexs, data)
 	case []interface{}:
 		for i := 0; i < len(v); i++ {
-			err := engine.indexJsonObject(index, v[i].(map[string]interface{}), language, id, indexs, data)
-			if err != nil {
-				break
+			m, ok := v[i].(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("array element %d is not an object", i)
+			}
+			if err := engine.indexJsonObject(index, m, language, id, indexs, data); err != nil {
+				return err
 			}
 		}
+		return nil
+	default:
+		return errors.New("JSON must be an object or array of objects")
 	}
-
-	return err
 }
 
-// Count the number of document in a db.
+// Count returns the number of documents in an index.
+// Public prototype preserved.
 func (engine *BleveSearchEngine) Count(path string) int32 {
 	index, err := engine.getIndex(path)
 	if err != nil {
+		logger.Warn("count failed: index unavailable", "path", path, "err", err)
 		return -1
 	}
-
-	total, err := index.DocCount()
+	n, err := index.DocCount()
 	if err != nil {
+		logger.Error("count failed", "path", path, "err", err)
 		return -1
 	}
-
-	// convert to int 32
-	return int32(total)
+	return int32(n)
 }
+

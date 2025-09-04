@@ -45,8 +45,8 @@ import (
 // -----------------------------------------------------------------------------
 
 var (
-	defaultPort  = 10067
-	defaultProxy = 10068
+	defaultPort  = 10000
+	defaultProxy = defaultPort + 1
 
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
