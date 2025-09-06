@@ -33,7 +33,7 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 			return nil, status.Errorf(codes.Internal, "store raw publisher: %v", err)
 		}
 	}
-	logger.Info("publisher created", "publisherID", rqst.Publisher.ID)
+	logger.Info("publisher created", "PublisherID", rqst.Publisher.ID)
 	return &titlepb.CreatePublisherResponse{}, nil
 }
 
@@ -50,7 +50,7 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 	if err := index.DeleteInternal([]byte(uuid)); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete publisher raw: %v", err)
 	}
-	logger.Info("publisher deleted", "publisherID", rqst.PublisherID)
+	logger.Info("publisher deleted", "PublisherID", rqst.PublisherID)
 	return &titlepb.DeletePublisherResponse{}, nil
 }
 

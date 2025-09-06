@@ -27,7 +27,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-
 // UninstallService removes a service from the current node.
 // It authenticates with the token extracted from ctx and delegates to uninstallService.
 // Public signature preserved.
@@ -41,14 +40,14 @@ func (srv *server) UninstallService(ctx context.Context, rqst *services_managerp
 	if err := srv.uninstallService(token, rqst.PublisherID, rqst.ServiceId, rqst.Version, rqst.DeletePermissions); err != nil {
 		logger.Error("uninstall service failed",
 			"serviceId", rqst.ServiceId,
-			"publisherId", rqst.PublisherID,
+			"PublisherID", rqst.PublisherID,
 			"version", rqst.Version,
 			"err", err,
 		)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	logger.Info("service uninstalled", "serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version)
+	logger.Info("service uninstalled", "serviceId", rqst.ServiceId, "PublisherID", rqst.PublisherID, "version", rqst.Version)
 	return &services_managerpb.UninstallServiceResponse{Result: true}, nil
 }
 
@@ -191,7 +190,7 @@ func (srv *server) installService(token string, descriptor *resourcepb.PackageDe
 
 		logger.Info("service installed",
 			"serviceId", descriptor.Id,
-			"publisherId", descriptor.PublisherID,
+			"PublisherID", descriptor.PublisherID,
 			"version", descriptor.Version,
 			"exec", execPath,
 			"proto", protoPath)
@@ -307,13 +306,13 @@ func (srv *server) InstallService(ctx context.Context, rqst *services_managerpb.
 	descriptor, err := resourceClient.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherID, rqst.Version)
 	if err != nil {
 		logger.Error("get package descriptor failed",
-			"serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version, "err", err)
+			"serviceId", rqst.ServiceId, "PublisherID", rqst.PublisherID, "version", rqst.Version, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.installService(token, descriptor); err != nil {
 		logger.Error("install service failed",
-			"serviceId", rqst.ServiceId, "publisherId", rqst.PublisherID, "version", rqst.Version, "err", err)
+			"serviceId", rqst.ServiceId, "PublisherID", rqst.PublisherID, "version", rqst.Version, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 

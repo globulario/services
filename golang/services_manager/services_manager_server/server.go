@@ -78,8 +78,8 @@ type server struct {
 	KeepAlive    bool
 
 	// Metadata
-	Description string
-	Keywords    []string
+	Description  string
+	Keywords     []string
 	Repositories []string
 	Discoveries  []string
 
@@ -93,9 +93,9 @@ type server struct {
 	TLS          bool
 
 	// TLS files
-	CertFile             string
-	KeyFile              string
-	CertAuthorityTrust   string
+	CertFile           string
+	KeyFile            string
+	CertAuthorityTrust string
 
 	// RBAC / deps
 	Permissions  []interface{}
@@ -111,10 +111,10 @@ type server struct {
 	DataPath string
 
 	// Others
-	PortsRange string
-	Certificate                 string
-	CertificateAuthorityBundle  string
-	done                        chan bool
+	PortsRange                 string
+	Certificate                string
+	CertificateAuthorityBundle string
+	done                       chan bool
 }
 
 // -----------------------------------------------------------------------------
@@ -605,7 +605,7 @@ func updateService(srv *server, service map[string]interface{}) func(evt *eventp
 
 		logger.Info("updating service",
 			"name", descriptor.Name,
-			"publisherId", descriptor.PublisherID,
+			"PublisherID", descriptor.PublisherID,
 			"id", descriptor.Id,
 			"version", descriptor.Version)
 
@@ -681,8 +681,9 @@ func (srv *server) healthCheck() error {
 
 // main configures and starts the ServicesManager service.
 // Supports:
-//   --describe : print a JSON descriptor and exit 0
-//   --health   : run a lightweight health-check and exit 0/1
+//
+//	--describe : print a JSON descriptor and exit 0
+//	--health   : run a lightweight health-check and exit 0/1
 func main() {
 	// Basic flags for utility behavior (do not change service public API).
 	describe := flag.Bool("describe", false, "Print a JSON service descriptor and exit.")
@@ -691,23 +692,23 @@ func main() {
 
 	// Service init with defaults
 	s := &server{
-		Name:           string(services_managerpb.File_services_manager_proto.Services().Get(0).FullName()),
-		Proto:          services_managerpb.File_services_manager_proto.Path(),
-		Port:           defaultPort,
-		Proxy:          defaultProxy,
-		Protocol:       "grpc",
-		Version:        "0.0.1",
-		PublisherID:    "localhost",
-		Description:    "Microservice manager service",
-		Keywords:       []string{"Manager", "Service"},
-		Repositories:   []string{},
-		Discoveries:    []string{},
-		Dependencies:   []string{"resource.ResourceService", "rbac.RbacService", "event.EventService"},
-		Permissions:    []interface{}{},
-		Process:        -1,
-		ProxyProcess:   -1,
-		KeepAlive:      true,
-		KeepUpToDate:   true,
+		Name:            string(services_managerpb.File_services_manager_proto.Services().Get(0).FullName()),
+		Proto:           services_managerpb.File_services_manager_proto.Path(),
+		Port:            defaultPort,
+		Proxy:           defaultProxy,
+		Protocol:        "grpc",
+		Version:         "0.0.1",
+		PublisherID:     "localhost",
+		Description:     "Microservice manager service",
+		Keywords:        []string{"Manager", "Service"},
+		Repositories:    []string{},
+		Discoveries:     []string{},
+		Dependencies:    []string{"resource.ResourceService", "rbac.RbacService", "event.EventService"},
+		Permissions:     []interface{}{},
+		Process:         -1,
+		ProxyProcess:    -1,
+		KeepAlive:       true,
+		KeepUpToDate:    true,
 		AllowAllOrigins: allowAllOriginsDef,
 		AllowedOrigins:  allowedOriginsDef,
 		methods:         []string{},

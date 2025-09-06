@@ -125,7 +125,6 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 	return &resourcepb.CreateApplicationRsp{}, nil
 }
 
-
 /**
  * Delete application Data from the backend.
  */
@@ -819,12 +818,14 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 // response or an error if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the application ID and values to update.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the application ID and values to update.
 //
 // Returns:
-//   *resourcepb.UpdateApplicationRsp - The response indicating the result of the update operation.
-//   error - An error if the update fails.
+//
+//	*resourcepb.UpdateApplicationRsp - The response indicating the result of the update operation.
+//	error - An error if the update fails.
 func (srv *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {

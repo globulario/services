@@ -21,7 +21,20 @@ import (
    A (IPv4) record endpoints
    ========================= */
 
-// SetA stores (or appends) an IPv4 address for the given domain. It also sets the TTL for that record key.
+
+// SetA adds or updates an A (IPv4 address) DNS record for the specified domain.
+// It first checks if the domain is managed by this DNS server. If not, it returns an error.
+// The function normalizes the domain name, generates a unique identifier, and merges the new IPv4 address
+// with any existing addresses for the domain, avoiding duplicates. The updated list is then marshaled to JSON
+// and stored. The TTL (time-to-live) for the record is also set. All operations are logged appropriately.
+//
+// Parameters:
+//   - ctx: The context for the request, used for cancellation and deadlines.
+//   - rqst: The SetARequest containing the domain, IPv4 address, and TTL.
+//
+// Returns:
+//   - *dnspb.SetAResponse: The response containing a message with the domain name.
+//   - error: An error if the operation fails at any step.
 func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.SetAResponse, error) {
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
@@ -68,7 +81,21 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 	return &dnspb.SetAResponse{Message: domain}, nil
 }
 
-// RemoveA removes a specific IPv4 address from the A record list. If no value remains, the key is deleted.
+
+// RemoveA removes an A (IPv4 address) record from the DNS server for the specified domain.
+// It first checks if the domain is managed by this DNS server. If not, it returns an error.
+// The function retrieves the current list of A records for the domain, removes the specified
+// IPv4 address if it exists, and updates the store accordingly. If no A records remain after
+// removal, it deletes the record from the store and removes associated RBAC permissions.
+// Returns a RemoveAResponse with the result or an error if any operation fails.
+//
+// Parameters:
+//   - ctx: The context for request-scoped values, deadlines, and cancellation signals.
+//   - rqst: The RemoveARequest containing the domain and IPv4 address to remove.
+//
+// Returns:
+//   - *dnspb.RemoveAResponse: The response indicating the result of the operation.
+//   - error: An error if the operation fails.
 func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
@@ -141,7 +168,20 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	return orderIPsByPrivacy(values), srv.getTtl(uuid), nil
 }
 
-// GetA returns the list of IPv4 addresses associated with a domain.
+
+// GetA retrieves the A (IPv4 address) records for the specified domain from the DNS store.
+// It normalizes the domain name to lowercase and ensures it ends with a dot.
+// The function generates a UUID key for the domain, fetches the associated data from the store,
+// and unmarshals the JSON-encoded list of IP addresses. The IP addresses are then ordered
+// according to privacy preferences before being returned in the response.
+//
+// Parameters:
+//   ctx - The context for the request, used for cancellation and deadlines.
+//   rqst - The GetARequest containing the domain name to query.
+//
+// Returns:
+//   *dnspb.GetAResponse - The response containing the list of A records (IPv4 addresses).
+//   error - An error if the retrieval or unmarshalling fails.
 func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -164,7 +204,23 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
    AAAA (IPv6) record endpoints
    =========================== */
 
-// SetAAAA stores (or appends) an IPv6 address for the given domain and sets its TTL.
+
+// SetAAAA adds or updates an AAAA (IPv6 address) DNS record for the specified domain.
+// It first checks if the domain is managed by this DNS server. If not, it returns an error.
+// The domain name is normalized to lowercase and ensured to have a trailing dot.
+// The function generates a unique identifier for the AAAA record, retrieves any existing
+// IPv6 addresses for the domain, and appends the new address if it does not already exist.
+// The updated list of IPv6 addresses is then marshaled to JSON and stored.
+// The TTL (time-to-live) for the record is set if provided.
+// Logs are generated for errors and successful operations.
+//
+// Parameters:
+//   - ctx: The context for the request.
+//   - rqst: The SetAAAARequest containing the domain, IPv6 address, and TTL.
+//
+// Returns:
+//   - *dnspb.SetAAAAResponse: The response containing a message with the domain.
+//   - error: An error if the operation fails.
 func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dnspb.SetAAAAResponse, error) {
 	if !srv.isManaged(rqst.Domain) {
 		err := fmt.Errorf("the domain %s is not managed by this DNS", rqst.Domain)
@@ -204,7 +260,20 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 	return &dnspb.SetAAAAResponse{Message: domain}, nil
 }
 
-// RemoveAAAA removes a specific IPv6 address (or deletes the key if no values remain).
+
+// RemoveAAAA removes an AAAA (IPv6) DNS record for the specified domain.
+// It first normalizes the domain name, checks if the domain is managed by this DNS server,
+// and then attempts to remove the specified AAAA record from the store. If the record is the
+// last one for the domain, it also removes the associated permissions. Logs actions and errors
+// throughout the process.
+//
+// Parameters:
+//   - ctx: The context for the request, used for cancellation and deadlines.
+//   - rqst: The request containing the domain and the AAAA record to remove.
+//
+// Returns:
+//   - *dnspb.RemoveAAAAResponse: The response indicating the result of the operation.
+//   - error: An error if the operation failed.
 func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest) (*dnspb.RemoveAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -272,12 +341,25 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 		return nil, 0, err
 	}
 	if len(values) == 0 {
-		return nil, 0, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no value found for domain "+domain)))
+		return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no value found for domain "+domain)))
 	}
 	return values, srv.getTtl(uuid), nil
 }
 
-// GetAAAA returns the list of IPv6 addresses associated with a domain.
+
+// GetAAAA retrieves the list of IPv6 (AAAA) records associated with the specified domain.
+// The domain name is normalized to lowercase and ensured to have a trailing dot.
+// It generates a UUID key for the domain, fetches the associated data from the store,
+// and unmarshals the JSON-encoded list of IPv6 addresses. If no records are found or
+// an error occurs during unmarshalling, an appropriate gRPC error is returned.
+//
+// Parameters:
+//   ctx  - The context for the request, used for cancellation and deadlines.
+//   rqst - The request containing the domain name to query.
+//
+// Returns:
+//   *dnspb.GetAAAAResponse - The response containing the list of IPv6 addresses.
+//   error                  - An error if the domain is not found or unmarshalling fails.
 func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -292,7 +374,7 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 		}
 	}
 	if len(values) == 0 {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no value found for domain "+domain)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no value found for domain "+domain)))
 	}
 	return &dnspb.GetAAAAResponse{Aaaa: values}, nil
 }
@@ -301,7 +383,20 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
    TXT record API
    =============== */
 
-// SetText appends TXT values for an identifier and stores TTL.
+
+// SetText sets or updates the TXT record values for a given identifier.
+// It marshals the provided values to JSON and stores them in the underlying store.
+// If a TXT record already exists for the given ID, the new values are merged with the existing ones.
+// The function also sets the TTL (time-to-live) for the record.
+// Returns a SetTextResponse indicating success, or an error if any operation fails.
+//
+// Parameters:
+//   ctx  - The context for the request.
+//   rqst - The SetTextRequest containing the ID, values, and TTL.
+//
+// Returns:
+//   *dnspb.SetTextResponse - The response indicating the result of the operation.
+//   error                  - An error if the operation fails.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 	values, err := json.Marshal(rqst.Values)
 	if err != nil {
@@ -354,7 +449,19 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
-// GetText returns TXT values for an identifier.
+
+// GetText retrieves the TXT record values associated with the given ID from the DNS server's store.
+// It generates a UUID based on the provided ID, fetches the corresponding item from the store,
+// and attempts to unmarshal the data into a slice of strings. If successful, it returns the values
+// in a GetTextResponse. If an error occurs during unmarshalling, it returns an internal error status.
+//
+// Parameters:
+//   ctx - The context for the request, used for cancellation and deadlines.
+//   rqst - The GetTextRequest containing the ID of the TXT record to retrieve.
+//
+// Returns:
+//   *dnspb.GetTextResponse - The response containing the TXT record values.
+//   error - An error if the operation fails, otherwise nil.
 func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
@@ -368,7 +475,18 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 	return &dnspb.GetTextResponse{Values: values}, nil
 }
 
-// RemoveText deletes all TXT values for an identifier.
+
+// RemoveText removes a TXT DNS record identified by the given request ID.
+// It deletes the corresponding item from the store and attempts to remove any associated
+// resource permissions using the RBAC client. Logs are generated for both errors and successful removals.
+//
+// Parameters:
+//   ctx  - The context for controlling cancellation and deadlines.
+//   rqst - The request containing the ID of the TXT record to remove.
+//
+// Returns:
+//   *dnspb.RemoveTextResponse - The response indicating the result of the removal operation.
+//   error                     - An error if the removal fails, otherwise nil.
 func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
@@ -387,6 +505,19 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
    NS record API
    ============== */
 
+// SetNs sets a nameserver (NS) record for a given domain identifier.
+// It normalizes the domain and nameserver to lowercase and ensures they end with a dot.
+// The function retrieves any existing NS records for the domain, adds the new NS if not present,
+// and stores the updated list. It also sets the TTL for the record.
+// Returns a SetNsResponse with the result or an error if the operation fails.
+//
+// Parameters:
+//   ctx  - context for request-scoped values, cancellation, and deadlines
+//   rqst - SetNsRequest containing the domain identifier, nameserver, and TTL
+//
+// Returns:
+//   *dnspb.SetNsResponse - response indicating success
+//   error                - error if the operation fails
 func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -448,6 +579,10 @@ func (srv *server) getNs(id string) ([]string, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
+// GetNs retrieves the list of name servers (NS) associated with the given identifier.
+// It generates a UUID based on the provided ID, fetches the corresponding item from the store,
+// and unmarshals the stored data into a slice of strings representing the NS records.
+// Returns a GetNsResponse containing the NS records, or an error if unmarshalling fails.
 func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.GetNsResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("NS:" + id)
@@ -461,6 +596,12 @@ func (srv *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.
 	return &dnspb.GetNsResponse{Ns: values}, nil
 }
 
+// RemoveNs removes a nameserver (NS) record for a given domain from the DNS server's storage.
+// It takes a context and a RemoveNsRequest containing the domain ID and the NS to remove.
+// The function normalizes the domain and NS names, retrieves the current NS values,
+// and removes the specified NS if present. If no NS records remain for the domain,
+// it deletes the domain entry and its associated permissions. Returns a RemoveNsResponse
+// indicating success, or an error if the operation fails at any step.
 func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*dnspb.RemoveNsResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -520,6 +661,18 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
    CNAME record API
    ================= */
 
+// SetCName sets a CNAME (Canonical Name) record in the DNS server's storage.
+// It generates a unique identifier for the CNAME record based on the provided ID,
+// stores the CNAME value, and sets its TTL (time-to-live) if specified.
+// Logs the operation and returns a response indicating success or an error if the operation fails.
+//
+// Parameters:
+//   ctx  - The context for the request, used for cancellation and deadlines.
+//   rqst - The SetCNameRequest containing the ID, CNAME target, and TTL.
+//
+// Returns:
+//   *dnspb.SetCNameResponse - The response indicating the result of the operation.
+//   error                   - An error if the operation fails.
 func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -542,6 +695,18 @@ func (srv *server) getCName(id string) (string, uint32, error) {
 	return string(data), srv.getTtl(uuid), nil
 }
 
+// GetCName retrieves the canonical name (CNAME) record associated with the given request ID.
+// It generates a UUID based on the provided ID, fetches the corresponding item from the store,
+// and returns the CNAME as a response. If an error occurs during retrieval, it returns an
+// appropriate gRPC status error.
+//
+// Parameters:
+//   ctx  - The context for controlling cancellation and deadlines.
+//   rqst - The request containing the ID for which to retrieve the CNAME.
+//
+// Returns:
+//   *dnspb.GetCNameResponse - The response containing the CNAME string.
+//   error                   - An error if the retrieval fails.
 func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*dnspb.GetCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -552,6 +717,18 @@ func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*
 	return &dnspb.GetCNameResponse{Cname: string(data)}, nil
 }
 
+// RemoveCName removes a CNAME record from the DNS server's store based on the provided request.
+// It generates a UUID for the CNAME using the request ID, attempts to remove the item from the store,
+// and deletes any associated resource permissions using the RBAC client if available.
+// Logs both errors and successful removals. Returns a RemoveCNameResponse indicating the result.
+//
+// Parameters:
+//   ctx  - The context for the request, used for cancellation and deadlines.
+//   rqst - The RemoveCNameRequest containing the ID of the CNAME to remove.
+//
+// Returns:
+//   *dnspb.RemoveCNameResponse - The response indicating whether the removal was successful.
+//   error                      - An error if the removal failed, otherwise nil.
 func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -570,6 +747,20 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
    MX record API
    ============= */
 
+// SetMx sets or updates an MX (Mail Exchange) record for a given domain identifier.
+// It ensures the domain and MX host end with a dot, generates a unique UUID for the record,
+// retrieves any existing MX records, and updates or appends the new MX entry as needed.
+// The updated list of MX records is then marshaled to JSON and stored.
+// If a TTL (Time To Live) is provided, it is set for the record.
+// Returns a SetMxResponse indicating success or an error if any operation fails.
+//
+// Parameters:
+//   ctx  - The context for request-scoped values, cancellation, and deadlines.
+//   rqst - The SetMxRequest containing the domain identifier, MX record, and TTL.
+//
+// Returns:
+//   *dnspb.SetMxResponse - The response indicating the result of the operation.
+//   error                - An error if the operation fails.
 func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -645,6 +836,11 @@ func (srv *server) getMx(id, mx string) ([]*dnspb.MX, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
+// GetMx retrieves MX (Mail Exchange) records for a given domain ID from the server's store.
+// The domain ID is normalized to lowercase and ensured to have a trailing dot.
+// It generates a UUID key based on the domain ID and attempts to fetch the corresponding MX records.
+// If a specific MX value is provided in the request, it filters and returns only the matching record.
+// Returns a GetMxResponse containing the list of MX records or an error if unmarshalling fails.
 func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -668,6 +864,11 @@ func (srv *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.
 	return &dnspb.GetMxResponse{Result: values}, nil
 }
 
+// RemoveMx removes an MX (Mail Exchange) record for a given domain from the DNS server's storage.
+// It takes a context and a RemoveMxRequest containing the domain ID and MX value to remove.
+// The function retrieves the current list of MX records for the domain, removes the specified MX value,
+// and updates the storage. If no MX records remain after removal, it deletes the domain's MX entry
+// and associated RBAC permissions. Returns a RemoveMxResponse indicating success or an error if the operation fails.
 func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*dnspb.RemoveMxResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("MX:" + id)
@@ -724,6 +925,21 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
    SOA record API
    ============= */
 
+// SetSoa sets or updates a Start of Authority (SOA) record for a given DNS zone.
+//
+// It normalizes the zone ID and the SOA nameserver (NS) to ensure they end with a dot.
+// The function generates a unique identifier for the SOA record, retrieves any existing
+// SOA records for the zone, and updates the record if the NS matches. If no matching
+// NS is found, it appends the new SOA record. The updated list is then marshaled to JSON
+// and stored. The TTL for the record is also set.
+//
+// Parameters:
+//   ctx  - The context for the request.
+//   rqst - The SetSoaRequest containing the zone ID, SOA record, and TTL.
+//
+// Returns:
+//   *dnspb.SetSoaResponse - The response indicating success.
+//   error                 - An error if the operation fails.
 func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -803,6 +1019,12 @@ func (srv *server) getSoa(id, ns string) ([]*dnspb.SOA, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
+// GetSoa retrieves the SOA (Start of Authority) records associated with the given request ID.
+// It generates a UUID based on the request ID, fetches the corresponding item from the store,
+// and unmarshals the data into a slice of SOA records. If a specific nameserver (Ns) is provided
+// in the request, it returns only the matching SOA record. Otherwise, it returns all SOA records
+// found for the given ID. Returns an error if data unmarshalling fails or if there are issues
+// accessing the store.
 func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
@@ -823,6 +1045,11 @@ func (srv *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnsp
 	return &dnspb.GetSoaResponse{Result: values}, nil
 }
 
+// RemoveSoa removes a Start of Authority (SOA) record for a given domain from the DNS server's storage.
+// It takes a context and a RemoveSoaRequest containing the domain ID and nameserver (NS) to remove.
+// The function normalizes the domain and NS, retrieves the current SOA records, and removes the matching NS entry.
+// If no SOA records remain after removal, it deletes the SOA entry and associated RBAC permissions.
+// Returns a RemoveSoaResponse indicating success, or an error if the operation fails.
 func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -887,6 +1114,18 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
    URI record API
    ============= */
 
+// SetUri sets or updates a URI record for a given ID in the server's store.
+// If a URI with the same target already exists, it is replaced; otherwise, the new URI is appended.
+// The method serializes the updated list of URIs and stores it, setting the TTL as specified.
+// Returns a SetUriResponse indicating success, or an error if any operation fails.
+//
+// Parameters:
+//   - ctx: The context for the request.
+//   - rqst: The SetUriRequest containing the ID, URI, and TTL.
+//
+// Returns:
+//   - *dnspb.SetUriResponse: The response indicating the result of the operation.
+//   - error: An error if the operation fails.
 func (srv *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnspb.SetUriResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
@@ -945,6 +1184,10 @@ func (srv *server) getUri(id, target string) ([]*dnspb.URI, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
+// GetUri retrieves URI records associated with the given request ID from the server's store.
+// It generates a UUID based on the request ID, fetches the corresponding data, and unmarshals it into a slice of URI objects.
+// If a specific target is provided in the request, it filters and returns only the matching URI.
+// Returns a GetUriResponse containing the matched URIs or an error if the operation fails.
 func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
@@ -965,6 +1208,19 @@ func (srv *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnsp
 	return &dnspb.GetUriResponse{Result: values}, nil
 }
 
+// RemoveUri removes a URI target from the list of URIs associated with the given ID.
+// It retrieves the current list of URIs from the store, removes the specified target,
+// and updates or deletes the record as appropriate. If the last URI is removed, the
+// entire record is deleted and associated RBAC permissions are cleaned up.
+// Returns a RemoveUriResponse with the result or an error if the operation fails.
+//
+// Parameters:
+//   - ctx: The context for the request.
+//   - rqst: The RemoveUriRequest containing the ID and target to remove.
+//
+// Returns:
+//   - *dnspb.RemoveUriResponse: The response indicating the result of the operation.
+//   - error: An error if the operation fails.
 func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) (*dnspb.RemoveUriResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("URI:" + id)
@@ -1019,6 +1275,19 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
    AFSDB record API
    ============== */
 
+// SetAfsdb handles the request to set an AFSDB (Andrew File System Database) DNS record.
+// It marshals the provided AFSDB data from the request, generates a unique identifier for the record,
+// and stores it in the server's storage backend. The method also sets the TTL (time-to-live) for the record.
+// Logging is performed for both successful and error cases. Returns a SetAfsdbResponse indicating success,
+// or an error if the operation fails.
+//
+// Parameters:
+//   ctx  - The context for the request, used for cancellation and deadlines.
+//   rqst - The SetAfsdbRequest containing the AFSDB record data, record ID, and TTL.
+//
+// Returns:
+//   *dnspb.SetAfsdbResponse - The response indicating the result of the operation.
+//   error                   - An error if the operation fails.
 func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
 	values, err := json.Marshal(rqst.Afsdb)
 	if err != nil {
@@ -1050,6 +1319,19 @@ func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 	return afsdb, srv.getTtl(uuid), nil
 }
 
+// GetAfsdb retrieves an AFSDB (Andrew File System Database) record from the server's store
+// based on the provided request ID. The function generates a UUID using the request ID,
+// fetches the corresponding item from the store, and unmarshals the JSON data into an
+// AFSDB protocol buffer message. If successful, it returns a GetAfsdbResponse containing
+// the AFSDB record; otherwise, it returns an appropriate gRPC error.
+//
+// Parameters:
+//   ctx  - The context for controlling cancellation and deadlines.
+//   rqst - The GetAfsdbRequest containing the ID of the AFSDB record to retrieve.
+//
+// Returns:
+//   *dnspb.GetAfsdbResponse - The response containing the AFSDB record if found.
+//   error                   - An error if the record could not be retrieved or unmarshaled.
 func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
@@ -1082,6 +1364,18 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
    CAA record API
    ============= */
 
+// SetCaa sets or updates a CAA (Certification Authority Authorization) record for a given domain.
+// It retrieves the existing CAA records for the specified ID, updates the record if the domain matches,
+// or appends a new record if it does not exist. The updated list is then marshaled to JSON and stored.
+// The function also sets the TTL (Time To Live) for the record and logs the operation.
+//
+// Parameters:
+//   ctx  - The context for the request, used for cancellation and deadlines.
+//   rqst - The SetCaaRequest containing the CAA record to set and the TTL.
+//
+// Returns:
+//   *dnspb.SetCaaResponse - The response indicating the result of the operation.
+//   error                 - An error if the operation fails at any step.
 func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
@@ -1156,8 +1450,13 @@ func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 	return caa, srv.getTtl(uuid), nil
 }
 
-// GetCaa returns all CAA records for rqst.Id, or only the one matching rqst.Domain if provided.
-// Public RPC — signature MUST NOT change.
+
+// GetCaa retrieves CAA (Certification Authority Authorization) records from the server's storage.
+// It accepts a GetCaaRequest containing an identifier and an optional domain filter.
+// The function attempts to fetch and decode the CAA records associated with the given ID.
+// If a domain is specified in the request, it filters the results to return only the matching CAA record.
+// Returns a GetCaaResponse containing the matched CAA records, or an error if retrieval or decoding fails.
+// Logs errors and debug information if a logger is configured.
 func (srv *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
@@ -1289,8 +1588,19 @@ func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) 
 
 type handler struct{}
 
-// ServeDNS handles incoming DNS queries and writes responses using data stored by the service.
-// Errors are logged locally via slog.
+
+// ServeDNS handles incoming DNS queries and formulates appropriate DNS responses
+// based on the query type. It supports various DNS record types including A, AAAA,
+// AFSDB, CAA, CNAME, TXT, NS, MX, SOA, and URI. For each supported query type, it
+// retrieves the relevant records using corresponding handler methods, constructs
+// DNS response messages, and writes them back to the client. Errors encountered
+// during record retrieval or response writing are logged using the configured logger.
+// The method ensures authoritative responses where applicable and handles multiple
+// questions for certain record types as needed.
+//
+// Parameters:
+//   - w: dns.ResponseWriter used to send the DNS response.
+//   - r: *dns.Msg representing the incoming DNS query message.
 func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	switch r.Question[0].Qtype {
 	case dns.TypeA:
@@ -1505,8 +1815,10 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 }
 
-// ServeDns starts the UDP DNS server on the specified port.
-// Public API — signature MUST NOT change.
+
+// ServeDns starts a DNS server listening on the specified UDP port.
+// It logs server start, stop, and error events if a logger is available.
+// Returns an error if the server fails to start or encounters an issue during execution.
 func ServeDns(port int) error {
 	if s != nil && s.Logger != nil {
 		s.Logger.Info("dns:udp server starting", "port", port)

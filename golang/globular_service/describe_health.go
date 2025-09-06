@@ -19,20 +19,20 @@ import (
 // It intentionally excludes runtime-only internals like grpcServer pointers.
 func DescribeMap(s Service) map[string]any {
 	return map[string]any{
-		"Id":                s.GetId(),
-		"Name":              s.GetName(),
-		"Description":       s.GetDescription(),
-		"PublisherID":       s.GetPublisherID(),
-		"Version":           s.GetVersion(),
-		"Keywords":          s.GetKeywords(),
-		"Repositories":      s.GetRepositories(),
-		"Discoveries":       s.GetDiscoveries(),
-		"Domain":            s.GetDomain(),
-		"Address":           s.GetAddress(),
-		"Protocol":          s.GetProtocol(),
-		"Port":              s.GetPort(),
-		"Proxy":             s.GetProxy(),
-		"TLS":               s.GetTls(),
+		"Id":                 s.GetId(),
+		"Name":               s.GetName(),
+		"Description":        s.GetDescription(),
+		"PublisherID":        s.GetPublisherID(),
+		"Version":            s.GetVersion(),
+		"Keywords":           s.GetKeywords(),
+		"Repositories":       s.GetRepositories(),
+		"Discoveries":        s.GetDiscoveries(),
+		"Domain":             s.GetDomain(),
+		"Address":            s.GetAddress(),
+		"Protocol":           s.GetProtocol(),
+		"Port":               s.GetPort(),
+		"Proxy":              s.GetProxy(),
+		"TLS":                s.GetTls(),
 		"CertAuthorityTrust": s.GetCertAuthorityTrust(),
 		"CertFile":           s.GetCertFile(),
 		"KeyFile":            s.GetKeyFile(),
@@ -44,15 +44,15 @@ func DescribeMap(s Service) map[string]any {
 		"Permissions":        s.GetPermissions(),
 		"Checksum":           s.GetChecksum(),
 		"Platform":           s.GetPlatform(),
-		"Path":              s.GetPath(),
-		"Proto":             s.GetProto(),
+		"Path":               s.GetPath(),
+		"Proto":              s.GetProto(),
 		// Runtime snapshot (informational — helpful for the supervisor)
-		"State":     s.GetState(),
-		"Process":   s.GetProcess(),
+		"State":        s.GetState(),
+		"Process":      s.GetProcess(),
 		"ProxyProcess": s.GetProxyProcess(),
-		"LastError": s.GetLastError(),
-		"ModTime":   s.GetModTime(),
-		"Mac":       s.GetMac(),
+		"LastError":    s.GetLastError(),
+		"ModTime":      s.GetModTime(),
+		"Mac":          s.GetMac(),
 	}
 }
 
@@ -67,26 +67,26 @@ func DescribeJSON(s Service) ([]byte, error) {
 type HealthStatus string
 
 const (
-	HealthUnknown  HealthStatus = "UNKNOWN"
-	HealthServing  HealthStatus = "SERVING"
+	HealthUnknown    HealthStatus = "UNKNOWN"
+	HealthServing    HealthStatus = "SERVING"
 	HealthNotServing HealthStatus = "NOT_SERVING"
 )
 
 type HealthReport struct {
-	Service    string                 `json:"service"`
-	Target     string                 `json:"target"`      // "host:port"
-	Status     HealthStatus           `json:"status"`      // SERVING / NOT_SERVING / UNKNOWN
-	Checks     map[string]string      `json:"checks"`      // process/tcp/grpc
-	LatencyMs  int64                  `json:"latency_ms"`
-	When       string                 `json:"when"`        // RFC3339
-	Details    map[string]interface{} `json:"details,omitempty"`
-	Error      string                 `json:"error,omitempty"`
+	Service   string                 `json:"service"`
+	Target    string                 `json:"target"` // "host:port"
+	Status    HealthStatus           `json:"status"` // SERVING / NOT_SERVING / UNKNOWN
+	Checks    map[string]string      `json:"checks"` // process/tcp/grpc
+	LatencyMs int64                  `json:"latency_ms"`
+	When      string                 `json:"when"` // RFC3339
+	Details   map[string]interface{} `json:"details,omitempty"`
+	Error     string                 `json:"error,omitempty"`
 }
 
 // HealthOptions allows tuning timeouts and target.
 type HealthOptions struct {
-	Timeout    time.Duration
-	Host       string // defaults to 127.0.0.1
+	Timeout     time.Duration
+	Host        string // defaults to 127.0.0.1
 	ServiceName string // gRPC health "service" name; empty = overall server
 }
 

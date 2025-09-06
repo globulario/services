@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -186,6 +188,11 @@ func mergeDesiredRuntime(desired, runtime map[string]interface{}) map[string]int
 // Public API (etcd-backed)
 // =============================
 
+// SaveServiceConfiguration saves the given service configuration map to etcd.
+// It expects the map 's' to contain an "Id" key, which is used as the identifier.
+// The function splits the configuration into desired and runtime parts, marshals them to JSON,
+// and stores them under separate keys in etcd. Returns an error if the Id is missing,
+// if the etcd client cannot be created, or if any etcd operation fails.
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -229,6 +236,14 @@ func PutRuntime(id string, runtime map[string]interface{}) error {
 	return err
 }
 
+// GetServicesConfigurations retrieves and merges the desired and runtime configurations
+// for all services stored in etcd under the specified prefix. It returns a slice of maps,
+// each representing the merged configuration for a service. If an error occurs during
+// etcd access or data unmarshalling, it returns the error.
+//
+// The function connects to etcd, fetches all keys with the configured prefix, and
+// separates the desired and runtime configurations by service ID. It then merges
+// these configurations using mergeDesiredRuntime and returns the result.
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	c, err := etcdClient()
 	if err != nil {
@@ -287,6 +302,18 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	return out, nil
 }
 
+// GetServiceConfigurationById retrieves the configuration of a service by its ID or Name.
+// It first attempts to find the service by an exact ID match in etcd. If found, it merges
+// the desired and runtime configurations and returns the result. If not found by ID, it
+// scans all service configurations and matches by either ID or Name. Returns an error if
+// no matching service is found or if there is a problem accessing etcd.
+//
+// Parameters:
+//   - idOrName: The ID or Name of the service to retrieve.
+//
+// Returns:
+//   - map[string]interface{}: The merged configuration of the service if found.
+//   - error: An error if the service is not found or if there is an issue accessing etcd.
 func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error) {
 	// Try by Id exact match
 	c, err := etcdClient()
@@ -324,6 +351,16 @@ func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error
 	return nil, fmt.Errorf("no service found with id/name %q", idOrName)
 }
 
+// GetServicesConfigurationsByName retrieves all service configurations that match the given name (case-insensitive).
+// It returns a slice of maps containing the configuration data for each matching service.
+// If no services are found with the specified name, an error is returned.
+//
+// Parameters:
+//   - name: The name of the service to search for (case-insensitive).
+//
+// Returns:
+//   - []map[string]interface{}: A slice of service configuration maps matching the given name.
+//   - error: An error if no matching services are found or if there is a problem retrieving configurations.
 func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
 	all, err := GetServicesConfigurations()
 	if err != nil {
@@ -340,6 +377,112 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
 	}
 	return out, nil
 }
+
+func nonEmpty(s string) string {
+	if s == "" {
+		return "0"
+	}
+	return s
+}
+
+// GetServiceConfigurationsByName returns the single best candidate for a service by Name.
+// Selection heuristic among candidates with the same Name:
+//  1) State == "running" preferred
+//  2) Highest UpdatedAt (runtime freshness)
+//  3) Highest Version (semver: major.minor.patch; best-effort)
+//  4) Has a valid Port (>0)
+// If no service with that Name exists, returns an error.
+func GetServiceConfigurationsByName(name string) (map[string]interface{}, error) {
+	candidates, err := GetServicesConfigurationsByName(name) // existing plural API
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no services found with name %s", name)
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+
+	type ver struct{ major, minor, patch int }
+	parseVer := func(v any) ver {
+		s := strings.TrimSpace(Utility.ToString(v))
+		if s == "" {
+			return ver{}
+		}
+		parts := strings.Split(s, ".")
+		out := ver{}
+		if len(parts) > 0 {
+			out.major, _ = strconv.Atoi(nonEmpty(parts[0]))
+		}
+		if len(parts) > 1 {
+			out.minor, _ = strconv.Atoi(nonEmpty(parts[1]))
+		}
+		if len(parts) > 2 {
+			out.patch, _ = strconv.Atoi(nonEmpty(parts[2]))
+		}
+		return out
+	}
+
+	getUpdatedAt := func(m map[string]interface{}) int64 {
+		// UpdatedAt is set in runtime maps; JSON may decode as float64
+		switch v := m["UpdatedAt"].(type) {
+		case int64:
+			return v
+		case int:
+			return int64(v)
+		case float64:
+			return int64(v)
+		case string:
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return n
+			}
+		}
+		return 0
+	}
+
+	isRunning := func(m map[string]interface{}) bool {
+		return strings.EqualFold(Utility.ToString(m["State"]), "running")
+	}
+
+	hasPort := func(m map[string]interface{}) bool {
+		return Utility.ToInt(m["Port"]) > 0
+	}
+
+	// Sort by our heuristic (descending: best first)
+	sort.SliceStable(candidates, func(i, j int) bool {
+		a, b := candidates[i], candidates[j]
+
+		// 1) running first
+		if isRunning(a) != isRunning(b) {
+			return isRunning(a)
+		}
+
+		// 2) newest UpdatedAt
+		ua, ub := getUpdatedAt(a), getUpdatedAt(b)
+		if ua != ub {
+			return ua > ub
+		}
+
+		// 3) highest semver
+		va, vb := parseVer(a["Version"]), parseVer(b["Version"])
+		if va.major != vb.major {
+			return va.major > vb.major
+		}
+		if va.minor != vb.minor {
+			return va.minor > vb.minor
+		}
+		if va.patch != vb.patch {
+			return va.patch > vb.patch
+		}
+
+		// 4) prefers a valid port
+		return hasPort(a) && !hasPort(b)
+	})
+
+	return candidates[0], nil
+}
+
 
 // =============================
 // Live lease helpers

@@ -182,6 +182,7 @@ func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
 
 // Lifecycle
 func (srv *server) Init() error {
+
 	// Initialize service config with Globular runtime.
 	if err := globular.InitService(srv); err != nil {
 		return err

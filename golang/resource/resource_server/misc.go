@@ -24,12 +24,14 @@ import (
 // Returns a ClearAllNotificationsRsp on success, or an error if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the recipient whose notifications should be cleared.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the recipient whose notifications should be cleared.
 //
 // Returns:
-//   *resourcepb.ClearAllNotificationsRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.ClearAllNotificationsRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
 
 	if len(rqst.Recipient) == 0 {
@@ -217,12 +219,14 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 // persistence store and publishes relevant events upon successful deletion.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the notification ID and recipient.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the notification ID and recipient.
 //
 // Returns:
-//   *resourcepb.DeleteNotificationRsp - The response object for the deletion operation.
-//   error - An error if the deletion fails or if input validation fails.
+//
+//	*resourcepb.DeleteNotificationRsp - The response object for the deletion operation.
+//	error - An error if the deletion fails or if input validation fails.
 func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
 
 	if len(rqst.Recipient) == 0 {
@@ -273,12 +277,14 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 // The function returns a FindPackagesDescriptorResponse containing the list of found package descriptors or an error if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the keywords to search for.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the keywords to search for.
 //
 // Returns:
-//   *resourcepb.FindPackagesDescriptorResponse - The response containing the found package descriptors.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.FindPackagesDescriptorResponse - The response containing the found package descriptors.
+//	error - An error if the operation fails.
 func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackagesDescriptorRequest) (*resourcepb.FindPackagesDescriptorResponse, error) {
 	// That service made user of persistence service.
 	p, err := srv.getPersistenceStore()
@@ -401,12 +407,14 @@ func (srv *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackag
 // occurs during processing or streaming, an appropriate gRPC status error is returned.
 //
 // Parameters:
-//   rqst   - The request containing the recipient for whom notifications are to be fetched.
-//   stream - The gRPC server stream used to send notifications to the client.
+//
+//	rqst   - The request containing the recipient for whom notifications are to be fetched.
+//	stream - The gRPC server stream used to send notifications to the client.
 //
 // Returns:
-//   error - Returns an error if the recipient is empty, if there is a problem with
-//           the persistence store, or if streaming notifications fails.
+//
+//	error - Returns an error if the recipient is empty, if there is a problem with
+//	        the persistence store, or if streaming notifications fails.
 func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
 
 	if len(rqst.Recipient) == 0 {
@@ -836,12 +844,14 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 // if any operation fails.
 //
 // Parameters:
-//   ctx  - context for request cancellation and deadlines
-//   rqst - SetPackageBundleRequest containing the bundle to store
+//
+//	ctx  - context for request cancellation and deadlines
+//	rqst - SetPackageBundleRequest containing the bundle to store
 //
 // Returns:
-//   *resourcepb.SetPackageBundleResponse - response indicating success
-//   error                                - error if the operation fails
+//
+//	*resourcepb.SetPackageBundleResponse - response indicating success
+//	error                                - error if the operation fails
 func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
 	bundle := rqst.Bundle
 
@@ -882,12 +892,14 @@ func (srv *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPac
 // fails or the descriptor is not created, an error is returned.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the PackageDescriptor to set.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the PackageDescriptor to set.
 //
 // Returns:
-//   *resourcepb.SetPackageDescriptorResponse - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.SetPackageDescriptorResponse - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
 
 	p, err := srv.getPersistenceStore()

@@ -628,100 +628,148 @@ func applyDesiredToService(s Service, m map[string]any) {
 		return
 	}
 	// Simple scalar fields
-	if v := Utility.ToString(m["Id"]); v != "" {
-		s.SetId(v)
+	if m["Id"] != nil {
+		if v := Utility.ToString(m["Id"]); v != "" {
+			s.SetId(v)
+		}
 	}
-	if v := Utility.ToString(m["Name"]); v != "" {
-		s.SetName(v)
+
+	if m["Name"] != nil {
+		if v := Utility.ToString(m["Name"]); v != "" {
+			s.SetName(v)
+		}
 	}
-	if v := Utility.ToString(m["Description"]); v != "" {
-		s.SetDescription(v)
+
+	if m["Description"] != nil {
+		if v := Utility.ToString(m["Description"]); v != "" {
+			s.SetDescription(v)
+		}
 	}
-	if v := Utility.ToString(m["Domain"]); v != "" {
-		s.SetDomain(v)
+	if m["Domain"] != nil {
+		if v := Utility.ToString(m["Domain"]); v != "" {
+			s.SetDomain(v)
+		}
 	}
-	if v := Utility.ToString(m["Address"]); v != "" {
-		s.SetAddress(v)
+	if m["Address"] != nil {
+		if v := Utility.ToString(m["Address"]); v != "" {
+			s.SetAddress(v)
+		}
 	}
-	if v := Utility.ToString(m["Protocol"]); v != "" {
-		s.SetProtocol(v)
+	if m["Protocol"] != nil {
+		if v := Utility.ToString(m["Protocol"]); v != "" {
+			s.SetProtocol(v)
+		}
 	}
-	if v := Utility.ToString(m["Checksum"]); v != "" {
-		s.SetChecksum(v)
+	if m["Checksum"] != nil {
+		if v := Utility.ToString(m["Checksum"]); v != "" {
+			s.SetChecksum(v)
+		}
 	}
-	if v := Utility.ToString(m["PublisherID"]); v != "" {
-		s.SetPublisherID(v)
+	if m["PublisherID"] != nil {
+		if v := Utility.ToString(m["PublisherID"]); v != "" {
+			s.SetPublisherID(v)
+		}
 	}
-	if v := Utility.ToString(m["Version"]); v != "" {
-		s.SetVersion(v)
+	if m["Version"] != nil {
+		if v := Utility.ToString(m["Version"]); v != "" {
+			s.SetVersion(v)
+		}
 	}
-	if v := Utility.ToString(m["Proto"]); v != "" {
-		s.SetProto(v)
+	if m["Proto"] != nil {
+		if v := Utility.ToString(m["Proto"]); v != "" {
+			s.SetProto(v)
+		}
 	}
-	if v := Utility.ToString(m["Path"]); v != "" {
-		s.SetPath(v)
+	if m["Path"] != nil {
+		if v := Utility.ToString(m["Path"]); v != "" {
+			s.SetPath(v)
+		}
 	}
 
 	// Arrays
-	if v, ok := m["Keywords"].([]any); ok {
-		var out []string
-		for _, x := range v {
-			out = append(out, Utility.ToString(x))
+	if m["Keywords"] != nil {
+		if v, ok := m["Keywords"].([]any); ok {
+			var out []string
+			for _, x := range v {
+				out = append(out, Utility.ToString(x))
+			}
+			s.SetKeywords(out)
 		}
-		s.SetKeywords(out)
 	}
-	if v, ok := m["Discoveries"].([]any); ok {
-		var out []string
-		for _, x := range v {
-			out = append(out, Utility.ToString(x))
+	if m["Discoveries"] != nil {
+		if v, ok := m["Discoveries"].([]any); ok {
+			var out []string
+			for _, x := range v {
+				out = append(out, Utility.ToString(x))
+			}
+			s.SetDiscoveries(out)
 		}
-		s.SetDiscoveries(out)
 	}
-	if v, ok := m["Repositories"].([]any); ok {
-		var out []string
-		for _, x := range v {
-			out = append(out, Utility.ToString(x))
+	if m["Repositories"] != nil {
+		if v, ok := m["Repositories"].([]any); ok {
+			var out []string
+			for _, x := range v {
+				out = append(out, Utility.ToString(x))
+			}
+			s.SetRepositories(out)
 		}
-		s.SetRepositories(out)
 	}
+
 	if v, ok := m["Permissions"].([]any); ok {
 		// pass-through []any
 		s.SetPermissions(v)
 	}
-	if v, ok := m["Dependencies"].([]any); ok {
-		var out []string
-		for _, x := range v {
-			out = append(out, Utility.ToString(x))
-		}
-		// clear then set to preserve semantics
-		for _, d := range out {
-			s.SetDependency(d)
+
+	if m["Dependencies"] != nil {
+		if v, ok := m["Dependencies"].([]any); ok {
+			var out []string
+			for _, x := range v {
+				out = append(out, Utility.ToString(x))
+			}
+			// clear then set to preserve semantics
+			for _, d := range out {
+				s.SetDependency(d)
+			}
 		}
 	}
 
 	// Ports & TLS
-	s.SetPort(Utility.ToInt(m["Port"]))
-	s.SetProxy(Utility.ToInt(m["Proxy"]))
-	s.SetTls(Utility.ToBool(m["TLS"]))
-	if v := Utility.ToString(m["CertAuthorityTrust"]); v != "" {
-		s.SetCertAuthorityTrust(v)
+	if m["Port"] != nil {
+		s.SetPort(Utility.ToInt(m["Port"]))
 	}
-	if v := Utility.ToString(m["CertFile"]); v != "" {
-		s.SetCertFile(v)
+	if m["Proxy"] != nil {
+		s.SetProxy(Utility.ToInt(m["Proxy"]))
 	}
-	if v := Utility.ToString(m["KeyFile"]); v != "" {
-		s.SetKeyFile(v)
+	if m["TLS"] != nil {
+		s.SetTls(Utility.ToBool(m["TLS"]))
 	}
-
+	if m["CertAuthorityTrust"] != nil {
+		if v := Utility.ToString(m["CertAuthorityTrust"]); v != "" {
+			s.SetCertAuthorityTrust(v)
+		}
+	}
+	if m["KeyFile"] != nil {
+		if v := Utility.ToString(m["KeyFile"]); v != "" {
+			s.SetKeyFile(v)
+		}
+	}
 	// CORS
-	s.SetAllowAllOrigins(Utility.ToBool(m["AllowAllOrigins"]))
-	if v := Utility.ToString(m["AllowedOrigins"]); v != "" {
-		s.SetAllowedOrigins(v)
+	if m["AllowAllOrigins"] != nil {
+		s.SetAllowAllOrigins(Utility.ToBool(m["AllowAllOrigins"]))
+	}
+	if m["AllowedOrigins"] != nil {
+		if v := Utility.ToString(m["AllowedOrigins"]); v != "" {
+			s.SetAllowedOrigins(v)
+		}
 	}
 
 	// Keepalive/update flags
-	s.SetKeepAlive(Utility.ToBool(m["KeepAlive"]))
-	s.SetKeepUptoDate(Utility.ToBool(m["KeepUpToDate"]))
+	if m["KeepAlive"] != nil {
+		s.SetKeepAlive(Utility.ToBool(m["KeepAlive"]))
+	}
+	if m["KeepUpToDate"] != nil {
+		s.SetKeepUptoDate(Utility.ToBool(m["KeepUpToDate"]))
+	}
 }
 
 // ------------------------------

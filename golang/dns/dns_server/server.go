@@ -335,7 +335,7 @@ func main() {
 	srv.Description = "DNS service"
 	srv.Keywords = []string{"DNS", "Records", "Resolver"}
 	srv.Repositories = []string{}
-	srv.Discoveries = []string{}
+	srv.Discoveries = []string{"log.LogService", "rbac.RbacService"}
 	srv.Dependencies = []string{}
 	srv.Process = -1
 	srv.ProxyProcess = -1
@@ -343,7 +343,7 @@ func main() {
 	srv.KeepUpToDate = true
 	srv.AllowAllOrigins = allowAllOrigins
 	srv.AllowedOrigins = allowedOriginsStr
-	srv.DnsPort = 5353
+	srv.DnsPort = 53 // standard DNS port
 	srv.Root = config.GetDataDir()
 	_ = Utility.CreateDirIfNotExist(srv.Root)
 

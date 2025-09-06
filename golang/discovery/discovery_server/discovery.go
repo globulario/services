@@ -79,7 +79,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 		"version", rqst.Version,
 		"repositoryId", rqst.RepositoryId,
 		"discoveryId", rqst.DiscoveryId,
-		"publisherId", publisherID,
+		"PublisherID", publisherID,
 	)
 
 	descriptor := &resourcepb.PackageDescriptor{
@@ -160,7 +160,7 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 		"version", rqst.Version,
 		"repository", rqst.Repository,
 		"discovery", rqst.Discovery,
-		"publisherId", publisherID,
+		"PublisherID", publisherID,
 		"alias", rqst.Alias,
 	)
 

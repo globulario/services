@@ -433,7 +433,7 @@ func main() {
 	reflection.Register(s.grpcServer)
 
 	// Start embedded LDAP listener (389/636) in background.
-	go s.startLdapServer()
+	//go s.startLdapServer()
 
 	logger.Info("service ready",
 		"service", s.Name,

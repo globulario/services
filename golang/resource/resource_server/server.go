@@ -528,11 +528,24 @@ func main() {
 	s.KeepAlive = true
 	s.KeepUpToDate = true
 
+
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			fmt.Println("fail to create port allocator", "error", err)
+			printUsage()
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			fmt.Println("fail to allocate port", "error", err)
+			printUsage()
+			os.Exit(1)
+		}
+		s.Port = p
 	}
 
 	for _, a := range args {
@@ -593,6 +606,16 @@ func main() {
 		s.Address = a
 	}
 
+		// Backend informations.
+	s.Backend_type = "SQL" // use SQL as default backend.
+	s.Backend_address = s.Address
+	s.Backend_replication_factor = 1
+	s.Backend_port = 27018 // Here I will use the port beside the default one in case MONGO is already exist
+	s.Backend_user = "sa"
+	s.Backend_password = "adminadmin"
+	s.DataPath = config.GetDataDir()
+
+	
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)

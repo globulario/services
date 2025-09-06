@@ -1,5 +1,6 @@
-// Package globular_client provides a thin client helper layer for discovering,
-// initializing, connecting, and invoking Globular gRPC services with optional TLS.
+// ==============================================
+// clients.go (updated to be etcd-first, runtime-aware)
+// ==============================================
 package globular_client
 
 import (
@@ -10,8 +11,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"runtime/debug"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +58,8 @@ func GetClient(address, name, fct string) (Client, error) {
 	}
 
 	id := Utility.GenerateUUID(name + ":" + address)
+	//fmt.Println("----------------> GetClient: address", address, "service", name, "id", id)
+
 	if existing, ok := clients.Load(id); ok {
 		return existing.(Client), nil
 	}
@@ -122,6 +125,20 @@ type Client interface {
 	Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error)
 }
 
+// shallow merge: b overrides a
+func merge(a, b map[string]interface{}) map[string]interface{} {
+	if a == nil {
+		a = map[string]interface{}{}
+	}
+	if b == nil {
+		return a
+	}
+	for k, v := range b {
+		a[k] = v
+	}
+	return a
+}
+
 // InitClient initializes client metadata and TLS settings from Globular
 // configuration. The given address points to the HTTP(S) control port, not the
 // gRPC port; id is the service configuration identifier.
@@ -183,7 +200,7 @@ func InitClient(client Client, address string, id string) error {
 
 	if isLocal {
 		globuleCfg, _ = config.GetLocalConfig(true)
-		cfg, err = config.GetServiceConfigurationById(id)
+		cfg, err = config.GetServiceConfigurationById(id) // etcd (desired+runtime)
 	} else {
 		globuleCfg, err = config.GetRemoteConfig(domain, port)
 		if err == nil {
@@ -191,10 +208,10 @@ func InitClient(client Client, address string, id string) error {
 		}
 	}
 
-	if err != nil {
+	if err != nil || cfg == nil {
 		slog.Error("InitClient: failed to fetch configuration",
 			"id", id, "address", address, "local", isLocal, "err", err)
-		return err
+		return fmt.Errorf("InitClient: failed to fetch configuration id=%s from %s: %w", id, address, err)
 	}
 
 	// Extract SAN values
@@ -217,7 +234,28 @@ func InitClient(client Client, address string, id string) error {
 	// Persist the address on the client.
 	client.SetAddress(address)
 
-	// Mandatory attributes
+	// ---- Robustness: ensure runtime overlay & fallbacks before mandatory checks ----
+	// (cfg from GetServiceConfigurationById already includes runtime when local; for remote,
+	//  we only have the service doc from HTTP; be tolerant.)
+	if isLocal {
+		// Already etcd merged; nothing to do.
+	} else {
+		// Remote: no runtime overlay available via HTTP; leave cfg as-is.
+	}
+
+	// Derive Mac if missing and this is the local node
+	if v, ok := cfg["Mac"].(string); !ok || v == "" {
+		if isLocal {
+			if m, derr := config.GetMacAddress(); derr == nil && m != "" {
+				cfg["Mac"] = m
+			}
+		}
+	}
+	if _, ok := cfg["State"].(string); !ok {
+		cfg["State"] = "starting"
+	}
+
+	// ---------------- Mandatory attributes ----------------
 	if v, ok := cfg["Id"].(string); ok && v != "" {
 		client.SetId(v)
 	} else {
@@ -289,7 +327,7 @@ func InitClient(client Client, address string, id string) error {
 func clientInterceptor(client_ Client) func(
 	ctx context.Context,
 	method string,
-	req interface{},
+	rqst interface{},
 	reply interface{},
 	cc *grpc.ClientConn,
 	invoker grpc.UnaryInvoker,
@@ -297,14 +335,14 @@ func clientInterceptor(client_ Client) func(
 ) error {
 	return func(ctx context.Context,
 		method string,
-		req interface{},
+		rqst interface{},
 		reply interface{},
 		cc *grpc.ClientConn,
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
 
-		err := invoker(ctx, method, req, reply, cc, opts...)
+		err := invoker(ctx, method, rqst, reply, cc, opts...)
 		if client_ != nil && err != nil {
 			msg := err.Error()
 			retriable := strings.HasPrefix(msg, `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) ||
@@ -321,7 +359,7 @@ func clientInterceptor(client_ Client) func(
 							continue
 						}
 						// Retry once reconnected
-						return invoker(ctx, method, req, reply, cc, opts...)
+						return invoker(ctx, method, rqst, reply, cc, opts...)
 					}
 				} else {
 					slog.Error("clientInterceptor: reinit failed",
