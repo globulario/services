@@ -317,6 +317,45 @@ func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
 // SetKeepAlive toggles keep-alive behavior.
 func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:repo.viewer",
+			Name:        "Repository Viewer",
+			Domain:      domain,
+			Description: "Read/download access to published bundles.",
+			Actions: []string{
+				"/repository.PackageRepository/DownloadBundle",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:repo.publisher",
+			Name:        "Repository Publisher",
+			Domain:      domain,
+			Description: "Can upload (publish) bundles to an organization namespace and download.",
+			Actions: []string{
+				"/repository.PackageRepository/UploadBundle",
+				"/repository.PackageRepository/DownloadBundle",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:repo.admin",
+			Name:        "Repository Admin",
+			Domain:      domain,
+			Description: "Full control over repository operations.",
+			Actions: []string{
+				"/repository.PackageRepository/UploadBundle",
+				"/repository.PackageRepository/DownloadBundle",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle
 // -----------------------------------------------------------------------------
@@ -446,7 +485,31 @@ func main() {
 		"log.LogService",
 		"applications_manager.ApplicationManagerService",
 	}
-	s.Permissions = make([]interface{}, 0)
+	// In your repository service init/constructor:
+	s.Permissions = []interface{}{
+		// ---- Upload a package bundle (publishing to an organization namespace)
+		map[string]interface{}{
+			"action":     "/repository.PackageRepository/UploadBundle",
+			"permission": "write",
+			"resources": []interface{}{
+				// UploadBundleRequest.organization — who owns the repo namespace
+				map[string]interface{}{"index": 0, "field": "Organization", "permission": "write"},
+			},
+		},
+
+		// ---- Download a package bundle (read access to publisher namespace / platform)
+		map[string]interface{}{
+			"action":     "/repository.PackageRepository/DownloadBundle",
+			"permission": "read",
+			"resources": []interface{}{
+				// DownloadBundleRequest.descriptor.publisher_id — publisher namespace
+				map[string]interface{}{"index": 0, "field": "Descriptor.PublisherID", "permission": "read"},
+				// DownloadBundleRequest.platform — optional platform gate
+				map[string]interface{}{"index": 0, "field": "Platform", "permission": "read"},
+			},
+		},
+	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.AllowAllOrigins = allowAllOrigins

@@ -494,7 +494,7 @@ func GetToken(mac string) (string, error) {
 // Service dependency helpers (use etcd_backend.go getters)
 // ============================================================================
 
-func OrderDependencys(services []map[string]interface{}) ([]string, error) {
+func OrderDependencies(services []map[string]interface{}) ([]string, error) {
 	serviceMap := make(map[string]map[string]interface{})
 	for _, s := range services {
 		if n, ok := s["Name"].(string); ok && n != "" {
@@ -546,7 +546,7 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	order, err := OrderDependencys(svcs)
+	order, err := OrderDependencies(svcs)
 	if err != nil {
 		return nil, err
 	}

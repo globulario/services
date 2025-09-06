@@ -18,6 +18,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus"
@@ -207,6 +208,57 @@ func (srv *server) SetKeepAlive(v bool)            { srv.KeepAlive = v }
 func (srv *server) GetPermissions() []interface{}  { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{}) { srv.Permissions = p }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:log.viewer",
+			Name:        "Log Viewer",
+			Domain:      domain,
+			Description: "Read-only access to query logs.",
+			Actions: []string{
+				"/log.LogService/GetLog",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:log.writer",
+			Name:        "Log Writer",
+			Domain:      domain,
+			Description: "Can append new log entries.",
+			Actions: []string{
+				"/log.LogService/Log",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:log.operator",
+			Name:        "Log Operator",
+			Domain:      domain,
+			Description: "Operate on individual log entries (delete specific items).",
+			Actions: []string{
+				"/log.LogService/GetLog",
+				"/log.LogService/DeleteLog",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:log.admin",
+			Name:        "Log Admin",
+			Domain:      domain,
+			Description: "Full control over LogService, including bulk clears.",
+			Actions: []string{
+				"/log.LogService/Log",
+				"/log.LogService/GetLog",
+				"/log.LogService/DeleteLog",
+				"/log.LogService/ClearAllLog",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // --- Lifecycle ---
 
 func (srv *server) Init() error {
@@ -265,7 +317,54 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = []string{"event.EventService"}
-	srv.Permissions = make([]interface{}, 0)
+	// s.Permissions for log.LogService
+	srv.Permissions = []interface{}{
+		// ---- Ingest (append-only)
+		map[string]interface{}{
+			"action":     "/log.LogService/Log",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Info.Application", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Method", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Level", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Message", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Line", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.TimestampMs", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Component", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Fields", "permission": "write"},
+			},
+		},
+
+		// ---- Read (query)
+		map[string]interface{}{
+			"action":     "/log.LogService/GetLog",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Query", "permission": "read"},
+			},
+		},
+
+		// ---- Point delete (surgical removals)
+		map[string]interface{}{
+			"action":     "/log.LogService/DeleteLog",
+			"permission": "delete",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Log.Id", "permission": "delete"},
+				map[string]interface{}{"index": 0, "field": "Log.Application", "permission": "delete"},
+				map[string]interface{}{"index": 0, "field": "Log.Level", "permission": "delete"},
+			},
+		},
+
+		// ---- Bulk clear (dangerous)
+		map[string]interface{}{
+			"action":     "/log.LogService/ClearAllLog",
+			"permission": "admin", // bulk destructive; gate with admin
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Query", "permission": "delete"},
+			},
+		},
+	}
+
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins

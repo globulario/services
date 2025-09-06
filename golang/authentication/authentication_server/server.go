@@ -179,6 +179,60 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
 
+
+// RolesDefault returns curated roles for AuthenticationService.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:auth.password",
+			Name:        "Password Self-Service",
+			Domain:      domain,
+			Description: "Change account passwords (subject to server-side ownership checks).",
+			Actions: []string{
+				"/authentication.AuthenticationService/SetPassword",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:auth.peer-token",
+			Name:        "Peer Token Issuer",
+			Domain:      domain,
+			Description: "Generate tokens for peers identified by MAC.",
+			Actions: []string{
+				"/authentication.AuthenticationService/GeneratePeerToken",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:auth.root",
+			Name:        "Root Credential Manager",
+			Domain:      domain,
+			Description: "Manage root credentials and administrator email.",
+			Actions: []string{
+				"/authentication.AuthenticationService/SetRootPassword",
+				"/authentication.AuthenticationService/SetRootEmail",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:auth.admin",
+			Name:        "Authentication Admin",
+			Domain:      domain,
+			Description: "Full control over authentication management operations.",
+			Actions: []string{
+				"/authentication.AuthenticationService/SetPassword",
+				"/authentication.AuthenticationService/GeneratePeerToken",
+				"/authentication.AuthenticationService/SetRootPassword",
+				"/authentication.AuthenticationService/SetRootEmail",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
+
 // Lifecycle
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -399,6 +453,37 @@ func main() {
 	s.exit_ = make(chan bool)
 	s.LdapConnectionId = ""
 	s.authentications_ = []string{}
+
+	// Default permissions for AuthenticationService (generic verbs).
+	s.Permissions = []interface{}{
+		// Change own / someone’s password (resource = account id)
+		map[string]interface{}{
+			"action": "/authentication.AuthenticationService/SetPassword",
+			"resources": []interface{}{
+				// SetPasswordRequest.accountId
+				map[string]interface{}{"index": 0, "permission": "write"},
+			},
+		},
+
+		// Root credentials & email (no resource path; gate the action itself)
+		map[string]interface{}{
+			"action":     "/authentication.AuthenticationService/SetRootPassword",
+			"permission": "owner",
+		},
+		map[string]interface{}{
+			"action":     "/authentication.AuthenticationService/SetRootEmail",
+			"permission": "owner",
+		},
+
+		// Peer token issuance (resource = peer MAC)
+		map[string]interface{}{
+			"action": "/authentication.AuthenticationService/GeneratePeerToken",
+			"resources": []interface{}{
+				// GeneratePeerTokenRequest.mac (only field => index 0)
+				map[string]interface{}{"index": 0, "permission": "write"},
+			},
+		},
+	}
 
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]

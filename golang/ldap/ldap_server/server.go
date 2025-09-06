@@ -182,6 +182,81 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:ldap.viewer",
+			Name:        "LDAP Viewer",
+			Domain:      domain,
+			Description: "Read-only access to LDAP search and sync configuration.",
+			Actions: []string{
+				"/ldap.LdapService/Search",
+				"/ldap.LdapService/getLdapSyncInfo",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:ldap.authenticator",
+			Name:        "LDAP Authenticator",
+			Domain:      domain,
+			Description: "Can perform LDAP Authenticate (e.g., login flows).",
+			Actions: []string{
+				"/ldap.LdapService/Authenticate",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:ldap.connector.admin",
+			Name:        "LDAP Connector Admin",
+			Domain:      domain,
+			Description: "Manage LDAP connections (create/delete/close).",
+			Actions: []string{
+				"/ldap.LdapService/CreateConnection",
+				"/ldap.LdapService/DeleteConnection",
+				"/ldap.LdapService/Close",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:ldap.sync.admin",
+			Name:        "LDAP Sync Admin",
+			Domain:      domain,
+			Description: "Manage sync configuration and run synchronization.",
+			Actions: []string{
+				"/ldap.LdapService/setLdapSyncInfo",
+				"/ldap.LdapService/deleteLdapSyncInfo",
+				"/ldap.LdapService/getLdapSyncInfo",
+				"/ldap.LdapService/Synchronize",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:ldap.admin",
+			Name:        "LDAP Service Admin",
+			Domain:      domain,
+			Description: "Full control over LDAP service, including stop.",
+			Actions: []string{
+				"/ldap.LdapService/Stop",
+				// connection admin
+				"/ldap.LdapService/CreateConnection",
+				"/ldap.LdapService/DeleteConnection",
+				"/ldap.LdapService/Close",
+				// sync admin
+				"/ldap.LdapService/setLdapSyncInfo",
+				"/ldap.LdapService/deleteLdapSyncInfo",
+				"/ldap.LdapService/getLdapSyncInfo",
+				"/ldap.LdapService/Synchronize",
+				// read & exec
+				"/ldap.LdapService/Search",
+				"/ldap.LdapService/Authenticate",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // Init creates/loads configuration and initializes the gRPC server.
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -343,6 +418,105 @@ func main() {
 		ProxyProcess:    -1,
 		KeepAlive:       true,
 		KeepUpToDate:    true,
+	}
+
+	// s.Permissions for ldap.LdapService
+	s.Permissions = []interface{}{
+		// ---- Control plane
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Connection lifecycle (sensitive; changes runtime + persisted config)
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/CreateConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Host", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Port", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.User", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Password", "permission": "write"}, // secret; admin gate
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/DeleteConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Close",
+			"permission": "admin", // closing shared connection affects others
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+			},
+		},
+
+		// ---- Directory search (read-only)
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Search",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Search.Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.BaseDN", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.Filter", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.Attributes", "permission": "read"},
+			},
+		},
+
+		// ---- Authentication (exec against directory; does not mutate service state)
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Authenticate",
+			"permission": "exec",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Login", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Pwd", "permission": "read"}, // sensitive; check transport/TLS upstream
+			},
+		},
+
+		// ---- Sync configuration CRUD
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/setLdapSyncInfo",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Info.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.ConnectionId", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Refresh", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Base", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Query", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Email", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Base", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Query", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/deleteLdapSyncInfo",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/getLdapSyncInfo",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+
+		// ---- Synchronize (executes external effects: creates/updates accounts & groups via Resource/RBAC)
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Synchronize",
+			"permission": "admin",
+			"resources":  []interface{}{}, // uses stored config; no fields on request
+		},
 	}
 
 	// Register LDAP client factory for other services.

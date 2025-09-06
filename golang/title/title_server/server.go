@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -41,19 +42,19 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 // server implements Globular plumbing and Title RPC dependencies.
 type server struct {
 	// Core metadata
-	Id          string
-	Mac         string
-	Name        string
-	Domain      string
-	Address     string
-	Path        string
-	Proto       string
-	Port        int
-	Proxy       int
-	Protocol    string
-	Version     string
-	PublisherID string
-	Description string
+	Id           string
+	Mac          string
+	Name         string
+	Domain       string
+	Address      string
+	Path         string
+	Proto        string
+	Port         int
+	Proxy        int
+	Protocol     string
+	Version      string
+	PublisherID  string
+	Description  string
 	Keywords     []string
 	Repositories []string
 	Discoveries  []string
@@ -327,6 +328,74 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 // SetPermissions sets the action permissions for this service.
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// RolesDefault returns default roles for the Title service.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	view := []string{
+		"/title.TitleService/GetPublisherById",
+		"/title.TitleService/GetPersonById",
+		"/title.TitleService/GetTitleById",
+		"/title.TitleService/GetAudioById",
+		"/title.TitleService/GetAlbum",
+		"/title.TitleService/GetVideoById",
+		"/title.TitleService/GetFileTitles",
+		"/title.TitleService/GetFileVideos",
+		"/title.TitleService/GetFileAudios",
+		"/title.TitleService/GetTitleFiles",
+		"/title.TitleService/SearchTitles",
+		"/title.TitleService/SearchPersons",
+	}
+
+	write := append([]string{
+		"/title.TitleService/CreatePublisher",
+		"/title.TitleService/CreatePerson",
+		"/title.TitleService/CreateTitle",
+		"/title.TitleService/UpdateTitleMetadata",
+		"/title.TitleService/CreateAudio",
+		"/title.TitleService/CreateVideo",
+		"/title.TitleService/UpdateVideoMetadata",
+		"/title.TitleService/AssociateFileWithTitle",
+		"/title.TitleService/DissociateFileWithTitle",
+	}, view...) // writers can also read/search
+
+	admin := append([]string{
+		"/title.TitleService/DeletePublisher",
+		"/title.TitleService/DeletePerson",
+		"/title.TitleService/DeleteTitle",
+		"/title.TitleService/DeleteAudio",
+		"/title.TitleService/DeleteAlbum",
+		"/title.TitleService/DeleteVideo",
+	}, write...) // admins can also write + read
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:title.viewer",
+			Name:        "Title Viewer",
+			Domain:      domain,
+			Description: "Read/search titles, persons, audios and videos; list associations.",
+			Actions:     view,
+			TypeName:    "resource.Role",
+		},
+		{
+			Id:          "role:title.writer",
+			Name:        "Title Writer",
+			Domain:      domain,
+			Description: "Create/update titles, videos, audios, publishers/persons and file associations.",
+			Actions:     write,
+			TypeName:    "resource.Role",
+		},
+		{
+			Id:          "role:title.admin",
+			Name:        "Title Admin",
+			Domain:      domain,
+			Description: "Full control over the title catalog including destructive operations.",
+			Actions:     admin,
+			TypeName:    "resource.Role",
+		},
+	}
+}
+
 // Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -400,7 +469,326 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 8)
+	srv.Permissions = []interface{}{
+		// ---------------- Publishers ----------------
+
+		// CreatePublisher
+		map[string]interface{}{
+			"action":     "/title.TitleService/CreatePublisher",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreatePublisherRequest.publisher.ID
+				map[string]interface{}{"index": 0, "field": "Publisher.ID", "permission": "write"},
+				// CreatePublisherRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// DeletePublisher
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeletePublisher",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeletePublisherRequest.PublisherID
+				map[string]interface{}{"index": 0, "field": "PublisherID", "permission": "admin"},
+				// DeletePublisherRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+		// GetPublisherById
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetPublisherById",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetPublisherByIdRequest.PublisherID
+				map[string]interface{}{"index": 0, "field": "PublisherID", "permission": "read"},
+				// GetPublisherByIdRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+
+		// ---------------- Persons ----------------
+
+		// CreatePerson
+		map[string]interface{}{
+			"action":     "/title.TitleService/CreatePerson",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreatePersonRequest.person.ID
+				map[string]interface{}{"index": 0, "field": "Person.ID", "permission": "write"},
+				// CreatePersonRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// DeletePerson
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeletePerson",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeletePersonRequest.personId
+				map[string]interface{}{"index": 0, "field": "PersonId", "permission": "admin"},
+				// DeletePersonRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+		// GetPersonById
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetPersonById",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetPersonByIdRequest.personId
+				map[string]interface{}{"index": 0, "field": "PersonId", "permission": "read"},
+				// GetPersonByIdRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+
+		// ---------------- Titles ----------------
+
+		// CreateTitle
+		map[string]interface{}{
+			"action":     "/title.TitleService/CreateTitle",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateTitleRequest.title.ID
+				map[string]interface{}{"index": 0, "field": "Title.ID", "permission": "write"},
+				// CreateTitleRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// GetTitleById
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetTitleById",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetTitleByIdRequest.titleId
+				map[string]interface{}{"index": 0, "field": "TitleId", "permission": "read"},
+				// GetTitleByIdRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// DeleteTitle
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeleteTitle",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteTitleRequest.titleId
+				map[string]interface{}{"index": 0, "field": "TitleId", "permission": "admin"},
+				// DeleteTitleRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+		// UpdateTitleMetadata
+		map[string]interface{}{
+			"action":     "/title.TitleService/UpdateTitleMetadata",
+			"permission": "write",
+			"resources": []interface{}{
+				// UpdateTitleMetadataRequest.title.ID
+				map[string]interface{}{"index": 0, "field": "Title.ID", "permission": "write"},
+				// UpdateTitleMetadataRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+
+		// ---------------- Audios / Albums ----------------
+
+		// CreateAudio
+		map[string]interface{}{
+			"action":     "/title.TitleService/CreateAudio",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateAudioRequest.audio.ID
+				map[string]interface{}{"index": 0, "field": "Audio.ID", "permission": "write"},
+				// CreateAudioRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// GetAudioById
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetAudioById",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetAudioByIdRequest.audioId
+				map[string]interface{}{"index": 0, "field": "AudioId", "permission": "read"},
+				// GetAudioByIdRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// GetAlbum
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetAlbum",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetAlbumRequest.albumId
+				map[string]interface{}{"index": 0, "field": "AlbumId", "permission": "read"},
+				// GetAlbumRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// DeleteAudio
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeleteAudio",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteAudioRequest.audioId
+				map[string]interface{}{"index": 0, "field": "AudioId", "permission": "admin"},
+				// DeleteAudioRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+		// DeleteAlbum
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeleteAlbum",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteAlbumRequest.albumId
+				map[string]interface{}{"index": 0, "field": "AlbumId", "permission": "admin"},
+				// DeleteAlbumRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+
+		// ---------------- Videos ----------------
+
+		// CreateVideo
+		map[string]interface{}{
+			"action":     "/title.TitleService/CreateVideo",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateVideoRequest.video.ID
+				map[string]interface{}{"index": 0, "field": "Video.ID", "permission": "write"},
+				// CreateVideoRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// GetVideoById
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetVideoById",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetVideoByIdRequest.videoId
+				map[string]interface{}{"index": 0, "field": "VideoId", "permission": "read"},
+				// GetVideoByIdRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// DeleteVideo
+		map[string]interface{}{
+			"action":     "/title.TitleService/DeleteVideo",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteVideoRequest.videoId
+				map[string]interface{}{"index": 0, "field": "VideoId", "permission": "admin"},
+				// DeleteVideoRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "admin"},
+			},
+		},
+		// UpdateVideoMetadata
+		map[string]interface{}{
+			"action":     "/title.TitleService/UpdateVideoMetadata",
+			"permission": "write",
+			"resources": []interface{}{
+				// UpdateVideoMetadataRequest.video.ID
+				map[string]interface{}{"index": 0, "field": "Video.ID", "permission": "write"},
+				// UpdateVideoMetadataRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+
+		// ---------------- File associations ----------------
+
+		// AssociateFileWithTitle
+		map[string]interface{}{
+			"action":     "/title.TitleService/AssociateFileWithTitle",
+			"permission": "write",
+			"resources": []interface{}{
+				// AssociateFileWithTitleRequest.titleId
+				map[string]interface{}{"index": 0, "field": "TitleId", "permission": "write"},
+				// AssociateFileWithTitleRequest.filePath
+				map[string]interface{}{"index": 0, "field": "FilePath", "permission": "write"},
+				// AssociateFileWithTitleRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// DissociateFileWithTitle
+		map[string]interface{}{
+			"action":     "/title.TitleService/DissociateFileWithTitle",
+			"permission": "write",
+			"resources": []interface{}{
+				// DissociateFileWithTitleRequest.titleId
+				map[string]interface{}{"index": 0, "field": "TitleId", "permission": "write"},
+				// DissociateFileWithTitleRequest.filePath
+				map[string]interface{}{"index": 0, "field": "FilePath", "permission": "write"},
+				// DissociateFileWithTitleRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "write"},
+			},
+		},
+		// GetFileTitles
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetFileTitles",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetFileTitlesRequest.filePath
+				map[string]interface{}{"index": 0, "field": "FilePath", "permission": "read"},
+				// GetFileTitlesRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// GetFileVideos
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetFileVideos",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetFileVideosRequest.filePath
+				map[string]interface{}{"index": 0, "field": "FilePath", "permission": "read"},
+				// GetFileVideosRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// GetFileAudios
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetFileAudios",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetFileAudiosRequest.filePath
+				map[string]interface{}{"index": 0, "field": "FilePath", "permission": "read"},
+				// GetFileAudiosRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// GetTitleFiles
+		map[string]interface{}{
+			"action":     "/title.TitleService/GetTitleFiles",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetTitleFilesRequest.titleId
+				map[string]interface{}{"index": 0, "field": "TitleId", "permission": "read"},
+				// GetTitleFilesRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+
+		// ---------------- Search ----------------
+
+		// SearchTitles
+		map[string]interface{}{
+			"action":     "/title.TitleService/SearchTitles",
+			"permission": "read",
+			"resources": []interface{}{
+				// SearchTitlesRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+		// SearchPersons
+		map[string]interface{}{
+			"action":     "/title.TitleService/SearchPersons",
+			"permission": "read",
+			"resources": []interface{}{
+				// SearchPersonsRequest.indexPath
+				map[string]interface{}{"index": 0, "field": "IndexPath", "permission": "read"},
+			},
+		},
+	}
+
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins
@@ -414,16 +802,6 @@ func main() {
 
 	// Register Title client factory (used elsewhere in service).
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
-
-	// Permissions (unchanged semantics).
-	srv.Permissions[0] = map[string]interface{}{"action": "/title.TitleService/DeleteVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	srv.Permissions[1] = map[string]interface{}{"action": "/title.TitleService/CreateVideo", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
-	srv.Permissions[2] = map[string]interface{}{"action": "/title.TitleService/DeleteAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	srv.Permissions[3] = map[string]interface{}{"action": "/title.TitleService/CreateAudio", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
-	srv.Permissions[4] = map[string]interface{}{"action": "/title.TitleService/DeleteTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	srv.Permissions[5] = map[string]interface{}{"action": "/title.TitleService/CreateTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "field": "ID", "permission": "write"}}}
-	srv.Permissions[6] = map[string]interface{}{"action": "/title.TitleService/AssociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
-	srv.Permissions[7] = map[string]interface{}{"action": "/title.TitleService/DissociateFileWithTitle", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}, map[string]interface{}{"index": 1, "permission": "read"}}}
 
 	// --------------- CLI: --describe / --health ---------------
 	args := os.Args[1:]

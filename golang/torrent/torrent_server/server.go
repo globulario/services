@@ -19,6 +19,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 	Utility "github.com/globulario/utility"
@@ -320,6 +321,51 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 // SetPermissions sets the action permissions for this service.
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// Default roles for the Torrent service.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	view := []string{
+		"/torrent.TorrentService/GetTorrentInfos",
+		"/torrent.TorrentService/GetTorrentLnks",
+	}
+
+	write := append([]string{
+		"/torrent.TorrentService/DownloadTorrent",
+		"/torrent.TorrentService/DropTorrent",
+	}, view...) // writers can also view
+
+	// No extra admin-only RPCs in this proto; admin includes all.
+	admin := append([]string{}, write...)
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:torrent.viewer",
+			Name:        "Torrent Viewer",
+			Domain:      domain,
+			Description: "Read-only: list saved links and stream torrent progress.",
+			Actions:     view,
+			TypeName:    "resource.Role",
+		},
+		{
+			Id:          "role:torrent.user",
+			Name:        "Torrent User",
+			Domain:      domain,
+			Description: "Start downloads/seeding, drop torrents, and view progress.",
+			Actions:     write,
+			TypeName:    "resource.Role",
+		},
+		{
+			Id:          "role:torrent.admin",
+			Name:        "Torrent Admin",
+			Domain:      domain,
+			Description: "Full control over torrent operations.",
+			Actions:     admin,
+			TypeName:    "resource.Role",
+		},
+	}
+}
+
 // Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -397,7 +443,46 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 0)
+
+	srv.Permissions = []interface{}{
+		// ---- Start a new torrent (download or seed)
+		map[string]interface{}{
+			"action":     "/torrent.TorrentService/DownloadTorrent",
+			"permission": "write",
+			"resources": []interface{}{
+				// DownloadTorrentRequest.link
+				map[string]interface{}{"index": 0, "field": "Link", "permission": "write"},
+				// DownloadTorrentRequest.dest
+				map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"},
+				// DownloadTorrentRequest.seed
+				map[string]interface{}{"index": 0, "field": "Seed", "permission": "write"},
+			},
+		},
+
+		// ---- Stream active torrent infos
+		map[string]interface{}{
+			"action":     "/torrent.TorrentService/GetTorrentInfos",
+			"permission": "read",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Drop (remove) a torrent
+		map[string]interface{}{
+			"action":     "/torrent.TorrentService/DropTorrent",
+			"permission": "write",
+			"resources": []interface{}{
+				// DropTorrentRequest.name
+				map[string]interface{}{"index": 0, "field": "Name", "permission": "write"},
+			},
+		},
+
+		// ---- List saved torrent links
+		map[string]interface{}{
+			"action":     "/torrent.TorrentService/GetTorrentLnks",
+			"permission": "read",
+			"resources":  []interface{}{},
+		},
+	}
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins

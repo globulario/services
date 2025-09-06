@@ -20,6 +20,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -180,6 +181,70 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
 
+// RolesDefault returns curated roles for BlogService.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:blog.reader",
+			Name:        "Blog Reader",
+			Domain:      domain,
+			Description: "Read and search blog posts.",
+			Actions: []string{
+				"/blog.BlogService/GetBlogPosts",
+				"/blog.BlogService/SearchBlogPosts",
+				"/blog.BlogService/GetBlogPostsByAuthors", // left permissive; included for completeness
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:blog.contributor",
+			Name:        "Blog Contributor",
+			Domain:      domain,
+			Description: "Create and update posts; add comments and reactions.",
+			Actions: []string{
+				"/blog.BlogService/CreateBlogPost",
+				"/blog.BlogService/SaveBlogPost",
+				"/blog.BlogService/AddComment",
+				"/blog.BlogService/AddEmoji",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:blog.moderator",
+			Name:        "Blog Moderator",
+			Domain:      domain,
+			Description: "Moderate content: delete posts, comments, and reactions.",
+			Actions: []string{
+				"/blog.BlogService/DeleteBlogPost",
+				"/blog.BlogService/RemoveComment",
+				"/blog.BlogService/RemoveEmoji",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:blog.admin",
+			Name:        "Blog Admin",
+			Domain:      domain,
+			Description: "Full control over blogging features.",
+			Actions: []string{
+				"/blog.BlogService/CreateBlogPost",
+				"/blog.BlogService/SaveBlogPost",
+				"/blog.BlogService/GetBlogPosts",
+				"/blog.BlogService/SearchBlogPosts",
+				"/blog.BlogService/GetBlogPostsByAuthors",
+				"/blog.BlogService/DeleteBlogPost",
+				"/blog.BlogService/AddComment",
+				"/blog.BlogService/RemoveComment",
+				"/blog.BlogService/AddEmoji",
+				"/blog.BlogService/RemoveEmoji",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // Lifecycle
 func (srv *server) Init() error {
 
@@ -239,7 +304,7 @@ func (srv *server) subscribe(evt string, listener func(evt *eventpb.Event)) erro
 // RBAC helpers
 // -----------------------------------------------------------------------------
 
-func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
@@ -247,41 +312,15 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	}
 	return client.(*rbac_client.Rbac_Client), nil
 }
-func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	c, err := GetRbacClient(srv.Address)
-	if err != nil {
-		return nil, err
-	}
-	return c.GetResourcePermissions(path)
-}
-func (srv *server) setResourcePermissions(token, path, resourceType string, permissions *rbacpb.Permissions) error {
-	c, err := GetRbacClient(srv.Address)
-	if err != nil {
-		return err
-	}
-	return c.SetResourcePermissions(token, path, resourceType, permissions)
-}
-func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	c, err := GetRbacClient(srv.Address)
-	if err != nil {
-		return false, false, err
-	}
-	return c.ValidateAccess(subject, subjectType, name, path)
-}
+
 func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	c, err := GetRbacClient(srv.Address)
+	c, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 	return c.AddResourceOwner(path, resourceType, subject, subjectType)
 }
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	c, err := GetRbacClient(srv.Address)
-	if err != nil {
-		return err
-	}
-	return c.SetActionResourcesPermissions(permissions)
-}
+
 
 // -----------------------------------------------------------------------------
 // Bleve helpers
@@ -508,7 +547,101 @@ func main() {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"event.EventService", "rbac.RbacService"}
-	s.Permissions = make([]interface{}, 0)
+	// Default RBAC permissions for BlogService.
+	// Use generic verbs and only protect parameters that are real resource paths (UUIDs / index paths).
+	s.Permissions = []interface{}{
+		// --- Posts: create / update / delete / read ---
+
+		// Create: writes to the Bleve index on disk.
+		map[string]interface{}{
+			"action": "/blog.BlogService/CreateBlogPost",
+			"resources": []interface{}{
+				// CreateBlogPostRequest.indexPath
+				map[string]interface{}{"index": 0, "permission": "write"},
+			},
+		},
+
+		// Save: write the specific blog post + write index.
+		map[string]interface{}{
+			"action": "/blog.BlogService/SaveBlogPost",
+			"resources": []interface{}{
+				// SaveBlogPostRequest.blog_post.Uuid (prefer binding the message subfield)
+				map[string]interface{}{"index": 1, "field": "Uuid", "permission": "write"},
+				// SaveBlogPostRequest.indexPath
+				map[string]interface{}{"index": 2, "permission": "write"},
+			},
+		},
+
+		// Read specific posts by UUID.
+		map[string]interface{}{
+			"action": "/blog.BlogService/GetBlogPosts",
+			"resources": []interface{}{
+				// GetBlogPostsRequest.uuids (list expansion handled by interceptor)
+				map[string]interface{}{"index": 0, "permission": "read"},
+			},
+		},
+
+		// Search: read access to the index path.
+		map[string]interface{}{
+			"action": "/blog.BlogService/SearchBlogPosts",
+			"resources": []interface{}{
+				// SearchBlogPostsRequest.indexPath
+				map[string]interface{}{"index": 2, "permission": "read"},
+			},
+		},
+
+		// Delete post: delete the post + write index.
+		map[string]interface{}{
+			"action": "/blog.BlogService/DeleteBlogPost",
+			"resources": []interface{}{
+				// DeleteBlogPostRequest.uuid
+				map[string]interface{}{"index": 0, "permission": "delete"},
+				// DeleteBlogPostRequest.indexPath
+				map[string]interface{}{"index": 1, "permission": "write"},
+			},
+		},
+
+		// --- Reactions & comments (write/delete on the target post/comment UUID) ---
+
+		// Add emoji on a post or comment (targeted by rqst.uuid).
+		map[string]interface{}{
+			"action": "/blog.BlogService/AddEmoji",
+			"resources": []interface{}{
+				// AddEmojiRequest.uuid (target blog or comment thread owner post)
+				map[string]interface{}{"index": 0, "permission": "write"},
+			},
+		},
+
+		// Remove emoji (target post uuid).
+		map[string]interface{}{
+			"action": "/blog.BlogService/RemoveEmoji",
+			"resources": []interface{}{
+				// RemoveEmojiRequest.uuid
+				map[string]interface{}{"index": 0, "permission": "delete"},
+			},
+		},
+
+		// Add comment (target post uuid).
+		map[string]interface{}{
+			"action": "/blog.BlogService/AddComment",
+			"resources": []interface{}{
+				// AddCommentRequest.uuid
+				map[string]interface{}{"index": 0, "permission": "write"},
+			},
+		},
+
+		// Remove comment (target post uuid).
+		map[string]interface{}{
+			"action": "/blog.BlogService/RemoveComment",
+			"resources": []interface{}{
+				// RemoveCommentRequest.uuid
+				map[string]interface{}{"index": 0, "permission": "delete"},
+			},
+		},
+
+		// Note: GetBlogPostsByAuthors is intentionally left permissive (no resource path to bind that maps to blog ownership).
+	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true
@@ -519,12 +652,6 @@ func main() {
 
 	// Dynamic client registration for routing.
 	Utility.RegisterFunction("NewBlogService_Client", blog_client.NewBlogService_Client)
-
-	// Action-level permissions (specific to this service)
-	s.Permissions = append(s.Permissions,
-		map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-	)
 
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]

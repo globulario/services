@@ -18,6 +18,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
@@ -188,6 +189,94 @@ func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(v bool)             { srv.KeepAlive = v }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
+
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	reader := resourcepb.Role{
+		Id:          "role:conversation.reader",
+		Name:        "Conversation Reader",
+		Domain:      domain,
+		Description: "Read conversations, connect, and browse.",
+		Actions: []string{
+			"/conversation.ConversationService/Connect",
+			"/conversation.ConversationService/Disconnect",
+			"/conversation.ConversationService/FindConversations",
+			"/conversation.ConversationService/JoinConversation",
+			"/conversation.ConversationService/GetConversation",
+			"/conversation.ConversationService/GetConversations",
+			"/conversation.ConversationService/GetReceivedInvitations",
+			"/conversation.ConversationService/GetSentInvitations",
+			"/conversation.ConversationService/FindMessages",
+		},
+		TypeName: "resource.Role",
+	}
+
+	member := resourcepb.Role{
+		Id:          "role:conversation.member",
+		Name:        "Conversation Member",
+		Domain:      domain,
+		Description: "Participate in conversations you have access to.",
+		Actions: append([]string{},
+			reader.Actions...,
+		),
+		TypeName: "resource.Role",
+	}
+	member.Actions = append(member.Actions,
+		"/conversation.ConversationService/SendMessage",
+		"/conversation.ConversationService/LikeMessage",
+		"/conversation.ConversationService/DislikeMessage",
+		"/conversation.ConversationService/SetMessageRead",
+		"/conversation.ConversationService/LeaveConversation",
+		"/conversation.ConversationService/AcceptInvitation",
+		"/conversation.ConversationService/DeclineInvitation",
+	)
+
+	moderator := resourcepb.Role{
+		Id:          "role:conversation.moderator",
+		Name:        "Conversation Moderator",
+		Domain:      domain,
+		Description: "Moderate content in conversations.",
+		Actions: []string{
+			"/conversation.ConversationService/DeleteMessage",
+		},
+		TypeName: "resource.Role",
+	}
+
+	owner := resourcepb.Role{
+		Id:          "role:conversation.owner",
+		Name:        "Conversation Owner",
+		Domain:      domain,
+		Description: "Manage membership and delete the conversation.",
+		Actions: append([]string{},
+			member.Actions...,
+		),
+		TypeName: "resource.Role",
+	}
+	owner.Actions = append(owner.Actions,
+		"/conversation.ConversationService/SendInvitation",
+		"/conversation.ConversationService/RevokeInvitation",
+		"/conversation.ConversationService/KickoutFromConversation",
+		"/conversation.ConversationService/DeleteConversation",
+	)
+
+	admin := resourcepb.Role{
+		Id:          "role:conversation.admin",
+		Name:        "Conversation Admin",
+		Domain:      domain,
+		Description: "Full control over conversations and service lifecycle.",
+		Actions: append(append(append(reader.Actions, member.Actions...), moderator.Actions...),
+			"/conversation.ConversationService/SendInvitation",
+			"/conversation.ConversationService/RevokeInvitation",
+			"/conversation.ConversationService/KickoutFromConversation",
+			"/conversation.ConversationService/DeleteConversation",
+			"/conversation.ConversationService/Stop",
+		),
+		TypeName: "resource.Role",
+	}
+
+	return []resourcepb.Role{reader, member, moderator, owner, admin}
+}
 
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -469,7 +558,168 @@ func main() {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"rbac.RbacService"}
-	s.Permissions = make([]interface{}, 2)
+	// Default RBAC permissions for ConversationService.
+	// Generic verbs: read / write / delete.
+	// For resource binding, we point to request fields by index and (optionally) field path.
+	s.Permissions = []interface{}{
+
+		// ---- Service control
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/Stop",
+			"resources":  []interface{}{}, // privileged op
+			"permission": "write",
+		},
+
+		// ---- Connections (control channel)
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/Connect",
+			"resources":  []interface{}{}, // requires valid JWT; no concrete resource id
+			"permission": "read",
+		},
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/Disconnect",
+			"resources":  []interface{}{},
+			"permission": "read",
+		},
+
+		// ---- Conversation lifecycle
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/CreateConversation",
+			"resources":  []interface{}{}, // creates a new resource
+			"permission": "write",
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/DeleteConversation",
+			"resources": []interface{}{
+				// DeleteConversationRequest.conversation_uuid
+				map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "delete"},
+			},
+		},
+
+		// ---- Conversation discovery & access
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/FindConversations",
+			"resources":  []interface{}{},
+			"permission": "read",
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/JoinConversation",
+			"resources": []interface{}{
+				// JoinConversationRequest.conversation_uuid
+				map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/LeaveConversation",
+			"resources": []interface{}{
+				// LeaveConversationRequest.conversation_uuid
+				map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/GetConversation",
+			"resources": []interface{}{
+				// GetConversationRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/GetConversations",
+			"resources":  []interface{}{}, // list by creator (server enforces identity)
+			"permission": "read",
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/KickoutFromConversation",
+			"resources": []interface{}{
+				// KickoutFromConversationRequest.conversation_uuid
+				map[string]interface{}{"index": 0, "field": "ConversationUuid", "permission": "write"},
+			},
+		},
+
+		// ---- Invitations
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/SendInvitation",
+			"resources": []interface{}{
+				// SendInvitationRequest.invitation.conversation
+				map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/AcceptInvitation",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/DeclineInvitation",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/RevokeInvitation",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Invitation.Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/GetReceivedInvitations",
+			"resources": []interface{}{
+				// GetReceivedInvitationsRequest.account
+				map[string]interface{}{"index": 0, "field": "Account", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/GetSentInvitations",
+			"resources": []interface{}{
+				// GetSentInvitationsRequest.account
+				map[string]interface{}{"index": 0, "field": "Account", "permission": "read"},
+			},
+		},
+
+		// ---- Messages
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/SendMessage",
+			"resources": []interface{}{
+				// SendMessageRequest.msg.conversation
+				map[string]interface{}{"index": 0, "field": "Msg.Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/DeleteMessage",
+			"resources": []interface{}{
+				// DeleteMessageRequest.conversation
+				map[string]interface{}{"index": 0, "field": "Conversation", "permission": "delete"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/conversation.ConversationService/FindMessages",
+			"resources":  []interface{}{},
+			"permission": "read",
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/LikeMessage",
+			"resources": []interface{}{
+				// LikeMessageRqst.conversation
+				map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/DislikeMessage",
+			"resources": []interface{}{
+				// DislikeMessageRqst.conversation
+				map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/conversation.ConversationService/SetMessageRead",
+			"resources": []interface{}{
+				// SetMessageReadRqst.conversation
+				map[string]interface{}{"index": 0, "field": "Conversation", "permission": "write"},
+			},
+		},
+	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.PortSFU = 5551
@@ -480,20 +730,6 @@ func main() {
 
 	// Dynamic client registration
 	Utility.RegisterFunction("NewConversationService_Client", conversation_client.NewConversationService_Client)
-
-	// Permissions
-	s.Permissions[0] = map[string]interface{}{
-		"action": "/conversation.ConversationService/DeleteConversation",
-		"resources": []interface{}{
-			map[string]interface{}{"index": 0, "permission": "owner"},
-		},
-	}
-	s.Permissions[1] = map[string]interface{}{
-		"action": "/conversation.ConversationService/KickoutFromConversation",
-		"resources": []interface{}{
-			map[string]interface{}{"index": 0, "permission": "owner"},
-		},
-	}
 
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]

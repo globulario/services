@@ -15,6 +15,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/search/searchpb"
 	Utility "github.com/globulario/utility"
@@ -180,6 +181,57 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:search.viewer",
+			Name:        "Search Viewer",
+			Domain:      domain,
+			Description: "Read-only access to search indexes and engine info.",
+			Actions: []string{
+				"/search.SearchService/GetEngineVersion",
+				"/search.SearchService/Count",
+				"/search.SearchService/SearchDocuments",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:search.indexer",
+			Name:        "Search Indexer",
+			Domain:      domain,
+			Description: "Can index and delete documents, plus all viewer capabilities.",
+			Actions: []string{
+				// Viewer
+				"/search.SearchService/GetEngineVersion",
+				"/search.SearchService/Count",
+				"/search.SearchService/SearchDocuments",
+				// Write
+				"/search.SearchService/IndexJsonObject",
+				"/search.SearchService/DeleteDocument",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:search.admin",
+			Name:        "Search Admin",
+			Domain:      domain,
+			Description: "Full control over SearchService, including stopping the service.",
+			Actions: []string{
+				"/search.SearchService/Stop",
+				"/search.SearchService/GetEngineVersion",
+				"/search.SearchService/IndexJsonObject",
+				"/search.SearchService/Count",
+				"/search.SearchService/DeleteDocument",
+				"/search.SearchService/SearchDocuments",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
+
 // Init initializes configuration, gRPC server, and the search engine.
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -269,7 +321,62 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 0)
+	srv.Permissions = []interface{}{
+		// ---- Stop the service
+		map[string]interface{}{
+			"action":     "/search.SearchService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Engine info (read-only)
+		map[string]interface{}{
+			"action":     "/search.SearchService/GetEngineVersion",
+			"permission": "read",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Index JSON (writes to an index at Path)
+		map[string]interface{}{
+			"action":     "/search.SearchService/IndexJsonObject",
+			"permission": "write",
+			"resources": []interface{}{
+				// IndexJsonObjectRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Count docs in an index (Path)
+		map[string]interface{}{
+			"action":     "/search.SearchService/Count",
+			"permission": "read",
+			"resources": []interface{}{
+				// CountRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+
+		// ---- Delete a document (requires write on Path)
+		map[string]interface{}{
+			"action":     "/search.SearchService/DeleteDocument",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteDocumentRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Search across one or more Paths (read)
+		map[string]interface{}{
+			"action":     "/search.SearchService/SearchDocuments",
+			"permission": "read",
+			"resources": []interface{}{
+				// SearchDocumentsRequest.paths
+				map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"},
+			},
+		},
+	}
+
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins

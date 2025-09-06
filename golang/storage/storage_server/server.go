@@ -17,6 +17,7 @@ import (
 	// NOTE: we import config but call it only AFTER handling --describe/--health
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
 	"github.com/globulario/services/golang/storage/storage_client"
@@ -96,72 +97,72 @@ type server struct {
 
 // --- Globular contract: getters/setters ---
 
-func (srv *server) GetConfigurationPath() string           { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)       { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                     { return srv.Address }
-func (srv *server) SetAddress(address string)              { srv.Address = address }
-func (srv *server) GetProcess() int                        { return srv.Process }
-func (srv *server) SetProcess(pid int)                     { srv.Process = pid }
-func (srv *server) GetProxyProcess() int                   { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)                { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                       { return srv.State }
-func (srv *server) SetState(state string)                  { srv.State = state }
-func (srv *server) GetLastError() string                   { return srv.LastError }
-func (srv *server) SetLastError(err string)                { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)               { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                      { return srv.ModTime }
-func (srv *server) GetId() string                          { return srv.Id }
-func (srv *server) SetId(id string)                        { srv.Id = id }
-func (srv *server) GetName() string                        { return srv.Name }
-func (srv *server) SetName(name string)                    { srv.Name = name }
-func (srv *server) GetMac() string                         { return srv.Mac }
-func (srv *server) SetMac(mac string)                      { srv.Mac = mac }
-func (srv *server) GetDescription() string                 { return srv.Description }
-func (srv *server) SetDescription(d string)                { srv.Description = d }
-func (srv *server) GetKeywords() []string                  { return srv.Keywords }
-func (srv *server) SetKeywords(k []string)                 { srv.Keywords = k }
-func (srv *server) GetRepositories() []string              { return srv.Repositories }
-func (srv *server) SetRepositories(r []string)             { srv.Repositories = r }
-func (srv *server) GetDiscoveries() []string               { return srv.Discoveries }
-func (srv *server) SetDiscoveries(d []string)              { srv.Discoveries = d }
-func (srv *server) GetChecksum() string                    { return srv.Checksum }
-func (srv *server) SetChecksum(cs string)                  { srv.Checksum = cs }
-func (srv *server) GetPlatform() string                    { return srv.Plaform }
-func (srv *server) SetPlatform(p string)                   { srv.Plaform = p }
-func (srv *server) GetPath() string                        { return srv.Path }
-func (srv *server) SetPath(path string)                    { srv.Path = path }
-func (srv *server) GetProto() string                       { return srv.Proto }
-func (srv *server) SetProto(proto string)                  { srv.Proto = proto }
-func (srv *server) GetPort() int                           { return srv.Port }
-func (srv *server) SetPort(port int)                       { srv.Port = port }
-func (srv *server) GetProxy() int                          { return srv.Proxy }
-func (srv *server) SetProxy(proxy int)                     { srv.Proxy = proxy }
-func (srv *server) GetProtocol() string                    { return srv.Protocol }
-func (srv *server) SetProtocol(p string)                   { srv.Protocol = p }
-func (srv *server) GetAllowAllOrigins() bool               { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(b bool)              { srv.AllowAllOrigins = b }
-func (srv *server) GetAllowedOrigins() string              { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(s string)             { srv.AllowedOrigins = s }
-func (srv *server) GetDomain() string                      { return srv.Domain }
-func (srv *server) SetDomain(d string)                     { srv.Domain = d }
-func (srv *server) GetTls() bool                           { return srv.TLS }
-func (srv *server) SetTls(b bool)                          { srv.TLS = b }
-func (srv *server) GetCertAuthorityTrust() string          { return srv.CertAuthorityTrust }
-func (srv *server) SetCertAuthorityTrust(ca string)        { srv.CertAuthorityTrust = ca }
-func (srv *server) GetCertFile() string                    { return srv.CertFile }
-func (srv *server) SetCertFile(cf string)                  { srv.CertFile = cf }
-func (srv *server) GetKeyFile() string                     { return srv.KeyFile }
-func (srv *server) SetKeyFile(kf string)                   { srv.KeyFile = kf }
-func (srv *server) GetVersion() string                     { return srv.Version }
-func (srv *server) SetVersion(v string)                    { srv.Version = v }
-func (srv *server) GetPublisherID() string                 { return srv.PublisherID }
-func (srv *server) SetPublisherID(pid string)              { srv.PublisherID = pid }
-func (srv *server) GetKeepUpToDate() bool                  { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(val bool)               { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool                     { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)                  { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}          { return srv.Permissions }
-func (srv *server) SetPermissions(p []interface{})         { srv.Permissions = p }
+func (srv *server) GetConfigurationPath() string     { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
+func (srv *server) GetAddress() string               { return srv.Address }
+func (srv *server) SetAddress(address string)        { srv.Address = address }
+func (srv *server) GetProcess() int                  { return srv.Process }
+func (srv *server) SetProcess(pid int)               { srv.Process = pid }
+func (srv *server) GetProxyProcess() int             { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)          { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                 { return srv.State }
+func (srv *server) SetState(state string)            { srv.State = state }
+func (srv *server) GetLastError() string             { return srv.LastError }
+func (srv *server) SetLastError(err string)          { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)         { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                { return srv.ModTime }
+func (srv *server) GetId() string                    { return srv.Id }
+func (srv *server) SetId(id string)                  { srv.Id = id }
+func (srv *server) GetName() string                  { return srv.Name }
+func (srv *server) SetName(name string)              { srv.Name = name }
+func (srv *server) GetMac() string                   { return srv.Mac }
+func (srv *server) SetMac(mac string)                { srv.Mac = mac }
+func (srv *server) GetDescription() string           { return srv.Description }
+func (srv *server) SetDescription(d string)          { srv.Description = d }
+func (srv *server) GetKeywords() []string            { return srv.Keywords }
+func (srv *server) SetKeywords(k []string)           { srv.Keywords = k }
+func (srv *server) GetRepositories() []string        { return srv.Repositories }
+func (srv *server) SetRepositories(r []string)       { srv.Repositories = r }
+func (srv *server) GetDiscoveries() []string         { return srv.Discoveries }
+func (srv *server) SetDiscoveries(d []string)        { srv.Discoveries = d }
+func (srv *server) GetChecksum() string              { return srv.Checksum }
+func (srv *server) SetChecksum(cs string)            { srv.Checksum = cs }
+func (srv *server) GetPlatform() string              { return srv.Plaform }
+func (srv *server) SetPlatform(p string)             { srv.Plaform = p }
+func (srv *server) GetPath() string                  { return srv.Path }
+func (srv *server) SetPath(path string)              { srv.Path = path }
+func (srv *server) GetProto() string                 { return srv.Proto }
+func (srv *server) SetProto(proto string)            { srv.Proto = proto }
+func (srv *server) GetPort() int                     { return srv.Port }
+func (srv *server) SetPort(port int)                 { srv.Port = port }
+func (srv *server) GetProxy() int                    { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)               { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string              { return srv.Protocol }
+func (srv *server) SetProtocol(p string)             { srv.Protocol = p }
+func (srv *server) GetAllowAllOrigins() bool         { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(b bool)        { srv.AllowAllOrigins = b }
+func (srv *server) GetAllowedOrigins() string        { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(s string)       { srv.AllowedOrigins = s }
+func (srv *server) GetDomain() string                { return srv.Domain }
+func (srv *server) SetDomain(d string)               { srv.Domain = d }
+func (srv *server) GetTls() bool                     { return srv.TLS }
+func (srv *server) SetTls(b bool)                    { srv.TLS = b }
+func (srv *server) GetCertAuthorityTrust() string    { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string)  { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string              { return srv.CertFile }
+func (srv *server) SetCertFile(cf string)            { srv.CertFile = cf }
+func (srv *server) GetKeyFile() string               { return srv.KeyFile }
+func (srv *server) SetKeyFile(kf string)             { srv.KeyFile = kf }
+func (srv *server) GetVersion() string               { return srv.Version }
+func (srv *server) SetVersion(v string)              { srv.Version = v }
+func (srv *server) GetPublisherID() string           { return srv.PublisherID }
+func (srv *server) SetPublisherID(pid string)        { srv.PublisherID = pid }
+func (srv *server) GetKeepUpToDate() bool            { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)         { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool               { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)            { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}    { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{})   { srv.Permissions = p }
 func (srv *server) GetDependencies() []string {
 	if srv.Dependencies == nil {
 		srv.Dependencies = make([]string, 0)
@@ -179,6 +180,61 @@ func (srv *server) SetDependency(dep string) {
 
 // Dist packages the service for distribution via Globular.
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
+
+// RolesDefault returns the default roles defined by this service.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:storage.viewer",
+			Name:        "Storage Viewer",
+			Domain:      domain,
+			Description: "Read-only: open stores and read items.",
+			Actions: []string{
+				"/storage.StorageService/Open",
+				"/storage.StorageService/GetItem",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:storage.writer",
+			Name:        "Storage Writer",
+			Domain:      domain,
+			Description: "Read and write items; can close/clear stores.",
+			Actions: []string{
+				"/storage.StorageService/Open",
+				"/storage.StorageService/Close",
+				"/storage.StorageService/GetItem",
+				"/storage.StorageService/SetItem",
+				"/storage.StorageService/SetLargeItem",
+				"/storage.StorageService/RemoveItem",
+				"/storage.StorageService/Clear",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:storage.admin",
+			Name:        "Storage Admin",
+			Domain:      domain,
+			Description: "Full control over storage connections and stores.",
+			Actions: []string{
+				"/storage.StorageService/Stop",
+				"/storage.StorageService/CreateConnection",
+				"/storage.StorageService/DeleteConnection",
+				"/storage.StorageService/Open",
+				"/storage.StorageService/Close",
+				"/storage.StorageService/GetItem",
+				"/storage.StorageService/SetItem",
+				"/storage.StorageService/SetLargeItem",
+				"/storage.StorageService/RemoveItem",
+				"/storage.StorageService/Clear",
+				"/storage.StorageService/Drop",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
 
 // Init prepares config/runtime and initializes the gRPC server.
 func (srv *server) Init() error {
@@ -229,7 +285,123 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 0)
+	srv.Permissions = []interface{}{
+		// ---- Stop the storage service
+		map[string]interface{}{
+			"action":     "/storage.StorageService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Create a storage connection
+		map[string]interface{}{
+			"action":     "/storage.StorageService/CreateConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				// CreateConnectionRqst.connection.id
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "admin"},
+			},
+		},
+
+		// ---- Delete a storage connection
+		map[string]interface{}{
+			"action":     "/storage.StorageService/DeleteConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteConnectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
+			},
+		},
+
+		// ---- Open a store (required before read/write ops)
+		map[string]interface{}{
+			"action":     "/storage.StorageService/Open",
+			"permission": "read",
+			"resources": []interface{}{
+				// OpenRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+
+		// ---- Close a store
+		map[string]interface{}{
+			"action":     "/storage.StorageService/Close",
+			"permission": "write",
+			"resources": []interface{}{
+				// CloseRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+			},
+		},
+
+		// ---- Set a small item (key/value)
+		map[string]interface{}{
+			"action":     "/storage.StorageService/SetItem",
+			"permission": "write",
+			"resources": []interface{}{
+				// SetItemRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// SetItemRequest.key
+				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
+			},
+		},
+
+		// ---- Set a large item (streaming)
+		map[string]interface{}{
+			"action":     "/storage.StorageService/SetLargeItem",
+			"permission": "write",
+			"resources": []interface{}{
+				// SetLargeItemRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// SetLargeItemRequest.key
+				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
+			},
+		},
+
+		// ---- Get an item (streaming response)
+		map[string]interface{}{
+			"action":     "/storage.StorageService/GetItem",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetItemRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				// GetItemRequest.key
+				map[string]interface{}{"index": 0, "field": "Key", "permission": "read"},
+			},
+		},
+
+		// ---- Remove a specific item
+		map[string]interface{}{
+			"action":     "/storage.StorageService/RemoveItem",
+			"permission": "write",
+			"resources": []interface{}{
+				// RemoveItemRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// RemoveItemRequest.key
+				map[string]interface{}{"index": 0, "field": "Key", "permission": "write"},
+			},
+		},
+
+		// ---- Clear all items from a store
+		map[string]interface{}{
+			"action":     "/storage.StorageService/Clear",
+			"permission": "write",
+			"resources": []interface{}{
+				// ClearRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+			},
+		},
+
+		// ---- Drop (destroy) a store
+		map[string]interface{}{
+			"action":     "/storage.StorageService/Drop",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DropRequest.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
+			},
+		},
+	}
+
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins

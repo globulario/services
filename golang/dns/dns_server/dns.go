@@ -130,7 +130,7 @@ func (srv *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dn
 			srv.Logger.Error("RemoveA removeItem", "domain", domain, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(domain)
 		}
 		srv.Logger.Info("A record deleted", "domain", domain, "uuid", uuid, "ipv4", rqst.A)
@@ -304,7 +304,7 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 			srv.Logger.Error("RemoveAAAA removeItem", "domain", domain, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(domain)
 		}
 		srv.Logger.Info("AAAA record deleted", "domain", domain, "uuid", uuid, "ipv6", rqst.Aaaa)
@@ -494,7 +494,7 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 		srv.Logger.Error("RemoveText removeItem", "id", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if rbac_client_, err := srv.GetRbacClient(); err == nil {
+	if rbac_client_, err := srv.getRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 	}
 	srv.Logger.Info("TXT removed", "id", id, "uuid", uuid)
@@ -637,7 +637,7 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 			srv.Logger.Error("RemoveNs removeItem", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 		}
 		srv.Logger.Info("NS record deleted", "id", id, "uuid", uuid, "ns", ns)
@@ -736,7 +736,7 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 		srv.Logger.Error("RemoveCName removeItem", "id", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if rbac_client_, err := srv.GetRbacClient(); err == nil {
+	if rbac_client_, err := srv.getRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 	}
 	srv.Logger.Info("CNAME removed", "id", id, "uuid", uuid)
@@ -912,7 +912,7 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 			srv.Logger.Error("RemoveMx removeItem", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 		}
 		srv.Logger.Info("MX record deleted", "id", id, "uuid", uuid, "host", rqst.Mx)
@@ -1101,7 +1101,7 @@ func (srv *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) 
 			srv.Logger.Error("RemoveSoa removeItem", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 		}
 		srv.Logger.Info("SOA record deleted", "id", id, "uuid", uuid, "ns", rqst.Ns)
@@ -1262,7 +1262,7 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 			srv.Logger.Error("RemoveUri removeItem", "id", id, "err", err)
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-		if rbac_client_, err := srv.GetRbacClient(); err == nil {
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
 			_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 		}
 		srv.Logger.Info("URI record deleted", "id", id, "uuid", uuid, "target", rqst.Target)
@@ -1353,7 +1353,7 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
 		srv.Logger.Error("RemoveAfsdb removeItem", "id", id, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if rbac_client_, err := srv.GetRbacClient(); err == nil {
+	if rbac_client_, err := srv.getRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 	}
 	srv.Logger.Info("AFSDB removed", "id", id, "uuid", uuid)
@@ -1571,7 +1571,7 @@ func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) 
 		}
 		return nil, status.Errorf(codes.Internal, "failed to delete empty CAA set for %q: %v", id, err)
 	}
-	if rbac_client_, err := srv.GetRbacClient(); err == nil {
+	if rbac_client_, err := srv.getRbacClient(); err == nil {
 		_ = rbac_client_.DeleteResourcePermissions(rqst.Id)
 	} else if srv.Logger != nil {
 		srv.Logger.Warn("caa:remove rbac cleanup skipped", "id", id, "uuid", uuid, "err", err)

@@ -18,6 +18,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
@@ -194,8 +195,86 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	reader := resourcepb.Role{
+		Id:          "role:dns.reader",
+		Name:        "DNS Reader",
+		Domain:      domain,
+		Description: "Read-only access to DNS records.",
+		Actions: []string{
+			"/dns.DnsService/GetA",
+			"/dns.DnsService/GetAAAA",
+			"/dns.DnsService/GetText",
+			"/dns.DnsService/GetNs",
+			"/dns.DnsService/GetCName",
+			"/dns.DnsService/GetMx",
+			"/dns.DnsService/GetSoa",
+			"/dns.DnsService/GetUri",
+			"/dns.DnsService/GetCaa",
+			"/dns.DnsService/GetAfsdb",
+		},
+		TypeName: "resource.Role",
+	}
+
+	editor := resourcepb.Role{
+		Id:          "role:dns.editor",
+		Name:        "DNS Editor",
+		Domain:      domain,
+		Description: "Create/update/delete DNS records.",
+		Actions: []string{
+			// writes
+			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
+			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
+			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
+			"/dns.DnsService/SetNs", "/dns.DnsService/RemoveNs",
+			"/dns.DnsService/SetCName", "/dns.DnsService/RemoveCName",
+			"/dns.DnsService/SetMx", "/dns.DnsService/RemoveMx",
+			"/dns.DnsService/SetSoa", "/dns.DnsService/RemoveSoa",
+			"/dns.DnsService/SetUri", "/dns.DnsService/RemoveUri",
+			"/dns.DnsService/SetCaa", "/dns.DnsService/RemoveCaa",
+			"/dns.DnsService/SetAfsdb", "/dns.DnsService/RemoveAfsdb",
+			// reads (often convenient to include)
+			"/dns.DnsService/GetA", "/dns.DnsService/GetAAAA",
+			"/dns.DnsService/GetText", "/dns.DnsService/GetNs",
+			"/dns.DnsService/GetCName", "/dns.DnsService/GetMx",
+			"/dns.DnsService/GetSoa", "/dns.DnsService/GetUri",
+			"/dns.DnsService/GetCaa", "/dns.DnsService/GetAfsdb",
+		},
+		TypeName: "resource.Role",
+	}
+
+	admin := resourcepb.Role{
+		Id:          "role:dns.admin",
+		Name:        "DNS Admin",
+		Domain:      domain,
+		Description: "Full DNS control, including server stop.",
+		Actions: append(append([]string{
+			"/dns.DnsService/Stop",
+		},
+			// all read actions
+			reader.Actions...),
+			// all write actions
+			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
+			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
+			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
+			"/dns.DnsService/SetNs", "/dns.DnsService/RemoveNs",
+			"/dns.DnsService/SetCName", "/dns.DnsService/RemoveCName",
+			"/dns.DnsService/SetMx", "/dns.DnsService/RemoveMx",
+			"/dns.DnsService/SetSoa", "/dns.DnsService/RemoveSoa",
+			"/dns.DnsService/SetUri", "/dns.DnsService/RemoveUri",
+			"/dns.DnsService/SetCaa", "/dns.DnsService/RemoveCaa",
+			"/dns.DnsService/SetAfsdb", "/dns.DnsService/RemoveAfsdb",
+		),
+		TypeName: "resource.Role",
+	}
+
+	return []resourcepb.Role{reader, editor, admin}
+}
+
 // RBAC helper bound to this service address
-func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 	client, err := globular_client.GetClient(srv.Address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
@@ -210,7 +289,7 @@ func (srv *server) createPermission(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	rbacClient, err := srv.GetRbacClient()
+	rbacClient, err := srv.getRbacClient()
 	if err != nil {
 		return err
 	}
@@ -347,18 +426,78 @@ func main() {
 	srv.Root = config.GetDataDir()
 	_ = Utility.CreateDirIfNotExist(srv.Root)
 
+	{
+		res := func(field, perm string) map[string]interface{} {
+			return map[string]interface{}{"index": 0, "field": field, "permission": perm}
+		}
+		rule := func(action, perm string, r ...map[string]interface{}) map[string]interface{} {
+			m := map[string]interface{}{"action": action, "permission": perm}
+			if len(r) > 0 {
+				rr := make([]interface{}, 0, len(r))
+				for _, x := range r {
+					rr = append(rr, x)
+				}
+				m["resources"] = rr
+			}
+			return m
+		}
+
+		srv.Permissions = []interface{}{
+			// ---- A / AAAA
+			rule("/dns.DnsService/SetA", "write", res("Domain", "write")),
+			rule("/dns.DnsService/RemoveA", "write", res("Domain", "write")),
+			rule("/dns.DnsService/GetA", "read", res("Domain", "read")),
+			rule("/dns.DnsService/SetAAAA", "write", res("Domain", "write")),
+			rule("/dns.DnsService/RemoveAAAA", "write", res("Domain", "write")),
+			rule("/dns.DnsService/GetAAAA", "read", res("Domain", "read")),
+
+			// ---- TXT
+			rule("/dns.DnsService/SetText", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveText", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetText", "read", res("Id", "read")),
+
+			// ---- NS
+			rule("/dns.DnsService/SetNs", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveNs", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetNs", "read", res("Id", "read")),
+
+			// ---- CNAME
+			rule("/dns.DnsService/SetCName", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveCName", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetCName", "read", res("Id", "read")),
+
+			// ---- MX
+			rule("/dns.DnsService/SetMx", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveMx", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetMx", "read", res("Id", "read")),
+
+			// ---- SOA
+			rule("/dns.DnsService/SetSoa", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveSoa", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetSoa", "read", res("Id", "read")),
+
+			// ---- URI
+			rule("/dns.DnsService/SetUri", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveUri", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetUri", "read", res("Id", "read")),
+
+			// ---- CAA
+			rule("/dns.DnsService/SetCaa", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveCaa", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetCaa", "read", res("Id", "read")),
+
+			// ---- AFSDB
+			rule("/dns.DnsService/SetAfsdb", "write", res("Id", "write")),
+			rule("/dns.DnsService/RemoveAfsdb", "write", res("Id", "write")),
+			rule("/dns.DnsService/GetAfsdb", "read", res("Id", "read")),
+
+			// ---- Admin op (no resource binding; action-gated)
+			rule("/dns.DnsService/Stop", "write"),
+		}
+	}
+
 	// Dynamic client registration
 	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
-
-	// Default permissions for DNS ops on a given domain
-	srv.Permissions = []interface{}{
-		map[string]interface{}{"action": "/dns.DnsService/SetA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/dns.DnsService/SetAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/dns.DnsService/RemoveA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/dns.DnsService/RemoveAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/dns.DnsService/RemoveText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/dns.DnsService/SetText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-	}
 
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]

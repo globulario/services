@@ -209,6 +209,85 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:rbac.viewer",
+			Name:        "RBAC Viewer",
+			Domain:      domain,
+			Description: "Read-only access to permissions metadata and validation endpoints.",
+			Actions: []string{
+				"/rbac.RbacService/GetResourcePermission",
+				"/rbac.RbacService/GetResourcePermissions",
+				"/rbac.RbacService/GetResourcePermissionsByResourceType",
+				"/rbac.RbacService/GetResourcePermissionsBySubject",
+				"/rbac.RbacService/GetActionResourceInfos",
+				"/rbac.RbacService/GetSharedResource",
+				"/rbac.RbacService/ValidateAccess",
+				"/rbac.RbacService/ValidateAction",
+				"/rbac.RbacService/GetSubjectAllocatedSpace",
+				"/rbac.RbacService/GetSubjectAvailableSpace",
+				"/rbac.RbacService/ValidateSubjectSpace",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:rbac.editor",
+			Name:        "RBAC Editor",
+			Domain:      domain,
+			Description: "Manage resource permissions, owners, and shares.",
+			Actions: []string{
+				"/rbac.RbacService/SetResourcePermission",
+				"/rbac.RbacService/DeleteResourcePermission",
+				"/rbac.RbacService/SetResourcePermissions",
+				"/rbac.RbacService/DeleteResourcePermissions",
+				"/rbac.RbacService/AddResourceOwner",
+				"/rbac.RbacService/RemoveResourceOwner",
+				"/rbac.RbacService/RemoveSubjectFromShare",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:rbac.admin",
+			Name:        "RBAC Admin",
+			Domain:      domain,
+			Description: "Full control over RBAC configuration and subject quotas.",
+			Actions: []string{
+				// everything from viewer
+				"/rbac.RbacService/GetResourcePermission",
+				"/rbac.RbacService/GetResourcePermissions",
+				"/rbac.RbacService/GetResourcePermissionsByResourceType",
+				"/rbac.RbacService/GetResourcePermissionsBySubject",
+				"/rbac.RbacService/GetActionResourceInfos",
+				"/rbac.RbacService/GetSharedResource",
+				"/rbac.RbacService/ValidateAccess",
+				"/rbac.RbacService/ValidateAction",
+				"/rbac.RbacService/GetSubjectAllocatedSpace",
+				"/rbac.RbacService/GetSubjectAvailableSpace",
+				"/rbac.RbacService/ValidateSubjectSpace",
+
+				// everything from editor
+				"/rbac.RbacService/SetResourcePermission",
+				"/rbac.RbacService/DeleteResourcePermission",
+				"/rbac.RbacService/SetResourcePermissions",
+				"/rbac.RbacService/DeleteResourcePermissions",
+				"/rbac.RbacService/AddResourceOwner",
+				"/rbac.RbacService/RemoveResourceOwner",
+				"/rbac.RbacService/RemoveSubjectFromShare",
+
+				// admin-only knobs
+				"/rbac.RbacService/SetActionResourcesPermissions",
+				"/rbac.RbacService/DeleteAllAccess",
+				"/rbac.RbacService/DeleteSubjectShare",
+				"/rbac.RbacService/SetSubjectAllocatedSpace",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Event / Log / Resource helpers
 // -----------------------------------------------------------------------------
@@ -546,7 +625,113 @@ func main() {
 	srv.Keywords = []string{"rbac", "permissions", "security"}
 	srv.Repositories, srv.Discoveries = make([]string, 0), make([]string, 0)
 	srv.Dependencies = []string{"resource.ResourceService"}
-	srv.Permissions = make([]interface{}, 0)
+	// In your service init/constructor:
+	srv.Permissions = []interface{}{
+		// ---- Resource permission CRUD (protected by resource path)
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/SetResourcePermissions",
+			"permission": "write",
+			"resources": []interface{}{
+				// SetResourcePermissionsRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+				// Optional duplicated path inside rqst.permissions.path
+				map[string]interface{}{"index": 0, "field": "Permissions.Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/DeleteResourcePermissions",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteResourcePermissionsRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/DeleteResourcePermission",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteResourcePermissionRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/GetResourcePermission",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetResourcePermissionRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/SetResourcePermission",
+			"permission": "write",
+			"resources": []interface{}{
+				// SetResourcePermissionRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/GetResourcePermissions",
+			"permission": "read",
+			"resources": []interface{}{
+				// GetResourcePermissionsRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+
+		// ---- Ownership management (path-scoped)
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/AddResourceOwner",
+			"permission": "write",
+			"resources": []interface{}{
+				// AddResourceOwnerRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/RemoveResourceOwner",
+			"permission": "write",
+			"resources": []interface{}{
+				// RemoveResourceOwnerRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Sharing (path-scoped mutation)
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/RemoveSubjectFromShare",
+			"permission": "write",
+			"resources": []interface{}{
+				// RemoveSubjectFromShareRqst.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- High-privilege/global configuration (no per-parameter resource)
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/SetActionResourcesPermissions",
+			"permission": "admin",
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/DeleteAllAccess",
+			"permission": "admin",
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/DeleteSubjectShare",
+			"permission": "admin",
+		},
+		map[string]interface{}{
+			"action":     "/rbac.RbacService/SetSubjectAllocatedSpace",
+			"permission": "admin",
+		},
+
+		// ---- Reads that don’t mutate resources (kept unrestricted here)
+		// GetResourcePermissionsByResourceType, GetResourcePermissionsBySubject,
+		// GetActionResourceInfos, GetSharedResource, ValidateAccess, ValidateAction,
+		// GetSubjectAllocatedSpace, GetSubjectAvailableSpace, ValidateSubjectSpace
+		// can be left out so the RBAC layer doesn’t block read/validation calls.
+	}
+
 	srv.Process, srv.ProxyProcess = -1, -1
 	srv.AllowAllOrigins, srv.AllowedOrigins = allowAllOrigins, allowedOriginsStr
 	srv.KeepAlive, srv.KeepUpToDate = true, true

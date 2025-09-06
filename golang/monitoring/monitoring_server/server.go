@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/monitoring/monitoring_client"
 	"github.com/globulario/services/golang/monitoring/monitoring_store"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
 	"google.golang.org/grpc"
@@ -105,39 +106,39 @@ type server struct {
 // Globular service contract (public prototypes preserved)
 // -----------------------------------------------------------------------------
 
-func (srv *server) GetConfigurationPath() string { return srv.ConfigPath }
+func (srv *server) GetConfigurationPath() string     { return srv.ConfigPath }
 func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
 
-func (srv *server) GetAddress() string { return srv.Address }
+func (srv *server) GetAddress() string        { return srv.Address }
 func (srv *server) SetAddress(address string) { srv.Address = address }
 
-func (srv *server) GetProcess() int { return srv.Process }
+func (srv *server) GetProcess() int    { return srv.Process }
 func (srv *server) SetProcess(pid int) { srv.Process = pid }
 
-func (srv *server) GetProxyProcess() int { return srv.ProxyProcess }
+func (srv *server) GetProxyProcess() int    { return srv.ProxyProcess }
 func (srv *server) SetProxyProcess(pid int) { srv.ProxyProcess = pid }
 
-func (srv *server) GetState() string { return srv.State }
+func (srv *server) GetState() string      { return srv.State }
 func (srv *server) SetState(state string) { srv.State = state }
 
-func (srv *server) GetLastError() string { return srv.LastError }
+func (srv *server) GetLastError() string    { return srv.LastError }
 func (srv *server) SetLastError(err string) { srv.LastError = err }
 
 func (srv *server) SetModTime(modtime int64) { srv.ModTime = modtime }
 func (srv *server) GetModTime() int64        { return srv.ModTime }
 
-func (srv *server) GetId() string      { return srv.Id }
-func (srv *server) SetId(id string)    { srv.Id = id }
-func (srv *server) GetName() string    { return srv.Name }
-func (srv *server) SetName(name string){ srv.Name = name }
+func (srv *server) GetId() string       { return srv.Id }
+func (srv *server) SetId(id string)     { srv.Id = id }
+func (srv *server) GetName() string     { return srv.Name }
+func (srv *server) SetName(name string) { srv.Name = name }
 
-func (srv *server) GetMac() string     { return srv.Mac }
-func (srv *server) SetMac(mac string)  { srv.Mac = mac }
+func (srv *server) GetMac() string    { return srv.Mac }
+func (srv *server) SetMac(mac string) { srv.Mac = mac }
 
-func (srv *server) GetDescription() string { return srv.Description }
+func (srv *server) GetDescription() string            { return srv.Description }
 func (srv *server) SetDescription(description string) { srv.Description = description }
 
-func (srv *server) GetKeywords() []string { return srv.Keywords }
+func (srv *server) GetKeywords() []string         { return srv.Keywords }
 func (srv *server) SetKeywords(keywords []string) { srv.Keywords = keywords }
 
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
@@ -156,67 +157,133 @@ func (srv *server) SetDependency(dependency string) {
 		srv.Dependencies = append(srv.Dependencies, dependency)
 	}
 }
-func (srv *server) GetRepositories() []string { return srv.Repositories }
+func (srv *server) GetRepositories() []string             { return srv.Repositories }
 func (srv *server) SetRepositories(repositories []string) { srv.Repositories = repositories }
-func (srv *server) GetDiscoveries() []string { return srv.Discoveries }
-func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = discoveries }
+func (srv *server) GetDiscoveries() []string              { return srv.Discoveries }
+func (srv *server) SetDiscoveries(discoveries []string)   { srv.Discoveries = discoveries }
 
-func (srv *server) GetChecksum() string { return srv.Checksum }
+func (srv *server) GetChecksum() string         { return srv.Checksum }
 func (srv *server) SetChecksum(checksum string) { srv.Checksum = checksum }
 
-func (srv *server) GetPlatform() string { return srv.Plaform }
+func (srv *server) GetPlatform() string         { return srv.Plaform }
 func (srv *server) SetPlatform(platform string) { srv.Plaform = platform }
 
-func (srv *server) GetPath() string { return srv.Path }
+func (srv *server) GetPath() string     { return srv.Path }
 func (srv *server) SetPath(path string) { srv.Path = path }
 
-func (srv *server) GetProto() string { return srv.Proto }
+func (srv *server) GetProto() string      { return srv.Proto }
 func (srv *server) SetProto(proto string) { srv.Proto = proto }
 
-func (srv *server) GetPort() int { return srv.Port }
+func (srv *server) GetPort() int     { return srv.Port }
 func (srv *server) SetPort(port int) { srv.Port = port }
 
-func (srv *server) GetProxy() int { return srv.Proxy }
+func (srv *server) GetProxy() int      { return srv.Proxy }
 func (srv *server) SetProxy(proxy int) { srv.Proxy = proxy }
 
-func (srv *server) GetProtocol() string { return srv.Protocol }
+func (srv *server) GetProtocol() string         { return srv.Protocol }
 func (srv *server) SetProtocol(protocol string) { srv.Protocol = protocol }
 
-func (srv *server) GetAllowAllOrigins() bool { return srv.AllowAllOrigins }
+func (srv *server) GetAllowAllOrigins() bool                { return srv.AllowAllOrigins }
 func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) { srv.AllowAllOrigins = allowAllOrigins }
 
-func (srv *server) GetAllowedOrigins() string { return srv.AllowedOrigins }
+func (srv *server) GetAllowedOrigins() string               { return srv.AllowedOrigins }
 func (srv *server) SetAllowedOrigins(allowedOrigins string) { srv.AllowedOrigins = allowedOrigins }
 
-func (srv *server) GetDomain() string { return srv.Domain }
+func (srv *server) GetDomain() string       { return srv.Domain }
 func (srv *server) SetDomain(domain string) { srv.Domain = domain }
 
-func (srv *server) GetTls() bool { return srv.TLS }
+func (srv *server) GetTls() bool       { return srv.TLS }
 func (srv *server) SetTls(hasTls bool) { srv.TLS = hasTls }
 
-func (srv *server) GetCertAuthorityTrust() string { return srv.CertAuthorityTrust }
+func (srv *server) GetCertAuthorityTrust() string   { return srv.CertAuthorityTrust }
 func (srv *server) SetCertAuthorityTrust(ca string) { srv.CertAuthorityTrust = ca }
 
-func (srv *server) GetCertFile() string { return srv.CertFile }
+func (srv *server) GetCertFile() string         { return srv.CertFile }
 func (srv *server) SetCertFile(certFile string) { srv.CertFile = certFile }
 
-func (srv *server) GetKeyFile() string { return srv.KeyFile }
+func (srv *server) GetKeyFile() string        { return srv.KeyFile }
 func (srv *server) SetKeyFile(keyFile string) { srv.KeyFile = keyFile }
 
-func (srv *server) GetVersion() string { return srv.Version }
+func (srv *server) GetVersion() string        { return srv.Version }
 func (srv *server) SetVersion(version string) { srv.Version = version }
 
-func (srv *server) GetPublisherID() string { return srv.PublisherID }
+func (srv *server) GetPublisherID() string            { return srv.PublisherID }
 func (srv *server) SetPublisherID(PublisherID string) { srv.PublisherID = PublisherID }
 
-func (srv *server) GetKeepUpToDate() bool { return srv.KeepUpToDate }
+func (srv *server) GetKeepUpToDate() bool    { return srv.KeepUpToDate }
 func (srv *server) SetKeepUptoDate(val bool) { srv.KeepUpToDate = val }
 
-func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
+func (srv *server) GetKeepAlive() bool    { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 
-func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
+func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
+
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:monitoring.viewer",
+			Name:        "Monitoring Viewer",
+			Domain:      domain,
+			Description: "Read-only access to alerts and rules.",
+			Actions: []string{
+				"/monitoring.MonitoringService/Alerts",
+				"/monitoring.MonitoringService/Rules",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:monitoring.operator",
+			Name:        "Monitoring Operator",
+			Domain:      domain,
+			Description: "Can query metrics, view alerts, targets, configs, and labels.",
+			Actions: []string{
+				"/monitoring.MonitoringService/Alerts",
+				"/monitoring.MonitoringService/AlertManagers",
+				"/monitoring.MonitoringService/Config",
+				"/monitoring.MonitoringService/Flags",
+				"/monitoring.MonitoringService/LabelNames",
+				"/monitoring.MonitoringService/LabelValues",
+				"/monitoring.MonitoringService/Query",
+				"/monitoring.MonitoringService/QueryRange",
+				"/monitoring.MonitoringService/Series",
+				"/monitoring.MonitoringService/Rules",
+				"/monitoring.MonitoringService/Targets",
+				"/monitoring.MonitoringService/TargetsMetadata",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:monitoring.admin",
+			Name:        "Monitoring Admin",
+			Domain:      domain,
+			Description: "Full control over MonitoringService, including connections, tombstones, snapshots, and deletes.",
+			Actions: []string{
+				"/monitoring.MonitoringService/Stop",
+				"/monitoring.MonitoringService/CreateConnection",
+				"/monitoring.MonitoringService/DeleteConnection",
+				"/monitoring.MonitoringService/Alerts",
+				"/monitoring.MonitoringService/AlertManagers",
+				"/monitoring.MonitoringService/CleanTombstones",
+				"/monitoring.MonitoringService/Config",
+				"/monitoring.MonitoringService/DeleteSeries",
+				"/monitoring.MonitoringService/Flags",
+				"/monitoring.MonitoringService/LabelNames",
+				"/monitoring.MonitoringService/LabelValues",
+				"/monitoring.MonitoringService/Query",
+				"/monitoring.MonitoringService/QueryRange",
+				"/monitoring.MonitoringService/Series",
+				"/monitoring.MonitoringService/Snapshot",
+				"/monitoring.MonitoringService/Rules",
+				"/monitoring.MonitoringService/Targets",
+				"/monitoring.MonitoringService/TargetsMetadata",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
 
 // Init creates/loads configuration and initializes gRPC.
 func (srv *server) Init() error {
@@ -282,7 +349,6 @@ func main() {
 	srv.Protocol = "grpc"
 	srv.PublisherID = "localhost"
 	srv.Version = "0.0.1"
-	srv.Permissions = make([]interface{}, 0)
 	srv.Keywords = make([]string, 0)
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
@@ -293,6 +359,181 @@ func main() {
 	srv.ProxyProcess = -1
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
+	srv.Permissions = []interface{}{
+		// ---- Stop server (admin control)
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Stop",
+			"permission": "write",
+		},
+
+		// ---- Create a monitoring connection (persisted config)
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/CreateConnection",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateConnectionRqst.connection.id / host / port / store
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Host", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Port", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Store", "permission": "write"},
+			},
+		},
+
+		// ---- Delete a monitoring connection
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/DeleteConnection",
+			"permission": "delete",
+			"resources": []interface{}{
+				// DeleteConnectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+
+		// =========================
+		// Read operations (per-connection)
+		// =========================
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Alerts",
+			"permission": "read",
+			"resources": []interface{}{
+				// AlertsRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/AlertManagers",
+			"permission": "read",
+			"resources": []interface{}{
+				// AlertManagersRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Config",
+			"permission": "read",
+			"resources": []interface{}{
+				// ConfigRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Flags",
+			"permission": "read",
+			"resources": []interface{}{
+				// FlagsRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/LabelNames",
+			"permission": "read",
+			"resources": []interface{}{
+				// LabelNamesRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/LabelValues",
+			"permission": "read",
+			"resources": []interface{}{
+				// LabelValuesRequest.connectionId / label
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Label", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Query",
+			"permission": "read",
+			"resources": []interface{}{
+				// QueryRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/QueryRange",
+			"permission": "read",
+			"resources": []interface{}{
+				// QueryRangeRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Series",
+			"permission": "read",
+			"resources": []interface{}{
+				// SeriesRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Rules",
+			"permission": "read",
+			"resources": []interface{}{
+				// RulesRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Targets",
+			"permission": "read",
+			"resources": []interface{}{
+				// TargetsRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/TargetsMetadata",
+			"permission": "read",
+			"resources": []interface{}{
+				// TargetsMetadataRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "read"},
+			},
+		},
+
+		// =========================
+		// Mutating / admin operations (per-connection)
+		// =========================
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/CleanTombstones",
+			"permission": "write",
+			"resources": []interface{}{
+				// CleanTombstonesRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "write"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/DeleteSeries",
+			"permission": "delete",
+			"resources": []interface{}{
+				// DeleteSeriesRequest.connectionId / matches (series selectors)
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "delete"},
+				map[string]interface{}{"index": 0, "field": "Matches", "permission": "delete"},
+			},
+		},
+
+		map[string]interface{}{
+			"action":     "/monitoring.MonitoringService/Snapshot",
+			"permission": "write",
+			"resources": []interface{}{
+				// SnapshotRequest.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "write"},
+			},
+		},
+	}
 
 	// Register client ctor.
 	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)

@@ -172,6 +172,59 @@ func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = v
 func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+// RolesDefault returns curated roles for PackageDiscovery.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	servicePublisher := resourcepb.Role{
+		Id:          "role:discovery.service_publisher",
+		Name:        "Service Publisher",
+		Domain:      domain,
+		Description: "Can publish service packages to allowed repositories/discoveries.",
+		Actions: []string{
+			"/discovery.PackageDiscovery/PublishService",
+		},
+		TypeName: "resource.Role",
+	}
+
+	appPublisher := resourcepb.Role{
+		Id:          "role:discovery.app_publisher",
+		Name:        "Application Publisher",
+		Domain:      domain,
+		Description: "Can publish application packages to allowed repositories/discoveries.",
+		Actions: []string{
+			"/discovery.PackageDiscovery/PublishApplication",
+		},
+		TypeName: "resource.Role",
+	}
+
+	publisher := resourcepb.Role{
+		Id:          "role:discovery.publisher",
+		Name:        "Publisher",
+		Domain:      domain,
+		Description: "Can publish services and applications.",
+		Actions: []string{
+			"/discovery.PackageDiscovery/PublishService",
+			"/discovery.PackageDiscovery/PublishApplication",
+		},
+		TypeName: "resource.Role",
+	}
+
+	admin := resourcepb.Role{
+		Id:          "role:discovery.admin",
+		Name:        "Discovery Admin",
+		Domain:      domain,
+		Description: "Full publish rights across repositories/discoveries.",
+		Actions: []string{
+			"/discovery.PackageDiscovery/PublishService",
+			"/discovery.PackageDiscovery/PublishApplication",
+		},
+		TypeName: "resource.Role",
+	}
+
+	return []resourcepb.Role{servicePublisher, appPublisher, publisher, admin}
+}
+
 // Lifecycle
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -331,20 +384,35 @@ func main() {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
-	s.Permissions = make([]interface{}, 2)
-	// Default permissions for publishing actions
-	s.Permissions[0] = map[string]interface{}{
-		"action": "/discovery.DiscoveryService/PublishService",
-		"resources": []interface{}{
-			map[string]interface{}{"index": 0, "permission": "owner"},
+	// Default RBAC permissions for PackageDiscovery.
+	// We bind to request fields so RBAC can check write access on the target
+	// repository and discovery before allowing a publish.
+	s.Permissions = []interface{}{
+		// ---- Publish a service package
+		map[string]interface{}{
+			"action":     "/discovery.PackageDiscovery/PublishService",
+			"permission": "write", // coarse verb for this action
+			"resources": []interface{}{
+				// PublishServiceRequest.repositoryId
+				map[string]interface{}{"index": 0, "field": "RepositoryId", "permission": "write"},
+				// PublishServiceRequest.discoveryId
+				map[string]interface{}{"index": 0, "field": "DiscoveryId", "permission": "write"},
+			},
+		},
+
+		// ---- Publish an application package
+		map[string]interface{}{
+			"action":     "/discovery.PackageDiscovery/PublishApplication",
+			"permission": "write",
+			"resources": []interface{}{
+				// PublishApplicationRequest.repository
+				map[string]interface{}{"index": 0, "field": "Repository", "permission": "write"},
+				// PublishApplicationRequest.discovery
+				map[string]interface{}{"index": 0, "field": "Discovery", "permission": "write"},
+			},
 		},
 	}
-	s.Permissions[1] = map[string]interface{}{
-		"action": "/discovery.DiscoveryService/PublishApplication",
-		"resources": []interface{}{
-			map[string]interface{}{"index": 0, "permission": "owner"},
-		},
-	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true

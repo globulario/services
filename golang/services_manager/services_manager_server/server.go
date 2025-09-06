@@ -340,6 +340,55 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 // SetPermissions sets the action permissions.
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:services.viewer",
+			Name:        "Services Viewer",
+			Domain:      domain,
+			Description: "Read-only visibility into services and their actions.",
+			Actions: []string{
+				"/services_manager.ServicesManagerService/GetServicesConfiguration",
+				"/services_manager.ServicesManagerService/GetAllActions",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:services.operator",
+			Name:        "Services Operator",
+			Domain:      domain,
+			Description: "Can start/stop instances and view configuration.",
+			Actions: []string{
+				"/services_manager.ServicesManagerService/GetServicesConfiguration",
+				"/services_manager.ServicesManagerService/GetAllActions",
+				"/services_manager.ServicesManagerService/StartServiceInstance",
+				"/services_manager.ServicesManagerService/StopServiceInstance",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:services.admin",
+			Name:        "Services Admin",
+			Domain:      domain,
+			Description: "Full control over service lifecycle and configuration.",
+			Actions: []string{
+				"/services_manager.ServicesManagerService/InstallService",
+				"/services_manager.ServicesManagerService/UninstallService",
+				"/services_manager.ServicesManagerService/StartServiceInstance",
+				"/services_manager.ServicesManagerService/StopServiceInstance",
+				"/services_manager.ServicesManagerService/RestartAllServices",
+				"/services_manager.ServicesManagerService/GetServicesConfiguration",
+				"/services_manager.ServicesManagerService/GetAllActions",
+				"/services_manager.ServicesManagerService/SaveServiceConfig",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle
 // -----------------------------------------------------------------------------
@@ -714,6 +763,86 @@ func main() {
 		methods:         []string{},
 		PortsRange:      "10000-10100",
 		done:            make(chan bool),
+	}
+
+	s.Permissions = []interface{}{
+		// ---- Install a service (create/modify service resources)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/InstallService",
+			"permission": "admin",
+			"resources": []interface{}{
+				// InstallServiceRequest.serviceId
+				map[string]interface{}{"index": 0, "field": "ServiceId", "permission": "admin"},
+				// InstallServiceRequest.PublisherID
+				map[string]interface{}{"index": 0, "field": "PublisherID", "permission": "admin"},
+				// InstallServiceRequest.version
+				map[string]interface{}{"index": 0, "field": "Version", "permission": "admin"},
+				// Note: dicorveryId is not a protected resource path; action-level control is enough.
+			},
+		},
+
+		// ---- Uninstall a service (destructive)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/UninstallService",
+			"permission": "admin",
+			"resources": []interface{}{
+				// UninstallServiceRequest.serviceId
+				map[string]interface{}{"index": 0, "field": "ServiceId", "permission": "admin"},
+				// UninstallServiceRequest.PublisherID
+				map[string]interface{}{"index": 0, "field": "PublisherID", "permission": "admin"},
+				// UninstallServiceRequest.version
+				map[string]interface{}{"index": 0, "field": "Version", "permission": "admin"},
+				// deletePermissions is a flag, not a resource.
+			},
+		},
+
+		// ---- Stop a service instance
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/StopServiceInstance",
+			"permission": "admin",
+			"resources": []interface{}{
+				// StopServiceInstanceRequest.service_id
+				map[string]interface{}{"index": 0, "field": "ServiceId", "permission": "admin"},
+			},
+		},
+
+		// ---- Start a service instance
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/StartServiceInstance",
+			"permission": "admin",
+			"resources": []interface{}{
+				// StartServiceInstanceRequest.service_id
+				map[string]interface{}{"index": 0, "field": "ServiceId", "permission": "admin"},
+			},
+		},
+
+		// ---- Restart all services (global op, no per-resource param)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/RestartAllServices",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Get services configuration (read-only)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/GetServicesConfiguration",
+			"permission": "read",
+			"resources":  []interface{}{},
+		},
+
+		// ---- List all actions (read-only)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/GetAllActions",
+			"permission": "read",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Save a service configuration (writes config blob; no path field)
+		map[string]interface{}{
+			"action":     "/services_manager.ServicesManagerService/SaveServiceConfig",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
 	}
 
 	// Paths & environment

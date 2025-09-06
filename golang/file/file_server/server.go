@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/media/media_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -203,6 +204,104 @@ func (srv *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopRespo
 	return &filepb.StopResponse{}, srv.StopService()
 }
 
+// RolesDefault returns a curated set of roles for FileService.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:file.viewer",
+			Name:        "File Viewer",
+			Domain:      domain,
+			Description: "Read-only access to files and directories.",
+			Actions: []string{
+				"/file.FileService/ReadDir",
+				"/file.FileService/GetFileInfo",
+				"/file.FileService/GetFileMetadata",
+				"/file.FileService/ReadFile",
+				"/file.FileService/GetThumbnails",
+				"/file.FileService/GetPublicDirs",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:file.uploader",
+			Name:        "File Uploader",
+			Domain:      domain,
+			Description: "Upload/create content; no destructive ops.",
+			Actions: []string{
+				"/file.FileService/UploadFile",
+				"/file.FileService/SaveFile",
+				"/file.FileService/CreateDir",
+				"/file.FileService/CreateLnk",
+				"/file.FileService/WriteExcelFile",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:file.editor",
+			Name:        "File Editor",
+			Domain:      domain,
+			Description: "Create, modify, move/copy, and delete files/dirs.",
+			Actions: []string{
+				"/file.FileService/CreateDir",
+				"/file.FileService/DeleteDir",
+				"/file.FileService/Rename",
+				"/file.FileService/Move",
+				"/file.FileService/Copy",
+				"/file.FileService/CreateArchive",
+				"/file.FileService/SaveFile",
+				"/file.FileService/DeleteFile",
+				"/file.FileService/UploadFile",
+				"/file.FileService/CreateLnk",
+				"/file.FileService/WriteExcelFile",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:file.publisher",
+			Name:        "File Publisher",
+			Domain:      domain,
+			Description: "Manage public directories (publish/unpublish).",
+			Actions: []string{
+				"/file.FileService/GetPublicDirs",
+				"/file.FileService/AddPublicDir",
+				"/file.FileService/RemovePublicDir",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:file.admin",
+			Name:        "File Admin",
+			Domain:      domain,
+			Description: "Full control over FileService.",
+			Actions: []string{
+				"/file.FileService/Stop",
+				"/file.FileService/GetPublicDirs",
+				"/file.FileService/AddPublicDir",
+				"/file.FileService/RemovePublicDir",
+				"/file.FileService/ReadDir",
+				"/file.FileService/CreateDir",
+				"/file.FileService/DeleteDir",
+				"/file.FileService/Rename",
+				"/file.FileService/Move",
+				"/file.FileService/Copy",
+				"/file.FileService/CreateArchive",
+				"/file.FileService/GetFileInfo",
+				"/file.FileService/GetFileMetadata",
+				"/file.FileService/ReadFile",
+				"/file.FileService/SaveFile",
+				"/file.FileService/DeleteFile",
+				"/file.FileService/GetThumbnails",
+				"/file.FileService/UploadFile",
+				"/file.FileService/WriteExcelFile",
+				"/file.FileService/HtmlToPdf",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // -------------------- Clients & helpers --------------------
 
 func getEventClient() (*event_client.Event_Client, error) {
@@ -373,26 +472,186 @@ func main() {
 	s.Root = config.GetDataDir() + "/files"
 	s.CacheAddress, _ = config.GetAddress()
 
+	s.Permissions = []interface{}{
+		// ---- Directory listing
+		map[string]interface{}{
+			"action":     "/file.FileService/ReadDir",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+
+		// ---- Create / Delete directory
+		map[string]interface{}{
+			"action":     "/file.FileService/CreateDir",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // parent dir
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/DeleteDir",
+			"permission": "delete",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"},
+			},
+		},
+
+		// ---- Rename (inside a directory)
+		map[string]interface{}{
+			"action":     "/file.FileService/Rename",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "OldName", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "NewName", "permission": "write"},
+			},
+		},
+
+		// ---- Copy (read sources, write destination)
+		map[string]interface{}{
+			"action":     "/file.FileService/Copy",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Files", "permission": "read"}, // files[]
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // destination dir
+			},
+		},
+
+		// ---- Move (delete sources, write destination)
+		map[string]interface{}{
+			"action":     "/file.FileService/Move",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Files", "permission": "delete"}, // files[]
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},   // destination dir
+			},
+		},
+
+		// ---- Create archive (read sources; server writes into caller's area)
+		map[string]interface{}{
+			"action":     "/file.FileService/CreateArchive",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Paths", "permission": "read"}, // paths[]
+				// NOTE: destination is implicit (user home) in server impl; no request field to reference.
+			},
+		},
+
+		// ---- File info & metadata
+		map[string]interface{}{
+			"action":     "/file.FileService/GetFileInfo",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/GetFileMetadata",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+
+		// ---- Read / Save / Delete file
+		map[string]interface{}{
+			"action":     "/file.FileService/ReadFile",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/SaveFile",
+			"permission": "write",
+			"resources": []interface{}{
+				// SaveFile is client-streaming; enforce when a message contains Path in the oneof.
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/DeleteFile",
+			"permission": "delete",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"},
+			},
+		},
+
+		// ---- Link (.lnk) creation
+		map[string]interface{}{
+			"action":     "/file.FileService/CreateLnk",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"}, // directory where link is created
+				map[string]interface{}{"index": 0, "field": "Name", "permission": "write"},
+				// "Lnk" is payload metadata; no FS permission required.
+			},
+		},
+
+		// ---- Thumbnails & transforms
+		map[string]interface{}{
+			"action":     "/file.FileService/GetThumbnails",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/WriteExcelFile",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/HtmlToPdf",
+			"permission": "read",
+			"resources":  []interface{}{}, // no FS resource in request
+		},
+
+		// ---- Remote ingest (download to dest)
+		map[string]interface{}{
+			"action":     "/file.FileService/UploadFile",
+			"permission": "write",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"},
+				// "Url" is external; validate-only (no FS permission).
+			},
+		},
+
+		// ---- Public directory management
+		map[string]interface{}{
+			"action":     "/file.FileService/AddPublicDir",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/RemovePublicDir",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "admin"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/file.FileService/GetPublicDirs",
+			"permission": "read",
+			"resources":  []interface{}{}, // config read; no path param
+		},
+
+		// ---- Control plane
+		map[string]interface{}{
+			"action":     "/file.FileService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+	}
+
 	// Dynamic client registration
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
-
-	// Default permissions (compact, no nil slots)
-	s.Permissions = []interface{}{
-		map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateArchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/UploadFile", "resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}}},
-		map[string]interface{}{"action": "/file.FileService/CreateLnk", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-	}
 
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]

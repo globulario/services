@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -334,7 +335,9 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 // main configures and starts the Echo service.
-
+func (srv *server) RolesDefault() []resourcepb.Role {
+	return []resourcepb.Role{}
+}
 
 
 func main() {

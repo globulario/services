@@ -28,6 +28,7 @@ import (
 	"github.com/globulario/services/golang/mail/mail_server/smtp"
 	"github.com/globulario/services/golang/mail/mailpb"
 	"github.com/globulario/services/golang/persistence/persistence_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
 	"google.golang.org/grpc"
@@ -354,6 +355,49 @@ func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
 // SetPermissions sets action permissions.
 func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:mail.sender",
+			Name:        "Mail Sender",
+			Domain:      domain,
+			Description: "Can send emails (simple and with attachments) using existing connections.",
+			Actions: []string{
+				"/mail.MailService/SendEmail",
+				"/mail.MailService/SendEmailWithAttachements",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:mail.connector.admin",
+			Name:        "Mail Connector Admin",
+			Domain:      domain,
+			Description: "Manage SMTP connection profiles (create/delete).",
+			Actions: []string{
+				"/mail.MailService/CreateConnection",
+				"/mail.MailService/DeleteConnection",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:mail.admin",
+			Name:        "Mail Service Admin",
+			Domain:      domain,
+			Description: "Full control over MailService, including stop and connection/profile management.",
+			Actions: []string{
+				"/mail.MailService/Stop",
+				"/mail.MailService/CreateConnection",
+				"/mail.MailService/DeleteConnection",
+				"/mail.MailService/SendEmail",
+				"/mail.MailService/SendEmailWithAttachements",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // Init loads/creates configuration and initializes the gRPC server.
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
@@ -647,7 +691,72 @@ func main() {
 	srv.AllowAllOrigins = allowAllOrigins
 	srv.AllowedOrigins = allowedOriginsStr
 	srv.PublisherID = "localhost"
-	srv.Permissions = make([]interface{}, 0)
+
+	// s.Permissions for mail.MailService
+	srv.Permissions = []interface{}{
+		// ---- Control plane
+		map[string]interface{}{
+			"action":     "/mail.MailService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Connection lifecycle (stores credentials; persists config)
+		map[string]interface{}{
+			"action":     "/mail.MailService/CreateConnection",
+			"permission": "admin", // creates/updates stored credentials
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Host", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Port", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.User", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Password", "permission": "write"}, // secret
+			},
+		},
+		map[string]interface{}{
+			"action":     "/mail.MailService/DeleteConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+
+		// ---- Send (simple)
+		map[string]interface{}{
+			"action":     "/mail.MailService/SendEmail",
+			"permission": "write", // executes an external send
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}, // choose stored connection
+				map[string]interface{}{"index": 0, "field": "Email.From", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.To", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Cc", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Subject", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Body", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.BodyType", "permission": "write"},
+			},
+		},
+
+		// ---- Send (with attachments; client stream)
+		map[string]interface{}{
+			"action":     "/mail.MailService/SendEmailWithAttachements",
+			"permission": "write",
+			"resources": []interface{}{
+				// oneof Email
+				map[string]interface{}{"index": 0, "field": "Email.From", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.To", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Cc", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Subject", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.Body", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Email.BodyType", "permission": "write"},
+				// oneof Attachements
+				map[string]interface{}{"index": 0, "field": "Attachements.FileName", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Attachements.FileData", "permission": "write"},
+				// connection selector present on each streamed message
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+	}
+
 	srv.SMTP_Port = 25
 	srv.SMTPS_Port = 465
 	srv.SMTP_ALT_Port = 587

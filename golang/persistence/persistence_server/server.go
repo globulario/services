@@ -15,6 +15,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
 	"github.com/globulario/services/golang/log/log_client"
@@ -149,6 +150,82 @@ func (srv *server) SetRepositories(repositories []string) { srv.Repositories = r
 func (srv *server) GetDiscoveries() []string              { return srv.Discoveries }
 func (srv *server) SetDiscoveries(discoveries []string)   { srv.Discoveries = discoveries }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:persistence.viewer",
+			Name:        "Persistence Viewer",
+			Domain:      domain,
+			Description: "Read-only access to query data and check connection health.",
+			Actions: []string{
+				"/persistence.PersistenceService/Ping",
+				"/persistence.PersistenceService/Count",
+				"/persistence.PersistenceService/Find",
+				"/persistence.PersistenceService/FindOne",
+				"/persistence.PersistenceService/Aggregate",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:persistence.editor",
+			Name:        "Persistence Editor",
+			Domain:      domain,
+			Description: "Create, update, and delete data records (no schema or connection admin).",
+			Actions: []string{
+				"/persistence.PersistenceService/Count",
+				"/persistence.PersistenceService/Find",
+				"/persistence.PersistenceService/FindOne",
+				"/persistence.PersistenceService/Aggregate",
+				"/persistence.PersistenceService/InsertOne",
+				"/persistence.PersistenceService/InsertMany",
+				"/persistence.PersistenceService/Update",
+				"/persistence.PersistenceService/UpdateOne",
+				"/persistence.PersistenceService/ReplaceOne",
+				"/persistence.PersistenceService/Delete",
+				"/persistence.PersistenceService/DeleteOne",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:persistence.admin",
+			Name:        "Persistence Admin",
+			Domain:      domain,
+			Description: "Full control over PersistenceService: connections, schema (DB/collections), data, and admin commands.",
+			Actions: []string{
+				"/persistence.PersistenceService/Stop",
+
+				"/persistence.PersistenceService/CreateConnection",
+				"/persistence.PersistenceService/DeleteConnection",
+				"/persistence.PersistenceService/Connect",
+				"/persistence.PersistenceService/Disconnect",
+				"/persistence.PersistenceService/Ping",
+
+				"/persistence.PersistenceService/CreateDatabase",
+				"/persistence.PersistenceService/DeleteDatabase",
+				"/persistence.PersistenceService/CreateCollection",
+				"/persistence.PersistenceService/DeleteCollection",
+
+				"/persistence.PersistenceService/Count",
+				"/persistence.PersistenceService/Find",
+				"/persistence.PersistenceService/FindOne",
+				"/persistence.PersistenceService/Aggregate",
+				"/persistence.PersistenceService/InsertOne",
+				"/persistence.PersistenceService/InsertMany",
+				"/persistence.PersistenceService/Update",
+				"/persistence.PersistenceService/UpdateOne",
+				"/persistence.PersistenceService/ReplaceOne",
+				"/persistence.PersistenceService/Delete",
+				"/persistence.PersistenceService/DeleteOne",
+
+				"/persistence.PersistenceService/RunAdminCmd",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
 
 func (srv *server) GetDependencies() []string {
@@ -166,44 +243,44 @@ func (srv *server) SetDependency(dependency string) {
 	}
 }
 
-func (srv *server) GetChecksum() string           { return srv.Checksum }
-func (srv *server) SetChecksum(checksum string)   { srv.Checksum = checksum }
-func (srv *server) GetPlatform() string           { return srv.Plaform }
-func (srv *server) SetPlatform(platform string)   { srv.Plaform = platform }
-func (srv *server) GetPath() string               { return srv.Path }
-func (srv *server) SetPath(path string)           { srv.Path = path }
-func (srv *server) GetProto() string              { return srv.Proto }
-func (srv *server) SetProto(proto string)         { srv.Proto = proto }
-func (srv *server) GetPort() int                  { return srv.Port }
-func (srv *server) SetPort(port int)              { srv.Port = port }
-func (srv *server) GetProxy() int                 { return srv.Proxy }
-func (srv *server) SetProxy(proxy int)            { srv.Proxy = proxy }
-func (srv *server) GetProtocol() string           { return srv.Protocol }
-func (srv *server) SetProtocol(protocol string)   { srv.Protocol = protocol }
-func (srv *server) GetAllowAllOrigins() bool      { return srv.AllowAllOrigins }
-func (srv *server) SetAllowAllOrigins(b bool)     { srv.AllowAllOrigins = b }
-func (srv *server) GetAllowedOrigins() string     { return srv.AllowedOrigins }
-func (srv *server) SetAllowedOrigins(s string)    { srv.AllowedOrigins = s }
-func (srv *server) GetDomain() string             { return srv.Domain }
-func (srv *server) SetDomain(domain string)       { srv.Domain = domain }
-func (srv *server) GetTls() bool                  { return srv.TLS }
-func (srv *server) SetTls(hasTls bool)            { srv.TLS = hasTls }
-func (srv *server) GetCertAuthorityTrust() string { return srv.CertAuthorityTrust }
-func (srv *server) SetCertAuthorityTrust(ca string) { srv.CertAuthorityTrust = ca }
-func (srv *server) GetCertFile() string           { return srv.CertFile }
-func (srv *server) SetCertFile(certFile string)   { srv.CertFile = certFile }
-func (srv *server) GetKeyFile() string            { return srv.KeyFile }
-func (srv *server) SetKeyFile(keyFile string)     { srv.KeyFile = keyFile }
-func (srv *server) GetVersion() string            { return srv.Version }
-func (srv *server) SetVersion(version string)     { srv.Version = version }
-func (srv *server) GetPublisherID() string        { return srv.PublisherID }
+func (srv *server) GetChecksum() string               { return srv.Checksum }
+func (srv *server) SetChecksum(checksum string)       { srv.Checksum = checksum }
+func (srv *server) GetPlatform() string               { return srv.Plaform }
+func (srv *server) SetPlatform(platform string)       { srv.Plaform = platform }
+func (srv *server) GetPath() string                   { return srv.Path }
+func (srv *server) SetPath(path string)               { srv.Path = path }
+func (srv *server) GetProto() string                  { return srv.Proto }
+func (srv *server) SetProto(proto string)             { srv.Proto = proto }
+func (srv *server) GetPort() int                      { return srv.Port }
+func (srv *server) SetPort(port int)                  { srv.Port = port }
+func (srv *server) GetProxy() int                     { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)                { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string               { return srv.Protocol }
+func (srv *server) SetProtocol(protocol string)       { srv.Protocol = protocol }
+func (srv *server) GetAllowAllOrigins() bool          { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(b bool)         { srv.AllowAllOrigins = b }
+func (srv *server) GetAllowedOrigins() string         { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(s string)        { srv.AllowedOrigins = s }
+func (srv *server) GetDomain() string                 { return srv.Domain }
+func (srv *server) SetDomain(domain string)           { srv.Domain = domain }
+func (srv *server) GetTls() bool                      { return srv.TLS }
+func (srv *server) SetTls(hasTls bool)                { srv.TLS = hasTls }
+func (srv *server) GetCertAuthorityTrust() string     { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string)   { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string               { return srv.CertFile }
+func (srv *server) SetCertFile(certFile string)       { srv.CertFile = certFile }
+func (srv *server) GetKeyFile() string                { return srv.KeyFile }
+func (srv *server) SetKeyFile(keyFile string)         { srv.KeyFile = keyFile }
+func (srv *server) GetVersion() string                { return srv.Version }
+func (srv *server) SetVersion(version string)         { srv.Version = version }
+func (srv *server) GetPublisherID() string            { return srv.PublisherID }
 func (srv *server) SetPublisherID(PublisherID string) { srv.PublisherID = PublisherID }
-func (srv *server) GetKeepUpToDate() bool         { return srv.KeepUpToDate }
-func (srv *server) SetKeepUptoDate(val bool)      { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool            { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)         { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
-func (srv *server) SetPermissions(p []interface{}) { srv.Permissions = p }
+func (srv *server) GetKeepUpToDate() bool             { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)          { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool                { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)             { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}     { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{})    { srv.Permissions = p }
 
 // Init creates/loads configuration, initializes gRPC and connects stores.
 func (srv *server) Init() error {
@@ -311,6 +388,228 @@ func main() {
 	srv.ProxyProcess = -1
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
+
+	srv.Permissions = []interface{}{
+		// ---- Stop the service
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Stop",
+			"permission": "admin",
+		},
+
+		// ---- Connection lifecycle
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/CreateConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				// CreateConnectionRqst.connection.id
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "admin"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/DeleteConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DeleteConnectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "admin"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Connect",
+			"permission": "admin",
+			"resources": []interface{}{
+				// ConnectRqst.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "admin"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Disconnect",
+			"permission": "admin",
+			"resources": []interface{}{
+				// DisconnectRqst.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "admin"},
+			},
+		},
+
+		// ---- Health / introspection
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Ping",
+			"permission": "read",
+			"resources": []interface{}{
+				// PingConnectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+
+		// ---- Database & collection admin
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/CreateDatabase",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateDatabaseRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// CreateDatabaseRqst.database
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/DeleteDatabase",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteDatabaseRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// DeleteDatabaseRqst.database
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/CreateCollection",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateCollectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// CreateCollectionRqst.database
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				// CreateCollectionRqst.collection
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/DeleteCollection",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteCollectionRqst.id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				// DeleteCollectionRqst.database
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				// DeleteCollectionRqst.collection
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+
+		// ---- Read-only data operations
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Count",
+			"permission": "read",
+			"resources": []interface{}{
+				// CountRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Find",
+			"permission": "read",
+			"resources": []interface{}{
+				// FindRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/FindOne",
+			"permission": "read",
+			"resources": []interface{}{
+				// FindOneRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "read"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Aggregate",
+			"permission": "read",
+			"resources": []interface{}{
+				// AggregateRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "read"},
+			},
+		},
+
+		// ---- Write data operations
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/InsertOne",
+			"permission": "write",
+			"resources": []interface{}{
+				// InsertOneRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/InsertMany",
+			"permission": "write",
+			"resources": []interface{}{
+				// InsertManyRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Update",
+			"permission": "write",
+			"resources": []interface{}{
+				// UpdateRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/UpdateOne",
+			"permission": "write",
+			"resources": []interface{}{
+				// UpdateOneRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/ReplaceOne",
+			"permission": "write",
+			"resources": []interface{}{
+				// ReplaceOneRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/Delete",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/DeleteOne",
+			"permission": "write",
+			"resources": []interface{}{
+				// DeleteOneRqst.id / database / collection
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Database", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Collection", "permission": "write"},
+			},
+		},
+
+		// ---- Admin commands on the store
+		map[string]interface{}{
+			"action":     "/persistence.PersistenceService/RunAdminCmd",
+			"permission": "admin",
+			"resources": []interface{}{
+				// RunAdminCmdRqst.connectionId
+				map[string]interface{}{"index": 0, "field": "ConnectionId", "permission": "admin"},
+			},
+		},
+	}
 
 	// Register client ctor
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)

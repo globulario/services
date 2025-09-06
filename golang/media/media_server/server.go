@@ -27,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/media/mediapb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -126,8 +127,6 @@ type server struct {
 	StartVideoConversionHour    string
 	MaximumVideoConversionDelay string
 }
-
-
 
 // --- Globular getters/setters (unchanged public prototypes) ---
 
@@ -377,6 +376,84 @@ func (srv *server) Stop(ctx context.Context, _ *mediapb.StopRequest) (*mediapb.S
 	return &mediapb.StopResponse{}, srv.StopService()
 }
 
+// RolesDefault returns the default roles for this service.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:media.viewer",
+			Name:        "Media Viewer",
+			Domain:      domain,
+			Description: "Can inspect conversion logs and errors.",
+			Actions: []string{
+				"/media.MediaService/GetVideoConversionErrors",
+				"/media.MediaService/GetVideoConversionLogs",
+				"/media.MediaService/IsProcessVideo",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:media.uploader",
+			Name:        "Media Uploader",
+			Domain:      domain,
+			Description: "Can upload videos and trigger playlist/VTT generation.",
+			Actions: []string{
+				"/media.MediaService/UploadVideo",
+				"/media.MediaService/GeneratePlaylist",
+				"/media.MediaService/CreateVttFile",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:media.converter",
+			Name:        "Media Converter",
+			Domain:      domain,
+			Description: "Can initiate conversions and previews.",
+			Actions: []string{
+				"/media.MediaService/CreateVideoPreview",
+				"/media.MediaService/CreateVideoTimeLine",
+				"/media.MediaService/ConvertVideoToMpeg4H264",
+				"/media.MediaService/ConvertVideoToHls",
+				"/media.MediaService/StartProcessVideo",
+				"/media.MediaService/StartProcessAudio",
+				"/media.MediaService/StopProcessVideo",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:media.admin",
+			Name:        "Media Admin",
+			Domain:      domain,
+			Description: "Full control over MediaService, including settings and stop.",
+			Actions: []string{
+				"/media.MediaService/Stop",
+				"/media.MediaService/UploadVideo",
+				"/media.MediaService/CreateVideoPreview",
+				"/media.MediaService/CreateVideoTimeLine",
+				"/media.MediaService/ConvertVideoToMpeg4H264",
+				"/media.MediaService/ConvertVideoToHls",
+				"/media.MediaService/StartProcessVideo",
+				"/media.MediaService/StartProcessAudio",
+				"/media.MediaService/StopProcessVideo",
+				"/media.MediaService/IsProcessVideo",
+				"/media.MediaService/SetVideoConversion",
+				"/media.MediaService/SetVideoStreamConversion",
+				"/media.MediaService/SetStartVideoConversionHour",
+				"/media.MediaService/SetMaximumVideoConversionDelay",
+				"/media.MediaService/GetVideoConversionErrors",
+				"/media.MediaService/ClearVideoConversionErrors",
+				"/media.MediaService/ClearVideoConversionError",
+				"/media.MediaService/ClearVideoConversionLogs",
+				"/media.MediaService/GetVideoConversionLogs",
+				"/media.MediaService/GeneratePlaylist",
+				"/media.MediaService/CreateVttFile",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Helpers (unchanged prototypes; logging via slog)
 // -----------------------------------------------------------------------------
@@ -565,7 +642,109 @@ func main() {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 1)
+	// srv.Permissions for media.MediaService
+	srv.Permissions = []interface{}{
+		// ---- Upload video (writes a new file)
+		map[string]interface{}{
+			"action":     "/media.MediaService/UploadVideo",
+			"permission": "write",
+			"resources": []interface{}{
+				// UploadVideoRequest.dest
+				map[string]interface{}{"index": 0, "field": "Dest", "permission": "write"},
+			},
+		},
+
+		// ---- Create preview (writes artifacts near file)
+		map[string]interface{}{
+			"action":     "/media.MediaService/CreateVideoPreview",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateVideoPreviewRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Create timeline
+		map[string]interface{}{
+			"action":     "/media.MediaService/CreateVideoTimeLine",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateVideoTimeLineRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Convert to H.264
+		map[string]interface{}{
+			"action":     "/media.MediaService/ConvertVideoToMpeg4H264",
+			"permission": "write",
+			"resources": []interface{}{
+				// ConvertVideoToMpeg4H264Request.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Convert to HLS
+		map[string]interface{}{
+			"action":     "/media.MediaService/ConvertVideoToHls",
+			"permission": "write",
+			"resources": []interface{}{
+				// ConvertVideoToHlsRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Bulk process (video)
+		map[string]interface{}{
+			"action":     "/media.MediaService/StartProcessVideo",
+			"permission": "write",
+			"resources": []interface{}{
+				// StartProcessVideoRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Bulk process (audio)
+		map[string]interface{}{
+			"action":     "/media.MediaService/StartProcessAudio",
+			"permission": "write",
+			"resources": []interface{}{
+				// StartProcessAudioRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+
+		// ---- Clear single conversion error
+		map[string]interface{}{
+			"action":     "/media.MediaService/ClearVideoConversionError",
+			"permission": "delete",
+			"resources": []interface{}{
+				// ClearVideoConversionErrorRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "delete"},
+			},
+		},
+
+		// ---- Generate playlist (writes m3u in folder)
+		map[string]interface{}{
+			"action":     "/media.MediaService/GeneratePlaylist",
+			"permission": "write",
+			"resources": []interface{}{
+				// GeneratePlaylistRequest.dir
+				map[string]interface{}{"index": 0, "field": "Dir", "permission": "write"},
+			},
+		},
+
+		// ---- Create VTT file (writes subtitle file)
+		map[string]interface{}{
+			"action":     "/media.MediaService/CreateVttFile",
+			"permission": "write",
+			"resources": []interface{}{
+				// CreateVttFileRequest.path
+				map[string]interface{}{"index": 0, "field": "Path", "permission": "write"},
+			},
+		},
+	}
+
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.AllowAllOrigins = allowAllOrigins
@@ -593,14 +772,6 @@ func main() {
 	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
 		srv.Id = args[0]
 		srv.ConfigPath = args[1]
-	}
-
-	// Set service permissions (unchanged structure)
-	srv.Permissions[0] = map[string]interface{}{
-		"action": "/file.FileService/UploadVideo",
-		"resources": []interface{}{
-			map[string]interface{}{"index": 1, "permission": "write"},
-		},
 	}
 
 	// Handle flags first (no etcd/config access)

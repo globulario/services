@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
@@ -189,6 +190,9 @@ type Service interface {
 
 	// Dist builds a publishable directory layout under the given path.
 	Dist(path string) (string, error)
+
+	// Returns a curated set of default roles for the service.
+	RolesDefault() []resourcepb.Role
 }
 
 // ------------------------------

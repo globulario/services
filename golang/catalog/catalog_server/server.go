@@ -14,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/persistence/persistence_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -170,6 +171,110 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	reader := resourcepb.Role{
+		Id:          "role:catalog.reader",
+		Name:        "Catalog Reader",
+		Domain:      domain,
+		Description: "Read catalog data across connections.",
+		Actions: []string{
+			"/catalog.CatalogService/getSupplier",
+			"/catalog.CatalogService/getSuppliers",
+			"/catalog.CatalogService/getManufacturer",
+			"/catalog.CatalogService/getManufacturers",
+			"/catalog.CatalogService/getSupplierPackages",
+			"/catalog.CatalogService/getPackage",
+			"/catalog.CatalogService/getPackages",
+			"/catalog.CatalogService/getUnitOfMeasure",
+			"/catalog.CatalogService/getUnitOfMeasures",
+			"/catalog.CatalogService/getItemDefinition",
+			"/catalog.CatalogService/getItemDefinitions",
+			"/catalog.CatalogService/getItemInstance",
+			"/catalog.CatalogService/getItemInstances",
+			"/catalog.CatalogService/getLocalisation",
+			"/catalog.CatalogService/getLocalisations",
+			"/catalog.CatalogService/getCategory",
+			"/catalog.CatalogService/getCategories",
+			"/catalog.CatalogService/getInventories",
+		},
+		TypeName: "resource.Role",
+	}
+
+	editor := resourcepb.Role{
+		Id:          "role:catalog.editor",
+		Name:        "Catalog Editor",
+		Domain:      domain,
+		Description: "Create/update catalog entities and manage item-category links.",
+		Actions: []string{
+			"/catalog.CatalogService/SaveUnitOfMeasure",
+			"/catalog.CatalogService/SavePropertyDefinition",
+			"/catalog.CatalogService/SaveItemDefinition",
+			"/catalog.CatalogService/SaveItemInstance",
+			"/catalog.CatalogService/SaveInventory",
+			"/catalog.CatalogService/SaveManufacturer",
+			"/catalog.CatalogService/SaveSupplier",
+			"/catalog.CatalogService/SaveLocalisation",
+			"/catalog.CatalogService/SavePackage",
+			"/catalog.CatalogService/SavePackageSupplier",
+			"/catalog.CatalogService/SaveItemManufacturer",
+			"/catalog.CatalogService/SaveCategory",
+			"/catalog.CatalogService/AppendItemDefinitionCategory",
+			"/catalog.CatalogService/RemoveItemDefinitionCategory",
+		},
+		TypeName: "resource.Role",
+	}
+
+	moderator := resourcepb.Role{
+		Id:          "role:catalog.moderator",
+		Name:        "Catalog Moderator",
+		Domain:      domain,
+		Description: "Delete catalog entities.",
+		Actions: []string{
+			"/catalog.CatalogService/deleteInventory",
+			"/catalog.CatalogService/deletePackage",
+			"/catalog.CatalogService/deletePackageSupplier",
+			"/catalog.CatalogService/deleteSupplier",
+			"/catalog.CatalogService/deletePropertyDefinition",
+			"/catalog.CatalogService/deleteUnitOfMeasure",
+			"/catalog.CatalogService/deleteItemInstance",
+			"/catalog.CatalogService/deleteManufacturer",
+			"/catalog.CatalogService/deleteItemManufacturer",
+			"/catalog.CatalogService/deleteCategory",
+			"/catalog.CatalogService/deleteLocalisation",
+		},
+		TypeName: "resource.Role",
+	}
+
+	connAdmin := resourcepb.Role{
+		Id:          "role:catalog.connadmin",
+		Name:        "Catalog Connection Admin",
+		Domain:      domain,
+		Description: "Create and remove persistence connections used by the catalog.",
+		Actions: []string{
+			"/catalog.CatalogService/CreateConnection",
+			"/catalog.CatalogService/DeleteConnection",
+		},
+		TypeName: "resource.Role",
+	}
+
+	admin := resourcepb.Role{
+		Id:          "role:catalog.admin",
+		Name:        "Catalog Admin",
+		Domain:      domain,
+		Description: "Full control over catalog data and service lifecycle.",
+		Actions: append(append(append(reader.Actions, editor.Actions...), moderator.Actions...),
+			"/catalog.CatalogService/CreateConnection",
+			"/catalog.CatalogService/DeleteConnection",
+			"/catalog.CatalogService/Stop",
+		),
+		TypeName: "resource.Role",
+	}
+
+	return []resourcepb.Role{reader, editor, moderator, connAdmin, admin}
+}
+
 // -----------------------------------------------------------------------------
 // Clients & Init
 // -----------------------------------------------------------------------------
@@ -282,7 +387,89 @@ func main() {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{}
-	s.Permissions = []interface{}{}
+	// Default RBAC permissions for CatalogService.
+	// We bind to concrete resource fields only when they truly represent
+	// an access-controlled resource. Here, the primary protected resource
+	// is the target persistence connection (connectionId). For connection
+	// management, we bind to Connection.Id. For harmful, parameterless ops,
+	// we protect the action itself.
+	s.Permissions = []interface{}{
+
+		// ---- Service control
+		map[string]interface{}{
+			"action":     "/catalog.CatalogService/Stop",
+			"resources":  []interface{}{}, // harmful even without params
+			"permission": "write",
+		},
+
+		// ---- Connections
+		map[string]interface{}{
+			"action": "/catalog.CatalogService/CreateConnection",
+			"resources": []interface{}{
+				// CreateConnectionRqst.connection.Id
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action": "/catalog.CatalogService/DeleteConnection",
+			"resources": []interface{}{
+				// DeleteConnectionRqst.id
+				map[string]interface{}{"index": 0, "permission": "delete"},
+			},
+		},
+
+		// ---- Saves / upserts (write on connectionId)
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SavePropertyDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveInventory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SavePackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SavePackageSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/SaveCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+
+		// Category links (write on connectionId)
+		map[string]interface{}{"action": "/catalog.CatalogService/AppendItemDefinitionCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/RemoveItemDefinitionCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
+
+		// ---- Getters (READ on connectionId)
+		map[string]interface{}{"action": "/catalog.CatalogService/getSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getSuppliers", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getManufacturers", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getSupplierPackages", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getPackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getPackages", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getUnitOfMeasures", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getItemDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getItemDefinitions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getItemInstances", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getLocalisations", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getCategories", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/getInventories", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
+
+		// ---- Deletes (DELETE on connectionId)
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteInventory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deletePackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deletePackageSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deletePropertyDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteItemManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+		map[string]interface{}{"action": "/catalog.CatalogService/deleteLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
+	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true

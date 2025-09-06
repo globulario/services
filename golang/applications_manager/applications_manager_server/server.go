@@ -181,6 +181,45 @@ func (srv *server) Save() error         { return globular.SaveService(srv) }
 func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
 func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
 
+// RolesDefault returns curated roles for ApplicationManagerService.
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:appmgr.installer",
+			Name:        "Application Installer",
+			Domain:      domain,
+			Description: "Install applications into a domain.",
+			Actions: []string{
+				"/applications_manager.ApplicationManagerService/InstallApplication",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:appmgr.uninstaller",
+			Name:        "Application Uninstaller",
+			Domain:      domain,
+			Description: "Uninstall applications from a domain.",
+			Actions: []string{
+				"/applications_manager.ApplicationManagerService/UninstallApplication",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:appmgr.admin",
+			Name:        "Application Manager Admin",
+			Domain:      domain,
+			Description: "Full control of application installation and removal.",
+			Actions: []string{
+				"/applications_manager.ApplicationManagerService/InstallApplication",
+				"/applications_manager.ApplicationManagerService/UninstallApplication",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
 // --- logger to STDERR so stdout stays clean for JSON outputs ---
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -375,7 +414,39 @@ func main() {
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
-	s.Permissions = []interface{}{}
+
+	// Default permissions for ApplicationManagerService (generic verbs).
+	s.Permissions = []interface{}{
+		// --- Install
+		map[string]interface{}{
+			"action":     "/applications_manager.ApplicationManagerService/InstallApplication",
+			"permission": "write", // action itself is sensitive
+			"resources": []interface{}{
+				// InstallApplicationRequest
+				// discoveryId (index 0) is infra; not treated as a protected resource
+				map[string]interface{}{"index": 1, "permission": "write"}, // applicationId
+				map[string]interface{}{"index": 2, "permission": "write"}, // PublisherID
+				map[string]interface{}{"index": 3, "permission": "write"}, // version
+				map[string]interface{}{"index": 4, "permission": "write"}, // domain
+				// set_as_default (index 5) is a flag; not a resource
+			},
+		},
+
+		// --- Uninstall
+		map[string]interface{}{
+			"action":     "/applications_manager.ApplicationManagerService/UninstallApplication",
+			"permission": "delete", // uninstall is inherently destructive
+			"resources": []interface{}{
+				// UninstallApplicationRequest
+				map[string]interface{}{"index": 0, "permission": "delete"}, // applicationId
+				map[string]interface{}{"index": 1, "permission": "delete"}, // PublisherID
+				map[string]interface{}{"index": 2, "permission": "delete"}, // version
+				map[string]interface{}{"index": 4, "permission": "delete"}, // domain
+				// deletePermissions (index 3) is a flag; not a resource
+			},
+		},
+	}
+
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true
@@ -390,12 +461,6 @@ func main() {
 		printUsage()
 		return
 	}
-
-	// Permissions example: require owner on resource(0) to deploy an application
-	s.Permissions = append(s.Permissions, map[string]interface{}{
-		"action":    "/applications_manager.ApplicationManagerService/DeployApplication",
-		"resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}},
-	})
 
 	for _, a := range args {
 		switch strings.ToLower(a) {

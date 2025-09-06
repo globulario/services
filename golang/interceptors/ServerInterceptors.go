@@ -32,7 +32,9 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -44,19 +46,13 @@ var (
 )
 
 // lazyInit is intentionally a no-op for now. Keep it for future one-time setup.
-// IMPORTANT: Do NOT call config/etcd here; this must stay side-effect free
-// so that importing this package doesn't touch external systems.
-func lazyInit() {
-	// no-op (reserved for future one-time prep)
-}
+func lazyInit() {}
 
-// Load returns the unary and stream interceptors, ensuring any one-time
-// initialization has completed. It never does heavy work at import time.
+// Load returns the unary and stream interceptors.
 func Load() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
 	initOnce.Do(lazyInit)
 	return ServerUnaryInterceptor, ServerStreamInterceptor, loadErr
 }
-
 
 var (
 	// cache is a generic, process-wide sync map for:
@@ -69,6 +65,58 @@ var (
 	resourceInfos sync.Map
 )
 
+// ---- unauthenticated allowlist ----------------------------------------------
+
+// allowSet holds exact methods (full RPC) that bypass authz.
+// allowPrefix holds service or method prefixes (e.g. "/log.LogService/").
+var (
+	allowSet    sync.Map // key: string method, val: struct{}{}
+	allowPrefix sync.Map // key: string prefix, val: struct{}{}
+)
+
+// Defaults: infra endpoints must always be reachable.
+func init() {
+	AllowUnauthenticated(
+		"/grpc.health.v1.Health/Check",
+		"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
+	)
+}
+
+// AllowUnauthenticated registers exact fully-qualified methods that bypass RBAC.
+func AllowUnauthenticated(methods ...string) {
+	for _, m := range methods {
+		if m == "" {
+			continue
+		}
+		allowSet.Store(m, struct{}{})
+	}
+}
+
+// AllowUnauthenticatedPrefix registers prefixes (service or method) to bypass RBAC.
+// Examples: "/log.LogService/", "/file.FileService/Read"
+func AllowUnauthenticatedPrefix(prefixes ...string) {
+	for _, p := range prefixes {
+		if p == "" {
+			continue
+		}
+		allowPrefix.Store(p, struct{}{})
+	}
+}
+
+func isUnauthenticated(method string) bool {
+	if _, ok := allowSet.Load(method); ok {
+		return true
+	}
+	match := false
+	allowPrefix.Range(func(k, _ any) bool {
+		if strings.HasPrefix(method, k.(string)) {
+			match = true
+			return false
+		}
+		return true
+	})
+	return match
+}
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -111,7 +159,6 @@ func getPermCache(key string) (bool, bool) {
 	}
 	entry, ok := val.(permCacheEntry)
 	if !ok {
-		// Safety: unexpected type, drop it
 		cache.Delete(key)
 		return false, false
 	}
@@ -123,7 +170,6 @@ func getPermCache(key string) (bool, bool) {
 }
 
 // ---- clients ----------------------------------------------------------------
-
 
 // GetRbacClient returns (and caches) an RBAC client.
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
@@ -139,6 +185,12 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 
 // getActionResourceInfos loads and caches ResourceInfos for a given method.
 func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
+	// Never consult RBAC for allowlisted methods.
+	if isUnauthenticated(method) {
+		resourceInfos.Store(method, []*rbacpb.ResourceInfos{})
+		return []*rbacpb.ResourceInfos{}, nil
+	}
+
 	if val, ok := resourceInfos.Load(method); ok {
 		return val.([]*rbacpb.ResourceInfos), nil
 	}
@@ -150,7 +202,14 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 
 	infos, err := rbacClient.GetActionResourceInfos(method)
 	if err != nil {
-		return nil, err
+		// Treat "not found" as "no mapping" (permissive by default).
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "not found") || strings.Contains(msg, "key not found") {
+			infos = []*rbacpb.ResourceInfos{}
+			err = nil
+		} else {
+			return nil, err
+		}
 	}
 
 	resourceInfos.Store(method, infos)
@@ -255,8 +314,6 @@ func validateActionRequest(
 }
 
 // ---- logging ----------------------------------------------------------------
-// log writes a structured log entry using slog instead of the remote log client.
-// The signature is kept identical so existing call sites continue to work.
 func log(address, application, user, method, fileLine, functionName, msg string, level logpb.LogLevel) {
 	attrs := []any{
 		"domain", address,
@@ -268,7 +325,6 @@ func log(address, application, user, method, fileLine, functionName, msg string,
 	}
 
 	switch level {
-	// Map common levels to slog. Unknown values fall back to Debug.
 	case logpb.LogLevel_ERROR_MESSAGE:
 		slog.Error(msg, attrs...)
 	case logpb.LogLevel_WARN_MESSAGE:
@@ -289,7 +345,6 @@ func getClient(address, serviceName string) (globular_client.Client, error) {
 		if c, ok := item.(globular_client.Client); ok {
 			return c, nil
 		}
-		// Bad type in cache, evict
 		cache.Delete(uuid)
 	}
 
@@ -362,7 +417,10 @@ func handleUnaryMethod(routing, token string, ctx context.Context, method string
 
 // ---- interceptors (unary) ---------------------------------------------------
 
-// ServerUnaryInterceptor enforces authZ, optional routing, and logging.
+// ServerUnaryInterceptor is now NORMALLY PERMISSIVE:
+// - If the method is allowlisted → pass through
+// - If RBAC has NO resource mapping for the method → pass through
+// - Only if there IS a mapping, we parse token and enforce RBAC.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	var (
 		token        string
@@ -387,44 +445,43 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		routing = strings.Join(md["routing"], "")
 	}
 
-	// Default to allowed for local/internal methods, restrict listed ones.
-	hasAccess, accessDenied := true, false
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
-		method == "/rbac.RbacService/SetSubjectAllocatedSpace" ||
-		method == "/rbac.RbacService/SetSubjectAllocatedSpace/" { // tolerate old caller
-		hasAccess = false
+	// 1) Bypass for allowlisted infra/public methods.
+	if isUnauthenticated(method) {
+		return handler(ctx, rqst)
 	}
 
-	var (
-		clientId string
-		issuer   string
-	)
+	// 2) Only consult RBAC if there are resource mappings for this method.
+	needAuthz := false
+	if method != "/rbac.RbacService/GetActionResourceInfos" {
+		if infos, e := getActionResourceInfos(address, method); e == nil && len(infos) > 0 {
+			needAuthz = true
+		}
+	}
+	if !needAuthz {
+		return handler(ctx, rqst)
+	}
 
+	// 3) We need auth → parse token now (not before).
+	var clientId, issuer string
 	if token != "" {
 		claims, vErr := security.ValidateToken(token)
-		if vErr != nil && !hasAccess {
+		if vErr != nil {
 			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
 				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, vErr
 		}
 		if len(claims.Domain) == 0 {
-			return nil, errors.New("token validation failed: empty domain")
+			return nil, status.Error(codes.Unauthenticated, "token validation failed: empty domain")
 		}
 		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 
-	// If RBAC defines resources for this method, require validation.
-	if method != "/rbac.RbacService/GetActionResourceInfos" {
-		if infos, e := getActionResourceInfos(address, method); e == nil && infos != nil {
-			hasAccess = false
-		}
-	}
-
 	// Validate by ACCOUNT
-	if !hasAccess && clientId != "" {
+	hasAccess, accessDenied, _ := false, false, error(nil)
+	if clientId != "" {
 		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
-		// Additional quota validations:
+		// Quota example
 		if method == "/torrent.TorrentService/DownloadTorrent" {
 			_, _ = ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
 		}
@@ -444,9 +501,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess || accessDenied {
-		err := errors.New("permission denied: method=" + method + " user=" + clientId + " address=" + address + " application=" + application)
-		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-		return nil, err
+		st := status.Errorf(codes.PermissionDenied,
+			"permission denied: method=%s user=%s address=%s application=%s",
+			method, clientId, address, application,
+		)
+		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), st.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		return nil, st
 	}
 
 	// Optional dynamic routing
@@ -487,50 +547,66 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
 	return l.inner.SendMsg(rqst)
 }
 
-// RecvMsg intercepts inbound messages to apply per-message authorization.
+// RecvMsg is now NORMALLY PERMISSIVE:
+// - Allowlisted → pass
+// - No RBAC mapping → pass
+// - Only if mapping exists, parse token and enforce RBAC.
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	if err := l.inner.RecvMsg(rqst); err != nil {
 		return err
 	}
 
-	// Methods that require no validation
-	if l.method == "/resource.ResourceService/GetRoles" ||
-		l.method == "/resource.ResourceService/GetAccounts" ||
-		l.method == "/resource.ResourceService/GetOrganizations" ||
-		l.method == "/resource.ResourceService/GetApplications" ||
-		l.method == "/resource.ResourceService/GetPeers" ||
-		l.method == "/resource.ResourceService/GetGroups" ||
-		l.method == "/admin.AdminService/DownloadGlobular" ||
-		l.method == "/admin.AdminService/GetProcessInfos" ||
-		l.method == "/rbac.RbacService/GetResourcePermissionsByResourceType" ||
-		l.method == "/repository.PackageRepository/DownloadBundle" ||
-		l.method == "/title.TitleService/SearchTitles" ||
-		l.method == "/blog.BlogService/SearchBlogPosts" ||
-		l.method == "/log.LogService/Log" ||
-		l.method == "/log.LogService/GetLog" ||
-		l.method == "/file.FileService/ReadDir" {
+	// 1) Allowlisted methods require no validation.
+	if isUnauthenticated(l.method) {
 		return nil
 	}
 
-	// Quick allow if we already decided in this stream.
+	// 2) If we've already validated this stream, skip.
 	if _, ok := cache.Load(l.uuid); ok {
 		return nil
 	}
 
+	// 3) Only consult RBAC if there are resource mappings for this method.
+	needAuthz := false
+	if infos, e := getActionResourceInfos(l.address, l.method); e == nil && len(infos) > 0 {
+		needAuthz = true
+	}
+	if !needAuthz {
+		cache.Store(l.uuid, struct{}{}) // mark authorized for rest of the stream
+		return nil
+	}
+
+	// 4) We need auth → parse token now.
+	var clientId, issuer string
+	if l.token != "" {
+		claims, vErr := security.ValidateToken(l.token)
+		if vErr != nil {
+			return status.Errorf(codes.Unauthenticated, "token validation failed: %v", vErr)
+		}
+		if len(claims.Domain) == 0 {
+			return status.Error(codes.Unauthenticated, "token validation failed: empty domain")
+		}
+		clientId = claims.Id + "@" + claims.UserDomain
+		issuer = claims.Issuer
+	}
+
 	allowed, denied := false, false
 
-	if !allowed && l.clientId != "" {
-		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.address)
+	if !allowed && clientId != "" {
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, clientId, rbacpb.SubjectType_ACCOUNT, l.address)
 	}
 	if !allowed && l.application != "" && !denied {
 		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.address)
 	}
-	if !allowed && l.peer != "" && !denied {
-		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.peer, rbacpb.SubjectType_PEER, l.address)
+	if !allowed && issuer != "" && !denied {
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, issuer, rbacpb.SubjectType_PEER, l.address)
 	}
 
 	if !allowed || denied {
-		return errors.New("permission denied: method=" + l.method + " user=" + l.clientId + " address=" + l.address + " application=" + l.application)
+		return status.Errorf(codes.PermissionDenied,
+			"permission denied: method=%s user=%s address=%s application=%s",
+			l.method, clientId, l.address, l.application,
+		)
 	}
 
 	// Mark this stream as authorized for subsequent messages.
@@ -603,8 +679,8 @@ func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context
 	return nil
 }
 
-// ServerStreamInterceptor enforces authZ per-stream/per-message, supports
-// optional broadcast routing, and logs errors.
+// ServerStreamInterceptor is now NORMALLY PERMISSIVE at the outer layer too:
+// it does NOT pre-validate tokens; RecvMsg decides based on RBAC mappings.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	var (
 		token       string
@@ -628,23 +704,9 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		routing = strings.Join(md["routing"], "")
 	}
 
-	var (
-		clientId string
-		issuer   string
-	)
-
-	if token != "" {
-		claims, vErr := security.ValidateToken(token)
-		if vErr != nil {
-			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
-				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			return vErr
-		}
-		if len(claims.Domain) == 0 {
-			return errors.New("token validation failed: empty domain")
-		}
-		clientId = claims.Id + "@" + claims.UserDomain
-		issuer = claims.Issuer
+	// Bypass RBAC entirely for allowlisted infra/public methods.
+	if isUnauthenticated(method) {
+		return handler(srv, stream)
 	}
 
 	uuid := Utility.RandomUUID()
@@ -672,7 +734,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 			method:       method,
 			token:        token,
 		}); err != nil {
-			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return err
 		}
 		return nil
@@ -685,11 +747,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		address:     address,
 		token:       token,
 		application: application,
-		clientId:    clientId,
-		peer:        issuer,
+		// clientId/peer computed lazily in RecvMsg only if RBAC is needed
 	})
 	if err != nil {
-		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
 	cache.Delete(uuid)
