@@ -1174,13 +1174,11 @@ func main() {
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			fmt.Println("fail to create port allocator", "error", err)
-			printUsage()
 			os.Exit(1)
 		}
 		p, err := allocator.Next(s.Id)
 		if err != nil {
 			fmt.Println("fail to allocate port", "error", err)
-			printUsage()
 			os.Exit(1)
 		}
 		s.Port = p
@@ -1223,6 +1221,13 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Println(s.Version)
+			return
+
 		}
 	}
 

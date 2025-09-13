@@ -64,7 +64,7 @@ func GetPortsRange() string {
 	}
 
 	// OPTIONAL: if your global config has it; ignore errors silently.
-	if gc, err := GetLocalConfig(false); err == nil && gc != nil {
+	if gc, err := GetLocalConfig(true); err == nil && gc != nil {
 		if pr, ok := gc["PortsRange"]; ok {
 			if s := strings.TrimSpace(Utility.ToString(pr)); s != "" {
 				return s
@@ -93,10 +93,13 @@ func NewPortAllocator(rangeStr string) (*PortAllocator, error) {
 // NewDefaultPortAllocator builds an allocator using GetPortsRange() and preloads "used"
 // from all current service configs (Port & Proxy).
 func NewDefaultPortAllocator() (*PortAllocator, error) {
+	
 	p, err := NewPortAllocator(GetPortsRange())
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("PortAllocator range:", p.from, "-", p.to)
 	// preload from etcd
 	all, err := GetServicesConfigurations()
 	if err != nil {
@@ -353,7 +356,7 @@ func GetLocalServerCerificateKeyPath() string {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
 		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.pem"
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.key"
 			if Utility.Exists(p) {
 				return p
 			}
@@ -649,6 +652,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 }
 
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+	fmt.Println("-----------------------------> GetRemoteConfig", address, port)
 	if address == "" {
 		return nil, errors.New("fail to get remote config no address was given")
 	}
@@ -702,8 +706,29 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 		return config_, nil
 	}
 
-	// 1) Try etcd system config
+	// 1) Bootstrap fallback: local file for the *system* config (not services)
 	cfg := map[string]interface{}{}
+	cfgPath := GetConfigDir() + "/config.json"
+
+	if !Utility.Exists(cfgPath) {
+		return nil, fmt.Errorf("no local Globular configuration found (etcd empty and no file at %s)", cfgPath)
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	
+	if lazy {
+		config_ = cfg
+		return cfg, nil
+	}
+
+	// 2) Try etcd system config
 	if c, err := etcdClient(); err == nil { // etcdClient is in etcd_backend.go
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
@@ -730,23 +755,6 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 				return cfg, nil
 			}
 		}
-	}
-
-	// 2) Bootstrap fallback: local file for the *system* config (not services)
-	cfgPath := GetConfigDir() + "/config.json"
-	if !Utility.Exists(cfgPath) {
-		return nil, fmt.Errorf("no local Globular configuration found (etcd empty and no file at %s)", cfgPath)
-	}
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-	if lazy {
-		config_ = cfg
-		return cfg, nil
 	}
 
 	// Services always come from etcd; keep the map present for compatibility.
@@ -781,7 +789,7 @@ func ResolveService(idOrName string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	name := strings.ToLower(strings.TrimSpace(idOrName))
 	var cands []map[string]interface{}
 	for _, s := range all {
@@ -801,20 +809,34 @@ func ResolveService(idOrName string) (map[string]interface{}, error) {
 	confDom = strings.ToLower(strings.TrimSpace(confDom))
 	localAddr, _ := Utility.GetPrimaryIPAddress()
 	localHost := localAddr
-	if h, _, err := net.SplitHostPort(localAddr); err == nil { localHost = h }
+	if h, _, err := net.SplitHostPort(localAddr); err == nil {
+		localHost = h
+	}
 	localHost = strings.ToLower(localHost)
 
 	for _, s := range cands {
 		score := int64(0)
 		state := strings.ToLower(Utility.ToString(s["State"]))
-		if state == "running" { score += 1000 }
-		if Utility.ToInt(s["Process"]) > 0 { score += 200 }
+		if state == "running" {
+			score += 1000
+		}
+		if Utility.ToInt(s["Process"]) > 0 {
+			score += 200
+		}
 		delta := now - int64(Utility.ToInt(s["UpdatedAt"]))
-		if delta < 3600 { score += 100 }
-		if delta < 60   { score += 50 }
+		if delta < 3600 {
+			score += 100
+		}
+		if delta < 60 {
+			score += 50
+		}
 		addr := strings.ToLower(strings.TrimSpace(Utility.ToString(s["Address"])))
-		if addr == "127.0.0.1" || addr == "localhost" || addr == localHost { score += 50 }
-		if d := strings.ToLower(Utility.ToString(s["Domain"])); confDom != "" && d == confDom { score += 20 }
+		if addr == "127.0.0.1" || addr == "localhost" || addr == localHost {
+			score += 50
+		}
+		if d := strings.ToLower(Utility.ToString(s["Domain"])); confDom != "" && d == confDom {
+			score += 20
+		}
 
 		if score > bestScore {
 			bestScore, best = score, s

@@ -284,7 +284,7 @@ func main() {
 	srv.Keywords = []string{"Storage", "KV", "Blob"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
-	srv.Dependencies = make([]string, 0)
+	srv.Dependencies = []string{ "rbac.RbacService", "log.LogService" }
 	srv.Permissions = []interface{}{
 		// ---- Stop the storage service
 		map[string]interface{}{
@@ -414,6 +414,22 @@ func main() {
 
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
+
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
+	}
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -458,6 +474,16 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			logger.Info(srv.Name + " version " + srv.Version)
+			return
+		default:
+			// skip unknown flags for now (e.g. positional args
 		}
 	}
 

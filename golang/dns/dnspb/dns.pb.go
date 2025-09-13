@@ -3364,6 +3364,178 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_dns_proto_rawDescGZIP(), []int{66}
 }
 
+// SetDomainsRequest is used to set multiple domain names.
+type SetDomainsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domains       []string               `protobuf:"bytes,1,rep,name=domains,proto3" json:"domains,omitempty"` // List of domain names to be set.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetDomainsRequest) Reset() {
+	*x = SetDomainsRequest{}
+	mi := &file_dns_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetDomainsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetDomainsRequest) ProtoMessage() {}
+
+func (x *SetDomainsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetDomainsRequest.ProtoReflect.Descriptor instead.
+func (*SetDomainsRequest) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *SetDomainsRequest) GetDomains() []string {
+	if x != nil {
+		return x.Domains
+	}
+	return nil
+}
+
+// SetDomainsResponse is the response for a SetDomainsRequest.
+type SetDomainsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // The result of the set operation, typically a success flag.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetDomainsResponse) Reset() {
+	*x = SetDomainsResponse{}
+	mi := &file_dns_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetDomainsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetDomainsResponse) ProtoMessage() {}
+
+func (x *SetDomainsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetDomainsResponse.ProtoReflect.Descriptor instead.
+func (*SetDomainsResponse) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *SetDomainsResponse) GetResult() bool {
+	if x != nil {
+		return x.Result
+	}
+	return false
+}
+
+// GetDomainsRequest is used to retrieve multiple domain names.
+type GetDomainsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDomainsRequest) Reset() {
+	*x = GetDomainsRequest{}
+	mi := &file_dns_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDomainsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDomainsRequest) ProtoMessage() {}
+
+func (x *GetDomainsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDomainsRequest.ProtoReflect.Descriptor instead.
+func (*GetDomainsRequest) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{69}
+}
+
+// GetDomainsResponse is the response for a GetDomainsRequest.
+type GetDomainsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domains       []string               `protobuf:"bytes,1,rep,name=domains,proto3" json:"domains,omitempty"` // List of domain names that have been set.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDomainsResponse) Reset() {
+	*x = GetDomainsResponse{}
+	mi := &file_dns_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDomainsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDomainsResponse) ProtoMessage() {}
+
+func (x *GetDomainsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDomainsResponse.ProtoReflect.Descriptor instead.
+func (*GetDomainsResponse) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *GetDomainsResponse) GetDomains() []string {
+	if x != nil {
+		return x.Domains
+	}
+	return nil
+}
+
 var File_dns_proto protoreflect.FileDescriptor
 
 const file_dns_proto_rawDesc = "" +
@@ -3547,9 +3719,20 @@ const file_dns_proto_rawDesc = "" +
 	"\x11RemoveCaaResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\x9f\r\n" +
+	"\fStopResponse\"-\n" +
+	"\x11SetDomainsRequest\x12\x18\n" +
+	"\adomains\x18\x01 \x03(\tR\adomains\",\n" +
+	"\x12SetDomainsResponse\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x13\n" +
+	"\x11GetDomainsRequest\".\n" +
+	"\x12GetDomainsResponse\x12\x18\n" +
+	"\adomains\x18\x01 \x03(\tR\adomains2\x9d\x0e\n" +
 	"\n" +
-	"DnsService\x12+\n" +
+	"DnsService\x12=\n" +
+	"\n" +
+	"SetDomains\x12\x16.dns.SetDomainsRequest\x1a\x17.dns.SetDomainsResponse\x12=\n" +
+	"\n" +
+	"GetDomains\x12\x16.dns.GetDomainsRequest\x1a\x17.dns.GetDomainsResponse\x12+\n" +
 	"\x04Stop\x12\x10.dns.StopRequest\x1a\x11.dns.StopResponse\x12+\n" +
 	"\x04SetA\x12\x10.dns.SetARequest\x1a\x11.dns.SetAResponse\x124\n" +
 	"\aRemoveA\x12\x13.dns.RemoveARequest\x1a\x14.dns.RemoveAResponse\x12+\n" +
@@ -3596,7 +3779,7 @@ func file_dns_proto_rawDescGZIP() []byte {
 	return file_dns_proto_rawDescData
 }
 
-var file_dns_proto_msgTypes = make([]protoimpl.MessageInfo, 67)
+var file_dns_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
 var file_dns_proto_goTypes = []any{
 	(*SetARequest)(nil),         // 0: dns.SetARequest
 	(*SetAResponse)(nil),        // 1: dns.SetAResponse
@@ -3665,6 +3848,10 @@ var file_dns_proto_goTypes = []any{
 	(*RemoveCaaResponse)(nil),   // 64: dns.RemoveCaaResponse
 	(*StopRequest)(nil),         // 65: dns.StopRequest
 	(*StopResponse)(nil),        // 66: dns.StopResponse
+	(*SetDomainsRequest)(nil),   // 67: dns.SetDomainsRequest
+	(*SetDomainsResponse)(nil),  // 68: dns.SetDomainsResponse
+	(*GetDomainsRequest)(nil),   // 69: dns.GetDomainsRequest
+	(*GetDomainsResponse)(nil),  // 70: dns.GetDomainsResponse
 }
 var file_dns_proto_depIdxs = []int32{
 	30, // 0: dns.SetAfsdbRequest.afsdb:type_name -> dns.AFSDB
@@ -3677,70 +3864,74 @@ var file_dns_proto_depIdxs = []int32{
 	51, // 7: dns.GetUriResponse.result:type_name -> dns.URI
 	58, // 8: dns.SetCaaRequest.caa:type_name -> dns.CAA
 	58, // 9: dns.GetCaaResponse.result:type_name -> dns.CAA
-	65, // 10: dns.DnsService.Stop:input_type -> dns.StopRequest
-	0,  // 11: dns.DnsService.SetA:input_type -> dns.SetARequest
-	2,  // 12: dns.DnsService.RemoveA:input_type -> dns.RemoveARequest
-	4,  // 13: dns.DnsService.GetA:input_type -> dns.GetARequest
-	6,  // 14: dns.DnsService.SetAAAA:input_type -> dns.SetAAAARequest
-	8,  // 15: dns.DnsService.RemoveAAAA:input_type -> dns.RemoveAAAARequest
-	10, // 16: dns.DnsService.GetAAAA:input_type -> dns.GetAAAARequest
-	12, // 17: dns.DnsService.SetText:input_type -> dns.SetTextRequest
-	14, // 18: dns.DnsService.GetText:input_type -> dns.GetTextRequest
-	16, // 19: dns.DnsService.RemoveText:input_type -> dns.RemoveTextRequest
-	18, // 20: dns.DnsService.SetNs:input_type -> dns.SetNsRequest
-	20, // 21: dns.DnsService.GetNs:input_type -> dns.GetNsRequest
-	22, // 22: dns.DnsService.RemoveNs:input_type -> dns.RemoveNsRequest
-	24, // 23: dns.DnsService.SetCName:input_type -> dns.SetCNameRequest
-	26, // 24: dns.DnsService.GetCName:input_type -> dns.GetCNameRequest
-	28, // 25: dns.DnsService.RemoveCName:input_type -> dns.RemoveCNameRequest
-	38, // 26: dns.DnsService.SetMx:input_type -> dns.SetMxRequest
-	40, // 27: dns.DnsService.GetMx:input_type -> dns.GetMxRequest
-	42, // 28: dns.DnsService.RemoveMx:input_type -> dns.RemoveMxRequest
-	45, // 29: dns.DnsService.SetSoa:input_type -> dns.SetSoaRequest
-	47, // 30: dns.DnsService.GetSoa:input_type -> dns.GetSoaRequest
-	49, // 31: dns.DnsService.RemoveSoa:input_type -> dns.RemoveSoaRequest
-	52, // 32: dns.DnsService.SetUri:input_type -> dns.SetUriRequest
-	54, // 33: dns.DnsService.GetUri:input_type -> dns.GetUriRequest
-	56, // 34: dns.DnsService.RemoveUri:input_type -> dns.RemoveUriRequest
-	59, // 35: dns.DnsService.SetCaa:input_type -> dns.SetCaaRequest
-	61, // 36: dns.DnsService.GetCaa:input_type -> dns.GetCaaRequest
-	63, // 37: dns.DnsService.RemoveCaa:input_type -> dns.RemoveCaaRequest
-	31, // 38: dns.DnsService.SetAfsdb:input_type -> dns.SetAfsdbRequest
-	33, // 39: dns.DnsService.GetAfsdb:input_type -> dns.GetAfsdbRequest
-	35, // 40: dns.DnsService.RemoveAfsdb:input_type -> dns.RemoveAfsdbRequest
-	66, // 41: dns.DnsService.Stop:output_type -> dns.StopResponse
-	1,  // 42: dns.DnsService.SetA:output_type -> dns.SetAResponse
-	3,  // 43: dns.DnsService.RemoveA:output_type -> dns.RemoveAResponse
-	5,  // 44: dns.DnsService.GetA:output_type -> dns.GetAResponse
-	7,  // 45: dns.DnsService.SetAAAA:output_type -> dns.SetAAAAResponse
-	9,  // 46: dns.DnsService.RemoveAAAA:output_type -> dns.RemoveAAAAResponse
-	11, // 47: dns.DnsService.GetAAAA:output_type -> dns.GetAAAAResponse
-	13, // 48: dns.DnsService.SetText:output_type -> dns.SetTextResponse
-	15, // 49: dns.DnsService.GetText:output_type -> dns.GetTextResponse
-	17, // 50: dns.DnsService.RemoveText:output_type -> dns.RemoveTextResponse
-	19, // 51: dns.DnsService.SetNs:output_type -> dns.SetNsResponse
-	21, // 52: dns.DnsService.GetNs:output_type -> dns.GetNsResponse
-	23, // 53: dns.DnsService.RemoveNs:output_type -> dns.RemoveNsResponse
-	25, // 54: dns.DnsService.SetCName:output_type -> dns.SetCNameResponse
-	27, // 55: dns.DnsService.GetCName:output_type -> dns.GetCNameResponse
-	29, // 56: dns.DnsService.RemoveCName:output_type -> dns.RemoveCNameResponse
-	39, // 57: dns.DnsService.SetMx:output_type -> dns.SetMxResponse
-	41, // 58: dns.DnsService.GetMx:output_type -> dns.GetMxResponse
-	43, // 59: dns.DnsService.RemoveMx:output_type -> dns.RemoveMxResponse
-	46, // 60: dns.DnsService.SetSoa:output_type -> dns.SetSoaResponse
-	48, // 61: dns.DnsService.GetSoa:output_type -> dns.GetSoaResponse
-	50, // 62: dns.DnsService.RemoveSoa:output_type -> dns.RemoveSoaResponse
-	53, // 63: dns.DnsService.SetUri:output_type -> dns.SetUriResponse
-	55, // 64: dns.DnsService.GetUri:output_type -> dns.GetUriResponse
-	57, // 65: dns.DnsService.RemoveUri:output_type -> dns.RemoveUriResponse
-	60, // 66: dns.DnsService.SetCaa:output_type -> dns.SetCaaResponse
-	62, // 67: dns.DnsService.GetCaa:output_type -> dns.GetCaaResponse
-	64, // 68: dns.DnsService.RemoveCaa:output_type -> dns.RemoveCaaResponse
-	32, // 69: dns.DnsService.SetAfsdb:output_type -> dns.SetAfsdbResponse
-	34, // 70: dns.DnsService.GetAfsdb:output_type -> dns.GetAfsdbResponse
-	36, // 71: dns.DnsService.RemoveAfsdb:output_type -> dns.RemoveAfsdbResponse
-	41, // [41:72] is the sub-list for method output_type
-	10, // [10:41] is the sub-list for method input_type
+	67, // 10: dns.DnsService.SetDomains:input_type -> dns.SetDomainsRequest
+	69, // 11: dns.DnsService.GetDomains:input_type -> dns.GetDomainsRequest
+	65, // 12: dns.DnsService.Stop:input_type -> dns.StopRequest
+	0,  // 13: dns.DnsService.SetA:input_type -> dns.SetARequest
+	2,  // 14: dns.DnsService.RemoveA:input_type -> dns.RemoveARequest
+	4,  // 15: dns.DnsService.GetA:input_type -> dns.GetARequest
+	6,  // 16: dns.DnsService.SetAAAA:input_type -> dns.SetAAAARequest
+	8,  // 17: dns.DnsService.RemoveAAAA:input_type -> dns.RemoveAAAARequest
+	10, // 18: dns.DnsService.GetAAAA:input_type -> dns.GetAAAARequest
+	12, // 19: dns.DnsService.SetText:input_type -> dns.SetTextRequest
+	14, // 20: dns.DnsService.GetText:input_type -> dns.GetTextRequest
+	16, // 21: dns.DnsService.RemoveText:input_type -> dns.RemoveTextRequest
+	18, // 22: dns.DnsService.SetNs:input_type -> dns.SetNsRequest
+	20, // 23: dns.DnsService.GetNs:input_type -> dns.GetNsRequest
+	22, // 24: dns.DnsService.RemoveNs:input_type -> dns.RemoveNsRequest
+	24, // 25: dns.DnsService.SetCName:input_type -> dns.SetCNameRequest
+	26, // 26: dns.DnsService.GetCName:input_type -> dns.GetCNameRequest
+	28, // 27: dns.DnsService.RemoveCName:input_type -> dns.RemoveCNameRequest
+	38, // 28: dns.DnsService.SetMx:input_type -> dns.SetMxRequest
+	40, // 29: dns.DnsService.GetMx:input_type -> dns.GetMxRequest
+	42, // 30: dns.DnsService.RemoveMx:input_type -> dns.RemoveMxRequest
+	45, // 31: dns.DnsService.SetSoa:input_type -> dns.SetSoaRequest
+	47, // 32: dns.DnsService.GetSoa:input_type -> dns.GetSoaRequest
+	49, // 33: dns.DnsService.RemoveSoa:input_type -> dns.RemoveSoaRequest
+	52, // 34: dns.DnsService.SetUri:input_type -> dns.SetUriRequest
+	54, // 35: dns.DnsService.GetUri:input_type -> dns.GetUriRequest
+	56, // 36: dns.DnsService.RemoveUri:input_type -> dns.RemoveUriRequest
+	59, // 37: dns.DnsService.SetCaa:input_type -> dns.SetCaaRequest
+	61, // 38: dns.DnsService.GetCaa:input_type -> dns.GetCaaRequest
+	63, // 39: dns.DnsService.RemoveCaa:input_type -> dns.RemoveCaaRequest
+	31, // 40: dns.DnsService.SetAfsdb:input_type -> dns.SetAfsdbRequest
+	33, // 41: dns.DnsService.GetAfsdb:input_type -> dns.GetAfsdbRequest
+	35, // 42: dns.DnsService.RemoveAfsdb:input_type -> dns.RemoveAfsdbRequest
+	68, // 43: dns.DnsService.SetDomains:output_type -> dns.SetDomainsResponse
+	70, // 44: dns.DnsService.GetDomains:output_type -> dns.GetDomainsResponse
+	66, // 45: dns.DnsService.Stop:output_type -> dns.StopResponse
+	1,  // 46: dns.DnsService.SetA:output_type -> dns.SetAResponse
+	3,  // 47: dns.DnsService.RemoveA:output_type -> dns.RemoveAResponse
+	5,  // 48: dns.DnsService.GetA:output_type -> dns.GetAResponse
+	7,  // 49: dns.DnsService.SetAAAA:output_type -> dns.SetAAAAResponse
+	9,  // 50: dns.DnsService.RemoveAAAA:output_type -> dns.RemoveAAAAResponse
+	11, // 51: dns.DnsService.GetAAAA:output_type -> dns.GetAAAAResponse
+	13, // 52: dns.DnsService.SetText:output_type -> dns.SetTextResponse
+	15, // 53: dns.DnsService.GetText:output_type -> dns.GetTextResponse
+	17, // 54: dns.DnsService.RemoveText:output_type -> dns.RemoveTextResponse
+	19, // 55: dns.DnsService.SetNs:output_type -> dns.SetNsResponse
+	21, // 56: dns.DnsService.GetNs:output_type -> dns.GetNsResponse
+	23, // 57: dns.DnsService.RemoveNs:output_type -> dns.RemoveNsResponse
+	25, // 58: dns.DnsService.SetCName:output_type -> dns.SetCNameResponse
+	27, // 59: dns.DnsService.GetCName:output_type -> dns.GetCNameResponse
+	29, // 60: dns.DnsService.RemoveCName:output_type -> dns.RemoveCNameResponse
+	39, // 61: dns.DnsService.SetMx:output_type -> dns.SetMxResponse
+	41, // 62: dns.DnsService.GetMx:output_type -> dns.GetMxResponse
+	43, // 63: dns.DnsService.RemoveMx:output_type -> dns.RemoveMxResponse
+	46, // 64: dns.DnsService.SetSoa:output_type -> dns.SetSoaResponse
+	48, // 65: dns.DnsService.GetSoa:output_type -> dns.GetSoaResponse
+	50, // 66: dns.DnsService.RemoveSoa:output_type -> dns.RemoveSoaResponse
+	53, // 67: dns.DnsService.SetUri:output_type -> dns.SetUriResponse
+	55, // 68: dns.DnsService.GetUri:output_type -> dns.GetUriResponse
+	57, // 69: dns.DnsService.RemoveUri:output_type -> dns.RemoveUriResponse
+	60, // 70: dns.DnsService.SetCaa:output_type -> dns.SetCaaResponse
+	62, // 71: dns.DnsService.GetCaa:output_type -> dns.GetCaaResponse
+	64, // 72: dns.DnsService.RemoveCaa:output_type -> dns.RemoveCaaResponse
+	32, // 73: dns.DnsService.SetAfsdb:output_type -> dns.SetAfsdbResponse
+	34, // 74: dns.DnsService.GetAfsdb:output_type -> dns.GetAfsdbResponse
+	36, // 75: dns.DnsService.RemoveAfsdb:output_type -> dns.RemoveAfsdbResponse
+	43, // [43:76] is the sub-list for method output_type
+	10, // [10:43] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -3757,7 +3948,7 @@ func file_dns_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dns_proto_rawDesc), len(file_dns_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   67,
+			NumMessages:   71,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

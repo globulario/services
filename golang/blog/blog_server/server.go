@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -321,7 +322,6 @@ func (srv *server) addResourceOwner(path, resourceType, subject string, subjectT
 	return c.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
-
 // -----------------------------------------------------------------------------
 // Bleve helpers
 // -----------------------------------------------------------------------------
@@ -546,7 +546,7 @@ func main() {
 	s.Keywords = []string{"Example", "Blog", "Post", "Service"}
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
-	s.Dependencies = []string{"event.EventService", "rbac.RbacService"}
+	s.Dependencies = []string{"event.EventService", "rbac.RbacService", "log.LogService"}
 	// Default RBAC permissions for BlogService.
 	// Use generic verbs and only protect parameters that are real resource paths (UUIDs / index paths).
 	s.Permissions = []interface{}{
@@ -656,9 +656,20 @@ func main() {
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			fmt.Println("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			fmt.Println("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		s.Port = p
 	}
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -696,6 +707,21 @@ func main() {
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			os.Stdout.WriteString(s.Version + "\n")
+			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		default:
+			if strings.HasPrefix(a, "-") {
+				fmt.Println("unknown option:", a)
+				printUsage()
+				os.Exit(1)
+			}
+
 		}
 	}
 
@@ -746,10 +772,31 @@ func main() {
 
 	// Subscribe to account deletion events.
 	go func() {
-		if err := s.subscribe("delete_account_evt", s.deleteAccountListener); err != nil {
-			logger.Error("event subscription failed", "event", "delete_account_evt", "err", err)
-		} else {
-			logger.Info("subscribed to event", "event", "delete_account_evt")
+		consumerID := s.Name + "@" + s.Domain + ":delete"
+		backoff := time.Second
+		for {
+			evtClient, err := s.getEventClient()
+			if err != nil {
+				logger.Warn("event client unavailable; retrying", "err", err)
+				time.Sleep(backoff)
+				if backoff < 10*time.Second {
+					backoff *= 2
+				}
+				continue
+			}
+			err = evtClient.Subscribe("delete_account_evt", consumerID, func(evt *eventpb.Event) {
+				s.deleteAccountListener(evt)
+			})
+			if err != nil {
+				logger.Warn("subscribe failed; retrying", "channel", "delete_account_evt", "err", err)
+				time.Sleep(backoff)
+				if backoff < 10*time.Second {
+					backoff *= 2
+				}
+				continue
+			}
+			logger.Info("subscribed to event", "channel", "delete_account_evt", "consumer", consumerID)
+			break
 		}
 	}()
 

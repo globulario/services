@@ -426,9 +426,20 @@ func main() {
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		s.Port = p
 	}
+	
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -465,6 +476,16 @@ func main() {
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/h", "/help":
+			printUsage()
+			return
+		case "--version", "-v", "/v", "/version":
+			os.Stdout.WriteString(s.Version + "\n")
+			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		default:
+			// skip unknown flags for now (e.g. positional args)
 		}
 	}
 

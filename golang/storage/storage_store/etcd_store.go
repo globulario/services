@@ -3,6 +3,7 @@ package storage_store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -37,6 +38,8 @@ func (s *Etcd_store) open(address string) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("etcd_store.go --------------> Etcd_store: connecting to etcd endpoints:", endpoints) // DEBUG
 
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,

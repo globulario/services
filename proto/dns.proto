@@ -381,8 +381,35 @@ message StopResponse {
   // No fields are needed for this message.
 }
 
+// SetDomainsRequest is used to set multiple domain names.
+message SetDomainsRequest {
+  repeated string domains = 1; // List of domain names to be set.
+}
+
+// SetDomainsResponse is the response for a SetDomainsRequest.
+message SetDomainsResponse {
+  bool result = 1; // The result of the set operation, typically a success flag.
+}
+
+// GetDomainsRequest is used to retrieve multiple domain names.
+message GetDomainsRequest {
+  // No fields are needed for this message.
+}
+
+// GetDomainsResponse is the response for a GetDomainsRequest.
+message GetDomainsResponse {
+  repeated string domains = 1; // List of domain names that have been set.
+}
+
 // DnsService defines a service for managing DNS records.
 service DnsService {
+
+  // Set multiple domain names.
+  rpc SetDomains(SetDomainsRequest) returns (SetDomainsResponse);
+
+  // Get multiple domain names.
+  rpc GetDomains(GetDomainsRequest) returns (GetDomainsResponse);
+
   // Stop the server.
   rpc Stop(StopRequest) returns (StopResponse);
 

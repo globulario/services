@@ -255,6 +255,48 @@ func (client *Dns_Client) GetA(domain string) ([]string, error) {
 	return rsp.A, nil
 }
 
+
+// SetDomains sets the specified DNS domains with the given TTL using the DNS client.
+// It accepts an authentication token, a slice of domain names, and a TTL value.
+// If a token is provided, it is added to the outgoing context metadata for authentication.
+// The method sends a SetDomainsRequest to the DNS service and returns any error encountered.
+//
+// Parameters:
+//   - token: Authentication token to be included in the request metadata.
+//   - domains: Slice of domain names to be set.
+//   - ttl: Time-to-live value for the domains.
+//
+// Returns:
+//   - error: An error if the request fails, otherwise nil.
+func (client *Dns_Client) SetDomains(token string, domains []string) error {
+
+	rqst := &dnspb.SetDomainsRequest{Domains: domains}
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.SetDomains(ctx, rqst)
+	return err
+}
+
+// GetDomains retrieves the list of domain names managed by the DNS service.
+// It returns a slice of domain names and an error if the operation fails.
+func (client *Dns_Client) GetDomains() ([]string, error) {
+	
+	rqst := &dnspb.GetDomainsRequest{}
+	rsp, err := client.c.GetDomains(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Domains, nil
+}
+
 // Register a subdomain to a domain.
 // ex: toto.globular.io is the subdomain to globular.io, so here
 // toto.globular.io. The validation will

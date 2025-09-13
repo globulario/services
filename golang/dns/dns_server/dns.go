@@ -21,6 +21,50 @@ import (
    A (IPv4) record endpoints
    ========================= */
 
+// Set multiple domain names.
+func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest) (*dnspb.SetDomainsResponse, error) {
+	if len(rqst.Domains) == 0 {
+		err := errors.New("no domains provided")
+		srv.Logger.Error("SetDomains no domains", "err", err)
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	srv.Domains = rqst.Domains
+
+	srv.Logger.Info("Domains set", "domains", strings.Join(srv.Domains, ", "))
+
+	// store domains persistently
+	domainsData, err := json.Marshal(srv.Domains)
+	if err != nil {
+		srv.Logger.Error("SetDomains marshal", "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = srv.store.SetItem("domains", domainsData)
+	if err != nil {
+		srv.Logger.Error("SetDomains setItem", "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &dnspb.SetDomainsResponse{Result: true}, nil
+}
+
+// Get multiple domain names.
+func (srv *server) GetDomains(context.Context, *dnspb.GetDomainsRequest) (*dnspb.GetDomainsResponse, error) {
+	domainsData, err := srv.store.GetItem("domains")
+	if err != nil {
+		srv.Logger.Error("GetDomains getItem", "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	var domains []string
+	err = json.Unmarshal(domainsData, &domains)
+	if err != nil {
+		srv.Logger.Error("GetDomains unmarshal", "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &dnspb.GetDomainsResponse{Domains: domains}, nil
+}
 
 // SetA adds or updates an A (IPv4 address) DNS record for the specified domain.
 // It first checks if the domain is managed by this DNS server. If not, it returns an error.
@@ -80,7 +124,6 @@ func (srv *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.Se
 
 	return &dnspb.SetAResponse{Message: domain}, nil
 }
-
 
 // RemoveA removes an A (IPv4 address) record from the DNS server for the specified domain.
 // It first checks if the domain is managed by this DNS server. If not, it returns an error.
@@ -168,7 +211,6 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 	return orderIPsByPrivacy(values), srv.getTtl(uuid), nil
 }
 
-
 // GetA retrieves the A (IPv4 address) records for the specified domain from the DNS store.
 // It normalizes the domain name to lowercase and ensures it ends with a dot.
 // The function generates a UUID key for the domain, fetches the associated data from the store,
@@ -176,12 +218,14 @@ func (srv *server) get_ipv4(domain string) ([]string, uint32, error) {
 // according to privacy preferences before being returned in the response.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The GetARequest containing the domain name to query.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The GetARequest containing the domain name to query.
 //
 // Returns:
-//   *dnspb.GetAResponse - The response containing the list of A records (IPv4 addresses).
-//   error - An error if the retrieval or unmarshalling fails.
+//
+//	*dnspb.GetAResponse - The response containing the list of A records (IPv4 addresses).
+//	error - An error if the retrieval or unmarshalling fails.
 func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -203,7 +247,6 @@ func (srv *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.Ge
 /* ===========================
    AAAA (IPv6) record endpoints
    =========================== */
-
 
 // SetAAAA adds or updates an AAAA (IPv6 address) DNS record for the specified domain.
 // It first checks if the domain is managed by this DNS server. If not, it returns an error.
@@ -259,7 +302,6 @@ func (srv *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dn
 
 	return &dnspb.SetAAAAResponse{Message: domain}, nil
 }
-
 
 // RemoveAAAA removes an AAAA (IPv6) DNS record for the specified domain.
 // It first normalizes the domain name, checks if the domain is managed by this DNS server,
@@ -346,7 +388,6 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
-
 // GetAAAA retrieves the list of IPv6 (AAAA) records associated with the specified domain.
 // The domain name is normalized to lowercase and ensured to have a trailing dot.
 // It generates a UUID key for the domain, fetches the associated data from the store,
@@ -354,12 +395,14 @@ func (srv *server) get_ipv6(domain string) ([]string, uint32, error) {
 // an error occurs during unmarshalling, an appropriate gRPC error is returned.
 //
 // Parameters:
-//   ctx  - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the domain name to query.
+//
+//	ctx  - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the domain name to query.
 //
 // Returns:
-//   *dnspb.GetAAAAResponse - The response containing the list of IPv6 addresses.
-//   error                  - An error if the domain is not found or unmarshalling fails.
+//
+//	*dnspb.GetAAAAResponse - The response containing the list of IPv6 addresses.
+//	error                  - An error if the domain is not found or unmarshalling fails.
 func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
@@ -383,7 +426,6 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
    TXT record API
    =============== */
 
-
 // SetText sets or updates the TXT record values for a given identifier.
 // It marshals the provided values to JSON and stores them in the underlying store.
 // If a TXT record already exists for the given ID, the new values are merged with the existing ones.
@@ -391,12 +433,14 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 // Returns a SetTextResponse indicating success, or an error if any operation fails.
 //
 // Parameters:
-//   ctx  - The context for the request.
-//   rqst - The SetTextRequest containing the ID, values, and TTL.
+//
+//	ctx  - The context for the request.
+//	rqst - The SetTextRequest containing the ID, values, and TTL.
 //
 // Returns:
-//   *dnspb.SetTextResponse - The response indicating the result of the operation.
-//   error                  - An error if the operation fails.
+//
+//	*dnspb.SetTextResponse - The response indicating the result of the operation.
+//	error                  - An error if the operation fails.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 	values, err := json.Marshal(rqst.Values)
 	if err != nil {
@@ -449,19 +493,20 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 	return values, srv.getTtl(uuid), nil
 }
 
-
 // GetText retrieves the TXT record values associated with the given ID from the DNS server's store.
 // It generates a UUID based on the provided ID, fetches the corresponding item from the store,
 // and attempts to unmarshal the data into a slice of strings. If successful, it returns the values
 // in a GetTextResponse. If an error occurs during unmarshalling, it returns an internal error status.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The GetTextRequest containing the ID of the TXT record to retrieve.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The GetTextRequest containing the ID of the TXT record to retrieve.
 //
 // Returns:
-//   *dnspb.GetTextResponse - The response containing the TXT record values.
-//   error - An error if the operation fails, otherwise nil.
+//
+//	*dnspb.GetTextResponse - The response containing the TXT record values.
+//	error - An error if the operation fails, otherwise nil.
 func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
@@ -475,18 +520,19 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 	return &dnspb.GetTextResponse{Values: values}, nil
 }
 
-
 // RemoveText removes a TXT DNS record identified by the given request ID.
 // It deletes the corresponding item from the store and attempts to remove any associated
 // resource permissions using the RBAC client. Logs are generated for both errors and successful removals.
 //
 // Parameters:
-//   ctx  - The context for controlling cancellation and deadlines.
-//   rqst - The request containing the ID of the TXT record to remove.
+//
+//	ctx  - The context for controlling cancellation and deadlines.
+//	rqst - The request containing the ID of the TXT record to remove.
 //
 // Returns:
-//   *dnspb.RemoveTextResponse - The response indicating the result of the removal operation.
-//   error                     - An error if the removal fails, otherwise nil.
+//
+//	*dnspb.RemoveTextResponse - The response indicating the result of the removal operation.
+//	error                     - An error if the removal fails, otherwise nil.
 func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
@@ -512,12 +558,14 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 // Returns a SetNsResponse with the result or an error if the operation fails.
 //
 // Parameters:
-//   ctx  - context for request-scoped values, cancellation, and deadlines
-//   rqst - SetNsRequest containing the domain identifier, nameserver, and TTL
+//
+//	ctx  - context for request-scoped values, cancellation, and deadlines
+//	rqst - SetNsRequest containing the domain identifier, nameserver, and TTL
 //
 // Returns:
-//   *dnspb.SetNsResponse - response indicating success
-//   error                - error if the operation fails
+//
+//	*dnspb.SetNsResponse - response indicating success
+//	error                - error if the operation fails
 func (srv *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -667,12 +715,14 @@ func (srv *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*
 // Logs the operation and returns a response indicating success or an error if the operation fails.
 //
 // Parameters:
-//   ctx  - The context for the request, used for cancellation and deadlines.
-//   rqst - The SetCNameRequest containing the ID, CNAME target, and TTL.
+//
+//	ctx  - The context for the request, used for cancellation and deadlines.
+//	rqst - The SetCNameRequest containing the ID, CNAME target, and TTL.
 //
 // Returns:
-//   *dnspb.SetCNameResponse - The response indicating the result of the operation.
-//   error                   - An error if the operation fails.
+//
+//	*dnspb.SetCNameResponse - The response indicating the result of the operation.
+//	error                   - An error if the operation fails.
 func (srv *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -701,12 +751,14 @@ func (srv *server) getCName(id string) (string, uint32, error) {
 // appropriate gRPC status error.
 //
 // Parameters:
-//   ctx  - The context for controlling cancellation and deadlines.
-//   rqst - The request containing the ID for which to retrieve the CNAME.
+//
+//	ctx  - The context for controlling cancellation and deadlines.
+//	rqst - The request containing the ID for which to retrieve the CNAME.
 //
 // Returns:
-//   *dnspb.GetCNameResponse - The response containing the CNAME string.
-//   error                   - An error if the retrieval fails.
+//
+//	*dnspb.GetCNameResponse - The response containing the CNAME string.
+//	error                   - An error if the retrieval fails.
 func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*dnspb.GetCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -723,12 +775,14 @@ func (srv *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*
 // Logs both errors and successful removals. Returns a RemoveCNameResponse indicating the result.
 //
 // Parameters:
-//   ctx  - The context for the request, used for cancellation and deadlines.
-//   rqst - The RemoveCNameRequest containing the ID of the CNAME to remove.
+//
+//	ctx  - The context for the request, used for cancellation and deadlines.
+//	rqst - The RemoveCNameRequest containing the ID of the CNAME to remove.
 //
 // Returns:
-//   *dnspb.RemoveCNameResponse - The response indicating whether the removal was successful.
-//   error                      - An error if the removal failed, otherwise nil.
+//
+//	*dnspb.RemoveCNameResponse - The response indicating whether the removal was successful.
+//	error                      - An error if the removal failed, otherwise nil.
 func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CName:" + id)
@@ -755,12 +809,14 @@ func (srv *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameReque
 // Returns a SetMxResponse indicating success or an error if any operation fails.
 //
 // Parameters:
-//   ctx  - The context for request-scoped values, cancellation, and deadlines.
-//   rqst - The SetMxRequest containing the domain identifier, MX record, and TTL.
+//
+//	ctx  - The context for request-scoped values, cancellation, and deadlines.
+//	rqst - The SetMxRequest containing the domain identifier, MX record, and TTL.
 //
 // Returns:
-//   *dnspb.SetMxResponse - The response indicating the result of the operation.
-//   error                - An error if the operation fails.
+//
+//	*dnspb.SetMxResponse - The response indicating the result of the operation.
+//	error                - An error if the operation fails.
 func (srv *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -934,12 +990,14 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 // and stored. The TTL for the record is also set.
 //
 // Parameters:
-//   ctx  - The context for the request.
-//   rqst - The SetSoaRequest containing the zone ID, SOA record, and TTL.
+//
+//	ctx  - The context for the request.
+//	rqst - The SetSoaRequest containing the zone ID, SOA record, and TTL.
 //
 // Returns:
-//   *dnspb.SetSoaResponse - The response indicating success.
-//   error                 - An error if the operation fails.
+//
+//	*dnspb.SetSoaResponse - The response indicating success.
+//	error                 - An error if the operation fails.
 func (srv *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	if !strings.HasSuffix(id, ".") {
@@ -1282,12 +1340,14 @@ func (srv *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) 
 // or an error if the operation fails.
 //
 // Parameters:
-//   ctx  - The context for the request, used for cancellation and deadlines.
-//   rqst - The SetAfsdbRequest containing the AFSDB record data, record ID, and TTL.
+//
+//	ctx  - The context for the request, used for cancellation and deadlines.
+//	rqst - The SetAfsdbRequest containing the AFSDB record data, record ID, and TTL.
 //
 // Returns:
-//   *dnspb.SetAfsdbResponse - The response indicating the result of the operation.
-//   error                   - An error if the operation fails.
+//
+//	*dnspb.SetAfsdbResponse - The response indicating the result of the operation.
+//	error                   - An error if the operation fails.
 func (srv *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
 	values, err := json.Marshal(rqst.Afsdb)
 	if err != nil {
@@ -1326,12 +1386,14 @@ func (srv *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 // the AFSDB record; otherwise, it returns an appropriate gRPC error.
 //
 // Parameters:
-//   ctx  - The context for controlling cancellation and deadlines.
-//   rqst - The GetAfsdbRequest containing the ID of the AFSDB record to retrieve.
+//
+//	ctx  - The context for controlling cancellation and deadlines.
+//	rqst - The GetAfsdbRequest containing the ID of the AFSDB record to retrieve.
 //
 // Returns:
-//   *dnspb.GetAfsdbResponse - The response containing the AFSDB record if found.
-//   error                   - An error if the record could not be retrieved or unmarshaled.
+//
+//	*dnspb.GetAfsdbResponse - The response containing the AFSDB record if found.
+//	error                   - An error if the record could not be retrieved or unmarshaled.
 func (srv *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
@@ -1370,12 +1432,14 @@ func (srv *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbReque
 // The function also sets the TTL (Time To Live) for the record and logs the operation.
 //
 // Parameters:
-//   ctx  - The context for the request, used for cancellation and deadlines.
-//   rqst - The SetCaaRequest containing the CAA record to set and the TTL.
+//
+//	ctx  - The context for the request, used for cancellation and deadlines.
+//	rqst - The SetCaaRequest containing the CAA record to set and the TTL.
 //
 // Returns:
-//   *dnspb.SetCaaResponse - The response indicating the result of the operation.
-//   error                 - An error if the operation fails at any step.
+//
+//	*dnspb.SetCaaResponse - The response indicating the result of the operation.
+//	error                 - An error if the operation fails at any step.
 func (srv *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
@@ -1449,7 +1513,6 @@ func (srv *server) getCaa(id, domain string) ([]*dnspb.CAA, uint32, error) {
 
 	return caa, srv.getTtl(uuid), nil
 }
-
 
 // GetCaa retrieves CAA (Certification Authority Authorization) records from the server's storage.
 // It accepts a GetCaaRequest containing an identifier and an optional domain filter.
@@ -1588,7 +1651,6 @@ func (srv *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) 
 
 type handler struct{}
 
-
 // ServeDNS handles incoming DNS queries and formulates appropriate DNS responses
 // based on the query type. It supports various DNS record types including A, AAAA,
 // AFSDB, CAA, CNAME, TXT, NS, MX, SOA, and URI. For each supported query type, it
@@ -1608,9 +1670,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		msg.SetReply(r)
 		domain := msg.Question[0].Name
 		msg.Authoritative = true
-		addresses, ttl, err := s.get_ipv4(domain)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get A failed", "domain", domain, "err", err)
+		addresses, ttl, err := srv.get_ipv4(domain)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get A failed", "domain", domain, "err", err)
 		}
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.A{
@@ -1618,8 +1680,8 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				A:   net.ParseIP(address),
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "A", "domain", domain, "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "A", "domain", domain, "err", err)
 		}
 
 	case dns.TypeAAAA:
@@ -1627,9 +1689,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		msg.SetReply(r)
 		msg.Authoritative = true
 		domain := msg.Question[0].Name
-		addresses, ttl, err := s.get_ipv6(domain)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get AAAA failed", "domain", domain, "err", err)
+		addresses, ttl, err := srv.get_ipv6(domain)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get AAAA failed", "domain", domain, "err", err)
 		}
 		for _, address := range addresses {
 			msg.Answer = append(msg.Answer, &dns.AAAA{
@@ -1637,26 +1699,26 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				AAAA: net.ParseIP(address),
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "AAAA", "domain", domain, "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "AAAA", "domain", domain, "err", err)
 		}
 
 	case dns.TypeAFSDB:
 		msg := dns.Msg{}
 		msg.SetReply(r)
 		msg.Authoritative = true
-		afsdb, ttl, err := s.getAfsdb(msg.Question[0].Name)
+		afsdb, ttl, err := srv.getAfsdb(msg.Question[0].Name)
 		if err == nil {
 			msg.Answer = append(msg.Answer, &dns.AFSDB{
 				Hdr:      dns.RR_Header{Name: msg.Question[0].Name, Rrtype: dns.TypeAFSDB, Class: dns.ClassINET, Ttl: ttl},
 				Subtype:  uint16(afsdb.Subtype),
 				Hostname: afsdb.Hostname,
 			})
-		} else if s.Logger != nil {
-			s.Logger.Debug("dns:get AFSDB failed", "name", msg.Question[0].Name, "err", err)
+		} else if srv.Logger != nil {
+			srv.Logger.Debug("dns:get AFSDB failed", "name", msg.Question[0].Name, "err", err)
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "AFSDB", "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "AFSDB", "err", err)
 		}
 
 	case dns.TypeCAA:
@@ -1668,9 +1730,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if len(msg.Question) > 1 {
 			domain = msg.Question[1].Name
 		}
-		values, ttl, err := s.getCaa(name, domain)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get CAA failed", "name", name, "domain", domain, "err", err)
+		values, ttl, err := srv.getCaa(name, domain)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get CAA failed", "name", name, "domain", domain, "err", err)
 		}
 		for _, caa := range values {
 			msg.Answer = append(msg.Answer, &dns.CAA{
@@ -1680,30 +1742,30 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Value: caa.Domain,
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "CAA", "name", name, "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "CAA", "name", name, "err", err)
 		}
 
 	case dns.TypeCNAME:
 		msg := dns.Msg{}
 		msg.SetReply(r)
-		cname, ttl, err := s.getCName(msg.Question[0].Name)
+		cname, ttl, err := srv.getCName(msg.Question[0].Name)
 		if err == nil {
 			msg.Answer = append(msg.Answer, &dns.CNAME{
 				Hdr:    dns.RR_Header{Name: msg.Question[0].Name, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: ttl},
 				Target: cname,
 			})
-		} else if s.Logger != nil {
-			s.Logger.Debug("dns:get CNAME failed", "name", msg.Question[0].Name, "err", err)
+		} else if srv.Logger != nil {
+			srv.Logger.Debug("dns:get CNAME failed", "name", msg.Question[0].Name, "err", err)
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "CNAME", "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "CNAME", "err", err)
 		}
 
 	case dns.TypeTXT:
-		values, ttl, err := s.getText(r.Question[0].Name)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get TXT failed", "name", r.Question[0].Name, "err", err)
+		values, ttl, err := srv.getText(r.Question[0].Name)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get TXT failed", "name", r.Question[0].Name, "err", err)
 		}
 		msg := new(dns.Msg)
 		msg.SetReply(r)
@@ -1713,14 +1775,14 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Txt: []string{txtValue},
 			})
 		}
-		if err := w.WriteMsg(msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "TXT", "err", err)
+		if err := w.WriteMsg(msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "TXT", "err", err)
 		}
 
 	case dns.TypeNS:
-		values, ttl, err := s.getNs(r.Question[0].Name)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get NS failed", "name", r.Question[0].Name, "err", err)
+		values, ttl, err := srv.getNs(r.Question[0].Name)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get NS failed", "name", r.Question[0].Name, "err", err)
 		}
 		msg := new(dns.Msg)
 		msg.SetReply(r)
@@ -1730,8 +1792,8 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Ns:  ns,
 			})
 		}
-		if err := w.WriteMsg(msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "NS", "err", err)
+		if err := w.WriteMsg(msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "NS", "err", err)
 		}
 
 	case dns.TypeMX:
@@ -1741,9 +1803,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if len(msg.Question) > 1 {
 			mx = msg.Question[1].Name
 		}
-		values, ttl, err := s.getMx(msg.Question[0].Name, mx)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get MX failed", "name", msg.Question[0].Name, "mx", mx, "err", err)
+		values, ttl, err := srv.getMx(msg.Question[0].Name, mx)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get MX failed", "name", msg.Question[0].Name, "mx", mx, "err", err)
 		}
 		for _, mxr := range values {
 			msg.Answer = append(msg.Answer, &dns.MX{
@@ -1752,8 +1814,8 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Mx:         mxr.Mx,
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "MX", "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "MX", "err", err)
 		}
 
 	case dns.TypeSOA:
@@ -1763,9 +1825,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if len(msg.Question) > 1 {
 			ns = msg.Question[1].Name
 		}
-		values, ttl, err := s.getSoa(msg.Question[0].Name, ns)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get SOA failed", "name", msg.Question[0].Name, "ns", ns, "err", err)
+		values, ttl, err := srv.getSoa(msg.Question[0].Name, ns)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get SOA failed", "name", msg.Question[0].Name, "ns", ns, "err", err)
 		}
 		domain := strings.ToLower(msg.Question[0].Name)
 		if !strings.HasSuffix(domain, ".") {
@@ -1786,8 +1848,8 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Minttl:  soa.Minttl,
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "SOA", "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "SOA", "err", err)
 		}
 
 	case dns.TypeURI:
@@ -1797,9 +1859,9 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if len(msg.Question) > 1 {
 			target = msg.Question[1].Name
 		}
-		values, ttl, err := s.getUri(msg.Question[0].Name, target)
-		if err != nil && s.Logger != nil {
-			s.Logger.Debug("dns:get URI failed", "name", msg.Question[0].Name, "target", target, "err", err)
+		values, ttl, err := srv.getUri(msg.Question[0].Name, target)
+		if err != nil && srv.Logger != nil {
+			srv.Logger.Debug("dns:get URI failed", "name", msg.Question[0].Name, "target", target, "err", err)
 		}
 		for _, uri := range values {
 			msg.Answer = append(msg.Answer, &dns.URI{
@@ -1809,30 +1871,29 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Target:   uri.Target,
 			})
 		}
-		if err := w.WriteMsg(&msg); err != nil && s.Logger != nil {
-			s.Logger.Error("dns:write failed", "qtype", "URI", "err", err)
+		if err := w.WriteMsg(&msg); err != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:write failed", "qtype", "URI", "err", err)
 		}
 	}
 }
-
 
 // ServeDns starts a DNS server listening on the specified UDP port.
 // It logs server start, stop, and error events if a logger is available.
 // Returns an error if the server fails to start or encounters an issue during execution.
 func ServeDns(port int) error {
-	if s != nil && s.Logger != nil {
-		s.Logger.Info("dns:udp server starting", "port", port)
+	if srv != nil && srv.Logger != nil {
+		srv.Logger.Info("dns:udp server starting", "port", port)
 	}
-	srv := &dns.Server{Addr: ":" + strconv.Itoa(port), Net: "udp"}
-	srv.Handler = &handler{}
-	if err := srv.ListenAndServe(); err != nil {
-		if s != nil && s.Logger != nil {
-			s.Logger.Error("dns:udp server failed", "port", port, "err", err)
+	dnsServer := &dns.Server{Addr: ":" + strconv.Itoa(port), Net: "udp"}
+	dnsServer.Handler = &handler{}
+	if err := dnsServer.ListenAndServe(); err != nil {
+		if srv != nil && srv.Logger != nil {
+			srv.Logger.Error("dns:udp server failed", "port", port, "err", err)
 		}
 		return err
 	}
-	if s != nil && s.Logger != nil {
-		s.Logger.Info("dns:udp server stopped", "port", port)
+	if srv != nil && srv.Logger != nil {
+		srv.Logger.Info("dns:udp server stopped", "port", port)
 	}
 	return nil
 }

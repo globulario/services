@@ -522,11 +522,19 @@ func main() {
 
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
-
-	// no args -> usage
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		s.Port = p
 	}
 
 	for _, a := range args {
@@ -573,6 +581,16 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Println(s.Version)
+			return
+		default:
+			// skip unknown flags for now (e.g. positional args)
 		}
 	}
 

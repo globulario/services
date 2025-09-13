@@ -766,7 +766,7 @@ func main() {
 	srv.Keywords = make([]string, 0)
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
-	srv.Dependencies = []string{"log.LogService", "persistence.PersistenceService"}
+	srv.Dependencies = []string{}
 	srv.Connections = make(map[string]connection)
 	srv.DbIpV4 = "0.0.0.0:27018"
 	srv.Process = -1

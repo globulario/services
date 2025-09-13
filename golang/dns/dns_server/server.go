@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net"
 	"os"
@@ -35,9 +36,9 @@ var (
 	defaultProxy      = 10034
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
-
+	
 	// Global service pointer used by UDP DNS handler.
-	s *server
+	srv *server
 )
 
 // STDERR logger so --describe/--health JSON stays clean on STDOUT
@@ -225,6 +226,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Description: "Create/update/delete DNS records.",
 		Actions: []string{
 			// writes
+			"/dns.DnsService/SetDomains", "/dns.DnsService/RemoveDomains",
 			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
 			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
 			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
@@ -256,6 +258,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			// all read actions
 			reader.Actions...),
 			// all write actions
+			"/dns.DnsService/SetDomains",
 			"/dns.DnsService/SetA", "/dns.DnsService/RemoveA",
 			"/dns.DnsService/SetAAAA", "/dns.DnsService/RemoveAAAA",
 			"/dns.DnsService/SetText", "/dns.DnsService/RemoveText",
@@ -316,8 +319,18 @@ func (srv *server) Init() error {
 		return err
 	}
 
-	// expose to UDP DNS handler
-	s = srv
+	// I will get the existing domains from storage
+	value, err := srv.store.GetItem("domains")
+
+	// If there is no error and I have a value, I will unmarshal it
+	if err == nil && value != nil {
+		var domains []string
+		if err := json.Unmarshal(value, &domains); err == nil {
+			srv.Domains = domains
+		}
+	}
+
+
 	return nil
 }
 func (srv *server) Save() error         { return globular.SaveService(srv) }
@@ -342,6 +355,7 @@ func (srv *server) openConnection() error {
 		return err
 	}
 	srv.connection_is_open = true
+
 	return nil
 }
 
@@ -398,8 +412,9 @@ Example:
 // -----------------------------------------------------------------------------
 
 func main() {
+
 	// Build skeleton (no etcd/config yet)
-	srv := new(server)
+	srv = new(server)
 	srv.Logger = logger
 	Utility.RegisterType(srv)
 
@@ -426,6 +441,9 @@ func main() {
 	srv.Root = config.GetDataDir()
 	_ = Utility.CreateDirIfNotExist(srv.Root)
 
+	// Domain(s) to manage
+	srv.Domains = []string{}
+
 	{
 		res := func(field, perm string) map[string]interface{} {
 			return map[string]interface{}{"index": 0, "field": field, "permission": perm}
@@ -443,6 +461,9 @@ func main() {
 		}
 
 		srv.Permissions = []interface{}{
+			// ---- Domains (service-level, not record-level)
+			rule("/dns.DnsService/SetDomains", "write", res("Domain", "write")),
+
 			// ---- A / AAAA
 			rule("/dns.DnsService/SetA", "write", res("Domain", "write")),
 			rule("/dns.DnsService/RemoveA", "write", res("Domain", "write")),
@@ -502,9 +523,24 @@ func main() {
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+	
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		
+		srv.Port = p
 	}
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -541,6 +577,17 @@ func main() {
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/h", "/help":
+			printUsage()
+			return
+		case "--version", "-v", "/v", "/version":
+			os.Stdout.WriteString(srv.Version + "\n")
+			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			srv.Logger = logger
+		default:
+			// skip unknown flags for now (e.g. positional args)
 		}
 	}
 

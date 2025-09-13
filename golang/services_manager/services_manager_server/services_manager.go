@@ -13,6 +13,7 @@ import (
 
 	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/process"
@@ -24,8 +25,104 @@ import (
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+func (srv *server) uninstallService(token, PublisherID, serviceId, version string, deletePermissions bool) error {
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		return err
+	}
+
+	for _, s := range services {
+		pub := s["PublisherID"].(string)
+		id := s["Id"].(string)
+		ver := s["Version"].(string)
+		name := s["Name"].(string)
+
+		if pub == PublisherID && id == serviceId && ver == version {
+			// Stop service
+			_ = srv.stopService(s)
+
+			// Get actions to delete
+			toDelete, err := config.GetServiceMethods(name, PublisherID, version)
+			if err != nil {
+				return err
+			}
+
+			if deletePermissions {
+				for _, act := range toDelete {
+					_ = srv.removeRolesAction(act)
+					_ = srv.removeApplicationsAction(token, act)
+					_ = srv.removePeersAction(act)
+				}
+			}
+
+			// refresh local methods set
+			methods := make([]string, 0, len(srv.methods))
+			for _, m := range srv.methods {
+				if !Utility.Contains(toDelete, m) {
+					methods = append(methods, m)
+				}
+			}
+			srv.methods = methods
+			if err := srv.registerMethods(); err != nil {
+				logger.Warn("register methods after uninstall failed", "err", err)
+			}
+
+			// Remove files
+			path := filepath.ToSlash(filepath.Join(srv.Root, "services", PublisherID, name, version, serviceId))
+			if Utility.Exists(path) {
+				if err := os.RemoveAll(path); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+
+// updateService reacts to repo events and updates a service if KeepUpToDate is true.
+func updateService(srv *server, service map[string]interface{}) func(evt *eventpb.Event) {
+	return func(evt *eventpb.Event) {
+		logger.Info("update service event received", "event", string(evt.Name))
+
+		kup, _ := service["KeepUpToDate"].(bool)
+		if !kup {
+			return
+		}
+
+		descriptor := new(resourcepb.PackageDescriptor)
+		if err := protojson.Unmarshal(evt.Data, descriptor); err != nil {
+			logger.Error("parse package descriptor failed", "err", err)
+			return
+		}
+
+		logger.Info("updating service",
+			"name", descriptor.Name,
+			"PublisherID", descriptor.PublisherID,
+			"id", descriptor.Id,
+			"version", descriptor.Version)
+
+		token, err := security.GetLocalToken(srv.Mac)
+		if err != nil {
+			logger.Error("get local token failed", "err", err)
+			return
+		}
+
+		if srv.stopService(service) == nil {
+			if srv.uninstallService(token, descriptor.PublisherID, descriptor.Id, service["Version"].(string), true) == nil {
+				if err := srv.installService(token, descriptor); err != nil {
+					logger.Error("service update failed", "err", err)
+				} else {
+					logger.Info("service updated", "name", service["Name"])
+				}
+			}
+		}
+	}
+}
 
 // UninstallService removes a service from the current node.
 // It authenticates with the token extracted from ctx and delegates to uninstallService.

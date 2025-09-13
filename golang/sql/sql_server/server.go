@@ -348,7 +348,7 @@ func main() {
 	srv.Keywords = []string{"SQL", "Database", "Service"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
-	srv.Dependencies = make([]string, 0)
+	srv.Dependencies = []string{ "rbac.RbacService", "log.LogService" }
 	srv.Permissions = []interface{}{
 		// ---- Stop the SQL service (service-level admin)
 		map[string]interface{}{
@@ -417,11 +417,19 @@ func main() {
 
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
-
-	// no args -> show usage for parity with echo example
 	if len(args) == 0 {
-		printUsage()
-		return
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
 	}
 
 	for _, a := range args {

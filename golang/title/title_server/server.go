@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -805,6 +806,21 @@ func main() {
 
 	// --------------- CLI: --describe / --health ---------------
 	args := os.Args[1:]
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
+	}
+
 	if len(args) > 0 {
 		for _, a := range args {
 			switch strings.ToLower(a) {
@@ -849,6 +865,13 @@ func main() {
 				_, _ = os.Stdout.Write(b)
 				_, _ = os.Stdout.Write([]byte("\n"))
 				return
+			case "--help", "-h", "/?":
+				printUsage()
+				return
+			case "--version", "-v":
+				fmt.Printf("%s\n", srv.Version)
+				return
+
 			}
 		}
 
@@ -896,4 +919,17 @@ func main() {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `Usage:
+  %[1]s [--describe|--health]
+  %[1]s <service-id> [config-path]
+
+Options:
+  --describe   Print service metadata as JSON and exit.
+  --health     Print service health as JSON and exit.
+
+If no arguments are given, the service will start normally.
+`, filepath.Base(os.Args[0]))
 }

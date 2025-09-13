@@ -3,7 +3,6 @@ package event_client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
@@ -432,7 +431,6 @@ func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *ev
 			for nb_try_connect > 0 {
 				err := client.run()
 				if err != nil && nb_try_connect == 0 {
-					fmt.Println("Fail to create event client: ", client.GetAddress(), client.GetId(), err)
 					return
 				}
 				time.Sleep(500 * time.Millisecond) // wait five seconds.
@@ -443,12 +441,13 @@ func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *ev
 
 	registered := false
 	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
+
 		err := client.subscribe(name, uuid, fct)
 		if err == nil {
 			registered = true
 		} else {
 			nbTry--
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}
 

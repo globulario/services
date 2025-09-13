@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -498,6 +498,7 @@ func getEventClient() (*event_client.Event_Client, error) {
 // configuration changes on this service id, and blocks until SIGINT/SIGTERM.
 // Public signature preserved.
 func StartService(s Service, srv *grpc.Server) error {
+	
 	address := "0.0.0.0"
 	lis, err := net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
@@ -553,38 +554,47 @@ func StopService(s Service, srv *grpc.Server) error {
 // etcd helpers (local client + watch)
 // ------------------------------
 
+// services.go
 func etcdClientLocal() (*clientv3.Client, error) {
-	hostPort, _ := config.GetAddress()
-	host := hostPort
-	if i := strings.Index(hostPort, ":"); i > 0 {
-		host = hostPort[:i]
+
+	// Reuse the same endpoints derivation so we always hit the DNS name.
+	eps := config.GetEtcdEndpointsHostPorts()
+
+	tlsCfg, _ := config.GetEtcdTLS() // returns nil for http
+	cfg := clientv3.Config{
+		Endpoints:   eps,
+		DialTimeout: 5 * time.Second,
+		TLS:         tlsCfg,
 	}
-	if host == "" {
-		host = "127.0.0.1"
+	if tlsCfg == nil {
+		cfg.DialOptions = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	}
-	endpoints := []string{"127.0.0.1:2379", host + ":2379"}
-	endpoints = unique(endpoints)
-	return clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 3 * time.Second,
-		// Insecure etcd (HTTP) is the default in this stack; adjust if you enable TLS.
-	})
+
+	slog.Info("etcdClient: building client",
+		"endpoints", eps,
+		"tls", tlsCfg != nil,
+		"servername", func() string {
+			if tlsCfg != nil {
+				return tlsCfg.ServerName
+			}
+			return ""
+		}(),
+	)
+
+	return clientv3.New(cfg)
 }
 
-func unique(ss []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(ss))
-	for _, s := range ss {
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
-	}
-	sort.Strings(out)
-	return out
-}
-
+// watchDesiredConfig monitors the etcd key corresponding to the service's configuration
+// and applies updates to the service instance when changes are detected. It listens for
+// create or modify events on the configuration key, fetches the updated configuration,
+// and applies relevant changes to the service. If the service's port or proxy settings
+// are changed, a warning is logged indicating that a restart is required for the changes
+// to take effect. The updated configuration is also broadcast to the event bus to maintain
+// compatibility with legacy listeners.
+//
+// Parameters:
+//   s   - The service instance to monitor and update.
+//   srv - The gRPC server instance associated with the service.
 func watchDesiredConfig(s Service, srv *grpc.Server) {
 	cli, err := etcdClientLocal()
 	if err != nil {

@@ -540,7 +540,6 @@ func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*
 	}
 	publish := map[string]interface{}{"action": "publish", "name": rqst.Evt.Name, "data": rqst.Evt.Data}
 	srv.actions <- publish
-	srv.logger.Info("Publish: ok", "channel", rqst.Evt.Name, "size", len(rqst.Evt.Data))
 	return &eventpb.PublishResponse{Result: true}, nil
 }
 
@@ -633,9 +632,21 @@ func main() {
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
 	}
+	
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -674,6 +685,12 @@ func main() {
 			}
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
+			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Fprintf(os.Stdout, "%s\n", srv.Version)
 			return
 		}
 	}

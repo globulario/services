@@ -31,40 +31,80 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/struCoder/pidusage"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"gopkg.in/yaml.v3"
 )
 
+//
 // =====================================================================================
 // Prometheus metrics
 // =====================================================================================
+//
 
 var (
 	servicesCpuUsage    *prometheus.GaugeVec
 	servicesMemoryUsage *prometheus.GaugeVec
 )
 
+//
+// =====================================================================================
+/*
+   RUNTIME SYNC
+
+   Helpers to reconcile an in-memory service map `s` with authoritative runtime
+   info stored in etcd (via config.{Get,Put}Runtime). This reduces races and
+   fixes "duplicate start" problems caused by stale PIDs in config maps.
+*/
+// =====================================================================================
+//
+
+// syncFromRuntime copies Process/ProxyProcess (and optionally Port/State) from runtime into s.
+func syncFromRuntime(s map[string]interface{}) {
+	id := Utility.ToString(s["Id"])
+	if id == "" {
+		return
+	}
+	if rt, _ := config.GetRuntime(id); rt != nil {
+		if v := rt["Process"]; v != nil {
+			s["Process"] = v
+		}
+		if v := rt["ProxyProcess"]; v != nil {
+			s["ProxyProcess"] = v
+		}
+		if v := rt["State"]; v != nil {
+			s["State"] = v
+		}
+		if v := rt["Port"]; v != nil {
+			s["Port"] = v
+		}
+	}
+}
+
+//
 // =====================================================================================
 // Process lifecycle (services + proxy)
 // =====================================================================================
+//
 
 /*
-KillServiceProcess terminates a running service process if its PID is set on the
-service configuration map.
+KillServiceProcess terminates a running service process. It:
 
-Side effects (runtime in etcd):
-  - sets Process      = -1
-  - sets ProxyProcess = -1
-  - sets State        = "stopped" (or "failed" when SIGKILL escalation still leaves it alive)
-  - clears LastError
-  - stops the live lease
+  - syncs PIDs from etcd runtime (defensive against stale maps)
+  - sends SIGTERM to the process group (Unix), falls back to SIGKILL if needed
+  - stops the live lease and proxy
+  - updates etcd runtime to a stopped/failed state
 */
 func KillServiceProcess(s map[string]interface{}) error {
+	// Reconcile from runtime first to avoid acting on stale PIDs.
+	syncFromRuntime(s)
+
 	pid := -1
 	if s["Process"] != nil {
 		pid = Utility.ToInt(s["Process"])
 	}
-	if pid == -1 {
-		// Nothing to kill; ensure proxy/runtime are consistent.
+
+	// No PID? Clean up runtime + proxy and exit gracefully.
+	if pid == -1 || pid == 0 {
 		_ = KillServiceProxyProcess(s)
 		_ = config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
 			"Process":      -1,
@@ -78,7 +118,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		// Can't even obtain a handle. Treat as gone and clean up state.
+		// Treat as gone; clean up and move on.
 		slog.Warn("failed to find process to kill (treating as dead)", "pid", pid, "err", err)
 		_ = KillServiceProxyProcess(s)
 		_ = config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
@@ -90,18 +130,17 @@ func KillServiceProcess(s map[string]interface{}) error {
 		return nil
 	}
 
-	// 1) Try graceful stop first
+	// 1) Try graceful stop first.
 	if runtime.GOOS == "windows" {
 		_ = proc.Kill()
 	} else {
-		// Prefer group-terminate if we started service with Setpgid=true.
-		// (negative pid sends the signal to the process group).
+		// Negative PID => signal the whole process group (if our child was started with Setpgid).
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
 			_ = proc.Signal(syscall.SIGTERM)
 		}
 	}
 
-	// 2) Wait up to 5s for the process to die
+	// 2) Wait up to 5s for the process to die.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		dead, _ := isDead(pid)
@@ -111,8 +150,9 @@ func KillServiceProcess(s map[string]interface{}) error {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// 3) If still alive, escalate to hard kill
+	// 3) Escalate to SIGKILL if still alive (Unix).
 	if alive, _ := isAlive(pid); alive && runtime.GOOS != "windows" {
+		// Best-effort: kill any sibling by basename (some services may fork).
 		bin := filepath.Base(Utility.ToString(s["Path"]))
 		if ids, _ := Utility.GetProcessIdsByName(bin); len(ids) > 0 {
 			for _, id := range ids {
@@ -123,7 +163,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 		}
 	}
 
-	// 4) Verify & update state
+	// 4) Verify & update state.
 	if alive, _ := isAlive(pid); alive {
 		err := fmt.Errorf("service pid %d did not exit after SIGTERM/SIGKILL", pid)
 		_ = config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
@@ -133,7 +173,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 		return err
 	}
 
-	// Mark stopped in runtime; stop liveness and proxy
+	// Mark stopped; stop liveness; stop proxy.
 	_ = config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
 		"Process":      -1,
 		"ProxyProcess": -1,
@@ -153,22 +193,36 @@ func StartServiceProcess(s map[string]interface{}, port int) (int, error) {
 	return StartServiceProcessWithWriters(s, port, os.Stdout, os.Stderr)
 }
 
+// acquireStartLock returns an etcd session and a mutex for the service start.
+// Caller must call mu.Unlock(ctx) and sess.Close() when done.
+func acquireStartLock(ctx context.Context, serviceKey string) (*concurrency.Session, *concurrency.Mutex, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	// Short TTL so abandoned locks free themselves quickly.
+	sess, err := concurrency.NewSession(cli, concurrency.WithTTL(10))
+	if err != nil {
+		return nil, nil, err
+	}
+	m := concurrency.NewMutex(sess, "/globular/locks/start/"+serviceKey)
+	if err := m.Lock(ctx); err != nil {
+		_ = sess.Close()
+		return nil, nil, err
+	}
+	return sess, m, nil
+}
+
 /*
-StartServiceProcessWithWriters starts the service, ensures dependencies are up,
-persists desired updates (Port/Proxy) to etcd, updates runtime via etcd, and
-supervises the child process.
+StartServiceProcessWithWriters starts the service and supervises it.
 
-It is cycle-safe and will not infinitely recurse if A depends on B and B depends
-on A.
-
-Dependency formats supported under s["Dependencies"]:
-  - []string{"rbac.RbacService", "log.LogService"}
-  - []any (values ToString-able)
-  - "rbac.RbacService,log.LogService"
-  - map[string]bool or map[string]any (truthy values mean "required")
-
-Readiness for dependencies: simply TCP dial on Address:Port with backoff,
-bounded timeout.
+Key behavior:
+  - Syncs with etcd runtime to avoid acting on stale PIDs.
+  - Short-circuits if the service is already RUNNING and the PID is alive.
+  - Uses a distributed lock to serialize concurrent starts.
+  - Marks state STARTING early; flips to RUNNING after spawn succeeds.
+  - Supervises the child process; updates runtime on exit.
+  - Does a best-effort KillServiceProcess only when needed (no duplicate starts).
 */
 func StartServiceProcessWithWriters(
 	s map[string]interface{},
@@ -177,206 +231,6 @@ func StartServiceProcessWithWriters(
 	stderrWriter io.Writer,
 ) (int, error) {
 	return startServiceProcessWithWritersInternal(s, port, stdoutWriter, stderrWriter, make(map[string]struct{}))
-}
-
-// depShortName extracts the leading token before the first dot (e.g. "log.LogService" -> "log").
-func depShortName(dep string) string {
-	if dep == "" {
-		return ""
-	}
-	parts := strings.Split(dep, ".")
-	if len(parts) == 0 {
-		return strings.ToLower(dep)
-	}
-	return strings.ToLower(parts[0])
-}
-
-// findFreePort binds to 127.0.0.1:0 and returns the chosen port.
-func findFreePort(ownerID string) (int, error) {
-	allocator, err := config.NewDefaultPortAllocator()
-	if err != nil {
-		return 0, err
-	}
-
-	return allocator.Next(ownerID)
-}
-
-func parseDependencies(raw any) []string {
-	out := []string{}
-	switch v := raw.(type) {
-	case nil:
-		return out
-	case []string:
-		for _, s := range v {
-			if ss := strings.TrimSpace(s); ss != "" {
-				out = append(out, ss)
-			}
-		}
-	case []any:
-		for _, x := range v {
-			s := strings.TrimSpace(Utility.ToString(x))
-			if s != "" {
-				out = append(out, s)
-			}
-		}
-	case string:
-		for _, part := range strings.Split(v, ",") {
-			if s := strings.TrimSpace(part); s != "" {
-				out = append(out, s)
-			}
-		}
-	case map[string]bool:
-		for k, ok := range v {
-			if ok {
-				if s := strings.TrimSpace(k); s != "" {
-					out = append(out, s)
-				}
-			}
-		}
-	case map[string]any:
-		for k, val := range v {
-			// treat truthy as required
-			truthy := false
-			switch vv := val.(type) {
-			case bool:
-				truthy = vv
-			default:
-				truthy = Utility.ToString(vv) != "" && Utility.ToString(vv) != "false" && Utility.ToString(vv) != "0"
-			}
-			if truthy {
-				if s := strings.TrimSpace(k); s != "" {
-					out = append(out, s)
-				}
-			}
-		}
-	default:
-		// best-effort stringification
-		if s := strings.TrimSpace(Utility.ToString(v)); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-// ensureDependenciesRunning parses s["Dependencies"], starts missing deps (recursively),
-// and waits for their TCP port to accept connections (bounded, with backoff).
-// If a dependency has no configuration in etcd, it will attempt to discover a local
-// binary in config.GetServicesRoot(), create a minimal desired configuration, save it,
-// and start it. Cycle-safe via 'seen'.
-func ensureDependenciesRunning(s map[string]interface{}, seen map[string]struct{}) error {
-	deps := parseDependencies(s["Dependencies"])
-	if len(deps) == 0 {
-		return nil
-	}
-
-	var errs []string
-	for _, dep := range deps {
-		if dep == "" {
-			continue
-		}
-
-		// 1) Try to get existing config by Id or by Name (best candidate)
-		cfg, _ := config.GetServiceConfigurationById(dep)
-		if cfg == nil {
-			cfg, _ = config.GetServiceConfigurationsByName(dep)
-		}
-
-		// 2) If still nil, discover a local binary and seed a minimal config.
-		if cfg == nil {
-			root := config.GetServicesRoot()
-			if strings.TrimSpace(root) == "" {
-				errs = append(errs, fmt.Sprintf("%s: ServicesRoot is empty; cannot seed", dep))
-				continue
-			}
-
-			bin, err := config.FindServiceBinary(root, depShortName(dep))
-			if err != nil || strings.TrimSpace(bin) == "" {
-				errs = append(errs, fmt.Sprintf("%s: no configuration found and discovery failed: %v", dep, err))
-				continue
-			}
-
-			addr, _ := config.GetAddress()
-			if addr == "" {
-				addr = "127.0.0.1"
-			}
-
-			port, err := findFreePort(dep)
-			if err != nil {
-				errs = append(errs, fmt.Sprintf("%s: could not allocate port: %v", dep, err))
-				continue
-			}
-
-			cfg = map[string]interface{}{
-				"Id":           dep,
-				"Name":         dep,
-				"Path":         bin,
-				"Address":      addr,
-				"Port":         port,
-				"Proxy":        port + 1,
-				"State":        "stopped",
-				"Process":      -1,
-				"ProxyProcess": -1,
-			}
-
-			if err := config.SaveServiceConfiguration(cfg); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: failed to save seeded config: %v", dep, err))
-				continue
-			}
-
-			slog.Info("seeded dependency configuration from services root",
-				"dep", dep, "path", Utility.ToString(cfg["Path"]), "port", Utility.ToInt(cfg["Port"]))
-		}
-
-		depID := Utility.ToString(cfg["Id"])
-		depName := Utility.ToString(cfg["Name"])
-		state := strings.ToLower(Utility.ToString(cfg["State"]))
-		addr := Utility.ToString(cfg["Address"])
-		if addr == "" {
-			addr = "127.0.0.1"
-		}
-		port := Utility.ToInt(cfg["Port"])
-
-		// If there's still no port, allocate one and persist.
-		if port <= 0 {
-			fp, err := findFreePort(depID)
-			if err != nil {
-				errs = append(errs, fmt.Sprintf("%s (id=%s): could not allocate port: %v", depName, depID, err))
-				continue
-			}
-			cfg["Port"] = fp
-			cfg["Proxy"] = fp + 1
-			if err := config.SaveServiceConfiguration(cfg); err != nil {
-				errs = append(errs, fmt.Sprintf("%s (id=%s): failed to save port assignment: %v", depName, depID, err))
-				continue
-			}
-			port = fp
-		}
-
-		// 3) If not running, try to start it.
-		if state != "running" {
-			slog.Info("starting dependency", "dep", firstNonEmpty(depID, depName), "port", port)
-			if _, err := startServiceProcessWithWritersInternal(cfg, port, nil, nil, seen); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: start failed: %v", firstNonEmpty(depID, depName), err))
-				continue
-			}
-		}
-
-		slog.Info("dependency ready", "dep", firstNonEmpty(depID, depName))
-	}
-
-	if len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
-	}
-	return nil
 }
 
 func startServiceProcessWithWritersInternal(
@@ -398,49 +252,78 @@ func startServiceProcessWithWritersInternal(
 	if id == "" && name == "" {
 		return -1, fmt.Errorf("invalid service config: missing Id and Name")
 	}
-	key := id
-	if key == "" {
-		key = name
+	lockKey := id
+	if lockKey == "" {
+		lockKey = name
 	}
-	if _, already := seen[key]; already {
-		slog.Warn("dependency cycle detected (skipping)", "service", key)
-	} else {
-		seen[key] = struct{}{} // mark before to guard recursion
-		if err := ensureDependenciesRunning(s, seen); err != nil {
-			return -1, fmt.Errorf("dependencies not satisfied for %s: %w", key, err)
+
+	// Acquire a short-lived distributed lock per service.
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	sess, mu, err := acquireStartLock(ctx, lockKey)
+	if err != nil {
+		return -1, fmt.Errorf("failed to acquire start lock for %s: %w", lockKey, err)
+	}
+	defer func() {
+		_ = mu.Unlock(context.Background())
+		_ = sess.Close()
+	}()
+
+	// Sync from runtime before deciding anything.
+	syncFromRuntime(s)
+
+	// ---- Fast path: if already running, skip duplicate start ----
+	if rt, _ := config.GetRuntime(id); rt != nil {
+		if rt["State"] != nil && rt["Process"] != nil {
+			state := strings.ToLower(Utility.ToString(rt["State"]))
+			pid := Utility.ToInt(rt["Process"])
+			if state == "starting" {
+				return -1, fmt.Errorf("service %s is already starting", id)
+			}
+			if state == "running" && pid > 0 {
+				if ok, _ := Utility.PidExists(pid); ok {
+					slog.Info("service already running; skipping duplicate start", "id", id, "pid", pid)
+					return pid, nil
+				}
+			}
 		}
 	}
 
-	// Kill any previous instance (best-effort)
+	// Kill any previous instance (best-effort). This uses up-to-date PID due to syncFromRuntime().
 	if err := KillServiceProcess(s); err != nil {
 		return -1, err
 	}
 
-	// Persist desired before spawn so child can read it
+	// Persist desired settings BEFORE spawn so the child reads them.
 	s["Port"] = port
 	s["Proxy"] = port + 1
-	s["State"] = "starting"
 	s["Process"] = -1
 	if err := config.SaveServiceConfiguration(s); err != nil {
 		slog.Warn("failed to persist desired service config before start", "id", s["Id"], "name", s["Name"], "err", err)
 	}
 
+	// Mark "starting" early so other contenders back off.
+	_ = config.PutRuntime(id, map[string]interface{}{
+		"Process":   -1,
+		"State":     "starting",
+		"LastError": "",
+	})
+
+	// Resolve & verify service binary path.
 	path := Utility.ToString(s["Path"])
 	if path == "" || !Utility.Exists(path) {
 		return -1, fmt.Errorf("service binary not found: %s (service=%s id=%s)", path, name, id)
 	}
-
-	// Ensure executable bit on Unix
-	if fixed, err := config.ResolveServiceExecutable(Utility.ToString(s["Path"])); err == nil {
+	if fixed, err := config.ResolveServiceExecutable(path); err == nil {
 		s["Path"] = fixed
 	} else {
 		slog.Warn("service path not executable", "id", id, "name", name, "path", s["Path"], "err", err)
 		return -1, fmt.Errorf("service path not executable: %s (service=%s id=%s): %w", path, name, id, err)
 	}
-
 	path = Utility.ToString(s["Path"])
 
-	// CHILD ARGUMENTS: only the Id. The service will fetch its config by Id from etcd.
+	// Spawn: only the Id as arg; service fetches its config from etcd.
 	cmd := exec.Command(path, id)
 	cmd.Dir = filepath.Dir(path)
 	if runtime.GOOS != "windows" {
@@ -455,6 +338,7 @@ func startServiceProcessWithWritersInternal(
 	if err != nil {
 		return -1, err
 	}
+
 	var startErrBuf bytes.Buffer
 
 	doneStdout := make(chan struct{})
@@ -484,27 +368,31 @@ func startServiceProcessWithWritersInternal(
 		_ = stderrR.Close()
 		<-doneStdout
 		<-doneStderr
-		slog.Error("failed to start service", "name", name, "id", id, "err", err,
-			"stderr", strings.TrimSpace(startErrBuf.String()))
+		slog.Error("failed to start service", "name", name, "id", id, "err", err, "stderr", strings.TrimSpace(startErrBuf.String()))
+		_ = config.PutRuntime(id, map[string]interface{}{
+			"Process":   -1,
+			"State":     "failed",
+			"LastError": err.Error(),
+		})
 		return -1, err
 	}
 
 	pid := cmd.Process.Pid
 	slog.Info("service process started", "name", name, "id", id, "pid", pid, "port", port, "proxy", port+1)
 
-	// Update ONLY runtime in etcd
+	// Update runtime to RUNNING.
 	_ = config.PutRuntime(id, map[string]interface{}{
 		"Process":   pid,
 		"State":     "running",
 		"LastError": "",
 	})
 
-	// mark live
+	// Start liveness lease.
 	if _, err := config.StartLive(id, 15); err != nil {
 		slog.Warn("failed to start etcd live lease", "id", id, "err", err)
 	}
 
-	// Supervise
+	// Supervise: capture exit and update runtime.
 	go func() {
 		err := cmd.Wait()
 		_ = stdout.Close()
@@ -515,8 +403,7 @@ func startServiceProcessWithWritersInternal(
 		state := "stopped"
 		if err != nil {
 			state = "failed"
-			slog.Error("service process exited with error",
-				"name", name, "id", id, "pid", pid, "err", err)
+			slog.Error("service process exited with error", "name", name, "id", id, "pid", pid, "err", err)
 		} else {
 			slog.Info("service process stopped", "name", name, "id", id, "pid", pid)
 		}
@@ -531,50 +418,61 @@ func startServiceProcessWithWritersInternal(
 				return ""
 			}(),
 		})
-
 		config.StopLive(id)
-		// Optional: restart policy could re-read desired here.
 	}()
 
 	return pid, nil
 }
 
+//
 // -------------------------------------------------------------------------------------
 // PROXY MANAGEMENT
 // -------------------------------------------------------------------------------------
+//
 
 /*
-StartServiceProxyProcess launches the gRPC-Web proxy (grpcwebproxy) for a running service.
+StartServiceProxyProcess launches grpcwebproxy for a running service.
 
-Fixes vs. previous version:
-  • If ProxyProcess is set but that PID is not actually running, we clear it and try to start again
-    instead of failing with "proxy already exists". (This is the root cause behind your logs.)
-  • We actively probe the backend gRPC port before starting the proxy to avoid immediate exits.
-  • Improved binary resolution (PATH, <globular>/bin, <executable-dir>/bin) with clearer logs.
-  • More robust supervision + KeepAlive restart when the backend is still up.
-  • Runtime state is kept accurate even if the proxy exits unexpectedly.
-
-Arguments:
-  - s: service configuration map (must have Process != -1 and Port set)
-  - certificateAuthorityBundle, certificate: filenames located under the TLS dir
-    (<config>/tls/<name>.<domain>/) to use when TLS is enabled.
-
-Returns:
-  - proxy PID (int) on success
-  - error on failure (and runtime updated accordingly)
+Defenses:
+  - Sync runtime first (avoid stale ProxyProcess PIDs).
+  - If proxy port is already bound, assume another instance is serving and skip.
+  - If ProxyProcess is set but dead, clear it and continue.
+  - Try-lock to avoid concurrent proxy starts.
+  - Supervise and clear runtime ProxyProcess on exit.
 */
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string) (int, error) {
+	// Reconcile from runtime; needed for correct Process/ProxyProcess decisions.
+	syncFromRuntime(s)
+
 	id := Utility.ToString(s["Id"])
 	name := Utility.ToString(s["Name"])
 
-	// The backend service must be running
+	// Backend service must be running.
 	servicePid := Utility.ToInt(s["Process"])
-	if servicePid == -1 {
+	if servicePid == -1 || servicePid == 0 {
 		return -1, errors.New("service process pid must not be -1")
 	}
 
-	// If we THINK a proxy is already running, verify the PID before refusing to start.
-	if pid := Utility.ToInt(s["ProxyProcess"]); pid != -1 {
+	// Per-service try-lock to avoid double proxy start.
+	cli, err := config.GetEtcdClient()
+	if err == nil && cli != nil {
+		if sess, e := concurrency.NewSession(cli, concurrency.WithTTL(8)); e == nil {
+			m := concurrency.NewMutex(sess, "/globular/locks/proxy/"+id)
+			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+			defer cancel()
+			if e := m.TryLock(ctx); e != nil {
+				_ = sess.Close()
+				return -1, fmt.Errorf("proxy start in progress for %s", id)
+			}
+			defer func() {
+				_ = m.Unlock(context.Background())
+				_ = sess.Close()
+			}()
+		}
+	}
+
+	// If we think a proxy is running, verify its PID.
+	if pid := Utility.ToInt(s["ProxyProcess"]); pid > 0 {
 		if alive, _ := Utility.PidExists(pid); alive {
 			return -1, fmt.Errorf("proxy already exists for service %s (pid %d)", name, pid)
 		}
@@ -583,7 +481,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		slog.Warn("found stale proxy pid; cleared and retrying start", "service", name, "id", id, "stale_pid", pid)
 	}
 
-	// Resolve service address:port the proxy should talk to.
+	// Resolve backend address:port.
 	servicePort := Utility.ToInt(s["Port"])
 	address := Utility.ToString(s["Address"])
 	if address == "" {
@@ -594,12 +492,12 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 	backend := net.JoinHostPort(address, strconv.Itoa(servicePort))
 
-	// Wait briefly for the backend port to be open (avoid races).
+	// Briefly wait for backend to listen (avoid races).
 	if ok := waitTcpOpen(backend, 3*time.Second); !ok {
 		slog.Warn("starting proxy but backend is not listening yet (will try anyway)", "backend", backend)
 	}
 
-	// Build proxy args
+	// Build proxy args.
 	cmdName := "grpcwebproxy"
 	if !strings.HasSuffix(cmdName, ".exe") && runtime.GOOS == "windows" {
 		cmdName += ".exe"
@@ -610,6 +508,14 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	credsDir := filepath.Join(config.GetConfigDir(), "tls", nameCfg+"."+domain)
 	proxyPort := Utility.ToInt(s["Proxy"])
 	tlsEnabled := Utility.ToBool(s["TLS"])
+
+	// If desired proxy port is already bound, assume proxy is already running and skip.
+	if portInUse(net.JoinHostPort("0.0.0.0", strconv.Itoa(proxyPort))) || portInUse(net.JoinHostPort("[::]", strconv.Itoa(proxyPort))) {
+		slog.Info("grpcwebproxy already bound; skipping start", "service", name, "id", id, "port", proxyPort)
+		// Keep runtime state consistent (service is running). We don't know the external proxy PID.
+		_ = config.PutRuntime(id, map[string]interface{}{"State": "running"})
+		return 0, nil
+	}
 
 	args := []string{
 		"--backend_addr=" + backend,
@@ -629,7 +535,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 			"--run_http_server=false",
 			"--run_tls_server=true",
 			"--server_http_tls_port="+strconv.Itoa(proxyPort),
-			"--server_tls_key_file="+filepath.Join(credsDir, "server.pem"),
+			"--server_tls_key_file="+filepath.Join(credsDir, "server.key"),
 			"--server_tls_client_ca_files="+filepath.Join(credsDir, certificateAuthorityBundle),
 			"--server_tls_cert_file="+filepath.Join(credsDir, certificate),
 		)
@@ -642,7 +548,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		)
 	}
 
-	// Resolve grpcwebproxy binary
+	// Resolve grpcwebproxy binary.
 	cmdPath, cmdDir, err := resolveGrpcWebProxy(cmdName)
 	if err != nil {
 		return -1, err
@@ -653,8 +559,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	if runtime.GOOS != "windows" {
 		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	}
-
-	// Pipe through to parent logs (noisy is better than silent here).
 	proxy.Stdout = os.Stdout
 	proxy.Stderr = os.Stderr
 
@@ -663,18 +567,15 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 	proxyPid := proxy.Process.Pid
 
-	slog.Info("grpcwebproxy started",
-		"service", name, "id", id,
-		"backend", backend, "port", proxyPort,
-		"tls", tlsEnabled, "pid", proxyPid, "path", cmdPath)
+	slog.Info("grpcwebproxy started", "service", name, "id", id, "backend", backend, "port", proxyPort, "tls", tlsEnabled, "pid", proxyPid, "path", cmdPath)
 
-	// Update runtime: ProxyProcess + State
+	// Update runtime: ProxyProcess + State.
 	_ = config.PutRuntime(id, map[string]interface{}{
 		"ProxyProcess": proxyPid,
 		"State":        "running",
 	})
 
-	// Publish updated service configuration to listeners (event bus), best-effort
+	// Best-effort event: publish updated service config to listeners.
 	if str, _ := Utility.ToJson(s); str != "" {
 		if address, _ := config.GetAddress(); address != "" {
 			if ec, err := getEventClient(address); err == nil {
@@ -683,7 +584,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		}
 	}
 
-	// Supervise proxy
+	// Supervise proxy.
 	go func() {
 		err := proxy.Wait()
 		if err != nil {
@@ -691,30 +592,20 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		} else {
 			slog.Info("grpcwebproxy stopped", "service", name, "id", id, "pid", proxyPid)
 		}
-
-		// Clear runtime proxy pid if it still points to us
-		_ = config.PutRuntime(id, map[string]interface{}{
-			"ProxyProcess": -1,
-		})
-
-		// KeepAlive restart if backend is up
-		scEtcd, errCfg := config.GetServiceConfigurationById(id)
-		if errCfg != nil || scEtcd == nil {
-			return
-		}
-		backendPid := Utility.ToInt(scEtcd["Process"])
-		keepAlive := Utility.ToBool(scEtcd["KeepAlive"])
-		if backendPid != -1 && keepAlive {
-			slog.Info("keepalive: restarting grpcwebproxy", "service", scEtcd["Name"], "id", scEtcd["Id"])
-			_, _ = StartServiceProxyProcess(scEtcd, certificateAuthorityBundle, certificate)
-		}
+		// Clear runtime proxy PID if it still points to us.
+		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
 	}()
 
 	return proxyPid, nil
 }
 
-// KillServiceProxyProcess terminates the grpcwebproxy for a service if present and updates etcd runtime.
+/*
+KillServiceProxyProcess terminates grpcwebproxy for a service if present and updates etcd runtime.
+*/
 func KillServiceProxyProcess(s map[string]interface{}) error {
+	// Reconcile from runtime to avoid stale PIDs.
+	syncFromRuntime(s)
+
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid <= 0 {
 		return nil
@@ -722,7 +613,7 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 
 	proc, _ := os.FindProcess(pid)
 
-	// Graceful first
+	// Graceful first.
 	if runtime.GOOS == "windows" {
 		_ = proc.Kill()
 	} else {
@@ -730,7 +621,7 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		_ = proc.Signal(syscall.SIGTERM)
 	}
 
-	// Wait up to 5s
+	// Wait up to 5s.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if ok, _ := Utility.PidExists(pid); !ok {
@@ -739,7 +630,7 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Escalate if needed
+	// Escalate if needed.
 	if ok, _ := Utility.PidExists(pid); ok {
 		if runtime.GOOS == "windows" {
 			_ = proc.Kill()
@@ -758,7 +649,7 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 	}
 
 	state := "running"
-	if Utility.ToInt(s["Process"]) == -1 {
+	if Utility.ToInt(s["Process"]) <= 0 {
 		state = "stopped"
 	}
 	return config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
@@ -767,18 +658,22 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 	})
 }
 
+//
+// -------------------------------------------------------------------------------------
+// grpcwebproxy binary resolution
+// -------------------------------------------------------------------------------------
+//
+
 // resolveGrpcWebProxy looks for the grpcwebproxy binary in a few common places and returns (path, dir).
 func resolveGrpcWebProxy(cmdName string) (string, string, error) {
 	// 1) PATH
 	if p, err := exec.LookPath(cmdName); err == nil {
 		return p, filepath.Dir(p), nil
 	}
-
 	// 2) <globular exec>/bin
 	if dir := filepath.Join(config.GetGlobularExecPath(), "bin"); Utility.Exists(filepath.Join(dir, cmdName)) {
 		return filepath.Join(dir, cmdName), dir, nil
 	}
-
 	// 3) <current executable dir>/bin
 	if ex, err := os.Executable(); err == nil {
 		dir := filepath.Join(filepath.Dir(ex), "bin")
@@ -786,7 +681,6 @@ func resolveGrpcWebProxy(cmdName string) (string, string, error) {
 			return filepath.Join(dir, cmdName), dir, nil
 		}
 	}
-
 	return "", "", errors.New("grpcwebproxy executable not found (system PATH or ./bin)")
 }
 
@@ -804,9 +698,11 @@ func waitTcpOpen(hostPort string, timeout time.Duration) bool {
 	return false
 }
 
+//
 // =====================================================================================
 // Process helpers / status
 // =====================================================================================
+//
 
 /*
 GetProcessRunningStatus checks if a given PID represents a currently running process.
@@ -828,57 +724,55 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
+//
 // =====================================================================================
-// ETCD
+// ETCD (single-node bootstrap with DNS-first advertising)
 // =====================================================================================
 
-// sanitizeAdvertiseHost makes sure we don't advertise wildcards or empty hosts.
-// Falls back to 127.0.0.1 for local dev.
-func sanitizeAdvertiseHost(h string) string {
-	h = strings.TrimSpace(h)
-	switch strings.ToLower(h) {
-	case "", "0.0.0.0", "::", "[::]":
-		return "127.0.0.1"
-	case "localhost":
-		return "127.0.0.1"
-	default:
-		return h
-	}
-}
+/*
+StartEtcdServer launches etcd using a generated config file. It:
 
-// StartEtcdServer starts etcd in the background, waits until it's ready,
-// then returns. It no longer blocks for the lifetime of etcd.
+  - Builds listen/advertise URLs (DNS-first) and optional TLS sections.
+  - Skips start if a healthy etcd is already reachable at the advertised URL.
+  - Refuses to start if the listen ports are in use but the endpoint is unhealthy.
+  - Waits for readiness (HTTP /health or TCP).
+  - Handles SIGTERM for graceful shutdown.
+
+The generated config is written to <config>/etcd.yml and data to <data>/etcd-data.
+*/
 func StartEtcdServer() error {
-	const readyTimeout = 60 * time.Second // more forgiving than 15s
+	const readyTimeout = 60 * time.Second
 	const probeEvery = 200 * time.Millisecond
 
 	localConfig, err := config.GetLocalConfig(true)
 	if err != nil {
 		return err
 	}
-	protocol := Utility.ToString(localConfig["Protocol"])
+
+	protocol := strings.ToLower(Utility.ToString(localConfig["Protocol"]))
 	if protocol == "" {
 		protocol = "http"
 	}
 
-	// host we advertise (no port)
-	hostPort, _ := config.GetAddress()
-	host := hostPort
-	if i := strings.Index(hostPort, ":"); i > 0 {
-		host = hostPort[:i]
-	}
-	host = sanitizeAdvertiseHost(host) // avoid advertising 0.0.0.0 / blank / "::"
-
+	// Service identity.
 	name := Utility.ToString(localConfig["Name"])
 	if name == "" {
 		name, _ = config.GetName()
 	}
+	domain, _ := config.GetDomain()
+
+	// The advertised host is the stable DNS name that clients will use.
+	advHost := name
+	if domain != "" && !strings.Contains(name, ".") {
+		advHost = name + "." + domain
+	}
+	advHost = strings.TrimSpace(advHost)
 
 	dataDir := config.GetDataDir() + "/etcd-data"
 	_ = Utility.CreateDirIfNotExist(dataDir)
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
 
-	// seed with any existing cfg
+	// Seed from existing cfg if present.
 	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
 		if data, err := os.ReadFile(cfgPath); err == nil {
@@ -886,20 +780,20 @@ func StartEtcdServer() error {
 		}
 	}
 
-	// Decide final scheme (may fall back to http if TLS files missing)
+	// TLS
 	scheme := protocol
 	wantTLS := (protocol == "https")
 	var certFile, keyFile, caFile string
 	var clientCertFile, clientKeyFile string
 
 	if wantTLS {
-		domain, _ := config.GetDomain()
-		certDir := config.GetConfigDir() + "/tls/" + name + "." + domain
-		certFile = certDir + "/server.crt"
-		keyFile = certDir + "/server.pem"
-		caFile = certDir + "/ca.crt"
-		clientCertFile = certDir + "/client.crt"
-		clientKeyFile = certDir + "/client.pem"
+
+		certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
+		certFile = filepath.Join(certDir, "server.crt")
+		keyFile = filepath.Join(certDir, "server.pem")
+		caFile = filepath.Join(certDir, "ca.crt")
+		clientCertFile = filepath.Join(certDir, "client.crt")
+		clientKeyFile = filepath.Join(certDir, "client.pem")
 
 		if !(Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile)) {
 			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
@@ -907,19 +801,19 @@ func StartEtcdServer() error {
 			wantTLS = false
 			scheme = "http"
 		} else {
-			// Only enable client-cert-auth if we actually have a client cert we can use in probes.
 			clientCertAuth := Utility.Exists(clientCertFile) && Utility.Exists(clientKeyFile)
-
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
 				"client-cert-auth": clientCertAuth,
-				"trusted-ca-file":  caFile,
+			}
+			if clientCertAuth {
+				nodeCfg["client-transport-security"].(map[string]interface{})["trusted-ca-file"] = caFile
 			}
 			nodeCfg["peer-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
-				"client-cert-auth": true, // peers should mutually auth
+				"client-cert-auth": false,
 				"trusted-ca-file":  caFile,
 			}
 		}
@@ -929,11 +823,16 @@ func StartEtcdServer() error {
 		delete(nodeCfg, "peer-transport-security")
 	}
 
-	// Listeners + advertised addresses
-	listenClientURLs := scheme + "://" + host + ":2379"
-	listenPeerURLs := scheme + "://" + host + ":2380"
-	advertiseClientURLs := scheme + "://" + host + ":2379"
-	initialAdvertisePeerURLs := scheme + "://" + host + ":2380"
+	// DNS-first URLs: bind on all interfaces; advertise the DNS name.
+	const clientPort = "2379"
+	const peerPort = "2380"
+
+	bindHost := "0.0.0.0" // listen wildcard; not used for cert/SAN
+	listenClientURLs := scheme + "://" + net.JoinHostPort(bindHost, clientPort)
+	listenPeerURLs := scheme + "://" + net.JoinHostPort(bindHost, peerPort)
+
+	advertiseClientURLs := scheme + "://" + net.JoinHostPort(advHost, clientPort)
+	initialAdvertisePeerURLs := scheme + "://" + net.JoinHostPort(advHost, peerPort)
 
 	nodeCfg["name"] = name
 	nodeCfg["data-dir"] = dataDir
@@ -941,30 +840,46 @@ func StartEtcdServer() error {
 	nodeCfg["listen-peer-urls"] = listenPeerURLs
 	nodeCfg["advertise-client-urls"] = advertiseClientURLs
 	nodeCfg["initial-advertise-peer-urls"] = initialAdvertisePeerURLs
-	nodeCfg["initial-cluster-token"] = "etcd-cluster-1"
 
-	// initial-cluster
+	// Initial cluster (use advertised DNS hosts).
 	initialCluster := name + "=" + initialAdvertisePeerURLs
 	if peers, ok := localConfig["Peers"].([]interface{}); ok {
 		for _, raw := range peers {
-			peer := raw.(map[string]interface{})
-			ph := Utility.ToString(peer["Hostname"])
-			pd := Utility.ToString(peer["Domain"])
-			if ph != "" && pd != "" {
-				initialCluster += "," + ph + "=" + scheme + "://" + ph + "." + pd + ":2380"
+			peer, _ := raw.(map[string]interface{})
+			ph := strings.TrimSpace(Utility.ToString(peer["Hostname"]))
+			pd := strings.TrimSpace(Utility.ToString(peer["Domain"]))
+			if ph == "" {
+				continue
 			}
+			adv := ph
+			if pd != "" && !strings.Contains(ph, ".") {
+				adv = ph + "." + pd
+			}
+			initialCluster += "," + Utility.ToString(peer["Name"]) + "=" + scheme + "://" + net.JoinHostPort(adv, peerPort)
 		}
 	}
 	nodeCfg["initial-cluster"] = initialCluster
 
-	// cluster state
+	// Cluster state: "existing" if data dir already has a member.
 	if Utility.Exists(filepath.Join(dataDir, "member")) {
 		nodeCfg["initial-cluster-state"] = "existing"
 	} else {
 		nodeCfg["initial-cluster-state"] = "new"
 	}
 
-	// write config
+	// If etcd already healthy at advertised endpoint, do NOT start another.
+	if alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile) {
+		slog.Info("etcd already running and healthy; skipping start", "advertise-client-urls", advertiseClientURLs)
+		return nil
+	}
+
+	// If ports are bound, refuse to start a second server unless endpoint is healthy.
+	if portInUse(net.JoinHostPort(bindHost, peerPort)) || portInUse(net.JoinHostPort(bindHost, clientPort)) {
+		return fmt.Errorf("etcd ports already in use but endpoint not healthy (peer=%s, client=%s)",
+			net.JoinHostPort(bindHost, peerPort), net.JoinHostPort(bindHost, clientPort))
+	}
+
+	// Write config.
 	out, err := yaml.Marshal(nodeCfg)
 	if err != nil {
 		return err
@@ -979,10 +894,7 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	slog.Info("starting etcd",
-		"config", cfgPath,
-		"listen-client-urls", listenClientURLs,
-		"advertise-client-urls", advertiseClientURLs)
+	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", listenClientURLs, "advertise-client-urls", advertiseClientURLs)
 
 	cmd := exec.Command(etcdPath, "--config-file", cfgPath)
 	cmd.Dir = os.TempDir()
@@ -991,7 +903,6 @@ func StartEtcdServer() error {
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	}
-
 	if err := cmd.Start(); err != nil {
 		slog.Error("failed to start etcd", "err", err)
 		return err
@@ -1001,7 +912,7 @@ func StartEtcdServer() error {
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- cmd.Wait() }()
 
-	// Graceful shutdown on SIGINT/SIGTERM
+	// Graceful shutdown on SIGINT/SIGTERM.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -1010,99 +921,29 @@ func StartEtcdServer() error {
 		_ = StopEtcdServer()
 	}()
 
-	// -------- Readiness probe (multi-endpoint) ----------
+	// Readiness probe (DNS-first).
 	deadline := time.Now().Add(readyTimeout)
+	httpClient := healthHTTPClient(scheme, wantTLS, caFile, clientCertFile, clientKeyFile)
 
-	// Build candidates to probe: 127.0.0.1:2379, <host>:2379, plus any host:port from advertise/listen URLs.
-	type endpoint struct {
-		HostPort string // "10.0.0.63:2379"
-		URL      string // "http://10.0.0.63:2379/health"
-	}
-	dedup := make(map[string]struct{})
-	add := func(hp string) {
-		if hp == "" {
-			return
-		}
-		if _, ok := dedup[hp]; ok {
-			return
-		}
-		dedup[hp] = struct{}{}
-	}
-
-	// Always try loopback first
-	add(net.JoinHostPort("127.0.0.1", "2379"))
-	add(net.JoinHostPort(host, "2379"))
-
-	parseClientURLs := func(csv string) {
-		for _, raw := range strings.Split(csv, ",") {
-			u := strings.TrimSpace(raw)
-			if u == "" {
-				continue
-			}
-			uu, err := url.Parse(u)
-			if err != nil {
-				continue
-			}
-			hp := uu.Host
-			if !strings.Contains(hp, ":") {
-				hp = net.JoinHostPort(hp, "2379")
-			}
-			add(hp)
-		}
-	}
-	parseClientURLs(advertiseClientURLs)
-	parseClientURLs(listenClientURLs)
-
-	var candidates []endpoint
-	for hp := range dedup {
-		candidates = append(candidates, endpoint{
-			HostPort: hp,
-			URL:      scheme + "://" + hp + "/health",
-		})
-	}
-
-	// Prepare HTTP client (TLS or not) once.
-	var httpClient *http.Client
-	if scheme == "https" && wantTLS {
-		tlsCfg := &tls.Config{}
-		// Trust the server CA if present, otherwise (dev) skip verify.
-		if b, err := os.ReadFile(caFile); err == nil {
-			cp := x509.NewCertPool()
-			if cp.AppendCertsFromPEM(b) {
-				tlsCfg.RootCAs = cp
-			}
-		}
-		// If etcd was configured with client-cert-auth, present client cert if available.
-		if Utility.Exists(clientCertFile) && Utility.Exists(clientKeyFile) {
-			if cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile); err == nil {
-				tlsCfg.Certificates = []tls.Certificate{cert}
-			}
-		} else if tlsCfg.RootCAs == nil {
-			// Last resort for dev: allow handshake if no CA loaded.
-			tlsCfg.InsecureSkipVerify = true //nolint:gosec
-		}
-		httpClient = &http.Client{
-			Timeout:   1 * time.Second,
-			Transport: &http.Transport{TLSClientConfig: tlsCfg},
-		}
-	} else {
-		httpClient = &http.Client{Timeout: 1 * time.Second}
-	}
-
-	probeOne := func(ep endpoint) bool {
-		// First try HTTP /health
-		if resp, err := httpClient.Get(ep.URL); err == nil {
+	probeOne := func(u string) bool {
+		// HTTP /health
+		if resp, err := httpClient.Get(u + "/health"); err == nil {
 			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				slog.Info("etcd is healthy", "endpoint", ep.URL)
+				slog.Info("etcd is healthy", "endpoint", u)
 				return true
 			}
 		}
-		// Fallback: check TCP open
-		if conn, err := net.DialTimeout("tcp", ep.HostPort, 500*time.Millisecond); err == nil {
+		// Fallback: TCP open.
+		uu, _ := url.Parse(u)
+		hp := uu.Host
+		if !strings.Contains(hp, ":") {
+			hp = net.JoinHostPort(hp, "2379")
+		}
+		if conn, err := net.DialTimeout("tcp", hp, 500*time.Millisecond); err == nil {
 			conn.Close()
-			slog.Info("etcd TCP port open; proceeding", "endpoint", ep.HostPort)
+			slog.Info("etcd TCP port open; proceeding", "endpoint", hp)
 			return true
 		}
 		return false
@@ -1117,7 +958,7 @@ func StartEtcdServer() error {
 			return fmt.Errorf("etcd exited early: %w", err)
 		default:
 		}
-		for _, ep := range candidates {
+		for _, ep := range config.GetEtcdEndpointsHostPorts() {
 			if probeOne(ep) {
 				slog.Info("etcd is ready")
 				return nil
@@ -1143,7 +984,7 @@ func StartEtcdServer() error {
 var etcdCmdMu sync.Mutex
 var etcdCmd *exec.Cmd
 
-func setEtcdCmd(c *exec.Cmd) { etcdCmdMu.Lock(); defer etcdCmdMu.Unlock(); etcdCmd = c }
+func setEtcdCmd(c *exec.Cmd) { etcdCmdMu.Lock(); etcdCmd = c; etcdCmdMu.Unlock() }
 
 // StopEtcdServer gracefully stops the etcd process started by StartEtcdServer.
 func StopEtcdServer() error {
@@ -1184,9 +1025,68 @@ func findEtcdBinary() (string, error) {
 	return "", errors.New("etcd binary not found in PATH")
 }
 
+// --- small local helpers ---
+
+func portInUse(hp string) bool {
+	ln, err := net.Listen("tcp", hp)
+	if err != nil {
+		return true
+	}
+	_ = ln.Close()
+	return false
+}
+
+func healthHTTPClient(scheme string, wantTLS bool, ca, clientCrt, clientKey string) *http.Client {
+	tr := &http.Transport{}
+	if wantTLS {
+		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+		if ca != "" && Utility.Exists(ca) {
+			pool := x509.NewCertPool()
+			b, _ := os.ReadFile(ca)
+			pool.AppendCertsFromPEM(b)
+			tlsCfg.RootCAs = pool
+		}
+		if Utility.Exists(clientCrt) && Utility.Exists(clientKey) {
+			crt, err := tls.LoadX509KeyPair(clientCrt, clientKey)
+			if err == nil {
+				tlsCfg.Certificates = []tls.Certificate{crt}
+			}
+		}
+
+		// IMPORTANT: set SNI
+		address, _ := config.GetAddress()
+		host := strings.Split(address, ":")[0]
+		if host == "" {
+			host = "localhost"
+		}
+		tlsCfg.ServerName = host
+		tr.TLSClientConfig = tlsCfg
+	}
+	return &http.Client{Transport: tr, Timeout: 3 * time.Second}
+}
+
+func alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile string) bool {
+	httpClient := healthHTTPClient(scheme, scheme == "https", caFile, clientCertFile, clientKeyFile)
+
+	for _, u := range config.GetEtcdEndpointsHostPorts() {
+		resp, err := httpClient.Get(u + "/health")
+		if err != nil {
+			continue
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			return true
+		}
+	}
+	return false
+}
+
+//
 // =====================================================================================
 // Envoy
 // =====================================================================================
+//
 
 /*
 StartEnvoyProxy starts Envoy with the config file at <config>/envoy.yml,
@@ -1233,34 +1133,36 @@ func StartEnvoyProxy() error {
 	return nil
 }
 
+//
 // =====================================================================================
 // Monitoring (Prometheus / node_exporter / alertmanager)
 // =====================================================================================
+//
 
 /*
 StartProcessMonitoring starts Prometheus, Alertmanager, and node_exporter (best-effort),
 exposes internal metrics at /metrics, and periodically feeds per-process CPU/memory
 metrics for Globular and known services.
 
-Arguments:
-  - protocol: "http" or "https" to configure Prometheus web UI
-  - httpPort: the Globular HTTP port to scrape internal metrics
-  - exit:     a channel to signal termination of the metrics feeder loop
+Args:
+  - protocol: "http" or "https" for Prometheus web UI
+  - httpPort: Globular HTTP port to scrape internal metrics
+  - exit:     signal channel to stop the feeder
 */
 func StartProcessMonitoring(protocol string, httpPort int, exit chan bool) error {
-	// If Prometheus is already running, do nothing
+	// If Prometheus is already running, do nothing.
 	if ids, err := Utility.GetProcessIdsByName("prometheus"); err == nil && len(ids) > 0 {
 		slog.Info("prometheus already running; skipping start")
 		return nil
 	}
 
-	// Expose /metrics
+	// Expose /metrics.
 	http.Handle("/metrics", promhttp.Handler())
 
 	domain, _ := config.GetAddress()
 	domain = strings.Split(domain, ":")[0]
 
-	// Prepare data/config files
+	// Prepare data/config files.
 	dataPath := config.GetDataDir() + "/prometheus-data"
 	_ = Utility.CreateDirIfNotExist(dataPath)
 
@@ -1367,12 +1269,12 @@ inhibit_rules:
 		return err
 	}
 
-	// Register metrics
+	// Register metrics.
 	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "globular_services_cpu_usage_counter", Help: "Monitor the CPU usage of each service."}, []string{"id", "name"})
 	servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "globular_services_memory_usage_counter", Help: "Monitor the memory usage of each service."}, []string{"id", "name"})
 	prometheus.MustRegister(servicesCpuUsage, servicesMemoryUsage)
 
-	// Feed metrics periodically
+	// Feed metrics periodically.
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		defer ticker.Stop()
@@ -1409,7 +1311,7 @@ inhibit_rules:
 		}
 	}()
 
-	// Best-effort Alertmanager and node_exporter
+	// Best-effort Alertmanager and node_exporter.
 	alert := exec.Command("alertmanager", "--config.file", alertYml)
 	alert.Dir = os.TempDir()
 	alert.SysProcAttr = &syscall.SysProcAttr{}
@@ -1431,9 +1333,11 @@ inhibit_rules:
 	return nil
 }
 
+//
 // =====================================================================================
 // Internals
 // =====================================================================================
+//
 
 /*
 crAwareCopy copies from src to dst while treating '\r' (carriage return) as
@@ -1463,7 +1367,7 @@ func crAwareCopy(dst io.Writer, src io.Reader) {
 	}
 }
 
-// Local event client helper (unchanged signature/behavior)
+// Local event client helper (unchanged signature/behavior).
 func getEventClient(address string) (*event_client.Event_Client, error) {
 	if address == "" {
 		address, _ = config.GetAddress()

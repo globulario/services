@@ -27,6 +27,9 @@ var (
 
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+
+	srv *server
+
 )
 
 // Service impl
@@ -322,7 +325,8 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 
 func main() {
-	srv := new(server)
+
+	srv = new(server)
 
 	// Fill ONLY fields that do NOT touch etcd/config yet
 	srv.Name = string(adminpb.File_admin_proto.Services().Get(0).FullName())
@@ -433,11 +437,19 @@ func main() {
 
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
-
-	// if args are empty, print usage information
 	if len(args) == 0 {
-		printUsage()
-		return
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			fmt.Println("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			fmt.Println("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
 	}
 
 	for _, a := range args {
@@ -483,6 +495,16 @@ func main() {
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
+			slog.SetDefault(logger)
+		case "--version", "-v":
+			fmt.Fprintf(os.Stdout, "%s\n", srv.Version)
 		}
 	}
 

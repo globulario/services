@@ -190,7 +190,7 @@ func InitClient(client Client, address string, id string) error {
 	parts := strings.Split(address, ":")
 	domain := parts[0]
 	port := Utility.ToInt(parts[1])
-	isLocal := localAddr == address
+	isLocal := true//  localAddr == address
 
 	// Subject Alternative Name (SAN) details used when installing TLS certs.
 	var sanCountry, sanState, sanCity, sanOrg string

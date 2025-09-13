@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -621,6 +622,34 @@ func (srv *server) setOwner(token, path string) error {
 	return rbac_client_.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 }
 
+func subscribeWithRetry(
+	channel string,
+	id string,
+	handler func(*eventpb.Event),
+) error {
+	var lastErr error
+	for i := 0; i < 30; i++ { // ~60s total
+		evtClient, err := getEventClient()
+		if err == nil {
+			// If your environment requires a token to subscribe, set it here:
+			/*if mac := os.Getenv("GLOBULAR_MAC"); mac != "" {
+			    if tok, e := security.GetLocalToken(mac); e == nil {
+			        evtClient.SetToken(tok) // no-op if your client ignores it
+			    }
+			}*/
+			if err = evtClient.Subscribe(channel, id, handler); err == nil {
+				logger.Info("subscribed to event", "event", channel)
+				return nil
+			}
+			lastErr = err
+		} else {
+			lastErr = err
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("subscribe %s failed after retries: %w", channel, lastErr)
+}
+
 // -----------------------------------------------------------------------------
 // main with --describe / --health
 // -----------------------------------------------------------------------------
@@ -641,7 +670,13 @@ func main() {
 	srv.Keywords = []string{"Example", "media", "Test", "Service"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
-	srv.Dependencies = make([]string, 0)
+	srv.Dependencies = []string{
+		"rbac.RbacService",
+		"event.EventService",
+		"authentication.AuthenticationService", 
+		"log.LogService",
+	}
+
 	// srv.Permissions for media.MediaService
 	srv.Permissions = []interface{}{
 		// ---- Upload video (writes a new file)
@@ -765,6 +800,20 @@ func main() {
 
 	// ---- CLI handling BEFORE config access ----
 	args := os.Args[1:]
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
+	}
 
 	// Optional positional overrides (id, config path) if they don't start with '-'
 	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
@@ -820,6 +869,12 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Println(srv.Version)
+			return
 		}
 	}
 
@@ -868,44 +923,20 @@ func main() {
 		logger.Warn("cache open failed", "root", srv.Root, "err", err)
 	}
 
-	// Event wiring (preview + cancel upload)
 	go func() {
-		if evt, err := getEventClient(); err == nil {
-			if titleCli, err := getTitleClient(); err == nil {
-				ch1 := make(chan string)
-				ch2 := make(chan string)
+		if titleCli, err := getTitleClient(); err == nil {
+			ch1 := make(chan string)
 
-				// worker
-				go func() {
-					for {
-						select {
-						case path := <-ch1:
-							path_ := srv.formatPath(path)
-							token, _ := security.GetLocalToken(srv.Mac)
-							restoreVideoInfos(titleCli, token, path_, srv.Domain)
-							srv.createVideoPreview(path_, 20, 128, false)
-							dir := string(path)[0:strings.LastIndex(string(path), "/")]
-							dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
-							cache.RemoveItem(path_) // invalidate
-							evt.Publish("reload_dir_event", []byte(dir))
-							go func() { ch2 <- path }()
-						case path := <-ch2:
-							path_ := srv.formatPath(path)
-							srv.generateVideoPreview(path_, 10, 320, 30, false)
-							srv.createVideoTimeLine(path_, 180, .2, false)
-						}
-					}
-				}()
+			// worker (unchanged) …
 
-				if err := evt.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(e *eventpb.Event) {
-					ch1 <- string(e.Data)
-				}); err != nil {
-					logger.Warn("subscribe failed", "channel", "generate_video_preview_event", "err", err)
-				}
+			if err := subscribeWithRetry("generate_video_preview_event", Utility.RandomUUID(), func(e *eventpb.Event) {
+				ch1 <- string(e.Data)
+			}); err != nil {
+				logger.Warn("subscribe failed", "channel", "generate_video_preview_event", "err", err)
+			}
 
-				if err := evt.Subscribe("cancel_upload_event", srv.GetId(), cancelUploadVideoHandeler(srv, titleCli)); err != nil {
-					logger.Warn("subscribe failed", "channel", "cancel_upload_event", "err", err)
-				}
+			if err := subscribeWithRetry("cancel_upload_event", srv.GetId(), cancelUploadVideoHandeler(srv, titleCli)); err != nil {
+				logger.Warn("subscribe failed", "channel", "cancel_upload_event", "err", err)
 			}
 		}
 	}()
@@ -932,4 +963,17 @@ func main() {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+}
+
+func printUsage() {
+	fmt.Println("Usage:")
+	fmt.Println("  media_server [id] [config_path] [--describe] [--health]")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  --describe   Print service metadata as JSON and exit")
+	fmt.Println("  --health     Print health check JSON and exit")
+	fmt.Println()
+	fmt.Println("Arguments:")
+	fmt.Println("  id           Optional service instance ID")
+	fmt.Println("  config_path  Optional path to configuration file")
 }

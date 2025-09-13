@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -539,7 +540,22 @@ func main() {
 	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)
 
 	// ---- CLI handling BEFORE config access ----
+
 	args := os.Args[1:]
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
+	}
 
 	// Optional positional overrides (id, config path) if they don't start with '-'
 	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
@@ -593,6 +609,18 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
+		
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Println(srv.Version)
+			return
+		default:
+			// skip unknown flags for now (e.g. positional args)	
+
 		}
 	}
 
@@ -628,4 +656,20 @@ func main() {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `Usage: %s [id] [config_path] [--describe|--health|other-flags]
+
+Options:
+  --describe   Print service metadata as JSON (no config/etcd access)
+  --health     Print health check JSON (no config/etcd access)
+  id           Optional service id (overrides default)
+  config_path  Optional config file path
+
+Examples:
+  %s --describe
+  %s my-monitoring-id /etc/globular/monitoring.json --health
+
+`, filepath.Base(os.Args[0]), filepath.Base(os.Args[0]), filepath.Base(os.Args[0]))
 }

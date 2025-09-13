@@ -2,10 +2,15 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,47 +18,282 @@ import (
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	Utility "github.com/globulario/utility"
 
-	// NEW: zap logger so we can control etcd client verbosity
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-// =============================
-// Etcd client & conventions
-// =============================
-
 var (
-	cliOnce sync.Once
-	cli     *clientv3.Client
-	cliErr  error
-
-	// live leases tracked by supervisor (id -> lease)
-	liveMu     sync.Mutex
-	liveLeases = map[string]*LiveLease{}
+	cliMu     sync.Mutex
+	cliShared *clientv3.Client
 )
-
-type LiveLease struct {
-	LeaseID clientv3.LeaseID
-	cancel  context.CancelFunc
-}
 
 const (
-	etcdPrefix = "/globular/services/"
-	cfgKey     = "config"
-	rtKey      = "runtime"
-	liveKey    = "live"
+	// Allow plaintext only when explicitly bootstrapping/dev.
+	EnvAllowPlaintext = "ETCD_ALLOW_PLAINTEXT_BOOTSTRAP"
+	// Optional override for SNI/ServerName if needed.
+	EnvServerName = "ETCD_SERVER_NAME"
 )
 
-func etcdKey(id, leaf string) string {
-	return etcdPrefix + id + "/" + leaf
+
+// etcdClient returns a healthy shared client, selecting transport automatically.
+// etcdClient returns a healthy shared client, selecting transport automatically.
+func etcdClient() (*clientv3.Client, error) {
+    cliMu.Lock()
+    defer cliMu.Unlock()
+
+    if cliShared != nil {
+        if err := probeEtcdHealthy(cliShared, 3*time.Second); err == nil {
+            return cliShared, nil
+        }
+        _ = cliShared.Close()
+        cliShared = nil
+    }
+
+    eps := etcdEndpointsFromEnv()
+
+    tlsCfg, err := GetEtcdTLS()
+    if err != nil {
+        zap.L().Warn("GetEtcdTLS failed; will try HTTP", zap.Error(err))
+        tlsCfg = nil
+    } else {
+        zap.L().Info("GetEtcdTLS succeeded; will try mTLS/TLS first")
+    }
+
+    // Derive SNI from the first endpoint host.
+    sni := ""
+    if len(eps) > 0 {
+        if u, perr := url.Parse("http://" + eps[0]); perr == nil {
+            host := u.Hostname()
+            if host != "" && net.ParseIP(host) == nil {
+                sni = host
+            }
+        }
+    }
+
+    // Build a "TLS but no client cert" config using system roots.
+    sysPool, _ := x509.SystemCertPool()
+    plainTLS := &tls.Config{
+        MinVersion:         tls.VersionTLS12,
+        InsecureSkipVerify: false,
+        RootCAs:            sysPool,
+        ServerName:         sni, // important for SNI/hostname verification
+    }
+
+    type attempt struct {
+        name     string
+        tls      *tls.Config
+        insecure bool // force HTTP
+    }
+
+    // Order: if we have mTLS config, try that, then plain TLS, then HTTP.
+    // If we have no TLS config, try plain TLS (could work with LE/public cert), then HTTP.
+    var orders []attempt
+    if tlsCfg != nil {
+        orders = []attempt{
+            {name: "mTLS", tls: tlsCfg},
+            {name: "TLS", tls: plainTLS},
+            {name: "HTTP", insecure: true},
+        }
+    } else {
+        orders = []attempt{
+            {name: "TLS", tls: plainTLS},
+            {name: "HTTP", insecure: true},
+        }
+    }
+
+    deadline := time.Now().Add(20 * time.Second)
+    var errs []error
+
+    for time.Now().Before(deadline) {
+        for _, o := range orders {
+            cfg := clientv3.Config{
+                Endpoints:            eps,
+                DialTimeout:          4 * time.Second,
+                DialKeepAliveTime:    10 * time.Second,
+                DialKeepAliveTimeout: 3 * time.Second,
+                Logger:               etcdZapLoggerFromEnv(),
+            }
+            if !o.insecure {
+                cfg.TLS = o.tls
+            }
+
+            zap.L().Info("etcdClient: trying transport", zap.String("mode", o.name), zap.Any("endpoints", eps), zap.Bool("tls", cfg.TLS != nil))
+            c, err := clientv3.New(cfg)
+            if err != nil {
+                errs = append(errs, fmt.Errorf("%s dial: %w", o.name, err))
+                continue
+            }
+            if err := probeEtcdHealthy(c, 3*time.Second); err == nil {
+                cliShared = c
+                return cliShared, nil
+            }
+            errs = append(errs, fmt.Errorf("%s health probe: %w", o.name, err))
+            _ = c.Close()
+        }
+        time.Sleep(400 * time.Millisecond)
+    }
+
+    // Assemble a readable error.
+    var b strings.Builder
+    for i, e := range errs {
+        if i > 0 { b.WriteString(" | ") }
+        b.WriteString(e.Error())
+    }
+    return nil, fmt.Errorf("could not determine etcd transport (mTLS/TLS/HTTP failed; endpoint=%v): %s", eps, b.String())
 }
 
-// etcdZapLoggerFromEnv returns a zap.Logger for the etcd client.
+
+// GetEtcdClient returns the shared healthy etcd client.
+func GetEtcdClient() (*clientv3.Client, error) {
+	return etcdClient()
+}
+
+// GetEtcdEndpointsHostPorts exposes the resolved endpoints (host:port form).
+func GetEtcdEndpointsHostPorts() []string {
+
+	return etcdEndpointsFromEnv()
+}
+
+// probeEtcdHealthy does a simple v3 GET (exercises full client path).
+func probeEtcdHealthy(c *clientv3.Client, to time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), to)
+	defer cancel()
+	_, err := c.Get(ctx, "health-probe", clientv3.WithSerializable())
+	return err
+}
+
+// -----------------------------
+// Endpoint & TLS helpers
+// -----------------------------
+
+func etcdEndpointsFromEnv() []string {
+	// Respect explicit env overrides first (CSV/space/semicolon separated)
+	if s := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); s != "" {
+		return splitCSV(s)
+	}
+	if s := os.Getenv("ETCD_ENDPOINTS"); s != "" {
+		return splitCSV(s)
+	}
+	if s := os.Getenv("ETCDCTL_ENDPOINTS"); s != "" {
+		return splitCSV(s)
+	}
+
+	// Derive the advertised DNS host used by StartEtcdServer (Name + Domain).
+	name := Utility.ToString(GetLocalConfigMust(true)["Name"])
+	if name == "" {
+		if n, _ := GetName(); n != "" {
+			name = n
+		}
+	}
+	dom, _ := GetDomain()
+	host := strings.TrimSpace(name)
+	if dom != "" && !strings.Contains(host, ".") {
+		host = host + "." + dom
+	}
+	if host == "" {
+		host = "localhost" // last resort; better than 0.0.0.0
+	}
+
+	return []string{fmt.Sprintf("%s:2379", host)}
+}
+
+// tiny helper so we don’t ignore errors silently
+func GetLocalConfigMust(withCache bool) map[string]interface{} {
+	cfg, _ := GetLocalConfig(withCache)
+	if cfg == nil {
+		cfg = map[string]interface{}{}
+	}
+	return cfg
+}
+
+
+// GetEtcdTLS returns a *tls.Config for talking to etcd over HTTPS (mTLS).
+// Returns (nil, error) if files are missing/invalid.
+func GetEtcdTLS() (*tls.Config, error) {
+	// Derive the advertised DNS host: name[.domain]
+	name, _ := GetName()
+	domain, _ := GetDomain()
+	advHost := strings.TrimSpace(name)
+	if domain != "" && !strings.Contains(advHost, ".") {
+		advHost = advHost + "." + domain
+	}
+
+	// /etc/globular/config/tls/<advHost>/
+	base := filepath.Join(GetConfigDir(), "tls", advHost)
+	caPath := filepath.Join(base, "ca.crt")
+	clientCrt := filepath.Join(base, "client.crt")
+	clientKey := filepath.Join(base, "client.pem")
+
+	// Verify files exist.
+	if _, err := os.Stat(caPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("CA file %s does not exist", caPath)
+		}
+		return nil, fmt.Errorf("stat CA: %w", err)
+	}
+	if _, err := os.Stat(clientCrt); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("client CRT file %s does not exist", clientCrt)
+		}
+		return nil, fmt.Errorf("stat client CRT: %w", err)
+	}
+	if _, err := os.Stat(clientKey); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("client KEY file %s does not exist", clientKey)
+		}
+		return nil, fmt.Errorf("stat client KEY: %w", err)
+	}
+
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("read CA: %w", err)
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("append CA failed")
+	}
+
+	cert, err := tls.LoadX509KeyPair(clientCrt, clientKey)
+	if err != nil {
+		return nil, fmt.Errorf("load client keypair: %w", err)
+	}
+
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		RootCAs:      pool,
+		Certificates: []tls.Certificate{cert},
+		// Ensure SNI/hostname matches the cert SAN
+		ServerName: advHost,
+	}, nil
+}
+
+func splitCSV(s string) []string {
+	var out []string
+	f := ""
+	for _, r := range s {
+		if r == ',' || r == ';' || r == ' ' {
+			if f != "" {
+				out = append(out, f)
+				f = ""
+			}
+		} else {
+			f += string(r)
+		}
+	}
+	if f != "" {
+		out = append(out, f)
+	}
+	return out
+}
+
+// -----------------------------
+// Logging for etcd client
+// -----------------------------
+
 // GLOB_ETCD_LOG: silent|error|warn|info|debug (default: silent)
 func etcdZapLoggerFromEnv() *zap.Logger {
 	level := strings.ToLower(strings.TrimSpace(os.Getenv("GLOB_ETCD_LOG")))
@@ -91,55 +331,15 @@ func etcdZapLoggerFromEnv() *zap.Logger {
 	}
 }
 
-func etcdClient() (*clientv3.Client, error) {
-	cliOnce.Do(func() {
-		endpoints := detectEtcdEndpoints()
-		if len(endpoints) == 0 {
-			endpoints = []string{"127.0.0.1:2379"}
-		}
-		cli, cliErr = clientv3.New(clientv3.Config{
-			Endpoints:            endpoints,
-			DialTimeout:          3 * time.Second,
-			DialKeepAliveTime:    10 * time.Second,
-			DialKeepAliveTimeout: 3 * time.Second,
-			DialOptions:          []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
-			// KEY: control etcd client verbosity here
-			Logger: etcdZapLoggerFromEnv(),
-			// (Alternative is LogConfig, but Logger is simplest & works across etcd 3.5.x)
-		})
-	})
-	return cli, cliErr
-}
-
-// Derive endpoints from local env (best-effort, no config lookups).
-func detectEtcdEndpoints() []string {
-	if v := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); v != "" {
-		parts := strings.Split(v, ",")
-		var eps []string
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				eps = append(eps, p)
-			}
-		}
-		if len(eps) > 0 {
-			return eps
-		}
-	}
-	// safe default without touching config
-	return []string{"127.0.0.1:2379"}
-}
-
-// =============================
+// -----------------------------
 // Desired/runtime split helpers
-// =============================
-
+// -----------------------------
 var runtimeKeys = map[string]struct{}{
 	"Process":      {},
 	"ProxyProcess": {},
 	"State":        {},
 	"LastError":    {},
-	"ModTime":      {}, // not desired
+	"ModTime":      {}, // ignore in desired
 }
 
 func splitDesiredRuntime(s map[string]interface{}) (desired, runtime map[string]interface{}) {
@@ -149,14 +349,13 @@ func splitDesiredRuntime(s map[string]interface{}) (desired, runtime map[string]
 	}
 	for k, v := range s {
 		if _, ok := runtimeKeys[k]; ok {
-			if k != "ModTime" { // ignore modtime entirely
+			if k != "ModTime" {
 				runtime[k] = v
 			}
 			continue
 		}
 		desired[k] = v
 	}
-	// Ensure ID in desired
 	if _, ok := desired["Id"]; !ok && s["Id"] != nil {
 		desired["Id"] = s["Id"]
 	}
@@ -171,7 +370,6 @@ func mergeDesiredRuntime(desired, runtime map[string]interface{}) map[string]int
 	for k, v := range runtime {
 		out[k] = v
 	}
-	// Fill defaults if absent.
 	if out["Process"] == nil {
 		out["Process"] = -1
 	}
@@ -184,15 +382,22 @@ func mergeDesiredRuntime(desired, runtime map[string]interface{}) map[string]int
 	return out
 }
 
-// =============================
+// -----------------------------
 // Public API (etcd-backed)
-// =============================
+// -----------------------------
 
-// SaveServiceConfiguration saves the given service configuration map to etcd.
-// It expects the map 's' to contain an "Id" key, which is used as the identifier.
-// The function splits the configuration into desired and runtime parts, marshals them to JSON,
-// and stores them under separate keys in etcd. Returns an error if the Id is missing,
-// if the etcd client cannot be created, or if any etcd operation fails.
+const (
+	etcdPrefix = "/globular/services/"
+	cfgKey     = "config"
+	rtKey      = "runtime"
+	liveKey    = "live"
+)
+
+func etcdKey(id, leaf string) string {
+	return etcdPrefix + id + "/" + leaf
+}
+
+// SaveServiceConfiguration persists desired/runtime in separate keys.
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -209,41 +414,34 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	defer cancel()
 
 	desBytes, _ := json.MarshalIndent(desired, "", "  ")
-	_, err = c.Put(ctx, etcdKey(id, cfgKey), string(desBytes))
-	if err != nil {
+	if _, err = c.Put(ctx, etcdKey(id, cfgKey), string(desBytes)); err != nil {
 		return fmt.Errorf("save desired: %w", err)
 	}
 
 	rtBytes, _ := json.Marshal(runtime)
-	_, err = c.Put(ctx, etcdKey(id, rtKey), string(rtBytes))
-	if err != nil {
+	if _, err = c.Put(ctx, etcdKey(id, rtKey), string(rtBytes)); err != nil {
 		return fmt.Errorf("save runtime: %w", err)
 	}
 	return nil
 }
 
-// PutRuntime is a convenience when only runtime changes.
-func PutRuntime(id string, runtime map[string]interface{}) error {
+// IsEtcdHealthy checks any endpoint for health within timeout.
+func IsEtcdHealthy(endpoints []string, to time.Duration) bool {
 	c, err := etcdClient()
 	if err != nil {
-		return err
+		return false
 	}
-	runtime["UpdatedAt"] = time.Now().Unix()
-	rtBytes, _ := json.Marshal(runtime)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
-	_, err = c.Put(ctx, etcdKey(id, rtKey), string(rtBytes))
-	return err
+	for _, ep := range endpoints {
+		if _, err := c.Status(ctx, ep); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
-// GetServicesConfigurations retrieves and merges the desired and runtime configurations
-// for all services stored in etcd under the specified prefix. It returns a slice of maps,
-// each representing the merged configuration for a service. If an error occurs during
-// etcd access or data unmarshalling, it returns the error.
-//
-// The function connects to etcd, fetches all keys with the configured prefix, and
-// separates the desired and runtime configurations by service ID. It then merges
-// these configurations using mergeDesiredRuntime and returns the result.
+// GetServicesConfigurations lists and merges all services under /globular/services/.
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	c, err := etcdClient()
 	if err != nil {
@@ -252,7 +450,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Get all desired configs
 	resp, err := c.Get(ctx, etcdPrefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
@@ -280,7 +477,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 				continue
 			}
 			desiredByID[id] = d
-
 		case rtKey:
 			var r map[string]interface{}
 			if err := json.Unmarshal(kv.Value, &r); err != nil {
@@ -302,20 +498,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	return out, nil
 }
 
-// GetServiceConfigurationById retrieves the configuration of a service by its ID or Name.
-// It first attempts to find the service by an exact ID match in etcd. If found, it merges
-// the desired and runtime configurations and returns the result. If not found by ID, it
-// scans all service configurations and matches by either ID or Name. Returns an error if
-// no matching service is found or if there is a problem accessing etcd.
-//
-// Parameters:
-//   - idOrName: The ID or Name of the service to retrieve.
-//
-// Returns:
-//   - map[string]interface{}: The merged configuration of the service if found.
-//   - error: An error if the service is not found or if there is an issue accessing etcd.
+// GetServiceConfigurationById resolves by exact Id, then by Name among all services.
 func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error) {
-	// Try by Id exact match
 	c, err := etcdClient()
 	if err != nil {
 		return nil, err
@@ -323,44 +507,32 @@ func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	// Read desired
-	dres, err := c.Get(ctx, etcdKey(idOrName, cfgKey))
-	if err == nil && len(dres.Kvs) == 1 {
+	// Try exact Id
+	if dres, err := c.Get(ctx, etcdKey(idOrName, cfgKey)); err == nil && len(dres.Kvs) == 1 {
 		var d map[string]interface{}
 		if json.Unmarshal(dres.Kvs[0].Value, &d) == nil {
-			// runtime (optional)
-			rres, _ := c.Get(ctx, etcdKey(idOrName, rtKey))
 			var r map[string]interface{}
-			if len(rres.Kvs) == 1 {
+			if rres, _ := c.Get(ctx, etcdKey(idOrName, rtKey)); len(rres.Kvs) == 1 {
 				_ = json.Unmarshal(rres.Kvs[0].Value, &r)
 			}
 			return mergeDesiredRuntime(d, r), nil
 		}
 	}
 
-	// Fallback: scan all and match by Name
+	// Fallback: scan and match by Name
 	all, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
 	}
 	for _, s := range all {
-		if Utility.ToString(s["Id"]) == idOrName || Utility.ToString(s["Name"]) == idOrName {
+		if Utility.ToString(s["Id"]) == idOrName || strings.EqualFold(Utility.ToString(s["Name"]), idOrName) {
 			return s, nil
 		}
 	}
 	return nil, fmt.Errorf("no service found with id/name %q", idOrName)
 }
 
-// GetServicesConfigurationsByName retrieves all service configurations that match the given name (case-insensitive).
-// It returns a slice of maps containing the configuration data for each matching service.
-// If no services are found with the specified name, an error is returned.
-//
-// Parameters:
-//   - name: The name of the service to search for (case-insensitive).
-//
-// Returns:
-//   - []map[string]interface{}: A slice of service configuration maps matching the given name.
-//   - error: An error if no matching services are found or if there is a problem retrieving configurations.
+// Plural by-name
 func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
 	all, err := GetServicesConfigurations()
 	if err != nil {
@@ -385,15 +557,9 @@ func nonEmpty(s string) string {
 	return s
 }
 
-// GetServiceConfigurationsByName returns the single best candidate for a service by Name.
-// Selection heuristic among candidates with the same Name:
-//  1) State == "running" preferred
-//  2) Highest UpdatedAt (runtime freshness)
-//  3) Highest Version (semver: major.minor.patch; best-effort)
-//  4) Has a valid Port (>0)
-// If no service with that Name exists, returns an error.
+// Singular by-name: choose the "best" candidate.
 func GetServiceConfigurationsByName(name string) (map[string]interface{}, error) {
-	candidates, err := GetServicesConfigurationsByName(name) // existing plural API
+	candidates, err := GetServicesConfigurationsByName(name)
 	if err != nil {
 		return nil, err
 	}
@@ -425,7 +591,6 @@ func GetServiceConfigurationsByName(name string) (map[string]interface{}, error)
 	}
 
 	getUpdatedAt := func(m map[string]interface{}) int64 {
-		// UpdatedAt is set in runtime maps; JSON may decode as float64
 		switch v := m["UpdatedAt"].(type) {
 		case int64:
 			return v
@@ -449,22 +614,15 @@ func GetServiceConfigurationsByName(name string) (map[string]interface{}, error)
 		return Utility.ToInt(m["Port"]) > 0
 	}
 
-	// Sort by our heuristic (descending: best first)
 	sort.SliceStable(candidates, func(i, j int) bool {
 		a, b := candidates[i], candidates[j]
-
-		// 1) running first
 		if isRunning(a) != isRunning(b) {
 			return isRunning(a)
 		}
-
-		// 2) newest UpdatedAt
 		ua, ub := getUpdatedAt(a), getUpdatedAt(b)
 		if ua != ub {
 			return ua > ub
 		}
-
-		// 3) highest semver
 		va, vb := parseVer(a["Version"]), parseVer(b["Version"])
 		if va.major != vb.major {
 			return va.major > vb.major
@@ -475,18 +633,100 @@ func GetServiceConfigurationsByName(name string) (map[string]interface{}, error)
 		if va.patch != vb.patch {
 			return va.patch > vb.patch
 		}
-
-		// 4) prefers a valid port
 		return hasPort(a) && !hasPort(b)
 	})
-
 	return candidates[0], nil
 }
 
+// -----------------------------
+// Runtime helpers
+// -----------------------------
 
-// =============================
-// Live lease helpers
-// =============================
+// Lightweight runtime getters (kept for compatibility).
+func runtimeKey(id string) string { return fmt.Sprintf("/globular/services/%s/runtime", id) }
+
+func GetRuntime(id string) (map[string]any, error) {
+	if id == "" {
+		return nil, errors.New("GetRuntime: empty id")
+	}
+	cli, err := etcdClient()
+	if err != nil {
+		return nil, fmt.Errorf("GetRuntime: etcd connect: %w", err)
+	}
+	key := runtimeKey(id)
+
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		resp, err := cli.Get(ctx, key, clientv3.WithSerializable())
+		cancel()
+		if err == nil {
+			if len(resp.Kvs) == 0 {
+				nowSec := time.Now().Unix()
+				return map[string]any{"Process": -1, "State": "stopped", "LastError": "", "UpdatedAt": nowSec}, nil
+			}
+			var rt map[string]any
+			if uerr := json.Unmarshal(resp.Kvs[0].Value, &rt); uerr != nil {
+				return nil, fmt.Errorf("GetRuntime: unmarshal: %w", uerr)
+			}
+			if _, ok := rt["UpdatedAt"]; !ok {
+				rt["UpdatedAt"] = time.Now().Unix()
+			}
+			return rt, nil
+		}
+		lastErr = err
+		time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+	}
+	return nil, fmt.Errorf("GetRuntime: etcd get %s: %w", key, lastErr)
+}
+
+func PutRuntime(id string, patch map[string]any) error {
+	if id == "" {
+		return errors.New("PutRuntime: empty id")
+	}
+	if patch == nil {
+		patch = map[string]any{}
+	}
+	current, _ := GetRuntime(id)
+	for k, v := range patch {
+		current[k] = v
+	}
+	current["UpdatedAt"] = time.Now().Unix()
+
+	b, err := json.Marshal(current)
+	if err != nil {
+		return fmt.Errorf("PutRuntime: marshal: %w", err)
+	}
+	cli, err := etcdClient()
+	if err != nil {
+		return fmt.Errorf("PutRuntime: etcd connect: %w", err)
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		_, err = cli.Put(ctx, runtimeKey(id), string(b))
+		cancel()
+		if err == nil {
+			return nil
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	return fmt.Errorf("PutRuntime: etcd put: %w", err)
+}
+
+// -----------------------------
+// Live lease (liveness key)
+// -----------------------------
+
+var (
+	liveMu     sync.Mutex
+	liveLeases = map[string]*LiveLease{}
+)
+
+type LiveLease struct {
+	LeaseID clientv3.LeaseID
+	cancel  context.CancelFunc
+}
 
 func StartLive(id string, ttlSeconds int64) (*LiveLease, error) {
 	c, err := etcdClient()
@@ -505,8 +745,7 @@ func StartLive(id string, ttlSeconds int64) (*LiveLease, error) {
 		return nil, err
 	}
 
-	_, err = c.Put(context.Background(), etcdKey(id, liveKey), "", clientv3.WithLease(g.ID))
-	if err != nil {
+	if _, err = c.Put(context.Background(), etcdKey(id, liveKey), "", clientv3.WithLease(g.ID)); err != nil {
 		_, _ = lease.Revoke(context.Background(), g.ID)
 		return nil, err
 	}
@@ -518,15 +757,15 @@ func StartLive(id string, ttlSeconds int64) (*LiveLease, error) {
 		_, _ = lease.Revoke(context.Background(), g.ID)
 		return nil, err
 	}
-	// drain keep-alives
-	go func() { for range ch {} }()
+	go func() {
+		for range ch {
+		}
+	}()
 
 	ll := &LiveLease{LeaseID: g.ID, cancel: kaCancel}
-
 	liveMu.Lock()
 	liveLeases[id] = ll
 	liveMu.Unlock()
-
 	return ll, nil
 }
 
@@ -540,8 +779,55 @@ func StopLive(id string) {
 		return
 	}
 	ll.cancel()
-	// revoke lease (deletes the /live key)
 	if c, err := etcdClient(); err == nil {
 		_, _ = c.Lease.Revoke(context.Background(), ll.LeaseID)
+	}
+}
+
+// -----------------------------
+// Runtime watcher
+// -----------------------------
+
+type RuntimeEvent struct {
+	ID      string
+	Runtime map[string]interface{}
+}
+
+func WatchRuntimes(ctx context.Context, cb func(RuntimeEvent)) error {
+	c, err := etcdClient()
+	if err != nil {
+		return err
+	}
+
+	wch := c.Watch(ctx, etcdPrefix, clientv3.WithPrefix())
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case wr, ok := <-wch:
+			if !ok {
+				return errors.New("etcd watch channel closed")
+			}
+			for _, ev := range wr.Events {
+				if ev.Kv == nil {
+					continue
+				}
+				key := string(ev.Kv.Key) // /globular/services/<id>/runtime
+				if !strings.HasPrefix(key, etcdPrefix) || !strings.HasSuffix(key, "/"+rtKey) {
+					continue
+				}
+				rest := strings.TrimPrefix(key, etcdPrefix)
+				parts := strings.SplitN(rest, "/", 2)
+				if len(parts) != 2 {
+					continue
+				}
+				id := parts[0]
+				var rt map[string]interface{}
+				if err := json.Unmarshal(ev.Kv.Value, &rt); err != nil {
+					continue
+				}
+				cb(RuntimeEvent{ID: id, Runtime: rt})
+			}
+		}
 	}
 }

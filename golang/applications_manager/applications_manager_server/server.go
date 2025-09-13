@@ -458,8 +458,18 @@ func main() {
 	args := os.Args[1:]
 
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			fmt.Println("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			fmt.Println("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		s.Port = p
 	}
 
 	for _, a := range args {
@@ -501,6 +511,17 @@ func main() {
 			}
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
+			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
+			slog.SetDefault(logger)
+		case "--version", "-v":
+			fmt.Fprintf(os.Stdout, "%s\n", s.Version)
 			return
 		}
 	}

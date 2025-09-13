@@ -460,7 +460,11 @@ func main() {
 	s.Keywords = []string{"File", "FS", "Storage"}
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
-	s.Dependencies = []string{"rbac.RbacService"}
+	s.Dependencies = []string{
+		"rbac.RbacService",
+		"event.EventService",
+		"authentication.AuthenticationService",
+	}
 	s.Public = []string{}
 	s.CacheReplicationFactor = 3
 	s.Process = -1
@@ -656,9 +660,20 @@ func main() {
 	// CLI flags BEFORE touching config
 	args := os.Args[1:]
 	if len(args) == 0 {
-		printUsage()
-		return
+		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(s.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		s.Port = p
 	}
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -694,6 +709,12 @@ func main() {
 			}
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
+			return
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Fprintf(os.Stdout, "%s version %s\n", s.Name, s.Version)
 			return
 		}
 	}
@@ -749,55 +770,89 @@ func main() {
 		logger.Info("cache opened", "backend", s.CacheType, "root", s.Root)
 	}
 
-	// Event-driven indexing pipeline (fix: feed channel_0 first)
+	// Event-driven indexing pipeline (robust subscribe; force channel bootstrap; rotate UUID)
 	go func() {
 		evtClient, err := getEventClient()
 		if err != nil {
 			logger.Warn("event client unavailable; indexing events disabled", "err", err)
 			return
 		}
-		channel_0 := make(chan string, 10) // owner-set stage
-		channel_1 := make(chan string, 10) // index stage
 
-		// Dispatcher
+		channel0 := make(chan string, 64) // owner-set stage
+		channel1 := make(chan string, 64) // index stage
+
+		// Stage 1: set owner, then enqueue for indexing
 		go func() {
-			for {
-				select {
-				case path := <-channel_0:
-					if strings.HasPrefix(path, "/users/") {
-						values := strings.Split(path, "/")
-						if len(values) > 2 {
-							owner := values[2] // e.g. user@domain
-							rbac, err := getRbacClient()
-							if err == nil {
-								if err := rbac.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT); err != nil {
-									logger.Error("set file owner failed", "path", path, "owner", owner, "err", err)
-								}
-							} else {
-								logger.Error("get rbac client failed", "err", err)
+			for path := range channel0 {
+				if strings.HasPrefix(path, "/users/") {
+					parts := strings.Split(path, "/")
+					if len(parts) > 2 {
+						owner := parts[2] // user@domain
+						if rbac, err := getRbacClient(); err == nil {
+							if err := rbac.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT); err != nil {
+								logger.Error("set file owner failed", "path", path, "owner", owner, "err", err)
 							}
+						} else {
+							logger.Error("get rbac client failed", "err", err)
 						}
 					}
-					channel_1 <- path
-				case path := <-channel_1:
-					p := s.formatPath(path)
-					go func(pp string) {
-						if err := s.indexFile(pp); err != nil {
-							logger.Error("index file failed", "path", pp, "err", err)
-						} else {
-							logger.Info("indexed file", "path", pp)
-						}
-					}(p)
+				}
+				select {
+				case channel1 <- path:
+				default:
+					logger.Warn("index queue full; dropping", "path", path)
 				}
 			}
 		}()
 
-		// Subscribe: send to channel_0 (so owner is set before indexing)
-		if err := evtClient.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
-			channel_0 <- string(evt.Data)
-		}); err != nil {
-			logger.Error("subscribe to index_file_event failed", "err", err)
+		// Stage 2: indexer
+		go func() {
+			for path := range channel1 {
+				pp := s.formatPath(path)
+				if err := s.indexFile(pp); err != nil {
+					logger.Error("index file failed", "path", pp, "err", err)
+				} else {
+					logger.Info("indexed file", "path", pp)
+				}
+			}
+		}()
+
+		// Helper: subscribe with exponential backoff; ensure channel exists; rotate UUID each attempt
+		subscribeWithRetry := func(ch string, cb func(*eventpb.Event)) {
+			backoff := 1 * time.Second
+			for {
+				// Best-effort channel bootstrap (no-op if already exists)
+				if err := evtClient.Publish(ch, []byte("__bootstrap__")); err != nil {
+					logger.Debug("bootstrap publish failed (will still try subscribe)", "channel", ch, "err", err)
+				}
+				// Rotate consumer UUID to avoid colliding with stale server-side state
+				uuid := fmt.Sprintf("%s:%s", s.GetId(), Utility.RandomUUID())
+
+				if err := evtClient.Subscribe(ch, uuid, cb); err != nil {
+					logger.Warn("subscribe failed; will retry", "channel", ch, "uuid", uuid, "err", err, "backoff", backoff)
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+					}
+					continue
+				}
+				logger.Info("subscribed to channel", "channel", ch)
+				return
+			}
 		}
+
+		// Subscribe; ignore non-path bootstrap/noise
+		subscribeWithRetry("index_file_event", func(evt *eventpb.Event) {
+			path := string(evt.Data)
+			if len(path) == 0 || path[0] != '/' {
+				return // ignore bootstrap or unexpected payloads
+			}
+			select {
+			case channel0 <- path:
+			default:
+				logger.Warn("owner-set queue full; dropping", "path", path)
+			}
+		})
 	}()
 
 	// Cleanup pass

@@ -137,7 +137,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 		actions := make([]string, 0)
 		if descriptor["actions"] != nil {
 			actions_ := descriptor["actions"].([]interface{})
-			for i := 0; i < len(actions_); i++ {
+			for i := range actions_ {
 				actions = append(actions, actions_[i].(string))
 			}
 		}
@@ -146,7 +146,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 		keywords := make([]string, 0)
 		if descriptor["keywords"] != nil {
 			keywords_ := descriptor["keywords"].([]interface{})
-			for i := 0; i < len(keywords_); i++ {
+			for i := range keywords_ {
 				keywords = append(keywords, keywords_[i].(string))
 			}
 		}
@@ -155,7 +155,7 @@ func (srv *server) installLocalApplicationPackage(token, domain, applicationId, 
 		roles := make([]*resourcepb.Role, 0)
 		if descriptor["roles"] != nil {
 			roles_ := descriptor["roles"].([]interface{})
-			for i := 0; i < len(roles_); i++ {
+			for i := range roles_ {
 				role_ := roles_[i].(map[string]interface{})
 				r := new(resourcepb.Role)
 				r.Id = role_["id"].(string)

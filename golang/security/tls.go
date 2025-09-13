@@ -5,18 +5,23 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	config_ "github.com/globulario/services/golang/config"
@@ -27,102 +32,108 @@ var (
 	Root       = config_.GetGlobularExecPath()
 	ConfigPath = config_.GetConfigDir() + "/config.json"
 	keyPath    = config_.GetConfigDir() + "/keys"
+
+	caOnce           sync.Once
+	caAuthorityHost  string
+	caAuthorityPort  int
+	credOpsProcessMu sync.Mutex // in-process serialization for the creds dir
 )
 
-/*
-getCaCertificate retrieves the CA certificate from a remote authority.
-It tries plain HTTP first, then HTTPS, and may override address/port if DNS is set in local config.
-*/
-func getCaCertificate(address string, port int) (string, error) {
-	// If DNS is configured, prefer it
-	if localCfg, err := config_.GetLocalConfig(true); err == nil && localCfg != nil {
-		if dns, ok := localCfg["DNS"].(string); ok && len(dns) > 0 {
-			address = dns
-			port = 443
-			if strings.Contains(address, ":") {
-				parts := strings.Split(address, ":")
-				port = Utility.ToInt(parts[1])
-				address = parts[0]
+// ----------------------------------------------------------------------------
+// Deterministic CA authority resolution
+// ----------------------------------------------------------------------------
+
+func resolveCAAuthority(defaultHost string, defaultPort int) (string, int) {
+	caOnce.Do(func() {
+		host, port := defaultHost, defaultPort
+		if lc, err := config_.GetLocalConfig(true); err == nil && lc != nil {
+			if dns, ok := lc["DNS"].(string); ok && strings.TrimSpace(dns) != "" {
+				host = dns
+				port = 443
+				if i := strings.IndexByte(host, ':'); i > 0 {
+					p := Utility.ToInt(host[i+1:])
+					if p > 0 {
+						port = p
+					}
+					host = host[:i]
+				}
 			}
 		}
-	}
-
-	// Try HTTP then HTTPS
-	if crt, err := getCaCertificate_(address, port, "http"); err == nil {
-		return crt, nil
-	}
-	if crt, err := getCaCertificate_(address, port, "https"); err == nil {
-		return crt, nil
-	}
-
-	return "", fmt.Errorf("get CA certificate: unable to retrieve from %s:%d over http/https", address, port)
+		caAuthorityHost, caAuthorityPort = host, port
+	})
+	return caAuthorityHost, caAuthorityPort
 }
 
-/*
-getCaCertificate_ retrieves the CA certificate using the given protocol.
-*/
+// Choose a protocol stably: use https for 443, else http. Only fall back to the
+// other if the primary fails (we do not alternate per call).
+func preferredProtocol(port int) (primary, fallback string) {
+	if port == 443 {
+		return "https", "http"
+	}
+	return "http", "https"
+}
+
+// ----------------------------------------------------------------------------
+// CA retrieval / signing
+// ----------------------------------------------------------------------------
+
+func getCaCertificate(address string, port int) (string, error) {
+	host, p := resolveCAAuthority(address, port)
+	prim, alt := preferredProtocol(p)
+
+	if crt, err := getCaCertificate_(host, p, prim); err == nil {
+		return crt, nil
+	}
+	if crt, err := getCaCertificate_(host, p, alt); err == nil {
+		return crt, nil
+	}
+	return "", fmt.Errorf("get CA certificate: unable to retrieve from %s:%d", host, p)
+}
+
 func getCaCertificate_(address string, port int, protocol string) (string, error) {
-	if len(address) == 0 {
+	address = strings.TrimSpace(address)
+	if address == "" {
 		return "", errors.New("get CA certificate: no address provided")
 	}
+	url := fmt.Sprintf("%s://%s:%d/get_ca_certificate", protocol, address, port)
 
-	url := protocol + "://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
-	resp, err := http.Get(url) // #nosec G107 (intentional outbound call to configured CA endpoint)
+	resp, err := http.Get(url) // #nosec G107
 	if err != nil {
 		return "", fmt.Errorf("get CA certificate: GET %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusCreated {
-		// Read real body
-		body, err := ioReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("get CA certificate: read response: %w", err)
+			return "", fmt.Errorf("get CA certificate: read %s: %w", url, err)
 		}
 		return string(body), nil
 	}
-
-	return "", fmt.Errorf("get CA certificate: unexpected HTTP status %d from %s", resp.StatusCode, url)
+	return "", fmt.Errorf("get CA certificate: unexpected HTTP %d from %s", resp.StatusCode, url)
 }
 
-/*
-signCaCertificate submits a CSR to the remote CA for signing.
-It tries HTTP first, then HTTPS, and may override address/port if DNS is set in local config.
-*/
 func signCaCertificate(address string, csr string, port int) (string, error) {
-	// If DNS is configured, prefer it
-	if localCfg, err := config_.GetLocalConfig(true); err == nil && localCfg != nil {
-		if dns, ok := localCfg["DNS"].(string); ok && len(dns) > 0 {
-			address = dns
-			port = 443
-			if strings.Contains(address, ":") {
-				parts := strings.Split(address, ":")
-				port = Utility.ToInt(parts[1])
-				address = parts[0]
-			}
-		}
-	}
+	host, p := resolveCAAuthority(address, port)
+	prim, alt := preferredProtocol(p)
 
-	if crt, err := signCaCertificate_(address, csr, port, "http"); err == nil {
+	if crt, err := signCaCertificate_(host, csr, p, prim); err == nil {
 		return crt, nil
 	}
-	if crt, err := signCaCertificate_(address, csr, port, "https"); err == nil {
+	if crt, err := signCaCertificate_(host, csr, p, alt); err == nil {
 		return crt, nil
 	}
-
-	return "", fmt.Errorf("sign CA certificate: unable to sign at %s:%d over http/https", address, port)
+	return "", fmt.Errorf("sign CA certificate: unable to sign at %s:%d", host, p)
 }
 
-/*
-signCaCertificate_ calls the CA /sign_ca_certificate endpoint with the base64-encoded CSR.
-*/
 func signCaCertificate_(address string, csr string, port int, protocol string) (string, error) {
-	if len(address) == 0 {
+	address = strings.TrimSpace(address)
+	if address == "" {
 		return "", errors.New("sign CA certificate: no address provided")
 	}
-
 	csrStr := base64.StdEncoding.EncodeToString([]byte(csr))
-	url := protocol + "://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate?csr=" + csrStr
+	url := fmt.Sprintf("%s://%s:%d/sign_ca_certificate?csr=%s", protocol, address, port, csrStr)
+
 	resp, err := http.Get(url) // #nosec G107
 	if err != nil {
 		return "", fmt.Errorf("sign CA certificate: GET %s: %w", url, err)
@@ -130,262 +141,312 @@ func signCaCertificate_(address string, csr string, port int, protocol string) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusCreated {
-		body, err := ioReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("sign CA certificate: read response: %w", err)
+			return "", fmt.Errorf("sign CA certificate: read %s: %w", url, err)
 		}
 		return string(body), nil
 	}
-
-	return "", fmt.Errorf("sign CA certificate: unexpected HTTP status %d from %s", resp.StatusCode, url)
+	return "", fmt.Errorf("sign CA certificate: unexpected HTTP %d from %s", resp.StatusCode, url)
 }
 
-// =========================== Certificate Authority ===========================
-
-/*
-InstallClientCertificates fetches/creates client-side TLS materials and returns
-paths (key, cert, ca) for the given domain. It preserves existing certs if the
-remote CA hasn't changed.
-*/
+// ----------------------------------------------------------------------------
+// Public API: Install client/server certs (atomic, locked, CA-stable)
+// ----------------------------------------------------------------------------
 func InstallClientCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
-	return getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+	err := withCredsLock(path, func() error {
+		_, _, _, e := getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+		return e
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
 }
 
-/*
-InstallServerCertificates fetches/creates server-side TLS materials and returns
-paths (key, cert, ca) for the given domain. It preserves existing certs if the
-remote CA hasn't changed.
-*/
 func InstallServerCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
-	return getServerCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+	err := withCredsLock(path, func() error {
+		_, _, _, e := getServerCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+		return e
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
 }
 
-/*
-getClientCredentialConfig prepares client TLS credentials under path and returns key/cert/ca paths.
-If local CA differs from remote CA, it rotates local materials.
-*/
+// ----------------------------------------------------------------------------
+// Atomic rotation utilities
+// ----------------------------------------------------------------------------
+
+func withCredsLock(dir string, fn func() error) error {
+	credOpsProcessMu.Lock()
+	defer credOpsProcessMu.Unlock()
+
+	if err := Utility.CreateDirIfNotExist(dir); err != nil {
+		return err
+	}
+	lockPath := filepath.Join(dir, ".cert.lock")
+	const (
+		lockHoldMax = 10 * time.Minute
+		waitStep    = 150 * time.Millisecond
+		waitMax     = 20 * time.Second
+	)
+	start := time.Now()
+
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+		if err == nil {
+			// got the lock
+			defer func() { _ = os.Remove(lockPath) }()
+			_, _ = f.WriteString(strconv.Itoa(os.Getpid()))
+			_ = f.Close()
+			return fn()
+		}
+		// Lock exists; if stale, remove it
+		if st, statErr := os.Stat(lockPath); statErr == nil {
+			if time.Since(st.ModTime()) > lockHoldMax {
+				_ = os.Remove(lockPath) // best effort
+				continue
+			}
+		}
+		if time.Since(start) > waitMax {
+			return fmt.Errorf("creds lock: timeout waiting for %s", lockPath)
+		}
+		time.Sleep(waitStep)
+	}
+}
+
+func atomicWriteCreds(target string, write func(tmp string) error) error {
+	parent := filepath.Dir(target)
+	base := filepath.Base(target)
+	tmp := filepath.Join(parent, "."+base+".tmp-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+	bak := filepath.Join(parent, "."+base+".bak-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	if err := os.MkdirAll(tmp, 0o700); err != nil {
+		return err
+	}
+	if err := write(tmp); err != nil {
+		_ = os.RemoveAll(tmp)
+		return err
+	}
+	// move current aside
+	if Utility.Exists(target) {
+		if err := os.Rename(target, bak); err != nil {
+			_ = os.RemoveAll(tmp)
+			return err
+		}
+	}
+	// swap in new
+	if err := os.Rename(tmp, target); err != nil {
+		// best-effort restore
+		_ = os.Rename(bak, target)
+		_ = os.RemoveAll(tmp)
+		return err
+	}
+	_ = os.RemoveAll(bak)
+	return nil
+}
+
+// ----------------------------------------------------------------------------
+// Fingerprints (stable CA comparison)
+// ----------------------------------------------------------------------------
+
+func spkiFingerprintFromPEM(pemBytes []byte) (string, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return "", errors.New("fingerprint: no PEM block")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func fileSPKIFingerprint(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return spkiFingerprintFromPEM(data)
+}
+
+// ----------------------------------------------------------------------------
+// Client creds
+// ----------------------------------------------------------------------------
+
 func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 	address := domain
-	const pwd = "1111" // kept to preserve original behavior
+	const pwd = "1111"
 
 	if err = Utility.CreateDirIfNotExist(path); err != nil {
 		return "", "", "", fmt.Errorf("client creds: ensure dir: %w", err)
 	}
 
-	// Normalize alternate domains
-	alts := make([]string, 0, len(alternateDomains))
-	for i := range alternateDomains {
-		alts = append(alts, alternateDomains[i].(string))
-	}
-	for _, d := range alts {
-		if strings.Contains(d, "*") {
-			if strings.HasSuffix(domain, d[2:]) {
-				domain = d[2:]
-			}
-		}
-	}
+	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
-	// Retrieve CA certificate from authority
+	// Retrieve CA certificate from authority (deterministic)
 	caCRT, err := getCaCertificate(address, port)
 	if err != nil {
 		return "", "", "", fmt.Errorf("client creds: get ca.crt: %w", err)
 	}
+	remoteFP, err := spkiFingerprintFromPEM([]byte(caCRT))
+	if err != nil {
+		return "", "", "", fmt.Errorf("client creds: parse remote CA: %w", err)
+	}
 
-	// If existing, compare CA and reuse if identical
-	if Utility.Exists(path) &&
-		Utility.Exists(path+"/client.pem") &&
-		Utility.Exists(path+"/client.crt") &&
-		Utility.Exists(path+"/ca.crt") {
+	// If existing and same CA, reuse
+	if Utility.Exists(filepath.Join(path, "client.pem")) &&
+		Utility.Exists(filepath.Join(path, "client.crt")) &&
+		Utility.Exists(filepath.Join(path, "ca.crt")) {
 
-		localSum := Utility.CreateFileChecksum(path + "/ca.crt")
-		remoteSum := Utility.CreateDataChecksum([]byte(caCRT))
-		if localSum != remoteSum {
-			logger.Info("client creds: CA changed, rotating certs", "path", path)
-			if err = os.RemoveAll(path); err != nil {
-				return "", "", "", fmt.Errorf("client creds: remove path: %w", err)
-			}
-			if err = Utility.CreateDirIfNotExist(path); err != nil {
-				return "", "", "", fmt.Errorf("client creds: recreate dir: %w", err)
-			}
-		} else {
+		localFP, err := fileSPKIFingerprint(filepath.Join(path, "ca.crt"))
+		if err == nil && localFP == remoteFP {
 			return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
 		}
 	}
 
-	// Write CA
-	if err = os.WriteFile(path+"/ca.crt", []byte(caCRT), 0o444); err != nil {
-		return "", "", "", fmt.Errorf("client creds: write ca.crt: %w", err)
-	}
-
-	// Generate materials
-	if err = GenerateClientPrivateKey(path, pwd); err != nil {
-		return "", "", "", fmt.Errorf("client creds: private key: %w", err)
-	}
-	if err = GenerateSanConfig(domain, path, country, state, city, organization, alts); err != nil {
-		return "", "", "", fmt.Errorf("client creds: san.conf: %w", err)
-	}
-	if err = GenerateClientCertificateSigningRequest(path, pwd, domain); err != nil {
-		return "", "", "", fmt.Errorf("client creds: CSR: %w", err)
-	}
-
-	// Sign via CA
-	csr, err := os.ReadFile(path + "/client.csr")
+	// Build fresh set atomically
+	err = atomicWriteCreds(path, func(tmp string) error {
+		// write ca.crt
+		if err := os.WriteFile(filepath.Join(tmp, "ca.crt"), []byte(caCRT), 0o444); err != nil {
+			return fmt.Errorf("client creds: write ca.crt: %w", err)
+		}
+		if err := GenerateClientPrivateKey(tmp, pwd); err != nil {
+			return fmt.Errorf("client creds: private key: %w", err)
+		}
+		if err := GenerateSanConfig(domain, tmp, country, state, city, organization, alts); err != nil {
+			return fmt.Errorf("client creds: san.conf: %w", err)
+		}
+		if err := GenerateClientCertificateSigningRequest(tmp, pwd, domain); err != nil {
+			return fmt.Errorf("client creds: CSR: %w", err)
+		}
+		csr, err := os.ReadFile(filepath.Join(tmp, "client.csr"))
+		if err != nil {
+			return fmt.Errorf("client creds: read CSR: %w", err)
+		}
+		host, p := resolveCAAuthority(address, port)
+		clientCRT, err := signCaCertificate(host, string(csr), p)
+		if err != nil {
+			return fmt.Errorf("client creds: sign via CA: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(tmp, "client.crt"), []byte(clientCRT), 0o444); err != nil {
+			return fmt.Errorf("client creds: write client.crt: %w", err)
+		}
+		if err := KeyToPem("client", tmp, pwd); err != nil {
+			return fmt.Errorf("client creds: key->pem: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return "", "", "", fmt.Errorf("client creds: read CSR: %w", err)
-	}
-	clientCRT, err := signCaCertificate(address, string(csr), Utility.ToInt(port))
-	if err != nil {
-		return "", "", "", fmt.Errorf("client creds: sign via CA: %w", err)
-	}
-	if err = os.WriteFile(path+"/client.crt", []byte(clientCRT), 0o444); err != nil {
-		return "", "", "", fmt.Errorf("client creds: write client.crt: %w", err)
-	}
-
-	if err = KeyToPem("client", path, pwd); err != nil {
-		return "", "", "", fmt.Errorf("client creds: key->pem: %w", err)
+		return "", "", "", err
 	}
 
 	return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
 }
 
-/*
-getServerCredentialConfig prepares server TLS credentials under path and returns key/cert/ca paths.
-If local CA differs from remote CA, it rotates local materials.
-*/
+// ----------------------------------------------------------------------------
+// Server creds
+// ----------------------------------------------------------------------------
+
 func getServerCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
-	const pwd = "1111" // kept to preserve original behavior
+	const pwd = "1111"
 
 	if err = Utility.CreateDirIfNotExist(path); err != nil {
 		return "", "", "", fmt.Errorf("server creds: ensure dir: %w", err)
 	}
 
-	// Normalize alternate domains
-	alts := make([]string, 0, len(alternateDomains))
-	for i := range alternateDomains {
-		alts = append(alts, alternateDomains[i].(string))
-	}
-	for _, d := range alts {
-		if strings.Contains(d, "*") {
-			if strings.HasSuffix(domain, d[2:]) {
-				domain = d[2:]
-			}
-		}
-	}
+	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
-	// Retrieve CA from authority
+	// Retrieve CA from authority (deterministic)
 	caCRT, err := getCaCertificate(domain, port)
 	if err != nil {
 		return "", "", "", fmt.Errorf("server creds: get ca.crt: %w", err)
 	}
+	remoteFP, err := spkiFingerprintFromPEM([]byte(caCRT))
+	if err != nil {
+		return "", "", "", fmt.Errorf("server creds: parse remote CA: %w", err)
+	}
 
-	// Reuse existing materials if CA unchanged
-	if Utility.Exists(path) &&
-		Utility.Exists(path+"/server.pem") &&
-		Utility.Exists(path+"/server.crt") &&
-		Utility.Exists(path+"/ca.crt") {
+	// Reuse if CA unchanged
+	if Utility.Exists(filepath.Join(path, "server.key")) &&
+		Utility.Exists(filepath.Join(path, "server.crt")) &&
+		Utility.Exists(filepath.Join(path, "ca.crt")) {
 
-		localSum := Utility.CreateFileChecksum(path + "/ca.crt")
-		remoteSum := Utility.CreateDataChecksum([]byte(caCRT))
-		if localSum != remoteSum {
-			if err = os.RemoveAll(path); err != nil {
-				return "", "", "", fmt.Errorf("server creds: remove path: %w", err)
-			}
-			if err = Utility.CreateDirIfNotExist(path); err != nil {
-				return "", "", "", fmt.Errorf("server creds: recreate dir: %w", err)
-			}
-		} else {
-			return path + "/server.pem", path + "/server.crt", path + "/ca.crt", nil
+		localFP, err := fileSPKIFingerprint(filepath.Join(path, "ca.crt"))
+		if err == nil && localFP == remoteFP {
+			return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
 		}
 	}
 
-	// Write CA
-	if err = os.WriteFile(path+"/ca.crt", []byte(caCRT), 0o444); err != nil {
-		return "", "", "", fmt.Errorf("server creds: write ca.crt: %w", err)
-	}
-
-	// Generate materials
-	if err = GenerateSeverPrivateKey(path, pwd); err != nil {
-		return "", "", "", fmt.Errorf("server creds: private key: %w", err)
-	}
-	if err = GenerateSanConfig(domain, path, country, state, city, organization, alts); err != nil {
-		return "", "", "", fmt.Errorf("server creds: san.conf: %w", err)
-	}
-	if err = GenerateServerCertificateSigningRequest(path, pwd, domain); err != nil {
-		return "", "", "", fmt.Errorf("server creds: CSR: %w", err)
-	}
-
-	// Sign via CA
-	csr, err := os.ReadFile(path + "/server.csr")
+	// Build fresh set atomically
+	err = atomicWriteCreds(path, func(tmp string) error {
+		if err := os.WriteFile(filepath.Join(tmp, "ca.crt"), []byte(caCRT), 0o444); err != nil {
+			return fmt.Errorf("server creds: write ca.crt: %w", err)
+		}
+		if err := GenerateSeverPrivateKey(tmp, pwd); err != nil {
+			return fmt.Errorf("server creds: private key: %w", err)
+		}
+		if err := GenerateSanConfig(domain, tmp, country, state, city, organization, alts); err != nil {
+			return fmt.Errorf("server creds: san.conf: %w", err)
+		}
+		if err := GenerateServerCertificateSigningRequest(tmp, pwd, domain); err != nil {
+			return fmt.Errorf("server creds: CSR: %w", err)
+		}
+		csr, err := os.ReadFile(filepath.Join(tmp, "server.csr"))
+		if err != nil {
+			return fmt.Errorf("server creds: read CSR: %w", err)
+		}
+		host, p := resolveCAAuthority(domain, port)
+		crt, err := signCaCertificate(host, string(csr), p)
+		if err != nil {
+			return fmt.Errorf("server creds: sign via CA: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(tmp, "server.crt"), []byte(crt), 0o444); err != nil {
+			return fmt.Errorf("server creds: write server.crt: %w", err)
+		}
+		if err := KeyToPem("server", tmp, pwd); err != nil {
+			return fmt.Errorf("server creds: key->pem: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return "", "", "", fmt.Errorf("server creds: read CSR: %w", err)
-	}
-	crt, err := signCaCertificate(domain, string(csr), Utility.ToInt(port))
-	if err != nil {
-		return "", "", "", fmt.Errorf("server creds: sign via CA: %w", err)
-	}
-	if err = os.WriteFile(path+"/server.crt", []byte(crt), 0o444); err != nil {
-		return "", "", "", fmt.Errorf("server creds: write server.crt: %w", err)
+		return "", "", "", err
 	}
 
-	if err = KeyToPem("server", path, pwd); err != nil {
-		return "", "", "", fmt.Errorf("server creds: key->pem: %w", err)
-	}
-
-	return path + "/server.pem", path + "/server.crt", path + "/ca.crt", nil
+	return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
 }
 
-// =============================== Server Keys ================================
+// ----------------------------------------------------------------------------
+// Generate full local CA + leafs (unchanged except minor cleanup)
+// ----------------------------------------------------------------------------
 
-/*
-GenerateServicesCertificates creates a full local CA and signs both server and client
-certificates for the given domain (when no external DNS/CA is used).
-If DNS is configured and not equal to the local service FQDN, it fetches credentials from the DNS authority instead.
-*/
 func GenerateServicesCertificates(pwd string, expiration_delay int, domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) error {
-	if Utility.Exists(path + "/client.crt") {
+	if Utility.Exists(filepath.Join(path, "client.crt")) {
 		return nil // already created
 	}
 
 	logger.Info("generate services certificates", "domain", domain, "alt", alternateDomains)
 
-	// Normalize alts and expand wildcard roots
-	alts := make([]string, 0, len(alternateDomains))
-	for i := range alternateDomains {
-		alts = append(alts, alternateDomains[i].(string))
-	}
-	for _, d := range alts {
-		if strings.HasPrefix(d, "*.") {
-			if strings.HasSuffix(domain, d[2:]) {
-				domain = d[2:]
-			}
-			// Convert alternateDomains to []string for Utility.Contains
-			altsStr := make([]string, len(alternateDomains))
-			for i, v := range alternateDomains {
-				altsStr[i] = v.(string)
-			}
-			if !Utility.Contains(altsStr, d[2:]) {
-				alternateDomains = append(alternateDomains, d[2:])
-			}
-		}
-	}
+	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
-	// Prefer external DNS authority when configured and distinct from local FQDN
+	// Prefer external DNS authority if configured and distinct
 	if localCfg, err := config_.GetLocalConfig(true); err == nil && localCfg != nil {
-		if dns, ok := localCfg["DNS"].(string); ok && len(dns) > 0 {
+		if dns, ok := localCfg["DNS"].(string); ok && strings.TrimSpace(dns) != "" {
 			dnsAddr := dns
-			port := 443
-			if strings.Contains(dnsAddr, ":") {
-				parts := strings.Split(dnsAddr, ":")
-				port = Utility.ToInt(parts[1])
-				dnsAddr = parts[0]
+			p := 443
+			if i := strings.IndexByte(dnsAddr, ':'); i > 0 {
+				p = Utility.ToInt(dnsAddr[i+1:])
+				dnsAddr = dnsAddr[:i]
 			}
-			if fqdn := localCfg["Name"].(string) + "." + localCfg["Domain"].(string); dnsAddr != fqdn {
-				// Server credentials via DNS CA
-				if _, _, _, err := getServerCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, port); err != nil {
+			fqdn := fmt.Sprintf("%s.%s", localCfg["Name"], localCfg["Domain"])
+			if dnsAddr != fqdn {
+				if _, _, _, err := getServerCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, p); err != nil {
 					return err
 				}
-				// Client credentials via DNS CA
-				if _, _, _, err := getClientCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, port); err != nil {
+				if _, _, _, err := getClientCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, p); err != nil {
 					return err
 				}
 				return nil
@@ -393,55 +454,77 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 		}
 	}
 
-	// Build local CA & sign leaf certs
+	// Local CA
 	if err := GenerateSanConfig(domain, path, country, state, city, organization, alts); err != nil {
 		return fmt.Errorf("generate services: san.conf: %w", err)
+	} else {
+		logger.Info("generated services: san.conf", "path", filepath.Join(path, "san.conf"))
 	}
 	if err := GenerateAuthorityPrivateKey(path, pwd); err != nil {
 		return fmt.Errorf("generate services: ca.key: %w", err)
+	} else {
+		logger.Info("generated services: ca.key", "path", filepath.Join(path, "ca.key"))
 	}
 	if err := GenerateAuthorityTrustCertificate(path, pwd, expiration_delay, domain); err != nil {
 		return fmt.Errorf("generate services: ca.crt: %w", err)
+	} else {
+		logger.Info("generated services: ca.crt", "path", filepath.Join(path, "ca.crt"))
 	}
 
 	if err := GenerateSeverPrivateKey(path, pwd); err != nil {
 		return fmt.Errorf("generate services: server.key: %w", err)
+	} else {
+		logger.Info("generated services: server.key", "path", filepath.Join(path, "server.key"))
 	}
 	if err := GenerateServerCertificateSigningRequest(path, pwd, domain); err != nil {
 		return fmt.Errorf("generate services: server.csr: %w", err)
+	} else {
+		logger.Info("generated services: server.csr", "path", filepath.Join(path, "server.csr"))
 	}
 	if err := GenerateSignedServerCertificate(path, pwd, expiration_delay); err != nil {
 		return fmt.Errorf("generate services: server.crt: %w", err)
+	} else {
+		logger.Info("generated services: server.crt", "path", filepath.Join(path, "server.crt"))
 	}
 	if err := KeyToPem("server", path, pwd); err != nil {
 		return fmt.Errorf("generate services: server.pem: %w", err)
+	} else {
+		logger.Info("generated services: server.pem", "path", filepath.Join(path, "server.pem"))
 	}
 
 	if err := GenerateClientPrivateKey(path, pwd); err != nil {
 		return fmt.Errorf("generate services: client.key: %w", err)
+	} else {
+		logger.Info("generated services: client.key", "path", filepath.Join(path, "client.key"))
 	}
 	if err := GenerateClientCertificateSigningRequest(path, pwd, domain); err != nil {
 		return fmt.Errorf("generate services: client.csr: %w", err)
+	} else {
+		logger.Info("generated services: client.csr", "path", filepath.Join(path, "client.csr"))
 	}
 	if err := GenerateSignedClientCertificate(path, pwd, expiration_delay); err != nil {
 		return fmt.Errorf("generate services: client.crt: %w", err)
+	} else {
+		logger.Info("generated services: client.crt", "path", filepath.Join(path, "client.crt"))
 	}
 	if err := KeyToPem("client", path, pwd); err != nil {
 		return fmt.Errorf("generate services: client.pem: %w", err)
+	} else {
+		logger.Info("generated services: client.pem", "path", filepath.Join(path, "client.pem"))
 	}
+
+	logger.Info("generated services certificates", "domain", domain, "alt", alternateDomains)
 
 	return nil
 }
 
-// ======================== Peer key generation (ECDH) ========================
+// ----------------------------------------------------------------------------
+// Peer key generation (unchanged except small tidy)
+// ----------------------------------------------------------------------------
 
-/*
-DeletePublicKey removes a stored peer public key file by peer ID (MAC).
-No error is returned if the file does not exist.
-*/
 func DeletePublicKey(id string) error {
 	id = strings.ReplaceAll(id, ":", "_")
-	p := keyPath + "/" + id + "_public"
+	p := filepath.Join(keyPath, id+"_public")
 	if !Utility.Exists(p) {
 		logger.Info("delete public key: not found", "path", p)
 		return nil
@@ -450,10 +533,6 @@ func DeletePublicKey(id string) error {
 	return os.Remove(p)
 }
 
-/*
-GeneratePeerKeys creates (or reuses) an ECDSA keypair for the given peer id (MAC),
-storing the private and public keys under the standard keyPath.
-*/
 func GeneratePeerKeys(id string) error {
 	if len(id) == 0 {
 		return errors.New("generate peer keys: empty id")
@@ -465,8 +544,7 @@ func GeneratePeerKeys(id string) error {
 		err  error
 	)
 
-	if !Utility.Exists(keyPath + "/" + id + "_private") {
-		// New private key (P-521)
+	if !Utility.Exists(filepath.Join(keyPath, id+"_private")) {
 		priv, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 		if err != nil {
 			return fmt.Errorf("generate peer keys: ecdsa key: %w", err)
@@ -478,12 +556,12 @@ func GeneratePeerKeys(id string) error {
 		if err = Utility.CreateDirIfNotExist(keyPath); err != nil {
 			return fmt.Errorf("generate peer keys: ensure dir: %w", err)
 		}
-		f, err := os.Create(keyPath + "/" + id + "_private")
+		f, err := os.Create(filepath.Join(keyPath, id+"_private"))
 		if err != nil {
 			return fmt.Errorf("generate peer keys: create private file: %w", err)
 		}
 		defer f.Close()
-		if err = pem.Encode(f, &pem.Block{Type: "esdsa private key", Bytes: raw}); err != nil { // keep original block type
+		if err = pem.Encode(f, &pem.Block{Type: "esdsa private key", Bytes: raw}); err != nil { // preserve original block type
 			return fmt.Errorf("generate peer keys: pem encode private: %w", err)
 		}
 	} else {
@@ -493,13 +571,12 @@ func GeneratePeerKeys(id string) error {
 		}
 	}
 
-	// Write public key
 	pub := priv.PublicKey
 	pubDER, err := x509.MarshalPKIXPublicKey(&pub)
 	if err != nil {
 		return fmt.Errorf("generate peer keys: marshal public: %w", err)
 	}
-	f, err := os.Create(keyPath + "/" + id + "_public")
+	f, err := os.Create(filepath.Join(keyPath, id+"_public"))
 	if err != nil {
 		return fmt.Errorf("generate peer keys: create public file: %w", err)
 	}
@@ -512,10 +589,6 @@ func GeneratePeerKeys(id string) error {
 
 var localKey = []byte{} // in-memory cache of local public key bytes
 
-/*
-GetLocalKey returns the local peer JWT key material (public key bytes).
-It expects the local peer public key file to exist.
-*/
 func GetLocalKey() ([]byte, error) {
 	if len(localKey) > 0 {
 		return localKey, nil
@@ -524,9 +597,8 @@ func GetLocalKey() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get local key: get mac: %w", err)
 	}
-
 	id := strings.ReplaceAll(mac, ":", "_")
-	path := keyPath + "/" + id + "_public"
+	path := filepath.Join(keyPath, id+"_public")
 	if !Utility.Exists(path) {
 		return nil, fmt.Errorf("get local key: no public key found at %s", path)
 	}
@@ -538,13 +610,9 @@ func GetLocalKey() ([]byte, error) {
 	return localKey, nil
 }
 
-/*
-readPrivateKey loads the ECDSA private key for a given peer id (MAC).
-If the key is corrupted, it deletes it and returns an error describing the remediation.
-*/
 func readPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 	id = strings.ReplaceAll(id, ":", "_")
-	f, err := os.Open(keyPath + "/" + id + "_private")
+	f, err := os.Open(filepath.Join(keyPath, id+"_private"))
 	if err != nil {
 		return nil, err
 	}
@@ -558,10 +626,9 @@ func readPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 	if _, err = f.Read(buf); err != nil {
 		return nil, fmt.Errorf("read private key: read: %w", err)
 	}
-
 	block, _ := pem.Decode(buf)
 	if block == nil {
-		_ = os.Remove(keyPath + "/" + id + "_private")
+		_ = os.Remove(filepath.Join(keyPath, id+"_private"))
 		return nil, fmt.Errorf("corrupted private key for peer %s: deleted; reconnect peers to regenerate", id)
 	}
 	return x509.ParseECPrivateKey(block.Bytes)
@@ -569,7 +636,7 @@ func readPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 
 func readPublicKey(id string) (*ecdsa.PublicKey, error) {
 	id = strings.ReplaceAll(id, ":", "_")
-	f, err := os.Open(keyPath + "/" + id + "_public")
+	f, err := os.Open(filepath.Join(keyPath, id+"_public"))
 	if err != nil {
 		return nil, err
 	}
@@ -583,10 +650,9 @@ func readPublicKey(id string) (*ecdsa.PublicKey, error) {
 	if _, err = f.Read(buf); err != nil {
 		return nil, fmt.Errorf("read public key: read: %w", err)
 	}
-
 	block, _ := pem.Decode(buf)
 	if block == nil {
-		_ = os.Remove(keyPath + "/" + id + "_public")
+		_ = os.Remove(filepath.Join(keyPath, id+"_public"))
 		return nil, fmt.Errorf("corrupted public key for peer %s: deleted; reconnect peers to regenerate", id)
 	}
 	pubAny, err := x509.ParsePKIXPublicKey(block.Bytes)
@@ -596,10 +662,6 @@ func readPublicKey(id string) (*ecdsa.PublicKey, error) {
 	return pubAny.(*ecdsa.PublicKey), nil
 }
 
-/*
-GetPeerKey derives a shared JWT key for the given peer id (MAC) using ECDH-like ScalarMult.
-If id matches the local MAC, it returns the local public key bytes.
-*/
 func GetPeerKey(id string) ([]byte, error) {
 	if len(id) == 0 {
 		return nil, errors.New("get peer key: empty id")
@@ -611,7 +673,6 @@ func GetPeerKey(id string) ([]byte, error) {
 		return nil, fmt.Errorf("get peer key: get mac: %w", err)
 	}
 
-	// Local issuer: use local key bytes
 	if id == strings.ReplaceAll(mac, ":", "_") {
 		return GetLocalKey()
 	}
@@ -629,24 +690,22 @@ func GetPeerKey(id string) ([]byte, error) {
 		return nil, err
 	}
 
-	// Shared secret point X coordinate as key material
 	x, _ := pub.Curve.ScalarMult(pub.X, pub.Y, priv.D.Bytes())
 	return []byte(x.String()), nil
 }
 
-/*
-SetPeerPublicKey stores a peer's public key (PEM) by peer id (MAC).
-*/
 func SetPeerPublicKey(id, encPub string) error {
 	id = strings.ReplaceAll(id, ":", "_")
-	path := keyPath + "/" + id + "_public"
+	path := filepath.Join(keyPath, id+"_public")
 	if err := os.WriteFile(path, []byte(encPub), 0o644); err != nil {
 		return fmt.Errorf("set peer public key: write %s: %w", path, err)
 	}
 	return nil
 }
 
-// ============================ Local PEM Utilities ===========================
+// ----------------------------------------------------------------------------
+// Local PEM utilities / keys / CSRs / signing (mostly as-is, minor tidy)
+// ----------------------------------------------------------------------------
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
@@ -717,11 +776,8 @@ func serialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, limit)
 }
 
-// ------------------------------- CA key/cert -------------------------------
+// CA key/cert
 
-/*
-GenerateAuthorityPrivateKey creates ca.key in PKCS#8 format if it does not exist.
-*/
 func GenerateAuthorityPrivateKey(path string, _ string) error {
 	if fileExists(path + "/ca.key") {
 		return nil
@@ -733,9 +789,6 @@ func GenerateAuthorityPrivateKey(path string, _ string) error {
 	return writePEM(path+"/ca.key", &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}, 0o400)
 }
 
-/*
-GenerateAuthorityTrustCertificate creates a self-signed CA certificate (ca.crt) if missing.
-*/
 func GenerateAuthorityTrustCertificate(path string, _ string, expiration_delay int, domain string) error {
 	if fileExists(path + "/ca.crt") {
 		return nil
@@ -767,12 +820,8 @@ func GenerateAuthorityTrustCertificate(path string, _ string, expiration_delay i
 	return writePEM(path+"/ca.crt", &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444)
 }
 
-// ---------------------------- Server/Client keys ---------------------------
+// Server/Client keys
 
-/*
-GenerateSeverPrivateKey creates server.key in PKCS#8 format if missing.
-(Spelling preserved to avoid API break.)
-*/
 func GenerateSeverPrivateKey(path string, _ string) error {
 	if fileExists(path + "/server.key") {
 		return nil
@@ -784,9 +833,6 @@ func GenerateSeverPrivateKey(path string, _ string) error {
 	return writePEM(path+"/server.key", &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}, 0o400)
 }
 
-/*
-GenerateClientPrivateKey creates client.key in PKCS#8 format if missing.
-*/
 func GenerateClientPrivateKey(path string, _ string) error {
 	if fileExists(path + "/client.key") {
 		return nil
@@ -798,11 +844,8 @@ func GenerateClientPrivateKey(path string, _ string) error {
 	return writePEM(path+"/client.key", &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}, 0o400)
 }
 
-// ------------------------------- SAN Config --------------------------------
+// SAN config
 
-/*
-GenerateSanConfig writes san.conf with subject and SAN entries for domain/alt names if missing.
-*/
 func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
 	if fileExists(path + "/san.conf") {
 		return nil
@@ -831,14 +874,11 @@ subjectAltName = @alt_names
 	for i, d := range append(alternateDomains, domain) {
 		cfg += fmt.Sprintf("DNS.%d = %s\n", i, d)
 	}
-	return os.WriteFile(path+"/san.conf", []byte(cfg), 0o644)
+	return os.WriteFile(filepath.Join(path, "san.conf"), []byte(cfg), 0o644)
 }
 
-// ---------------------------------- CSRs -----------------------------------
+// CSRs
 
-/*
-GenerateClientCertificateSigningRequest creates client.csr for the domain if missing.
-*/
 func GenerateClientCertificateSigningRequest(path string, _ string, domain string) error {
 	if fileExists(path + "/client.csr") {
 		return nil
@@ -860,9 +900,6 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 	return writePEM(path+"/client.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
 
-/*
-GenerateServerCertificateSigningRequest creates server.csr for the domain if missing.
-*/
 func GenerateServerCertificateSigningRequest(path string, _ string, domain string) error {
 	if fileExists(path + "/server.csr") {
 		return nil
@@ -884,7 +921,7 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 	return writePEM(path+"/server.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
 
-// --------------------------- CA-signed leaf certs ---------------------------
+// Signing
 
 func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isServer bool) error {
 	caBlock, err := readPEM(caCrtPath)
@@ -934,31 +971,22 @@ func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isSe
 	return writePEM(outPath, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444)
 }
 
-/*
-GenerateSignedClientCertificate signs client.csr with ca.key/ca.crt and writes client.crt if missing.
-*/
 func GenerateSignedClientCertificate(path string, _ string, expiration_delay int) error {
 	if fileExists(path + "/client.crt") {
 		return nil
 	}
-	return signCSRWithCA(path+"/client.csr", path+"/ca.crt", path+"/ca.key", path+"/client.crt", expiration_delay, false)
+	return signCSRWithCA(filepath.Join(path, "client.csr"), filepath.Join(path, "ca.crt"), filepath.Join(path, "ca.key"), filepath.Join(path, "client.crt"), expiration_delay, false)
 }
 
-/*
-GenerateSignedServerCertificate signs server.csr with ca.key/ca.crt and writes server.crt if missing.
-*/
 func GenerateSignedServerCertificate(path string, _ string, expiration_delay int) error {
 	if fileExists(path + "/server.crt") {
 		return nil
 	}
-	return signCSRWithCA(path+"/server.csr", path+"/ca.crt", path+"/ca.key", path+"/server.crt", expiration_delay, true)
+	return signCSRWithCA(filepath.Join(path, "server.csr"), filepath.Join(path, "ca.crt"), filepath.Join(path, "ca.key"), filepath.Join(path, "server.crt"), expiration_delay, true)
 }
 
-// -------------------------- PEM conversion (compat) -------------------------
+// PEM conversion
 
-/*
-KeyToPem converts <name>.key to <name>.pem (PKCS#8), if not already present.
-*/
 func KeyToPem(name string, path string, _ string) error {
 	pemPath := filepath.Join(path, name+".pem")
 	if fileExists(pemPath) {
@@ -979,11 +1007,8 @@ func KeyToPem(name string, path string, _ string) error {
 	return writePEM(pemPath, &pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}, 0o400)
 }
 
-// -------------------------------- Validation -------------------------------
+// Validation
 
-/*
-ValidateCertificateExpiration loads a cert/key pair and returns an error if the certificate is expired.
-*/
 func ValidateCertificateExpiration(certFile, keyFile string) error {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -999,47 +1024,36 @@ func ValidateCertificateExpiration(certFile, keyFile string) error {
 	return nil
 }
 
-// ------------------------------ small helpers ------------------------------
+// ----------------------------------------------------------------------------
+// small helpers
+// ----------------------------------------------------------------------------
 
-func ioReadAll(r ioReader) ([]byte, error) { return ioReadAllImpl(r) }
-
-// decouple for testability without importing io in the public section
-type ioReader interface{ Read([]byte) (int, error) }
-
-func ioReadAllImpl(r ioReader) ([]byte, error) {
-	const chunk = 32 * 1024
-	var b []byte
-	buf := make([]byte, chunk)
-	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			b = append(b, buf[:n]...)
-		}
-		if err != nil {
-			if errors.Is(err, os.ErrClosed) {
-				return b, nil
+// normalizeAltDomains adjusts wildcard alts, may update *domain
+func normalizeAltDomains(domain string, alternateDomains []interface{}, domainOut *string) []string {
+	alts := make([]string, 0, len(alternateDomains))
+	for i := range alternateDomains {
+		alts = append(alts, alternateDomains[i].(string))
+	}
+	for _, d := range alts {
+		if strings.HasPrefix(d, "*.") {
+			if strings.HasSuffix(domain, d[2:]) {
+				domain = d[2:]
 			}
-			if err.Error() == "EOF" {
-				return b, nil
+			altsStr := make([]string, len(alternateDomains))
+			for i, v := range alternateDomains {
+				altsStr[i] = v.(string)
 			}
-			if errors.Is(err, ioEOF{}) { // placeholder, see note below
-				return b, nil
-			}
-			if err != nil {
-				if strings.Contains(err.Error(), "EOF") {
-					return b, nil
-				}
-				return b, err
+			if !Utility.Contains(altsStr, d[2:]) {
+				alternateDomains = append(alternateDomains, d[2:])
 			}
 		}
 	}
-}
-
-// NOTE: In a normal project we’d simply import "io" and use io.ReadAll + io.EOF.
-// I kept a tiny local reader shim to avoid changing your import set too much.
-// If you're fine with importing "io", replace ioReadAll with io.ReadAll and remove the shim.
-type ioEOF struct{}
-
-func (ioEOF) Error() string {
-	return "EOF"
+	if domainOut != nil {
+		*domainOut = domain
+	}
+	out := make([]string, 0, len(alternateDomains))
+	for i := range alternateDomains {
+		out = append(out, alternateDomains[i].(string))
+	}
+	return out
 }

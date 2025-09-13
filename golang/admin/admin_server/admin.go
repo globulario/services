@@ -454,17 +454,22 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 // putSystemConfigEtcd stores the global config JSON under /globular/system/config.
 func putSystemConfigEtcd(jsonStr string) error {
 	// derive endpoint from local address
-	addr, _ := config.GetAddress()
-	host := addr
-	if i := strings.Index(addr, ":"); i > 0 {
-		host = addr[:i]
+	// Derive the advertised DNS host used by StartEtcdServer (Name + Domain).
+	name := Utility.ToString(config.GetLocalConfigMust(true)["Name"])
+	if name == "" {
+		if n, _ := config.GetName(); n != "" { name = n }
 	}
-	if strings.TrimSpace(host) == "" {
-		host = "127.0.0.1"
+	dom, _ := config.GetDomain()
+	host := strings.TrimSpace(name)
+	if dom != "" && !strings.Contains(host, ".") {
+		host = host + "." + dom
+	}
+	if host == "" {
+		host = "localhost" // last resort; better than 0.0.0.0
 	}
 
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:            []string{host + ":2379"},
+		Endpoints:            config.GetEtcdEndpointsHostPorts(),
 		DialTimeout:          3 * time.Second,
 		DialKeepAliveTime:    10 * time.Second,
 		DialKeepAliveTimeout: 3 * time.Second,

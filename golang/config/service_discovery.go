@@ -232,6 +232,7 @@ func splitHostPort(s string) (host, port string, err error) {
 //   - ServiceDesc: The unmarshaled service description from the command's output.
 //   - error: An error if the command fails or the output is invalid.
 func RunDescribe(bin string, timeout time.Duration, env map[string]string) (ServiceDesc, error) {
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -247,9 +248,12 @@ func RunDescribe(bin string, timeout time.Duration, env map[string]string) (Serv
 	if err := cmd.Run(); err != nil {
 		return ServiceDesc{}, fmt.Errorf("describe error: %w; stderr: %s", err, strings.TrimSpace(stderr.String()))
 	}
+
+	
 	var d ServiceDesc
 	if err := json.Unmarshal(stdout.Bytes(), &d); err != nil {
 		return ServiceDesc{}, fmt.Errorf("invalid describe json from %s: %w", bin, err)
 	}
+
 	return d, nil
 }

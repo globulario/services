@@ -19,6 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	DnsService_SetDomains_FullMethodName  = "/dns.DnsService/SetDomains"
+	DnsService_GetDomains_FullMethodName  = "/dns.DnsService/GetDomains"
 	DnsService_Stop_FullMethodName        = "/dns.DnsService/Stop"
 	DnsService_SetA_FullMethodName        = "/dns.DnsService/SetA"
 	DnsService_RemoveA_FullMethodName     = "/dns.DnsService/RemoveA"
@@ -58,6 +60,10 @@ const (
 //
 // DnsService defines a service for managing DNS records.
 type DnsServiceClient interface {
+	// Set multiple domain names.
+	SetDomains(ctx context.Context, in *SetDomainsRequest, opts ...grpc.CallOption) (*SetDomainsResponse, error)
+	// Get multiple domain names.
+	GetDomains(ctx context.Context, in *GetDomainsRequest, opts ...grpc.CallOption) (*GetDomainsResponse, error)
 	// Stop the server.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
 	// Set an A record (IPv4 address).
@@ -128,6 +134,26 @@ type dnsServiceClient struct {
 
 func NewDnsServiceClient(cc grpc.ClientConnInterface) DnsServiceClient {
 	return &dnsServiceClient{cc}
+}
+
+func (c *dnsServiceClient) SetDomains(ctx context.Context, in *SetDomainsRequest, opts ...grpc.CallOption) (*SetDomainsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetDomainsResponse)
+	err := c.cc.Invoke(ctx, DnsService_SetDomains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) GetDomains(ctx context.Context, in *GetDomainsRequest, opts ...grpc.CallOption) (*GetDomainsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDomainsResponse)
+	err := c.cc.Invoke(ctx, DnsService_GetDomains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *dnsServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
@@ -446,6 +472,10 @@ func (c *dnsServiceClient) RemoveAfsdb(ctx context.Context, in *RemoveAfsdbReque
 //
 // DnsService defines a service for managing DNS records.
 type DnsServiceServer interface {
+	// Set multiple domain names.
+	SetDomains(context.Context, *SetDomainsRequest) (*SetDomainsResponse, error)
+	// Get multiple domain names.
+	GetDomains(context.Context, *GetDomainsRequest) (*GetDomainsResponse, error)
 	// Stop the server.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
 	// Set an A record (IPv4 address).
@@ -517,6 +547,12 @@ type DnsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDnsServiceServer struct{}
 
+func (UnimplementedDnsServiceServer) SetDomains(context.Context, *SetDomainsRequest) (*SetDomainsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetDomains not implemented")
+}
+func (UnimplementedDnsServiceServer) GetDomains(context.Context, *GetDomainsRequest) (*GetDomainsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDomains not implemented")
+}
 func (UnimplementedDnsServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
@@ -628,6 +664,42 @@ func RegisterDnsServiceServer(s grpc.ServiceRegistrar, srv DnsServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DnsService_ServiceDesc, srv)
+}
+
+func _DnsService_SetDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetDomainsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).SetDomains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_SetDomains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).SetDomains(ctx, req.(*SetDomainsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_GetDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDomainsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).GetDomains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_GetDomains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).GetDomains(ctx, req.(*GetDomainsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DnsService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1195,6 +1267,14 @@ var DnsService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "dns.DnsService",
 	HandlerType: (*DnsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SetDomains",
+			Handler:    _DnsService_SetDomains_Handler,
+		},
+		{
+			MethodName: "GetDomains",
+			Handler:    _DnsService_GetDomains_Handler,
+		},
 		{
 			MethodName: "Stop",
 			Handler:    _DnsService_Stop_Handler,

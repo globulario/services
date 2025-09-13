@@ -381,10 +381,19 @@ func main() {
 
 	// ---- CLI flags BEFORE any config/etcd access ----
 	args := os.Args[1:]
-
 	if len(args) == 0 {
-		printUsage()
-		return
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			logger.Error("fail to create port allocator", "error", err)
+			os.Exit(1)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			logger.Error("fail to allocate port", "error", err)
+			os.Exit(1)
+		}
+		srv.Port = p
 	}
 
 	for _, a := range args {
@@ -430,6 +439,16 @@ func main() {
 			os.Stdout.Write(b)
 			os.Stdout.Write([]byte("\n"))
 			return
+		case "--debug":
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		case "--help", "-h", "/?":
+			printUsage()
+			return
+		case "--version", "-v":
+			fmt.Println(srv.Version)
+			return
+		default:
+			// skip unknown flags for now (e.g. positional args)
 		}
 	}
 
