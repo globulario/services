@@ -93,7 +93,11 @@ type HealthOptions struct {
 // HealthCheck dials the service locally and queries the gRPC health endpoint.
 // It also checks TCP connectivity first. Returns a JSON-able report.
 func HealthCheck(s Service, opt *HealthOptions) (*HealthReport, error) {
-	host := "127.0.0.1"
+	host := s.GetAddress()
+	if host == "" {
+		host = "localhost"
+	}
+	
 	if opt != nil && opt.Host != "" {
 		host = opt.Host
 	}

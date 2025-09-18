@@ -3,16 +3,13 @@ package storage_store
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"gopkg.in/yaml.v3"
 )
 
 // etcdLogger is a package-level logger; no-op by default.
@@ -34,76 +31,15 @@ type Etcd_store struct {
 // "$(configDir)/etcd.yml" and use either "endpoints" (list) or
 // "initial-advertise-peer-urls" (string, comma-separated).
 func (s *Etcd_store) open(address string) error {
-	endpoints, err := s.resolveEndpoints(address)
+
+	cli, err :=  config.GetEtcdClient()
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("etcd_store.go --------------> Etcd_store: connecting to etcd endpoints:", endpoints) // DEBUG
-
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		return err
-	}
-
+	
 	s.client = cli
-	s.address = strings.Join(endpoints, ",")
-	etcdLogger.Info("etcd connected", "endpoints", endpoints)
+	s.address = address
 	return nil
-}
-
-func (s *Etcd_store) resolveEndpoints(address string) ([]string, error) {
-	trimmed := strings.TrimSpace(address)
-	if trimmed != "" {
-		return splitCSV(trimmed), nil
-	}
-
-	// Fallback: read etcd.yml
-	cfgPath := config.GetConfigDir() + "/etcd.yml"
-	if cfgPath == "" {
-		return nil, errors.New("etcd: config dir not found")
-	}
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg map[string]interface{}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-
-	// Prefer an explicit "endpoints" list if present:
-	if raw, ok := cfg["endpoints"]; ok {
-		switch t := raw.(type) {
-		case []interface{}:
-			out := make([]string, 0, len(t))
-			for _, v := range t {
-				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-					out = append(out, strings.TrimSpace(s))
-				}
-			}
-			if len(out) > 0 {
-				return out, nil
-			}
-		case []string:
-			if len(t) > 0 {
-				return t, nil
-			}
-		}
-	}
-
-	// Otherwise accept etcd-style string key:
-	if raw, ok := cfg["initial-advertise-peer-urls"]; ok {
-		if s, ok2 := raw.(string); ok2 && strings.TrimSpace(s) != "" {
-			return splitCSV(s), nil
-		}
-	}
-
-	return nil, errors.New("etcd: no endpoints found in etcd.yml")
 }
 
 func splitCSV(s string) []string {

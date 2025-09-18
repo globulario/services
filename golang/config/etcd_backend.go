@@ -30,121 +30,112 @@ var (
 	cliShared *clientv3.Client
 )
 
-const (
-	// Allow plaintext only when explicitly bootstrapping/dev.
-	EnvAllowPlaintext = "ETCD_ALLOW_PLAINTEXT_BOOTSTRAP"
-	// Optional override for SNI/ServerName if needed.
-	EnvServerName = "ETCD_SERVER_NAME"
-)
-
-
-// etcdClient returns a healthy shared client, selecting transport automatically.
 // etcdClient returns a healthy shared client, selecting transport automatically.
 func etcdClient() (*clientv3.Client, error) {
-    cliMu.Lock()
-    defer cliMu.Unlock()
+	cliMu.Lock()
+	defer cliMu.Unlock()
 
-    if cliShared != nil {
-        if err := probeEtcdHealthy(cliShared, 3*time.Second); err == nil {
-            return cliShared, nil
-        }
-        _ = cliShared.Close()
-        cliShared = nil
-    }
+	if cliShared != nil {
+		if err := probeEtcdHealthy(cliShared, 3*time.Second); err == nil {
+			return cliShared, nil
+		}
+		_ = cliShared.Close()
+		cliShared = nil
+	}
 
-    eps := etcdEndpointsFromEnv()
+	tlsCfg, err := GetEtcdTLS()
+	if err != nil {
+		zap.L().Warn("GetEtcdTLS failed; will try HTTP", zap.Error(err))
+		tlsCfg = nil
+	} else {
+		zap.L().Info("GetEtcdTLS succeeded; will try mTLS/TLS first")
+	}
 
-    tlsCfg, err := GetEtcdTLS()
-    if err != nil {
-        zap.L().Warn("GetEtcdTLS failed; will try HTTP", zap.Error(err))
-        tlsCfg = nil
-    } else {
-        zap.L().Info("GetEtcdTLS succeeded; will try mTLS/TLS first")
-    }
+	// Build a "TLS but no client cert" config using system roots.
+	sysPool, _ := x509.SystemCertPool()
+	hostname, _ := GetHostname()
 
-    // Derive SNI from the first endpoint host.
-    sni := ""
-    if len(eps) > 0 {
-        if u, perr := url.Parse("http://" + eps[0]); perr == nil {
-            host := u.Hostname()
-            if host != "" && net.ParseIP(host) == nil {
-                sni = host
-            }
-        }
-    }
 
-    // Build a "TLS but no client cert" config using system roots.
-    sysPool, _ := x509.SystemCertPool()
-    plainTLS := &tls.Config{
-        MinVersion:         tls.VersionTLS12,
-        InsecureSkipVerify: false,
-        RootCAs:            sysPool,
-        ServerName:         sni, // important for SNI/hostname verification
-    }
+	type attempt struct {
+		name     string
+		tls      *tls.Config
+		insecure bool // force HTTP
+	}
 
-    type attempt struct {
-        name     string
-        tls      *tls.Config
-        insecure bool // force HTTP
-    }
+	// Order: if we have mTLS config, try that, then plain TLS, then HTTP.
+	// If we have no TLS config, try plain TLS (could work with LE/public cert), then HTTP.
+	// Allow opting into a plain-TLS attempt via env (off by default).
+	tryPlainTLS := strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_ETCD_TRY_PLAINTLS")), "1") ||
+		strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_ETCD_TRY_PLAINTLS")), "true")
 
-    // Order: if we have mTLS config, try that, then plain TLS, then HTTP.
-    // If we have no TLS config, try plain TLS (could work with LE/public cert), then HTTP.
-    var orders []attempt
-    if tlsCfg != nil {
-        orders = []attempt{
-            {name: "mTLS", tls: tlsCfg},
-            {name: "TLS", tls: plainTLS},
-            {name: "HTTP", insecure: true},
-        }
-    } else {
-        orders = []attempt{
-            {name: "TLS", tls: plainTLS},
-            {name: "HTTP", insecure: true},
-        }
-    }
+	var orders []attempt
+	if tlsCfg != nil {
+		orders = []attempt{
+			{name: "mTLS", tls: tlsCfg},
+		}
+		if tryPlainTLS {
+			// This will likely fail if etcd enforces client cert auth, so keep it opt-in.
+			orders = append(orders, attempt{name: "TLS", tls: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    sysPool,
+				// SNI set to advertised hostname (already computed above)
+				ServerName: hostname,
+			}})
+		}
+		orders = append(orders, attempt{name: "HTTP", insecure: true})
+	} else {
+		// No client certs available: go straight to HTTP (loopback).
+		orders = []attempt{
+			{name: "HTTP", insecure: true},
+		}
+		if tryPlainTLS {
+			orders = append([]attempt{{name: "TLS", tls: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    sysPool,
+				ServerName: hostname,
+			}}}, orders...)
+		}
+	}
 
-    deadline := time.Now().Add(20 * time.Second)
-    var errs []error
+	deadline := time.Now().Add(20 * time.Second)
+	var errs []error
 
-    for time.Now().Before(deadline) {
-        for _, o := range orders {
-            cfg := clientv3.Config{
-                Endpoints:            eps,
-                DialTimeout:          4 * time.Second,
-                DialKeepAliveTime:    10 * time.Second,
-                DialKeepAliveTimeout: 3 * time.Second,
-                Logger:               etcdZapLoggerFromEnv(),
-            }
-            if !o.insecure {
-                cfg.TLS = o.tls
-            }
+	for time.Now().Before(deadline) {
+		for _, o := range orders {
+			cfg := clientv3.Config{
+				Endpoints:   etcdEndpointsFromEnv(),
+				DialTimeout: 4 * time.Second,
+			}
+			if !o.insecure {
+				cfg.TLS = o.tls
+			}
 
-            zap.L().Info("etcdClient: trying transport", zap.String("mode", o.name), zap.Any("endpoints", eps), zap.Bool("tls", cfg.TLS != nil))
-            c, err := clientv3.New(cfg)
-            if err != nil {
-                errs = append(errs, fmt.Errorf("%s dial: %w", o.name, err))
-                continue
-            }
-            if err := probeEtcdHealthy(c, 3*time.Second); err == nil {
-                cliShared = c
-                return cliShared, nil
-            }
-            errs = append(errs, fmt.Errorf("%s health probe: %w", o.name, err))
-            _ = c.Close()
-        }
-        time.Sleep(400 * time.Millisecond)
-    }
+			zap.L().Info("etcdClient: trying transport", zap.String("mode", o.name), zap.Any("endpoints", cfg.Endpoints), zap.Bool("tls", cfg.TLS != nil))
+			c, err := clientv3.New(cfg)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s dial: %w", o.name, err))
+				continue
+			}
+			if err := probeEtcdHealthy(c, 3*time.Second); err == nil {
+				cliShared = c
+				return cliShared, nil
+			}
+			errs = append(errs, fmt.Errorf("%s health probe: %w", o.name, err))
+			_ = c.Close()
+		}
+		time.Sleep(400 * time.Millisecond)
+	}
 
-    // Assemble a readable error.
-    var b strings.Builder
-    for i, e := range errs {
-        if i > 0 { b.WriteString(" | ") }
-        b.WriteString(e.Error())
-    }
-    return nil, fmt.Errorf("could not determine etcd transport (mTLS/TLS/HTTP failed; endpoint=%v): %s", eps, b.String())
+	// Assemble a readable error.
+	var b strings.Builder
+	for i, e := range errs {
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		b.WriteString(e.Error())
+	}
+	return nil, fmt.Errorf("could not determine etcd transport (mTLS/TLS/HTTP failed; endpoint=%v): %s", etcdEndpointsFromEnv(), b.String())
 }
-
 
 // GetEtcdClient returns the shared healthy etcd client.
 func GetEtcdClient() (*clientv3.Client, error) {
@@ -169,19 +160,18 @@ func probeEtcdHealthy(c *clientv3.Client, to time.Duration) error {
 // Endpoint & TLS helpers
 // -----------------------------
 
+// etcdEndpointsFromEnv: never return 0.0.0.0; prefer advertised DNS.
 func etcdEndpointsFromEnv() []string {
-	// Respect explicit env overrides first (CSV/space/semicolon separated)
 	if s := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); s != "" {
-		return splitCSV(s)
+		return mapSanitized(splitCSV(s))
 	}
 	if s := os.Getenv("ETCD_ENDPOINTS"); s != "" {
-		return splitCSV(s)
+		return mapSanitized(splitCSV(s))
 	}
 	if s := os.Getenv("ETCDCTL_ENDPOINTS"); s != "" {
-		return splitCSV(s)
+		return mapSanitized(splitCSV(s))
 	}
 
-	// Derive the advertised DNS host used by StartEtcdServer (Name + Domain).
 	name := Utility.ToString(GetLocalConfigMust(true)["Name"])
 	if name == "" {
 		if n, _ := GetName(); n != "" {
@@ -193,11 +183,60 @@ func etcdEndpointsFromEnv() []string {
 	if dom != "" && !strings.Contains(host, ".") {
 		host = host + "." + dom
 	}
-	if host == "" {
-		host = "localhost" // last resort; better than 0.0.0.0
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		host = "localhost"
 	}
 
-	return []string{fmt.Sprintf("%s:2379", host)}
+	// Return both loopback (HTTP listener) and the advertised host (TLS listener).
+	eps := []string{"127.0.0.1:2379", net.JoinHostPort(host, "2379")}
+	return mapSanitized(eps)
+}
+
+func sanitize(ep string) (string, bool) {
+	u := ep
+	if !strings.Contains(u, "://") {
+		u = "http://" + u
+	}
+	if uu, err := url.Parse(u); err == nil {
+		host := uu.Hostname()
+		if host == "0.0.0.0" || host == "" || host == "::" || host == "[::]" {
+			return "", false
+		}
+		port := uu.Port()
+		if port == "" {
+			port = "2379"
+		}
+		return net.JoinHostPort(host, port), true
+	}
+	return "", false
+}
+
+func mapSanitized(in []string) []string {
+	var out []string
+	for _, ep := range in {
+		if hp, ok := sanitize(strings.TrimSpace(ep)); ok {
+			out = append(out, hp)
+		}
+	}
+	if len(out) == 0 {
+		// fallback to DNS-first as in your existing code
+		name := Utility.ToString(GetLocalConfigMust(true)["Name"])
+		if name == "" {
+			if n, _ := GetName(); n != "" {
+				name = n
+			}
+		}
+		dom, _ := GetDomain()
+		host := strings.TrimSpace(name)
+		if dom != "" && !strings.Contains(host, ".") {
+			host = host + "." + dom
+		}
+		if host == "" {
+			host = "localhost"
+		}
+		out = []string{host + ":2379"}
+	}
+	return out
 }
 
 // tiny helper so we don’t ignore errors silently
@@ -209,52 +248,37 @@ func GetLocalConfigMust(withCache bool) map[string]interface{} {
 	return cfg
 }
 
-
 // GetEtcdTLS returns a *tls.Config for talking to etcd over HTTPS (mTLS).
 // Returns (nil, error) if files are missing/invalid.
 func GetEtcdTLS() (*tls.Config, error) {
-	// Derive the advertised DNS host: name[.domain]
-	name, _ := GetName()
-	domain, _ := GetDomain()
-	advHost := strings.TrimSpace(name)
-	if domain != "" && !strings.Contains(advHost, ".") {
-		advHost = advHost + "." + domain
-	}
 
-	// /etc/globular/config/tls/<advHost>/
+	advHost, _ := GetHostname()
 	base := filepath.Join(GetConfigDir(), "tls", advHost)
 	caPath := filepath.Join(base, "ca.crt")
 	clientCrt := filepath.Join(base, "client.crt")
 	clientKey := filepath.Join(base, "client.pem")
 
-	// Verify files exist.
-	if _, err := os.Stat(caPath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("CA file %s does not exist", caPath)
+	// Check files
+	for _, p := range []string{caPath, clientCrt, clientKey} {
+		if _, err := os.Stat(p); err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("missing TLS file: %s", p)
+			}
+			return nil, fmt.Errorf("stat %s: %w", p, err)
 		}
-		return nil, fmt.Errorf("stat CA: %w", err)
-	}
-	if _, err := os.Stat(clientCrt); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("client CRT file %s does not exist", clientCrt)
-		}
-		return nil, fmt.Errorf("stat client CRT: %w", err)
-	}
-	if _, err := os.Stat(clientKey); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("client KEY file %s does not exist", clientKey)
-		}
-		return nil, fmt.Errorf("stat client KEY: %w", err)
 	}
 
+	// Root pool: prefer system + your CA
+	pool, _ := x509.SystemCertPool()
+	if pool == nil {
+		pool = x509.NewCertPool()
+	}
 	caPEM, err := os.ReadFile(caPath)
 	if err != nil {
 		return nil, fmt.Errorf("read CA: %w", err)
 	}
-
-	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("append CA failed")
+		return nil, fmt.Errorf("append CA failed (invalid PEM?)")
 	}
 
 	cert, err := tls.LoadX509KeyPair(clientCrt, clientKey)
@@ -262,13 +286,38 @@ func GetEtcdTLS() (*tls.Config, error) {
 		return nil, fmt.Errorf("load client keypair: %w", err)
 	}
 
+	// (Optional) sanity check the client cert has EKU clientAuth
+	if err := ensureClientAuthEKU(cert); err != nil {
+		return nil, err
+	}
+
 	return &tls.Config{
 		MinVersion:   tls.VersionTLS12,
-		RootCAs:      pool,
-		Certificates: []tls.Certificate{cert},
-		// Ensure SNI/hostname matches the cert SAN
-		ServerName: advHost,
+		RootCAs:      pool,                    // verify the server (etcd)
+		Certificates: []tls.Certificate{cert}, // present client cert (mTLS)
 	}, nil
+}
+
+// ensureClientAuthEKU checks the leaf (if parseable) has clientAuth EKU.
+func ensureClientAuthEKU(c tls.Certificate) error {
+	if len(c.Certificate) == 0 {
+		return fmt.Errorf("empty client certificate chain")
+	}
+	leaf, err := x509.ParseCertificate(c.Certificate[0])
+	if err != nil {
+		return nil
+	} // don't hard fail if we can't parse; optional check
+	hasClientAuth := false
+	for _, eku := range leaf.ExtKeyUsage {
+		if eku == x509.ExtKeyUsageClientAuth {
+			hasClientAuth = true
+			break
+		}
+	}
+	if !hasClientAuth {
+		return fmt.Errorf("client certificate missing ExtKeyUsage=clientAuth")
+	}
+	return nil
 }
 
 func splitCSV(s string) []string {
@@ -452,6 +501,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	resp, err := c.Get(ctx, etcdPrefix, clientv3.WithPrefix())
 	if err != nil {
+
 		return nil, err
 	}
 

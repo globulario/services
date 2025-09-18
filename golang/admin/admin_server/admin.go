@@ -27,11 +27,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	// NEW: etcd client (for saving global config) and grpc creds
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
 	// NEW: for emitting a config-updated event (optional but handy)
 	"github.com/globulario/services/golang/event/event_client"
 )
@@ -468,16 +463,7 @@ func putSystemConfigEtcd(jsonStr string) error {
 		host = "localhost" // last resort; better than 0.0.0.0
 	}
 
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:            config.GetEtcdEndpointsHostPorts(),
-		DialTimeout:          3 * time.Second,
-		DialKeepAliveTime:    10 * time.Second,
-		DialKeepAliveTimeout: 3 * time.Second,
-		DialOptions:          []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
-	})
-	if err != nil {
-		return err
-	}
+	cli, err :=  config.GetEtcdClient()
 	defer cli.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)

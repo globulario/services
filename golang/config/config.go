@@ -8,9 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -350,6 +348,19 @@ func GetDomain() (string, error) {
 	return "", errors.New("no local configuration found")
 }
 
+func GetHostname() (string, error) {
+	name, err := GetName()
+	if err != nil {
+		return "", err
+	}
+	domain, err := GetDomain()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", name, domain), nil
+}
+
+
 // TLS helper paths
 func GetLocalServerCerificateKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
@@ -565,137 +576,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	return out, nil
 }
 
-// ============================================================================
-// Remote config (HTTP) – used for peers
-// ============================================================================
-
-func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
-	if address == "" {
-		return nil, errors.New("fail to get remote service Config: no address was given")
-	}
-	if id == "" {
-		return nil, errors.New("no service ID was given")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	client := &http.Client{Timeout: 5 * time.Second}
-
-	if port == 0 {
-		port = 80
-	}
-
-	// Try HTTP first
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s:%d/config", address, port), nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		// Try HTTPS
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s:%d/config", address, port), nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err = client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil && err.Error() != "EOF" {
-		return nil, err
-	}
-
-	// Retry on HTTP→HTTPS mismatch message
-	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
-		if port == 0 {
-			port = 443
-		}
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s:%d/config", address, port), nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err = client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		body, err = io.ReadAll(resp.Body)
-		if err != nil && err.Error() != "EOF" {
-			return nil, err
-		}
-	}
-
-	var cfg map[string]interface{}
-	if err := json.Unmarshal(body, &cfg); err != nil {
-		return nil, err
-	}
-
-	if id != "" {
-		// find by Name or Id in Services map
-		if m, ok := cfg["Services"].(map[string]interface{}); ok {
-			for _, raw := range m {
-				if s, ok := raw.(map[string]interface{}); ok {
-					n, _ := s["Name"].(string)
-					i, _ := s["Id"].(string)
-					if n == id || i == id {
-						return s, nil
-					}
-				}
-			}
-		}
-	}
-	return cfg, nil
-}
-
-func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
-	fmt.Println("-----------------------------> GetRemoteConfig", address, port)
-	if address == "" {
-		return nil, errors.New("fail to get remote config no address was given")
-	}
-
-	if port == 0 {
-		port = 80
-	}
-
-	resp, err := http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
-	if err != nil {
-		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
-		if err != nil {
-			return nil, err
-		}
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil && err.Error() != "EOF" {
-		return nil, err
-	}
-
-	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
-		if port == 0 {
-			port = 443
-		}
-		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		body, err = io.ReadAll(resp.Body)
-		if err != nil && err.Error() != "EOF" {
-			return nil, err
-		}
-	}
-
-	var cfg map[string]interface{}
-	if err := json.Unmarshal(body, &cfg); err != nil {
-		return nil, err
-	}
-	return cfg, nil
-}
 
 // ============================================================================
 // Local system config: etcd-first; file fallback is bootstrap ONLY

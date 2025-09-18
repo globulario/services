@@ -440,6 +440,14 @@ Defenses:
   - Try-lock to avoid concurrent proxy starts.
   - Supervise and clear runtime ProxyProcess on exit.
 */
+// StartServiceProxyProcess launches grpcwebproxy for a running service.
+//
+// Changes vs previous version:
+// - Removed the optimistic "port already bound; skip" branch.
+// - Always attempt to start the proxy after runtime/PID sanity checks.
+// - After starting, verify the proxy port actually becomes reachable within a short timeout.
+//   If it doesn't, log+return a concrete error instead of silently skipping.
+// - Still guards against double-start via etcd TryLock and clears stale ProxyProcess PIDs.
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string) (int, error) {
 	// Reconcile from runtime; needed for correct Process/ProxyProcess decisions.
 	syncFromRuntime(s)
@@ -454,8 +462,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 
 	// Per-service try-lock to avoid double proxy start.
-	cli, err := config.GetEtcdClient()
-	if err == nil && cli != nil {
+	if cli, err := config.GetEtcdClient(); err == nil && cli != nil {
 		if sess, e := concurrency.NewSession(cli, concurrency.WithTTL(8)); e == nil {
 			m := concurrency.NewMutex(sess, "/globular/locks/proxy/"+id)
 			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
@@ -509,14 +516,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyPort := Utility.ToInt(s["Proxy"])
 	tlsEnabled := Utility.ToBool(s["TLS"])
 
-	// If desired proxy port is already bound, assume proxy is already running and skip.
-	if portInUse(net.JoinHostPort("0.0.0.0", strconv.Itoa(proxyPort))) || portInUse(net.JoinHostPort("[::]", strconv.Itoa(proxyPort))) {
-		slog.Info("grpcwebproxy already bound; skipping start", "service", name, "id", id, "port", proxyPort)
-		// Keep runtime state consistent (service is running). We don't know the external proxy PID.
-		_ = config.PutRuntime(id, map[string]interface{}{"State": "running"})
-		return 0, nil
-	}
-
 	args := []string{
 		"--backend_addr=" + backend,
 		"--allow_all_origins=true",
@@ -567,32 +566,69 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 	proxyPid := proxy.Process.Pid
 
-	slog.Info("grpcwebproxy started", "service", name, "id", id, "backend", backend, "port", proxyPort, "tls", tlsEnabled, "pid", proxyPid, "path", cmdPath)
+	slog.Info("grpcwebproxy started (verifying reachability)", "service", name, "id", id, "backend", backend, "port", proxyPort, "tls", tlsEnabled, "pid", proxyPid, "path", cmdPath)
 
-	// Update runtime: ProxyProcess + State.
+	// Update runtime immediately with the PID (we’ll clear it if startup fails).
 	_ = config.PutRuntime(id, map[string]interface{}{
 		"ProxyProcess": proxyPid,
 		"State":        "running",
 	})
 
-	// Best-effort event: publish updated service config to listeners.
-	if str, _ := Utility.ToJson(s); str != "" {
-		if address, _ := config.GetAddress(); address != "" {
-			if ec, err := getEventClient(address); err == nil {
-				_ = ec.Publish("update_globular_service_configuration_evt", []byte(str))
+	// Quick readiness: give the proxy a moment to bind; then confirm the port is open.
+	ready := make(chan error, 1)
+	go func() { ready <- proxy.Wait() }() // if it crashes instantly, we’ll learn here
+
+	// Wait up to ~2s for the port to open; if the process already died, surface that error.
+	checkDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(checkDeadline) {
+		select {
+		case err := <-ready:
+			// Process exited early — startup failed (very often "address already in use").
+			_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
+			if err != nil {
+				slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", proxyPid, "err", err)
+				return -1, fmt.Errorf("grpcwebproxy failed to start: %w", err)
 			}
+			slog.Info("grpcwebproxy exited immediately without error (unexpected)", "service", name, "id", id, "pid", proxyPid)
+			return -1, errors.New("grpcwebproxy exited immediately")
+		default:
+			// Try both IPv4 and IPv6 localhost to confirm the bind.
+			hp4 := net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))
+			hp6 := net.JoinHostPort("::1", strconv.Itoa(proxyPort))
+			if portOpen := waitTcpOpen(hp4, 150*time.Millisecond) || waitTcpOpen(hp6, 150*time.Millisecond); portOpen {
+				// Looks good — keep supervising below and return success.
+				goto SUPERVISE
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
-	// Supervise proxy.
+	// Not reachable; assume bad start. Try to collect exit state if it died just after.
+	select {
+	case err := <-ready:
+		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
+		if err != nil {
+			slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", proxyPid, "err", err)
+			return -1, fmt.Errorf("grpcwebproxy failed to start: %w", err)
+		}
+	default:
+	}
+	// Still alive but not listening — kill it and report error.
+	_ = syscall.Kill(-proxyPid, syscall.SIGTERM)
+	_ = proxy.Process.Signal(syscall.SIGTERM)
+	time.Sleep(200 * time.Millisecond)
+	_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
+	return -1, fmt.Errorf("grpcwebproxy did not become reachable on port %d", proxyPort)
+
+SUPERVISE:
+	// Supervise proxy (clear runtime PID on exit).
 	go func() {
-		err := proxy.Wait()
+		err := <-ready
 		if err != nil {
 			slog.Error("grpcwebproxy terminated with error", "service", name, "id", id, "pid", proxyPid, "err", err)
 		} else {
 			slog.Info("grpcwebproxy stopped", "service", name, "id", id, "pid", proxyPid)
 		}
-		// Clear runtime proxy PID if it still points to us.
 		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
 	}()
 
@@ -768,6 +804,15 @@ func StartEtcdServer() error {
 	}
 	advHost = strings.TrimSpace(advHost)
 
+	if advHost == "" {
+		return errors.New("cannot determine etcd advertised hostname")
+	}
+
+	if advHost == "127.0.0.1" || advHost == "0.0.0.0" {
+		slog.Warn("etcd advertised hostname resolves to localhost; this is not suitable for clustering")
+		advHost = "localhost"
+	}
+
 	dataDir := config.GetDataDir() + "/etcd-data"
 	_ = Utility.CreateDirIfNotExist(dataDir)
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
@@ -801,7 +846,12 @@ func StartEtcdServer() error {
 			wantTLS = false
 			scheme = "http"
 		} else {
-			clientCertAuth := Utility.Exists(clientCertFile) && Utility.Exists(clientKeyFile)
+			clientCertAuth := false
+			if Utility.Exists(clientCertFile) && Utility.Exists(clientKeyFile) {
+				if crt, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile); err == nil && isClientAuthCert(crt) {
+					clientCertAuth = true
+				}
+			}
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
@@ -813,7 +863,7 @@ func StartEtcdServer() error {
 			nodeCfg["peer-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
-				"client-cert-auth": false,
+				"client-cert-auth": true,
 				"trusted-ca-file":  caFile,
 			}
 		}
@@ -827,16 +877,17 @@ func StartEtcdServer() error {
 	const clientPort = "2379"
 	const peerPort = "2380"
 
-	bindHost := "0.0.0.0" // listen wildcard; not used for cert/SAN
-	listenClientURLs := scheme + "://" + net.JoinHostPort(bindHost, clientPort)
-	listenPeerURLs := scheme + "://" + net.JoinHostPort(bindHost, peerPort)
+	
+	listenAddress :=  config.GetLocalIP()
+	listenClientURLs := scheme + "://" + net.JoinHostPort(listenAddress, clientPort)
+	listenPeerURLs := scheme + "://" + net.JoinHostPort(listenAddress, peerPort)
 
 	advertiseClientURLs := scheme + "://" + net.JoinHostPort(advHost, clientPort)
 	initialAdvertisePeerURLs := scheme + "://" + net.JoinHostPort(advHost, peerPort)
 
 	nodeCfg["name"] = name
 	nodeCfg["data-dir"] = dataDir
-	nodeCfg["listen-client-urls"] = listenClientURLs
+	nodeCfg["listen-client-urls"] = "http://127.0.0.1:" + clientPort + "," + listenClientURLs
 	nodeCfg["listen-peer-urls"] = listenPeerURLs
 	nodeCfg["advertise-client-urls"] = advertiseClientURLs
 	nodeCfg["initial-advertise-peer-urls"] = initialAdvertisePeerURLs
@@ -858,6 +909,7 @@ func StartEtcdServer() error {
 			initialCluster += "," + Utility.ToString(peer["Name"]) + "=" + scheme + "://" + net.JoinHostPort(adv, peerPort)
 		}
 	}
+
 	nodeCfg["initial-cluster"] = initialCluster
 
 	// Cluster state: "existing" if data dir already has a member.
@@ -874,9 +926,9 @@ func StartEtcdServer() error {
 	}
 
 	// If ports are bound, refuse to start a second server unless endpoint is healthy.
-	if portInUse(net.JoinHostPort(bindHost, peerPort)) || portInUse(net.JoinHostPort(bindHost, clientPort)) {
+	if portInUse(net.JoinHostPort(listenAddress, peerPort)) || portInUse(net.JoinHostPort(listenAddress, clientPort)) {
 		return fmt.Errorf("etcd ports already in use but endpoint not healthy (peer=%s, client=%s)",
-			net.JoinHostPort(bindHost, peerPort), net.JoinHostPort(bindHost, clientPort))
+			net.JoinHostPort(listenAddress, peerPort), net.JoinHostPort(listenAddress, clientPort))
 	}
 
 	// Write config.
@@ -912,22 +964,30 @@ func StartEtcdServer() error {
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- cmd.Wait() }()
 
-	// Graceful shutdown on SIGINT/SIGTERM.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-sigCh
-		slog.Info("received shutdown signal for etcd; terminating", "signal", sig)
-		_ = StopEtcdServer()
-	}()
-
 	// Readiness probe (DNS-first).
 	deadline := time.Now().Add(readyTimeout)
-	httpClient := healthHTTPClient(scheme, wantTLS, caFile, clientCertFile, clientKeyFile)
+	httpClient := healthHTTPClient(wantTLS, caFile, clientCertFile, clientKeyFile)
 
 	probeOne := func(u string) bool {
-		// HTTP /health
-		if resp, err := httpClient.Get(u + "/health"); err == nil {
+		raw := u
+
+		// Ensure scheme for HTTP probe
+		if !strings.Contains(u, "://") {
+			// etcd’s /health is HTTP when you’re in insecure mode; use https if your httpClient has TLS.
+			if wantTLS {
+				u = "https://" + u
+			} else {
+				u = "http://" + u
+			}
+		}
+
+		// HTTP /health (short timeout recommended)
+		req, _ := http.NewRequest("GET", u+"/health", nil)
+		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		if resp, err := httpClient.Do(req); err == nil {
 			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -935,20 +995,27 @@ func StartEtcdServer() error {
 				return true
 			}
 		}
-		// Fallback: TCP open.
+
+		// TCP fallback: extract host:port even if original had no scheme
 		uu, _ := url.Parse(u)
 		hp := uu.Host
+		if hp == "" {
+			// If Host is empty (because we added scheme above, this normally won't happen),
+			// recover from the original raw input.
+			hp = raw
+		}
 		if !strings.Contains(hp, ":") {
 			hp = net.JoinHostPort(hp, "2379")
 		}
-		if conn, err := net.DialTimeout("tcp", hp, 500*time.Millisecond); err == nil {
+
+		d := net.Dialer{Timeout: 500 * time.Millisecond}
+		if conn, err := d.Dial("tcp", hp); err == nil {
 			conn.Close()
 			slog.Info("etcd TCP port open; proceeding", "endpoint", hp)
 			return true
 		}
 		return false
 	}
-
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-waitErr:
@@ -958,12 +1025,14 @@ func StartEtcdServer() error {
 			return fmt.Errorf("etcd exited early: %w", err)
 		default:
 		}
-		for _, ep := range config.GetEtcdEndpointsHostPorts() {
-			if probeOne(ep) {
-				slog.Info("etcd is ready")
-				return nil
-			}
+
+		// You already built these earlier:
+		advertiseClientURLs := scheme + "://" + net.JoinHostPort(advHost, clientPort)
+		if probeOne(advertiseClientURLs) {
+			slog.Info("etcd is ready")
+			return nil
 		}
+
 		time.Sleep(probeEvery)
 	}
 
@@ -1036,37 +1105,55 @@ func portInUse(hp string) bool {
 	return false
 }
 
-func healthHTTPClient(scheme string, wantTLS bool, ca, clientCrt, clientKey string) *http.Client {
+func isClientAuthCert(c tls.Certificate) bool {
+	if len(c.Certificate) == 0 {
+		return false
+	}
+	if leaf, err := x509.ParseCertificate(c.Certificate[0]); err == nil {
+		for _, eku := range leaf.ExtKeyUsage {
+			if eku == x509.ExtKeyUsageClientAuth {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func healthHTTPClient(wantTLS bool, caPath, clientCrt, clientKey string) *http.Client {
 	tr := &http.Transport{}
 	if wantTLS {
 		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
-		if ca != "" && Utility.Exists(ca) {
-			pool := x509.NewCertPool()
-			b, _ := os.ReadFile(ca)
-			pool.AppendCertsFromPEM(b)
-			tlsCfg.RootCAs = pool
+		tlsCfg.ServerName, _ = config.GetHostname() // for SNI
+		// Accept self-signed certs by default (we use our own CA)
+		tlsCfg.InsecureSkipVerify = true
+		// Root CAs
+
+		// Start from system pool
+		if sys, _ := x509.SystemCertPool(); sys != nil {
+			tlsCfg.RootCAs = sys
+		} else {
+			tlsCfg.RootCAs = x509.NewCertPool()
 		}
+		// Add custom CA if provided
+		if caPath != "" && Utility.Exists(caPath) {
+			if b, err := os.ReadFile(caPath); err == nil {
+				_ = tlsCfg.RootCAs.AppendCertsFromPEM(b)
+			}
+		}
+		// Optional client cert (for mTLS)
 		if Utility.Exists(clientCrt) && Utility.Exists(clientKey) {
-			crt, err := tls.LoadX509KeyPair(clientCrt, clientKey)
-			if err == nil {
+			if crt, err := tls.LoadX509KeyPair(clientCrt, clientKey); err == nil && isClientAuthCert(crt) {
 				tlsCfg.Certificates = []tls.Certificate{crt}
 			}
 		}
-
-		// IMPORTANT: set SNI
-		address, _ := config.GetAddress()
-		host := strings.Split(address, ":")[0]
-		if host == "" {
-			host = "localhost"
-		}
-		tlsCfg.ServerName = host
+		// Do NOT force ServerName; let http set it from req URL.
 		tr.TLSClientConfig = tlsCfg
 	}
 	return &http.Client{Transport: tr, Timeout: 3 * time.Second}
 }
 
 func alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile string) bool {
-	httpClient := healthHTTPClient(scheme, scheme == "https", caFile, clientCertFile, clientKeyFile)
+	httpClient := healthHTTPClient(scheme == "https", caFile, clientCertFile, clientKeyFile)
 
 	for _, u := range config.GetEtcdEndpointsHostPorts() {
 		resp, err := httpClient.Get(u + "/health")

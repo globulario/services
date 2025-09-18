@@ -366,8 +366,6 @@ func main() {
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
 
-	fmt.Println("Starting service", srv.GetName(), "on port", srv.GetPort())
-	
 	// ---- CLI flags handled BEFORE any call that might touch etcd ----
 	args := os.Args[1:]
 	if len(args) == 0 {

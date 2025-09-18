@@ -409,7 +409,6 @@ func (srv *server) setRoleActions(roleId string, actions []string) error {
 // -----------------------------------------------------------------------------
 // Service manager helpers
 // -----------------------------------------------------------------------------
-
 func (srv *server) stopService(s map[string]interface{}) error {
 	if err := process.KillServiceProcess(s); err != nil {
 		return err

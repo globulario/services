@@ -26,12 +26,10 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -375,7 +373,9 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 		return nil
 	}
 
+	hostname, _ := config.GetHostname()
 	return &tls.Config{
+		ServerName:  hostname, // no SNI
 		Certificates: []tls.Certificate{tlsCer},
 		ClientAuth:   tls.RequireAnyClientCert,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
@@ -536,18 +536,37 @@ func StartService(s Service, srv *grpc.Server) error {
 	return nil
 }
 
-// StopService transitions the service to "stopped", clears PID and stops gRPC.
-// Public signature preserved.
+// at top-level in services.go:
+// top-level
+// at top of services.go
+func gracefulStopWithTimeout(srv *grpc.Server, d time.Duration) {
+    if srv == nil { return }
+    done := make(chan struct{})
+    go func() { srv.GracefulStop(); close(done) }()
+    select {
+    case <-done:
+        return
+    case <-time.After(d):
+        srv.Stop()
+    }
+}
+
+// in StopService:
 func StopService(s Service, srv *grpc.Server) error {
-	s.SetState("stopped")
-	s.SetProcess(-1)
-	s.SetLastError("")
-	_ = putRuntimeStopped(s, "")
-	if srv != nil {
-		srv.Stop()
-	}
-	slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
-	return nil
+    s.SetState("closed")
+    s.SetProcess(-1)
+    s.SetLastError("")
+    _ = putRuntimeClosed(s, "")
+    if srv != nil {
+        // env-tunable grace; default ~5s is usually plenty
+        d := 5 * time.Second
+        if v := strings.TrimSpace(os.Getenv("GLOBULAR_GRACEFUL_STOP")); v != "" {
+            if dd, err := time.ParseDuration(v); err == nil && dd > 0 { d = dd }
+        }
+        gracefulStopWithTimeout(srv, d)
+    }
+    slog.Info("StopService: service stopped", "service", s.GetName(), "id", s.GetId())
+    return nil
 }
 
 // ------------------------------
@@ -555,34 +574,7 @@ func StopService(s Service, srv *grpc.Server) error {
 // ------------------------------
 
 // services.go
-func etcdClientLocal() (*clientv3.Client, error) {
 
-	// Reuse the same endpoints derivation so we always hit the DNS name.
-	eps := config.GetEtcdEndpointsHostPorts()
-
-	tlsCfg, _ := config.GetEtcdTLS() // returns nil for http
-	cfg := clientv3.Config{
-		Endpoints:   eps,
-		DialTimeout: 5 * time.Second,
-		TLS:         tlsCfg,
-	}
-	if tlsCfg == nil {
-		cfg.DialOptions = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	}
-
-	slog.Info("etcdClient: building client",
-		"endpoints", eps,
-		"tls", tlsCfg != nil,
-		"servername", func() string {
-			if tlsCfg != nil {
-				return tlsCfg.ServerName
-			}
-			return ""
-		}(),
-	)
-
-	return clientv3.New(cfg)
-}
 
 // watchDesiredConfig monitors the etcd key corresponding to the service's configuration
 // and applies updates to the service instance when changes are detected. It listens for
@@ -596,44 +588,45 @@ func etcdClientLocal() (*clientv3.Client, error) {
 //   s   - The service instance to monitor and update.
 //   srv - The gRPC server instance associated with the service.
 func watchDesiredConfig(s Service, srv *grpc.Server) {
-	cli, err := etcdClientLocal()
-	if err != nil {
-		slog.Warn("StartService: etcd client init failed", "service", s.GetName(), "err", err)
-		return
-	}
-	key := "/globular/services/" + s.GetId() + "/config"
-	wch := cli.Watch(context.Background(), key)
-	for w := range wch {
-		for _, ev := range w.Events {
-			if ev.IsCreate() || ev.IsModify() {
-				cfg, err := config.GetServiceConfigurationById(s.GetId())
-				if err != nil {
-					slog.Warn("watchDesiredConfig: fetch updated configuration failed", "service", s.GetName(), "err", err)
-					continue
-				}
+    cli, err := config.GetEtcdClient()
+    if err != nil { /* ... */ return }
 
-				// Compare relevant fields before applying.
-				oldPort := s.GetPort()
-				oldProxy := s.GetProxy()
-				applyDesiredToService(s, cfg)
+    key := "/globular/services/" + s.GetId() + "/config"
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
 
-				// Broadcast to event bus (keeps legacy listeners working)
-				if ec, e := getEventClient(); e == nil {
-					if b, e2 := json.Marshal(cfg); e2 == nil {
-						_ = ec.Publish("update_globular_service_configuration_evt", b)
-					}
-				}
+    wch := cli.Watch(ctx, key)
+    for w := range wch {
+        for _, ev := range w.Events {
+            if ev.IsCreate() || ev.IsModify() {
+                cfg, err := config.GetServiceConfigurationById(s.GetId())
+                if err != nil { /* ... */ continue }
 
-				// If ports changed, we cannot rebind live; log guidance
-				if s.GetPort() != oldPort || s.GetProxy() != oldProxy {
-					slog.Warn("port/proxy change detected in desired; restart required to take effect",
-						"service", s.GetName(), "id", s.GetId(),
-						"old_port", oldPort, "new_port", s.GetPort(),
-						"old_proxy", oldProxy, "new_proxy", s.GetProxy())
-				}
-			}
-		}
-	}
+                oldPort, oldProxy := s.GetPort(), s.GetProxy()
+                applyDesiredToService(s, cfg)
+
+                if stRaw, ok := cfg["State"]; ok && strings.EqualFold(Utility.ToString(stRaw), "closing") {
+                    slog.Info("closing requested via desired config; shutting down",
+                        "service", s.GetName(), "id", s.GetId())
+                    s.SetState("closing")
+                    _ = putRuntimeClosing(s, "")
+                    cancel()                     // <- stop this watch right away
+                    go func() {
+                        time.Sleep(100 * time.Millisecond)
+                        _ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
+                    }()
+                    return
+                }
+
+                if s.GetPort() != oldPort || s.GetProxy() != oldProxy {
+                    slog.Warn("port/proxy change detected in desired; restart required to take effect",
+                        "service", s.GetName(), "id", s.GetId(),
+                        "old_port", oldPort, "new_port", s.GetPort(),
+                        "old_proxy", oldProxy, "new_proxy", s.GetProxy())
+                }
+            }
+        }
+    }
 }
 
 // applyDesiredToService copies expected desired fields from a map onto the Service via setters.
@@ -810,6 +803,23 @@ func putRuntimeStopped(s Service, lastErr string) error {
 	return config.PutRuntime(s.GetId(), map[string]any{
 		"Process":   -1,
 		"State":     "stopped",
+		"LastError": lastErr,
+	})
+}
+
+
+func putRuntimeClosing(s Service, lastErr string) error {
+	return config.PutRuntime(s.GetId(), map[string]any{
+		"Process":   os.Getpid(),
+		"State":     "closing",
+		"LastError": lastErr,
+	})
+}
+
+func putRuntimeClosed(s Service, lastErr string) error {
+	return config.PutRuntime(s.GetId(), map[string]any{
+		"Process":   -1,
+		"State":     "closed",
 		"LastError": lastErr,
 	})
 }
