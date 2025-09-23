@@ -469,6 +469,38 @@ func (srv *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPee
 	return &resourcepb.GetPeerPublicKeyRsp{PublicKey: public_key}, nil
 }
 
+func (srv *server) getPeers(query string) ([]*resourcepb.Peer, error) {
+	// Get the persistence connection
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter out the server's own peer
+	var result []*resourcepb.Peer
+	for _, p := range peers {
+		peerMap, ok := p.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		mac, ok := peerMap["mac"].(string)
+		if !ok {
+			continue
+		}
+		if mac != srv.Mac {
+			peerObj := initPeer(peerMap)
+			result = append(result, peerObj)
+		}
+	}
+
+	return result, nil
+}
+
 // GetPeers streams a list of peers from the persistence store based on the provided query and options.
 // It retrieves peers from the "local_resource" collection, excluding the server's own peer (by MAC address).
 // Results are sent in batches of up to 100 peers per response via the provided gRPC stream.

@@ -1,114 +1,97 @@
 package storage_store
 
-import "errors"
+import (
+	"bytes"
+	"context"
+	"strings"
+)
 
-// NewScylla_store creates a ScyllaStore and starts the action loop.
-// address/keyspace/replicationFactor params are kept for backward compatibility
-// but are now superseded by JSON options passed to Open(). You can still seed
-// defaults by calling this with address/keyspace; they'll be part of Open options
-// if you craft them that way.
+// NewScylla_store constructs a ScyllaStore and starts its serialized action loop.
+// Kept for backward compatibility with older call sites.
+// Address/keyspace args are optional and only used if Open is invoked without JSON.
 func NewScylla_store(address string, keySpace string, replicationFactor int) *ScyllaStore {
 	s := &ScyllaStore{
-		actions: make(chan map[string]interface{}),
+		actions: make(chan action, 64),
 	}
-	go s.run()
-
-	// (legacy constructor kept intact; leave opts to Open() call)
-	_ = address
-	_ = keySpace
-	_ = replicationFactor
+	// Start the loop.
+	go s.Run(context.Background())
 	return s
 }
 
-// run serializes all DB operations via a single goroutine.
-func (store *ScyllaStore) run() {
-	for {
-		action := <-store.actions
-		switch action["name"] {
-		case "Open":
-			action["result"].(chan error) <- store.open(action["path"].(string))
+// Open opens the store using a JSON options document (preferred).
+// The reader can be nil; in that case, address/keySpace act as fallbacks.
+// --- NEW: public Open keeping your requested prototype ---
+// Accepts a JSON options string, initializes a reader, and either posts to the
+// action loop (if present) or opens directly.
+func (store *ScyllaStore) Open(optionsStr string) error {
+	// If no serialized loop is running, open directly.
+	if store.actions == nil {
+		return store.open(strings.NewReader(optionsStr), "", "", "")
+	}
+	// Otherwise, send through the loop; Run() will turn the string into a reader.
+	errCh := make(chan error, 1)
+	store.actions <- action{
+		name: "open",
+		args: []any{optionsStr}, // Run() handles string -> strings.NewReader(...)
+		errCh: errCh,
+	}
+	return <-errCh
+}
+// Close closes the store.
+func (store *ScyllaStore) Close() error {
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "close", errCh: errCh}
+	return <-errCh
+}
 
-		case "SetItem":
-			if action["val"] != nil {
-				action["result"].(chan error) <- store.setItem(action["key"].(string), action["val"].([]byte))
-			} else {
-				action["result"].(chan error) <- store.setItem(action["key"].(string), nil)
-			}
+// SetItem stores a value by key.
+func (store *ScyllaStore) SetItem(key string, val []byte) error {
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "setitem", args: []any{key, val}, errCh: errCh}
+	return <-errCh
+}
 
-		case "GetItem":
-			val, err := store.getItem(action["key"].(string))
-			if err != nil {
-				err = errors.New("scylla: item not found key=" + action["key"].(string) + " err=" + err.Error())
-			}
-			action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
+// SetItemWithTTL stores a value with a TTL in seconds.
+func (store *ScyllaStore) SetItemWithTTL(key string, val []byte, ttlSeconds int) error {
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "setitem", args: []any{key, val, ttlSeconds}, errCh: errCh}
+	return <-errCh
+}
 
-		case "RemoveItem":
-			action["result"].(chan error) <- store.removeItem(action["key"].(string))
-
-		case "Clear":
-			action["result"].(chan error) <- store.clear()
-
-		case "Drop":
-			action["result"].(chan error) <- store.drop()
-
-		case "Close":
-			action["result"].(chan error) <- store.close()
-			return // exit the loop cleanly
+// GetItem loads a value.
+func (store *ScyllaStore) GetItem(key string) ([]byte, error) {
+	resCh := make(chan any, 1)
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "getitem", args: []any{key}, resCh: resCh, errCh: errCh}
+	if err := <-errCh; err != nil {
+		return nil, err
+	}
+	if v := <-resCh; v != nil {
+		if b, ok := v.([]byte); ok {
+			// return a copy for safety
+			return bytes.Clone(b), nil
 		}
 	}
+	return nil, nil
 }
 
-///////////////////// Public (synchronized) API /////////////////////
-
-// Open accepts a JSON options string (see scylla_store.go open()).
-func (store *ScyllaStore) Open(path string) error {
-	action := map[string]interface{}{"name": "Open", "result": make(chan error), "path": path}
-	store.actions <- action
-	return <-action["result"].(chan error)
-}
-
-// Close shuts down the session and terminates the action loop.
-func (store *ScyllaStore) Close() error {
-	action := map[string]interface{}{"name": "Close", "result": make(chan error)}
-	store.actions <- action
-	return <-action["result"].(chan error)
-}
-
-// SetItem writes key -> val.
-func (store *ScyllaStore) SetItem(key string, val []byte) error {
-	action := map[string]interface{}{"name": "SetItem", "result": make(chan error), "key": key, "val": val}
-	store.actions <- action
-	return <-action["result"].(chan error)
-}
-
-// GetItem returns val for key.
-func (store *ScyllaStore) GetItem(key string) ([]byte, error) {
-	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}), "key": key}
-	store.actions <- action
-	results := <-action["results"].(chan map[string]interface{})
-	if results["err"] != nil {
-		return nil, results["err"].(error)
-	}
-	return results["val"].([]byte), nil
-}
-
-// RemoveItem deletes key.
+// RemoveItem deletes a key.
 func (store *ScyllaStore) RemoveItem(key string) error {
-	action := map[string]interface{}{"name": "RemoveItem", "result": make(chan error), "key": key}
-	store.actions <- action
-	return <-action["result"].(chan error)
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "removeitem", args: []any{key}, errCh: errCh}
+	return <-errCh
 }
 
 // Clear truncates the table.
 func (store *ScyllaStore) Clear() error {
-	action := map[string]interface{}{"name": "Clear", "result": make(chan error)}
-	store.actions <- action
-	return <-action["result"].(chan error)
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "clear", errCh: errCh}
+	return <-errCh
 }
 
-// Drop drops the table.
+// Drop removes the table.
 func (store *ScyllaStore) Drop() error {
-	action := map[string]interface{}{"name": "Drop", "result": make(chan error)}
-	store.actions <- action
-	return <-action["result"].(chan error)
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "drop", errCh: errCh}
+	return <-errCh
 }

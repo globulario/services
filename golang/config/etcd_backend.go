@@ -22,7 +22,6 @@ import (
 	Utility "github.com/globulario/utility"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -343,42 +342,6 @@ func splitCSV(s string) []string {
 // Logging for etcd client
 // -----------------------------
 
-// GLOB_ETCD_LOG: silent|error|warn|info|debug (default: silent)
-func etcdZapLoggerFromEnv() *zap.Logger {
-	level := strings.ToLower(strings.TrimSpace(os.Getenv("GLOB_ETCD_LOG")))
-	switch level {
-	case "", "silent", "off", "none":
-		return zap.NewNop()
-	case "error":
-		cfg := zap.NewProductionConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zapcore.ErrorLevel)
-		cfg.EncoderConfig.TimeKey = "ts"
-		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		l, _ := cfg.Build()
-		return l
-	case "warn", "warning":
-		cfg := zap.NewProductionConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
-		cfg.EncoderConfig.TimeKey = "ts"
-		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		l, _ := cfg.Build()
-		return l
-	case "info":
-		cfg := zap.NewProductionConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
-		cfg.EncoderConfig.TimeKey = "ts"
-		cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		l, _ := cfg.Build()
-		return l
-	case "debug":
-		cfg := zap.NewDevelopmentConfig()
-		cfg.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
-		l, _ := cfg.Build()
-		return l
-	default:
-		return zap.NewNop()
-	}
-}
 
 // -----------------------------
 // Desired/runtime split helpers

@@ -33,7 +33,7 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 
 	needSave := false
 	if err != nil {
-		if strings.Contains(err.Error(), "item not found") {
+		if strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
 
 			// So here I will create the permissions object...
 			permissions = &rbacpb.Permissions{

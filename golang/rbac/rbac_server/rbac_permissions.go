@@ -844,7 +844,7 @@ func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.D
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
-		if strings.Contains(err.Error(), "item not found") {
+		if strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
 			return &rbacpb.DeleteResourcePermissionsRsp{}, nil
 		}
 		return nil, status.Errorf(

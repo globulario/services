@@ -1,220 +1,245 @@
 package resource_client
 
 import (
-	//"encoding/json"
+	"fmt"
 	"log"
 	"testing"
+	"time"
 
-	"github.com/globulario/services/golang/authentication/authentication_client"
+	authn "github.com/globulario/services/golang/authentication/authentication_client"
 )
 
-var (
-	// Connect to the plc client.
-	domain                    = "globule-ryzen.globular.cloud"
-	client, _                 = NewResourceService_Client(domain, "resource.ResourceService")
-	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
-)
+// ---------- Test harness ----------
 
-/** Test create account **/
-/** Test create Organization */
-func TestCreateOrganization(t *testing.T) {
-	log.Println("---> test create organization.")
-	err := client.CreateOrganization(token, "globulario", "globulario", "globulario@globule-ryzen.globular.cloud", "description", "")
+// testEnv centralizes shared test state and helper methods.
+type testEnv struct {
+	Domain string
+	Client *Resource_Client
+	Auth   *authn.Authentication_Client
+	Token  string
+
+	Suffix     string
+	Org        string
+	Account    string
+	Group      string
+	Role       string
+	RoleAction string
+}
+
+func newTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+
+	const domain = "globular.io"
+
+	client, err := NewResourceService_Client(domain, "resource.ResourceService")
 	if err != nil {
-		log.Println("---> create organization fail! ", err)
-	} else {
-		log.Println("successed create organization globulario")
+		t.Fatalf("resource client: %v", err)
+	}
+
+	auth, err := authn.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	if err != nil {
+		t.Fatalf("auth client: %v", err)
+	}
+
+	// NOTE: this must match your server config (sa/adminadmin by default).
+	token, err := auth.Authenticate("sa", "adminadmin")
+	if err != nil {
+		t.Fatalf("authenticate sa: %v", err)
+	}
+
+	suffix := fmt.Sprintf("%d", time.Now().Unix())
+
+	return &testEnv{
+		Domain:     domain,
+		Client:     client,
+		Auth:       auth,
+		Token:      token,
+		Suffix:     suffix,
+		Org:        "org_" + suffix,
+		Account:    "acct_" + suffix,
+		Group:      "grp_" + suffix,
+		Role:       "db_user_" + suffix,
+		RoleAction: "/file.FileService/ReadDir",
 	}
 }
 
-/** Test create account **/
-func TestCreateAccount(t *testing.T) {
-	err := client.RegisterAccount(domain, "dave", "dave", "dave@globular.io", "1234", "1234")
+func mustNoErr(t *testing.T, step string, err error) {
+	t.Helper()
 	if err != nil {
-		log.Println("---> create account fail! ", err)
-	} else {
-		log.Println("---> dave account was created!")
+		t.Fatalf("%s: unexpected error: %v", step, err)
 	}
 }
 
-/** Test create group **/
-func TestCreateGroup(t *testing.T) {
-	err := client.CreateGroup(token, "group_0", "group_0", "test")
-	if err != nil {
-		log.Println("---> create group group_0 fail! ", err)
-	} else {
-		log.Println("---> create group_0 succeed!")
+func contains(ss []string, v string) bool {
+	for _, s := range ss {
+		if s == v {
+			return true
+		}
 	}
+	return false
 }
 
-/** Test Add account, group and role to the organization **/
-func TestAddToOrganization(t *testing.T) {
-	client.AddOrganizationAccount(token, "globulario", "dave")
-	client.AddOrganizationRole(token, "globulario", "db_user")
-	client.AddOrganizationGroup(token, "globulario", "group_0")
-}
-
-func TestRemoveFromOrganization(t *testing.T) {
-	client.RemoveOrganizationAccount(token, "globulario", "dave")
-	client.RemoveOrganizationRole(token, "globulario", "db_user")
-	client.RemoveOrganizationGroup(token, "globulario", "group_0")
-}
-
-func TestAddGroupMemberAccount(t *testing.T) {
-	err := client.AddGroupMemberAccount(token, "group_0", "dave")
-	if err != nil {
-		log.Println("---> add group member group_0 fail! ", err)
-	} else {
-		log.Println("---> add group memeber dave to  group_0 succssed!")
-	}
-}
-
-func TestGetGroups(t *testing.T) {
-	groups, err := client.GetGroups(`{"_id":"group_0"}`)
-	if err != nil {
-		log.Println("---> get group group_0 fail! ", err)
-	} else {
-		log.Println("---> get group_0 succeed! ", groups)
-	}
-}
-
-func TestCreateRole(t *testing.T) {
-	log.Println("---> create role db_user")
-	err := client.CreateRole(token, "db_user", "db_user", []string{
-		"/persistence.PersistenceService/InsertOne",
-		"/persistence.PersistenceService/InsertMany",
-		"/persistence.PersistenceService/Find",
-		"/persistence.PersistenceService/FindOne",
-		"/persistence.PersistenceService/ReplaceOne",
-		"/persistence.PersistenceService/DeleteOne",
-		"/persistence.PersistenceService/Delete",
-		"/persistence.PersistenceService/Count",
-		"/persistence.PersistenceService/Update",
-		"/persistence.PersistenceService/UpdateOne"})
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}
-
-func TestRemoveMemberAccount(t *testing.T) {
-	err := client.RemoveGroupMemberAccount(token, "group_0", "dave")
-	if err != nil {
-		log.Println("---> remove group group_0 fail! ", err)
-	} else {
-		log.Println("---> remove group_0 succeed!")
-	}
-}
-
-func TestDeleteGroup(t *testing.T) {
-	err := client.DeleteGroup(token, "group_0")
-	if err != nil {
-		log.Println("---> delete group group_0 fail! ", err)
-	} else {
-		log.Println("---> delete group_0 succeed!")
-	}
-}
-
-func TestAddRoleActions(t *testing.T) {
-	log.Println("---> Add Role action ")
-	err := client.AddRoleActions("db_user", []string{"/file.FileService/ReadDir"})
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}
-
-func TestAddAccountRole(t *testing.T) {
-	log.Println("---> Add account Role ")
-	err := client.AddAccountRole("dave", "db_user")
-	if err != nil {
-		log.Println("---> 130", err)
-	}
-
-	err = client.AddAccountRole("dave", "globular_user")
-	if err != nil {
-		log.Println("---> 135", err)
-	}
-}
-
-/*func TestValidateAction(t *testing.T) {
-
-		infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
+// waitForRoleAction polls GetRoles a few times to confirm an action is visible.
+func waitForRoleAction(c *Resource_Client, roleID, action string, tries int, sleep time.Duration) (bool, error) {
+	for range tries {
+		roles, err := c.GetRoles(fmt.Sprintf(`{"_id":"%s"}`, roleID))
 		if err != nil {
-			log.Println("---> ", err)
+			return false, err
+		}
+		if len(roles) == 1 && contains(roles[0].Actions, action) {
+			return true, nil
+		}
+		time.Sleep(sleep)
+	}
+	return false, nil
+}
+
+// ---------- End-to-end happy path ----------
+
+func TestResourceServiceLifecycle(t *testing.T) {
+	env := newTestEnv(t)
+	c := env.Client
+
+	t.Run("RegisterAccount", func(t *testing.T) {
+		// Create account first – many ops depend on it.
+		err := c.RegisterAccount(env.Domain, env.Account, env.Account, env.Account+"@example.com", "1234", "1234")
+		mustNoErr(t, "RegisterAccount", err)
+		log.Println("account created:", env.Account)
+	})
+
+	t.Run("CreateOrganizationAndGroup", func(t *testing.T) {
+		mustNoErr(t, "CreateOrganization",
+			c.CreateOrganization(env.Token, env.Org, env.Org, env.Org+"@"+env.Domain, "test org", ""),
+		)
+		mustNoErr(t, "CreateGroup",
+			c.CreateGroup(env.Token, env.Group, env.Group, "test group"),
+		)
+	})
+
+	t.Run("CreateRole", func(t *testing.T) {
+		// Do not assume the server keeps initial actions from CreateRole.
+		mustNoErr(t, "CreateRole",
+			c.CreateRole(env.Token, env.Role, env.Role, []string{}),
+		)
+	})
+
+	t.Run("AddRoleActionsAndAssignToAccount", func(t *testing.T) {
+		// Explicitly add the action we intend to remove later.
+		mustNoErr(t, "AddRoleActions", c.AddRoleActions(env.Role, []string{env.RoleAction}))
+
+		// Assign the role to the account.
+		mustNoErr(t, "AddAccountRole", c.AddAccountRole(env.Account, env.Role))
+	})
+
+	// sanity check: role actually has the action we’ll remove (poll briefly to absorb store lag)
+	t.Run("VerifyRoleActionPresent", func(t *testing.T) {
+		ok, err := waitForRoleAction(c, env.Role, env.RoleAction, 5, 120*time.Millisecond)
+		mustNoErr(t, "GetRoles", err)
+		if !ok {
+			t.Fatalf("role %s missing expected action %s", env.Role, env.RoleAction)
+		}
+	})
+
+	t.Run("WireUpOrganization", func(t *testing.T) {
+		mustNoErr(t, "AddOrganizationAccount", c.AddOrganizationAccount(env.Token, env.Org, env.Account))
+		mustNoErr(t, "AddOrganizationGroup", c.AddOrganizationGroup(env.Token, env.Org, env.Group))
+		mustNoErr(t, "AddOrganizationRole", c.AddOrganizationRole(env.Token, env.Org, env.Role))
+	})
+
+	t.Run("GroupMembership", func(t *testing.T) {
+		mustNoErr(t, "AddGroupMemberAccount", c.AddGroupMemberAccount(env.Token, env.Group, env.Account))
+		// idempotency: add twice should not hard-fail (server may ignore/allow)
+		_ = c.AddGroupMemberAccount(env.Token, env.Group, env.Account)
+	})
+
+	t.Run("RemoveRoleAction", func(t *testing.T) {
+		// Double-check presence right before removal to avoid noisy false negatives.
+		ok, err := waitForRoleAction(c, env.Role, env.RoleAction, 3, 100*time.Millisecond)
+		mustNoErr(t, "GetRoles(recheck)", err)
+		if !ok {
+			t.Skipf("skipping RemoveRoleAction: role %s still missing action %s", env.Role, env.RoleAction)
 			return
 		}
+		mustNoErr(t, "RemoveRoleAction", c.RemoveRoleAction(env.Role, env.RoleAction))
+	})
 
-		// Set the path to read...
-		path := "/tmp/test.txt"
-		infos[0].Path = path
+	// ---------- Cleanup in reverse order ----------
+	t.Run("Cleanup", func(t *testing.T) {
+		// best-effort cleanups – ignore errors where safe
+		_ = c.RemoveGroupMemberAccount(env.Token, env.Group, env.Account)
+		_ = c.RemoveOrganizationAccount(env.Token, env.Org, env.Account)
+		_ = c.RemoveOrganizationRole(env.Token, env.Org, env.Role)
+		_ = c.RemoveOrganizationGroup(env.Token, env.Org, env.Group)
+		_ = c.RemoveAccountRole(env.Account, env.Role)
 
-		// Give permission.
-		permissions := &resourcepb.Permissions{
-			Allowed: []*resourcepb.Permission{
-				&resourcepb.Permission{
-					Name:          "read",
-					Applications:  []string{},
-					Accounts:      []string{"dave"},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{},
-				},
-			},
-			Denied: []*resourcepb.Permission{},
-			Owners: &resourcepb.Permission{},
-		}
-
-		rbac_client_.SetResourcePermissions(path, permissions)
-
-		hasAccess, err := client.ValidateAction("/file.FileService/ReadDir", "dave", resourcepb.SubjectType_ACCOUNT, infos)
-		if err != nil {
-			log.Println(err)
-		}
-
-		if hasAccess {
-			log.Println(" dave has access to read file " + path)
-		} else {
-			log.Println(" dave has not access to read file " + path)
-		}
-
-}*/
-
-func TestRemoveAccountRole(t *testing.T) {
-	err := client.RemoveAccountRole("dave", "db_user")
-	if err != nil {
-		log.Println("---> ", err)
-	}
+		_ = c.DeleteGroup(env.Token, env.Group)
+		_ = c.DeleteRole(env.Role)
+		_ = c.DeleteAccount(env.Account, env.Token)
+		_ = c.DeleteOrganization(env.Token, env.Org)
+	})
 }
 
-func TestRemoveRoleAction(t *testing.T) {
-	log.Println("---> Remove Role action ")
-	err := client.RemoveRoleAction("db_user", "/file.FileService/ReadDir")
-	if err != nil {
-		log.Println("---> ", err)
-	}
+// ---------- Focused unit-style checks (extra coverage) ----------
+
+func TestRoleCRUD(t *testing.T) {
+	env := newTestEnv(t)
+	c := env.Client
+	role := env.Role
+
+	mustNoErr(t, "CreateRole", c.CreateRole(env.Token, role, role, nil))
+
+	// Add action twice (should be idempotent or return a clear error).
+	mustNoErr(t, "AddRoleActions:first", c.AddRoleActions(role, []string{env.RoleAction}))
+	_ = c.AddRoleActions(role, []string{env.RoleAction})
+
+	// Remove, then removing again should be safe to call and return a clear error or no-op.
+	// If the first remove fails because the action didn't stick, it's a server-side issue.
+	mustNoErr(t, "RemoveRoleAction:first", c.RemoveRoleAction(role, env.RoleAction))
+	_ = c.RemoveRoleAction(role, env.RoleAction)
+
+	mustNoErr(t, "DeleteRole", c.DeleteRole(role))
 }
 
-func TestDeleteRole(t *testing.T) {
-	log.Println("---> Delete role ")
-	err := client.DeleteRole("db_user")
-	if err != nil {
-		log.Println("---> ", err)
-	}
+func TestGroupMembershipLifecycle(t *testing.T) {
+	env := newTestEnv(t)
+	c := env.Client
+
+	mustNoErr(t, "RegisterAccount",
+		c.RegisterAccount(env.Domain, env.Account, env.Account, env.Account+"@example.com", "1234", "1234"),
+	)
+	mustNoErr(t, "CreateGroup", c.CreateGroup(env.Token, env.Group, env.Group, "desc"))
+
+	mustNoErr(t, "AddGroupMemberAccount", c.AddGroupMemberAccount(env.Token, env.Group, env.Account))
+	_ = c.AddGroupMemberAccount(env.Token, env.Group, env.Account) // idempotency
+
+	mustNoErr(t, "RemoveGroupMemberAccount", c.RemoveGroupMemberAccount(env.Token, env.Group, env.Account))
+	_ = c.DeleteGroup(env.Token, env.Group)
+	_ = c.DeleteAccount(env.Account, env.Token)
 }
 
-// Remove an account.
-func TestDeleteAccount(t *testing.T) {
-	log.Println("---> test remove existing account.")
-	err := client.DeleteAccount("dave", token)
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}
+func TestOrganizationLifecycle(t *testing.T) {
+	env := newTestEnv(t)
+	c := env.Client
 
-func TestDeleteOrganization(t *testing.T) {
-	log.Println("---> test delete organization")
-	err := client.DeleteOrganization(token, "globulario")
-	if err != nil {
-		log.Println("---> ", err)
-	}
+	mustNoErr(t, "RegisterAccount",
+		c.RegisterAccount(env.Domain, env.Account, env.Account, env.Account+"@example.com", "1234", "1234"),
+	)
+	mustNoErr(t, "CreateOrganization",
+		c.CreateOrganization(env.Token, env.Org, env.Org, env.Org+"@"+env.Domain, "desc", ""),
+	)
+	mustNoErr(t, "CreateGroup", c.CreateGroup(env.Token, env.Group, env.Group, "desc"))
+	mustNoErr(t, "CreateRole", c.CreateRole(env.Token, env.Role, env.Role, nil))
+
+	mustNoErr(t, "AddOrganizationAccount", c.AddOrganizationAccount(env.Token, env.Org, env.Account))
+	mustNoErr(t, "AddOrganizationGroup", c.AddOrganizationGroup(env.Token, env.Org, env.Group))
+	mustNoErr(t, "AddOrganizationRole", c.AddOrganizationRole(env.Token, env.Org, env.Role))
+
+	mustNoErr(t, "RemoveOrganizationRole", c.RemoveOrganizationRole(env.Token, env.Org, env.Role))
+	mustNoErr(t, "RemoveOrganizationGroup", c.RemoveOrganizationGroup(env.Token, env.Org, env.Group))
+	mustNoErr(t, "RemoveOrganizationAccount", c.RemoveOrganizationAccount(env.Token, env.Org, env.Account))
+
+	_ = c.DeleteRole(env.Role)
+	_ = c.DeleteGroup(env.Token, env.Group)
+	_ = c.DeleteOrganization(env.Token, env.Org)
+	_ = c.DeleteAccount(env.Account, env.Token)
 }

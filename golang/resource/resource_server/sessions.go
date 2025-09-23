@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math"
 	"time"
 
@@ -205,6 +206,7 @@ func (srv *server) updateSession(accountId string, state resourcepb.SessionState
 
 	// Log a message to display update session...
 	//srv.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
+	slog.Info("update session for user", "user", accountId, "last_session_time", time.Unix(last_session_time, 0).Local().String(), "expire_at", time.Unix(expire_at, 0).Local().String(), "state", state.String())
 	session := map[string]interface{}{"_id": Utility.ToString(last_session_time), "domain": srv.Domain, "accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 
 	// send update_session event

@@ -130,6 +130,7 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 //	*SetPasswordResponse containing the new authentication token if successful.
 //	error if any validation or operation fails.
 func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
+
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -181,6 +182,33 @@ func (srv *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPa
 // Returns an error if permission is denied, configuration is missing, password validation fails,
 // or any step in the update process fails.
 func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
+	// no-op change: old == new
+	if rqst.OldPassword == rqst.NewPassword {
+		slog.Info("SetRootPassword:no-op")
+		// Option A: return a fresh SA token
+		macAddress, err := config.GetMacAddress()
+		if err != nil {
+			return nil, logInternal("SetRootPassword:getMac", err)
+		}
+
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, logInternal("SetRootPassword:readConfig", err)
+		}
+		cfg := map[string]any{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return nil, logInternal("SetRootPassword:parseConfig", err)
+		}
+		adminEmail, _ := cfg["AdminEmail"].(string)
+
+		tok, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail, srv.Domain)
+		if err != nil {
+			return nil, logInternal("SetRootPassword:generateToken", err)
+		}
+
+		return &authenticationpb.SetRootPasswordResponse{Token: tok}, nil
+	}
+
 	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
@@ -488,9 +516,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	return tokenString, nil
 }
 
-// processFiles is currently a no-op placeholder.
-func (srv *server) processFiles() {}
-
+// GetResourceClient returns a Resource service client.
 func getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")

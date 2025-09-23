@@ -62,7 +62,7 @@ func (srv *server) getActionResourcesPermissions(action string) ([]*rbacpb.Resou
 	data, err := srv.getItem(action)
 	infos_ := make([]*rbacpb.ResourceInfos, 0)
 	if err != nil {
-		if !strings.Contains(err.Error(), "item not found") {
+		if !strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
 			return nil, err
 		} else {
 			// no infos_ found...
@@ -109,20 +109,9 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		}
 	}
 
-	// Guest role.
-	guest, err := srv.getRole("guest")
-	if err != nil {
-		logPrintln("fail to retreive guest role with error ", err)
-		return false, false, err
-	}
-
-	// Test if the guest role contain the action...
-	if Utility.Contains(guest.Actions, action) && len(resources) == 0 {
-		return true, false, nil
-	}
 
 	// test if the subject exist.
-	subject, err = srv.validateSubject(subject, subjectType)
+	subject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {
 		return false, false, err
 	}

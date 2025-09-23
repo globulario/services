@@ -72,20 +72,33 @@ func tokenPathForMAC(mac string) string {
 	return filepath.Join(tokenDir(), normalizeMACForFile(mac)+"_token")
 }
 
+const (
+	defaultSessionTimeoutMinutes = 60       // fallback if config is missing/zero
+	tokenExpirySkew              = 60 * time.Second // leeway to handle clock skew
+)
+
 // readSessionTimeout reads SessionTimeout (minutes) from /etc/globular/config/config.json.
+// Returns a sane default if missing, invalid, or zero.
 func readSessionTimeout() (int, error) {
 	cfgPath := filepath.Join(config.GetConfigDir(), "config.json")
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
-		return 0, fmt.Errorf("read session timeout: cannot read %s: %w", cfgPath, err)
+		// Use default if the file isn't readable.
+		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: cannot read %s: %w", cfgPath, err)
 	}
 
 	var globular map[string]interface{}
 	if err := json.Unmarshal(data, &globular); err != nil {
-		return 0, fmt.Errorf("read session timeout: invalid json in %s: %w", cfgPath, err)
+		// Use default if JSON invalid.
+		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: invalid json in %s: %w", cfgPath, err)
 	}
 
-	return Utility.ToInt(globular["SessionTimeout"]), nil
+	v := Utility.ToInt(globular["SessionTimeout"])
+	if v <= 0 {
+		// Use default if not set or zero/negative.
+		return defaultSessionTimeoutMinutes, nil
+	}
+	return v, nil
 }
 
 // resolveJWTKey selects the proper HMAC key based on issuer/audience.
@@ -119,6 +132,15 @@ func resolveJWTKey(claims *Claims) ([]byte, error) {
 // The token expires after 'timeout' minutes. 'mac' indicates the intended
 // audience peer (optional). The signing key is chosen by issuer/audience.
 func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
+	// Normalize/secure timeout
+	if timeout <= 0 {
+		if cfgTimeout, err := readSessionTimeout(); err == nil && cfgTimeout > 0 {
+			timeout = cfgTimeout
+		} else {
+			timeout = defaultSessionTimeoutMinutes
+		}
+	}
+
 	now := time.Now()
 	expiresAt := now.Add(time.Duration(timeout) * time.Minute)
 
@@ -204,9 +226,13 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 	if !tkn.Valid {
 		return claims, errors.New("validate token: token signature invalid")
 	}
-	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
-		return claims, fmt.Errorf("validate token: token expired at %s", time.Unix(claims.ExpiresAt, 0).Format(time.RFC3339))
+
+	// Expiry check with clock-skew leeway
+	exp := time.Unix(claims.ExpiresAt, 0)
+	if time.Now().After(exp.Add(tokenExpirySkew)) {
+		return claims, fmt.Errorf("validate token: token expired at %s", exp.Format(time.RFC3339))
 	}
+
 	return claims, nil
 }
 
@@ -246,8 +272,8 @@ func GetClientId(ctx context.Context) (string, string, error) {
 // SetLocalToken generates a token for the given identity and writes it
 // to /etc/globular/config/tokens/<normalized_mac>_token, also caching it in memory.
 func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
-	rawMAC := mac                     // keep raw MAC for cache key
-	normMAC := normalizeMACForFile(mac) // for filesystem path
+	rawMAC := mac                        // keep raw MAC for cache key
+	normMAC := normalizeMACForFile(mac)  // for filesystem path
 
 	path := tokenPathForMAC(rawMAC)
 	_ = os.Remove(path) // best-effort cleanup
@@ -327,13 +353,14 @@ func refreshLocalToken(token string) (string, error) {
 		}
 		return resolveJWTKey(claims)
 	})
-	if err != nil && !strings.Contains(err.Error(), "token is expired") {
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "expired") {
 		return "", fmt.Errorf("refresh local token: parse: %w", err)
 	}
 
 	timeout, err := readSessionTimeout()
 	if err != nil {
-		return "", fmt.Errorf("refresh local token: %w", err)
+		// still proceed with default if config read failed
+		timeout = defaultSessionTimeoutMinutes
 	}
 
 	newToken, err := GenerateToken(timeout, claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)

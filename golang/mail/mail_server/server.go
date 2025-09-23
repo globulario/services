@@ -843,10 +843,6 @@ func main() {
 	// Start embedded IMAP/SMTP in a goroutine
 	go func() {
 		certFile := config.GetLocalCertificate()
-		domain, _ := config.GetDomain()
-		name, _ := config.GetName()
-		certFile = config.GetConfigDir() + "/tls/" + name + "." + domain + "/" + certFile
-
 		address := strings.Split(srv.DbIpV4, ":")[0]
 		port := Utility.ToInt(strings.Split(srv.DbIpV4, ":")[1])
 

@@ -40,17 +40,6 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
 	}
 
-	db := rqst.Recipient
-	if strings.Contains(db, "@") {
-		db = strings.Split(db, "@")[0]
-	}
-
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + srv.Domain
 	}
@@ -73,7 +62,7 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	err = p.Delete(context.Background(), "local_resource", db, "Notifications", query, ``)
+	err = p.Delete(context.Background(), "local_resource", "local_resource", "Notifications", query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -100,17 +89,6 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 
 	notificationType := int32(rqst.NotificationType)
 
-	db := rqst.Recipient
-	if strings.Contains(db, "@") {
-		db = strings.Split(db, "@")[0]
-	}
-
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	var query string
 	if p.GetStoreType() == "MONGO" {
 		query = `{ "notificationtype":` + Utility.ToString(notificationType) + `}`
@@ -120,7 +98,7 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	err = p.Delete(context.Background(), "local_resource", db, "Notifications", query, ``)
+	err = p.Delete(context.Background(), "local_resource", "local_resource", "Notifications", query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -155,13 +133,7 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	q := `{"_id":"` + rqst.Notification.Id + `"}`
 
 	// so the recipient here is the id of the user...
-	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
-
-	name := strings.ReplaceAll(recipient, "-", "_")
-	name = strings.ReplaceAll(name, ".", "_")
-	name = strings.ReplaceAll(name, " ", "_")
-
-	count, _ := p.Count(context.Background(), "local_resource", name+"_db", "Notifications", q, "")
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Notifications", q, "")
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -198,7 +170,7 @@ func (srv *server) CreateNotification(ctx context.Context, rqst *resourcepb.Crea
 	}
 
 	// insert notification into recipient database
-	_, err = p.InsertOne(context.Background(), "local_resource", name+"_db", "Notifications", rqst.Notification, "")
+	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Notifications", rqst.Notification, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -235,16 +207,6 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
 	}
 
-	db := rqst.Recipient
-	if strings.Contains(db, "@") {
-		db = strings.Split(db, "@")[0]
-	}
-
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + srv.Domain
@@ -259,7 +221,7 @@ func (srv *server) DeleteNotification(ctx context.Context, rqst *resourcepb.Dele
 
 	q := `{"_id":"` + rqst.Id + `"}`
 
-	err = p.DeleteOne(context.Background(), "local_resource", db, "Notifications", q, ``)
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Notifications", q, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -423,16 +385,6 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("recipient is empty")))
 	}
 
-	db := rqst.Recipient
-	if strings.Contains(db, "@") {
-		db = strings.Split(db, "@")[0]
-	}
-
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
 
 	if !strings.Contains(rqst.Recipient, "@") {
 		rqst.Recipient += "@" + srv.Domain
@@ -449,7 +401,7 @@ func (srv *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, strea
 		query = "{}"
 	}
 
-	notifications, err := p.Find(context.Background(), "local_resource", db, "Notifications", query, "")
+	notifications, err := p.Find(context.Background(), "local_resource", "local_resource", "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

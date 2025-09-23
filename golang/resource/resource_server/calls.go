@@ -34,35 +34,13 @@ func (srv *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRq
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Keep the id portion only...
-	accountId := rqst.AccountId
-	if strings.Contains(accountId, "@") {
-		domain := strings.Split(accountId, "@")[1]
-		localDomain, _ := config.GetDomain()
-		if domain != localDomain {
-			return nil, status.Errorf(
-				codes.Internal,
-				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no account found with id "+accountId)))
-
-		}
-		accountId = strings.Split(accountId, "@")[0]
-	}
-
-	// set the caller id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
 
 	query := rqst.Filter
 	if len(query) == 0 {
 		query = "{}"
 	}
 
-	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
+	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Calls", query, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -95,18 +73,9 @@ func (srv *server) deleteCall(account_id, uuid string) error {
 		accountId = strings.Split(accountId, "@")[0]
 	}
 
-	// set the caller id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	q := `{"_id":"` + uuid + `"}`
 
-	err = p.DeleteOne(context.Background(), "local_resource", db, "calls", q, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Calls", q, "")
 	if err != nil {
 		return err
 	}
@@ -165,15 +134,6 @@ func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallH
 		accountId = strings.Split(accountId, "@")[0]
 	}
 
-	// set the caller id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	var query string
 	if p.GetStoreType() == "MONGO" {
 		query = `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
@@ -185,7 +145,7 @@ func (srv *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallH
 		return nil, errors.New("unknown database type " + p.GetStoreType())
 	}
 
-	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
+	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Calls", query, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -212,22 +172,12 @@ func (srv *server) setCall(accountId string, call *resourcepb.Call) error {
 		return err
 	}
 
-	// set the caller id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	// rename the uuid to _id (for mongo identifier)
 	call_ := map[string]interface{}{"caller": call.Caller, "callee": call.Callee, "_id": call.Uuid, "start_time": call.StartTime, "end_time": call.EndTime}
 	jsonStr, _ := Utility.ToJson(call_)
 
 	q := `{"_id":"` + call.Uuid + `"}`
-
-	err = p.ReplaceOne(context.Background(), "local_resource", db, "calls", q, jsonStr, `[{"upsert":true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Calls", q, jsonStr, `[{"upsert":true}]`)
 	if err != nil {
 		return err
 	}

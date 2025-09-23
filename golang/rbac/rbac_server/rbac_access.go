@@ -455,7 +455,7 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	} else if name == "owner" {
 		permissions, err := srv.getResourcePermissions(path)
 		if err != nil {
-			if strings.HasPrefix(err.Error(), "item not found") {
+			if strings.HasPrefix(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
 				return true, false, nil
 			}
 		} else if permissions.Owners == nil {

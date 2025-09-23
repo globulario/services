@@ -185,27 +185,6 @@ func (srv *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
-	var name string
-	if application["name"] != nil {
-		name = application["name"].(string)
-	} else if application["Name"] != nil {
-		name = application["Name"].(string)
-	}
-
-	// Set the database name.
-	db := name
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-	db += "_db"
-
-	// Now I will remove the database create for the application.
-	err = p.DeleteDatabase(context.Background(), "local_resource", db)
-	if err != nil {
-		return err
-	}
-
 	// Finaly I will remove the entry in  the table.
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Applications", q, "")
 	if err != nil {
@@ -711,42 +690,9 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	// Save the actual time.
 	application["last_deployed"] = time.Now().Unix() // save it as unix time.
 
-	db := app.Name + "_db"
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
 
 	// Here I will set the resource to manage the applicaiton access permission.
 	if err != nil {
-
-		var createApplicationDbScript string
-		if p.GetStoreType() == "MONGO" {
-			createApplicationDbScript = fmt.Sprintf(
-				"db=db.getSiblingDB('%s');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s' }]});", db, app.Name, app.Name, db)
-		} else if p.GetStoreType() == "SCYLLA" {
-			createApplicationDbScript = fmt.Sprintf(
-				"CREATE KEYSPACE %s WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : %d}; CREATE TABLE %s.application_data (id text PRIMARY KEY, data text);", db, srv.Backend_replication_factor, db)
-		} else if p.GetStoreType() == "SQL" {
-			q = `` // TODO sql query string here...
-		} else {
-			return errors.New("unknown database type " + p.GetStoreType())
-		}
-
-		// create the application database if not exist.
-		if p.GetStoreType() == "MONGO" {
-			err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createApplicationDbScript)
-			if err != nil {
-				return err
-			}
-		} else if p.GetStoreType() == "SCYLLA" {
-			err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createApplicationDbScript)
-			if err != nil {
-				if !strings.Contains(err.Error(), "existing keyspace") {
-					return err
-				}
-			}
-		}
-
 		application["creation_date"] = time.Now().Unix() // save it as unix time.
 		_, err := p.InsertOne(context.Background(), "local_resource", "local_resource", "Applications", application, "")
 		if err != nil {
@@ -782,32 +728,6 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 
 	// Publish application.
 	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, srv.Address)
-
-	// Now I will create the application connection.
-	address, _ := config.GetAddress()
-	persistenceClient, err := getPersistenceClient(address)
-
-	if err != nil {
-		return err
-	}
-
-	var storeType float64
-	switch srv.Backend_type {
-	case "SQL":
-		storeType = 1.0
-	case "MONGO":
-		storeType = 0.0
-	case "SCYLLA":
-		storeType = 2.0
-	}
-
-	// I will replace all special characters by underscore.
-
-	// Now I will create the application connection.
-	err = persistenceClient.CreateConnection(app.Name, db, address, float64(srv.Backend_port), storeType, srv.Backend_user, srv.Backend_password, 500, "", false)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

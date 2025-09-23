@@ -61,6 +61,9 @@ type Authentication_Client struct {
 
 	// The client context
 	ctx context.Context
+
+	// In-memory token (preferred over any local token if set via SetToken)
+	token string
 }
 
 // Create a connection to the service.
@@ -115,10 +118,26 @@ func (client *Authentication_Client) GetCtx() context.Context {
 		client.ctx = globular.GetClientContext(client)
 	}
 
-	// refresh the client as needed...
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
+	// Prefer an explicit in-memory token set via SetToken.
+	if client.token != "" {
+		md := metadata.New(map[string]string{
+			"token":   client.token,
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+		return client.ctx
+	}
+
+	// Otherwise, fall back to any locally-persisted token (if present).
+	if token, err := security.GetLocalToken(client.GetMac()); err == nil && len(token) > 0 {
+		md := metadata.New(map[string]string{
+			"token":   string(token),
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -234,6 +253,46 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
+////////////////// Added convenience //////////////////////
+
+// SetToken stores a token in-memory (preferred by GetCtx) and updates the outgoing metadata.
+// This does not mutate any on-disk token; it’s intentionally ephemeral for tests and callers
+// that need to pin a specific token.
+func (client *Authentication_Client) SetToken(token string) error {
+	client.token = token
+	if token == "" {
+		// Clear metadata (keep domain/mac/address).
+		md := metadata.New(map[string]string{
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+		return nil
+	}
+	md := metadata.New(map[string]string{
+		"token":   token,
+		"domain":  client.domain,
+		"mac":     client.GetMac(),
+		"address": client.GetAddress(),
+	})
+	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	return nil
+}
+
+// Logout clears any in-memory token and outgoing metadata token.
+// (No RPC is required; if the server later adds a Logout RPC, you can call it here.)
+func (client *Authentication_Client) Logout() error {
+	client.token = ""
+	md := metadata.New(map[string]string{
+		"domain":  client.domain,
+		"mac":     client.GetMac(),
+		"address": client.GetAddress(),
+	})
+	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	return nil
+}
+
 ////////////////// Api //////////////////////
 
 // Authenticate a user.
@@ -312,6 +371,7 @@ func (client *Authentication_Client) SetRootPassword(old_password, new_password 
 	rqst.OldPassword = old_password
 	rqst.NewPassword = new_password
 
+	
 	rsp, err := client.c.SetRootPassword(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err

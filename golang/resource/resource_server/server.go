@@ -573,112 +573,195 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 		srv.isReady = true
 
 		logger.Info("store is running and ready to be used", "address", srv.Backend_address+":"+Utility.ToString(srv.Backend_port))
-
 		switch srv.Backend_type {
 		case "SQL":
 			// Create tables if not already exist.
-			err := srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT", "refresh_token TEXT"})
+			err := srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(),
+				"local_resource",
+				"local_resource",
+				"Accounts",
+				[]string{
+					"name TEXT",
+					"email TEXT",
+					"domain TEXT",
+					"password TEXT",
+					"refresh_token TEXT",
+					"first_name TEXT",
+					"last_name TEXT",
+					"middle_name TEXT",
+					"profile_picture TEXT", // data URL or path
+				},
+			)
 			if err != nil {
 				logger.Error("fail to create table Accounts", "error", err)
 			}
 
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Applications",
+				[]string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INTEGER", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Applications", "error", err)
 			}
 
 			// Create organizations table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Organizations",
+				[]string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Organizations", "error", err)
 			}
 
 			// Create roles table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Roles",
+				[]string{"name TEXT", "domain TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Roles", "error", err)
 			}
 
 			// Create groups table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Groups",
+				[]string{"name TEXT", "domain TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Groups", "error", err)
 			}
 
 			// Create peers table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Peers",
+				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
 			}
 
-			// Create peers table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
+			// (Duplicate Peers creation kept as in your original)
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Peers",
+				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
 			}
 
 			// Create the sessions table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Sessions",
+				[]string{"accountId TEXT", "domain TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Sessions", "error", err)
 			}
 
 			// Create the notifications table.
-			err = srv.store.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date REAL", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
+			err = srv.store.(*persistence_store.SqlStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Notifications",
+				[]string{"date REAL", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Notifications", "error", err)
 			}
+
 		case "SCYLLA":
 			// Create tables if not already exist.
-			err := srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Accounts", []string{"name TEXT", "email TEXT", "domain TEXT", "password TEXT"})
+			err := srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(),
+				"local_resource",
+				"local_resource",
+				"Accounts",
+				[]string{
+					"name TEXT",
+					"email TEXT",
+					"domain TEXT",
+					"password TEXT",
+					"first_name TEXT",
+					"last_name TEXT",
+					"middle_name TEXT",
+					"profile_picture TEXT", // data URL or path
+				},
+			)
 			if err != nil {
 				logger.Error("fail to create table Accounts", "error", err)
 			}
 
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Applications", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INT", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Applications",
+				[]string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "alias TEXT", "password TEXT", "store TEXT", "last_deployed INT", "path TEXT", "version TEXT", "PublisherID TEXT", "creation_date INT"})
 			if err != nil {
 				logger.Error("fail to create table Applications", "error", err)
 			}
 
 			// Create organizations table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Organizations", []string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Organizations",
+				[]string{"name TEXT", "domain TEXT", "description TEXT", "icon TEXT", "email TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Organizations", "error", err)
 			}
 
 			// Create roles table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Roles", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Roles",
+				[]string{"name TEXT", "domain TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Roles", "error", err)
 			}
 
 			// Create groups table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Groups", []string{"name TEXT", "domain TEXT", "description TEXT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Groups",
+				[]string{"name TEXT", "domain TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Groups", "error", err)
 			}
 
 			// Create peers table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Peers", []string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "PortHTTP INT", "PortHTTPS INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Peers",
+				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "PortHTTP INT", "PortHTTPS INT"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
 			}
 
 			// Create the sessions table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Sessions", []string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
-			if err != nil {
-				logger.Error("fail to create table Sessions", "error", err)
-			}
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Sessions",
+				[]string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
 			if err != nil {
 				logger.Error("fail to create table Sessions", "error", err)
 			}
 
 			// Create the notifications table.
-			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(context.Background(), "local_resource", "local_resource", "Notifications", []string{"date DOUBLE", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
+			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
+				context.Background(), "local_resource", "local_resource", "Notifications",
+				[]string{"date DOUBLE", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
 			if err != nil {
 				logger.Error("fail to create table Notifications", "error", err)
 			}
+
+			// I will get the number of peers...
+			peers, err := srv.getPeers(`{"state":1}`)
+			if err == nil {
+				if len(peers) > 0 {
+					// Now the replication factor should be nb of peers - 1 and at max 3.
+					rf := int64(len(peers))
+					if rf > 3 {
+						rf = 3
+					}
+					if rf != srv.Backend_replication_factor {
+						srv.Backend_replication_factor = rf
+						logger.Info("adjusting scylla replication factor to " + Utility.ToString(srv.Backend_replication_factor) + " (based on number of peers)")
+					}
+				}
+			}
+
+			// run admin script.
+			script := `ALTER KEYSPACE local_resource WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':` + Utility.ToString(srv.Backend_replication_factor) + `}`
+			err = srv.store.(*persistence_store.ScyllaStore).RunAdminCmd(
+				context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, script)
+			if err != nil {
+				logger.Error("fail to run admin script '%s'", script, "error", err)
+			}
 		}
+
 	} else if !srv.isReady {
 		nbTry := 100
 		for range nbTry {
@@ -1251,9 +1334,23 @@ func main() {
 
 	// Backend informations.
 	s.Backend_type = "SQL" // use SQL as default backend.
+	s.Backend_port = 27018 // Here I will use the port beside the default one in case MONGO is already exist
+
+	// I will try to get process named "scylla" if not found I will use MongoDB as backend.
+	if process, err := Utility.GetProcessIdsByName("scylla"); err == nil && process != nil {
+		s.Backend_type = "SCYLLA"
+		if s.TLS {
+			s.Backend_port = 9142
+		} else {
+			s.Backend_port = 9042
+		}
+
+		logger.Info("Scylla process detected, using Scylla as backend store", "process", process)
+	}
+
 	s.Backend_address = s.Address
 	s.Backend_replication_factor = 1
-	s.Backend_port = 27018 // Here I will use the port beside the default one in case MONGO is already exist
+
 	s.Backend_user = "sa"
 	s.Backend_password = "adminadmin"
 	s.DataPath = config.GetDataDir()
@@ -1275,6 +1372,10 @@ func main() {
 		"protocol", s.Protocol,
 		"domain", s.Domain,
 		"listen_ms", time.Since(start).Milliseconds(),
+		"pid", s.Process,
+		"id", s.Id,
+		"version", s.Version,
+		"store", s.Backend_type,
 	)
 
 	if err := s.StartService(); err != nil {

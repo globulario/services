@@ -1,102 +1,153 @@
 package persistence_client
 
 import (
-	//"fmt"
-	//"io/ioutil"
 	"fmt"
-	"log"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
-
+	"github.com/globulario/services/golang/config"
 )
 
-// start: mongod --dbpath E:\Project\src\github.com\davecourtois\Globular\data\MONGO-data
-// Set the correct addresse here as needed.
-var (
+/*
+This suite covers (Scylla backend):
+- Connection lifecycle: CreateConnection → CreateDatabase → Connect → Ping → Disconnect → DeleteConnection
+- CRUD on a collection, including scalar fields and array side-table handling:
+  InsertOne, InsertMany, FindOne (by _id), Find (all), Count ({}), UpdateOne (scalar + array),
+  ReplaceOne (upsert semantics), DeleteOne, Delete (bulk by "{}"), DeleteCollection, DeleteDatabase.
 
-	// Connect to the plc client.
-	database                  = "test_db"
-	domain                    = "globule-ryzen.globular.cloud"
-	client, _                 = NewPersistenceService_Client(domain, "persistence.PersistenceService")
-	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
-)
+Important Scylla note:
+- We avoid non–primary-key filters (e.g., {"firstName":"Dave"}) because Scylla requires ALLOW FILTERING
+  or secondary indexes for those. We use _id queries or "{}" (full scan) instead.
+*/
 
-// First test create a fresh new connection...
-func TestCreateConnection(t *testing.T) {
-
-	//fmt.Println(token)
-	fmt.Println("Connection creation test.")
-	user := "sa"
-	pwd := "adminadmin"
-	err := client.CreateConnection("test_connection", database, domain, 9042, 2, user, pwd, 500, "", true)
+func must[T any](t *testing.T, v T, err error) T {
+	t.Helper()
 	if err != nil {
-		fmt.Println("fail to create connection! ", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
+	return v
 }
 
-/* In case of MONGO the Collection and Database is create at first insert.*/
-func TestCreateDatabase(t *testing.T) {
-	Id := "test_connection"
+func uniq(prefix string) string { return fmt.Sprintf("%s_%d", prefix, time.Now().Unix()) }
 
-	err := client.CreateDatabase(Id, database)
-	if err != nil {
-		fmt.Println("fail to create database ", database, err)
+func getServiceAddress(t *testing.T) string {
+	t.Helper()
+	addr, err := config.GetAddress()
+	if err != nil || addr == "" {
+		t.Fatalf("cannot resolve service address from config: %v", err)
 	}
+	return addr
 }
 
-func TestConnect(t *testing.T) {
-
-	err := client.Connect("test_connection", "adminadmin")
-	if err != nil {
-		fmt.Println("fail to connect to the backend with error ", err)
+// Resolve Scylla host/port for CreateConnection.
+// If SCYLLA_HOST/SCYLLA_PORT env vars are set, prefer those.
+// Otherwise, derive host from the service address; port defaults to 9042.
+func resolveScyllaHostPort(t *testing.T) (string, int) {
+	t.Helper()
+	host := strings.TrimSpace(os.Getenv("SCYLLA_HOST"))
+	if host == "" {
+		addr := getServiceAddress(t)
+		host = strings.Split(addr, ":")[0]
 	}
-
+	port := 9042
+	if p := strings.TrimSpace(os.Getenv("SCYLLA_PORT")); p != "" {
+		if pi, err := strconv.Atoi(p); err == nil && pi > 0 {
+			port = pi
+		}
+	}
+	return host, port
 }
 
-func TestPingConnection(t *testing.T) {
+func TestPersistenceServiceLifecycle(t *testing.T) {
+	address := getServiceAddress(t)
 
-	err := client.Ping("test_connection")
+	// Authenticate (validates we can talk to the platform, not used further here)
+	authClient, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
+	auth := must(t, authClient, err)
+	if _, err := auth.Authenticate("sa", "adminadmin"); err != nil {
+		t.Fatalf("Authenticate(sa) failed: %v", err)
+	}
+
+	client, err := NewPersistenceService_Client(address, "persistence.PersistenceService")
 	if err != nil {
-		log.Fatalln("fail to ping the backend with error ", err)
+		t.Fatalf("NewPersistenceService_Client failed: %v", err)
 	}
 
-	fmt.Println("Ping test_connection successed!")
-}
+	// Unique IDs per run
+	connID := uniq("test_connection")
+	db := uniq("test_db")
+	coll := "Employees" // keep constant so side-table name stays predictable
 
-func TestPersistOne(t *testing.T) {
+	// Scylla host/port
+	scyllaHost, scyllaPort := resolveScyllaHostPort(t)
 
-	Id := "test_connection"
-	Collection := "Employees"
-	employe := map[string]interface{}{
-		"_id":                  "1",
-		"employeeNumber":       1.0,
-		"jobTitleName":         "Developer",
-		"firstName":            "Dave",
-		"lastName":             "Courtois",
-		"preferredFullName":    "Dave Courtois",
-		"employeeCode":         "E1",
-		"region":               "Or",
-		"state":                "Oregon",
-		"phoneNumber":          "408-123-4567",
-		"emailAddress":         "dave.courtois60@gmail.com",
-		"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
-	}
+	t.Run("CreateConnection", func(t *testing.T) {
+		options := `{"consistency":"ONE"}`
+		if err := client.CreateConnection(connID, db, scyllaHost, float64(scyllaPort), 2 /*SCYLLA*/, "sa", "adminadmin", 500, options, true); err != nil {
+			t.Fatalf("CreateConnection failed: %v", err)
+		}
+	})
 
-	id, err := client.InsertOne(Id, database, Collection, employe, "")
+	t.Run("CreateDatabase", func(t *testing.T) {
+		if err := client.CreateDatabase(connID, db); err != nil {
+			t.Fatalf("CreateDatabase(%s) failed: %v", db, err)
+		}
+	})
 
-	if err != nil {
-		fmt.Println("fail to pesist entity with error", err)
-	}
+	t.Run("ConnectAndPing", func(t *testing.T) {
+		if err := client.Connect(connID, "adminadmin"); err != nil {
+			t.Fatalf("Connect failed: %v", err)
+		}
+		if err := client.Ping(connID); err != nil {
+			t.Fatalf("Ping failed: %v", err)
+		}
+	})
 
-	fmt.Println("Entity persist with id ", id)
-}
+	// ---- CRUD ----
 
-func TestPersistMany(t *testing.T) {
+	t.Run("InsertOne_withArray", func(t *testing.T) {
+		emp := map[string]interface{}{
+			"_id":                  "1",
+			"employeeNumber":       1,
+			"jobTitleName":         "Developer",
+			"firstName":            "Dave",
+			"lastName":             "Courtois",
+			"preferredFullName":    "Dave Courtois",
+			"employeeCode":         "E1",
+			"region":               "OR",
+			"state":                "Oregon",
+			"phoneNumber":          "408-123-4567",
+			"emailAddress":         "dave.courtois60@gmail.com",
+			"programmingLanguages": []string{"JavaScript", "C++", "C", "Python", "Scala", "Java", "Go"},
+		}
+		if _, err := client.InsertOne(connID, db, coll, emp, ""); err != nil {
+			t.Fatalf("InsertOne failed: %v", err)
+		}
+	})
 
-	entities :=
-		[]interface{}{
+	t.Run("FindOne_byId_and_CountAll", func(t *testing.T) {
+		obj, err := client.FindOne(connID, db, coll, `{"_id":"1"}`, "")
+		if err != nil {
+			t.Fatalf("FindOne by _id failed: %v", err)
+		}
+		if got := fmt.Sprint(obj["_id"]); got != "1" {
+			t.Fatalf("FindOne _id want 1, got %v", got)
+		}
+		total, err := client.Count(connID, db, coll, `{}`, "")
+		if err != nil {
+			t.Fatalf("Count({}) failed: %v", err)
+		}
+		if total != 1 {
+			t.Fatalf("Count({}) want 1, got %d", total)
+		}
+	})
+
+	t.Run("InsertMany", func(t *testing.T) {
+		entities := []interface{}{
 			map[string]interface{}{
 				"_id":                  "2",
 				"employeeNumber":       2,
@@ -128,7 +179,7 @@ func TestPersistMany(t *testing.T) {
 			map[string]interface{}{
 				"_id":                  "4",
 				"employeeNumber":       4,
-				"jobTitleName":         "Program Directory",
+				"jobTitleName":         "Program Director",
 				"firstName":            "Tom",
 				"lastName":             "Hanks",
 				"preferredFullName":    "Tom Hanks",
@@ -140,174 +191,131 @@ func TestPersistMany(t *testing.T) {
 				"programmingLanguages": []string{"Java", "C++", "Scala"},
 			},
 		}
+		if err := client.InsertMany(connID, db, coll, entities, ""); err != nil {
+			t.Fatalf("InsertMany failed: %v", err)
+		}
+	})
 
-	Id := "test_connection"
-	Collection := "Employees"
+	t.Run("FindAll_and_CountAll", func(t *testing.T) {
+		results, err := client.Find(connID, db, coll, `{}`, "")
+		if err != nil {
+			t.Fatalf("Find({}) failed: %v", err)
+		}
+		if len(results) != 4 {
+			t.Fatalf("Find({}) want 4 docs, got %d", len(results))
+		}
+		total, err := client.Count(connID, db, coll, `{}`, "")
+		if err != nil {
+			t.Fatalf("Count({}) failed: %v", err)
+		}
+		if total != 4 {
+			t.Fatalf("Count({}) want 4, got %d", total)
+		}
+	})
 
-	err := client.InsertMany(Id, database, Collection, entities, "")
-	if err != nil {
-		fmt.Println("Fail to insert many entities with error ", err)
-	}
+	t.Run("UpdateOne_scalar_fields_byId", func(t *testing.T) {
+		if err := client.UpdateOne(connID, db, coll, `{"_id":"3"}`, `{"$set":{"employeeCode":"E2.2","phoneNumber":"408-123-1234"}}`, ""); err != nil {
+			t.Fatalf("UpdateOne failed: %v", err)
+		}
+		obj, err := client.FindOne(connID, db, coll, `{"_id":"3"}`, "")
+		if err != nil {
+			t.Fatalf("FindOne after UpdateOne failed: %v", err)
+		}
+		if got := fmt.Sprint(obj["employeeCode"]); got != "E2.2" {
+			t.Fatalf("employeeCode want E2.2, got %v", got)
+		}
+		if got := fmt.Sprint(obj["phoneNumber"]); got != "408-123-1234" {
+			t.Fatalf("phoneNumber want 408-123-1234, got %v", got)
+		}
+	})
+
+	t.Run("ReplaceOne_upsert_and_array_full_overwrite", func(t *testing.T) {
+		entity := map[string]interface{}{
+			"_id":                  "3",
+			"employeeNumber":       3,
+			"jobTitleName":         "Full Stack Developer",
+			"firstName":            "Neil",
+			"lastName":             "Irani",
+			"preferredFullName":    "Neil Irani",
+			"employeeCode":         "E2.2",
+			"region":               "CA",
+			"state":                "California",
+			"phoneNumber":          "408-123-1234",
+			"emailAddress":         "neilrirani@gmail.com",
+			"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue", "React Native"},
+		}
+		if err := client.ReplaceOne(connID, db, coll, `{"_id":"3"}`, entity, `[{"upsert": true}]`); err != nil {
+			t.Fatalf("ReplaceOne(upsert) failed: %v", err)
+		}
+		obj, err := client.FindOne(connID, db, coll, `{"_id":"3"}`, "")
+		if err != nil {
+			t.Fatalf("FindOne after ReplaceOne failed: %v", err)
+		}
+		if title := fmt.Sprint(obj["jobTitleName"]); title != "Full Stack Developer" {
+			t.Fatalf("jobTitleName want Full Stack Developer, got %v", title)
+		}
+		if langs, ok := obj["programmingLanguages"].([]interface{}); !ok || len(langs) < 5 {
+			t.Fatalf("programmingLanguages not replaced as expected: %#v", obj["programmingLanguages"])
+		}
+	})
+
+	t.Run("UpdateOne_array_field_byId", func(t *testing.T) {
+		if err := client.UpdateOne(connID, db, coll, `{"_id":"2"}`, `{"$set":{"programmingLanguages":["Go","Rust"]}}`, ""); err != nil {
+			t.Fatalf("UpdateOne(array) failed: %v", err)
+		}
+		obj, err := client.FindOne(connID, db, coll, `{"_id":"2"}`, "")
+		if err != nil {
+			t.Fatalf("FindOne after UpdateOne(array) failed: %v", err)
+		}
+		langs, ok := obj["programmingLanguages"].([]interface{})
+		if !ok || len(langs) != 2 || fmt.Sprint(langs[0]) != "Go" || fmt.Sprint(langs[1]) != "Rust" {
+			t.Fatalf("programmingLanguages want [Go Rust], got %#v", langs)
+		}
+	})
+
+	// ---- Delete paths & cleanup ----
+
+	t.Run("DeleteOne_byId", func(t *testing.T) {
+		if err := client.DeleteOne(connID, db, coll, `{"_id":"3"}`, ""); err != nil {
+			t.Fatalf("DeleteOne failed: %v", err)
+		}
+		if _, err := client.FindOne(connID, db, coll, `{"_id":"3"}`, ""); err == nil {
+			t.Fatalf("FindOne should fail after DeleteOne")
+		}
+	})
+
+	t.Run("Delete_all_with_empty_query", func(t *testing.T) {
+		// This exercises the bulk Delete path without non-PK filters.
+		if err := client.Delete(connID, db, coll, `{}`, ""); err != nil {
+			t.Fatalf("Delete({}) failed: %v", err)
+		}
+		total, err := client.Count(connID, db, coll, `{}`, "")
+		if err != nil {
+			t.Fatalf("Count({}) after Delete failed: %v", err)
+		}
+		if total != 0 {
+			t.Fatalf("Count({}) want 0 after Delete, got %d", total)
+		}
+	})
+
+	t.Run("DeleteCollection", func(t *testing.T) {
+		if err := client.DeleteCollection(connID, db, coll); err != nil {
+			t.Fatalf("DeleteCollection failed: %v", err)
+		}
+	})
+
+	t.Run("DeleteDatabase", func(t *testing.T) {
+		if err := client.DeleteDatabase(connID, db); err != nil {
+			t.Fatalf("DeleteDatabase failed: %v", err)
+		}
+	})
+
+	t.Run("Disconnect_and_DeleteConnection", func(t *testing.T) {
+		if err := client.Disconnect(connID); err != nil {
+			t.Fatalf("Disconnect failed: %v", err)
+		}
+		if err := client.DeleteConnection(connID); err != nil {
+			t.Fatalf("DeleteConnection failed: %v", err)
+		}
+	})
 }
-
-/** Test Replace One **/
-func TestReplaceOne(t *testing.T) {
-
-	Id := "test_connection"
-	Collection := "Employees"
-
-	entity := map[string]interface{}{
-		"_id":                  "3",
-		"employeeNumber":       3,
-		"jobTitleName":         "Full Stack Developper",
-		"firstName":            "Neil",
-		"lastName":             "Irani",
-		"preferredFullName":    "Neil Irani",
-		"employeeCode":         "E2",
-		"region":               "CA",
-		"phoneNumber":          "408-111-1111",
-		"emailAddress":         "neilrirani@gmail.com",
-		"programmingLanguages": []string{"JavaScript", "C++", "Java", "Python", "TypeScript", "React", "Angular", "Vue", "React Native"},
-	}
-
-	err := client.ReplaceOne(Id, database, Collection, `{"_id":"3"}`, entity, `[{"upsert": true}]`)
-	if err != nil {
-		fmt.Println("Fail to replace entity", err)
-	}
-}
-
-func TestUpdateOne(t *testing.T) {
-	Id := "test_connection"
-	Collection := "Employees"
-
-	err := client.UpdateOne(Id, database, Collection, `{"_id":"3"}`, `{"$set":{"employeeCode":"E2.2", "phoneNumber":"408-123-1234"} }`, "")
-	if err != nil {
-		fmt.Println("Fail to update one entity", err)
-	}
-}
-
-func TestUpdate(t *testing.T) {
-	Id := "test_connection"
-	Collection := "Employees"
-	Query := `{"region": "CA"}`
-	Value := `{"$set":{"state":"Californication"}}`
-
-	err := client.Update(Id, database, Collection, Query, Value, "")
-	if err != nil {
-		fmt.Println("TestUpdate fail", err)
-	}
-	fmt.Println("---> update success!")
-}
-
-/** Test find one **/
-func TestFindOne(t *testing.T) {
-	fmt.Println("Find one test.")
-
-	Id := "test_connection"
-	Collection := "Employees"
-	Query := `{"firstName": "Dave"}`
-
-	values, err := client.FindOne(Id, database, Collection, Query, "")
-	if err != nil {
-		fmt.Println("Test Find One fail", err)
-	}
-
-	fmt.Println(values)
-}
-
-/** Test find many **/
-/*func TestFind(t *testing.T) {
-	fmt.Println("Find many test.")
-
-	Id := "test_connection"
-	Collection := "Employees"
-	Query := `{"region": "CA"}`
-
-	values, err := client.Find(Id, database, Collection, Query, `[{"Projection":{"firstName":1}}]`)
-	if err != nil {
-		fmt.Println("fail to find entities with error", err)
-	}
-
-	fmt.Println(values)
-
-}*/
-
-/*func TestAggregate(t *testing.T) {
-	//fmt.Println("Aggregate")
-	Id := "test_connection"
-	Collection := "Employees"
-
-	results, err := client.Aggregate(Id, database, Collection, `[{"$count":"region"}]`, "")
-	if err != nil {
-		fmt.Println("fail to create aggregation with error", err)
-	}
-	fmt.Println("---> ", results)
-
-}*/
-
-/** Test remove **/
-
-/*func TestRemove(t *testing.T) {
-	fmt.Println("Test Remove")
-
-	Id := "test_connection"
-	Collection := "Employees"
-	Query := `{"_id":"3"}`
-
-	err := client.DeleteOne(Id, database, Collection, Query, "")
-	if err != nil {
-		fmt.Println("Fail to delete one entity with error", err)
-	}
-}*/
-
-/*func TestRemoveMany(t *testing.T) {
-	fmt.Println("Test Remove")
-
-	Id := "test_connection"
-	Collection := "Employees"
-	Query := `{"region": "CA"}`
-
-	err := client.Delete(Id, database, Collection, Query, "")
-	if err != nil {
-		fmt.Println("Fail to remove entities", err)
-	}
-	fmt.Println("---> Delete success!")
-}*/
-
-/*func TestDeleteCollection(t *testing.T) {
-	fmt.Println("Delete collection test.")
-
-	Id := "test_connection"
-	Collection := "Employees"
-
-	err := client.DeleteCollection(Id, database, Collection)
-	if err != nil {
-		fmt.Println("fail to delete collection! ", err)
-	}
-}*/
-
-/*func TestDeleteDatabase(t *testing.T) {
-	fmt.Println("Delete database test.")
-
-	Id := "test_connection"
-	err := client.DeleteDatabase(Id, database)
-	if err != nil {
-		fmt.Println("fail to delete database! ", err)
-	}
-}
-
-func TestDisconnect(t *testing.T) {
-	fmt.Println("Disconnect test.")
-	err := client.Disconnect("test_connection")
-	if err != nil {
-		fmt.Println("fail to delete connection! ", err)
-	}
-}*/
-
-/*func TestDeleteConnection(t *testing.T) {
-	fmt.Println("Delete connection test.")
-	err := client.DeleteConnection("test_connection")
-	if err != nil {
-		fmt.Println("fail to delete connection! ", err)
-	}
-}*/

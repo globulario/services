@@ -840,7 +840,7 @@ export function queryTsRange(
 ///////////////////////////////////// Account management action //////////////////////////////////////
 
 /**
- * Return the list of all account on the server, guest and admin are new account...
+ * Return the list of all account on the server, admin are new account...
  * @param globular
  * @param application
  * @param domain
@@ -1853,7 +1853,7 @@ export function getPackageDescriptor(
 ) {
   const rqst = new GetPackageDescriptorRequest();
   rqst.setServiceid(serviceId);
-  rqst.setPublisherID(PublisherID);
+  rqst.setPublisherid(PublisherID);
 
   globular.resourceService
     .getPackageDescriptor(rqst, {

@@ -182,8 +182,13 @@ func InitClient(client Client, address string, id string) error {
 	}
 
 	localAddr, _ := config.GetAddress()
-	localCfg, _ := config.GetLocalConfig(true)
+	localCfg, err := config.GetLocalConfig(true)
+	if err != nil || localCfg == nil {
+		slog.Error("InitClient: cannot read local configuration", "err", err)
+		return fmt.Errorf("InitClient: cannot read local configuration: %w", err)
+	}
 
+	
 	// Normalize address to include control port.
 	if !strings.Contains(address, ":") {
 		if strings.HasPrefix(localAddr, address) {

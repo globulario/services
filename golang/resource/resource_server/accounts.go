@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
@@ -123,6 +122,7 @@ func (srv *server) CreateAccountDir() error {
 }
 
 func (srv *server) createRole(id, name, owner string, description string, actions []string) error {
+
 	localDomain, err := config.GetDomain()
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func (srv *server) createRole(id, name, owner string, description string, action
 		return err
 	}
 
-	if name != "guest" && name != "admin" {
+	if name != "admin" {
 		srv.addResourceOwner(id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	}
 
@@ -636,7 +636,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	get_contacts := `{}`
 
 	// so before remove database I need to remove the account from it contacts...
-	contacts, err := p.Find(context.Background(), "local_resource", name+"_db", "Contacts", get_contacts, "")
+	contacts, err := p.Find(context.Background(), "local_resource", "local_resource", "Contacts", get_contacts, "")
 	if err == nil {
 		for i := 0; i < len(contacts); i++ {
 
@@ -649,7 +649,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 			name = strings.ReplaceAll(name, " ", "_")
 
 			// So here I will call delete on the db...
-			err = p.DeleteOne(context.Background(), "local_resource", name+"_db", "Contacts", q, "")
+			err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Contacts", q, "")
 
 			if err == nil {
 				// Here I will send delete contact event.
@@ -676,14 +676,6 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 	// I will execute the script with the admin function.
 	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, dropUserScript)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Remove the user database.
-	err = p.DeleteDatabase(context.Background(), "local_resource", name+"_db")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1097,15 +1089,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 	// Now the profile picture.
 
 	// set the caller id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
-	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, ``)
+	user_data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
@@ -1208,9 +1192,8 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 		processField("organizations", &a.Organizations)
 
 		// Retrieve user data
-		db := strings.NewReplacer(".", "_", "@", "_", "-", "_", " ", "_").Replace(a.Id) + "_db"
 		q := `{"_id":"` + a.Id + `"}`
-		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", q, "")
+		user_data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
 		if err == nil && user_data != nil {
 			if userDataMap, ok := user_data.(map[string]interface{}); ok {
 				if v, ok := userDataMap["profile_picture"].(string); ok {
@@ -1711,11 +1694,11 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	account["groups"] = make([]interface{}, 0)
 	account["organizations"] = make([]interface{}, 0)
 	account["typeName"] = "Account"
-
-	// append guest role if not already exist.
-	if !Utility.Contains(roles, "guest@"+localDomain) {
-		roles = append(roles, "guest@"+localDomain)
-	}
+	account["first_name"] = first_name
+	account["last_name"] = last_name
+	account["middle_name"] = ""
+	account["email"] = email
+	account["profile_picture"] = profile_picture
 
 	// Here I will insert the account in the database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Accounts", account, "")
@@ -1730,7 +1713,7 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	// Each account will have their own database and a use that can read and write
 
 	// Organizations
-	for i := 0; i < len(organizations); i++ {
+	for i := range organizations {
 		if !strings.Contains(organizations[i], "@") {
 			organizations[i] = organizations[i] + "@" + localDomain
 		}
@@ -1739,7 +1722,7 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	}
 
 	// Roles
-	for i := 0; i < len(roles); i++ {
+	for i := range roles {
 		if !strings.Contains(roles[i], "@") {
 			roles[i] = roles[i] + "@" + localDomain
 		}
@@ -1747,7 +1730,7 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	}
 
 	// Groups
-	for i := 0; i < len(groups); i++ {
+	for i := range groups {
 		if !strings.Contains(groups[i], "@") {
 			groups[i] = groups[i] + "@" + localDomain
 		}
@@ -1761,41 +1744,6 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	if err != nil {
 		fmt.Println("fail to add resource owner with error ", err)
 	}
-
-	// I will execute the sript with the admin function.
-	// TODO implement the admin function for scylla and sql.
-	if p.GetStoreType() == "MONGO" {
-		createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
-		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
-		if err != nil {
-			return err
-		}
-	} else if p.GetStoreType() == "SCYLLA" {
-
-		createUserScript := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s_db WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor': %d }; CREATE TABLE %s_db.user_data (id text PRIMARY KEY, first_name text, last_name text, middle_name text, email text, profile_picture text); INSERT INTO %s_db.user_data (id, email, first_name, last_name, middle_name, profile_picture) VALUES ('%s', '%s', '%s', '%s', '%s', '%s');", name, srv.Backend_replication_factor, name, name, id, email, first_name, last_name, middle_name, profile_picture)
-		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, createUserScript)
-		if err != nil {
-			return err
-		}
-	} else if p.GetStoreType() == "SQL" {
-		// Create the user_data table in the user database
-		err = p.(*persistence_store.SqlStore).CreateTable(context.Background(), "local_resource", name+"_db", "user_data", []string{"first_name TEXT", "last_name TEXT", "middle_name TEXT", "email TEXT", "profile_picture TEXT"})
-		if err != nil {
-			return err
-		}
-
-	}
-
-	// Here I will set user data in the database.
-	data := make(map[string]interface{}, 0)
-	data["_id"] = id
-	data["first_name"] = first_name
-	data["last_name"] = last_name
-	data["middle_name"] = ""
-	data["email"] = email
-	data["profile_picture"] = profile_picture
-
-	_, err = p.InsertOne(context.Background(), "local_resource", name+"_db", "user_data", data, "")
 
 	// Now I will allocate the new account disk space.
 	srv.SetAccountAllocatedSpace(id, 0)
@@ -1855,8 +1803,15 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Generate a token for the new account
-	tokenString, _ := security.GenerateToken(srv.SessionTimeout, srv.Mac, account.Id, account.Name, account.Email, account.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, srv.Mac, account.Id, account.Name, account.Email, account.Domain)
 
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		)
+	}
+	
 	// Validate the token...
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
@@ -2066,19 +2021,11 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 	}
 
 	// set the account id.
-	db := accountId
-	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, ".", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-
-	db += "_db"
-
 	q := `{"_id":"` + rqst.Contact.Id + `"}`
 
 	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone + `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
 
-	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", q, sentInvitation, `[{"upsert":true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Contacts", q, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2157,6 +2104,7 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
 	}
 
+	
 	// Change the password...
 	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, changePasswordScript)
 	if err != nil {
@@ -2324,12 +2272,6 @@ func (srv *server) updateAccount(ctx context.Context, account *resourcepb.Accoun
 		)
 	}
 
-	// Sanitize the database name
-	db := strings.ReplaceAll(strings.ReplaceAll(account.Id, ".", "_"), "@", "_")
-	db = strings.ReplaceAll(db, "-", "_")
-	db = strings.ReplaceAll(db, " ", "_")
-	db += "_db"
-
 	// Update user-specific data.
 	setUserData := map[string]interface{}{
 		"$set": map[string]interface{}{
@@ -2341,7 +2283,7 @@ func (srv *server) updateAccount(ctx context.Context, account *resourcepb.Accoun
 	}
 	setUserData_, _ := Utility.ToJson(setUserData)
 
-	err = p.UpdateOne(ctx, "local_resource", db, "user_data", q, setUserData_, "")
+	err = p.UpdateOne(ctx, "local_resource", "local_resource", "Accounts", q, setUserData_, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

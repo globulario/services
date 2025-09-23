@@ -47,6 +47,15 @@ var (
 )
 
 //
+// Ring buffer for process output
+//
+type ring struct {
+	mu   sync.Mutex
+	buf  []byte
+	size int
+}
+
+//
 // =====================================================================================
 /*
    RUNTIME SYNC
@@ -185,6 +194,64 @@ func KillServiceProcess(s map[string]interface{}) error {
 	return nil
 }
 
+// WaitForEtcdHTTPS blocks until etcd is healthy over HTTPS (or times out).
+func WaitForEtcdHTTPS(timeout time.Duration) error {
+	name, _ := config.GetName()
+	domain, _ := config.GetDomain()
+	host := name
+	if domain != "" && !strings.Contains(name, ".") {
+		host = name + "." + domain
+	}
+	certDir := filepath.Join(config.GetConfigDir(), "tls", host)
+	ca := filepath.Join(certDir, "ca.crt")
+	cl := filepath.Join(certDir, "client.crt")
+	key := filepath.Join(certDir, "client.pem")
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if alreadyHealthy("https", ca, cl, key) {
+			return nil
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return fmt.Errorf("etcd did not become healthy over https within %s", timeout)
+}
+
+// RestartAllServicesForEtcdTLS gracefully flips every service after etcd switches to TLS.
+// Order: stop proxies → stop service → start service → (re)start proxy if TLS requested.
+func RestartAllServicesForEtcdTLS() error {
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, s := range services {
+		// Stop proxy first to avoid flapping logs.
+		_ = KillServiceProxyProcess(s)
+
+		// Capture the desired port (don’t reassign ports on restart).
+		port := Utility.ToInt(s["Port"])
+		if port <= 0 {
+			// fall back to configured port or skip
+			continue
+		}
+
+		// Stop the service (best effort) and start it again.
+		_ = KillServiceProcess(s)
+		if _, err := StartServiceProcess(s, port); err != nil && firstErr == nil {
+			firstErr = err
+		}
+
+		// If this service is exposed through grpcwebproxy with TLS, relaunch its proxy too.
+		if Utility.ToBool(s["TLS"]) {
+			if _, err := StartServiceProxyProcess(s, "ca.crt", "server.crt"); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
 func isAlive(pid int) (bool, error) { return Utility.PidExists(pid) }
 func isDead(pid int) (bool, error)  { alive, err := isAlive(pid); return !alive, err }
 
@@ -233,12 +300,52 @@ func StartServiceProcessWithWriters(
 	return startServiceProcessWithWritersInternal(s, port, stdoutWriter, stderrWriter, make(map[string]struct{}))
 }
 
+
+func newRing(n int) *ring { return &ring{size: n, buf: make([]byte, 0, n)} }
+func (r *ring) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(p) >= r.size {
+		r.buf = append([]byte{}, p[len(p)-r.size:]...)
+		return len(p), nil
+	}
+	if len(r.buf)+len(p) > r.size {
+		// drop oldest
+		over := len(r.buf) + len(p) - r.size
+		r.buf = r.buf[over:]
+	}
+	r.buf = append(r.buf, p...)
+	return len(p), nil
+}
+func (r *ring) Bytes() []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]byte{}, r.buf...)
+}
+func tailLines(b []byte, n int) string {
+	if n <= 0 {
+		return string(b)
+	}
+	// find last n newlines
+	cnt := 0
+	for i := len(b) - 1; i >= 0; i-- {
+		if b[i] == '\n' {
+			cnt++
+			if cnt == n {
+				return string(b[i+1:])
+			}
+		}
+	}
+	return string(b)
+}
+
+// ---- your function, improved ----
 func startServiceProcessWithWritersInternal(
 	s map[string]interface{},
 	port int,
 	stdoutWriter io.Writer,
 	stderrWriter io.Writer,
-	seen map[string]struct{}, // cycle guard across recursive starts
+	seen map[string]struct{},
 ) (int, error) {
 	if stdoutWriter == nil {
 		stdoutWriter = os.Stdout
@@ -257,10 +364,8 @@ func startServiceProcessWithWritersInternal(
 		lockKey = name
 	}
 
-	// Acquire a short-lived distributed lock per service.
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-
 	sess, mu, err := acquireStartLock(ctx, lockKey)
 	if err != nil {
 		return -1, fmt.Errorf("failed to acquire start lock for %s: %w", lockKey, err)
@@ -270,10 +375,8 @@ func startServiceProcessWithWritersInternal(
 		_ = sess.Close()
 	}()
 
-	// Sync from runtime before deciding anything.
 	syncFromRuntime(s)
 
-	// ---- Fast path: if already running, skip duplicate start ----
 	if rt, _ := config.GetRuntime(id); rt != nil {
 		if rt["State"] != nil && rt["Process"] != nil {
 			state := strings.ToLower(Utility.ToString(rt["State"]))
@@ -290,12 +393,10 @@ func startServiceProcessWithWritersInternal(
 		}
 	}
 
-	// Kill any previous instance (best-effort). This uses up-to-date PID due to syncFromRuntime().
 	if err := KillServiceProcess(s); err != nil {
 		return -1, err
 	}
 
-	// Persist desired settings BEFORE spawn so the child reads them.
 	s["Port"] = port
 	s["Proxy"] = port + 1
 	s["Process"] = -1
@@ -303,14 +404,12 @@ func startServiceProcessWithWritersInternal(
 		slog.Warn("failed to persist desired service config before start", "id", s["Id"], "name", s["Name"], "err", err)
 	}
 
-	// Mark "starting" early so other contenders back off.
 	_ = config.PutRuntime(id, map[string]interface{}{
 		"Process":   -1,
 		"State":     "starting",
 		"LastError": "",
 	})
 
-	// Resolve & verify service binary path.
 	path := Utility.ToString(s["Path"])
 	if path == "" || !Utility.Exists(path) {
 		return -1, fmt.Errorf("service binary not found: %s (service=%s id=%s)", path, name, id)
@@ -323,14 +422,23 @@ func startServiceProcessWithWritersInternal(
 	}
 	path = Utility.ToString(s["Path"])
 
-	// Spawn: only the Id as arg; service fetches its config from etcd.
 	cmd := exec.Command(path, id)
 	cmd.Dir = filepath.Dir(path)
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	}
 
-	stdout, err := cmd.StdoutPipe()
+	// Encourage rich panic info & (optional) core dumps from Go services.
+	// (Service can override; these just default.)
+	env := os.Environ()
+	if os.Getenv("GOTRACEBACK") == "" {
+		env = append(env, "GOTRACEBACK=all")
+	}
+	// Uncomment to force SIGABRT on panic (generates core if ulimit allows)
+	// env = append(env, "GODEBUG=panicabort=1")
+	cmd.Env = env
+
+	stdoutR, err := cmd.StdoutPipe()
 	if err != nil {
 		return -1, err
 	}
@@ -339,36 +447,53 @@ func startServiceProcessWithWritersInternal(
 		return -1, err
 	}
 
-	var startErrBuf bytes.Buffer
+	// keep last 64KB of each stream for post-mortem
+	stdoutTail := newRing(64 << 10)
+	stderrTail := newRing(64 << 10)
+
+	// Prefix lines with timestamp to aid correlation
+	tsWriter := func(w io.Writer) io.Writer {
+		pr, pw := io.Pipe()
+		go func() {
+			sc := bufio.NewScanner(pr)
+			// allow long lines
+			buf := make([]byte, 64<<10)
+			sc.Buffer(buf, 1<<20)
+			for sc.Scan() {
+				line := sc.Bytes()
+				fmt.Fprintf(w, "%s %s\n", time.Now().Format(time.RFC3339Nano), string(line))
+			}
+			_ = pr.Close()
+		}()
+		return pw
+	}
 
 	doneStdout := make(chan struct{})
-	go func() { crAwareCopy(stdoutWriter, stdout); close(doneStdout) }()
-
-	doneStderr := make(chan struct{})
 	go func() {
-		tee := io.TeeReader(stderrR, &startErrBuf)
-		r := bufio.NewReader(tee)
-		for {
-			line, e := r.ReadBytes('\n')
-			if len(line) > 0 {
-				_, _ = stderrWriter.Write(line)
-			}
-			if e != nil {
-				if !errors.Is(e, io.EOF) {
-					_, _ = stderrWriter.Write([]byte("\n[stderr stream error] " + e.Error() + "\n"))
-				}
-				break
-			}
-		}
-		close(doneStderr)
+		defer close(doneStdout)
+		dst := io.MultiWriter(tsWriter(stdoutWriter), stdoutTail)
+		_, _ = io.Copy(dst, stdoutR)
 	}()
 
+	var startErrBuf bytes.Buffer // stderr collected before Start() errors
+	doneStderr := make(chan struct{})
+	go func() {
+		defer close(doneStderr)
+		tee := io.TeeReader(stderrR, &startErrBuf) // mostly useful if Start() fails
+		dst := io.MultiWriter(tsWriter(stderrWriter), stderrTail)
+		_, _ = io.Copy(dst, tee)
+	}()
+
+	startAt := time.Now()
 	if err := cmd.Start(); err != nil {
-		_ = stdout.Close()
+		_ = stdoutR.Close()
 		_ = stderrR.Close()
 		<-doneStdout
 		<-doneStderr
-		slog.Error("failed to start service", "name", name, "id", id, "err", err, "stderr", strings.TrimSpace(startErrBuf.String()))
+		slog.Error("failed to start service",
+			"name", name, "id", id, "err", err,
+			"stderr_head", strings.TrimSpace(startErrBuf.String()),
+			"path", path, "cwd", cmd.Dir)
 		_ = config.PutRuntime(id, map[string]interface{}{
 			"Process":   -1,
 			"State":     "failed",
@@ -378,42 +503,65 @@ func startServiceProcessWithWritersInternal(
 	}
 
 	pid := cmd.Process.Pid
-	slog.Info("service process started", "name", name, "id", id, "pid", pid, "port", port, "proxy", port+1)
+	slog.Info("service process started", "name", name, "id", id, "pid", pid, "port", port, "proxy", port+1, "cwd", cmd.Dir, "path", path)
 
-	// Update runtime to RUNNING.
 	_ = config.PutRuntime(id, map[string]interface{}{
 		"Process":   pid,
 		"State":     "running",
 		"LastError": "",
 	})
 
-	// Start liveness lease.
 	if _, err := config.StartLive(id, 15); err != nil {
 		slog.Warn("failed to start etcd live lease", "id", id, "err", err)
 	}
 
-	// Supervise: capture exit and update runtime.
 	go func() {
 		err := cmd.Wait()
-		_ = stdout.Close()
+		_ = stdoutR.Close()
 		_ = stderrR.Close()
 		<-doneStdout
 		<-doneStderr
 
-		state := "stopped"
+		elapsed := time.Since(startAt)
+
+		exitCode := 0
+		var sigStr string
+		if ps := cmd.ProcessState; ps != nil {
+			if ws, ok := ps.Sys().(syscall.WaitStatus); ok {
+				exitCode = ws.ExitStatus()
+				if ws.Signaled() {
+					sigStr = ws.Signal().String()
+				}
+			}
+		}
+		// Compose a richer error message
 		if err != nil {
-			state = "failed"
-			slog.Error("service process exited with error", "name", name, "id", id, "pid", pid, "err", err)
+			// Tail last 200 lines to keep logs tidy
+			stdoutTailStr := tailLines(stdoutTail.Bytes(), 200)
+			stderrTailStr := tailLines(stderrTail.Bytes(), 200)
+			slog.Error("service process exited with error",
+				"name", name, "id", id, "pid", pid,
+				"exit_code", exitCode, "signal", sigStr,
+				"elapsed", elapsed.String(),
+				"path", path, "cwd", cmd.Dir,
+				"err", err,
+				"stderr_tail", strings.TrimSpace(stderrTailStr),
+				"stdout_tail", strings.TrimSpace(stdoutTailStr),
+			)
 		} else {
-			slog.Info("service process stopped", "name", name, "id", id, "pid", pid)
+			slog.Info("service process stopped",
+				"name", name, "id", id, "pid", pid, "exit_code", exitCode, "elapsed", elapsed.String())
 		}
 
 		_ = config.PutRuntime(id, map[string]interface{}{
 			"Process": -1,
-			"State":   state,
+			"State":   func() string { if err != nil { return "failed" }; return "stopped" }(),
 			"LastError": func() string {
 				if err != nil {
-					return err.Error()
+					if sigStr != "" {
+						return fmt.Sprintf("%v (exit=%d, signal=%s)", err, exitCode, sigStr)
+					}
+					return fmt.Sprintf("%v (exit=%d)", err, exitCode)
 				}
 				return ""
 			}(),
@@ -429,6 +577,60 @@ func startServiceProcessWithWritersInternal(
 // PROXY MANAGEMENT
 // -------------------------------------------------------------------------------------
 //
+
+// add near the top of the file
+// helper at top of file (or near other small helpers)
+func isStoppingState(state string) bool {
+	s := strings.ToLower(strings.TrimSpace(state))
+	return s == "closing" || s == "closed" || s == "stopping" || s == "stopped" || s == "failed"
+}
+
+// RestartAllServiceProxiesTLS restarts grpcwebproxy for all services that declare TLS=true.
+// It is best-effort and safe to call at any time; services with KeepAlive will also
+// recover on their own, but this shortens the window.
+func RestartAllServiceProxiesTLS() error {
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		return err
+	}
+
+	name, _ := config.GetName()
+	domain, _ := config.GetDomain()
+	advHost := name
+	if domain != "" && !strings.Contains(name, ".") {
+		advHost = name + "." + domain
+	}
+
+	// Ensure creds dir exists.
+	credsDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
+	if !Utility.Exists(credsDir) {
+		return fmt.Errorf("cannot restart proxies: creds dir does not exist: %s", credsDir)
+	}
+
+	// Choose the certs used by your proxies:
+	// - For the proxy's own TLS server: use the local server keypair (server.key/.crt) and trust bundle.
+	// - For backend mTLS: we already pass backend CA/client in StartServiceProxyProcess.
+	caBundle := filepath.Join(credsDir, "ca.crt")
+	serverCert := filepath.Join(credsDir, "server.crt")
+
+	var firstErr error
+	for _, s := range services {
+		// Only touch proxies for services that want TLS.
+		if !Utility.ToBool(s["TLS"]) {
+			continue
+		}
+
+		// Stop proxy (ignore errors), then start it again with TLS.
+		_ = KillServiceProxyProcess(s)
+		if _, err := StartServiceProxyProcess(s, caBundle, serverCert); err != nil {
+			// Record the first error but keep going so others can restart.
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
 
 /*
 StartServiceProxyProcess launches grpcwebproxy for a running service.
@@ -523,7 +725,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		"--server_http_max_read_timeout=48h",
 		"--server_http_max_write_timeout=48h",
 	}
-
 	if tlsEnabled {
 		caTrust := filepath.Join(credsDir, "ca.crt")
 		args = append(args,
@@ -553,86 +754,160 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		return -1, err
 	}
 
-	proxy := exec.Command(cmdPath, args...)
-	proxy.Dir = cmdDir
-	if runtime.GOOS != "windows" {
-		proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	// Helper that spawns the proxy and performs the initial reachability check.
+	type started struct {
+		cmd     *exec.Cmd
+		pid     int
+		readyCh chan error
 	}
-	proxy.Stdout = os.Stdout
-	proxy.Stderr = os.Stderr
+	startOnce := func() (*started, error) {
+		proxy := exec.Command(cmdPath, args...)
+		proxy.Dir = cmdDir
+		if runtime.GOOS != "windows" {
+			proxy.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+		}
+		proxy.Stdout = os.Stdout
+		proxy.Stderr = os.Stderr
 
-	if err := proxy.Start(); err != nil {
-		return -1, err
-	}
-	proxyPid := proxy.Process.Pid
+		if err := proxy.Start(); err != nil {
+			return nil, err
+		}
+		pid := proxy.Process.Pid
 
-	slog.Info("grpcwebproxy started (verifying reachability)", "service", name, "id", id, "backend", backend, "port", proxyPort, "tls", tlsEnabled, "pid", proxyPid, "path", cmdPath)
+		slog.Info("grpcwebproxy started (verifying reachability)", "service", name, "id", id, "backend", backend, "port", proxyPort, "tls", tlsEnabled, "pid", pid, "path", cmdPath)
 
-	// Update runtime immediately with the PID (we’ll clear it if startup fails).
-	_ = config.PutRuntime(id, map[string]interface{}{
-		"ProxyProcess": proxyPid,
-		"State":        "running",
-	})
+		// Update runtime immediately with the PID (we’ll clear it if startup fails).
+		_ = config.PutRuntime(id, map[string]interface{}{
+			"ProxyProcess": pid,
+			"State":        "running",
+		})
 
-	// Quick readiness: give the proxy a moment to bind; then confirm the port is open.
-	ready := make(chan error, 1)
-	go func() { ready <- proxy.Wait() }() // if it crashes instantly, we’ll learn here
+		ready := make(chan error, 1)
+		go func() { ready <- proxy.Wait() }()
 
-	// Wait up to ~2s for the port to open; if the process already died, surface that error.
-	checkDeadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(checkDeadline) {
+		// Wait up to ~2s for the port to open; if the process already died, surface that error.
+		checkDeadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(checkDeadline) {
+			select {
+			case err := <-ready:
+				_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
+				if err != nil {
+					slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", pid, "err", err)
+					return nil, fmt.Errorf("grpcwebproxy failed to start: %w", err)
+				}
+				slog.Info("grpcwebproxy exited immediately without error (unexpected)", "service", name, "id", id, "pid", pid)
+				return nil, errors.New("grpcwebproxy exited immediately")
+			default:
+				hp4 := net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))
+				hp6 := net.JoinHostPort("::1", strconv.Itoa(proxyPort))
+				if waitTcpOpen(hp4, 150*time.Millisecond) || waitTcpOpen(hp6, 150*time.Millisecond) {
+					return &started{cmd: proxy, pid: pid, readyCh: ready}, nil
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+
+		// Not reachable; assume bad start.
 		select {
 		case err := <-ready:
-			// Process exited early — startup failed (very often "address already in use").
 			_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
 			if err != nil {
-				slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", proxyPid, "err", err)
-				return -1, fmt.Errorf("grpcwebproxy failed to start: %w", err)
+				slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", pid, "err", err)
+				return nil, fmt.Errorf("grpcwebproxy failed to start: %w", err)
 			}
-			slog.Info("grpcwebproxy exited immediately without error (unexpected)", "service", name, "id", id, "pid", proxyPid)
-			return -1, errors.New("grpcwebproxy exited immediately")
 		default:
-			// Try both IPv4 and IPv6 localhost to confirm the bind.
-			hp4 := net.JoinHostPort("127.0.0.1", strconv.Itoa(proxyPort))
-			hp6 := net.JoinHostPort("::1", strconv.Itoa(proxyPort))
-			if portOpen := waitTcpOpen(hp4, 150*time.Millisecond) || waitTcpOpen(hp6, 150*time.Millisecond); portOpen {
-				// Looks good — keep supervising below and return success.
-				goto SUPERVISE
-			}
-			time.Sleep(100 * time.Millisecond)
 		}
-	}
-
-	// Not reachable; assume bad start. Try to collect exit state if it died just after.
-	select {
-	case err := <-ready:
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
+		_ = proxy.Process.Signal(syscall.SIGTERM)
+		time.Sleep(200 * time.Millisecond)
 		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
-		if err != nil {
-			slog.Error("grpcwebproxy terminated during startup", "service", name, "id", id, "pid", proxyPid, "err", err)
-			return -1, fmt.Errorf("grpcwebproxy failed to start: %w", err)
-		}
-	default:
+		return nil, fmt.Errorf("grpcwebproxy did not become reachable on port %d", proxyPort)
 	}
-	// Still alive but not listening — kill it and report error.
-	_ = syscall.Kill(-proxyPid, syscall.SIGTERM)
-	_ = proxy.Process.Signal(syscall.SIGTERM)
-	time.Sleep(200 * time.Millisecond)
-	_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
-	return -1, fmt.Errorf("grpcwebproxy did not become reachable on port %d", proxyPort)
 
-SUPERVISE:
-	// Supervise proxy (clear runtime PID on exit).
+	// First start
+	st, err := startOnce()
+	if err != nil {
+		return -1, err
+	}
+
+	// -------- Supervise + auto-restart (KeepAlive + backend still running) --------
+	keepAlive := Utility.ToBool(s["KeepAlive"])
 	go func() {
-		err := <-ready
-		if err != nil {
-			slog.Error("grpcwebproxy terminated with error", "service", name, "id", id, "pid", proxyPid, "err", err)
-		} else {
-			slog.Info("grpcwebproxy stopped", "service", name, "id", id, "pid", proxyPid)
+		backoff := 500 * time.Millisecond
+		const maxBackoff = 30 * time.Second
+
+		cur := st
+		for {
+			err := <-cur.readyCh // wait for the current proxy to exit
+			if err != nil {
+				slog.Error("grpcwebproxy terminated with error", "service", name, "id", id, "pid", cur.pid, "err", err)
+			} else {
+				slog.Info("grpcwebproxy stopped", "service", name, "id", id, "pid", cur.pid)
+			}
+			_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
+
+			// Refresh runtime/desired for every decision
+			syncFromRuntime(s)
+
+			// honor KeepAlive flips too
+			keepAlive = Utility.ToBool(s["KeepAlive"])
+
+			// current backend state & liveness
+			servicePid = Utility.ToInt(s["Process"])
+			state := strings.ToLower(Utility.ToString(s["State"]))
+			backendAlive, _ := Utility.PidExists(servicePid)
+
+			// Hard stops: do not restart if KeepAlive=false OR service is stopping-ish OR backend is down
+			if !keepAlive || isStoppingState(state) || servicePid <= 0 || !backendAlive {
+				slog.Info("not restarting proxy: backend not healthy or service stopping",
+					"service", name, "backend_pid", servicePid, "state", state)
+				return
+			}
+
+			// Backend is healthy and service still running/starting → restart with backoff.
+			time.Sleep(backoff)
+			if backoff < maxBackoff {
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+			}
+
+			// Try to take the per-service lock again (avoid racing with external supervisors)
+			if cli, err := config.GetEtcdClient(); err == nil && cli != nil {
+				if sess, e := concurrency.NewSession(cli, concurrency.WithTTL(8)); e == nil {
+					m := concurrency.NewMutex(sess, "/globular/locks/proxy/"+id)
+					ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+					if e := m.TryLock(ctx); e == nil {
+						cancel()
+						ns, e2 := startOnce()
+						_ = m.Unlock(context.Background())
+						_ = sess.Close()
+						if e2 != nil {
+							slog.Warn("proxy restart failed; will retry", "service", name, "err", e2)
+							continue
+						}
+						backoff = 500 * time.Millisecond
+						cur = ns
+						continue
+					}
+					cancel()
+					_ = sess.Close()
+				}
+			}
+
+			// Best-effort local start if lock not acquired
+			ns, e2 := startOnce()
+			if e2 != nil {
+				slog.Warn("proxy restart failed (no lock); will retry", "service", name, "err", e2)
+				continue
+			}
+			backoff = 500 * time.Millisecond
+			cur = ns
 		}
-		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
 	}()
 
-	return proxyPid, nil
+	return st.pid, nil
 }
 
 /*
@@ -642,14 +917,25 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 	// Reconcile from runtime to avoid stale PIDs.
 	syncFromRuntime(s)
 
+	id := Utility.ToString(s["Id"])
 	pid := Utility.ToInt(s["ProxyProcess"])
+	if s["State"] == nil {
+		s["State"] = "unknown"
+	}
+
+	// Signal that we’re intentionally stopping the proxy to avoid auto-restart.
+	curState := strings.ToLower(Utility.ToString(s["State"]))
+	if curState == "" || curState == "running" || curState == "starting" {
+		_ = config.PutRuntime(id, map[string]interface{}{"State": "closing"})
+	}
+
 	if pid <= 0 {
+		// still ensure ProxyProcess is cleared
+		_ = config.PutRuntime(id, map[string]interface{}{"ProxyProcess": -1})
 		return nil
 	}
 
 	proc, _ := os.FindProcess(pid)
-
-	// Graceful first.
 	if runtime.GOOS == "windows" {
 		_ = proc.Kill()
 	} else {
@@ -657,7 +943,6 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		_ = proc.Signal(syscall.SIGTERM)
 	}
 
-	// Wait up to 5s.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if ok, _ := Utility.PidExists(pid); !ok {
@@ -666,7 +951,6 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Escalate if needed.
 	if ok, _ := Utility.PidExists(pid); ok {
 		if runtime.GOOS == "windows" {
 			_ = proc.Kill()
@@ -674,7 +958,6 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 			_ = syscall.Kill(-pid, syscall.SIGKILL)
 			_ = proc.Kill()
 		}
-		// short final wait
 		esc := time.Now().Add(2 * time.Second)
 		for time.Now().Before(esc) {
 			if ok, _ := Utility.PidExists(pid); !ok {
@@ -684,11 +967,19 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 		}
 	}
 
-	state := "running"
-	if Utility.ToInt(s["Process"]) <= 0 {
-		state = "stopped"
+	// Final runtime: clear proxy PID and set a non-up state
+	syncFromRuntime(s) // refresh Process/State one last time
+	state := strings.ToLower(Utility.ToString(s["State"]))
+	if state == "" || state == "running" || state == "starting" {
+		// If main service is still up but we intentionally killed the proxy,
+		// keep "closing" so the restart loop won’t kick in.
+		state = "closing"
 	}
-	return config.PutRuntime(Utility.ToString(s["Id"]), map[string]interface{}{
+	if Utility.ToInt(s["Process"]) <= 0 {
+		state = "closed"
+	}
+
+	return config.PutRuntime(id, map[string]interface{}{
 		"ProxyProcess": -1,
 		"State":        state,
 	})
@@ -698,7 +989,6 @@ func KillServiceProxyProcess(s map[string]interface{}) error {
 // -------------------------------------------------------------------------------------
 // grpcwebproxy binary resolution
 // -------------------------------------------------------------------------------------
-//
 
 // resolveGrpcWebProxy looks for the grpcwebproxy binary in a few common places and returns (path, dir).
 func resolveGrpcWebProxy(cmdName string) (string, string, error) {
@@ -765,6 +1055,58 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 // ETCD (single-node bootstrap with DNS-first advertising)
 // =====================================================================================
 
+// RestartEtcdIfCertsReady switches etcd to HTTPS if server.crt/server.pem/ca.crt exist.
+// If etcd is already healthy on HTTPS, it does nothing. If it’s only on HTTP, it
+// stops the current process and relaunches on TLS.
+func RestartEtcdIfCertsReady() error {
+	localCfg, err := config.GetLocalConfig(true)
+	if err != nil {
+		return err
+	}
+	name := Utility.ToString(localCfg["Name"])
+	if name == "" {
+		name, _ = config.GetName()
+	}
+	domain, _ := config.GetDomain()
+	advHost := name
+	if domain != "" && !strings.Contains(name, ".") {
+		advHost = name + "." + domain
+	}
+
+	certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
+	certFile := filepath.Join(certDir, "server.crt")
+	keyPem := filepath.Join(certDir, "server.pem")
+	keyKey := filepath.Join(certDir, "server.key")
+	caFile := filepath.Join(certDir, "ca.crt")
+
+	// Need cert + key(.pem or .key) + ca
+	if !(Utility.Exists(certFile) && Utility.Exists(caFile) && (Utility.Exists(keyPem) || Utility.Exists(keyKey))) {
+		return nil
+	}
+
+	// If HTTPS is already healthy, nothing to do.
+	if alreadyHealthy("https", caFile, filepath.Join(certDir, "client.crt"), filepath.Join(certDir, "client.pem")) {
+		return nil
+	}
+
+	// Stop whatever is running (HTTP or stale HTTPS).
+	_ = StopEtcdServer()
+
+	// Wait for ports to be released.
+	clientHP := net.JoinHostPort(config.GetLocalIP(), "2379")
+	peerHP := net.JoinHostPort(config.GetLocalIP(), "2380")
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if !portInUse(clientHP) && !portInUse(peerHP) {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	// Start; StartEtcdServer() will prefer TLS when certs exist (see patch #3).
+	return StartEtcdServer()
+}
+
 /*
 StartEtcdServer launches etcd using a generated config file. It:
 
@@ -828,17 +1170,21 @@ func StartEtcdServer() error {
 	// TLS
 	scheme := protocol
 	wantTLS := (protocol == "https")
-	var certFile, keyFile, caFile string
-	var clientCertFile, clientKeyFile string
+
+	var clientCertFile, clientKeyFile, caFile string
 
 	if wantTLS {
 
 		certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
-		certFile = filepath.Join(certDir, "server.crt")
-		keyFile = filepath.Join(certDir, "server.pem")
+		certFile := filepath.Join(certDir, "server.crt")
+		// accept either server.pem OR server.key
+		keyFile := filepath.Join(certDir, "server.pem")
+		if !Utility.Exists(keyFile) {
+			keyFile = filepath.Join(certDir, "server.key")
+		}
 		caFile = filepath.Join(certDir, "ca.crt")
-		clientCertFile = filepath.Join(certDir, "client.crt")
-		clientKeyFile = filepath.Join(certDir, "client.pem")
+		clientCertFile := filepath.Join(certDir, "client.crt")
+		clientKeyFile := filepath.Join(certDir, "client.pem")
 
 		if !(Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile)) {
 			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
@@ -877,8 +1223,7 @@ func StartEtcdServer() error {
 	const clientPort = "2379"
 	const peerPort = "2380"
 
-	
-	listenAddress :=  config.GetLocalIP()
+	listenAddress := config.GetLocalIP()
 	listenClientURLs := scheme + "://" + net.JoinHostPort(listenAddress, clientPort)
 	listenPeerURLs := scheme + "://" + net.JoinHostPort(listenAddress, peerPort)
 
@@ -1156,6 +1501,10 @@ func alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile string) bool {
 	httpClient := healthHTTPClient(scheme == "https", caFile, clientCertFile, clientKeyFile)
 
 	for _, u := range config.GetEtcdEndpointsHostPorts() {
+		// Ensure scheme
+		if !strings.Contains(u, "://") {
+			u = scheme + "://" + u
+		}
 		resp, err := httpClient.Get(u + "/health")
 		if err != nil {
 			continue
@@ -1336,8 +1685,8 @@ inhibit_rules:
 		webCfg := config.GetConfigDir() + "/prometheus_tls.yml"
 		if !Utility.Exists(webCfg) {
 			cfg := "tls_server_config:\n" +
-				" cert_file: " + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalCertificate() + "\n" +
-				" key_file: " + config.GetConfigDir() + "/tls/" + domain + "/" + config.GetLocalServerCerificateKeyPath() + "\n"
+				" cert_file: " + config.GetLocalServerCertificatePath() + "\n" +
+				" key_file: " +  config.GetLocalServerKeyPath() + "\n"
 			if err := os.WriteFile(webCfg, []byte(cfg), 0644); err != nil {
 				return err
 			}

@@ -91,7 +91,7 @@ func NewPortAllocator(rangeStr string) (*PortAllocator, error) {
 // NewDefaultPortAllocator builds an allocator using GetPortsRange() and preloads "used"
 // from all current service configs (Port & Proxy).
 func NewDefaultPortAllocator() (*PortAllocator, error) {
-	
+
 	p, err := NewPortAllocator(GetPortsRange())
 	if err != nil {
 		return nil, err
@@ -223,6 +223,28 @@ func (p *PortAllocator) ClaimPair(ownerID string, port, proxy int) error {
 	// Reserve (idempotent for same owner)
 	p.used[port] = ownerID
 	p.used[proxy] = ownerID
+	return nil
+}
+
+// Claim reserves the given port for ownerID if it is in-range and free.
+// It is idempotent: if the port is already reserved by the same owner, it's accepted.
+func (p *PortAllocator) Claim(ownerID string, port int) error {
+	if port <= 0 {
+		return fmt.Errorf("invalid port %d", port)
+	}
+	if port < p.from || port > p.to {
+		return fmt.Errorf("port %d out of range %d-%d", port, p.from, p.to)
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if other, taken := p.used[port]; taken && other != ownerID {
+		return fmt.Errorf("port %d already reserved by %s", port, other)
+	}
+
+	// Reserve (idempotent for same owner)
+	p.used[port] = ownerID
 	return nil
 }
 
@@ -360,9 +382,35 @@ func GetHostname() (string, error) {
 	return fmt.Sprintf("%s.%s", name, domain), nil
 }
 
+func GetLocalServerCertificatePath() string {
+	if cfg, err := GetLocalConfig(true); err == nil {
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.crt"
+			if Utility.Exists(p) {
+				return p
+			}
+		}
+	}
+	return ""
+}
 
-// TLS helper paths
-func GetLocalServerCerificateKeyPath() string {
+func GetLocalCACertificate() string {
+	if cfg, err := GetLocalConfig(true); err == nil {
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/ca.crt"
+			if Utility.Exists(p) {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+func GetLocalServerKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
@@ -376,7 +424,7 @@ func GetLocalServerCerificateKeyPath() string {
 	return ""
 }
 
-func GetLocalClientCerificateKeyPath() string {
+func GetLocalClientKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
@@ -392,8 +440,14 @@ func GetLocalClientCerificateKeyPath() string {
 
 func GetLocalCertificate() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
-		if s, _ := cfg["Certificate"].(string); s != "" {
-			return s
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			// Try common names
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/" + domain + ".crt"
+			if Utility.Exists(p) {
+				return p
+			}
 		}
 	}
 	return ""
@@ -401,8 +455,14 @@ func GetLocalCertificate() string {
 
 func GetLocalCertificateAuthorityBundle() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
-		if s, _ := cfg["CertificateAuthorityBundle"].(string); s != "" {
-			return s
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			// Try common names
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/" + domain + ".issuer.crt"
+			if Utility.Exists(p) {
+				return p
+			}
 		}
 	}
 	return ""
@@ -576,7 +636,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	return out, nil
 }
 
-
 // ============================================================================
 // Local system config: etcd-first; file fallback is bootstrap ONLY
 // ============================================================================
@@ -602,7 +661,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-	
+
 	if lazy {
 		config_ = cfg
 		return cfg, nil

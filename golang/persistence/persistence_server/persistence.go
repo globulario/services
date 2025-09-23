@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -380,63 +381,65 @@ func (srv *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOneR
 
 // InsertMany streams a JSON array of documents and inserts them into the target collection.
 func (srv *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
-	var (
-		buffer       bytes.Buffer
-		rqst         *persistencepb.InsertManyRqst
-		err          error
-		connectionId string
-		database     string
-		collection   string
-	)
+    var (
+        lastID, lastDB, lastColl, lastOptions string
+        buf                                   bytes.Buffer
+        gotChunk                              bool
+    )
 
-	for {
-		rqst, err = stream.Recv()
-		if err == io.EOF {
-			// end of stream: write and close
-			if err_ := stream.SendAndClose(&persistencepb.InsertManyRsp{}); err_ != nil {
-				slog.Error("InsertMany: send-and-close failed", "err", err_)
-				return err_
-			}
-			break
-		} else if err != nil {
-			return grpcErr(err)
-		}
+    // 1) Read all chunks
+    for {
+        rqst, err := stream.Recv()
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            return grpcErr(err)
+        }
 
-		if rqst.Id == "" {
-			return grpcErr(errors.New("no connection id provided"))
-		}
-		if rqst.Database == "" {
-			return grpcErr(errors.New("no database provided"))
-		}
+        // Basic validation per chunk (keeps helpful error messages)
+        if rqst.GetId() == "" || rqst.GetDatabase() == "" || rqst.GetCollection() == "" {
+            return status.Errorf(codes.InvalidArgument, "missing id/database/collection")
+        }
 
-		if len(rqst.Data) > 0 {
-			if rqst.Collection != "" {
-				collection = rqst.Collection
-			}
-			if rqst.Id != "" {
-				connectionId = rqst.Id
-			}
-			if rqst.Database != "" {
-				database = rqst.Database
-			}
-			buffer.Write(rqst.Data)
-		} else {
-			break
-		}
-	}
+        // Remember connection info from the latest chunk
+        lastID = rqst.GetId()
+        lastDB = rqst.GetDatabase()
+        lastColl = rqst.GetCollection()
+        if opt := rqst.GetOptions(); opt != "" {
+            lastOptions = opt
+        }
 
-	entities := make([]interface{}, 0)
-	if err := json.Unmarshal(buffer.Bytes(), &entities); err != nil {
-		return grpcErr(err)
-	}
+        if len(rqst.Data) > 0 {
+            if _, err := buf.Write(rqst.Data); err != nil {
+                return grpcErr(err)
+            }
+            gotChunk = true
+        }
+    }
 
-	nid := norm(connectionId)
-	ndb := norm(database)
+    if !gotChunk {
+        return status.Errorf(codes.InvalidArgument, "no data received")
+    }
 
-	if _, err := srv.stores[nid].InsertMany(stream.Context(), nid, ndb, collection, entities, rqst.Options); err != nil {
-		return grpcErr(err)
-	}
-	return nil
+    // 2) Decode JSON array once
+    var entities []interface{}
+    if err := json.Unmarshal(buf.Bytes(), &entities); err != nil {
+        return grpcErr(fmt.Errorf("invalid JSON array: %w", err))
+    }
+
+    // 3) Execute write(s)
+    store := srv.stores[lastID]
+    if store == nil {
+        return status.Errorf(codes.NotFound, "connection %q not found", lastID)
+    }
+
+    if _, err := store.InsertMany(stream.Context(), lastID, lastDB, lastColl, entities, lastOptions); err != nil {
+        return grpcErr(err)
+    }
+
+	// 4) Send response AFTER success
+	return stream.SendAndClose(&persistencepb.InsertManyRsp{/* nothing here*/})
 }
 
 // Find streams matching documents as JSON chunks.
