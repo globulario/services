@@ -5,13 +5,16 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"time"
 
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storagepb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // //////////////////////////////////////////////////////////////////////////////
@@ -58,6 +61,9 @@ type Storage_Client struct {
 
 	// The client context
 	ctx context.Context
+
+	// per-RPC timeout (optional)
+	timeout time.Duration
 }
 
 // Create a connection to the service.
@@ -108,17 +114,30 @@ func (client *Storage_Client) Invoke(method string, rqst interface{}, ctx contex
 }
 
 func (client *Storage_Client) GetCtx() context.Context {
-	if client.ctx == nil {
-		client.ctx = globular.GetClientContext(client)
+	// start from any existing context; otherwise build the standard one
+	base := client.ctx
+	if base == nil {
+		base = globular.GetClientContext(client)
 	}
 
-	token, err := security.GetLocalToken(client.GetMac())
-	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac(), "address": client.GetAddress()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	// apply per-call timeout if configured
+	if client.timeout > 0 {
+		ctx, _ := context.WithTimeout(base, client.timeout)
+		base = ctx
 	}
 
-	return client.ctx
+	// attach auth + routing metadata if a local token is available
+	if token, err := security.GetLocalToken(client.GetMac()); err == nil {
+		md := metadata.New(map[string]string{
+			"token":   string(token),
+			"domain":  client.domain,
+			"mac":     client.GetMac(),
+			"address": client.GetAddress(),
+		})
+		return metadata.NewOutgoingContext(base, md)
+	}
+
+	return base
 }
 
 // Return the domain
@@ -189,6 +208,11 @@ func (client *Storage_Client) SetDomain(domain string) {
 	client.domain = domain
 }
 
+// SetTimeout defines a per-RPC deadline applied when building the outgoing context.
+func (client *Storage_Client) SetTimeout(d time.Duration) {
+	client.timeout = d
+}
+
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
@@ -238,6 +262,7 @@ func (client *Storage_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &storagepb.StopRequest{})
 }
 
+
 func (client *Storage_Client) CreateConnection(id string, name string, connectionType_ float64) error {
 	var connectionType storagepb.StoreType
 	if connectionType_ == 0 {
@@ -246,7 +271,7 @@ func (client *Storage_Client) CreateConnection(id string, name string, connectio
 		connectionType = storagepb.StoreType_BIG_CACHE
 	} else if connectionType_ == 2 {
 		connectionType = storagepb.StoreType_BADGER_DB
-	}  else {
+	} else {
 		return errors.New("no store found for the given storage type")
 	}
 	rqst := &storagepb.CreateConnectionRqst{
@@ -259,6 +284,19 @@ func (client *Storage_Client) CreateConnection(id string, name string, connectio
 
 	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 
+	return err
+}
+
+// CreateConnectionWithType lets callers pick an explicit store type via the enum.
+func (client *Storage_Client) CreateConnectionWithType(id, name string, t storagepb.StoreType) error {
+	rqst := &storagepb.CreateConnectionRqst{
+		Connection: &storagepb.Connection{
+			Id:   id,
+			Name: name,
+			Type: t,
+		},
+	}
+	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 	return err
 }
 
@@ -360,6 +398,23 @@ func (client *Storage_Client) GetItem(connectionId string, key string) ([]byte, 
 
 	return buffer.Bytes(), err
 
+}
+
+// Exists returns true if the key is present; false if definitely absent.
+// It uses GetItem and normalizes NotFound into (false, nil).
+func (client *Storage_Client) Exists(connectionId, key string) (bool, error) {
+	_, err := client.GetItem(connectionId, key)
+	if err == nil {
+		return true, nil
+	}
+	if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
+		return false, nil
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "not found") || strings.Contains(msg, "key not found") {
+		return false, nil
+	}
+	return false, err
 }
 
 func (client *Storage_Client) RemoveItem(connectionId string, key string) error {

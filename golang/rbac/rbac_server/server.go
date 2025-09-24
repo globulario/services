@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -837,10 +838,51 @@ func main() {
 		logger.Error("cache open failed", "path", srv.Root+"/cache", "err", err)
 	}
 
-	// Open permissions store (badger)
-	srv.permissions = storage_store.NewBadger_store()
-	if err := srv.permissions.Open(`{"path":"` + srv.Root + `", "name":"permissions"}`); err != nil {
-		logger.Error("permissions store open failed", "path", srv.Root+"/permissions", "err", err)
+	// Scylla db
+	host, _ := config.GetAddress()
+	if strings.Contains(host, ":") {
+		parts := strings.Split(host, ":")
+		host = parts[0]
+	}
+
+	ca := config.GetLocalCACertificate()
+	cert := config.GetLocalServerCertificatePath()
+	key := config.GetLocalServerKeyPath()
+
+	hasTLS := false
+	if ca != "" && cert != "" && key != "" {
+		hasTLS = true
+	}
+
+	if !hasTLS {
+		host += ":9042"
+	} else {
+		host += ":9142"
+	}
+
+	// Build JSON options for the store
+	opts := fmt.Sprintf(`{
+  "hosts": ["%s"],
+  "keyspace": "rbac_permissions",
+  "table": "permissions",
+  "replication_factor": 1,
+  "connect_timeout_ms": 5000,
+  "timeout_ms": 5000,
+  "consistency": "quorum",
+  "disable_initial_host_lookup": true,
+  "ca_file": "%s",
+  "cert_file": "%s",
+  "key_file": "%s",
+  "insecure_skip_verify": false,
+  "ssl_port": 9142,
+  "tls": %t
+}`, host, ca, cert, key, hasTLS)
+
+	// Create & open the Scylla-backed KV store
+	srv.permissions = storage_store.NewScylla_store("", "", 1)
+	if err := srv.permissions.Open(opts); err != nil {
+		logger.Error("permissions store open failed", "err", err)
+		// handle error...
 	}
 
 	start := time.Now()

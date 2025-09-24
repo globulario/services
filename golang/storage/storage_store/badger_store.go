@@ -157,9 +157,16 @@ func (store *Badger_store) clear() error {
 
 // drop destroys the data (DropAll).
 func (store *Badger_store) drop() error {
-	if store.db == nil {
-		return errors.New("badger: drop: db is not open")
-	}
-	pkgLogger.Info("badger drop", "path", store.path)
-	return store.db.DropAll()
+    if store.db == nil {
+        return errors.New("badger: drop: db is not open")
+    }
+    pkgLogger.Info("badger drop", "path", store.path)
+    if err := store.db.DropAll(); err != nil {
+        return err
+    }
+    // release KEYREGISTRY and other files
+    err := store.db.Close()
+    store.db = nil
+    store.isOpen = false
+    return err
 }
