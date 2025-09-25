@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	//"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -154,33 +155,20 @@ func portOpen(addr string, timeout time.Duration) bool {
 	return true
 }
 
-// InitClient populates client metadata (Id/Name/Port/TLS/Domain/Mac/State) from
-// the desired configuration stored in etcd, optionally overlays the runtime
-// (dynamic) endpoint if present, optionally waits for the gRPC Health service,
-// and finally starts an etcd watcher to keep the client's endpoint in sync.
-//
-// Env toggles:
-//
-//	GLOBULAR_REQUIRE_RUNTIME         bool   (default: false) — fail init if runtime is missing
-//	GLOBULAR_RUNTIME_GRACE           dur    (default: 15s)   — wait limit when REQUIRE_RUNTIME=1
-//	GLOBULAR_WAIT_HEALTH             bool   (default: false) — block until SERVING
-//	GLOBULAR_HEALTH_ATTEMPTS         int    (default: 30)
-//	GLOBULAR_HEALTH_INTERVAL         dur    (default: 1s)
-//	GLOBULAR_HEALTH_TIMEOUT          dur    (default: 0=disabled)
-//	GLOBULAR_INIT_MANDATORY_ATTEMPTS int    (default: 4)     — retries for Id/Port
-//	GLOBULAR_INIT_MANDATORY_SLEEP    dur    (default: 500ms) — base backoff for mandatory fields
-//	GLOBULAR_CLIENT_QUIET            bool   (default: true)  — demote chatty INFO to DEBUG
-//	GLOBULAR_CLIENT_BOOT_GRACE       dur    (default: 8s)    — quiet logs during early boot
-//	GLOBULAR_CLIENT_DEDUP_WINDOW     dur    (default: 2s)    — coalesce repeated endpoint-change logs
-//	GLOBULAR_CLIENT_VERBOSE_INIT     bool   (default: false) — warn on each retry for mandatory fields
+// ===================== InitClient (refactored) =====================
+
 func InitClient(client Client, address string, id string) error {
-	if len(address) == 0 {
+	opts := loadInitOptionsFromEnv()
+
+	// --- Validate inputs
+	if address = strings.TrimSpace(address); address == "" {
 		return fmt.Errorf("InitClient: no address provided (id=%s)", id)
 	}
-	if len(id) == 0 {
+	if id = strings.TrimSpace(id); id == "" {
 		return fmt.Errorf("InitClient: no id provided (address=%s)", address)
 	}
 
+	// --- Local config (used for address normalization, defaults, peers)
 	localAddr, _ := config.GetAddress()
 	localCfg, err := config.GetLocalConfig(true)
 	if err != nil || localCfg == nil {
@@ -188,60 +176,142 @@ func InitClient(client Client, address string, id string) error {
 		return fmt.Errorf("InitClient: cannot read local configuration: %w", err)
 	}
 
-	
-	// Normalize address to include control port.
-	if !strings.Contains(address, ":") {
-		if strings.HasPrefix(localAddr, address) {
-			if localCfg["Protocol"].(string) == "https" {
-				address += ":" + Utility.ToString(localCfg["PortHTTPS"])
-			} else {
-				address += ":" + Utility.ToString(localCfg["PortHTTP"])
-			}
-		} else {
-			if ps, ok := localCfg["Peers"].([]interface{}); ok {
-				for _, pi := range ps {
-					p := pi.(map[string]interface{})
-					if p["Domain"].(string) == address {
-						address += ":" + Utility.ToString(p["Port"])
-						break
-					}
-				}
-			}
-			if !strings.Contains(address, ":") {
-				if localCfg["Protocol"].(string) == "https" {
-					address += ":" + Utility.ToString(localCfg["PortHTTPS"])
-				} else {
-					address += ":" + Utility.ToString(localCfg["PortHTTP"])
-				}
-			}
-		}
+	// --- Normalize control-plane address (host:port) and detect locality
+	address = normalizeControlAddress(address, localAddr, localCfg)
+	host, ctrlPort := splitHostPort(address)
+	if ctrlPort == 0 {
+		return fmt.Errorf("InitClient: invalid control address %q (missing port)", address)
 	}
-	parts := strings.Split(address, ":")
-	domain := parts[0]
-	ctrlPort := Utility.ToInt(parts[1])
-
 	localHost := strings.Split(localAddr, ":")[0]
-	isLocal := (domain == localHost || domain == "localhost" || strings.HasPrefix(localHost, domain))
+	isLocal := (host == localHost || host == "localhost" || strings.HasPrefix(localHost, host))
 
-	// Save control-plane address
 	client.SetAddress(address)
 
-	// ---- Fetch desired configuration
+	// --- Pull desired configuration (from etcd)
 	cfg, err := config.GetServiceConfigurationById(id)
 	if err != nil || cfg == nil {
 		slog.Error("InitClient: failed to fetch configuration", "id", id, "address", address, "err", err)
 		return fmt.Errorf("InitClient: failed to fetch configuration id=%s from %s: %w", id, address, err)
 	}
 
-	// ---- Optional runtime overlay (dynamic port/TLS)
-	requireRuntime := envGetBool("GLOBULAR_REQUIRE_RUNTIME", false)
-	var grace time.Duration
-	if requireRuntime {
-		grace = envGetDuration("GLOBULAR_RUNTIME_GRACE", 15*time.Second)
+	// --- Optional: overlay runtime endpoint (/globular/runtime/<service>/<id>)
+	if err := overlayRuntimeEndpoint(cfg, opts.requireRuntime, opts.runtimeGrace); err != nil {
+		return err
 	}
+
+	// --- Ensure mandatory fields (Id/Port) with limited retries
+	if err := ensureMandatoryFields(&cfg, id, opts.mandatoryAttempts, opts.mandatoryBaseDelay, opts.verboseInit); err != nil {
+		return err
+	}
+
+	// --- Populate client identity/meta
+	populateClientIdentity(client, cfg, isLocal)
+
+	// --- TLS / mTLS setup
+	if err := setupClientTLS(client, cfg, isLocal, host, ctrlPort); err != nil {
+		return err
+	}
+
+	slog.Debug("InitClient: client initialized",
+		"id", client.GetId(), "name", client.GetName(), "domain", client.GetDomain(),
+		"grpc_port", client.GetPort(), "tls", client.HasTLS(), "address", client.GetAddress())
+
+	// --- Optional readiness: gRPC Health
+	if opts.waitHealth {
+		if err := waitForHealthReady(client, host, opts); err != nil {
+			return err
+		}
+	}
+
+	startWatchersOnce(client)
+	
+	return nil
+}
+
+// ===================== Helpers =====================
+
+type initOptions struct {
+	requireRuntime     bool
+	runtimeGrace       time.Duration
+	waitHealth         bool
+	healthAttempts     int
+	healthInterval     time.Duration
+	healthTotalTimeout time.Duration
+	mandatoryAttempts  int
+	mandatoryBaseDelay time.Duration
+	verboseInit        bool
+}
+
+func loadInitOptionsFromEnv() initOptions {
+	return initOptions{
+		requireRuntime:     envGetBool("GLOBULAR_REQUIRE_RUNTIME", false),
+		runtimeGrace:       envGetDuration("GLOBULAR_RUNTIME_GRACE", 15*time.Second),
+		waitHealth:         envGetBool("GLOBULAR_WAIT_HEALTH", false),
+		healthAttempts:     envGetInt("GLOBULAR_HEALTH_ATTEMPTS", 30),
+		healthInterval:     envGetDuration("GLOBULAR_HEALTH_INTERVAL", 1*time.Second),
+		healthTotalTimeout: envGetDuration("GLOBULAR_HEALTH_TIMEOUT", 0),
+		mandatoryAttempts:  envGetInt("GLOBULAR_INIT_MANDATORY_ATTEMPTS", 4),
+		mandatoryBaseDelay: envGetDuration("GLOBULAR_INIT_MANDATORY_SLEEP", 500*time.Millisecond),
+		verboseInit:        envGetBool("GLOBULAR_CLIENT_VERBOSE_INIT", false),
+	}
+}
+
+// normalizeControlAddress converts an input like "peer-domain" or "host"
+// into "host:port" based on local config, peers list, and protocol defaults.
+func normalizeControlAddress(address, localAddr string, localCfg map[string]interface{}) string {
+
+	// I will test of the address is an IP or host:port already.
+	if ip := net.ParseIP(address); ip != nil {
+		localIp, _ := Utility.GetIpv4(localAddr)
+		if ip.String() == localIp {
+			address = localAddr
+		}
+	}
+
+	if strings.Contains(address, ":") {
+		return address
+	}
+
+	// If it's our own local domain/host, take local protocol/port.
+	if strings.HasPrefix(localAddr, address) {
+		if asString(localCfg["Protocol"]) == "https" {
+			return address + ":" + Utility.ToString(localCfg["PortHTTPS"])
+		}
+		return address + ":" + Utility.ToString(localCfg["PortHTTP"])
+	}
+
+	// Otherwise see if it matches a configured peer.
+	if peers, ok := localCfg["Peers"].([]interface{}); ok {
+		for _, pi := range peers {
+			if p, ok := pi.(map[string]interface{}); ok && asString(p["Domain"]) == address {
+				host := asString(p["Hostname"])
+				if asString(p["Domain"]) != "localhost" && asString(p["Domain"]) != "" {
+					host += "." + asString(p["Domain"])
+				}
+				return host + ":" + Utility.ToString(p["Port"])
+			}
+		}
+	}
+
+	// Fallback to local protocol defaults.
+	if asString(localCfg["Protocol"]) == "https" {
+		return address + ":" + Utility.ToString(localCfg["PortHTTPS"])
+	}
+	return address + ":" + Utility.ToString(localCfg["PortHTTP"])
+}
+
+// overlayRuntimeEndpoint optionally replaces desired Port/TLS with runtime values.
+func overlayRuntimeEndpoint(cfg map[string]interface{}, require bool, grace time.Duration) error {
 	svcName := asString(cfg["Name"])
 	svcId := asString(cfg["Id"])
-	if hp, secure, rerr := resolveFromEtcdRuntimeWithWait(context.Background(), svcName, svcId, grace); rerr == nil && hp != "" {
+	hp, secure, rerr := resolveFromEtcdRuntimeWithWait(context.Background(), svcName, svcId, func() time.Duration {
+		if require {
+			return grace
+		}
+		return 0
+	}())
+	switch {
+	case rerr == nil && hp != "":
 		_, port := splitHostPort(hp)
 		if port > 0 {
 			cfg["Port"] = port
@@ -249,203 +319,206 @@ func InitClient(client Client, address string, id string) error {
 		if secure {
 			cfg["TLS"] = true
 		}
-	} else if requireRuntime {
+		return nil
+	case require:
 		return fmt.Errorf("InitClient: runtime endpoint not found for %s/%s after %s: %w", svcName, svcId, grace, rerr)
-	} else if rerr != nil {
+	case rerr != nil:
 		slog.Debug("InitClient: runtime not found; using desired Port/TLS", "service", svcName, "id", svcId, "err", rerr)
 	}
+	return nil
+}
 
-	// ---- Mandatory attributes with retry (Id, Port)
-	maxAttempts := envGetInt("GLOBULAR_INIT_MANDATORY_ATTEMPTS", 4) // 1 + 3 retries
-	baseDelay := envGetDuration("GLOBULAR_INIT_MANDATORY_SLEEP", 500*time.Millisecond)
-	verboseInit := envGetBool("GLOBULAR_CLIENT_VERBOSE_INIT", false)
-
-	var haveId, havePort bool
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		haveId = asString(cfg["Id"]) != ""
-		_, havePort = cfg["Port"]
+// ensureMandatoryFields guarantees Id and Port are present, with limited retries.
+func ensureMandatoryFields(cfg *map[string]interface{}, id string, attempts int, baseDelay time.Duration, verbose bool) error {
+	for attempt := 1; attempt <= attempts; attempt++ {
+		haveId := asString((*cfg)["Id"]) != ""
+		_, havePort := (*cfg)["Port"]
 		if haveId && havePort {
 			break
 		}
-		if attempt < maxAttempts {
-			sleep := baseDelay * time.Duration(1<<(attempt-1)) // 0.5s,1s,2s...
-			if verboseInit {
-				slog.Warn("InitClient: mandatory field(s) missing; retrying",
-					"id", id, "haveId", haveId, "havePort", havePort, "attempt", attempt, "sleep", sleep)
-			} else {
-				slog.Debug("InitClient: mandatory field(s) missing; retrying",
-					"id", id, "haveId", haveId, "havePort", havePort, "attempt", attempt, "sleep", sleep)
+		if attempt == attempts {
+			switch {
+			case !haveId && !havePort:
+				return fmt.Errorf("InitClient: missing service Id and Port for %s", id)
+			case !haveId:
+				return fmt.Errorf("InitClient: missing service Id for %s", id)
+			default:
+				return fmt.Errorf("InitClient: missing service Port for %s", id)
 			}
-			// Re-pull config each time
-			if refreshed, rerr := config.GetServiceConfigurationById(id); rerr == nil && refreshed != nil {
-				cfg = refreshed
-			} else if rerr != nil {
-				slog.Debug("InitClient: re-fetch configuration failed", "id", id, "err", rerr)
-			}
-			time.Sleep(sleep)
-			continue
 		}
-		// final attempt failed
-		if !haveId && !havePort {
-			return fmt.Errorf("InitClient: missing service Id and Port for %s", id)
+		sleep := baseDelay * time.Duration(1<<(attempt-1)) // 0.5s, 1s, 2s, ...
+		logf := slog.Debug
+		if verbose {
+			logf = slog.Warn
 		}
-		if !haveId {
-			return fmt.Errorf("InitClient: missing service Id for %s", id)
+		logf("InitClient: mandatory field(s) missing; retrying",
+			"id", id,
+			"haveId", haveId,
+			"havePort", havePort,
+			"attempt", attempt,
+			"sleep", sleep,
+		)
+		if refreshed, rerr := config.GetServiceConfigurationById(id); rerr == nil && refreshed != nil {
+			*cfg = refreshed
+		} else if rerr != nil {
+			slog.Debug("InitClient: re-fetch configuration failed", "id", id, "err", rerr)
 		}
-		if !havePort {
-			return fmt.Errorf("InitClient: missing service Port for %s", id)
-		}
+		time.Sleep(sleep)
 	}
 
-	// Now safe to set them
+	// Safe to set on the client afterwards
+	return nil
+}
+
+func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal bool) {
 	client.SetId(asString(cfg["Id"]))
 	client.SetPort(Utility.ToInt(cfg["Port"]))
 
-	// ---- Lenient attributes
+	// Domain / Name / Mac / State
 	if v := asString(cfg["Domain"]); v != "" {
 		client.SetDomain(v)
 	} else {
-		slog.Debug("InitClient: missing service Domain; using placeholder", "id", id)
+		slog.Debug("InitClient: missing service Domain; using placeholder", "id", client.GetId())
 		client.SetDomain("unknown.local")
 	}
+
 	if v := asString(cfg["Name"]); v != "" {
 		client.SetName(v)
 	} else {
-		slog.Debug("InitClient: missing service Name; using placeholder", "id", id)
+		slog.Debug("InitClient: missing service Name; using placeholder", "id", client.GetId())
 		client.SetName("unknown-service")
 	}
+
 	if v := asString(cfg["Mac"]); v != "" {
 		client.SetMac(v)
 	} else if isLocal {
 		if m, derr := config.GetMacAddress(); derr == nil && m != "" {
 			client.SetMac(m)
 		} else {
-			slog.Debug("InitClient: missing service Mac (local); using placeholder", "id", id)
+			slog.Debug("InitClient: missing service Mac (local); using placeholder", "id", client.GetId())
 			client.SetMac("00:00:00:00:00:00")
 		}
 	} else {
-		// Demoted to DEBUG to avoid noise when remote peers don't publish MACs.
-		if dedup.ShouldLog("missing-mac:"+id, time.Hour) {
-			slog.Debug("InitClient: missing service Mac (remote); using placeholder", "id", id)
+		if dedup.ShouldLog("missing-mac:"+client.GetId(), time.Hour) {
+			slog.Debug("InitClient: missing service Mac (remote); using placeholder", "id", client.GetId())
 		}
 		client.SetMac("00:00:00:00:00:00")
 	}
+
 	if v := asString(cfg["State"]); v != "" {
 		client.SetState(v)
 	} else {
 		client.SetState("starting")
 	}
+}
 
-	// ---- TLS setup (mTLS if client cert/key present)
-	if enabled, _ := cfg["TLS"].(bool); enabled {
-		client.SetTLS(true)
-		if isLocal {
-			certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client", )
-			keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client", )
-			client.SetKeyFile(keyFile)
-			client.SetCertFile(certFile)
-			client.SetCaFile(asString(cfg["CertAuthorityTrust"]))
-		} else {
-			path := config.GetConfigDir() + "/tls/" + domain
-			keyFile, certFile, caFile, err := security.InstallClientCertificates(
-				domain, ctrlPort, path,
-				asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
-				nil,
-			)
-			if err != nil {
-				slog.Error("InitClient: InstallClientCertificates failed", "domain", domain, "port", ctrlPort, "err", err)
-				return err
-			}
-			client.SetKeyFile(keyFile)
-			client.SetCertFile(certFile)
-			client.SetCaFile(caFile)
-		}
-	} else {
-		client.SetTLS(false)
+// setupClientTLS configures TLS/mTLS on the client based on desired/runtime cfg.
+func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, domain string, ctrlPort int) error {
+
+	tlsEnabled, _ := cfg["TLS"].(bool)
+
+	client.SetTLS(tlsEnabled)
+	if !tlsEnabled {
+		return nil
 	}
 
-	slog.Debug("InitClient: client initialized",
-		"id", client.GetId(), "name", client.GetName(), "domain", client.GetDomain(),
-		"grpc_port", client.GetPort(), "tls", client.HasTLS(), "address", client.GetAddress())
+	if isLocal {
+		// Re-map server paths to client paths if the same service publishes them.
+		certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
+		keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
+		client.SetKeyFile(keyFile)
+		client.SetCertFile(certFile)
+		client.SetCaFile(asString(cfg["CertAuthorityTrust"]))
+		return nil
+	}
 
-	// ---- Optional: wait for gRPC Health to be SERVING
-	if envGetBool("GLOBULAR_WAIT_HEALTH", false) {
-		targetHost := client.GetDomain()
-		if targetHost == "" || targetHost == "unknown.local" {
-			targetHost = domain
+	// Remote peer: ensure client certs exist (install if needed).
+	path := config.GetConfigDir() + "/tls/" + domain
+	keyFile, certFile, caFile, err := security.InstallClientCertificates(
+		domain, ctrlPort, path,
+		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
+		nil,
+	)
+	if err != nil {
+		slog.Error("InitClient: InstallClientCertificates failed", "domain", domain, "port", ctrlPort, "err", err)
+		return err
+	}
+	client.SetKeyFile(keyFile)
+	client.SetCertFile(certFile)
+	client.SetCaFile(caFile)
+	return nil
+}
+
+func waitForHealthReady(client Client, controlHost string, opts initOptions) error {
+	targetHost := client.GetDomain()
+	if targetHost == "" || targetHost == "unknown.local" {
+		targetHost = controlHost
+	}
+	target := net.JoinHostPort(targetHost, strconv.Itoa(client.GetPort()))
+
+	// Overall timeout (optional)
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if opts.healthTotalTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, opts.healthTotalTimeout)
+		defer cancel()
+	}
+
+	// Dial options: TLS or insecure
+	var dialOpts []grpc.DialOption
+	if client.HasTLS() {
+		creds, cerr := makeTLSCreds(client.GetCertFile(), client.GetKeyFile(), client.GetCaFile(), targetHost)
+		if cerr != nil {
+			return fmt.Errorf("InitClient: building TLS creds failed: %w", cerr)
 		}
-		target := net.JoinHostPort(targetHost, strconv.Itoa(client.GetPort()))
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
 
-		attempts := envGetInt("GLOBULAR_HEALTH_ATTEMPTS", 30)
-		interval := envGetDuration("GLOBULAR_HEALTH_INTERVAL", 1*time.Second)
-		totalTimeout := envGetDuration("GLOBULAR_HEALTH_TIMEOUT", 0)
-
-		deadlineCtx := context.Background()
-		var cancel context.CancelFunc
-		if totalTimeout > 0 {
-			deadlineCtx, cancel = context.WithTimeout(context.Background(), totalTimeout)
-			defer cancel()
-		}
-
-		// Dial options (TLS or insecure)
-		var opts []grpc.DialOption
-		if client.HasTLS() {
-			creds, cerr := makeTLSCreds(client.GetCertFile(), client.GetKeyFile(), client.GetCaFile(), targetHost)
-			if cerr != nil {
-				return fmt.Errorf("InitClient: building TLS creds failed: %w", cerr)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(creds))
+	var lastErr error
+	for i := 1; i <= opts.healthAttempts; i++ {
+		if !portOpen(target, 500*time.Millisecond) {
+			lastErr = fmt.Errorf("tcp port not open yet")
 		} else {
-			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		}
-
-		var lastErr error
-		for i := 1; i <= attempts; i++ {
-			// Avoid hammering if port isn't open yet.
-			if !portOpen(target, 500*time.Millisecond) {
-				lastErr = fmt.Errorf("tcp port not open yet")
+			conn, derr := grpc.DialContext(ctx, target, dialOpts...)
+			if derr != nil {
+				lastErr = derr
 			} else {
-				conn, derr := grpc.DialContext(deadlineCtx, target, opts...)
-				if derr != nil {
-					lastErr = derr
-				} else {
-					hc := healthpb.NewHealthClient(conn)
-					svc := client.GetName()
-					if svc == "" || svc == "unknown-service" {
-						svc = ""
-					}
-					ctxOne, cancelOne := context.WithTimeout(deadlineCtx, 3*time.Second)
-					resp, cerr := hc.Check(ctxOne, &healthpb.HealthCheckRequest{Service: svc})
-					cancelOne()
-					_ = conn.Close()
+				hc := healthpb.NewHealthClient(conn)
+				svc := client.GetName()
+				if svc == "" || svc == "unknown-service" {
+					svc = ""
+				}
+				callCtx, cancelOne := context.WithTimeout(ctx, 3*time.Second)
+				resp, herr := hc.Check(callCtx, &healthpb.HealthCheckRequest{Service: svc})
+				cancelOne()
+				_ = conn.Close()
 
-					if cerr == nil && resp.GetStatus() == healthpb.HealthCheckResponse_SERVING {
-						infoQuiet("InitClient: health SERVING", "target", target, "service", svc)
-						break
+				if herr == nil && resp.GetStatus() == healthpb.HealthCheckResponse_SERVING {
+					infoQuiet("InitClient: health SERVING", "target", target, "service", svc)
+					return nil
+				}
+				if herr != nil {
+					st, _ := status.FromError(herr)
+					code := st.Code()
+					// Accept servers that don't implement health; port-open is our readiness.
+					if code == codes.Unimplemented || code == codes.NotFound {
+						infoQuiet("InitClient: no health endpoint; proceeding (port is open)", "target", target)
+						return nil
 					}
-					if cerr != nil {
-						st, _ := status.FromError(cerr)
-						code := st.Code()
-						// Accept servers that don't implement health; port-open is our readiness.
-						if code == codes.Unimplemented || code == codes.NotFound {
-							infoQuiet("InitClient: no health endpoint; proceeding (port is open)", "target", target)
-							lastErr = nil
-							break
-						}
-						lastErr = cerr
-					} else {
-						lastErr = errors.New("health not SERVING yet")
-					}
+					lastErr = herr
+				} else {
+					lastErr = errors.New("health not SERVING yet")
 				}
 			}
-			if i == attempts {
-				return fmt.Errorf("InitClient: readiness check failed after %d attempts (%s): %w", attempts, target, lastErr)
-			}
-			time.Sleep(interval)
 		}
-	}
 
-	startWatchersOnce(client)
+		if i == opts.healthAttempts {
+			return fmt.Errorf("InitClient: readiness check failed after %d attempts (%s): %w", opts.healthAttempts, target, lastErr)
+		}
+		time.Sleep(opts.healthInterval)
+	}
 	return nil
 }
 
@@ -596,7 +669,7 @@ func decodeRuntimeValue(v []byte) (hostport string, secure bool, ok bool) {
 func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	certFile := client.GetCertFile()
 	if certFile == "" {
-		return nil, errors.New("GetClientTlsConfig: missing client certificate file")
+		return nil, errors.New("GetClientTlsConfig: missing client certificate file for client " + client.GetName())
 	}
 	keyFile := client.GetKeyFile()
 	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -633,6 +706,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	target := address + ":" + Utility.ToString(client.GetPort())
 	var cc *grpc.ClientConn
 	var err error
+
 	if client.HasTLS() {
 		tcfg, err := GetClientTlsConfig(client)
 		if err != nil {
@@ -766,6 +840,35 @@ func watchDesiredForClient(c Client) {
 							"old_port", oldPort, "new_port", c.GetPort(),
 							"old_tls", oldTLS, "new_tls", c.HasTLS())
 					}
+
+					tlsChanged := (c.HasTLS() != oldTLS)
+					portChanged := (c.GetPort() != oldPort)
+
+					if tlsChanged || portChanged {
+						// (Re)populate TLS files if needed.
+						if c.HasTLS() && (c.GetCertFile() == "" || c.GetCaFile() == "") {
+							// Re-run the same logic from InitClient’s TLS section
+							// Wrap it into a helper so you can call it from both places.
+							if err := populateClientTLS(c); err != nil {
+								slog.Warn("client watch: TLS populate failed; keeping TLS disabled until ready",
+									"service", c.GetName(), "err", err)
+								c.SetTLS(false) // prevent broken TLS dials
+							}
+						}
+
+						if dedup.ShouldLog("endpoint-change:"+c.GetId(), envGetDuration("GLOBULAR_CLIENT_DEDUP_WINDOW", 2*time.Second)) {
+							infoQuiet("client watch: endpoint changed; reconnecting",
+								"service", c.GetName(), "id", c.GetId(),
+								"old_port", oldPort, "new_port", c.GetPort(),
+								"old_tls", oldTLS, "new_tls", c.HasTLS())
+						}
+						for i := 0; i < 5; i++ {
+							if err := c.Reconnect(); err == nil {
+								break
+							}
+							time.Sleep(500 * time.Millisecond)
+						}
+					}
 					// attempt a reconnect loop (non-fatal if it fails; interceptor will also retry)
 					for i := 0; i < 5; i++ {
 						if err := c.Reconnect(); err == nil {
@@ -782,6 +885,55 @@ func watchDesiredForClient(c Client) {
 			}
 		}
 	}
+}
+
+func populateClientTLS(c Client) error {
+    address := c.GetAddress()
+    parts := strings.Split(address, ":")
+    domain := parts[0]
+
+    localAddr, _ := config.GetAddress()
+    localHost := strings.Split(localAddr, ":")[0]
+    isLocal := (domain == localHost || domain == "localhost" || strings.HasPrefix(localHost, domain))
+
+    // We need the control port (for certificate install).
+    localCfg, _ := config.GetLocalConfig(true)
+    ctrlPort := Utility.ToInt(localCfg["PortHTTPS"])
+    if Utility.ToString(localCfg["Protocol"]) != "https" {
+        ctrlPort = Utility.ToInt(localCfg["PortHTTP"])
+    }
+
+    if isLocal {
+        // derive client paths from desired server paths
+        if cfg, err := config.GetServiceConfigurationById(c.GetId()); err == nil && cfg != nil {
+            certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
+            keyFile  := strings.ReplaceAll(asString(cfg["KeyFile"]),  "server", "client")
+            caFile   := asString(cfg["CertAuthorityTrust"])
+            if certFile != "" { c.SetCertFile(certFile) }
+            if keyFile  != "" { c.SetKeyFile(keyFile) }
+            if caFile   != "" { c.SetCaFile(caFile) }
+            if c.GetCertFile() == "" && c.GetCaFile() == "" {
+                return fmt.Errorf("no local TLS paths in desired config")
+            }
+            return nil
+        }
+        return fmt.Errorf("cannot read desired config for local TLS")
+    }
+
+    // remote: install (or refresh) client certificates into /tls/<domain>
+    path := config.GetConfigDir() + "/tls/" + domain
+    keyFile, certFile, caFile, err := security.InstallClientCertificates(
+        domain, ctrlPort, path,
+        "", "", "", "", // org details optional
+        nil,
+    )
+    if err != nil {
+        return err
+    }
+    c.SetKeyFile(keyFile)
+    c.SetCertFile(certFile)
+    c.SetCaFile(caFile)
+    return nil
 }
 
 /* ===================== Small helpers ===================== */
