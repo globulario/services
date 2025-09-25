@@ -1,95 +1,147 @@
 package ldap_client
 
 import (
-
+	"context"
+	"fmt"
+	"os"
+	"strings"
 	"testing"
-	"github.com/globulario/services/golang/config"
+	"time"
+
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/go-ldap/ldap/v3"
-
 )
 
+// ---------------------------
+// Test configuration helpers
+// ---------------------------
+
+type testCfg struct {
+	Address   string // e.g. globule-ryzen.globular.cloud
+	ServiceID string // e.g. ldap.LdapService
+
+	LDAPHost string // host where the LDAP listener runs (defaults to Address's host)
+	LDAPPort string // defaults to 636
+
+	BindLogin string // e.g. "sa@globular.cloud" (for gRPC CreateConnection/Authenticate)
+	BindDN    string // e.g. "cn=sa,dc=globular,dc=cloud" (for raw LDAP bind)
+	BindPwd   string
+
+	BaseDN   string // optional: for Search test
+	Filter   string // optional: for Search test
+	AttrsCSV string // optional: comma-separated list of attributes for Search test
+}
+
+func loadCfg() testCfg {
+	addr := getenv("GLOBULAR_ADDRESS", "globule-ryzen.globular.cloud")
+	service := getenv("LDAP_SERVICE_ID", "ldap.LdapService")
+	ldapHost := getenv("LDAP_HOST", strings.Split(addr, ":")[0])
+	ldapPort := getenv("LDAP_PORT", "636")
+
+	return testCfg{
+		Address:   addr,
+		ServiceID: service,
+		LDAPHost:  ldapHost,
+		LDAPPort:  ldapPort,
+		BindLogin: os.Getenv("LDAP_BIND_LOGIN"), // empty by default
+		BindDN:    getenv("LDAP_BIND_DN", "cn=sa,dc=globular,dc=cloud"),
+		BindPwd:   getenv("LDAP_BIND_PW", "adminadmin"),
+		BaseDN:    os.Getenv("LDAP_BASE_DN"),
+		Filter:    os.Getenv("LDAP_FILTER"),
+		AttrsCSV:  os.Getenv("LDAP_ATTRS"),
+	}
+}
+
+func getenv(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
+}
+
+// shared client for gRPC tests
 var (
-	// Connect to the plc client.
-	address = "globule-ryzen.globular.cloud"
-	client, _ = NewLdapService_Client("globule-ryzen.globular.cloud", "ldap.LdapService")
-	ldapAddress = address+":636"
-	localConfig, _ = config.GetLocalConfig(true)
-	certPath = config.GetConfigDir() + "/" + localConfig["Certificate"].(string)
-
+	cfg    = loadCfg()
+	client *LDAP_Client
 )
 
-// Test ldap server via ldap protocol via tls.
+// TestMain sets up a single gRPC client used by subtests.
+func TestMain(m *testing.M) {
+	c, err := NewLdapService_Client(cfg.Address, cfg.ServiceID)
+	if err != nil {
+		fmt.Println("failed to init ldap client:", err)
+		os.Exit(1)
+	}
+	client = c
+	code := m.Run()
+	client.Close()
+	os.Exit(code)
+}
 
-func TestLDAPBind(t *testing.T) {
-	// Replace these values with your LDAP server details
-	bindUsername := "cn=sa,dc=globular,dc=cloud"
-	bindPassword := "adminadmin"
+// ---------------------------------
+// Subtests
+// ---------------------------------
 
-	// get the tls client config
+// TestLDAP_TLS_Bind validates the raw LDAP protocol (LDAPS) using the same
+// certificates/configuration that the gRPC client would use.
+func TestLDAP_TLS_Bind(t *testing.T) {
+	// get TLS config from running server via gRPC metadata
 	tlsConfig, err := globular_client.GetClientTlsConfig(client)
 	if err != nil {
-		t.Fatalf("Failed to get client TLS config: %v", err)
+		t.Fatalf("GetClientTlsConfig: %v", err)
 	}
 
-	// Create an LDAP connection with TLS
-	l, err := ldap.DialTLS("tcp", ldapAddress, 	tlsConfig)
-
+	addr := fmt.Sprintf("%s:%s", cfg.LDAPHost, cfg.LDAPPort)
+	l, err := ldap.DialTLS("tcp", addr, tlsConfig)
 	if err != nil {
-		t.Fatalf("Failed to connect to the LDAP server: %v", err)
+		t.Fatalf("DialTLS(%s): %v", addr, err)
 	}
-	defer l.Close()
+	t.Cleanup(func() { _ = l.Close() })
 
-	// Bind to the LDAP server with the provided username and password
-	err = l.Bind(bindUsername, bindPassword)
-	if err != nil {
-		t.Fatalf("LDAP bind failed: %v", err)
+	if err := l.Bind(cfg.BindDN, cfg.BindPwd); err != nil {
+		t.Fatalf("LDAP bind failed for %s: %v", cfg.BindDN, err)
 	}
-
-	// If the bind is successful, you can perform additional LDAP operations here
-
-	// Output a success message
-	t.Logf("LDAP bind successful for user %s", bindUsername)
 }
 
-// First test create a fresh new connection...
-/*
-func TestCreateConnection(t *testing.T) {
-	fmt.Println("Connection creation test.")
+// TestGRPC_CreateAuthenticate_Search exercises the gRPC surface.
+// It is skipped unless LDAP_BIND_LOGIN, LDAP_BASE_DN and LDAP_FILTER are provided.
+func TestGRPC_CreateAuthenticate_Search(t *testing.T) {
+	if cfg.BindLogin == "" || cfg.BaseDN == "" || cfg.Filter == "" {
+		t.Skipf("skipping: set LDAP_BIND_LOGIN, LDAP_BASE_DN and LDAP_FILTER to run this test")
+	}
 
-	err := client.CreateConnection("test_ldap", "mrmfct037@UD6.UF6", "Dowty123", "mon-dc-p01.UD6.UF6", 389)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Create a temporary connection pointing to the same LDAP server
+	connID := fmt.Sprintf("test_ldap_%d", time.Now().UnixNano())
+	port := int32(389)
+	if cfg.LDAPPort == "636" {
+		port = 636
+	}
+	if err := client.CreateConnection(connID, cfg.BindLogin, cfg.BindPwd, cfg.LDAPHost, port); err != nil {
+		t.Fatalf("CreateConnection(%s): %v", connID, err)
+	}
+	t.Cleanup(func() { _ = client.DeleteConnection(connID) })
+
+	// Authenticate using that connection
+	if err := client.Authenticate(connID, cfg.BindLogin, cfg.BindPwd); err != nil {
+		t.Fatalf("Authenticate(%s): %v", connID, err)
+	}
+
+	// Optional search
+	attrs := []string{}
+	if cfg.AttrsCSV != "" {
+		for _, a := range strings.Split(cfg.AttrsCSV, ",") {
+			attrs = append(attrs, strings.TrimSpace(a))
+		}
+	}
+	rows, err := client.Search(connID, cfg.BaseDN, cfg.Filter, attrs)
 	if err != nil {
-		log.Println(err)
+		t.Fatalf("Search: %v", err)
 	}
-	log.Println("Connection created!")
+	if len(rows) == 0 {
+		t.Logf("Search returned 0 entries (this may be expected for the given filter)")
+	}
+	_ = ctx // reserved for future per-RPC deadlines when Invoke is used directly
 }
-*/
-
-// Test a ldap query.
-/*
-func TestSearch(t *testing.T) {
-
-	// I will execute a simple ldap search here...
-	results, err := client.Search("test_ldap", "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6", "(&(!(givenName=Machine*))(objectClass=user))", []string{"sAMAccountName", "mail", "memberOf"})
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	log.Println("results found: ", len(results))
-	for i := 0; i < len(results); i++ {
-		log.Println(results[i])
-	}
-}
-*/
-
-// Test a ldap query.
-/*
-func TestDeleteConnection(t *testing.T) {
-	err := client.DeleteConnection("test_ldap")
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Connection deleted!")
-}
-*/

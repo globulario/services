@@ -41,6 +41,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	github.com/txn2/txeh v1.5.5
+	github.com/vjeantet/ldapserver v1.0.1
 	go.etcd.io/etcd/client/v3 v3.5.14
 	go.mongodb.org/mongo-driver v1.16.0
 	golang.org/x/crypto v0.41.0
@@ -55,6 +56,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
+	github.com/lor00x/goldap v0.0.0-20180618054307-a546dffdd1a3 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

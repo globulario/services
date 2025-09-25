@@ -97,6 +97,11 @@ type server struct {
 	// LDAP runtime
 	Connections   map[string]connection
 	LdapSyncInfos map[string]interface{}
+
+	LdapListenAddr  string // e.g. "127.0.0.1:10389" (empty -> "0.0.0.0:389")
+	LdapsListenAddr string // e.g. "127.0.0.1:10636" (empty -> "0.0.0.0:636")
+	DisableLDAPS    bool   // when true, skip starting LDAPS listener
+
 }
 
 func (srv *server) startLdapServer() {
@@ -413,11 +418,14 @@ func main() {
 		Keywords:        []string{"LDAP", "Directory"},
 		Repositories:    []string{},
 		Discoveries:     []string{},
-		Dependencies:    []string{ "rbac.RbacService"},
+		Dependencies:    []string{"rbac.RbacService"},
 		Process:         -1,
 		ProxyProcess:    -1,
 		KeepAlive:       true,
 		KeepUpToDate:    true,
+		LdapListenAddr:  "0.0.0.0:389",
+		LdapsListenAddr: "0.0.0.0:636",
+		DisableLDAPS:    false,
 	}
 
 	// s.Permissions for ldap.LdapService
@@ -543,7 +551,7 @@ func main() {
 		}
 		s.Port = p
 	}
-	
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -637,6 +645,12 @@ func main() {
 		"protocol", s.Protocol,
 		"domain", s.Domain,
 		"listen_ms", time.Since(start).Milliseconds())
+
+	// start ldap facade
+	err := s.StartLDAPFacade()
+	if err != nil {
+		logger.Error("failed to start LDAP facade", "err", err)
+	}
 
 	// Start gRPC service (blocking).
 	if err := s.StartService(); err != nil {

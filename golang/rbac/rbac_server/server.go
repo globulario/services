@@ -845,16 +845,8 @@ func main() {
 		host = parts[0]
 	}
 
-	ca := config.GetLocalCACertificate()
-	cert := config.GetLocalServerCertificatePath()
-	key := config.GetLocalServerKeyPath()
 
-	hasTLS := false
-	if ca != "" && cert != "" && key != "" {
-		hasTLS = true
-	}
-
-	if !hasTLS {
+	if !srv.GetTls() {
 		host += ":9042"
 	} else {
 		host += ":9142"
@@ -876,7 +868,7 @@ func main() {
   "insecure_skip_verify": false,
   "ssl_port": 9142,
   "tls": %t
-}`, host, ca, cert, key, hasTLS)
+}`, host, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), srv.GetTls())
 
 	// Create & open the Scylla-backed KV store
 	srv.permissions = storage_store.NewScylla_store("", "", 1)

@@ -340,8 +340,8 @@ func InitClient(client Client, address string, id string) error {
 	if enabled, _ := cfg["TLS"].(bool); enabled {
 		client.SetTLS(true)
 		if isLocal {
-			certFile := strings.Replace(asString(cfg["CertFile"]), "server", "client", -1)
-			keyFile := strings.Replace(asString(cfg["KeyFile"]), "server", "client", -1)
+			certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client", )
+			keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client", )
 			client.SetKeyFile(keyFile)
 			client.SetCertFile(certFile)
 			client.SetCaFile(asString(cfg["CertAuthorityTrust"]))
