@@ -104,9 +104,6 @@ type server struct {
 
 }
 
-func (srv *server) startLdapServer() {
-	panic("unimplemented")
-}
 
 // -------------------- Getters/Setters (public API kept intact) --------------------
 
@@ -636,7 +633,7 @@ func main() {
 	reflection.Register(s.grpcServer)
 
 	// Start embedded LDAP listener (389/636) in background.
-	//go s.startLdapServer()
+	go s.StartLDAPFacade()
 
 	logger.Info("service ready",
 		"service", s.Name,

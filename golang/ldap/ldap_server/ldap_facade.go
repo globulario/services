@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"reflect" // ← add this
 	"strings"
 	"sync"
 	"time"
@@ -18,18 +19,196 @@ import (
 	resource_client "github.com/globulario/services/golang/resource/resource_client"
 )
 
+// ---- SEARCH helpers: scope / filter / reflection ----------------------------
+
+// case-insensitive DN compare helpers
+func normDN(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
+func parentDN(dn string) string {
+    parts := strings.SplitN(dn, ",", 2)
+    if len(parts) == 2 { return parts[1] }
+    return ""
+}
+// LDAP scope values (avoid depending on lmsg constants)
+const (
+	scopeBaseObject   = 0 // baseObject(0)
+	scopeSingleLevel  = 1 // singleLevel(1)
+	scopeWholeSubtree = 2 // wholeSubtree(2)
+)
+
+func inScope(entryDN, baseDN string, scope int) bool {
+	e := normDN(entryDN)
+	b := normDN(baseDN)
+	switch scope {
+	case scopeBaseObject:
+		return e == b
+	case scopeSingleLevel:
+		return normDN(parentDN(e)) == b
+	case scopeWholeSubtree:
+		return e == b || strings.HasSuffix(e, ","+b)
+	default:
+		return true
+	}
+}
+
+// very small filter parser: supports (attr=value) and (&(a=b)(c=d))
+// recognized attrs: cn, uid, o, objectclass
+func parseEqFilters(f string) map[string]string {
+    f = strings.TrimSpace(f)
+    if f == "" || f == "(objectClass=*)" {
+        return nil
+    }
+    out := map[string]string{}
+    lower := strings.ToLower(f)
+
+    // strip outer (& ... ) if present
+    if strings.HasPrefix(lower, "(&") && strings.HasSuffix(lower, ")") {
+        inner := strings.TrimSuffix(strings.TrimPrefix(lower, "(&"), ")")
+        // split into sub-filters "(a=b)(c=d)"
+        for len(inner) > 0 {
+            if inner[0] != '(' { break }
+            end := strings.IndexByte(inner[1:], ')')
+            if end < 0 { break }
+            seg := inner[1 : 1+end]
+            if kv := strings.SplitN(seg, "=", 2); len(kv) == 2 {
+                k := strings.TrimSpace(kv[0])
+                v := strings.TrimSpace(kv[1])
+                if k != "" && v != "" {
+                    out[k] = v
+                }
+            }
+            inner = inner[2+end:]
+        }
+        return out
+    }
+
+    // single (a=b)
+    if strings.HasPrefix(lower, "(") && strings.HasSuffix(lower, ")") {
+        body := strings.TrimSuffix(strings.TrimPrefix(lower, "("), ")")
+        if kv := strings.SplitN(body, "=", 2); len(kv) == 2 {
+            k := strings.TrimSpace(kv[0])
+            v := strings.TrimSpace(kv[1])
+            if k != "" && v != "" {
+                out[k] = v
+            }
+        }
+    }
+    return out
+}
+
+func matchesEq(attrs map[string]string, eq map[string]string) bool {
+    if len(eq) == 0 { return true }
+    for k, v := range eq {
+        k = strings.ToLower(k)
+        if k == "objectclass" {
+            // allow "objectClass" constraint when present
+            if got, ok := attrs["objectclass"]; !ok || !strings.Contains(strings.ToLower(got), strings.ToLower(v)) {
+                return false
+            }
+            continue
+        }
+        got, ok := attrs[k]
+        if !ok { return false }
+        if strings.ToLower(got) != strings.ToLower(v) { return false }
+    }
+    return true
+}
+
+// reflect helpers to fetch IDs from resource_client if such methods exist.
+// They safely return empty on absence / mismatch, so code still compiles & runs.
+
+func (lf *ldapFacade) callIDs(method string, args ...interface{}) []string {
+    rv := reflect.ValueOf(lf.rc)
+    m := rv.MethodByName(method)
+    if !m.IsValid() { return nil }
+
+    // build args
+    in := make([]reflect.Value, len(args))
+    for i, a := range args {
+        in[i] = reflect.ValueOf(a)
+    }
+    out := m.Call(in)
+    if len(out) == 0 { return nil }
+
+    // expect ([]string, error) or ([]T, error) or just []string / []T
+    var slice reflect.Value
+    if out[0].Kind() == reflect.Slice {
+        slice = out[0]
+    } else {
+        return nil
+    }
+
+    // try to detect trailing error
+    if len(out) > 1 && out[len(out)-1].Type().String() == "error" {
+        if !out[len(out)-1].IsNil() {
+            return nil
+        }
+    }
+
+    ids := []string{}
+    for i := 0; i < slice.Len(); i++ {
+        el := slice.Index(i).Interface()
+        switch v := el.(type) {
+        case string:
+            ids = append(ids, v)
+        default:
+            // try field "Id" / "ID"
+            rv := reflect.ValueOf(v)
+            if rv.Kind() == reflect.Ptr { rv = rv.Elem() }
+            if rv.Kind() == reflect.Struct {
+                f := rv.FieldByName("Id")
+                if !f.IsValid() { f = rv.FieldByName("ID") }
+                if f.IsValid() && f.Kind() == reflect.String {
+                    ids = append(ids, f.String())
+                }
+            }
+        }
+    }
+    return ids
+}
+
+// ORG
+func (lf *ldapFacade) orgAccountIDs(orgID string) []string {
+    if ids := lf.callIDs("GetOrganizationAccounts", orgID); len(ids) > 0 { return ids }
+    if ids := lf.callIDs("GetOrganizationAccounts", lf.baseDN, orgID); len(ids) > 0 { return ids }
+    return nil
+}
+func (lf *ldapFacade) orgGroupIDs(orgID string) []string {
+    if ids := lf.callIDs("GetOrganizationGroups", orgID); len(ids) > 0 { return ids }
+    if ids := lf.callIDs("GetOrganizationGroups", lf.baseDN, orgID); len(ids) > 0 { return ids }
+    return nil
+}
+func (lf *ldapFacade) orgRoleIDs(orgID string) []string {
+    if ids := lf.callIDs("GetOrganizationRoles", orgID); len(ids) > 0 { return ids }
+    if ids := lf.callIDs("GetOrganizationRoles", lf.baseDN, orgID); len(ids) > 0 { return ids }
+    return nil
+}
+
+// GROUP
+func (lf *ldapFacade) groupAccountIDs(groupID string) []string {
+    if ids := lf.callIDs("GetGroupMemberAccounts", groupID); len(ids) > 0 { return ids }
+    if ids := lf.callIDs("GetGroupAccounts", groupID); len(ids) > 0 { return ids }
+    return nil
+}
+
+// ROLE
+func (lf *ldapFacade) roleAccountIDs(roleID string) []string {
+    if ids := lf.callIDs("GetRoleAccounts", roleID); len(ids) > 0 { return ids }
+    if ids := lf.callIDs("GetAccountsWithRole", roleID); len(ids) > 0 { return ids }
+    return nil
+}
 // ---- Public entrypoint ------------------------------------------------------
 
 // StartLDAPFacade starts plain LDAP on :389 and LDAPS on :636.
 // Uses Globular TLS certs and binds authenticate via Authentication service (sa + password).
+// StartLDAPFacadeTLS starts LDAP on :389 and LDAPS on :636 with server certs.
 func (s *server) StartLDAPFacade() error {
-	baseDN := toBaseDN(s.Domain) // e.g. dc=globular,dc=io
+	baseDN := toBaseDN(s.Domain)
 
 	rc, err := s.getResourceClient()
 	if err != nil {
-		return err
+		return fmt.Errorf("resource client: %w", err)
 	}
-
 	addr, err := config.GetAddress()
 	if err != nil || addr == "" {
 		addr = "localhost:80"
@@ -42,7 +221,7 @@ func (s *server) StartLDAPFacade() error {
 		domain: s.Domain,
 	}
 
-	// Shared route mux across listeners
+	// Shared routes for both listeners
 	routes := ldap.NewRouteMux()
 	routes.Bind(lf.onBind)
 	routes.Search(lf.onSearch)
@@ -50,40 +229,61 @@ func (s *server) StartLDAPFacade() error {
 	routes.Modify(lf.onModify)
 	routes.Delete(lf.onDelete)
 
-	// -------- Plain LDAP :389
+	// ---------- Plain LDAP (:389)
 	go func() {
 		srv := ldap.NewServer()
 		srv.Handle(routes)
-		if err := srv.ListenAndServe(s.LdapListenAddr); err != nil {
+
+		addr := s.LdapListenAddr
+		if addr == "" {
+			addr = ":389"
+		}
+		if err := srv.ListenAndServe(addr); err != nil {
 			log.Println("LDAP server error:", err)
+		} else {
+			log.Printf("LDAP listening on %s (base DN %s)\n", addr, baseDN)
 		}
 	}()
 
-	// -------- LDAPS :636 with Globular TLS certs
+	// ---------- LDAPS (:636) using the option hook to wrap the listener with TLS
 	go func() {
 		srv := ldap.NewServer()
 		srv.Handle(routes)
 
+		// Load server certificate/key (PEM files)
 		cert, err := tls.LoadX509KeyPair(s.CertFile, s.KeyFile)
 		if err != nil {
 			log.Println("LDAPS: load key pair:", err)
 			return
 		}
-		cfg := &tls.Config{
+		tcfg := &tls.Config{
 			MinVersion:   tls.VersionTLS12,
 			Certificates: []tls.Certificate{cert},
+			// If clients verify SNI/hostname, ensure your cert SAN matches s.Domain:
+			// ServerName: s.Domain,
 		}
-		_, err = tls.Listen("tcp", s.LdapsListenAddr, cfg)
-		if err != nil {
-			log.Println("LDAPS listen:", err)
-			return
+
+		addr := s.LdapsListenAddr
+		if addr == "" {
+			addr = ":636"
 		}
-		/*if err := srv.Serve(ln); err != nil {
+
+		// Option that runs after ListenAndServe creates s.Listener:
+		// we wrap that TCP listener with TLS.
+		wrapTLS := func(sv *ldap.Server) {
+			if sv.Listener != nil {
+				sv.Listener = tls.NewListener(sv.Listener, tcfg)
+			}
+		}
+
+		if err := srv.ListenAndServe(addr, wrapTLS); err != nil {
 			log.Println("LDAPS server error:", err)
-		}*/
+		} else {
+			log.Printf("LDAPS listening on %s (base DN %s)\n", addr, baseDN)
+		}
 	}()
 
-	log.Println("LDAP facade ready at :389 and :636 for base", baseDN)
+	log.Println("LDAP facade ready at", s.LdapListenAddr, "and", s.LdapsListenAddr, "for base", baseDN)
 	return nil
 }
 
@@ -161,17 +361,18 @@ func (lf *ldapFacade) onBind(w ldap.ResponseWriter, m *ldap.Message) {
 
 	res := ldap.NewBindResponse(ldap.LDAPResultSuccess)
 
-	// Accept anonymous bind (optional: read-only)
 	if dn == "" && pw == "" {
 		w.Write(res)
 		return
 	}
 
-	// Map DN -> userid (uid from user DN; allow admin DN too)
 	kind, id := lf.parseDN(dn)
 	admin := false
 	if kind != "user" {
-		if strings.HasPrefix(strings.ToLower(dn), "cn=admin,") || strings.HasPrefix(strings.ToLower(dn), "uid=sa,") {
+		ldn := strings.ToLower(dn)
+		if strings.HasPrefix(ldn, "cn=admin,") ||
+			strings.HasPrefix(ldn, "cn=sa,") || // ← add this line
+			strings.HasPrefix(ldn, "uid=sa,") {
 			id = "sa"
 			admin = true
 		} else {
@@ -181,8 +382,8 @@ func (lf *ldapFacade) onBind(w ldap.ResponseWriter, m *ldap.Message) {
 		}
 	}
 
-	// Authenticate using the Authentication service
-	authCli, err := authentication_client.NewAuthenticationService_Client(lf.addr, "authentication.AuthenticationService")
+	authCli, err := authentication_client.
+		NewAuthenticationService_Client(lf.addr, "authentication.AuthenticationService")
 	if err != nil {
 		res.SetResultCode(ldap.LDAPResultUnavailable)
 		res.SetDiagnosticMessage("auth service unavailable")
@@ -198,48 +399,68 @@ func (lf *ldapFacade) onBind(w ldap.ResponseWriter, m *ldap.Message) {
 		return
 	}
 
-	// Stash token in our map
 	sessions.Store(sessKey(m), &connState{token: token, user: id, admin: admin})
-
 	w.Write(res)
+}
+
+// getFilterString tries r.FilterString(), else falls back to fmt.
+func getFilterString(r *lmsg.SearchRequest) string {
+	if fs, ok := any(r).(interface{ FilterString() string }); ok {
+		return fs.FilterString()
+	}
+	return fmt.Sprintf("%v", r.Filter())
 }
 
 // Search: supports subtree under ou=people, ou=groups, ou=roles, ou=orgs
 func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
-	base := strings.ToLower(string(r.BaseObject()))
-	scope := r.Scope()
+	base := string(r.BaseObject())
+	scopeInt := int(r.Scope())
+	filterStr := getFilterString(&r)
+	eq := parseEqFilters(filterStr)
 
-	// Helper to send entries (ProtocolOp)
-	send := func(e lmsg.ProtocolOp) {
-		w.Write(e)
-	}
+	send := func(e lmsg.ProtocolOp) { w.Write(e) }
+	sendDone := func() { w.Write(ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess)) }
+
+	lowerBase := strings.ToLower(base)
 
 	// Root/base object
-	if base == lf.baseDN && scope == lmsg.SearchRequestScopeBaseObject {
+	if normDN(lowerBase) == normDN(lf.baseDN) && scopeInt == scopeBaseObject {
 		e := ldap.NewSearchResultEntry(lf.baseDN)
 		for _, v := range vals("top", "domain") {
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), v)
 		}
 		send(e)
-		// Advertise OUs
 		for _, ou := range []string{"people", "groups", "roles", "orgs"} {
 			dn := fmt.Sprintf("ou=%s,%s", ou, lf.baseDN)
 			ouEntry := ldap.NewSearchResultEntry(dn)
 			ouEntry.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("organizationalUnit"))
 			ouEntry.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("top"))
 			ouEntry.AddAttribute(lmsg.AttributeDescription("ou"), lmsg.AttributeValue(ou))
-			send(ouEntry)
+			if inScope(dn, base, scopeInt) && matchesEq(map[string]string{"objectclass": "organizationalUnit"}, eq) {
+				send(ouEntry)
+			}
 		}
-		w.Write(ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess))
+		sendDone()
 		return
 	}
 
-	switch {
-	case strings.Contains(base, "ou=people,"):
+	shouldSend := func(dn string, attrs map[string]string) bool {
+		return inScope(dn, base, scopeInt) && matchesEq(attrs, eq)
+	}
+
+	// People
+	if strings.Contains(lowerBase, "ou=people,") {
 		accounts, _ := lf.rc.GetAccounts("{}")
 		for _, a := range accounts {
 			dn := fmt.Sprintf("uid=%s,ou=people,%s", a.Id, lf.baseDN)
+			attrs := map[string]string{
+				"uid":         a.Id,
+				"cn":          a.Name,
+				"objectclass": "inetOrgPerson organizationalPerson person top",
+			}
+			if !shouldSend(dn, attrs) { continue }
+
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("inetOrgPerson"))
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("organizationalPerson"))
@@ -255,39 +476,83 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 			}
 			send(e)
 		}
+		sendDone()
+		return
+	}
 
-	case strings.Contains(base, "ou=groups,"):
+	// Groups
+	if strings.Contains(lowerBase, "ou=groups,") {
 		groups, _ := lf.rc.GetGroups("{}")
 		for _, g := range groups {
 			dn := fmt.Sprintf("cn=%s,ou=groups,%s", g.Id, lf.baseDN)
+			attrs := map[string]string{
+				"cn":          g.Id,
+				"objectclass": "groupOfNames top",
+			}
+			if !shouldSend(dn, attrs) { continue }
+
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("groupOfNames"))
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("top"))
 			e.AddAttribute(lmsg.AttributeDescription("cn"), lmsg.AttributeValue(g.Id))
-			send(e)
-		}
 
-	case strings.Contains(base, "ou=roles,"):
-		roles, _ := lf.rc.GetRoles("{}")
-		for _, r := range roles {
-			dn := fmt.Sprintf("cn=%s,ou=roles,%s", r.Id, lf.baseDN)
-			e := ldap.NewSearchResultEntry(dn)
-			for _, v := range vals("top", "globularRole") {
-				e.AddAttribute(lmsg.AttributeDescription("objectClass"), v)
-			}
-			e.AddAttribute(lmsg.AttributeDescription("cn"), lmsg.AttributeValue(r.Id))
-			if len(r.Actions) > 0 {
-				for _, action := range vals(r.Actions...) {
-					e.AddAttribute(lmsg.AttributeDescription("globularAction"), action)
+			// emit members (accounts) if discoverable
+			if ids := lf.groupAccountIDs(g.Id); len(ids) > 0 {
+				for _, uid := range ids {
+					memDN := fmt.Sprintf("uid=%s,ou=people,%s", uid, lf.baseDN)
+					e.AddAttribute(lmsg.AttributeDescription("member"), lmsg.AttributeValue(memDN))
 				}
 			}
 			send(e)
 		}
+		sendDone()
+		return
+	}
 
-	case strings.Contains(base, "ou=orgs,"):
+	// Roles
+	if strings.Contains(lowerBase, "ou=roles,") {
+		roles, _ := lf.rc.GetRoles("{}")
+		for _, r0 := range roles {
+			dn := fmt.Sprintf("cn=%s,ou=roles,%s", r0.Id, lf.baseDN)
+			attrs := map[string]string{
+				"cn":          r0.Id,
+				"objectclass": "globularRole top",
+			}
+			if !shouldSend(dn, attrs) { continue }
+
+			e := ldap.NewSearchResultEntry(dn)
+			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("top"))
+			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("globularRole"))
+			e.AddAttribute(lmsg.AttributeDescription("cn"), lmsg.AttributeValue(r0.Id))
+			if len(r0.Actions) > 0 {
+				for _, action := range vals(r0.Actions...) {
+					e.AddAttribute(lmsg.AttributeDescription("globularAction"), action)
+				}
+			}
+			// members (accounts) if discoverable
+			if ids := lf.roleAccountIDs(r0.Id); len(ids) > 0 {
+				for _, uid := range ids {
+					memDN := fmt.Sprintf("uid=%s,ou=people,%s", uid, lf.baseDN)
+					e.AddAttribute(lmsg.AttributeDescription("member"), lmsg.AttributeValue(memDN))
+				}
+			}
+			send(e)
+		}
+		sendDone()
+		return
+	}
+
+	// Orgs
+	if strings.Contains(lowerBase, "ou=orgs,") {
 		orgs, _ := lf.rc.GetOrganizations("{}")
 		for _, o := range orgs {
 			dn := fmt.Sprintf("o=%s,ou=orgs,%s", o.Id, lf.baseDN)
+			attrs := map[string]string{
+				"o":           o.Id,
+				"objectclass": "organization top",
+			}
+			if !shouldSend(dn, attrs) { continue }
+
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("organization"))
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("top"))
@@ -298,11 +563,35 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 			if o.Email != "" {
 				e.AddAttribute(lmsg.AttributeDescription("mail"), lmsg.AttributeValue(o.Email))
 			}
+
+			// members (accounts, groups, roles) if discoverable
+			if accs := lf.orgAccountIDs(o.Id); len(accs) > 0 {
+				for _, uid := range accs {
+					memDN := fmt.Sprintf("uid=%s,ou=people,%s", uid, lf.baseDN)
+					e.AddAttribute(lmsg.AttributeDescription("member"), lmsg.AttributeValue(memDN))
+				}
+			}
+			if grps := lf.orgGroupIDs(o.Id); len(grps) > 0 {
+				for _, gid := range grps {
+					memDN := fmt.Sprintf("cn=%s,ou=groups,%s", gid, lf.baseDN)
+					e.AddAttribute(lmsg.AttributeDescription("member"), lmsg.AttributeValue(memDN))
+				}
+			}
+			if roles := lf.orgRoleIDs(o.Id); len(roles) > 0 {
+				for _, rid := range roles {
+					memDN := fmt.Sprintf("cn=%s,ou=roles,%s", rid, lf.baseDN)
+					e.AddAttribute(lmsg.AttributeDescription("uniqueMember"), lmsg.AttributeValue(memDN))
+					e.AddAttribute(lmsg.AttributeDescription("member"), lmsg.AttributeValue(memDN))
+				}
+			}
 			send(e)
 		}
+		sendDone()
+		return
 	}
 
-	w.Write(ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess))
+	// default
+	sendDone()
 }
 
 // Add: user / group / role / org
@@ -358,7 +647,49 @@ func (lf *ldapFacade) onAdd(w ldap.ResponseWriter, m *ldap.Message) {
 		desc := first(attrs["description"])
 		mail := first(attrs["mail"])
 		err := lf.rc.CreateOrganization(cs.token, id, name, mail, desc, "")
+		if err == nil {
+			// Initial members: accept both "member" and "uniqueMember"
+			members := append([]string{}, attrs["member"]...)
+			members = append(members, attrs["uniquemember"]...)
+			for _, mem := range members {
+				kindRef, refID := lf.parseDN(mem) // user/group/role
+				if refID == "" {
+					continue
+				}
+				if e := lf.addOrgMember(cs.token, id, kindRef, refID); e != nil {
+					log.Printf("LDAP ORG add initial member %s (%s/%s): %v", id, kindRef, refID, e)
+				}
+			}
+		}
 		writeAddResult(w, err)
+	}
+}
+
+// Route organization membership ops to the right resource_client method
+// based on the DN kind parsed from member values (user/group/role).
+func (lf *ldapFacade) addOrgMember(token, orgID, kind, refID string) error {
+	switch kind {
+	case "user":
+		return lf.rc.AddOrganizationAccount(token, orgID, refID)
+	case "group":
+		return lf.rc.AddOrganizationGroup(token, orgID, refID)
+	case "role":
+		return lf.rc.AddOrganizationRole(token, orgID, refID)
+	default:
+		return nil
+	}
+}
+
+func (lf *ldapFacade) removeOrgMember(token, orgID, kind, refID string) error {
+	switch kind {
+	case "user":
+		return lf.rc.RemoveOrganizationAccount(token, orgID, refID)
+	case "group":
+		return lf.rc.RemoveOrganizationGroup(token, orgID, refID)
+	case "role":
+		return lf.rc.RemoveOrganizationRole(token, orgID, refID)
+	default:
+		return nil
 	}
 }
 
@@ -420,7 +751,9 @@ func (lf *ldapFacade) onModify(w ldap.ResponseWriter, m *ldap.Message) {
 
 	case "role":
 		for _, ch := range r.Changes() {
-			if strings.ToLower(string(ch.Modification().Type_())) == "globularaction" {
+			t := strings.ToLower(string(ch.Modification().Type_()))
+			switch t {
+			case "globularaction":
 				if ch.Operation() == lmsg.ModifyRequestChangeOperationAdd {
 					_ = lf.rc.AddRoleActions(id, toStrings(ch.Modification().Vals()))
 				} else if ch.Operation() == lmsg.ModifyRequestChangeOperationDelete {
@@ -428,26 +761,47 @@ func (lf *ldapFacade) onModify(w ldap.ResponseWriter, m *ldap.Message) {
 						_ = lf.rc.RemoveRoleAction(id, a)
 					}
 				}
-			}
-		}
-		w.Write(ldap.NewModifyResponse(ldap.LDAPResultSuccess))
-
-	case "org":
-		for _, ch := range r.Changes() {
-			t := strings.ToLower(string(ch.Modification().Type_()))
-			switch t {
 			case "member":
+				// Expect member values as user DNs like uid=<user>,ou=people,<baseDN>
 				for _, v := range toStrings(ch.Modification().Vals()) {
 					_, uid := lf.parseDN(v)
 					if uid == "" {
 						continue
 					}
 					if ch.Operation() == lmsg.ModifyRequestChangeOperationAdd {
-						_ = lf.rc.AddOrganizationAccount(cs.token, id, uid)
+						// TODO: replace with your actual resource client method
+						_ = lf.rc.AddAccountRole(cs.token, uid, id)
 					} else if ch.Operation() == lmsg.ModifyRequestChangeOperationDelete {
-						_ = lf.rc.RemoveOrganizationAccount(cs.token, id, uid)
+						// TODO: replace with your actual resource client method
+						_ = lf.rc.RemoveAccountRole(cs.token, uid, id)
 					}
 				}
+			}
+		}
+		w.Write(ldap.NewModifyResponse(ldap.LDAPResultSuccess))
+	case "org":
+		for _, ch := range r.Changes() {
+			t := strings.ToLower(string(ch.Modification().Type_()))
+			switch t {
+			// Accept both "member" and "uniqueMember" for compatibility
+			case "member", "uniquemember":
+				for _, v := range toStrings(ch.Modification().Vals()) {
+					kindRef, refID := lf.parseDN(v) // user / group / role by OU in the DN
+					if refID == "" {
+						continue
+					}
+					switch ch.Operation() {
+					case lmsg.ModifyRequestChangeOperationAdd:
+						if err := lf.addOrgMember(cs.token, id, kindRef, refID); err != nil {
+							log.Printf("LDAP ORG add member %s (%s/%s): %v", id, kindRef, refID, err)
+						}
+					case lmsg.ModifyRequestChangeOperationDelete:
+						if err := lf.removeOrgMember(cs.token, id, kindRef, refID); err != nil {
+							log.Printf("LDAP ORG remove member %s (%s/%s): %v", id, kindRef, refID, err)
+						}
+					}
+				}
+				// (optional) allow org profile tweaks later (description/mail)
 			}
 		}
 		w.Write(ldap.NewModifyResponse(ldap.LDAPResultSuccess))
@@ -455,35 +809,35 @@ func (lf *ldapFacade) onModify(w ldap.ResponseWriter, m *ldap.Message) {
 }
 
 // Delete: remove user / group / role / org
-// Delete: remove user / group / role / org
 func (lf *ldapFacade) onDelete(w ldap.ResponseWriter, m *ldap.Message) {
-    cs := lf.mustSession(m)
-    if cs == nil || cs.token == "" {
-        w.Write(ldap.NewDeleteResponse(ldap.LDAPResultInsufficientAccessRights))
-        return
-    }
+	cs := lf.mustSession(m)
+	if cs == nil || cs.token == "" {
+		w.Write(ldap.NewDeleteResponse(ldap.LDAPResultInsufficientAccessRights))
+		return
+	}
 
-    r := m.GetDeleteRequest()
-    dn := string(r) // <- DelRequest is the DN itself
-    kind, id := lf.parseDN(dn)
-    if kind == "" {
-        w.Write(ldap.NewDeleteResponse(ldap.LDAPResultUnwillingToPerform))
-        return
-    }
+	r := m.GetDeleteRequest()
+	dn := string(r) // <- DelRequest is the DN itself
+	kind, id := lf.parseDN(dn)
+	if kind == "" {
+		w.Write(ldap.NewDeleteResponse(ldap.LDAPResultUnwillingToPerform))
+		return
+	}
 
-    var err error
-    switch kind {
-    case "user":
-        err = lf.rc.DeleteAccount(id, cs.token)
-    case "group":
-        err = lf.rc.DeleteGroup(cs.token, id)
-    case "role":
-        err = lf.rc.DeleteRole(id)
-    case "org":
-        err = lf.rc.DeleteOrganization(cs.token, id)
-    }
-    writeDeleteResult(w, err)
+	var err error
+	switch kind {
+	case "user":
+		err = lf.rc.DeleteAccount(id, cs.token)
+	case "group":
+		err = lf.rc.DeleteGroup(cs.token, id)
+	case "role":
+		err = lf.rc.DeleteRole(id)
+	case "org":
+		err = lf.rc.DeleteOrganization(cs.token, id)
+	}
+	writeDeleteResult(w, err)
 }
+
 // ---- small helpers ----------------------------------------------------------
 
 func (lf *ldapFacade) mustSession(m *ldap.Message) *connState {
@@ -519,27 +873,30 @@ func vals(vs ...string) []lmsg.AttributeValue {
 }
 
 func writeAddResult(w ldap.ResponseWriter, err error) {
-	code := ldap.LDAPResultSuccess
 	if err != nil {
-		code = ldap.LDAPResultOther
+		log.Printf("LDAP ADD error: %v", err)
+		w.Write(ldap.NewAddResponse(ldap.LDAPResultOther))
+		return
 	}
-	w.Write(ldap.NewAddResponse(code))
+	w.Write(ldap.NewAddResponse(ldap.LDAPResultSuccess))
 }
 
 func writeModifyResult(w ldap.ResponseWriter, err error) {
-	code := ldap.LDAPResultSuccess
 	if err != nil {
-		code = ldap.LDAPResultOther
+		log.Printf("LDAP MODIFY error: %v", err)
+		w.Write(ldap.NewModifyResponse(ldap.LDAPResultOther))
+		return
 	}
-	w.Write(ldap.NewModifyResponse(code))
+	w.Write(ldap.NewModifyResponse(ldap.LDAPResultSuccess))
 }
 
 func writeDeleteResult(w ldap.ResponseWriter, err error) {
-	code := ldap.LDAPResultSuccess
 	if err != nil {
-		code = ldap.LDAPResultOther
+		log.Printf("LDAP DELETE error: %v", err)
+		w.Write(ldap.NewDeleteResponse(ldap.LDAPResultOther))
+		return
 	}
-	w.Write(ldap.NewDeleteResponse(code))
+	w.Write(ldap.NewDeleteResponse(ldap.LDAPResultSuccess))
 }
 
 // ---- OPTIONAL: health check -------------------------------------------------

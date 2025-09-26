@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+
 	//"runtime/debug"
 	"strconv"
 	"strings"
@@ -258,46 +259,69 @@ func loadInitOptionsFromEnv() initOptions {
 
 // normalizeControlAddress converts an input like "peer-domain" or "host"
 // into "host:port" based on local config, peers list, and protocol defaults.
+// It prefers the peer's HTTPS control port when the peer's Protocol == "https".
 func normalizeControlAddress(address, localAddr string, localCfg map[string]interface{}) string {
-
-	// I will test of the address is an IP or host:port already.
-	if ip := net.ParseIP(address); ip != nil {
-		localIp, _ := Utility.GetIpv4(localAddr)
-		if ip.String() == localIp {
-			address = localAddr
-		}
-	}
-
-	if strings.Contains(address, ":") {
+	address = strings.TrimSpace(address)
+	if address == "" {
 		return address
 	}
 
-	// If it's our own local domain/host, take local protocol/port.
-	if strings.HasPrefix(localAddr, address) {
-		if asString(localCfg["Protocol"]) == "https" {
-			return address + ":" + Utility.ToString(localCfg["PortHTTPS"])
-		}
-		return address + ":" + Utility.ToString(localCfg["PortHTTP"])
+	// If it's already host:port, keep it.
+	if strings.Count(address, ":") == 1 {
+		return address
 	}
 
-	// Otherwise see if it matches a configured peer.
+	// If it's an IP and equals our local IP, map to local control address.
+	if ip := net.ParseIP(address); ip != nil {
+		if localIP, _ := Utility.GetIpv4(localAddr); ip.String() == localIP {
+			return localAddr // already host:port
+		}
+	}
+
+	// If it matches our local host/domain, use local control port per local protocol.
+	if strings.HasPrefix(localAddr, address) || strings.Split(localAddr, ":")[0] == address {
+		if asString(localCfg["Protocol"]) == "https" {
+			return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTPS"]))
+		}
+		return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTP"]))
+	}
+
+	// Otherwise, try to resolve from Peers in local config.
 	if peers, ok := localCfg["Peers"].([]interface{}); ok {
 		for _, pi := range peers {
-			if p, ok := pi.(map[string]interface{}); ok && asString(p["Domain"]) == address {
-				host := asString(p["Hostname"])
-				if asString(p["Domain"]) != "localhost" && asString(p["Domain"]) != "" {
-					host += "." + asString(p["Domain"])
+			p, ok := pi.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if asString(p["Domain"]) != address {
+				continue
+			}
+			host := asString(p["Hostname"])
+			if d := asString(p["Domain"]); d != "" && d != "localhost" {
+				host += "." + d
+			}
+			// Prefer explicit peer HTTPS/HTTP ports if they exist; else fall back to legacy "Port".
+			if strings.EqualFold(asString(p["Protocol"]), "https") {
+				if v := Utility.ToString(p["PortHTTPS"]); v != "" && v != "0" {
+					return net.JoinHostPort(host, v)
 				}
-				return host + ":" + Utility.ToString(p["Port"])
+			} else {
+				if v := Utility.ToString(p["PortHTTP"]); v != "" && v != "0" {
+					return net.JoinHostPort(host, v)
+				}
+			}
+			// Fallback to single Port field if provided.
+			if v := Utility.ToString(p["Port"]); v != "" && v != "0" {
+				return net.JoinHostPort(host, v)
 			}
 		}
 	}
 
-	// Fallback to local protocol defaults.
+	// Final fallback: use our local protocol defaults with the given host.
 	if asString(localCfg["Protocol"]) == "https" {
-		return address + ":" + Utility.ToString(localCfg["PortHTTPS"])
+		return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTPS"]))
 	}
-	return address + ":" + Utility.ToString(localCfg["PortHTTP"])
+	return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTP"]))
 }
 
 // overlayRuntimeEndpoint optionally replaces desired Port/TLS with runtime values.
@@ -413,17 +437,21 @@ func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal b
 }
 
 // setupClientTLS configures TLS/mTLS on the client based on desired/runtime cfg.
-func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, domain string, ctrlPort int) error {
-
+// For remote peers, it ensures the client certs exist by calling
+// security.InstallClientCertificates(...), which in turn talks to your
+// HTTPS handlers (/get_ca_certificate, /sign_ca_certificate, etc.) on the
+// peer's control-plane port.
+func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, controlAddr string, ctrlPort int) error {
 	tlsEnabled, _ := cfg["TLS"].(bool)
-
 	client.SetTLS(tlsEnabled)
 	if !tlsEnabled {
 		return nil
 	}
 
+	host := strings.TrimSpace(controlAddr)
+
 	if isLocal {
-		// Re-map server paths to client paths if the same service publishes them.
+		// Re-map server paths to client paths when the same machine publishes them.
 		certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
 		keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
 		client.SetKeyFile(keyFile)
@@ -432,17 +460,20 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, dom
 		return nil
 	}
 
-	// Remote peer: ensure client certs exist (install if needed).
-	path := config.GetConfigDir() + "/tls/" + domain
+	// Remote peer: ensure client certs exist under /tls/<host>.
+	// InstallClientCertificates will reach the peer's control-plane HTTPS/HTTP,
+	// using the ctrlPort we derived from the normalized control address.
+	path := config.GetConfigDir() + "/tls/" + host
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(
-		domain, ctrlPort, path,
+		host, ctrlPort, path,
 		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
-		nil,
+		nil, // SANs optional here; the security package can fill from server if needed
 	)
 	if err != nil {
-		slog.Error("InitClient: InstallClientCertificates failed", "domain", domain, "port", ctrlPort, "err", err)
+		slog.Error("InitClient: InstallClientCertificates failed", "domain", host, "port", ctrlPort, "err", err)
 		return err
 	}
+
 	client.SetKeyFile(keyFile)
 	client.SetCertFile(certFile)
 	client.SetCaFile(caFile)
@@ -887,53 +918,73 @@ func watchDesiredForClient(c Client) {
 	}
 }
 
+// controlPortFromAddress extracts the control plane port from a "host:port" string.
+func controlPortFromAddress(addr string) int {
+	_, p := splitHostPort(addr)
+	return p
+}
+
+// populateClientTLS (re)ensures TLS files exist when the endpoint changes.
+// For remote peers we use the **peer's control port** (from c.GetAddress()) so
+// that the security package can call the peer's HTTPS handlers correctly.
 func populateClientTLS(c Client) error {
-    address := c.GetAddress()
-    parts := strings.Split(address, ":")
-    domain := parts[0]
+	host, _ := func() (string, int) {
+		parts := strings.Split(strings.TrimSpace(c.GetAddress()), ":")
+		if len(parts) >= 2 {
+			p, _ := strconv.Atoi(parts[len(parts)-1])
+			return strings.Join(parts[:len(parts)-1], ":"), p
+		}
+		return c.GetAddress(), 0
+	}()
 
-    localAddr, _ := config.GetAddress()
-    localHost := strings.Split(localAddr, ":")[0]
-    isLocal := (domain == localHost || domain == "localhost" || strings.HasPrefix(localHost, domain))
+	localAddr, _ := config.GetAddress()
+	localHost := strings.Split(localAddr, ":")[0]
+	isLocal := (host == localHost || host == "localhost" || strings.HasPrefix(localHost, host))
 
-    // We need the control port (for certificate install).
-    localCfg, _ := config.GetLocalConfig(true)
-    ctrlPort := Utility.ToInt(localCfg["PortHTTPS"])
-    if Utility.ToString(localCfg["Protocol"]) != "https" {
-        ctrlPort = Utility.ToInt(localCfg["PortHTTP"])
-    }
+	if isLocal {
+		// derive client paths from desired server paths
+		if cfg, err := config.GetServiceConfigurationById(c.GetId()); err == nil && cfg != nil {
+			certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
+			keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
+			caFile := asString(cfg["CertAuthorityTrust"])
 
-    if isLocal {
-        // derive client paths from desired server paths
-        if cfg, err := config.GetServiceConfigurationById(c.GetId()); err == nil && cfg != nil {
-            certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
-            keyFile  := strings.ReplaceAll(asString(cfg["KeyFile"]),  "server", "client")
-            caFile   := asString(cfg["CertAuthorityTrust"])
-            if certFile != "" { c.SetCertFile(certFile) }
-            if keyFile  != "" { c.SetKeyFile(keyFile) }
-            if caFile   != "" { c.SetCaFile(caFile) }
-            if c.GetCertFile() == "" && c.GetCaFile() == "" {
-                return fmt.Errorf("no local TLS paths in desired config")
-            }
-            return nil
-        }
-        return fmt.Errorf("cannot read desired config for local TLS")
-    }
+			if certFile != "" {
+				c.SetCertFile(certFile)
+			}
+			if keyFile != "" {
+				c.SetKeyFile(keyFile)
+			}
+			if caFile != "" {
+				c.SetCaFile(caFile)
+			}
+			if c.GetCertFile() == "" && c.GetCaFile() == "" {
+				return fmt.Errorf("no local TLS paths in desired config")
+			}
+			return nil
+		}
+		return fmt.Errorf("cannot read desired config for local TLS (id=%s)", c.GetId())
+	}
 
-    // remote: install (or refresh) client certificates into /tls/<domain>
-    path := config.GetConfigDir() + "/tls/" + domain
-    keyFile, certFile, caFile, err := security.InstallClientCertificates(
-        domain, ctrlPort, path,
-        "", "", "", "", // org details optional
-        nil,
-    )
-    if err != nil {
-        return err
-    }
-    c.SetKeyFile(keyFile)
-    c.SetCertFile(certFile)
-    c.SetCaFile(caFile)
-    return nil
+	// Remote: use the **peer's** control port from c.GetAddress(), not our local ports.
+	ctrlPort := controlPortFromAddress(c.GetAddress())
+	if ctrlPort == 0 {
+		return fmt.Errorf("invalid control address %q: no port", c.GetAddress())
+	}
+
+	path := config.GetConfigDir() + "/tls/" + host
+	keyFile, certFile, caFile, err := security.InstallClientCertificates(
+		host, ctrlPort, path,
+		"", "", "", "", // org info optional here
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	c.SetKeyFile(keyFile)
+	c.SetCertFile(certFile)
+	c.SetCaFile(caFile)
+	return nil
 }
 
 /* ===================== Small helpers ===================== */

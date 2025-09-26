@@ -30,6 +30,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karmdip-mi/go-fitz v0.0.0-20210702102225-a530a79566e9
 	github.com/lib/pq v1.10.9
+	github.com/lor00x/goldap v0.0.0-20240304151906-8d785c64d1c8
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mhale/smtpd v0.8.3
 	github.com/miekg/dns v1.1.67
@@ -56,7 +57,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
-	github.com/lor00x/goldap v0.0.0-20180618054307-a546dffdd1a3 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

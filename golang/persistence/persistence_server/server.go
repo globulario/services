@@ -14,13 +14,10 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/persistence/persistencepb"
@@ -298,6 +295,7 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 
 	// Initialize stores for configured connections.
+
 	for _, c := range srv.Connections {
 		switch c.Store {
 		case persistencepb.StoreType_MONGO:
@@ -331,36 +329,6 @@ func (srv *server) Stop(context.Context, *persistencepb.StopRequest) (*persisten
 	return &persistencepb.StopResponse{}, srv.StopService()
 }
 
-// -----------------------------------------------------------------------------
-// Log client helpers (unchanged behavior, structured service logging)
-// -----------------------------------------------------------------------------
-
-var log_client_ *log_client.Log_Client // singleton holder (optional)
-
-func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
-}
-
-func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	logc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logc.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
-}
-
-func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
-	logc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logc.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
 
 // -----------------------------------------------------------------------------
 // main with --describe / --health

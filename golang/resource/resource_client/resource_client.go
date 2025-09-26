@@ -636,13 +636,18 @@ func (client *Resource_Client) DeleteAccount(id, token string) error {
 /**
  * Set role to a account
  */
-func (client *Resource_Client) AddAccountRole(accountId string, roleId string) error {
+func (client *Resource_Client) AddAccountRole(token string, accountId string, roleId string) error {
 	rqst := &resourcepb.AddAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
 
-	_, err := client.c.AddAccountRole(client.GetCtx(), rqst)
+	// Save account values.
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	_, err := client.c.AddAccountRole(ctx, rqst)
+
 
 	return err
 }
@@ -650,12 +655,17 @@ func (client *Resource_Client) AddAccountRole(accountId string, roleId string) e
 /**
  * Remove role from an account
  */
-func (client *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
+func (client *Resource_Client) RemoveAccountRole(token string, accountId string, roleId string) error {
 	rqst := &resourcepb.RemoveAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
-	_, err := client.c.RemoveAccountRole(client.GetCtx(), rqst)
+
+	// Save account values.
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	_, err := client.c.RemoveAccountRole(ctx, rqst)
 
 	return err
 }

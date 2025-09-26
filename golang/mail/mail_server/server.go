@@ -843,9 +843,10 @@ func main() {
 	// Start embedded IMAP/SMTP in a goroutine
 	go func() {
 		certFile := config.GetLocalCertificate()
-		address := strings.Split(srv.DbIpV4, ":")[0]
-		port := Utility.ToInt(strings.Split(srv.DbIpV4, ":")[1])
-
+		address, _ := config.GetHostname()
+		// TODO fix it...
+		//port := Utility.ToInt(strings.Split(srv.DbIpV4, ":")[1])
+		port := 27018
 		imap.Backend_address = address
 		smtp.Backend_address = address
 		imap.Backend_port = port

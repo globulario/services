@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -32,127 +33,171 @@ var (
 	Root       = config_.GetGlobularExecPath()
 	ConfigPath = config_.GetConfigDir() + "/config.json"
 	keyPath    = config_.GetConfigDir() + "/keys"
-
-	caOnce           sync.Once
-	caAuthorityHost  string
-	caAuthorityPort  int
 	credOpsProcessMu sync.Mutex // in-process serialization for the creds dir
 )
 
-// ----------------------------------------------------------------------------
-// Deterministic CA authority resolution
-// ----------------------------------------------------------------------------
-
-func resolveCAAuthority(defaultHost string, defaultPort int) (string, int) {
-	caOnce.Do(func() {
-		host, port := defaultHost, defaultPort
-		if lc, err := config_.GetLocalConfig(true); err == nil && lc != nil {
-			if dns, ok := lc["DNS"].(string); ok && strings.TrimSpace(dns) != "" {
-				host = dns
-				port = 443
-				if i := strings.IndexByte(host, ':'); i > 0 {
-					p := Utility.ToInt(host[i+1:])
-					if p > 0 {
-						port = p
-					}
-					host = host[:i]
-				}
-			}
-		}
-		caAuthorityHost, caAuthorityPort = host, port
-	})
-	return caAuthorityHost, caAuthorityPort
-}
-
-// Choose a protocol stably: use https for 443, else http. Only fall back to the
-// other if the primary fails (we do not alternate per call).
-func preferredProtocol(port int) (primary, fallback string) {
-	if port == 443 {
-		return "https", "http"
-	}
-	return "http", "https"
-}
 
 // ----------------------------------------------------------------------------
 // CA retrieval / signing
 // ----------------------------------------------------------------------------
 
-func getCaCertificate(address string, port int) (string, error) {
-	host, p := resolveCAAuthority(address, port)
-	prim, alt := preferredProtocol(p)
-
-	if crt, err := getCaCertificate_(host, p, prim); err == nil {
-		return crt, nil
+// prefer https on common TLS ports; http on common plaintext ports
+func preferProtocolForPort(p int) (primary, alternate string) {
+	switch p {
+	case 443, 8443, 9443, 10443:
+		return "https", "http"
+	case 80, 8080, 9080:
+		return "http", "https"
+	default:
+		// Heuristic: if port >= 1024 and ends with 43, treat as TLS-ish (e.g., 10043)
+		if p%100 == 43 || p == 2379 || p == 2380 {
+			return "https", "http"
+		}
+		return "http", "https"
 	}
-	if crt, err := getCaCertificate_(host, p, alt); err == nil {
-		return crt, nil
-	}
-	return "", fmt.Errorf("get CA certificate: unable to retrieve from %s:%d", host, p)
 }
 
-func getCaCertificate_(address string, port int, protocol string) (string, error) {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return "", errors.New("get CA certificate: no address provided")
+// resolveCAAuthority normalizes the host and port.
+// If address already includes a port, we trust that instead of the given port.
+func resolveCAAuthority(address string, port int) (string, int) {
+	a := strings.TrimSpace(address)
+	if a == "" {
+		return "localhost", port
 	}
-	url := fmt.Sprintf("%s://%s:%d/get_ca_certificate", protocol, address, port)
+	if h, p, err := net.SplitHostPort(a); err == nil {
+		if pn, e := net.LookupPort("tcp", p); e == nil {
+			return h, pn
+		}
+	}
+	return a, port
+}
 
-	resp, err := http.Get(url) // #nosec G107
+func systemTrustClient(timeout time.Duration) *http.Client {
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+		ForceAttemptHTTP2: true,
+	}
+	return &http.Client{Transport: tr, Timeout: timeout}
+}
+
+// for bootstrap only: allow self-signed/unknown CA (we're fetching the CA)
+func insecureTLSClient(timeout time.Duration) *http.Client {
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // ONLY for /get_ca_certificate and /sign_ca_certificate
+			MinVersion:         tls.VersionTLS12,
+		},
+		ForceAttemptHTTP2: true,
+	}
+	return &http.Client{Transport: tr, Timeout: timeout}
+}
+
+// Try HTTPS (system trust), then HTTPS (insecure), then fall back to HTTP (system trust).
+// This prevents "HTTP to HTTPS port" mistakes and still lets you bootstrap from self-signed peers.
+func httpGetBootstrap(urlHTTP, urlHTTPS string) (*http.Response, error) {
+	// If HTTPS URL present, try that first with system trust.
+	if urlHTTPS != "" {
+		if resp, err := systemTrustClient(4 * time.Second).Get(urlHTTPS); err == nil {
+			return resp, nil
+		} else {
+			// if the error is cert related, retry with insecure (bootstrap path)
+			if isCertError(err) {
+				if resp2, err2 := insecureTLSClient(4 * time.Second).Get(urlHTTPS); err2 == nil {
+					return resp2, nil
+				} else {
+					// fall through to HTTP
+					_ = err2
+				}
+			}
+		}
+	}
+	// Try HTTP last
+	if urlHTTP != "" {
+		return systemTrustClient(4 * time.Second).Get(urlHTTP)
+	}
+	return nil, errors.New("no URL provided")
+}
+
+func isCertError(err error) bool {
+	// crude but effective: look for x509/tls common substrings
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "x509") ||
+		strings.Contains(msg, "unknown authority") ||
+		strings.Contains(msg, "certificate") ||
+		strings.Contains(msg, "handshake") ||
+		strings.Contains(msg, "tls")
+}
+
+/* ---------- fixed versions of your functions ---------- */
+func getCaCertificate(address string, port int) (string, error) {
+	host, p := resolveCAAuthority(address, port)
+	prim, alt := preferProtocolForPort(p)
+
+	// Build both URLs up front
+	urlHTTP := ""
+	urlHTTPS := ""
+	if prim == "https" || alt == "https" {
+		urlHTTPS = fmt.Sprintf("https://%s:%d/get_ca_certificate", host, p)
+	}
+	if prim == "http" || alt == "http" {
+		urlHTTP = fmt.Sprintf("http://%s:%d/get_ca_certificate", host, p)
+	}
+
+	resp, err := httpGetBootstrap(urlHTTP, urlHTTPS)
 	if err != nil {
-		return "", fmt.Errorf("get CA certificate: GET %s: %w", url, err)
+		return "", fmt.Errorf("get CA certificate: unable to retrieve from %s:%d: %w", host, p, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusCreated {
+	// Accept both 201 (Created) and 200 (OK) to be more tolerant across versions
+	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("get CA certificate: read %s: %w", url, err)
+			return "", fmt.Errorf("get CA certificate: read body: %w", err)
 		}
 		return string(body), nil
 	}
-	return "", fmt.Errorf("get CA certificate: unexpected HTTP %d from %s", resp.StatusCode, url)
+	return "", fmt.Errorf("get CA certificate: unexpected HTTP %d from %s", resp.StatusCode, resp.Request.URL.String())
 }
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
 	host, p := resolveCAAuthority(address, port)
-	prim, alt := preferredProtocol(p)
+	prim, alt := preferProtocolForPort(p)
 
-	if crt, err := signCaCertificate_(host, csr, p, prim); err == nil {
-		return crt, nil
-	}
-	if crt, err := signCaCertificate_(host, csr, p, alt); err == nil {
-		return crt, nil
-	}
-	return "", fmt.Errorf("sign CA certificate: unable to sign at %s:%d", host, p)
-}
-
-func signCaCertificate_(address string, csr string, port int, protocol string) (string, error) {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return "", errors.New("sign CA certificate: no address provided")
-	}
 	csrStr := base64.StdEncoding.EncodeToString([]byte(csr))
-	url := fmt.Sprintf("%s://%s:%d/sign_ca_certificate?csr=%s", protocol, address, port, csrStr)
+	// Build both URLs up front
+	urlHTTP := ""
+	urlHTTPS := ""
+	if prim == "https" || alt == "https" {
+		urlHTTPS = fmt.Sprintf("https://%s:%d/sign_ca_certificate?csr=%s", host, p, csrStr)
+	}
+	if prim == "http" || alt == "http" {
+		urlHTTP = fmt.Sprintf("http://%s:%d/sign_ca_certificate?csr=%s", host, p, csrStr)
+	}
 
-	resp, err := http.Get(url) // #nosec G107
+	resp, err := httpGetBootstrap(urlHTTP, urlHTTPS)
 	if err != nil {
-		return "", fmt.Errorf("sign CA certificate: GET %s: %w", url, err)
+		return "", fmt.Errorf("sign CA certificate: unable to sign at %s:%d: %w", host, p, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusCreated {
+	// Accept both 201 and 200
+	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("sign CA certificate: read %s: %w", url, err)
+			return "", fmt.Errorf("sign CA certificate: read body: %w", err)
 		}
 		return string(body), nil
 	}
-	return "", fmt.Errorf("sign CA certificate: unexpected HTTP %d from %s", resp.StatusCode, url)
+	return "", fmt.Errorf("sign CA certificate: unexpected HTTP %d from %s", resp.StatusCode, resp.Request.URL.String())
 }
 
-// ----------------------------------------------------------------------------
-// Public API: Install client/server certs (atomic, locked, CA-stable)
-// ----------------------------------------------------------------------------
+/* ---------- unchanged public API (kept for completeness) ---------- */
+
 func InstallClientCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
 	err := withCredsLock(path, func() error {
 		_, _, _, e := getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
@@ -175,9 +220,6 @@ func InstallServerCertificates(domain string, port int, path string, country str
 	return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
 }
 
-// ----------------------------------------------------------------------------
-// Atomic rotation utilities
-// ----------------------------------------------------------------------------
 
 func withCredsLock(dir string, fn func() error) error {
 	credOpsProcessMu.Lock()
