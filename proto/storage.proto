@@ -117,6 +117,14 @@ message DropResponse {
 	bool result = 1; // Result of the drop operation.
 }
 
+message GetAllKeysRequest {
+	string id = 1; // Connection identifier.
+}
+
+message GetAllKeysResponse {
+	repeated string keys = 1; // Keys in the store.
+}
+
 // Request to stop the storage service.
 message StopRequest {
 }
@@ -158,4 +166,7 @@ service StorageService {
 	
 	// Deletes a store.
 	rpc Drop(DropRequest) returns (DropResponse);
+
+	// Get all keys in the store.
+	rpc GetAllKeys(GetAllKeysRequest) returns (stream GetAllKeysResponse);
 }

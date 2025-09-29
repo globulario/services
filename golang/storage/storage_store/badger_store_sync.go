@@ -38,6 +38,13 @@ func (store *Badger_store) run() {
 
 		case "Close":
 			action["result"].(chan error) <- store.close()
+
+		case "GetAllKeys":
+			// Not supported by BadgerDB
+			keys, err := store.getAllKeys()
+			action["results"].(chan map[string]interface{}) <- map[string]interface{}{
+				"keys": keys, "err": err,
+			}
 			// Exit the goroutine cleanly.
 			return
 		}
@@ -134,4 +141,18 @@ func (store *Badger_store) Drop() error {
 	}
 	store.actions <- action
 	return <-action["result"].(chan error)
+}
+
+// GetAllKeys is not supported by BadgerDB.
+func (store *Badger_store) GetAllKeys() ([]string, error) {
+	action := map[string]interface{}{
+		"name":    "GetAllKeys",
+		"results": make(chan map[string]interface{}),
+	}
+	store.actions <- action
+	results := <-action["results"].(chan map[string]interface{})
+	if results["err"] != nil {
+		return nil, results["err"].(error)
+	}
+	return results["keys"].([]string), nil
 }

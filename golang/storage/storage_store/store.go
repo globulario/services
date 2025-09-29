@@ -33,4 +33,7 @@ type Store interface {
 
 	// Drop the data store.
 	Drop() error
+
+	// Get all keys in the store.
+	GetAllKeys() ([]string, error)
 }

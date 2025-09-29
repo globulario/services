@@ -476,38 +476,43 @@ func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 
-	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
+
+	err = rbac_client_.AddResourceOwner(token, path, subject, resourceType, subjectType)
 	return err
 }
 
-func (srv *server) deleteResourcePermissions(path string) error {
+func (srv *server) deleteResourcePermissions(token, path string) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.DeleteResourcePermissions(path)
+
+	err = rbac_client_.DeleteResourcePermissions(token, path)
+	return err
 }
 
-func (srv *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) deleteAllAccess(token, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.DeleteAllAccess(suject, subjectType)
+
+	return rbac_client_.DeleteAllAccess(token, subject, subjectType)
 }
 
-func (srv *server) SetAccountAllocatedSpace(accountId string, space uint64) error {
+func (srv *server) SetAccountAllocatedSpace(token, accountId string, space uint64) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetAccountAllocatedSpace(accountId, space)
+
+	return rbac_client_.SetAccountAllocatedSpace(token, accountId, space)
 }
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////

@@ -4,17 +4,24 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
+
+func isNotFoundErr(err error) bool {
+    if err == nil { return false }
+    s := strings.ToLower(err.Error())
+    // accept all common variants across stores (etcd, mongo, scylla, in-mem)
+    return strings.Contains(s, "not found") ||       // "not found", "no entity found"
+           strings.Contains(s, "key not found") ||   // etcd errors
+           strings.Contains(s, "item not found")
+}
 
 func (srv *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
 	if len(path) == 0 {
@@ -29,32 +36,36 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 		return errors.New("no resource type was given")
 	}
 
+	slog.Info("addResourceOwner call",
+    "path", path,
+    "resourceType", resourceType_,
+    "subject", subject,
+    "subjectType", subjectType.String())
+
 	permissions, err := srv.getResourcePermissions(path)
 
 	needSave := false
-	if err != nil {
-		if strings.Contains(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
-
-			// So here I will create the permissions object...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{},
-				},
-				ResourceType: resourceType_,
-				Path:         path,
-			}
-			needSave = true
-		} else {
-			return err
-		}
-	}
+    if err != nil {
+        if isNotFoundErr(err) {
+            permissions = &rbacpb.Permissions{
+                Allowed: []*rbacpb.Permission{},
+                Denied:  []*rbacpb.Permission{},
+                Owners: &rbacpb.Permission{
+                    Name:          "owner",
+                    Accounts:      []string{},
+                    Applications:  []string{},
+                    Groups:        []string{},
+                    Peers:         []string{},
+                    Organizations: []string{},
+                },
+                ResourceType: resourceType_,
+                Path:         path,
+            }
+            needSave = true
+        } else {
+            return err
+        }
+    }
 
 	// Owned resources
 	owners := permissions.Owners
@@ -145,45 +156,117 @@ func (srv *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourc
 	return &rbacpb.AddResourceOwnerRsp{}, nil
 }
 
-func (srv *server) removeResourceOwner(owner string, subjectType rbacpb.SubjectType, path string) error {
-
-	permissions, err := srv.getResourcePermissions(path)
+// --- rbac_ownership.go ---
+// Safe, idempotent: removing an owner when none is set just no-ops.
+// NOTE: keep the signature you actually expose; this one matches the call sites in your logs.
+func (srv *server) removeResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	perms, err := srv.getResourcePermissions(path)
 	if err != nil {
-		return err
+		// If the resource has no permissions yet, there's nothing to remove.
+		// Do NOT turn this into an error — treat as no-op.
+		return nil
+	}
+	if perms == nil || perms.Owners == nil {
+		// Nothing to do
+		return nil
 	}
 
-	// Owned resources
-	owners := permissions.Owners
+	owners := perms.Owners
 	switch subjectType {
 	case rbacpb.SubjectType_ACCOUNT:
-		if Utility.Contains(owners.Accounts, owner) {
-			owners.Accounts = Utility.RemoveString(owners.Accounts, owner)
-		}
+		owners.Accounts = removeString(owners.Accounts, subject)
 	case rbacpb.SubjectType_APPLICATION:
-		if Utility.Contains(owners.Applications, owner) {
-			owners.Applications = Utility.RemoveString(owners.Applications, owner)
-		}
+		owners.Applications = removeString(owners.Applications, subject)
 	case rbacpb.SubjectType_GROUP:
-		if Utility.Contains(owners.Groups, owner) {
-			owners.Groups = Utility.RemoveString(owners.Groups, owner)
-		}
+		owners.Groups = removeString(owners.Groups, subject)
 	case rbacpb.SubjectType_ORGANIZATION:
-		if Utility.Contains(owners.Organizations, owner) {
-			owners.Organizations = Utility.RemoveString(owners.Organizations, owner)
-		}
+		owners.Organizations = removeString(owners.Organizations, subject)
 	case rbacpb.SubjectType_PEER:
-		if Utility.Contains(owners.Peers, owner) {
-			owners.Peers = Utility.RemoveString(owners.Peers, owner)
-		}
+		owners.Peers = removeString(owners.Peers, subject)
 	}
 
-	permissions.Owners = owners
-	err = srv.setResourcePermissions(path, permissions.ResourceType, permissions)
-	if err != nil {
+	// Persist back (resource type comes from the stored record)
+	if err := srv.setResourcePermissions(path, perms.ResourceType, perms); err != nil {
 		return err
 	}
-
 	return nil
+}
+
+// Remove all explicit access (Allowed/Denied) for a subject across resources.
+// IMPORTANT: This intentionally does NOT touch Owners — owners keep implicit rights.
+func (srv *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
+	subject := rqst.Subject
+	stype := rqst.Type
+
+	// Iterate every permissions record and strip the subject from Allowed/Denied only.
+	paths, err := srv.listAllPermissionPaths() // implement to return []string of permission-bearing paths
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	for _, p := range paths {
+		perms, getErr := srv.getResourcePermissions(p)
+		if getErr != nil || perms == nil {
+			continue // skip unreadable/missing entries
+		}
+
+		// Scrub from Allowed
+		for i := range perms.Allowed {
+			scrubPermissionSubjects(perms.Allowed[i], subject, stype)
+		}
+		// Scrub from Denied
+		for i := range perms.Denied {
+			scrubPermissionSubjects(perms.Denied[i], subject, stype)
+		}
+
+		// DO NOT modify perms.Owners here — owner rights are implicit and must remain.
+
+		// Persist only if something actually changed (optional micro-opt).
+		if err := srv.setResourcePermissions(p, perms.ResourceType, perms); err != nil {
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return &rbacpb.DeleteAllAccessRsp{}, nil
+}
+
+// --- rbac_permissions.go (or a shared helpers file) ---
+
+// removeString returns a fresh slice with all occurrences of s removed (nil-safe).
+func removeString(in []string, s string) []string {
+	if len(in) == 0 {
+		return in
+	}
+	out := in[:0]
+	for _, v := range in {
+		if v != s {
+			out = append(out, v)
+		}
+	}
+	// If everything was removed, make it an empty (non-nil) slice to keep JSON/stores consistent.
+	if len(out) == 0 {
+		return []string{}
+	}
+	return out
+}
+
+// scrubPermissionSubjects removes the subject from the correct field in a Permission.
+func scrubPermissionSubjects(p *rbacpb.Permission, subject string, stype rbacpb.SubjectType) {
+	if p == nil {
+		return
+	}
+	switch stype {
+	case rbacpb.SubjectType_ACCOUNT:
+		p.Accounts = removeString(p.Accounts, subject)
+	case rbacpb.SubjectType_APPLICATION:
+		p.Applications = removeString(p.Applications, subject)
+	case rbacpb.SubjectType_GROUP:
+		p.Groups = removeString(p.Groups, subject)
+	case rbacpb.SubjectType_ORGANIZATION:
+		p.Organizations = removeString(p.Organizations, subject)
+	case rbacpb.SubjectType_PEER:
+		p.Peers = removeString(p.Peers, subject)
+	}
 }
 
 func (srv *server) removeResourceSubject(subject string, subjectType rbacpb.SubjectType, path string) error {
@@ -322,7 +405,7 @@ func (srv *server) removeResourceSubject(subject string, subjectType rbacpb.Subj
 }
 
 func (srv *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb.RemoveResourceOwnerRqst) (*rbacpb.RemoveResourceOwnerRsp, error) {
-	err := srv.removeResourceOwner(rqst.Subject, rqst.Type, rqst.Path)
+	err := srv.removeResourceOwner(rqst.Path, rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -330,83 +413,4 @@ func (srv *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb.RemoveR
 	}
 
 	return &rbacpb.RemoveResourceOwnerRsp{}, nil
-}
-
-func (srv *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
-	subjectId := ""
-	switch rqst.Type {
-	case rbacpb.SubjectType_ACCOUNT:
-		exist, a := srv.accountExist(rqst.Subject)
-		if exist {
-			subjectId = "PERMISSIONS/ACCOUNTS/" + a
-		} else {
-			return nil, errors.New("no account found with id " + rqst.Subject)
-		}
-	case rbacpb.SubjectType_APPLICATION:
-		exist, a := srv.applicationExist(rqst.Subject)
-		if exist {
-			subjectId = "PERMISSIONS/APPLICATIONS/" + a
-		} else {
-			return nil, errors.New("2167 no application found with id " + rqst.Subject)
-		}
-	case rbacpb.SubjectType_GROUP:
-		exist, g := srv.groupExist(rqst.Subject)
-		if exist {
-			subjectId = "PERMISSIONS/GROUPS/" + g
-		} else {
-			return nil, errors.New("no group found with id " + rqst.Subject)
-		}
-	case rbacpb.SubjectType_ORGANIZATION:
-		exist, o := srv.organizationExist(rqst.Subject)
-		if exist {
-			subjectId = "PERMISSIONS/ORGANIZATIONS/" + o
-		} else {
-			return nil, errors.New("no organization found with id " + rqst.Subject)
-		}
-	case rbacpb.SubjectType_PEER:
-		subjectId = "PERMISSIONS/PEERS/" + rqst.Subject
-	}
-
-	// Here I must remove the subject from all permissions.
-	data, err := srv.getItem(subjectId)
-	if err != nil {
-		return nil, err
-	}
-
-	paths := make([]string, 0)
-	err = json.Unmarshal(data, &paths)
-	if err != nil {
-		return nil, err
-	}
-
-	// Remove the suject from all permissions with given paths.
-	for i := range paths {
-
-		// Remove from owner
-		srv.removeResourceOwner(rqst.Subject, rqst.Type, paths[i])
-
-		// Remove from subject.
-		srv.removeResourceSubject(rqst.Subject, rqst.Type, paths[i])
-
-		// Now I will send an update event.
-		permissions, err := srv.getResourcePermissions(paths[i])
-		if err == nil {
-			// That's the way to marshal object as evt data
-			data_, err := proto.Marshal(permissions)
-			if err == nil {
-				encoded := []byte(base64.StdEncoding.EncodeToString(data_))
-				srv.publish("set_resources_permissions_event", encoded)
-			}
-		}
-	}
-
-	// remove the indexation...
-	err = srv.removeItem(subjectId)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &rbacpb.DeleteAllAccessRsp{}, nil
 }

@@ -123,6 +123,7 @@ func (srv *server) processTorrent() {
     infos := make(map[string]*torrentpb.TorrentInfo)
     ticker := time.NewTicker(1 * time.Second)
     getTorrentsInfoActions := make([]map[string]interface{}, 0)
+    token, _ := security.GetLocalToken(srv.Mac)
 
     go func() {
         for {
@@ -233,12 +234,12 @@ func (srv *server) processTorrent() {
                                         rel = dir[strings.Index(dir, "/users/"):]
                                     }
                                     // Mark ownership on the directory and its parent (used for reload notification).
-                                    srv.addResourceOwner(rel, "file", p.owner, rbacpb.SubjectType_ACCOUNT)
+                                    srv.addResourceOwner(token, rel, "file", p.owner, rbacpb.SubjectType_ACCOUNT)
                                     rel = filepath.Dir(rel)
                                     if err := Utility.CopyFile(src, dst); err != nil {
                                         slog.Error("copy torrent file failed", "src", src, "dst", dst, "err", err)
                                     } else {
-                                        srv.addResourceOwner(dst, "file", p.owner, rbacpb.SubjectType_ACCOUNT)
+                                        srv.addResourceOwner(token, dst, "file", p.owner, rbacpb.SubjectType_ACCOUNT)
                                         if ev, err := srv.getEventClient(); err == nil {
                                             _ = ev.Publish("reload_dir_event", []byte(rel))
                                         }

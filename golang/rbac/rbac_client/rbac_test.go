@@ -1,487 +1,338 @@
 package rbac_client
 
 import (
-	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
-	Utility "github.com/globulario/utility"
 )
 
-var (
-	// Connect to the services client.
-	domain                  = "localhost"
-	rbac_client_, _         = NewRbacService_Client(domain, "rbac.RbacService")
-	resource_client_, _     = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-	authencation_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-)
+// -----------------------------------------------------------------------------
+// Clients & helpers
+// -----------------------------------------------------------------------------
 
-/** Create All resource to be use to test permission **/
-func TestSetResources(t *testing.T) {
-
-	// authenticate as admin
-	token, err := authencation_client_.Authenticate("sa", "adminadmin")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	/** Create organization **/
-	err = resource_client_.CreateOrganization(token, "organization_0", "Organization 0", "organization_0@test.com", "test", "test")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("organization_0 was created successfully!")
-
-	err = resource_client_.CreateOrganization(token, "organization_1", "Organization 1", "organization_1@test.com", "test", "test")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("organization_1 was created successfully!")
-
-	/** Create group */
-	err = resource_client_.CreateGroup(token, "group_0", "Group 0", "test")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("group_0 was created successfully!")
-
-	err = resource_client_.CreateGroup(token, "group_1", "Group 1", "test")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("group_1 was created successfully!")
-
-	/** Create an account */
-	err = resource_client_.RegisterAccount(domain, "account_0", "account 0", "account_0@test.com", "1234", "1234")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("account_0 was created successfully!")
-
-	err = resource_client_.RegisterAccount(domain, "account_1", "account 1", "account_1@test.com", "1234", "1234")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("account_1 was created successfully!")
-
-	err = resource_client_.RegisterAccount(domain, "account_2", "account 2", "account_2@test.com", "1234", "1234")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("account_2 was created successfully!")
-
-	// Now set the account to the group
-	err = resource_client_.AddGroupMemberAccount(token, "group_0", "account_0")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("account_0 was added to group_0 successfully!")
-
-	err = resource_client_.AddGroupMemberAccount(token, "group_1", "account_1")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("account_1 was added to group_1 successfully!")
-
-	// Add the group to the organization.
-	err = resource_client_.AddOrganizationGroup(token, "organization_0", "group_0")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("group_0 was added to organization_0 successfully!")
-
-	err = resource_client_.AddOrganizationGroup(token, "organization_1", "group_1")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	log.Println("group_1 was added to organization_1 created successfully!")
-
-	// Now create a peer
-	/*
-		_, _, err = resource_client_.RegisterPeer("", "p0.test.com")
-		if err != nil {
-			log.Println(err)
-			t.Fail()
-		}
-		log.Println("p0.test.com was created successfully!")
-
-		// Now create a peer
-		err = resource_client_.RegisterPeer("", "p1.test.com")
-		if err != nil {
-			log.Println(err)
-			t.Fail()
-		}
-		log.Println("p1.test.com was created successfully!")
-	*/
-
+type clients struct {
+	rbac     *Rbac_Client
+	resource *resource_client.Resource_Client
+	auth     *authentication_client.Authentication_Client
+	domain   string
 }
 
-func TestSetResourcePermissions(t *testing.T) {
-
-	// Here I will create a file and set permission on it.
-	// authenticate as admin
-	token, err := authencation_client_.Authenticate("sa", "adminadmin")
+func mustNoErr(t *testing.T, err error, msg string) {
+	t.Helper()
 	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	// A fictive file path...
-	filePath := "/tmp/toto.txt"
-	if Utility.Exists(filePath) {
-		os.Remove(filePath)
-	}
-	err = os.WriteFile(filePath, []byte("La vie ne vaut rien, mais rien ne vaut la vie!"), 0777)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	permissions := &rbacpb.Permissions{
-		Allowed: []*rbacpb.Permission{
-			{
-				Name:          "read",
-				Applications:  []string{},
-				Accounts:      []string{"account_0", "account_1"},
-				Groups:        []string{"group_0", "group_1"},
-				Peers:         []string{"p0.test.com", "p1.test.com"},
-				Organizations: []string{"organization_0", "organization_1"},
-			},
-			{
-				Name:          "write",
-				Applications:  []string{},
-				Accounts:      []string{"account_0"},
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
-			},
-			{
-				Name:          "execute",
-				Applications:  []string{},
-				Accounts:      []string{"account_1"},
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
-			},
-			{
-				Name:          "delete",
-				Applications:  []string{},
-				Accounts:      []string{"account_0", "account_1"}, // must not work because of organization_0 is in the list of denied...
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
-			},
-		},
-		Denied: []*rbacpb.Permission{
-			{
-				Name:          "read",
-				Applications:  []string{},
-				Accounts:      []string{"account_2"},
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
-			},
-			{
-				Name:          "delete",
-				Applications:  []string{},
-				Accounts:      []string{},
-				Groups:        []string{"group_1"},
-				Peers:         []string{},
-				Organizations: []string{"organization_1"},
-			},
-		},
-		Owners: &rbacpb.Permission{
-			Name:          "owner", // The name is informative in that particular case.
-			Applications:  []string{},
-			Accounts:      []string{"account_0"},
-			Groups:        []string{},
-			Peers:         []string{},
-			Organizations: []string{},
-		},
-	}
-
-	err = rbac_client_.SetResourcePermissions(token, filePath, "file", permissions)
-	if err != nil {
-		log.Println(err)
-	}
-
-}
-
-// Test read a given permission to determine if suject can do given action...
-func TestGetResourcePermission(t *testing.T) {
-
-	filePath := "/tmp/toto.txt"
-	_, err := rbac_client_.GetResourcePermission(filePath, "read", rbacpb.PermissionType_ALLOWED)
-	if err != nil {
-		log.Println(err)
-	}
-
-}
-
-func TestSetResourcePermission(t *testing.T) {
-	filePath := "file:/tmp/toto.txt"
-	err := rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
-	if err != nil {
-		log.Println(err)
+		t.Fatalf("%s: %v", msg, err)
 	}
 }
 
-func TestValidateAccess(t *testing.T) {
-	filePath := "file:/tmp/toto.txt"
+func mustClients(t *testing.T) clients {
+	t.Helper()
 
-	// Test if account owner can do anything.
-	hasPermission_0, _, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "read", filePath)
+	domain := "globular.io"
+	address := "globule-ryzen.globular.io"
+
+	rbacCli, err := NewRbacService_Client(address, "rbac.RbacService")
 	if err != nil {
-		log.Println(err)
-		t.Fail()
+		t.Fatalf("create RBAC client (%s): %v", address, err)
 	}
-	if hasPermission_0 {
-		log.Println("account_0 has the permission to read " + filePath)
-	} else {
-		log.Println("account_0 has not the permission to read " + filePath)
-		t.Fail()
-	}
-
-	// Now I will test remove the resource owner and play the same action again.
-	err = rbac_client_.RemoveResourceOwner(filePath, "account_0", rbacpb.SubjectType_ACCOUNT)
+	resCli, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
-		log.Println(err)
-		t.Fail()
+		t.Fatalf("create Resource client (%s): %v", address, err)
 	}
-
-	// Test if the owner has permission event the permission is explicitly specify!
-	hasPermission_3, _, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
+	authCli, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
 	if err != nil {
-		log.Println(err)
-		t.Fail()
+		t.Fatalf("create Authentication client (%s): %v", address, err)
 	}
 
-	if hasPermission_3 {
-		log.Println("account_0 has the permission to execute " + filePath)
-		t.Fail()
-	} else {
-		log.Println("account_0 has not the permission to execute " + filePath)
+	return clients{rbac: rbacCli, resource: resCli, auth: authCli, domain: domain}
+}
 
-	}
+func mustAuthSA(t *testing.T, c clients) string {
+	t.Helper()
+	token, err := c.auth.Authenticate("sa", "adminadmin")
+	mustNoErr(t, err, "authenticate sa")
+	return token
+}
 
-	// Put back account_0 in list of owners
-	err = rbac_client_.AddResourceOwner(filePath, "account_0", "file", rbacpb.SubjectType_ACCOUNT)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+func makeTempFile(t *testing.T, contents string) (path string, uri string) {
+	t.Helper()
+	dir := t.TempDir()
+	path = filepath.Join(dir, "toto.txt")
+	mustNoErr(t, os.WriteFile(path, []byte(contents), 0o666), "write temp file")
+	return path, "file:" + path
+}
 
-	hasPermission_3, _, err = rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
+func ignoreExists(err error) bool {
+	if err == nil {
+		return false
 	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "exist") || strings.Contains(s, "already")
+}
 
-	if hasPermission_3 {
-		log.Println("account_0 has the permission to execute " + filePath)
-	} else {
-		log.Println("account_0 has not the permission to execute " + filePath)
-		t.Fail()
-	}
-
-	// Test get permission without being the owner.
-	hasPermission_1, _, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "read", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-	if hasPermission_1 {
-		log.Println("account_1 has the permission to read " + filePath)
-	} else {
-		log.Println("account_1 has not the permission to read " + filePath)
-		t.Fail()
-	}
-
-	// Test not having permission whitout being the owner.
-	hasPermission_2, _, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "write", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-	if hasPermission_2 {
-		log.Println("account_1 has the permission to write " + filePath)
-	} else {
-		log.Println("account_1 has not the permission to write " + filePath)
-		t.Fail()
-	}
-
-	// Test having permission denied.
-	hasPermission_4, _, err := rbac_client_.ValidateAccess("account_2", rbacpb.SubjectType_ACCOUNT, "read", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-
-	if !hasPermission_4 {
-		log.Println("account_2 has permission denied to read " + filePath)
-	} else {
-		log.Println("account_2 can read  " + filePath)
-		t.Fail()
-	}
-
-	// Test permission denied for orgnization...
-	hasPermission_5, _, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-
-	// Here the owner write beat the denied permission.
-	if !hasPermission_5 {
-		log.Println("account_0 has permission denied to delete " + filePath)
-		t.Fail()
-	} else {
-		log.Println("account_0 can delete  " + filePath)
-	}
-
-	// Test permission denied because of account is in denied organization.
-	hasPermission_6, _, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-
-	// Here the owner write beat the denied permission.
-	if !hasPermission_6 {
-		log.Println("account_1 has permission denied to delete " + filePath)
-
-	} else {
-		log.Println("account_1 can delete  " + filePath)
-		t.Fail()
-	}
-
-	// Now I will try to delete one permission...
-	err = rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
-	if err != nil {
-		log.Println(err)
-	}
-	hasPermission_3, _, err = rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-
-	if hasPermission_3 {
-		log.Println("account_1 has the permission to execute " + filePath)
-		t.Fail()
-	} else {
-		log.Println("account_1 has not the permission to execute " + filePath)
-
-	}
-
-	// Here I will try to remove all access ...
-	err = rbac_client_.DeleteAllAccess("account_0", rbacpb.SubjectType_ACCOUNT)
-	if err != nil {
-		log.Println(err)
-	}
-
-	hasPermission_6, _, err = rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
-	if err != nil {
-		log.Println(err)
-	}
-
-	// Here the owner write beat the denied permission.
-	if !hasPermission_6 {
-		log.Println("account_0 dosen't has the permission to delete " + filePath)
-		t.Fail()
-	} else {
-		log.Println("account_0 can delete  " + filePath)
+func ensureAccount(t *testing.T, c clients, id string) {
+	t.Helper()
+	if err := c.resource.RegisterAccount(c.domain, id, id+" name", id+"@test.com", "1234", "1234"); err != nil && !ignoreExists(err) {
+		t.Fatalf("ensureAccount(%s): %v", id, err)
 	}
 }
 
-// Test delete a specific resource permission...
-func TestDeleteResourcePermissions(t *testing.T) {
-	filePath := "/tmp/toto.txt"
-
-	err := rbac_client_.DeleteResourcePermissions(filePath)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
+func ensureGroup(t *testing.T, c clients, token, id, name string) {
+	t.Helper()
+	if err := c.resource.CreateGroup(token, id, name, "test"); err != nil && !ignoreExists(err) {
+		t.Fatalf("ensureGroup(%s): %v", id, err)
 	}
 }
 
-func TestResetResources(t *testing.T) {
-	// Here I will create a file and set permission on it.
-	// authenticate as admin
-	token, err := authencation_client_.Authenticate("sa", "adminadmin")
-	if err != nil {
-		log.Println(err)
-		t.Fail()
+func ensureOrganization(t *testing.T, c clients, token, id, name, email string) {
+	t.Helper()
+	if err := c.resource.CreateOrganization(token, id, name, email, "test", "test"); err != nil && !ignoreExists(err) {
+		t.Fatalf("ensureOrganization(%s): %v", id, err)
 	}
+}
 
-	err = resource_client_.DeleteAccount("account_0", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
+func ensureGroupMemberAccount(t *testing.T, c clients, token, groupID, accountID string) {
+	t.Helper()
+	if err := c.resource.AddGroupMemberAccount(token, groupID, accountID); err != nil && !ignoreExists(err) {
+		t.Fatalf("ensureGroupMemberAccount(%s,%s): %v", groupID, accountID, err)
 	}
+}
 
-	// Delete the group
-	err = resource_client_.DeleteGroup("group_0", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
+func ensureOrganizationGroup(t *testing.T, c clients, token, orgID, groupID string) {
+	t.Helper()
+	if err := c.resource.AddOrganizationGroup(token, orgID, groupID); err != nil && !ignoreExists(err) {
+		t.Fatalf("ensureOrganizationGroup(%s,%s): %v", orgID, groupID, err)
 	}
+}
 
-	// Delete the organization.
-	err = resource_client_.DeleteOrganization("organization_0", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+func fqAccount(c clients, id string) string { return id + "@" + c.domain }
 
-	err = resource_client_.DeleteAccount("account_1", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+// -----------------------------------------------------------------------------
+// Suite
+// -----------------------------------------------------------------------------
 
-	err = resource_client_.DeleteAccount("account_2", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+func Test_RBAC_Suite(t *testing.T) {
+	c := mustClients(t)
+	token := mustAuthSA(t, c)
 
-	// Delete the group
-	err = resource_client_.DeleteGroup("group_1", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
+	t.Run("01_SetupResources", func(t *testing.T) {
+		// Orgs
+		ensureOrganization(t, c, token, "organization_0", "Organization 0", "organization_0@test.com")
+		ensureOrganization(t, c, token, "organization_1", "Organization 1", "organization_1@test.com")
+		// Groups
+		ensureGroup(t, c, token, "group_0", "Group 0")
+		ensureGroup(t, c, token, "group_1", "Group 1")
+		// Accounts
+		ensureAccount(t, c, "account_0")
+		ensureAccount(t, c, "account_1")
+		ensureAccount(t, c, "account_2")
+		// Memberships
+		ensureGroupMemberAccount(t, c, token, "group_0", "account_0")
+		ensureGroupMemberAccount(t, c, token, "group_1", "account_1")
+		// Group → Organization
+		ensureOrganizationGroup(t, c, token, "organization_0", "group_0")
+		ensureOrganizationGroup(t, c, token, "organization_1", "group_1")
+	})
 
-	// Delete the organization.
-	err = resource_client_.DeleteOrganization("organization_1", token)
-	if err != nil {
-		log.Println(err)
-		t.Fail()
-	}
-	/*
-		err = resource_client_.DeletePeer("", "p1.test.com")
-		if err != nil {
-			log.Println(err)
-			t.Fail()
+	t.Run("02_SetResourcePermissions", func(t *testing.T) {
+		_, fileURI := makeTempFile(t, "La vie ne vaut rien, mais rien ne vaut la vie!")
+
+		perms := &rbacpb.Permissions{
+			Allowed: []*rbacpb.Permission{
+				{
+					Name:          "read",
+					Accounts:      []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")},
+					Groups:        []string{"group_0", "group_1"},
+					Peers:         []string{"p0.test.com", "p1.test.com"},
+					Organizations: []string{"organization_0", "organization_1"},
+				},
+				{Name: "write", Accounts: []string{fqAccount(c, "account_0")}},
+				{Name: "execute", Accounts: []string{fqAccount(c, "account_1")}},
+				{Name: "delete", Accounts: []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")}},
+			},
+			Denied: []*rbacpb.Permission{
+				{Name: "read", Accounts: []string{fqAccount(c, "account_2")}},
+				{Name: "delete", Groups: []string{"group_1"}, Organizations: []string{"organization_1"}},
+			},
+			Owners: &rbacpb.Permission{Name: "owner", Accounts: []string{fqAccount(c, "account_0")}},
 		}
 
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, fileURI, "file", perms), "SetResourcePermissions")
+	})
 
-		err = resource_client_.DeletePeer("", "p0.test.com")
-		if err != nil {
-			log.Println(err)
-			t.Fail()
+	t.Run("03_GetResourcePermission", func(t *testing.T) {
+		ensureAccount(t, c, "account_0")
+
+		_, fileURI := makeTempFile(t, "abc")
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, fileURI, "file", &rbacpb.Permissions{}), "ensure resource exists")
+
+		mustNoErr(t,
+			c.rbac.SetResourcePermission(
+				token,
+				fileURI,
+				"file",
+				&rbacpb.Permission{Name: "read", Accounts: []string{fqAccount(c, "account_0")}},
+				rbacpb.PermissionType_ALLOWED,
+			),
+			"SetResourcePermission(read)",
+		)
+
+		_, err := c.rbac.GetResourcePermission(fileURI, "read", rbacpb.PermissionType_ALLOWED)
+		mustNoErr(t, err, "GetResourcePermission(read)")
+	})
+
+	t.Run("04_ValidateAccess", func(t *testing.T) {
+		// Ensure fixtures relevant to group/org-based rules
+		ensureAccount(t, c, "account_0")
+		ensureAccount(t, c, "account_1")
+		ensureAccount(t, c, "account_2")
+		ensureGroup(t, c, token, "group_1", "Group 1")
+		ensureOrganization(t, c, token, "organization_1", "Organization 1", "organization_1@test.com")
+		ensureGroupMemberAccount(t, c, token, "group_1", "account_1")
+		ensureOrganizationGroup(t, c, token, "organization_1", "group_1")
+
+		_, fileURI := makeTempFile(t, "xyz")
+
+		perms := &rbacpb.Permissions{
+			Allowed: []*rbacpb.Permission{
+				{Name: "read", Accounts: []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")}},
+				{Name: "write", Accounts: []string{fqAccount(c, "account_0")}},
+				{Name: "execute", Accounts: []string{fqAccount(c, "account_1")}},
+				{Name: "delete", Accounts: []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")}},
+			},
+			Denied: []*rbacpb.Permission{
+				{Name: "read", Accounts: []string{fqAccount(c, "account_2")}},
+				{Name: "delete", Groups: []string{"group_1"}, Organizations: []string{"organization_1"}},
+			},
+			Owners: &rbacpb.Permission{Name: "owner", Accounts: []string{fqAccount(c, "account_0")}},
 		}
-	*/
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, fileURI, "file", perms), "seed perms")
 
+		type check struct {
+			subject string
+			action  string
+			want    bool
+		}
+		cases := []check{
+			{fqAccount(c, "account_0"), "read", true},
+			{fqAccount(c, "account_1"), "read", true},
+			{fqAccount(c, "account_1"), "write", false},
+			{fqAccount(c, "account_2"), "read", false},
+			{fqAccount(c, "account_0"), "delete", true},
+			{fqAccount(c, "account_1"), "delete", false}, // denied by group_1/organization_1
+		}
+
+		validate := func(subj, action string) bool {
+			got, _, err := c.rbac.ValidateAccess(subj, rbacpb.SubjectType_ACCOUNT, action, fileURI)
+			mustNoErr(t, err, "ValidateAccess")
+			return got
+		}
+
+		for _, tc := range cases {
+			got := validate(tc.subject, tc.action)
+			if got != tc.want {
+				t.Fatalf("ValidateAccess(%s, %s) = %v; want %v", tc.subject, tc.action, got, tc.want)
+			}
+		}
+
+		// Remove owner; owner-derived rights should drop
+		mustNoErr(t, c.rbac.RemoveResourceOwner(token, fileURI, fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT), "RemoveResourceOwner(account_0)")
+		if got := validate(fqAccount(c, "account_0"), "execute"); got {
+			t.Fatalf("expected account_0 cannot execute after owner removal")
+		}
+
+		// Restore owner using correct argument order
+		mustNoErr(t, c.rbac.AddResourceOwner(token, fileURI, fqAccount(c, "account_0"), "file", rbacpb.SubjectType_ACCOUNT), "AddResourceOwner(account_0)")
+		if got := validate(fqAccount(c, "account_0"), "execute"); !got {
+			t.Fatalf("expected account_0 can execute after owner restored")
+		}
+	})
+
+	t.Run("05_DeleteSinglePermission_Effect", func(t *testing.T) {
+		ensureAccount(t, c, "account_1")
+
+		_, fileURI := makeTempFile(t, "exec")
+
+		mustNoErr(t, c.rbac.SetResourcePermission(
+			token,
+			fileURI,
+			"file",
+			&rbacpb.Permission{Name: "execute", Accounts: []string{fqAccount(c, "account_1")}},
+			rbacpb.PermissionType_ALLOWED,
+		), "SetResourcePermission(execute)")
+
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_1"), rbacpb.SubjectType_ACCOUNT, "execute", fileURI)
+		mustNoErr(t, err, "ValidateAccess execute before delete")
+		if !got {
+			t.Fatalf("expected account_1 can execute before delete")
+		}
+
+		mustNoErr(t, c.rbac.DeleteResourcePermission(token, fileURI, "execute", rbacpb.PermissionType_ALLOWED), "DeleteResourcePermission(execute)")
+
+		got, _, err = c.rbac.ValidateAccess(fqAccount(c, "account_1"), rbacpb.SubjectType_ACCOUNT, "execute", fileURI)
+		mustNoErr(t, err, "ValidateAccess execute after delete")
+		if got {
+			t.Fatalf("expected account_1 cannot execute after delete")
+		}
+	})
+
+	t.Run("06_DeleteAllAccess", func(t *testing.T) {
+		ensureAccount(t, c, "account_0")
+
+		_, fileURI := makeTempFile(t, "delall")
+
+		perms := &rbacpb.Permissions{
+			Allowed: []*rbacpb.Permission{
+				{Name: "delete", Accounts: []string{fqAccount(c, "account_0")}},
+			},
+			Owners: &rbacpb.Permission{Name: "owner", Accounts: []string{fqAccount(c, "account_0")}},
+		}
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, fileURI, "file", perms), "seed perms")
+
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "delete", fileURI)
+		mustNoErr(t, err, "ValidateAccess delete (before)")
+		if !got {
+			t.Fatalf("expected owner can delete before DeleteAllAccess")
+		}
+
+		mustNoErr(t, c.rbac.DeleteAllAccess(token, fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT), "DeleteAllAccess(account_0)")
+
+		got, _, err = c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "delete", fileURI)
+		mustNoErr(t, err, "ValidateAccess delete (after)")
+		if !got {
+			t.Fatalf("expected owner can still delete after DeleteAllAccess (implicit owner rights)")
+		}
+	})
+
+	t.Run("07_DeleteResourcePermissions", func(t *testing.T) {
+		ensureAccount(t, c, "account_0")
+
+		_, fileURI := makeTempFile(t, "cleanup")
+
+		mustNoErr(t, c.rbac.SetResourcePermission(
+			token, fileURI,"file",
+			&rbacpb.Permission{Name: "read", Accounts: []string{fqAccount(c, "account_0")}},
+			rbacpb.PermissionType_ALLOWED,
+		), "seed read perm")
+
+		mustNoErr(t, c.rbac.DeleteResourcePermissions(token, fileURI), "DeleteResourcePermissions(resource)")
+	})
+
+	t.Run("08_ResetResources", func(t *testing.T) {
+		// Best-effort cleanup (ignore "not found")
+		for _, grp := range []string{"group_0", "group_1"} {
+			_ = c.resource.DeleteGroup(token, grp)
+		}
+		for _, org := range []string{"organization_0", "organization_1"} {
+			_ = c.resource.DeleteOrganization(token, org)
+		}
+		for _, acc := range []string{"account_0", "account_1", "account_2"} {
+			_ = c.resource.DeleteAccount(token, acc)
+		}
+	})
+		
 }

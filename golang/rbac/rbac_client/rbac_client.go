@@ -279,12 +279,16 @@ func (client *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permissi
 }
 
 /** Delete a resource permissions (when a resource is deleted) **/
-func (client *Rbac_Client) DeleteResourcePermissions(path string) error {
+func (client *Rbac_Client) DeleteResourcePermissions(token, path string) error {
 	rqst := &rbacpb.DeleteResourcePermissionsRqst{
 		Path: path,
 	}
 
-	_, err := client.c.DeleteResourcePermissions(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.DeleteResourcePermissions(ctx, rqst)
 	return err
 }
 
@@ -323,31 +327,40 @@ func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type st
 }
 
 /** Delete a specific resource permission **/
-func (client *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {
+func (client *Rbac_Client) DeleteResourcePermission(token, path string, permissionName string, permissionType rbacpb.PermissionType) error {
 	rqst := &rbacpb.DeleteResourcePermissionRqst{
 		Name: permissionName,
 		Type: permissionType,
 		Path: path,
 	}
 
-	_, err := client.c.DeleteResourcePermission(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.DeleteResourcePermission(ctx, rqst)
 	return err
 }
 
 /** Set specific resource permission  ex. read permission... **/
-func (client *Rbac_Client) SetResourcePermission(path string, permission *rbacpb.Permission, permissionType rbacpb.PermissionType) error {
+func (client *Rbac_Client) SetResourcePermission(token, path, ressourceType string, permission *rbacpb.Permission, permissionType rbacpb.PermissionType) error {
 	rqst := &rbacpb.SetResourcePermissionRqst{
-		Permission: permission,
-		Type:       permissionType,
-		Path:       path,
+		Permission:   permission,
+		Type:         permissionType,
+		Path:         path,
+		ResourceType: ressourceType,
 	}
 
-	_, err := client.c.SetResourcePermission(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.SetResourcePermission(ctx, rqst)
 	return err
 }
 
 /** Add resource owner do nothing if it already exist */
-func (client *Rbac_Client) AddResourceOwner(path, resourceType, owner string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) AddResourceOwner(token, path, owner, resourceType string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.AddResourceOwnerRqst{
 		Type:         subjectType,
 		Subject:      owner,
@@ -355,31 +368,42 @@ func (client *Rbac_Client) AddResourceOwner(path, resourceType, owner string, su
 		ResourceType: resourceType,
 	}
 
-	_, err := client.c.AddResourceOwner(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddResourceOwner(ctx, rqst)
 	return err
 
 }
 
 /** Remove resource owner */
-func (client *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) RemoveResourceOwner(token, path string, owner string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.RemoveResourceOwnerRqst{
 		Subject: owner,
 		Path:    path,
 		Type:    subjectType,
 	}
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveResourceOwner(client.GetCtx(), rqst)
+	_, err := client.c.RemoveResourceOwner(ctx, rqst)
 	return err
 }
 
 /** That function must be call when a subject is removed to clean up permissions. */
-func (client *Rbac_Client) DeleteAllAccess(subject string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) DeleteAllAccess(token, subject string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.DeleteAllAccessRqst{
 		Subject: subject,
 		Type:    subjectType,
 	}
 
-	_, err := client.c.DeleteAllAccess(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.DeleteAllAccess(ctx, rqst)
 	return err
 
 }
@@ -455,7 +479,7 @@ func (client *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.Reso
 	return rsp.Infos, err
 }
 
-func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]interface{}) error {
+func (client *Rbac_Client) SetActionResourcesPermissions(token string, permissions map[string]interface{}) error {
 	permissions_, err := structpb.NewStruct(permissions)
 	if err != nil {
 		return err
@@ -464,7 +488,10 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 		Permissions: permissions_,
 	}
 
-	_, err = client.c.SetActionResourcesPermissions(client.GetCtx(), rqst)
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err = client.c.SetActionResourcesPermissions(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -472,15 +499,19 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 }
 
 /** Set subject allocated space **/
-func (client *Rbac_Client) SetAccountAllocatedSpace(accountId string, space uint64) error {
+func (client *Rbac_Client) SetAccountAllocatedSpace(token, accountId string, space uint64) error {
 
 	rqst := &rbacpb.SetSubjectAllocatedSpaceRqst{
-		Subject: accountId,
-		Type:     rbacpb.SubjectType_ACCOUNT,
-		AllocatedSpace:    space,
+		Subject:        accountId,
+		Type:           rbacpb.SubjectType_ACCOUNT,
+		AllocatedSpace: space,
 	}
 
-	_, err := client.c.SetSubjectAllocatedSpace(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.SetSubjectAllocatedSpace(ctx, rqst)
 	if err != nil {
 		return err
 	}

@@ -274,12 +274,12 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	}
 	return rbacClient.ValidateAccess(subject, subjectType, name, path)
 }
-func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbacClient, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return rbacClient.AddResourceOwner(path, resourceType, subject, subjectType)
+	return rbacClient.AddResourceOwner(token, path, subject, resourceType,subjectType)
 }
 
 // -----------------------------------------------------------------------------

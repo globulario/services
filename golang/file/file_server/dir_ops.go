@@ -657,6 +657,10 @@ func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest)
 }
 
 func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
 	path := srv.formatPath(rqst.GetPath())
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
@@ -703,7 +707,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	if permissions, err := rbacClient.GetResourcePermissionsByResourceType("file"); err == nil {
 		for _, p := range permissions {
 			if strings.HasPrefix(p.Path, path) {
-				if err := rbacClient.DeleteResourcePermissions(p.GetPath()); err != nil {
+				if err := rbacClient.DeleteResourcePermissions(token,p.GetPath()); err != nil {
 					slog.Warn("delete sub-permission failed", "path", p.GetPath(), "err", err)
 				}
 			}
@@ -711,7 +715,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	}
 
 	// Remove the directory permission entry itself
-	if err := rbacClient.DeleteResourcePermissions(rqst.GetPath()); err != nil {
+	if err := rbacClient.DeleteResourcePermissions(token, rqst.GetPath()); err != nil {
 		slog.Warn("delete dir permission failed", "path", rqst.GetPath(), "err", err)
 	}
 
@@ -816,7 +820,7 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 				for j := 0; j < len(filePerms); j++ {
 					p := filePerms[j]
 					if strings.HasPrefix(p.Path, rqst.Files[i]) {
-						if err := rbacClient.DeleteResourcePermissions(p.Path); err != nil {
+						if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
 							slog.Warn("move: delete old permission failed", "path", p.Path, "err", err)
 						}
 						d := rqst.Path + "/" + filepath.Base(rqst.Files[i])
@@ -828,7 +832,7 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 				}
 			} else {
 				if perm, err := rbacClient.GetResourcePermissions(rqst.Files[i]); err == nil && perm != nil {
-					if err := rbacClient.DeleteResourcePermissions(rqst.Files[i]); err != nil {
+					if err := rbacClient.DeleteResourcePermissions(token, rqst.Files[i]); err != nil {
 						slog.Warn("move: delete file permission failed", "path", rqst.Files[i], "err", err)
 					}
 					perm.Path = rqst.Path + "/" + filepath.Base(perm.Path)
@@ -954,7 +958,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		for i := 0; i < len(filePerms); i++ {
 			p := filePerms[i]
 			if strings.HasPrefix(p.Path, from) {
-				if err := rbacClient.DeleteResourcePermissions(p.Path); err != nil {
+				if err := rbacClient.DeleteResourcePermissions(token, p.Path); err != nil {
 					slog.Warn("rename: delete old permission failed", "path", p.Path, "err", err)
 				}
 				p.Path = strings.ReplaceAll(p.Path, from, dest)
@@ -964,7 +968,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 			}
 		}
 	} else if perm != nil {
-		if err := rbacClient.DeleteResourcePermissions(from); err != nil {
+		if err := rbacClient.DeleteResourcePermissions(token, from); err != nil {
 			slog.Warn("rename: delete file permission failed", "path", from, "err", err)
 		}
 		perm.Path = dest

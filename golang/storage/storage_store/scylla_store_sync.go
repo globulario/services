@@ -95,3 +95,22 @@ func (store *ScyllaStore) Drop() error {
 	store.actions <- action{name: "drop", errCh: errCh}
 	return <-errCh
 }
+
+// GetAllKeys retrieves all keys in the store.
+func (store *ScyllaStore) GetAllKeys() ([]string, error) {
+	resCh := make(chan any, 1)
+	errCh := make(chan error, 1)
+	store.actions <- action{name: "getallkeys", resCh: resCh, errCh: errCh}
+	if err := <-errCh; err != nil {
+		return nil, err
+	}
+	if v := <-resCh; v != nil {
+		if keys, ok := v.([]string); ok {
+			// return a copy for safety
+			copiedKeys := make([]string, len(keys))
+			copy(copiedKeys, keys)
+			return copiedKeys, nil
+		}
+	}
+	return nil, nil
+}

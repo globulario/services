@@ -276,3 +276,34 @@ func (srv *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*stor
 	logger.Info("store dropped", "id", rqst.GetId())
 	return &storagepb.DropResponse{Result: true}, nil
 }
+
+// GetAllKeys streams back all keys in the store.
+func (srv *server) GetAllKeys(rqst *storagepb.GetAllKeysRequest, stream storagepb.StorageService_GetAllKeysServer) error {
+	if _, ok := srv.Connections[rqst.GetId()]; !ok {
+		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+			errors.New("getAllKeys: no connection found with id "+rqst.GetId())))
+	}
+	store := srv.stores[rqst.GetId()]
+	if store == nil {
+		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+			errors.New("getAllKeys: no store found for connection id "+rqst.GetId())))
+	}
+
+	keys, err := store.GetAllKeys()
+	if err != nil {
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	const chunkSize = 100	
+	for i := 0; i < len(keys); i += chunkSize {
+		end := i + chunkSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		if err := stream.Send(&storagepb.GetAllKeysResponse{Keys: keys[i:end]}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

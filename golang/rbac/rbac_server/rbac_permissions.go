@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -139,13 +138,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Acccounts
 		if denied[i].Accounts != nil {
 			for j := range denied[i].Accounts {
-				exist, a := srv.accountExist(denied[i].Accounts[j])
+				exist, _ := srv.accountExist(denied[i].Accounts[j])
 				if exist {
-
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+a, path)
-					if err != nil {
-						return err
-					}
+					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
 			}
@@ -154,13 +149,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Applications
 		if denied[i].Applications != nil {
 			for j := range denied[i].Applications {
-				exist, a := srv.applicationExist(denied[i].Applications[j])
+				exist, _ := srv.applicationExist(denied[i].Applications[j])
 				if exist {
-
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+a, path)
-					if err != nil {
-						return err
-					}
+					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
 			}
@@ -170,11 +161,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		if denied[i].Peers != nil {
 			for j := range denied[i].Peers {
 				if srv.peerExist(denied[i].Peers[j]) {
-
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+denied[i].Peers[j], path)
-					if err != nil {
-						return err
-					}
+					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
 			}
@@ -183,13 +170,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Groups
 		if denied[i].Groups != nil {
 			for j := range denied[i].Groups {
-				exist, g := srv.groupExist(denied[i].Groups[j])
+				exist, _ := srv.groupExist(denied[i].Groups[j])
 				if exist {
-
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+g, path)
-					if err != nil {
-						return err
-					}
+					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
 			}
@@ -198,18 +181,13 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Organizations
 		if denied[i].Organizations != nil {
 			for j := range denied[i].Organizations {
-				exist, o := srv.organizationExist(denied[i].Organizations[j])
+				exist, _ := srv.organizationExist(denied[i].Organizations[j])
 				if exist {
-
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+o, path)
-					if err != nil {
-						return err
-					}
+					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
 			}
 		}
-
 	}
 
 	// remove the denied resources if no denied resources are set...
@@ -403,7 +381,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 	}
 
 	// simply marshal the permission and put it into the store.
-	data, err := json.Marshal(permissions)
+	data, err := protojson.Marshal(permissions)
 	if err != nil {
 		return err
 	}
@@ -437,19 +415,20 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 	return nil
 }
 
-
 // SetResourcePermissions sets the permissions for a specified resource.
 // It validates the request parameters, checks if the client is authorized to set permissions,
 // and applies the permissions to the resource. Only the owner of the resource or a service account
 // (client ID starting with "sa@") is allowed to set permissions.
 //
 // Parameters:
-//   ctx - The context for the request, used for authentication and tracing.
-//   rqst - The request containing the resource path, resource type, and permissions to set.
+//
+//	ctx - The context for the request, used for authentication and tracing.
+//	rqst - The request containing the resource path, resource type, and permissions to set.
 //
 // Returns:
-//   *rbacpb.SetResourcePermissionsRsp - The response indicating success.
-//   error - An error if validation fails, the client is not authorized, or the operation fails.
+//
+//	*rbacpb.SetResourcePermissionsRsp - The response indicating success.
+//	error - An error if validation fails, the client is not authorized, or the operation fails.
 func (srv *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRsp, error) {
 
 	if len(rqst.Path) == 0 {
@@ -551,60 +530,8 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 	}
 
 	// Denied resources
-	denied := permissions.Denied
-
-	for i := range denied {
-		// Acccounts
-		for j := range denied[i].Accounts {
-			exist, a := srv.accountExist(denied[i].Accounts[j])
-			if exist {
-				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+a, path)
-				if err != nil {
-					logPrintln(err)
-				}
-			}
-		}
-		// Applications
-		for j := range denied[i].Applications {
-			exist, a := srv.applicationExist(denied[i].Applications[j])
-			if exist {
-				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+a, path)
-				if err != nil {
-					logPrintln(err)
-				}
-			}
-		}
-
-		// Peers
-		for j := range denied[i].Peers {
-			err := srv.deleteSubjectResourcePermissions("PERMISSIONS/PEERS/"+denied[i].Peers[j], path)
-			if err != nil {
-				logPrintln(err)
-			}
-		}
-
-		// Groups
-		for j := range denied[i].Groups {
-			exist, g := srv.groupExist(denied[i].Groups[j])
-			if exist {
-				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/GROUPS/"+g, path)
-				if err != nil {
-					logPrintln(err)
-				}
-			}
-		}
-
-		// Organizations
-		for j := range denied[i].Organizations {
-			exist, o := srv.organizationExist(denied[i].Organizations[j])
-			if exist {
-				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+o, path)
-				if err != nil {
-					logPrintln(err)
-				}
-			}
-		}
-	}
+	// NOTE: We no longer index denied subjects in the allowed index space,
+	// so there is nothing to clean up here for denied entries.
 
 	// Owned resources
 	owners := permissions.Owners
@@ -772,10 +699,9 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 		srv.unshareResource(srv.Domain, path)
 	}
 
-	// Remove the path
-	err := srv.removeItem(path)
-	if err != nil {
-		logPrintln("fail to remove key ", path)
+	// Remove the path once
+	if err := srv.removeItem(path); err != nil {
+		logPrintln("fail to remove key ", path, ": ", err)
 	}
 
 	data, err := proto.Marshal(permissions)
@@ -786,7 +712,8 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 	encoded := []byte(base64.StdEncoding.EncodeToString(data))
 	srv.publish("delete_resources_permissions_event", encoded)
 
-	return srv.removeItem(path)
+	// already removed above
+	return nil
 }
 
 func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
@@ -806,7 +733,7 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 	}
 
 	permissions := new(rbacpb.Permissions)
-	err = json.Unmarshal(data, &permissions)
+	err = protojson.Unmarshal(data, permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -819,7 +746,9 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 
 	// save the value...
 	if needSave {
-		srv.setResourcePermissions(path, permissions.ResourceType, permissions)
+		if err := srv.setResourcePermissions(path, permissions.ResourceType, permissions); err != nil {
+			logPrintln("cleanupPermissions resave failed for ", path, ": ", err)
+		}
 	}
 
 	jsonStr, err := protojson.Marshal(permissions)
@@ -830,16 +759,18 @@ func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, err
 	return permissions, nil
 }
 
-
 // DeleteResourcePermissions deletes all permissions associated with a specified resource path.
 // It first retrieves the current permissions for the resource. If the resource is not found,
 // it returns an empty response without error. If any other error occurs during retrieval or
 // deletion of permissions, it returns an internal error with detailed information.
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the resource path whose permissions are to be deleted.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the resource path whose permissions are to be deleted.
+//
 // Returns:
-//   A response indicating the result of the delete operation, or an error if the operation fails.
+//
+//	A response indicating the result of the delete operation, or an error if the operation fails.
 func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRsp, error) {
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
@@ -866,45 +797,105 @@ func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.D
 // It takes a context and a DeleteResourcePermissionRqst containing the resource path, permission name, and type (allowed or denied).
 // The function retrieves the current permissions for the resource, removes the specified permission from the appropriate list,
 // updates the resource permissions, and returns a DeleteResourcePermissionRsp on success or an error if any operation fails.
+// DeleteResourcePermission removes the whole action entry (e.g. "execute")
+// from Allowed or Denied, then persists.
 func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRsp, error) {
+	path := rqst.Path
+	action := rqst.Name
+	kind := rqst.Type
 
-	permissions, err := srv.getResourcePermissions(rqst.Path)
+	perms, err := srv.getResourcePermissions(path)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.NotFound, "permissions not found for path %q", path)
 	}
 
-	switch rqst.Type {
+	// 1) Collect subjects tied to the action we’re deleting (so we can drop their index entries)
+	var rmAcc, rmGrp, rmOrg, rmApp, rmPeer []string
+	switch kind {
 	case rbacpb.PermissionType_ALLOWED:
-		// Remove the permission from the allowed permission
-		allowed := make([]*rbacpb.Permission, 0)
-		for i := range permissions.Allowed {
-			if permissions.Allowed[i].Name != rqst.Name {
-				allowed = append(allowed, permissions.Allowed[i])
+		for _, p := range perms.Allowed {
+			if p != nil && p.Name == action {
+				rmAcc = append(rmAcc, p.Accounts...)
+				rmGrp = append(rmGrp, p.Groups...)
+				rmOrg = append(rmOrg, p.Organizations...)
+				rmApp = append(rmApp, p.Applications...)
+				rmPeer = append(rmPeer, p.Peers...)
 			}
 		}
-		permissions.Allowed = allowed
 	case rbacpb.PermissionType_DENIED:
-		// Remove the permission from the allowed permission.
-		denied := make([]*rbacpb.Permission, 0)
-		for i := range permissions.Denied {
-			if permissions.Denied[i].Name != rqst.Name {
-				denied = append(denied, permissions.Denied[i])
+		for _, p := range perms.Denied {
+			if p != nil && p.Name == action {
+				rmAcc = append(rmAcc, p.Accounts...)
+				rmGrp = append(rmGrp, p.Groups...)
+				rmOrg = append(rmOrg, p.Organizations...)
+				rmApp = append(rmApp, p.Applications...)
+				rmPeer = append(rmPeer, p.Peers...)
 			}
 		}
-		permissions.Denied = denied
 	}
-	err = srv.setResourcePermissions(rqst.Path, permissions.ResourceType, permissions)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	// 2) Drop index entries *before* we persist, so setResourcePermissions can re-add for any subjects
+	//    that still have other actions or owner rights.
+	for _, a := range rmAcc {
+		if ok, id := srv.accountExist(a); ok {
+			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+id, path)
+		}
 	}
+	for _, g := range rmGrp {
+		if ok, id := srv.groupExist(g); ok {
+			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/GROUPS/"+id, path)
+		}
+	}
+	for _, o := range rmOrg {
+		if ok, id := srv.organizationExist(o); ok {
+			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+id, path)
+		}
+	}
+	for _, a := range rmApp {
+		if ok, id := srv.applicationExist(a); ok {
+			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+id, path)
+		}
+	}
+	for _, p := range rmPeer {
+		_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/PEERS/"+p, path)
+	}
+
+	// 3) Remove the action from the in-memory perms
+	filter := func(in []*rbacpb.Permission) []*rbacpb.Permission {
+		if len(in) == 0 {
+			return in
+		}
+		out := in[:0]
+		for _, p := range in {
+			if p == nil || p.Name != action {
+				out = append(out, p)
+			}
+		}
+		if len(out) == 0 {
+			return []*rbacpb.Permission{}
+		}
+		return out
+	}
+
+	switch kind {
+	case rbacpb.PermissionType_ALLOWED:
+		perms.Allowed = filter(perms.Allowed)
+	case rbacpb.PermissionType_DENIED:
+		perms.Denied = filter(perms.Denied)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown PermissionType: %v", kind)
+	}
+
+	// 4) Persist; this will (re)index whatever remains allowed/owner for this path
+	if err := srv.setResourcePermissions(path, perms.ResourceType, perms); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// 5) Invalidate the per-path cache
+	srv.cache.RemoveItem(path)
 
 	return &rbacpb.DeleteResourcePermissionRsp{}, nil
 }
-
 
 // GetResourcePermission retrieves a specific permission for a resource based on the provided request.
 // It searches for the permission by name in either the allowed or denied permissions list, depending on the request type.
@@ -912,12 +903,14 @@ func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.De
 // If the permission is not found or an error occurs during retrieval, it returns an appropriate error.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the resource path, permission name, and permission type.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the resource path, permission name, and permission type.
 //
 // Returns:
-//   *rbacpb.GetResourcePermissionRsp - The response containing the found permission.
-//   error - An error if the permission is not found or if there is an internal issue.
+//
+//	*rbacpb.GetResourcePermissionRsp - The response containing the found permission.
+//	error - An error if the permission is not found or if there is an internal issue.
 func (srv *server) GetResourcePermission(ctx context.Context, rqst *rbacpb.GetResourcePermissionRqst) (*rbacpb.GetResourcePermissionRsp, error) {
 
 	permissions, err := srv.getResourcePermissions(rqst.Path)
@@ -932,7 +925,7 @@ func (srv *server) GetResourcePermission(ctx context.Context, rqst *rbacpb.GetRe
 	case rbacpb.PermissionType_ALLOWED:
 		for i := range permissions.Allowed {
 			if permissions.Allowed[i].Name == rqst.Name {
-				return &rbacpb.GetResourcePermissionRsp{Permission: permissions.Denied[i]}, nil
+				return &rbacpb.GetResourcePermissionRsp{Permission: permissions.Allowed[i]}, nil
 			}
 		}
 	case rbacpb.PermissionType_DENIED: // search in denied permissions.
@@ -949,59 +942,90 @@ func (srv *server) GetResourcePermission(ctx context.Context, rqst *rbacpb.GetRe
 		"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No permission found with name "+rqst.Name)))
 }
 
+func upsertPermission(list []*rbacpb.Permission, p *rbacpb.Permission) []*rbacpb.Permission {
+	for i := range list {
+		if list[i].Name == p.Name {
+			list[i] = p
+			return list
+		}
+	}
+	return append(list, p)
+}
+
 // SetResourcePermission sets a permission for a resource, either as allowed or denied, based on the request type.
 // It retrieves the current permissions for the specified resource path, updates the allowed or denied permissions
 // by replacing or adding the specified permission, and then saves the updated permissions.
 // Returns an error if retrieving or setting permissions fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the resource path, permission type (allowed or denied), and the permission to set.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the resource path, permission type (allowed or denied), and the permission to set.
 //
 // Returns:
-//   *rbacpb.SetResourcePermissionRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*rbacpb.SetResourcePermissionRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) SetResourcePermission(ctx context.Context, rqst *rbacpb.SetResourcePermissionRqst) (*rbacpb.SetResourcePermissionRsp, error) {
-
+	// Try to fetch existing permissions
 	permissions, err := srv.getResourcePermissions(rqst.Path)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+	if rqst.Permission == nil {
+		return nil, errors.New("no permission given")
 	}
 
-	// Remove the permission from the allowed permission
+	if len(rqst.Path) == 0 {
+		return nil, errors.New("no resource path given")
+	}
+
+	if len(rqst.ResourceType) == 0 {
+		return nil, errors.New("no resource type given")
+	}
+
+	// If none exist yet, bootstrap a new record instead of failing
+	if err != nil {
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+		if strings.Contains(errStr, "item not found") ||
+			strings.Contains(errStr, "Key not found") ||
+			strings.Contains(errStr, "not found") {
+			permissions = &rbacpb.Permissions{
+				// Default to "file" for single resources; adjust if your system uses something else
+				ResourceType: rqst.ResourceType,
+				Allowed:      []*rbacpb.Permission{},
+				Denied:       []*rbacpb.Permission{},
+				Owners:       nil,
+				Path:         rqst.Path,
+			}
+		} else {
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Ensure slices are non-nil
+	if permissions.Allowed == nil {
+		permissions.Allowed = make([]*rbacpb.Permission, 0, 1)
+	}
+	if permissions.Denied == nil {
+		permissions.Denied = make([]*rbacpb.Permission, 0, 1)
+	}
+
+	// Upsert the requested permission into the right bucket
 	switch rqst.Type {
 	case rbacpb.PermissionType_ALLOWED:
-		allowed := make([]*rbacpb.Permission, 0)
-		for i := range permissions.Allowed {
-			if permissions.Allowed[i].Name == rqst.Permission.Name {
-				allowed = append(allowed, permissions.Allowed[i])
-			} else {
-				allowed = append(allowed, rqst.Permission)
-			}
-		}
-		permissions.Allowed = allowed
+		permissions.Allowed = upsertPermission(permissions.Allowed, rqst.Permission)
 	case rbacpb.PermissionType_DENIED:
-
-		// Remove the permission from the allowed permission.
-		denied := make([]*rbacpb.Permission, 0)
-		for i := range permissions.Denied {
-			if permissions.Denied[i].Name == rqst.Permission.Name {
-				denied = append(denied, permissions.Denied[i])
-			} else {
-				denied = append(denied, rqst.Permission)
-			}
-		}
-		permissions.Denied = denied
-	}
-	err = srv.setResourcePermissions(rqst.Path, permissions.ResourceType, permissions)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		permissions.Denied = upsertPermission(permissions.Denied, rqst.Permission)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown PermissionType: %v", rqst.Type)
 	}
 
+	// Persist the updated (or bootstrapped) permission set
+	if err := srv.setResourcePermissions(rqst.Path, permissions.ResourceType, permissions); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	return &rbacpb.SetResourcePermissionRsp{}, nil
 }
 

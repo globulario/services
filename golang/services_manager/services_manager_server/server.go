@@ -344,13 +344,6 @@ func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	}
 	return client.(*rbac_client.Rbac_Client), nil
 }
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	r, err := srv.GetRbacClient()
-	if err != nil {
-		return err
-	}
-	return r.SetActionResourcesPermissions(permissions)
-}
 
 // Log service
 func (srv *server) GetLogClient() (*log_client.Log_Client, error) {

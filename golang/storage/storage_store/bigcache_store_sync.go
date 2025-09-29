@@ -58,6 +58,30 @@ func (store *BigCache_store) run() {
 			// send result first (to avoid goroutine leaks), then return to stop the loop
 			action["result"].(chan error) <- store.close()
 			return
+
+		case "GetAllKeys":
+			if store.cache == nil {
+				action["results"].(chan map[string]interface{}) <- map[string]interface{}{
+					"keys": nil, "err": errors.New("bigcache: GetAllKeys on closed store"),
+				}
+				continue
+			}
+			iterator := store.cache.Iterator()
+			var keys []string
+			for iterator.SetNext() {
+				entry, err := iterator.Value()
+				if err == nil {
+					keys = append(keys, entry.Key())
+				}
+			}
+			action["results"].(chan map[string]interface{}) <- map[string]interface{}{"keys": keys, "err": nil}
+
+		default:
+			// Unknown action
+			bcLogger.Error("BigCache_store.run: unknown action", "action", action["name"])
+			if action["result"] != nil {
+				action["result"].(chan error) <- errors.New("BigCache_store.run: unknown action " + action["name"].(string))
+			}
 		}
 	}
 }
@@ -122,4 +146,15 @@ func (store *BigCache_store) Drop() error {
 	action := map[string]interface{}{"name": "Drop", "result": make(chan error)}
 	store.actions <- action
 	return <-action["result"].(chan error)
+}
+
+// GetAllKeys returns all keys in the store.
+func (store *BigCache_store) GetAllKeys() ([]string, error) {
+	action := map[string]interface{}{"name": "GetAllKeys", "results": make(chan map[string]interface{})}
+	store.actions <- action
+	results := <-action["results"].(chan map[string]interface{})
+	if results["err"] != nil {
+		return nil, results["err"].(error)
+	}
+	return results["keys"].([]string), nil
 }

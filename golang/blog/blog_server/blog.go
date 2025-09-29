@@ -24,7 +24,7 @@ import (
 // It persists the post, sets ownership in RBAC, and indexes it in Bleve.
 // Note: Public method signature must not change.
 func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPostRequest) (*blogpb.CreateBlogPostResponse, error) {
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		slog.Error("GetClientId failed", "err", err)
 		return nil, err
@@ -55,7 +55,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Owner
-	if err := srv.addResourceOwner(uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+	if err := srv.addResourceOwner(token, uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
 		slog.Error("addResourceOwner failed", "uuid", uuid, "author", clientId, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}

@@ -1189,7 +1189,7 @@ func (store *ScyllaStore) FindOne(ctx context.Context, connectionId string, keys
 		return nil, err
 	}
 	if len(results) == 0 {
-		return nil, errors.New("no entity found")
+		return nil, errors.New("no matching document found for query " + query)
 	}
 	return results[0], nil
 }
@@ -1349,7 +1349,7 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 		return err
 	}
 	if len(entities) == 0 {
-		return errors.New("no entity found")
+		return errors.New("no matching document found for query " + query)
 	}
 	for _, entity := range entities {
 		fields := make([]interface{}, 0)
@@ -1466,7 +1466,7 @@ func (store *ScyllaStore) UpdateOne(
 		return err
 	}
 	if len(entities) == 0 {
-		return errors.New("no entity found")
+		return errors.New("no matching document found for query " + query)
 	}
 	entity := entities[0]
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -42,17 +41,7 @@ func (s *Etcd_store) open(address string) error {
 	return nil
 }
 
-func splitCSV(s string) []string {
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		t := strings.TrimSpace(p)
-		if t != "" {
-			out = append(out, t)
-		}
-	}
-	return out
-}
+
 
 func (s *Etcd_store) setItem(key string, val []byte) error {
 	if s.client == nil {
@@ -102,4 +91,26 @@ func (s *Etcd_store) close() error {
 	s.client = nil
 	etcdLogger.Info("etcd closed")
 	return err
+}
+
+// Get all keys is not supported by etcd KV.
+func (s *Etcd_store) getAllKeys() ([]string, error) {
+	// Get the list of keys by querying with an empty key and WithKeysOnly option
+	if s.client == nil {
+		return nil, errors.New("etcd: getAllKeys on nil client")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	rsp, err := s.client.Get(ctx, "", clientv3.WithFromKey(), clientv3.WithKeysOnly())
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(rsp.Kvs))
+	for _, kv := range rsp.Kvs {
+		keys = append(keys, string(kv.Key))
+	}
+
+	return keys, nil
 }

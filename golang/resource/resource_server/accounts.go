@@ -15,13 +15,13 @@ import (
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
-	"golang.org/x/crypto/bcrypt"
 )
 
-func (srv *server) createGroup(id, name, owner, description string, members []string) error {
+func (srv *server) createGroup(token, id, name, owner, description string, members []string) error {
 
 	localDomain, err := config.GetDomain()
 	if err != nil {
@@ -80,7 +80,7 @@ func (srv *server) createGroup(id, name, owner, description string, members []st
 	}
 
 	// Now create the resource permission.
-	srv.addResourceOwner(id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
 	logger.Info("group created", "group_id", id, "owner", owner)
 	return nil
 }
@@ -88,13 +88,18 @@ func (srv *server) createGroup(id, name, owner, description string, members []st
 /**
  * Create account dir for all account in the database if not already exist.
  */
-func (srv *server) CreateAccountDir() error {
+func (srv *server) CreateAccountDir(ctx context.Context) error {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
 	q := `{}`
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Make sure some account exist on the server.
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -114,16 +119,21 @@ func (srv *server) CreateAccountDir() error {
 		path := "/users/" + id + "@" + domain
 		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
 			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-			srv.addResourceOwner(path, "file", id+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner(token, path, "file", id+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 		}
 	}
 
 	return nil
 }
 
-func (srv *server) createRole(id, name, owner string, description string, actions []string) error {
+func (srv *server) createRole(ctx context.Context, id, name, owner string, description string, actions []string) error {
 
 	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return err
 	}
@@ -165,7 +175,7 @@ func (srv *server) createRole(id, name, owner string, description string, action
 	}
 
 	if name != "admin" {
-		srv.addResourceOwner(id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+		srv.addResourceOwner(token, id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	}
 
 	return nil
@@ -374,13 +384,13 @@ func (srv *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.Ad
 // Returns an error if the client ID cannot be retrieved or if group creation fails.
 func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get the persistence connection
-	err = srv.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
+	err = srv.createGroup(token, rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -407,7 +417,7 @@ func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroup
 // Returns a CreateOrganizationRsp with the result or an error if any step fails.
 func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -504,7 +514,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	}
 
 	// create the resource owner.
-	srv.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -617,7 +627,13 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 	}
 
-	srv.deleteAllAccess(accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	srv.deleteAllAccess(token, accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
@@ -683,8 +699,8 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	}
 
 	// Remove the file...
-	srv.deleteResourcePermissions("/users/" + name + "@" + domain)
-	srv.deleteAllAccess(name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	srv.deleteResourcePermissions(token, "/users/"+name+"@"+domain)
+	srv.deleteAllAccess(token, name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
@@ -705,6 +721,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 //   - Deletes the group from the persistence store.
 //   - Removes resource permissions and access controls related to the group.
 //   - Publishes group deletion events.
+//
 // Returns a DeleteGroupRsp indicating the result or an error if the operation fails.
 func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
 
@@ -732,7 +749,7 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 	// Get the persistence connection
 	p, err := srv.getPersistenceStore()
 	if err != nil {
-		logger.Info("log", "args", []interface{}{ "fail to get persistence connection ", err })
+		logger.Info("log", "args", []interface{}{"fail to get persistence connection ", err})
 		return nil, err
 	}
 
@@ -799,8 +816,15 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 
 	groupId = group["_id"].(string) + "@" + group["domain"].(string)
 
-	srv.deleteResourcePermissions(rqst.Group)
-	srv.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	srv.deleteResourcePermissions(token, rqst.Group)
+	srv.deleteAllAccess(token, groupId, rbacpb.SubjectType_GROUP)
 
 	srv.publishEvent("delete_group_"+groupId+"_evt", []byte{}, srv.Address)
 
@@ -818,6 +842,13 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 // Events are published to notify other services of the deletion and updates.
 // Returns a DeleteOrganizationRsp with the result or an error if the operation fails.
 func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.DeleteOrganizationRqst) (*resourcepb.DeleteOrganizationRsp, error) {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	localDomain, err := config.GetDomain()
 	organizationId := rqst.Organization
@@ -873,7 +904,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
 				err := srv.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
 				if err != nil {
-					logger.Info("log", "args", []interface{}{ err })
+					logger.Info("log", "args", []interface{}{err})
 				}
 
 				srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, srv.Address)
@@ -896,7 +927,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
 				err := srv.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
 				if err != nil {
-					logger.Info("log", "args", []interface{}{ err })
+					logger.Info("log", "args", []interface{}{err})
 				}
 
 				srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, srv.Address)
@@ -919,7 +950,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 				applicationId := applications[i].(map[string]interface{})["$id"].(string)
 				err := srv.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
 				if err != nil {
-					logger.Info("log", "args", []interface{}{ err })
+					logger.Info("log", "args", []interface{}{err})
 				}
 
 				srv.publishEvent("update_application_"+applicationId+"_evt", []byte{}, srv.Address)
@@ -942,7 +973,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 				accountId := accounts[i].(map[string]interface{})["$id"].(string)
 				err := srv.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
 				if err != nil {
-					logger.Info("log", "args", []interface{}{ err })
+					logger.Info("log", "args", []interface{}{err})
 				}
 
 				srv.publishEvent("update_account_"+accountId+"_evt", []byte{}, srv.Address)
@@ -952,7 +983,7 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 
 	// Delete organization
 	organizationId = organization["_id"].(string) + "@" + organization["domain"].(string)
-	srv.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
+	srv.deleteAllAccess(token, organizationId, rbacpb.SubjectType_ORGANIZATION)
 
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", q, "")
@@ -962,8 +993,8 @@ func (srv *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.Dele
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	srv.deleteResourcePermissions(organizationId)
-	srv.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
+	srv.deleteResourcePermissions(token, organizationId)
+	srv.deleteAllAccess(token, organizationId, rbacpb.SubjectType_ORGANIZATION)
 
 	srv.publishEvent("delete_organization_"+organizationId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("delete_organization_evt", []byte(organizationId), srv.Address)
@@ -1020,7 +1051,7 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
-		logger.Info("log", "args", []interface{}{ "fail to retrieve account:", accountId, " from database with error:", err })
+		logger.Info("log", "args", []interface{}{"fail to retrieve account:", accountId, " from database with error:", err})
 		return nil, status.Errorf(
 			codes.Internal,
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1136,7 +1167,6 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 }
 
-
 func (srv *server) getAccount(query string, options string) ([]*resourcepb.Account, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -1216,7 +1246,6 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 	return results, nil
 }
 
-
 // GetAccounts streams account information based on the provided query and options.
 // It retrieves accounts using srv.getAccount, then sends them in batches of up to 100
 // via the provided gRPC stream. If an error occurs during retrieval or streaming, it returns
@@ -1255,7 +1284,6 @@ func (srv *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resource
 
 	return nil
 }
-
 
 func (srv *server) getGroup(id string) (*resourcepb.Group, error) {
 
@@ -1633,7 +1661,12 @@ func (srv *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.I
 /**
  * Register an Account.
  */
-func (srv *server) registerAccount(domain, id, name, email, password, refresh_token, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
+func (srv *server) registerAccount(ctx context.Context, domain, id, name, email, password, refresh_token, first_name, last_name, middle_name, profile_picture string, organizations []string, roles []string, groups []string) error {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return err
+	}
 
 	localDomain, err := config.GetDomain()
 	if err != nil {
@@ -1740,13 +1773,13 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 	// Create the user file directory.
 	path := "/users/" + id + "@" + localDomain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	err = srv.addResourceOwner(path, "file", id+"@"+localDomain, rbacpb.SubjectType_ACCOUNT)
+	err = srv.addResourceOwner(token, path, "file", id+"@"+localDomain, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		fmt.Println("fail to add resource owner with error ", err)
 	}
 
 	// Now I will allocate the new account disk space.
-	srv.SetAccountAllocatedSpace(id, 0)
+	srv.SetAccountAllocatedSpace(token, id, 0)
 
 	return err
 }
@@ -1759,12 +1792,14 @@ func (srv *server) registerAccount(domain, id, name, email, password, refresh_to
 // Returns a RegisterAccountRsp containing the authentication token or an error if registration fails.
 //
 // Parameters:
-//   ctx  - context for the request.
-//   rqst - RegisterAccountRqst containing account details.
+//
+//	ctx  - context for the request.
+//	rqst - RegisterAccountRqst containing account details.
 //
 // Returns:
-//   *resourcepb.RegisterAccountRsp - response containing the authentication token.
-//   error                          - error if registration fails.
+//
+//	*resourcepb.RegisterAccountRsp - response containing the authentication token.
+//	error                          - error if registration fails.
 func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.RegisterAccountRqst) (*resourcepb.RegisterAccountRsp, error) {
 	var account *resourcepb.Account
 	// Regular account registration
@@ -1789,7 +1824,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Register the account in the system
-	err := srv.registerAccount(
+	err := srv.registerAccount(ctx,
 		account.Domain, account.Id, account.Name, account.Email, account.Password, account.RefreshToken,
 		account.FirstName, account.LastName, account.Middle, account.ProfilePicture,
 		account.Organizations, account.Roles, account.Groups,
@@ -1811,7 +1846,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
-	
+
 	// Validate the token...
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
@@ -1855,10 +1890,10 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 //   - error: An error if the removal fails.
 //
 // The function performs the following steps:
-//   1. Retrieves the persistence store.
-//   2. Deletes the reference from the account to the group ("members" in "Groups").
-//   3. Deletes the reference from the group to the account ("groups" in "Accounts").
-//   4. Publishes update events for both the group and the account.
+//  1. Retrieves the persistence store.
+//  2. Deletes the reference from the account to the group ("members" in "Groups").
+//  3. Deletes the reference from the group to the account ("groups" in "Accounts").
+//  4. Publishes update events for both the group and the account.
 func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcepb.RemoveGroupMemberAccountRqst) (*resourcepb.RemoveGroupMemberAccountRsp, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -1905,7 +1940,7 @@ func (srv *server) RemoveOrganizationAccount(ctx context.Context, rqst *resource
 	if err != nil {
 		return nil, err
 	}
-	
+
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, srv.Address)
 
@@ -1964,7 +1999,6 @@ func (srv *server) RemoveOrganizationGroup(ctx context.Context, rqst *resourcepb
 	return &resourcepb.RemoveOrganizationGroupRsp{Result: true}, nil
 }
 
-
 // SetAccount updates an account in the resource server.
 //
 // It takes a context and a SetAccountRqst containing the account information to be updated.
@@ -1982,16 +2016,19 @@ func (srv *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRq
 // for both the contact and the account.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the account ID and contact information.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the account ID and contact information.
 //
 // Returns:
-//   *resourcepb.SetAccountContactRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.SetAccountContactRsp - The response indicating success.
+//	error - An error if the operation fails.
 //
 // Errors:
-//   Returns an error if the contact is missing, the account domain is invalid,
-//   persistence store cannot be accessed, or the database operation fails.
+//
+//	Returns an error if the contact is missing, the account domain is invalid,
+//	persistence store cannot be accessed, or the database operation fails.
 func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
 
 	if rqst.Contact == nil {
@@ -2039,19 +2076,21 @@ func (srv *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAc
 }
 
 // SetAccountPassword updates the password for a specified account.
-// It validates the old password (unless the request is from the 'sa' client), 
+// It validates the old password (unless the request is from the 'sa' client),
 // changes the password in the underlying persistence store (MongoDB, ScyllaDB, or SQL),
 // hashes the new password, and updates it in the account record.
 // If the 'sa' account password is changed, it updates the backend password and reconnects to the persistence service.
 // Returns an error if any step fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the account ID, old password, and new password.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the account ID, old password, and new password.
 //
 // Returns:
-//   *resourcepb.SetAccountPasswordRsp - The response object.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.SetAccountPasswordRsp - The response object.
+//	error - An error if the operation fails.
 func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
@@ -2104,7 +2143,6 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
 	}
 
-	
 	// Change the password...
 	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, changePasswordScript)
 	if err != nil {
@@ -2157,12 +2195,14 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 // Returns a SetEmailResponse on success or an error if the operation fails.
 //
 // Parameters:
-//   ctx - the context for the request.
-//   rqst - the request containing AccountId, OldEmail, and NewEmail.
+//
+//	ctx - the context for the request.
+//	rqst - the request containing AccountId, OldEmail, and NewEmail.
 //
 // Returns:
-//   *resourcepb.SetEmailResponse - the response object.
-//   error - error if the operation fails.
+//
+//	*resourcepb.SetEmailResponse - the response object.
+//	error - error if the operation fails.
 func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
 
 	// Here I will set the root password.
@@ -2242,7 +2282,6 @@ func (srv *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailReques
 	return &resourcepb.SetEmailResponse{}, nil
 }
 
-
 func (srv *server) updateAccount(ctx context.Context, account *resourcepb.Account) error {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -2300,12 +2339,14 @@ func (srv *server) updateAccount(ctx context.Context, account *resourcepb.Accoun
 // Returns a response indicating the result of the operation or an error if the update fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the GroupId and new values.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the GroupId and new values.
 //
 // Returns:
-//   *resourcepb.UpdateGroupRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.UpdateGroupRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroupRqst) (*resourcepb.UpdateGroupRsp, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -2346,12 +2387,14 @@ func (srv *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroup
 // Returns a response indicating the result of the operation or an error if the update fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the OrganizationId and the new values.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the OrganizationId and the new values.
 //
 // Returns:
-//   *resourcepb.UpdateOrganizationRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.UpdateOrganizationRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {

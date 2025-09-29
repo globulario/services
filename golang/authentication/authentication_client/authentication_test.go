@@ -14,7 +14,7 @@ func getenv(k, def string) string {
 }
 
 var (
-	domain   = getenv("GLOBULAR_DOMAIN", "globular.io") // make sure this matches your running stack
+	domain   = getenv("GLOBULAR_DOMAIN", "globule-ryzen.globular.io") // make sure this matches your running stack
 	saUser   = getenv("GLOBULAR_SA_USER", "sa")
 	saPwd    = getenv("GLOBULAR_SA_PWD", "adminadmin")
 	rotateOK = getenv("AUTH_TEST_ALLOW_ROTATE", "") == "true"

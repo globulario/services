@@ -146,6 +146,28 @@ func (store *Badger_store) removeItem(key string) error {
 	})
 }
 
+// getAllKeys returns all keys in the store.
+func (store *Badger_store) getAllKeys() ([]string, error) {
+	if store.db == nil {
+		return nil, errors.New("badger: getAllKeys: db is not open")
+	}
+
+	var keys []string
+	err := store.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false // we only need keys
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			keys = append(keys, string(item.Key()))
+		}
+		return nil
+	})
+	return keys, err
+}	
+
 // clear removes all data (same as DropAll).
 func (store *Badger_store) clear() error {
 	if store.db == nil {

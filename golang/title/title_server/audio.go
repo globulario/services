@@ -28,7 +28,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
 	}
@@ -56,7 +56,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		return nil, status.Errorf(codes.Internal, "rbac client: %v", err)
 	}
 	if perms, _ := rbacClient.GetResourcePermissions(rqst.Audio.ID); perms == nil {
-		if err := rbacClient.AddResourceOwner(rqst.Audio.ID, "audio_infos", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+		if err := rbacClient.AddResourceOwner(token, rqst.Audio.ID, clientId, "audio_infos", rbacpb.SubjectType_ACCOUNT); err != nil {
 			return nil, status.Errorf(codes.Internal, "set audio owner: %v", err)
 		}
 	}
@@ -204,7 +204,7 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 
 
 // deleteAudio removes an Audio and all associations, RBAC permissions and publishes events.
-func (srv *server) deleteAudio(indexPath string, audioId string) error {
+func (srv *server) deleteAudio(token, indexPath string, audioId string) error {
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func (srv *server) deleteAudio(indexPath string, audioId string) error {
 	dirs := make([]string, 0)
 	if paths, err := srv.getTitleFiles(indexPath, audioId); err == nil {
 		for _, p := range paths {
-			_ = srv.dissociateFileWithTitle(indexPath, audioId, p)
+			_ = srv.dissociateFileWithTitle(token, indexPath, audioId, p)
 			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
 		}
 	}
@@ -230,7 +230,7 @@ func (srv *server) deleteAudio(indexPath string, audioId string) error {
 	if err != nil {
 		return err
 	}
-	if err := rbacClient.DeleteResourcePermissions(audioId); err != nil {
+	if err := rbacClient.DeleteResourcePermissions(token, audioId); err != nil {
 		return err
 	}
 
@@ -242,7 +242,12 @@ func (srv *server) deleteAudio(indexPath string, audioId string) error {
 
 // DeleteAudio gRPC removes an audio by ID.
 func (srv *server) DeleteAudio(ctx context.Context, rqst *titlepb.DeleteAudioRequest) (*titlepb.DeleteAudioResponse, error) {
-	if err := srv.deleteAudio(rqst.IndexPath, rqst.AudioId); err != nil {
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
+	}
+
+	if err := srv.deleteAudio(token, rqst.IndexPath, rqst.AudioId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	logger.Info("audio deleted", "audioID", rqst.AudioId)

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/titlepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
@@ -99,6 +100,11 @@ func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 
 // DissociateFileWithTitle removes the association between a file and a title.
 func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
+	}
+
 	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
 	if !Utility.Exists(abs) {
 		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
@@ -110,14 +116,14 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	if !Utility.Exists(abs) {
 		return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
 	}
-	if err := srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, abs); err != nil {
+	if err := srv.dissociateFileWithTitle(token, rqst.IndexPath, rqst.TitleId, abs); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &titlepb.DissociateFileWithTitleResponse{}, nil
 }
 
 // dissociateFileWithTitle performs the actual store/index updates for a dissociation.
-func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath string) error {
+func (srv *server) dissociateFileWithTitle(token, indexPath, titleId, absoluteFilePath string) error {
 	if !Utility.Exists(indexPath) {
 		return errors.New("no database found at path " + indexPath)
 	}
@@ -171,11 +177,11 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 	if len(titleAssoc.Paths) == 0 {
 		associations.RemoveItem(titleId)
 		if strings.HasSuffix(indexPath, "/search/videos") {
-			_ = srv.deleteVideo(indexPath, titleId)
+			_ = srv.deleteVideo(token,indexPath, titleId)
 		} else if strings.HasSuffix(indexPath, "/search/audios") {
-			_ = srv.deleteAudio(indexPath, titleId)
+			_ = srv.deleteAudio(token, indexPath, titleId)
 		} else if strings.HasSuffix(indexPath, "/search/titles") {
-			_ = srv.deleteTitle(indexPath, titleId)
+			_ = srv.deleteTitle(token, indexPath, titleId)
 		}
 	} else {
 		raw, _ := json.Marshal(titleAssoc)

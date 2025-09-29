@@ -303,12 +303,12 @@ func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbacClient, err := srv.GetRbacClient()
 	if err != nil {
 		return err
 	}
-	return rbacClient.AddResourceOwner(path, resourceType, subject, subjectType)
+	return rbacClient.AddResourceOwner(token, path, subject, resourceType, subjectType)
 }
 
 // ////////////////////// Event helpers //////////////////////

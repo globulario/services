@@ -124,8 +124,9 @@ message GetResourcePermissionRsp {
  */
 message SetResourcePermissionRqst {
     string path = 1; // Resource identifier or path.
-    Permission permission = 2; // The permission to be set.
-    PermissionType type = 3; // Type of the permission (ALLOWED or DENIED).
+    string resourceType = 2; // Type of the resource.
+    Permission permission = 3; // The permission to be set.
+    PermissionType type = 4; // Type of the permission (ALLOWED or DENIED).
 }
 
 /**

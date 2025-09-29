@@ -482,7 +482,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 		owner += "@" + domain
 	}
 
-	err = srv.addResourceOwner("/applications/"+name, "file", owner, rbacpb.SubjectType_APPLICATION)
+	err = srv.addResourceOwner(token, "/applications/"+name, "file", owner, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}

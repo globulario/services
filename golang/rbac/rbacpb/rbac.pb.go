@@ -980,8 +980,9 @@ func (x *GetResourcePermissionRsp) GetPermission() *Permission {
 type SetResourcePermissionRqst struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`                           // Resource identifier or path.
-	Permission    *Permission            `protobuf:"bytes,2,opt,name=permission,proto3" json:"permission,omitempty"`               // The permission to be set.
-	Type          PermissionType         `protobuf:"varint,3,opt,name=type,proto3,enum=rbac.PermissionType" json:"type,omitempty"` // Type of the permission (ALLOWED or DENIED).
+	ResourceType  string                 `protobuf:"bytes,2,opt,name=resourceType,proto3" json:"resourceType,omitempty"`           // Type of the resource.
+	Permission    *Permission            `protobuf:"bytes,3,opt,name=permission,proto3" json:"permission,omitempty"`               // The permission to be set.
+	Type          PermissionType         `protobuf:"varint,4,opt,name=type,proto3,enum=rbac.PermissionType" json:"type,omitempty"` // Type of the permission (ALLOWED or DENIED).
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1019,6 +1020,13 @@ func (*SetResourcePermissionRqst) Descriptor() ([]byte, []int) {
 func (x *SetResourcePermissionRqst) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *SetResourcePermissionRqst) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
 	}
 	return ""
 }
@@ -2743,13 +2751,14 @@ const file_rbac_proto_rawDesc = "" +
 	"\x18GetResourcePermissionRsp\x120\n" +
 	"\n" +
 	"permission\x18\x01 \x01(\v2\x10.rbac.PermissionR\n" +
-	"permission\"\x8b\x01\n" +
+	"permission\"\xaf\x01\n" +
 	"\x19SetResourcePermissionRqst\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\x120\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\"\n" +
+	"\fresourceType\x18\x02 \x01(\tR\fresourceType\x120\n" +
 	"\n" +
-	"permission\x18\x02 \x01(\v2\x10.rbac.PermissionR\n" +
+	"permission\x18\x03 \x01(\v2\x10.rbac.PermissionR\n" +
 	"permission\x12(\n" +
-	"\x04type\x18\x03 \x01(\x0e2\x14.rbac.PermissionTypeR\x04type\"\x1a\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x14.rbac.PermissionTypeR\x04type\"\x1a\n" +
 	"\x18SetResourcePermissionRsp\"\x8f\x01\n" +
 	"\x14AddResourceOwnerRqst\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\"\n" +

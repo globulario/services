@@ -233,7 +233,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
 	}
@@ -271,7 +271,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		return nil, status.Errorf(codes.Internal, "rbac client: %v", err)
 	}
 	if perms, _ := rbacClient.GetResourcePermissions(rqst.Title.ID); perms == nil {
-		if err := rbacClient.AddResourceOwner(rqst.Title.ID, "title_infos", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+		if err := rbacClient.AddResourceOwner(token, rqst.Title.ID, clientId, "title_infos", rbacpb.SubjectType_ACCOUNT); err != nil {
 			return nil, status.Errorf(codes.Internal, "set title owner: %v", err)
 		}
 	}
@@ -323,7 +323,7 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 }
 
 // deleteTitle removes a Title and its permissions, updates casting and associations, and publishes events.
-func (srv *server) deleteTitle(indexPath, titleId string) error {
+func (srv *server) deleteTitle(token, indexPath, titleId string) error {
 	title, err := srv.getTitleById(indexPath, titleId)
 	if err != nil {
 		return err
@@ -350,7 +350,7 @@ func (srv *server) deleteTitle(indexPath, titleId string) error {
 	dirs := make([]string, 0)
 	if paths, err := srv.getTitleFiles(indexPath, titleId); err == nil {
 		for _, p := range paths {
-			_ = srv.dissociateFileWithTitle(indexPath, titleId, p)
+			_ = srv.dissociateFileWithTitle(token, indexPath, titleId, p)
 			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
 		}
 	}
@@ -371,7 +371,7 @@ func (srv *server) deleteTitle(indexPath, titleId string) error {
 	if err != nil {
 		return err
 	}
-	if err := rbacClient.DeleteResourcePermissions(titleId); err != nil {
+	if err := rbacClient.DeleteResourcePermissions(token, titleId); err != nil {
 		return err
 	}
 
@@ -386,7 +386,11 @@ func (srv *server) deleteTitle(indexPath, titleId string) error {
 
 // DeleteTitle removes a Title by ID.
 func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
-	if err := srv.deleteTitle(rqst.IndexPath, rqst.TitleId); err != nil {
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
+	}
+	if err := srv.deleteTitle(token, rqst.IndexPath, rqst.TitleId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	logger.Info("title deleted", "titleID", rqst.TitleId)
@@ -394,7 +398,7 @@ func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleReq
 }
 
 // createVideo indexes a Video, sets ownership and persists raw JSON, then publishes update event.
-func (srv *server) createVideo(indexPath, clientId string, video *titlepb.Video) error {
+func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb.Video) error {
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return err
@@ -413,7 +417,7 @@ func (srv *server) createVideo(indexPath, clientId string, video *titlepb.Video)
 		return err
 	}
 	if perms, _ := rbacClient.GetResourcePermissions(video.ID); perms == nil {
-		if err := rbacClient.AddResourceOwner(video.ID, "video_infos", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+		if err := rbacClient.AddResourceOwner(token, video.ID, clientId, "video_infos", rbacpb.SubjectType_ACCOUNT); err != nil {
 			return err
 		}
 	}
@@ -464,11 +468,11 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 
 // CreateVideo inserts or updates a Video and sets RBAC ownership.
 func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := srv.createVideo(rqst.IndexPath, clientId, rqst.Video); err != nil {
+	if err := srv.createVideo(token, rqst.IndexPath, clientId, rqst.Video); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	logger.Info("video created", "videoID", rqst.Video.GetID())
@@ -534,7 +538,7 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 }
 
 // deleteVideo removes a video and its associations and permissions, then publishes events.
-func (srv *server) deleteVideo(indexPath, videoId string) error {
+func (srv *server) deleteVideo(token, indexPath, videoId string) error {
 	video, err := srv.getVideoById(indexPath, videoId)
 	if err != nil {
 		return err
@@ -549,7 +553,7 @@ func (srv *server) deleteVideo(indexPath, videoId string) error {
 	dirs := make([]string, 0)
 	if paths, err := srv.getTitleFiles(indexPath, videoId); err == nil {
 		for _, p := range paths {
-			_ = srv.dissociateFileWithTitle(indexPath, videoId, p)
+			_ = srv.dissociateFileWithTitle(token, indexPath, videoId, p)
 			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
 		}
 	}
@@ -576,7 +580,7 @@ func (srv *server) deleteVideo(indexPath, videoId string) error {
 	if err != nil {
 		return err
 	}
-	if err := rbacClient.DeleteResourcePermissions(videoId); err != nil {
+	if err := rbacClient.DeleteResourcePermissions(token, videoId); err != nil {
 		return err
 	}
 
@@ -588,7 +592,12 @@ func (srv *server) deleteVideo(indexPath, videoId string) error {
 
 // DeleteVideo removes a video by ID.
 func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
-	if err := srv.deleteVideo(rqst.IndexPath, rqst.VideoId); err != nil {
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
+	}
+
+	if err := srv.deleteVideo(token, rqst.IndexPath, rqst.VideoId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	logger.Info("video deleted", "videoID", rqst.VideoId)

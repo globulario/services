@@ -619,7 +619,7 @@ func (srv *server) setOwner(token, path string) error {
 	if strings.Contains(path, "/files/users/") {
 		path = path[strings.Index(path, "/users/"):]
 	}
-	return rbac_client_.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
+	return rbac_client_.AddResourceOwner(token, path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 }
 
 func subscribeWithRetry(

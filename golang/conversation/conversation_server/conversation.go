@@ -161,7 +161,7 @@ CreateConversation creates a new conversation owned by the authenticated user
 and returns the created Conversation.
 */
 func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -188,7 +188,7 @@ func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	if err := srv.addParticipantConversation(clientId, uuid); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := srv.addResourceOwner(uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+	if err := srv.addResourceOwner(token, uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -239,7 +239,7 @@ func (srv *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	return &conversationpb.KickoutFromConversationResponse{}, nil
 }
 
-func (srv *server) deleteConversation(clientId string, c *conversationpb.Conversation) error {
+func (srv *server) deleteConversation(token, clientId string, c *conversationpb.Conversation) error {
 	if err := srv.removeConversationParticipant(clientId, c.Uuid); err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (srv *server) deleteConversation(clientId string, c *conversationpb.Convers
 
 	_ = srv.publish(`delete_conversation_`+c.Uuid+`_evt`, []byte(c.Uuid))
 
-	if err := srv.deleteResourcePermissions(c.Uuid); err != nil {
+	if err := srv.deleteResourcePermissions(token, c.Uuid); err != nil {
 		return err
 	}
 
@@ -292,7 +292,7 @@ DeleteConversation deletes the conversation if the caller is the owner; otherwis
 the caller simply leaves the conversation.
 */
 func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -314,7 +314,7 @@ func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if err := srv.deleteConversation(clientId, c); err != nil {
+	if err := srv.deleteConversation(token, clientId, c); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &conversationpb.DeleteConversationResponse{}, nil

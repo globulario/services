@@ -283,6 +283,11 @@ func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.Packa
 // Create a new Organization
 func (client *Resource_Client) CreateOrganization(token, id, name, email, description, icon string) error {
 
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
 		Organization: &resourcepb.Organization{
@@ -299,13 +304,18 @@ func (client *Resource_Client) CreateOrganization(token, id, name, email, descri
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.CreateOrganization(ctx, rqst)
+	_, err = client.c.CreateOrganization(ctx, rqst)
 	return err
 
 }
 
 // Create a new Organization
 func (client *Resource_Client) DeleteOrganization(token, id string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 
 	// Create a new Organization.
 	rqst := &resourcepb.DeleteOrganizationRqst{
@@ -314,13 +324,18 @@ func (client *Resource_Client) DeleteOrganization(token, id string) error {
 	// set the token in the context...
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
-	_, err := client.c.DeleteOrganization(ctx, rqst)
+	_, err = client.c.DeleteOrganization(ctx, rqst)
 	return err
 
 }
 
 // Add to organization...
 func (client *Resource_Client) AddOrganizationAccount(token, organizationId, accountId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationAccountRqst{
@@ -332,12 +347,15 @@ func (client *Resource_Client) AddOrganizationAccount(token, organizationId, acc
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddOrganizationAccount(ctx, rqst)
+	_, err = client.c.AddOrganizationAccount(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) AddOrganizationRole(token, organizationId, roleId string) error {
-
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationRoleRqst{
 		OrganizationId: organizationId,
@@ -348,12 +366,15 @@ func (client *Resource_Client) AddOrganizationRole(token, organizationId, roleId
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddOrganizationRole(ctx, rqst)
+	_, err = client.c.AddOrganizationRole(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) AddOrganizationGroup(token, organizationId, groupId string) error {
-
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationGroupRqst{
 		OrganizationId: organizationId,
@@ -364,12 +385,15 @@ func (client *Resource_Client) AddOrganizationGroup(token, organizationId, group
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddOrganizationGroup(ctx, rqst)
+	_, err = client.c.AddOrganizationGroup(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) AddOrganizationApplication(token, organizationId, applicationId string) error {
-
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationApplicationRqst{
 		OrganizationId: organizationId,
@@ -380,14 +404,17 @@ func (client *Resource_Client) AddOrganizationApplication(token, organizationId,
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddOrganizationApplication(ctx, rqst)
+	_, err = client.c.AddOrganizationApplication(ctx, rqst)
 	return err
 }
 
 // Remove from organization
 
 func (client *Resource_Client) RemoveOrganizationAccount(token, organizationId, accountId string) error {
-
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationAccountRqst{
 		OrganizationId: organizationId,
@@ -398,11 +425,16 @@ func (client *Resource_Client) RemoveOrganizationAccount(token, organizationId, 
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveOrganizationAccount(ctx, rqst)
+	_, err = client.c.RemoveOrganizationAccount(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) RemoveOrganizationRole(token, organizationId, roleId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationRoleRqst{
@@ -414,11 +446,16 @@ func (client *Resource_Client) RemoveOrganizationRole(token, organizationId, rol
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveOrganizationRole(ctx, rqst)
+	_, err = client.c.RemoveOrganizationRole(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) RemoveOrganizationGroup(token, organizationId, groupId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationGroupRqst{
@@ -430,11 +467,16 @@ func (client *Resource_Client) RemoveOrganizationGroup(token, organizationId, gr
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveOrganizationGroup(ctx, rqst)
+	_, err = client.c.RemoveOrganizationGroup(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) RemoveOrganizationApplication(token, organizationId, applicationId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
@@ -446,7 +488,7 @@ func (client *Resource_Client) RemoveOrganizationApplication(token, organization
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveOrganizationApplication(ctx, rqst)
+	_, err = client.c.RemoveOrganizationApplication(ctx, rqst)
 	return err
 }
 
@@ -502,6 +544,11 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 }
 
 func (client *Resource_Client) UpdateOrganization(token string, o *resourcepb.Organization) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.UpdateOrganizationRqst)
 	rqst.OrganizationId = o.Id
 	rqst.Values = `{"$set":{"name":"` + o.Name + `","description":"` + o.Description + `", "domain":"` + o.Domain + `"}}`
@@ -510,7 +557,7 @@ func (client *Resource_Client) UpdateOrganization(token string, o *resourcepb.Or
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.UpdateOrganization(ctx, rqst)
+	_, err = client.c.UpdateOrganization(ctx, rqst)
 
 	return err
 }
@@ -552,6 +599,11 @@ func (client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error
 
 // Update account values
 func (client *Resource_Client) SetAccount(token string, account *resourcepb.Account) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.SetAccountRqst{
 		Account: account,
 	}
@@ -560,7 +612,7 @@ func (client *Resource_Client) SetAccount(token string, account *resourcepb.Acco
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := client.c.SetAccount(ctx, rqst)
+	_, err = client.c.SetAccount(ctx, rqst)
 
 	if err != nil {
 		return err
@@ -601,6 +653,11 @@ func (client *Resource_Client) GetAccounts(query string) ([]*resourcepb.Account,
 
 // Set the new password.
 func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword, newPassword string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.SetAccountPasswordRqst{
 		AccountId:   accountId,
 		OldPassword: oldPassword,
@@ -611,7 +668,7 @@ func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword,
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := client.c.SetAccountPassword(ctx, rqst)
+	_, err = client.c.SetAccountPassword(ctx, rqst)
 
 	if err != nil {
 		return err
@@ -620,7 +677,13 @@ func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword,
 }
 
 // Delete an account.
-func (client *Resource_Client) DeleteAccount(id, token string) error {
+func (client *Resource_Client) DeleteAccount(token, id string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.DeleteAccountRqst{
 		Id: id,
 	}
@@ -629,7 +692,7 @@ func (client *Resource_Client) DeleteAccount(id, token string) error {
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := client.c.DeleteAccount(ctx, rqst)
+	_, err = client.c.DeleteAccount(ctx, rqst)
 	return err
 }
 
@@ -637,6 +700,11 @@ func (client *Resource_Client) DeleteAccount(id, token string) error {
  * Set role to a account
  */
 func (client *Resource_Client) AddAccountRole(token string, accountId string, roleId string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.AddAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
@@ -646,8 +714,7 @@ func (client *Resource_Client) AddAccountRole(token string, accountId string, ro
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := client.c.AddAccountRole(ctx, rqst)
-
+	_, err = client.c.AddAccountRole(ctx, rqst)
 
 	return err
 }
@@ -656,16 +723,27 @@ func (client *Resource_Client) AddAccountRole(token string, accountId string, ro
  * Remove role from an account
  */
 func (client *Resource_Client) RemoveAccountRole(token string, accountId string, roleId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.RemoveAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
+	}
+
+	_, err = security.ValidateToken(token)
+	if err != nil {
+		return err
 	}
 
 	// Save account values.
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := client.c.RemoveAccountRole(ctx, rqst)
+	_, err = client.c.RemoveAccountRole(ctx, rqst)
 
 	return err
 }
@@ -753,6 +831,12 @@ func (client *Resource_Client) CreateGroup(token, id, name, description string) 
 }
 
 func (client *Resource_Client) AddGroupMemberAccount(token, groupId, accountId string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.AddGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
@@ -761,11 +845,16 @@ func (client *Resource_Client) AddGroupMemberAccount(token, groupId, accountId s
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddGroupMemberAccount(ctx, rqst)
+	_, err = client.c.AddGroupMemberAccount(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) DeleteGroup(token, groupId string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.DeleteGroupRqst)
 	rqst.Group = groupId
 
@@ -773,11 +862,16 @@ func (client *Resource_Client) DeleteGroup(token, groupId string) error {
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.DeleteGroup(ctx, rqst)
+	_, err = client.c.DeleteGroup(ctx, rqst)
 	return err
 }
 
 func (client *Resource_Client) RemoveGroupMemberAccount(token, groupId, accountId string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.RemoveGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
@@ -786,7 +880,7 @@ func (client *Resource_Client) RemoveGroupMemberAccount(token, groupId, accountI
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveGroupMemberAccount(ctx, rqst)
+	_, err = client.c.RemoveGroupMemberAccount(ctx, rqst)
 	return err
 }
 
@@ -826,6 +920,11 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 }
 
 func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.UpdateGroupRqst)
 	rqst.GroupId = g.Id
 
@@ -836,7 +935,7 @@ func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) er
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.UpdateGroup(ctx, rqst)
+	_, err = client.c.UpdateGroup(ctx, rqst)
 
 	return err
 }
@@ -849,6 +948,11 @@ func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) er
  * Create a new role with given action list.
  */
 func (client *Resource_Client) CreateRole(token, id, name string, actions []string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.CreateRoleRqst)
 	role := new(resourcepb.Role)
 	role.Id = id
@@ -859,7 +963,7 @@ func (client *Resource_Client) CreateRole(token, id, name string, actions []stri
 	// set the token in the context...
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
-	_, err := client.c.CreateRole(ctx, rqst)
+	_, err = client.c.CreateRole(ctx, rqst)
 
 	return err
 }
@@ -874,6 +978,11 @@ func (client *Resource_Client) DeleteRole(name string) error {
 }
 
 func (client *Resource_Client) UpdateRole(token string, r *resourcepb.Role) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.UpdateRoleRqst)
 	rqst.RoleId = r.Id
 	rqst.Values = `{"$set":{"name":"` + r.Name + `","description":"` + r.Description + `", "domain":"` + r.Domain + `"}}`
@@ -882,7 +991,7 @@ func (client *Resource_Client) UpdateRole(token string, r *resourcepb.Role) erro
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.UpdateRole(ctx, rqst)
+	_, err = client.c.UpdateRole(ctx, rqst)
 
 	return err
 }
@@ -1150,6 +1259,11 @@ func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error
  * Add a action to a given application.
  */
 func (client *Resource_Client) AddApplicationActions(token, applicationId string, actions []string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.AddApplicationActionsRqst{
 		ApplicationId: applicationId,
 		Actions:       actions,
@@ -1159,7 +1273,7 @@ func (client *Resource_Client) AddApplicationActions(token, applicationId string
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.AddApplicationActions(ctx, rqst)
+	_, err = client.c.AddApplicationActions(ctx, rqst)
 
 	return err
 }
@@ -1168,6 +1282,12 @@ func (client *Resource_Client) AddApplicationActions(token, applicationId string
  * Remove action from a given application.
  */
 func (client *Resource_Client) RemoveApplicationAction(token, applicationId, action string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.RemoveApplicationActionRqst{
 		ApplicationId: applicationId,
 		Action:        action,
@@ -1177,7 +1297,7 @@ func (client *Resource_Client) RemoveApplicationAction(token, applicationId, act
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveApplicationAction(ctx, rqst)
+	_, err = client.c.RemoveApplicationAction(ctx, rqst)
 
 	return err
 }
@@ -1186,6 +1306,11 @@ func (client *Resource_Client) RemoveApplicationAction(token, applicationId, act
  * Remove action from a given application.
  */
 func (client *Resource_Client) RemoveApplicationsAction(token, action string) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.RemoveApplicationsActionRqst{
 		Action: action,
 	}
@@ -1194,7 +1319,7 @@ func (client *Resource_Client) RemoveApplicationsAction(token, action string) er
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.RemoveApplicationsAction(ctx, rqst)
+	_, err = client.c.RemoveApplicationsAction(ctx, rqst)
 
 	return err
 }
@@ -1235,6 +1360,12 @@ func (client *Resource_Client) GetApplications(query string) ([]*resourcepb.Appl
  * Delete a given application
  */
 func (client *Resource_Client) DeleteApplication(token, id string) error {
+
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := &resourcepb.DeleteApplicationRqst{
 		ApplicationId: id,
 	}
@@ -1243,7 +1374,7 @@ func (client *Resource_Client) DeleteApplication(token, id string) error {
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.DeleteApplication(ctx, rqst)
+	_, err = client.c.DeleteApplication(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -1284,6 +1415,11 @@ func (client *Resource_Client) CreateApplication(token, id, name, domain, passwo
 }
 
 func (client *Resource_Client) UpdateApplication(token string, a *resourcepb.Application) error {
+	_, err := security.ValidateToken(token)
+	if err != nil {
+		return err
+	}
+
 	rqst := new(resourcepb.UpdateApplicationRqst)
 	rqst.ApplicationId = a.Id
 	rqst.Values = `{"$set":{"version":"` + a.Version + `","path":"` + a.Path + `","icon":"` + a.Icon + `","PublisherID":"` + a.PublisherID + `","alias":"` + a.Alias + `","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
@@ -1292,7 +1428,7 @@ func (client *Resource_Client) UpdateApplication(token string, a *resourcepb.App
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
 	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
-	_, err := client.c.UpdateApplication(ctx, rqst)
+	_, err = client.c.UpdateApplication(ctx, rqst)
 
 	return err
 }

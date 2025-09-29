@@ -359,6 +359,23 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 				err = s.clear()
 			case "drop":
 				err = s.drop()
+			case "getallkeys":
+				if s.session == nil {
+					err = errors.New("scylla not open")
+					break
+				}
+				cql := fmt.Sprintf(`SELECT k FROM "%s"."%s"`, s.keyspace, s.table)
+				iter := s.session.Query(cql).Iter()
+				var keys []string
+				var k string
+				for iter.Scan(&k) {
+					keys = append(keys, k)
+				}
+				if err = iter.Close(); err != nil {
+					err = fmt.Errorf("iter keys: %w", err)
+					break
+				}
+				res = keys
 			default:
 				err = fmt.Errorf("unknown action: %s", act.name)
 			}

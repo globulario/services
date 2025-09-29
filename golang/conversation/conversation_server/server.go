@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/search/search_engine"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -362,12 +363,12 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	}
 	return c.(*rbac_client.Rbac_Client), nil
 }
-func (srv *server) deleteResourcePermissions(path string) error {
+func (srv *server) deleteResourcePermissions(token, path string) error {
 	c, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return c.DeleteResourcePermissions(path)
+	return c.DeleteResourcePermissions(token, path)
 }
 func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 	c, err := GetRbacClient(srv.Address)
@@ -376,19 +377,19 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	}
 	return c.ValidateAccess(subject, subjectType, name, path)
 }
-func (srv *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	c, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return c.AddResourceOwner(path, resourceType, subject, subjectType)
+	return c.AddResourceOwner(token, path, resourceType, subject, subjectType)
 }
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+func (srv *server) setActionResourcesPermissions(token string, permissions map[string]interface{}) error {
 	c, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return c.SetActionResourcesPermissions(permissions)
+	return c.SetActionResourcesPermissions(token, permissions)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -504,11 +505,12 @@ func (srv *server) run() {
 
 func (srv *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
+	token, _ := security.GetLocalToken(srv.Mac)
 	logger.Info("delete account event received", "accountId", accountId)
 	conversations, err := srv.getConversations(accountId)
 	if err == nil {
 		for _, c := range conversations.GetConversations() {
-			_ = srv.deleteConversation(accountId, c)
+			_ = srv.deleteConversation(token, accountId, c)
 		}
 	} else {
 		logger.Error("failed to list conversations for deleted account", "accountId", accountId, "err", err)

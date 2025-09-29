@@ -30,6 +30,7 @@ const (
 	StorageService_RemoveItem_FullMethodName       = "/storage.StorageService/RemoveItem"
 	StorageService_Clear_FullMethodName            = "/storage.StorageService/Clear"
 	StorageService_Drop_FullMethodName             = "/storage.StorageService/Drop"
+	StorageService_GetAllKeys_FullMethodName       = "/storage.StorageService/GetAllKeys"
 )
 
 // StorageServiceClient is the client API for StorageService service.
@@ -60,6 +61,8 @@ type StorageServiceClient interface {
 	Clear(ctx context.Context, in *ClearRequest, opts ...grpc.CallOption) (*ClearResponse, error)
 	// Deletes a store.
 	Drop(ctx context.Context, in *DropRequest, opts ...grpc.CallOption) (*DropResponse, error)
+	// Get all keys in the store.
+	GetAllKeys(ctx context.Context, in *GetAllKeysRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetAllKeysResponse], error)
 }
 
 type storageServiceClient struct {
@@ -192,6 +195,25 @@ func (c *storageServiceClient) Drop(ctx context.Context, in *DropRequest, opts .
 	return out, nil
 }
 
+func (c *storageServiceClient) GetAllKeys(ctx context.Context, in *GetAllKeysRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetAllKeysResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &StorageService_ServiceDesc.Streams[2], StorageService_GetAllKeys_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GetAllKeysRequest, GetAllKeysResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StorageService_GetAllKeysClient = grpc.ServerStreamingClient[GetAllKeysResponse]
+
 // StorageServiceServer is the server API for StorageService service.
 // All implementations should embed UnimplementedStorageServiceServer
 // for forward compatibility.
@@ -220,6 +242,8 @@ type StorageServiceServer interface {
 	Clear(context.Context, *ClearRequest) (*ClearResponse, error)
 	// Deletes a store.
 	Drop(context.Context, *DropRequest) (*DropResponse, error)
+	// Get all keys in the store.
+	GetAllKeys(*GetAllKeysRequest, grpc.ServerStreamingServer[GetAllKeysResponse]) error
 }
 
 // UnimplementedStorageServiceServer should be embedded to have
@@ -261,6 +285,9 @@ func (UnimplementedStorageServiceServer) Clear(context.Context, *ClearRequest) (
 }
 func (UnimplementedStorageServiceServer) Drop(context.Context, *DropRequest) (*DropResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Drop not implemented")
+}
+func (UnimplementedStorageServiceServer) GetAllKeys(*GetAllKeysRequest, grpc.ServerStreamingServer[GetAllKeysResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GetAllKeys not implemented")
 }
 func (UnimplementedStorageServiceServer) testEmbeddedByValue() {}
 
@@ -462,6 +489,17 @@ func _StorageService_Drop_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StorageService_GetAllKeys_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetAllKeysRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StorageServiceServer).GetAllKeys(m, &grpc.GenericServerStream[GetAllKeysRequest, GetAllKeysResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type StorageService_GetAllKeysServer = grpc.ServerStreamingServer[GetAllKeysResponse]
+
 // StorageService_ServiceDesc is the grpc.ServiceDesc for StorageService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -515,6 +553,11 @@ var StorageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetItem",
 			Handler:       _StorageService_GetItem_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetAllKeys",
+			Handler:       _StorageService_GetAllKeys_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -288,7 +288,8 @@ func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 
 // createPermission: set caller as owner of resource path
 func (srv *server) createPermission(ctx context.Context, path string) error {
-	clientId, _, err := security.GetClientId(ctx)
+
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return err
 	}
@@ -296,7 +297,7 @@ func (srv *server) createPermission(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	return rbacClient.AddResourceOwner(path, "domain", clientId, rbacpb.SubjectType_ACCOUNT)
+	return rbacClient.AddResourceOwner(token, path,  clientId,"domain", rbacpb.SubjectType_ACCOUNT)
 }
 
 // Lifecycle
@@ -656,10 +657,10 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+func (srv *server) setActionResourcesPermissions(token string,permissions map[string]interface{}) error {
 	rbacClient, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return rbacClient.SetActionResourcesPermissions(permissions)
+	return rbacClient.SetActionResourcesPermissions(token, permissions)
 }

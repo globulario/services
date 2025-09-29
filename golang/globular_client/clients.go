@@ -16,9 +16,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
-
-	//"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -177,14 +176,16 @@ func InitClient(client Client, address string, id string) error {
 		return fmt.Errorf("InitClient: cannot read local configuration: %w", err)
 	}
 
-	// --- Normalize control-plane address (host:port) and detect locality
+	// --- Normalize control-plane address (host:port)
 	address = normalizeControlAddress(address, localAddr, localCfg)
 	host, ctrlPort := splitHostPort(address)
 	if ctrlPort == 0 {
 		return fmt.Errorf("InitClient: invalid control address %q (missing port)", address)
 	}
 	localHost := strings.Split(localAddr, ":")[0]
-	isLocal := (host == localHost || host == "localhost" || strings.HasPrefix(localHost, host))
+	// Determine effective FQDN for TLS/certs usage
+	effectiveHost := resolveEffectiveHost(address, host, localCfg)
+	isLocal := (effectiveHost == localHost || effectiveHost == "localhost" || strings.HasPrefix(localHost, effectiveHost))
 
 	client.SetAddress(address)
 
@@ -208,24 +209,25 @@ func InitClient(client Client, address string, id string) error {
 	// --- Populate client identity/meta
 	populateClientIdentity(client, cfg, isLocal)
 
-	// --- TLS / mTLS setup
-	if err := setupClientTLS(client, cfg, isLocal, host, ctrlPort); err != nil {
+	// --- TLS / mTLS setup (use effectiveHost, not bare cluster domain)
+	if err := setupClientTLS(client, cfg, isLocal, effectiveHost, ctrlPort); err != nil {
 		return err
 	}
 
 	slog.Debug("InitClient: client initialized",
 		"id", client.GetId(), "name", client.GetName(), "domain", client.GetDomain(),
-		"grpc_port", client.GetPort(), "tls", client.HasTLS(), "address", client.GetAddress())
+		"grpc_port", client.GetPort(), "tls", client.HasTLS(), "address", client.GetAddress(),
+	)
 
 	// --- Optional readiness: gRPC Health
 	if opts.waitHealth {
-		if err := waitForHealthReady(client, host, opts); err != nil {
+		if err := waitForHealthReady(client, effectiveHost, opts); err != nil {
 			return err
 		}
 	}
 
 	startWatchersOnce(client)
-	
+
 	return nil
 }
 
@@ -324,6 +326,32 @@ func normalizeControlAddress(address, localAddr string, localCfg map[string]inte
 	return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTP"]))
 }
 
+// resolveEffectiveHost returns the FQDN we should use for TLS (cert dir, SNI).
+// It uses the normalized control address host; if that equals the bare domain
+// but a peer entry has Hostname, it returns "hostname.domain". Env override wins.
+func resolveEffectiveHost(normalizedAddr, bareDomain string, localCfg map[string]interface{}) string {
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_HOST_OVERRIDE")); v != "" {
+		return v
+	}
+	host, _ := splitHostPort(normalizedAddr)
+	// If we already have an FQDN not equal to bare domain, keep it.
+	if strings.Contains(host, ".") && !strings.EqualFold(host, bareDomain) {
+		return host
+	}
+	// Try peers
+	if peers, ok := localCfg["Peers"].([]interface{}); ok {
+		for _, pi := range peers {
+			if p, ok := pi.(map[string]interface{}); ok && strings.EqualFold(asString(p["Domain"]), bareDomain) {
+				hn := asString(p["Hostname"])
+				if hn != "" && bareDomain != "" {
+					return hn + "." + bareDomain
+				}
+			}
+		}
+	}
+	return host
+}
+
 // overlayRuntimeEndpoint optionally replaces desired Port/TLS with runtime values.
 func overlayRuntimeEndpoint(cfg map[string]interface{}, require bool, grace time.Duration) error {
 	svcName := asString(cfg["Name"])
@@ -389,8 +417,6 @@ func ensureMandatoryFields(cfg *map[string]interface{}, id string, attempts int,
 		}
 		time.Sleep(sleep)
 	}
-
-	// Safe to set on the client afterwards
 	return nil
 }
 
@@ -436,19 +462,65 @@ func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal b
 	}
 }
 
+// pickTLSBaseDir chooses a writable base dir.
+// Order: $GLOBULAR_TLS_DIR > config.GetConfigDir()+"/tls" if writable > ~/.config/globular/tls
+func pickTLSBaseDir() string {
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_DIR")); v != "" {
+		_ = os.MkdirAll(v, 0o755)
+		return v
+	}
+	sysBase := filepath.Join(config.GetConfigDir(), "tls")
+	if err := os.MkdirAll(sysBase, 0o755); err == nil {
+		if f, e := os.CreateTemp(sysBase, ".wtest"); e == nil {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+			return sysBase
+		}
+	}
+	home := os.Getenv("XDG_CONFIG_HOME")
+	if home == "" {
+		home = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	userBase := filepath.Join(home, "globular", "tls")
+	_ = os.MkdirAll(userBase, 0o755)
+	return userBase
+}
+
+// tryUseExistingClientCerts attempts to find {key, cert, ca} under baseDir/host.
+func tryUseExistingClientCerts(baseDir, host string) (keyFile, certFile, caFile string, ok bool) {
+	dir := filepath.Join(baseDir, host)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", "", "", false
+	}
+	var k, c, ca string
+	for _, e := range entries {
+		name := strings.ToLower(e.Name())
+		p := filepath.Join(dir, e.Name())
+		switch {
+		case (strings.Contains(name, "key") && (strings.HasSuffix(name, ".key") || strings.HasSuffix(name, ".pem"))) && k == "":
+			k = p
+		case (strings.Contains(name, "cert") || strings.Contains(name, "crt") || strings.Contains(name, "certificate")) && c == "":
+			c = p
+		case strings.Contains(name, "ca") && (strings.HasSuffix(name, ".pem") || strings.HasSuffix(name, ".crt")) && ca == "":
+			ca = p
+		}
+	}
+	if k != "" && c != "" && ca != "" {
+		return k, c, ca, true
+	}
+	return "", "", "", false
+}
+
 // setupClientTLS configures TLS/mTLS on the client based on desired/runtime cfg.
-// For remote peers, it ensures the client certs exist by calling
-// security.InstallClientCertificates(...), which in turn talks to your
-// HTTPS handlers (/get_ca_certificate, /sign_ca_certificate, etc.) on the
-// peer's control-plane port.
-func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, controlAddr string, ctrlPort int) error {
+// For remote peers, it reuses existing client certs under base/<effectiveHost>,
+// and only calls InstallClientCertificates if necessary (can be disabled).
+func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, effectiveHost string, ctrlPort int) error {
 	tlsEnabled, _ := cfg["TLS"].(bool)
 	client.SetTLS(tlsEnabled)
 	if !tlsEnabled {
 		return nil
 	}
-
-	host := strings.TrimSpace(controlAddr)
 
 	if isLocal {
 		// Re-map server paths to client paths when the same machine publishes them.
@@ -460,20 +532,32 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, con
 		return nil
 	}
 
-	// Remote peer: ensure client certs exist under /tls/<host>.
-	// InstallClientCertificates will reach the peer's control-plane HTTPS/HTTP,
-	// using the ctrlPort we derived from the normalized control address.
-	path := config.GetConfigDir() + "/tls/" + host
-	keyFile, certFile, caFile, err := security.InstallClientCertificates(
-		host, ctrlPort, path,
-		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
-		nil, // SANs optional here; the security package can fill from server if needed
-	)
-	if err != nil {
-		slog.Error("InitClient: InstallClientCertificates failed", "domain", host, "port", ctrlPort, "err", err)
-		return err
+	base := pickTLSBaseDir()
+
+	// 1) Try existing certs at base/effectiveHost
+	if k, c, ca, ok := tryUseExistingClientCerts(base, effectiveHost); ok {
+		client.SetKeyFile(k)
+		client.SetCertFile(c)
+		client.SetCaFile(ca)
+		return nil
 	}
 
+	// 2) Optionally skip install if tests provide certs
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_TLS_INSTALL")), "0") {
+		return fmt.Errorf("TLS install disabled and no existing client certs at %s", filepath.Join(base, effectiveHost))
+	}
+
+	// 3) Install into base/effectiveHost (not into a bare cluster domain)
+	path := filepath.Join(base, effectiveHost)
+	keyFile, certFile, caFile, err := security.InstallClientCertificates(
+		effectiveHost, ctrlPort, path,
+		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
+		nil,
+	)
+	if err != nil {
+		slog.Error("InitClient: InstallClientCertificates failed", "domain", effectiveHost, "port", ctrlPort, "base", base, "err", err)
+		return err
+	}
 	client.SetKeyFile(keyFile)
 	client.SetCertFile(certFile)
 	client.SetCaFile(caFile)
@@ -715,10 +799,13 @@ func GetClientTlsConfig(client Client) (*tls.Config, error) {
 	if ok := certPool.AppendCertsFromPEM(caPem); !ok {
 		return nil, errors.New("GetClientTlsConfig: append CA certificate failed")
 	}
+
+	// Prefer explicit override; else use the effective control host part of address.
 	sni := strings.Split(client.GetAddress(), ":")[0]
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_SERVERNAME")); v != "" {
 		sni = v
 	}
+
 	return &tls.Config{
 		ServerName:   sni,
 		Certificates: []tls.Certificate{certificate},
@@ -841,7 +928,6 @@ func watchDesiredForClient(c Client) {
 				if st, ok := cfg["State"].(string); ok && st != "" {
 					state := strings.ToLower(strings.TrimSpace(st))
 					if state == "closing" || state == "closed" {
-						// Dedup once per service, then stop watching to avoid reconnect/spam.
 						if dedup.ShouldLog("svc-closing:"+c.GetId(), envGetDuration("GLOBULAR_CLIENT_DEDUP_WINDOW", 2*time.Second)) {
 							infoQuiet("client watch: service is closing/closed", "service", c.GetName(), "id", c.GetId())
 						}
@@ -878,8 +964,6 @@ func watchDesiredForClient(c Client) {
 					if tlsChanged || portChanged {
 						// (Re)populate TLS files if needed.
 						if c.HasTLS() && (c.GetCertFile() == "" || c.GetCaFile() == "") {
-							// Re-run the same logic from InitClient’s TLS section
-							// Wrap it into a helper so you can call it from both places.
 							if err := populateClientTLS(c); err != nil {
 								slog.Warn("client watch: TLS populate failed; keeping TLS disabled until ready",
 									"service", c.GetName(), "err", err)
@@ -887,12 +971,6 @@ func watchDesiredForClient(c Client) {
 							}
 						}
 
-						if dedup.ShouldLog("endpoint-change:"+c.GetId(), envGetDuration("GLOBULAR_CLIENT_DEDUP_WINDOW", 2*time.Second)) {
-							infoQuiet("client watch: endpoint changed; reconnecting",
-								"service", c.GetName(), "id", c.GetId(),
-								"old_port", oldPort, "new_port", c.GetPort(),
-								"old_tls", oldTLS, "new_tls", c.HasTLS())
-						}
 						for i := 0; i < 5; i++ {
 							if err := c.Reconnect(); err == nil {
 								break
@@ -909,7 +987,6 @@ func watchDesiredForClient(c Client) {
 					}
 				}
 
-				// If service requested to close, future calls will fail fast anyway.
 				if strings.EqualFold(c.GetState(), "closing") || strings.EqualFold(c.GetState(), "closed") {
 					slog.Warn("client watch: service is closing/closed", "service", c.GetName(), "id", c.GetId())
 				}
@@ -925,17 +1002,10 @@ func controlPortFromAddress(addr string) int {
 }
 
 // populateClientTLS (re)ensures TLS files exist when the endpoint changes.
-// For remote peers we use the **peer's control port** (from c.GetAddress()) so
-// that the security package can call the peer's HTTPS handlers correctly.
+// For remote peers we use a user-writable TLS base and the effective host.
 func populateClientTLS(c Client) error {
-	host, _ := func() (string, int) {
-		parts := strings.Split(strings.TrimSpace(c.GetAddress()), ":")
-		if len(parts) >= 2 {
-			p, _ := strconv.Atoi(parts[len(parts)-1])
-			return strings.Join(parts[:len(parts)-1], ":"), p
-		}
-		return c.GetAddress(), 0
-	}()
+	// Extract host (without port) from control address
+	host := strings.Split(strings.TrimSpace(c.GetAddress()), ":")[0]
 
 	localAddr, _ := config.GetAddress()
 	localHost := strings.Split(localAddr, ":")[0]
@@ -947,7 +1017,6 @@ func populateClientTLS(c Client) error {
 			certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
 			keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
 			caFile := asString(cfg["CertAuthorityTrust"])
-
 			if certFile != "" {
 				c.SetCertFile(certFile)
 			}
@@ -965,22 +1034,35 @@ func populateClientTLS(c Client) error {
 		return fmt.Errorf("cannot read desired config for local TLS (id=%s)", c.GetId())
 	}
 
-	// Remote: use the **peer's** control port from c.GetAddress(), not our local ports.
+	// Remote
+	base := pickTLSBaseDir()
+
+	// Reuse existing if present
+	if k, cfile, caf, ok := tryUseExistingClientCerts(base, host); ok {
+		c.SetKeyFile(k)
+		c.SetCertFile(cfile)
+		c.SetCaFile(caf)
+		return nil
+	}
+
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_TLS_INSTALL")), "0") {
+		return fmt.Errorf("TLS install disabled and no existing client certs at %s", filepath.Join(base, host))
+	}
+
+	// Need to install; derive control port from address
 	ctrlPort := controlPortFromAddress(c.GetAddress())
 	if ctrlPort == 0 {
 		return fmt.Errorf("invalid control address %q: no port", c.GetAddress())
 	}
-
-	path := config.GetConfigDir() + "/tls/" + host
+	path := filepath.Join(base, host)
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(
 		host, ctrlPort, path,
-		"", "", "", "", // org info optional here
+		"", "", "", "",
 		nil,
 	)
 	if err != nil {
 		return err
 	}
-
 	c.SetKeyFile(keyFile)
 	c.SetCertFile(certFile)
 	c.SetCaFile(caFile)

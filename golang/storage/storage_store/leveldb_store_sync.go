@@ -39,7 +39,19 @@ func (store *LevelDB_store) run() {
 		case "Close":
 			action["result"].(chan error) <- store.close()
 			return // exit run loop cleanly
+
+		case "GetAllKeys":
+			keys, err := store.getAllKeys()
+			action["results"].(chan map[string]interface{}) <- map[string]interface{}{"keys": keys, "err": err}
+
+		default:
+			// Unknown action
+			bcLogger.Error("LevelDB_store.run: unknown action", "action", action["name"])
+			if action["result"] != nil {
+				action["result"].(chan error) <- errors.New("LevelDB_store.run: unknown action " + action["name"].(string))
+			}
 		}
+		
 	}
 }
 
@@ -107,4 +119,15 @@ func (store *LevelDB_store) Drop() error {
 	action := map[string]interface{}{"name": "Drop", "result": make(chan error)}
 	store.actions <- action
 	return <-action["result"].(chan error)
+}
+
+// GetAllKeys returns all keys in the store.
+func (store *LevelDB_store) GetAllKeys() ([]string, error) {
+	action := map[string]interface{}{"name": "GetAllKeys", "results": make(chan map[string]interface{})}
+	store.actions <- action
+	results := <-action["results"].(chan map[string]interface{})
+	if results["err"] != nil {
+		return nil, results["err"].(error)
+	}
+	return results["keys"].([]string), nil
 }

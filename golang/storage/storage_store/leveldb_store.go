@@ -173,3 +173,21 @@ func (store *LevelDB_store) drop() error {
 	_ = store.close()
 	return os.RemoveAll(store.path)
 }
+
+// Get all keys in the store.
+func (store *LevelDB_store) getAllKeys() ([]string, error) {
+	db, err := store.getDb()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	iter := db.NewIterator(nil, nil)
+	defer iter.Release()
+
+	keys := make([]string, 0, 16)
+	for iter.First(); iter.Valid(); iter.Next() {
+		keys = append(keys, string(iter.Key()))
+	}
+	return keys, nil
+}

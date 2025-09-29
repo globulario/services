@@ -578,6 +578,34 @@ func (srv *server) roleExist(id string) (bool, string) {
 	return true, r.Id + "@" + r.Domain
 }
 
+// listAllPermissionPaths returns every resource path that currently has a Permissions record.
+// Implement this using your storage layer (Scylla/etcd/etc.) and the same key prefix your
+// getResourcePermissions/setResourcePermissions helpers use.
+func (srv *server) listAllPermissionPaths() ([]string, error) {
+	// Example sketch — replace with your actual store scan:
+	// return srv.store.ListKeys(srv.permissionsKeyPrefix)
+	return srv.scanPermissionKeys() // or whatever exists in your codebase
+}
+
+func (srv *server) scanPermissionKeys() ([]string, error) {
+	// Scan all keys in the permissions store that match the permissions key prefix.
+	// Assuming the permissions store supports a ListKeys or similar method.
+	const permissionsPrefix = "PERMISSIONS_"
+	keys, err := srv.permissions.GetAllKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the prefix from each key to return only the resource path part.
+	var paths []string
+	for _, key := range keys {
+		if strings.HasPrefix(key, permissionsPrefix) {
+			paths = append(paths, strings.TrimPrefix(key, permissionsPrefix))
+		}
+	}
+	return paths, nil
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle (Init/Save/Start/Stop) and gRPC plumbing
 // -----------------------------------------------------------------------------
@@ -844,7 +872,6 @@ func main() {
 		parts := strings.Split(host, ":")
 		host = parts[0]
 	}
-
 
 	if !srv.GetTls() {
 		host += ":9042"

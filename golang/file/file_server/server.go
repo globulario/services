@@ -353,7 +353,7 @@ func (srv *server) setOwner(token, path string) error {
 	if strings.Contains(path, "/files/users/") {
 		path = path[strings.Index(path, "/users/"):]
 	}
-	return rbac.AddResourceOwner(path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
+	return rbac.AddResourceOwner(token, path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 }
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
@@ -780,6 +780,11 @@ func main() {
 
 		channel0 := make(chan string, 64) // owner-set stage
 		channel1 := make(chan string, 64) // index stage
+		token, err := security.GetLocalToken(s.Mac)
+		if err != nil {
+			logger.Error("failed to get local token", "err", err)
+			return
+		}
 
 		// Stage 1: set owner, then enqueue for indexing
 		go func() {
@@ -789,7 +794,7 @@ func main() {
 					if len(parts) > 2 {
 						owner := parts[2] // user@domain
 						if rbac, err := getRbacClient(); err == nil {
-							if err := rbac.AddResourceOwner(path, "file", owner, rbacpb.SubjectType_ACCOUNT); err != nil {
+							if err := rbac.AddResourceOwner(token, path, "file", owner, rbacpb.SubjectType_ACCOUNT); err != nil {
 								logger.Error("set file owner failed", "path", path, "owner", owner, "err", err)
 							}
 						} else {

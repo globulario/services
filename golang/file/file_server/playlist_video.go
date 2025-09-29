@@ -42,12 +42,12 @@ func processVideos(srv *server, token string, dirs []string) {
 			if st.IsDir() {
 				for _, p := range filePerms {
 					if strings.HasPrefix(p.Path, path) {
-						_ = rbac_client_.DeleteResourcePermissions(p.Path)
+						_ = rbac_client_.DeleteResourcePermissions(token,p.Path)
 						if err := rbac_client_.SetResourcePermissions(token, p.Path, p.ResourceType, p); err != nil { slog.Warn("perm update failed", "path", p.Path, "err", err) }
 					}
 				}
 			} else if perm != nil {
-				_ = rbac_client_.DeleteResourcePermissions(path)
+				_ = rbac_client_.DeleteResourcePermissions(token, path)
 				perm.Path = path
 				if err := rbac_client_.SetResourcePermissions(token, path, perm.ResourceType, perm); err != nil { slog.Warn("perm update failed", "path", path, "err", err) }
 			}

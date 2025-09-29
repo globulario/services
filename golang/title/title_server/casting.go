@@ -133,7 +133,7 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 
 // DeletePerson removes a Person and refreshes affected videos' casting lists.
 func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
-	clientId, _, err := security.GetClientId(ctx)
+	clientId, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 	}
 	for _, vid := range person.Casting {
 		if video, err := srv.getVideoById(rqst.IndexPath, vid); err == nil {
-			_ = srv.createVideo(rqst.IndexPath, clientId, video)
+			_ = srv.createVideo(token,rqst.IndexPath, clientId, video)
 		}
 	}
 	logger.Info("person deleted", "personID", rqst.PersonId)

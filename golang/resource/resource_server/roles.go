@@ -183,7 +183,7 @@ func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRq
 	}
 
 	// That service made user of persistence service.
-	err = srv.createRole(rqst.Role.Id, rqst.Role.Name, clientId, rqst.Role.Description, rqst.Role.Actions)
+	err = srv.createRole(ctx, rqst.Role.Id, rqst.Role.Name, clientId, rqst.Role.Description, rqst.Role.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -212,6 +212,11 @@ func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRq
 }
 
 func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// set the role id.
 	roleId := rqst.RoleId
@@ -301,8 +306,8 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 	}
 
 	// TODO delete role permissions
-	srv.deleteResourcePermissions(rqst.RoleId)
-	srv.deleteAllAccess(rqst.RoleId, rbacpb.SubjectType_ROLE)
+	srv.deleteResourcePermissions(token, rqst.RoleId)
+	srv.deleteAllAccess(token,rqst.RoleId, rbacpb.SubjectType_ROLE)
 
 	srv.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("delete_role_evt", []byte(rqst.RoleId), srv.Address)

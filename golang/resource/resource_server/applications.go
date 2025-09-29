@@ -110,7 +110,7 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 		return nil, err
 	}
 
-	err = srv.save_application(rqst.Application, clientId)
+	err = srv.save_application(ctx, rqst.Application, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -128,7 +128,12 @@ func (srv *server) CreateApplication(ctx context.Context, rqst *resourcepb.Creat
 /**
  * Delete application Data from the backend.
  */
-func (srv *server) deleteApplication(applicationId string) error {
+func (srv *server) deleteApplication(ctx context.Context, applicationId string) error {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return err
+	}
 
 	if strings.Contains(applicationId, "@") {
 		domain := strings.Split(applicationId, "@")[1]
@@ -158,8 +163,8 @@ func (srv *server) deleteApplication(applicationId string) error {
 	}
 
 	// I will remove all the access to the application, before removing the application.
-	srv.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
-	srv.deleteResourcePermissions(applicationId)
+	srv.deleteAllAccess(token, applicationId, rbacpb.SubjectType_APPLICATION)
+	srv.deleteResourcePermissions(token,applicationId)
 
 	application := values.(map[string]interface{})
 
@@ -231,7 +236,7 @@ func (srv *server) deleteApplication(applicationId string) error {
 func (srv *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
 	// That service made user of persistence service.
-	err := srv.deleteApplication(rqst.ApplicationId)
+	err := srv.deleteApplication(ctx, rqst.ApplicationId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -646,7 +651,12 @@ func (srv *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcep
 	return &resourcepb.RemoveApplicationsActionRsp{Result: true}, nil
 }
 
-func (srv *server) save_application(app *resourcepb.Application, owner string) error {
+func (srv *server) save_application(ctx context.Context, app *resourcepb.Application, owner string) error {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return err
+	}
 
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -721,10 +731,10 @@ func (srv *server) save_application(app *resourcepb.Application, owner string) e
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
-	srv.addResourceOwner(path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
+	srv.addResourceOwner(token, path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	srv.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, srv.Address)

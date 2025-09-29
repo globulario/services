@@ -150,6 +150,12 @@ func getLocalPeer() *resourcepb.Peer {
 //   *resourcepb.AcceptPeerRsp - The response indicating success.
 //   error - An error if the operation fails.
 func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get the persistence connection
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -192,7 +198,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
-	srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(token, domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
@@ -335,6 +341,12 @@ func (srv *server) deletePeer(token, address string) error {
 //   - Attempts to remove the peer from the remote end using a security token.
 // Returns a DeletePeerRsp indicating success or an error if any step fails.
 func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get the persistence connection
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -362,7 +374,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	peer := initPeer(data)
 
 	// Delete all peer access.
-	srv.deleteAllAccess(peer.Mac, rbacpb.SubjectType_PEER)
+	srv.deleteAllAccess(token,peer.Mac, rbacpb.SubjectType_PEER)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -372,8 +384,8 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	}
 
 	// Delete permissions
-	srv.deleteResourcePermissions(peer.Mac)
-	srv.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.deleteResourcePermissions(token, peer.Mac)
+	srv.deleteAllAccess(token, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Delete peer public key...
 	security.DeletePublicKey(peer.Mac)
@@ -412,11 +424,6 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 		address_ += ":" + Utility.ToString(peer.PortHttp)
 	}
 
-	// Also remove the peer at the other end...
-	_, token, err := security.GetClientId(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	srv.deletePeer(token, address_)
 
@@ -625,6 +632,11 @@ func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error
 // Returns the registered peer information and its public key, or an error if registration fails.
 func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	if rqst.Peer == nil {
 		return nil, errors.New("no peer object was given in the request")
 	}
@@ -751,7 +763,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 
 		// in case local dns is use that peers will be able to change values releated to it domain.
 		// but no other peer will be able to do it...
-		srv.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
+		srv.addResourceOwner(token, peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
 
 		jsonStr, err := protojson.Marshal(peer_)
 		if err != nil {
@@ -825,7 +837,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		domain += "." + rqst.Peer.Domain
 	}
 
-	srv.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(token, domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// Insert the peer into the local resource database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")

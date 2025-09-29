@@ -250,7 +250,7 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	_ = rbac.DeleteResourcePermissions(rqst.GetPath())
+	_ = rbac.DeleteResourcePermissions(token, rqst.GetPath())
 
 	dir := filepath.Dir(p)
 	name := strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))

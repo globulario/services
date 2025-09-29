@@ -1084,6 +1084,94 @@ func (x *DropResponse) GetResult() bool {
 	return false
 }
 
+type GetAllKeysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // Connection identifier.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllKeysRequest) Reset() {
+	*x = GetAllKeysRequest{}
+	mi := &file_storage_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllKeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllKeysRequest) ProtoMessage() {}
+
+func (x *GetAllKeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_storage_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllKeysRequest.ProtoReflect.Descriptor instead.
+func (*GetAllKeysRequest) Descriptor() ([]byte, []int) {
+	return file_storage_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetAllKeysRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetAllKeysResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []string               `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"` // Keys in the store.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllKeysResponse) Reset() {
+	*x = GetAllKeysResponse{}
+	mi := &file_storage_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllKeysResponse) ProtoMessage() {}
+
+func (x *GetAllKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_storage_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllKeysResponse.ProtoReflect.Descriptor instead.
+func (*GetAllKeysResponse) Descriptor() ([]byte, []int) {
+	return file_storage_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetAllKeysResponse) GetKeys() []string {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
 // Request to stop the storage service.
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1093,7 +1181,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_storage_proto_msgTypes[21]
+	mi := &file_storage_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1193,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_storage_proto_msgTypes[21]
+	mi := &file_storage_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1206,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_storage_proto_rawDescGZIP(), []int{21}
+	return file_storage_proto_rawDescGZIP(), []int{23}
 }
 
 type StopResponse struct {
@@ -1129,7 +1217,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_storage_proto_msgTypes[22]
+	mi := &file_storage_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1229,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_storage_proto_msgTypes[22]
+	mi := &file_storage_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1154,7 +1242,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_storage_proto_rawDescGZIP(), []int{22}
+	return file_storage_proto_rawDescGZIP(), []int{24}
 }
 
 var File_storage_proto protoreflect.FileDescriptor
@@ -1215,7 +1303,11 @@ const file_storage_proto_rawDesc = "" +
 	"\vDropRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"&\n" +
 	"\fDropResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\r\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"#\n" +
+	"\x11GetAllKeysRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"(\n" +
+	"\x12GetAllKeysResponse\x12\x12\n" +
+	"\x04keys\x18\x01 \x03(\tR\x04keys\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
 	"\fStopResponse*P\n" +
 	"\tStoreType\x12\f\n" +
@@ -1223,7 +1315,7 @@ const file_storage_proto_rawDesc = "" +
 	"\tBIG_CACHE\x10\x01\x12\r\n" +
 	"\tBADGER_DB\x10\x02\x12\r\n" +
 	"\tSCYLLA_DB\x10\x03\x12\b\n" +
-	"\x04ETCD\x10\x042\xc5\x05\n" +
+	"\x04ETCD\x10\x042\x8e\x06\n" +
 	"\x0eStorageService\x123\n" +
 	"\x04Stop\x12\x14.storage.StopRequest\x1a\x15.storage.StopResponse\x12+\n" +
 	"\x04Open\x12\x11.storage.OpenRqst\x1a\x10.storage.OpenRsp\x12.\n" +
@@ -1236,7 +1328,9 @@ const file_storage_proto_rawDesc = "" +
 	"\n" +
 	"RemoveItem\x12\x1a.storage.RemoveItemRequest\x1a\x1b.storage.RemoveItemResponse\x126\n" +
 	"\x05Clear\x12\x15.storage.ClearRequest\x1a\x16.storage.ClearResponse\x123\n" +
-	"\x04Drop\x12\x14.storage.DropRequest\x1a\x15.storage.DropResponseB9Z7github.com/globulario/services/golang/storage/storagepbb\x06proto3"
+	"\x04Drop\x12\x14.storage.DropRequest\x1a\x15.storage.DropResponse\x12G\n" +
+	"\n" +
+	"GetAllKeys\x12\x1a.storage.GetAllKeysRequest\x1a\x1b.storage.GetAllKeysResponse0\x01B9Z7github.com/globulario/services/golang/storage/storagepbb\x06proto3"
 
 var (
 	file_storage_proto_rawDescOnce sync.Once
@@ -1251,7 +1345,7 @@ func file_storage_proto_rawDescGZIP() []byte {
 }
 
 var file_storage_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_storage_proto_goTypes = []any{
 	(StoreType)(0),               // 0: storage.StoreType
 	(*Connection)(nil),           // 1: storage.Connection
@@ -1275,13 +1369,15 @@ var file_storage_proto_goTypes = []any{
 	(*ClearResponse)(nil),        // 19: storage.ClearResponse
 	(*DropRequest)(nil),          // 20: storage.DropRequest
 	(*DropResponse)(nil),         // 21: storage.DropResponse
-	(*StopRequest)(nil),          // 22: storage.StopRequest
-	(*StopResponse)(nil),         // 23: storage.StopResponse
+	(*GetAllKeysRequest)(nil),    // 22: storage.GetAllKeysRequest
+	(*GetAllKeysResponse)(nil),   // 23: storage.GetAllKeysResponse
+	(*StopRequest)(nil),          // 24: storage.StopRequest
+	(*StopResponse)(nil),         // 25: storage.StopResponse
 }
 var file_storage_proto_depIdxs = []int32{
 	0,  // 0: storage.Connection.type:type_name -> storage.StoreType
 	1,  // 1: storage.CreateConnectionRqst.connection:type_name -> storage.Connection
-	22, // 2: storage.StorageService.Stop:input_type -> storage.StopRequest
+	24, // 2: storage.StorageService.Stop:input_type -> storage.StopRequest
 	2,  // 3: storage.StorageService.Open:input_type -> storage.OpenRqst
 	4,  // 4: storage.StorageService.Close:input_type -> storage.CloseRqst
 	6,  // 5: storage.StorageService.CreateConnection:input_type -> storage.CreateConnectionRqst
@@ -1292,19 +1388,21 @@ var file_storage_proto_depIdxs = []int32{
 	16, // 10: storage.StorageService.RemoveItem:input_type -> storage.RemoveItemRequest
 	18, // 11: storage.StorageService.Clear:input_type -> storage.ClearRequest
 	20, // 12: storage.StorageService.Drop:input_type -> storage.DropRequest
-	23, // 13: storage.StorageService.Stop:output_type -> storage.StopResponse
-	3,  // 14: storage.StorageService.Open:output_type -> storage.OpenRsp
-	5,  // 15: storage.StorageService.Close:output_type -> storage.CloseRsp
-	7,  // 16: storage.StorageService.CreateConnection:output_type -> storage.CreateConnectionRsp
-	9,  // 17: storage.StorageService.DeleteConnection:output_type -> storage.DeleteConnectionRsp
-	11, // 18: storage.StorageService.SetItem:output_type -> storage.SetItemResponse
-	13, // 19: storage.StorageService.SetLargeItem:output_type -> storage.SetLargeItemResponse
-	15, // 20: storage.StorageService.GetItem:output_type -> storage.GetItemResponse
-	17, // 21: storage.StorageService.RemoveItem:output_type -> storage.RemoveItemResponse
-	19, // 22: storage.StorageService.Clear:output_type -> storage.ClearResponse
-	21, // 23: storage.StorageService.Drop:output_type -> storage.DropResponse
-	13, // [13:24] is the sub-list for method output_type
-	2,  // [2:13] is the sub-list for method input_type
+	22, // 13: storage.StorageService.GetAllKeys:input_type -> storage.GetAllKeysRequest
+	25, // 14: storage.StorageService.Stop:output_type -> storage.StopResponse
+	3,  // 15: storage.StorageService.Open:output_type -> storage.OpenRsp
+	5,  // 16: storage.StorageService.Close:output_type -> storage.CloseRsp
+	7,  // 17: storage.StorageService.CreateConnection:output_type -> storage.CreateConnectionRsp
+	9,  // 18: storage.StorageService.DeleteConnection:output_type -> storage.DeleteConnectionRsp
+	11, // 19: storage.StorageService.SetItem:output_type -> storage.SetItemResponse
+	13, // 20: storage.StorageService.SetLargeItem:output_type -> storage.SetLargeItemResponse
+	15, // 21: storage.StorageService.GetItem:output_type -> storage.GetItemResponse
+	17, // 22: storage.StorageService.RemoveItem:output_type -> storage.RemoveItemResponse
+	19, // 23: storage.StorageService.Clear:output_type -> storage.ClearResponse
+	21, // 24: storage.StorageService.Drop:output_type -> storage.DropResponse
+	23, // 25: storage.StorageService.GetAllKeys:output_type -> storage.GetAllKeysResponse
+	14, // [14:26] is the sub-list for method output_type
+	2,  // [2:14] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -1321,7 +1419,7 @@ func file_storage_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_storage_proto_rawDesc), len(file_storage_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
