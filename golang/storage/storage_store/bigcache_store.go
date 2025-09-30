@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/allegro/bigcache/v3"
@@ -14,12 +15,13 @@ import (
 var bcLogger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 
 
-
 // BigCache_store is an in-memory KV store backed by bigcache.
 type BigCache_store struct {
 	cache   *bigcache.BigCache
 	closed  bool // set true after Close is called
 	actions chan map[string]interface{}
+	mu      sync.Mutex
+	isOpen  bool
 }
 
 // open initializes bigcache. Accepts either a raw JSON options string or "" for defaults.
@@ -86,6 +88,9 @@ func (store *BigCache_store) open(optionsStr string) error {
 		"hardMaxCacheSizeMB", cfg.HardMaxCacheSize,
 		"verbose", cfg.Verbose,
 	)
+	
+	store.isOpen = true
+
 	return nil
 }
 

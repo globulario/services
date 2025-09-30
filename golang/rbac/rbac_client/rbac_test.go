@@ -314,7 +314,7 @@ func Test_RBAC_Suite(t *testing.T) {
 		_, fileURI := makeTempFile(t, "cleanup")
 
 		mustNoErr(t, c.rbac.SetResourcePermission(
-			token, fileURI,"file",
+			token, fileURI, "file",
 			&rbacpb.Permission{Name: "read", Accounts: []string{fqAccount(c, "account_0")}},
 			rbacpb.PermissionType_ALLOWED,
 		), "seed read perm")
@@ -334,5 +334,123 @@ func Test_RBAC_Suite(t *testing.T) {
 			_ = c.resource.DeleteAccount(token, acc)
 		}
 	})
-		
+
+	t.Run("09_Inherit_From_Parent", func(t *testing.T) {
+		// Fixtures
+		ensureAccount(t, c, "account_0")
+		dir := t.TempDir()
+		parentURI := "file:" + dir
+
+		// child file under that dir
+		childPath := filepath.Join(dir, "child.txt")
+		mustNoErr(t, os.WriteFile(childPath, []byte("child"), 0o666), "write child file")
+		childURI := "file:" + childPath
+
+		// Allow READ to account_0 on the parent directory
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, parentURI, "file", &rbacpb.Permissions{
+			Allowed: []*rbacpb.Permission{
+				{Name: "read", Accounts: []string{fqAccount(c, "account_0")}},
+			},
+		}), "seed parent perm")
+
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "read", childURI)
+		mustNoErr(t, err, "ValidateAccess child inherits read")
+		if !got {
+			t.Fatalf("expected child inherits read from parent")
+		}
+
+		got, _, err = c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "write", childURI)
+		mustNoErr(t, err, "ValidateAccess child write")
+		if got {
+			t.Fatalf("expected child does NOT inherit write (only read allowed on parent)")
+		}
+	})
+
+	t.Run("10_Deny_On_Parent_Overrides_Child_Allow", func(t *testing.T) {
+		// Fixtures (account_1 is member of group_1 in setup)
+		ensureAccount(t, c, "account_1")
+		ensureGroup(t, c, token, "group_1", "Group 1")
+		ensureGroupMemberAccount(t, c, token, "group_1", "account_1")
+
+		// Parent/child resources
+		dir := t.TempDir()
+		parentURI := "file:" + dir
+
+		childPath := filepath.Join(dir, "res.txt")
+		mustNoErr(t, os.WriteFile(childPath, []byte("deny beats allow"), 0o666), "write child file")
+		childURI := "file:" + childPath
+
+		// DENY delete to group_1 at PARENT
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, parentURI, "file", &rbacpb.Permissions{
+			Denied: []*rbacpb.Permission{
+				{Name: "delete", Groups: []string{"group_1"}},
+			},
+		}), "seed parent deny(delete) for group_1")
+
+		// ALLOW delete to account_1 at CHILD
+		mustNoErr(t, c.rbac.SetResourcePermission(
+			token, childURI, "file",
+			&rbacpb.Permission{Name: "delete", Accounts: []string{fqAccount(c, "account_1")}},
+			rbacpb.PermissionType_ALLOWED,
+		), "child allow(delete) for account_1")
+
+		// Expect DENY to win
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_1"), rbacpb.SubjectType_ACCOUNT, "delete", childURI)
+		mustNoErr(t, err, "ValidateAccess delete with parent deny")
+		if got {
+			t.Fatalf("expected parent DENY(delete) to override child ALLOW(delete)")
+		}
+	})
+
+	t.Run("11_DeleteResourcePermission_Idempotent", func(t *testing.T) {
+		ensureAccount(t, c, "account_1")
+
+		_, fileURI := makeTempFile(t, "exec")
+
+		// allow execute
+		mustNoErr(t, c.rbac.SetResourcePermission(
+			token, fileURI, "file",
+			&rbacpb.Permission{Name: "execute", Accounts: []string{fqAccount(c, "account_1")}},
+			rbacpb.PermissionType_ALLOWED,
+		), "seed execute allow")
+
+		// First delete
+		mustNoErr(t, c.rbac.DeleteResourcePermission(token, fileURI, "execute", rbacpb.PermissionType_ALLOWED), "first delete execute")
+
+		// Second delete (should be a no-op / no error)
+		mustNoErr(t, c.rbac.DeleteResourcePermission(token, fileURI, "execute", rbacpb.PermissionType_ALLOWED), "second delete execute (idempotent)")
+
+		// Should not have access anymore
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_1"), rbacpb.SubjectType_ACCOUNT, "execute", fileURI)
+		mustNoErr(t, err, "ValidateAccess execute after idempotent deletes")
+		if got {
+			t.Fatalf("expected no execute after idempotent deletes")
+		}
+
+		// And the specific permission should be gone
+		if _, err := c.rbac.GetResourcePermission(fileURI, "execute", rbacpb.PermissionType_ALLOWED); err == nil {
+			t.Fatalf("expected GetResourcePermission(execute) to fail after deletion")
+		}
+	})
+
+	t.Run("12_Default_Deny_When_No_Rules", func(t *testing.T) {
+		ensureAccount(t, c, "account_0")
+
+		// Make a resource and explicitly create an empty permission set (resource exists but has no rules)
+		_, fileURI := makeTempFile(t, "empty")
+		mustNoErr(t, c.rbac.SetResourcePermissions(token, fileURI, "file", &rbacpb.Permissions{}), "ensure empty perms")
+
+		// With no rules on the resource and not public, both read & write should be denied.
+		got, _, err := c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "read", fileURI)
+		mustNoErr(t, err, "ValidateAccess read default")
+		if got {
+			t.Fatalf("expected READ denied by default when no rules")
+		}
+
+		got, _, err = c.rbac.ValidateAccess(fqAccount(c, "account_0"), rbacpb.SubjectType_ACCOUNT, "write", fileURI)
+		mustNoErr(t, err, "ValidateAccess write default")
+		if got {
+			t.Fatalf("expected WRITE denied by default when no rules")
+		}
+	})
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -31,6 +32,7 @@ type LevelDB_store struct {
 
 	// Synchronized action channel.
 	actions chan map[string]interface{}
+	mu      sync.Mutex
 }
 
 // open initializes store path from a JSON options string:
@@ -73,12 +75,14 @@ func (store *LevelDB_store) open(optionsStr string) error {
 }
 
 // close marks the store closed (DB handles are opened/closed per op).
-func (store *LevelDB_store) close() error {
-	if !store.isOpen {
-		return nil
+func (st *LevelDB_store) close() error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.db != nil {
+		err := st.db.Close()
+		st.db = nil
+		return err
 	}
-	store.isOpen = false
-	levelLogger.Info("leveldb closed", "path", store.path)
 	return nil
 }
 
@@ -87,31 +91,39 @@ func (store *LevelDB_store) getDb() (*leveldb.DB, error) {
 	if !store.isOpen {
 		return nil, errors.New("leveldb: db is not open")
 	}
-	db, err := leveldb.OpenFile(store.path, nil)
-	if err != nil {
-		return nil, err
+	if store.db == nil {
+		db, err := leveldb.OpenFile(store.path, nil)
+		if err != nil {
+			return nil, err
+		}
+		store.db = db
 	}
-	return db, nil
+	return store.db, nil
 }
 
 // setItem writes key->val.
 func (store *LevelDB_store) setItem(key string, val []byte) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	db, err := store.getDb()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 	return db.Put([]byte(key), val, nil)
 }
 
 // getItem returns value for exact key; if key ends with "*" it returns a JSON
 // array (as []byte) of values for all keys with that prefix (without "*").
 func (store *LevelDB_store) getItem(key string) ([]byte, error) {
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	db, err := store.getDb()
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
 
 	// Wildcard prefix: "prefix*"
 	if strings.HasSuffix(key, "*") {
@@ -133,11 +145,13 @@ func (store *LevelDB_store) getItem(key string) ([]byte, error) {
 
 // removeItem deletes an exact key; if key ends with "*" it deletes all keys with that prefix.
 func (store *LevelDB_store) removeItem(key string) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	db, err := store.getDb()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 
 	if strings.HasSuffix(key, "*") {
 		prefix := []byte(key[:len(key)-1])
@@ -159,23 +173,46 @@ func (store *LevelDB_store) removeItem(key string) error {
 }
 
 // clear erases all data by deleting the DB directory and recreating it.
-func (store *LevelDB_store) clear() error {
-	if err := store.drop(); err != nil {
+func (st *LevelDB_store) clear() error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	db, err := st.getDb()
+	if err != nil {
 		return err
 	}
-	// Recreate parent dir; DB will be re-created lazily on first op.
-	return os.MkdirAll(filepath.Dir(store.path), 0o755)
+	it := db.NewIterator(nil, nil)
+	defer it.Release()
+	wb := new(leveldb.Batch)
+	for it.First(); it.Valid(); it.Next() {
+		wb.Delete(it.Key())
+	}
+	return db.Write(wb, nil)
 }
 
 // drop removes the DB files from disk.
-func (store *LevelDB_store) drop() error {
-	// ensure closed mark (lazy-open pattern)
-	_ = store.close()
-	return os.RemoveAll(store.path)
+func (st *LevelDB_store) drop() error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	path := st.path
+	db := st.db
+	st.db = nil
+
+	if db != nil {
+		_ = db.Close()
+	}
+	if strings.TrimSpace(path) != "" {
+		return os.RemoveAll(path)
+	}
+	return nil
 }
 
 // Get all keys in the store.
 func (store *LevelDB_store) getAllKeys() ([]string, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	
 	db, err := store.getDb()
 	if err != nil {
 		return nil, err

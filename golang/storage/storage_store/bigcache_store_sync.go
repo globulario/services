@@ -48,10 +48,9 @@ func (store *BigCache_store) run() {
 
 		case "Drop":
 			if store.cache == nil {
-				action["result"].(chan error) <- errors.New("bigcache: drop on closed store")
+				action["result"].(chan error) <- nil
 				continue
 			}
-			// in-memory only; Drop == Clear
 			action["result"].(chan error) <- store.cache.Reset()
 
 		case "Close":
@@ -142,10 +141,16 @@ func (store *BigCache_store) Clear() error {
 }
 
 // Drop is equivalent to Clear for in-memory cache.
-func (store *BigCache_store) Drop() error {
-	action := map[string]interface{}{"name": "Drop", "result": make(chan error)}
-	store.actions <- action
-	return <-action["result"].(chan error)
+func (st *BigCache_store) Drop() error {
+    st.mu.Lock()
+    defer st.mu.Unlock()
+
+    if st.cache != nil {
+        st.cache.Reset() // clear all entries
+        st.cache = nil
+    }
+    st.isOpen = false
+    return nil
 }
 
 // GetAllKeys returns all keys in the store.

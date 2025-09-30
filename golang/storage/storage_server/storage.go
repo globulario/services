@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
@@ -53,32 +54,39 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateC
 	return &storagepb.CreateConnectionRsp{Result: true}, nil
 }
 
+func (srv *server) withStoreLock(id string, fn func() error) error {
+    muIface, _ := srv.storeLocks.LoadOrStore(id, &sync.Mutex{})
+    mu := muIface.(*sync.Mutex)
+    mu.Lock()
+    defer mu.Unlock()
+    return fn()
+}
+
 // DeleteConnection removes a connection and persists the config update.
 func (srv *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
-	id := rqst.GetId()
-	if _, ok := srv.Connections[id]; !ok {
-		return &storagepb.DeleteConnectionRsp{Result: true}, nil
-	}
+    id := rqst.GetId()
 
-	// Close and remove
-	if st := srv.stores[id]; st != nil {
-		_ = st.Close()
-		delete(srv.stores, id)
-	}
-	delete(srv.Connections, id)
+    _ = srv.withStoreLock(id, func() error {
+        if st, ok := srv.stores[id]; ok && st != nil {
+            // IMPORTANT: Do not call Close() first. Drop() must be able to handle closing.
+            _ = st.Drop()
+            delete(srv.stores, id)
+        }
+        return nil
+    })
 
-	if err := srv.Save(); err != nil {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	logger.Info("connection deleted", "id", id)
-	return &storagepb.DeleteConnectionRsp{Result: true}, nil
+    delete(srv.Connections, id)
+    // If you persist config, keep this (it was removed in your snippet).
+    if err := srv.Save(); err != nil {
+        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+    }
+    return &storagepb.DeleteConnectionRsp{Result: true}, nil
 }
 
 // Open initializes the selected store with provided options.
 func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storagepb.OpenRsp, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("open: no connection found with id "+rqst.GetId())))
 	}
 
@@ -95,7 +103,7 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 	case storagepb.StoreType_SCYLLA_DB:
 		store = storage_store.NewScylla_store("127.0.0.1", "", 3)
 	default:
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("open: unsupported store type for connection id "+rqst.GetId())))
 	}
 
@@ -111,12 +119,12 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 // Close shuts down the store connected to the given connection id.
 func (srv *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*storagepb.CloseRsp, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("close: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("close: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -131,12 +139,12 @@ func (srv *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*stora
 // SetItem writes a small value under the given key.
 func (srv *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) (*storagepb.SetItemResponse, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("setItem: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("setItem: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -169,12 +177,12 @@ func (srv *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServ
 	}
 
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("setLargeItem: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("setLargeItem: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -187,12 +195,12 @@ func (srv *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServ
 // GetItem streams back the stored value in fixed-size chunks.
 func (srv *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("getItem: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("getItem: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -223,12 +231,12 @@ func (srv *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.Stor
 // RemoveItem deletes a specific key.
 func (srv *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRequest) (*storagepb.RemoveItemResponse, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("removeItem: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("removeItem: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -241,12 +249,12 @@ func (srv *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemReq
 // Clear removes all keys/values from the store.
 func (srv *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*storagepb.ClearResponse, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("clear: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("clear: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -259,12 +267,12 @@ func (srv *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*st
 // Drop destroys the underlying storage (if supported) and closes it.
 func (srv *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*storagepb.DropResponse, error) {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("drop: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("drop: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -280,12 +288,12 @@ func (srv *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*stor
 // GetAllKeys streams back all keys in the store.
 func (srv *server) GetAllKeys(rqst *storagepb.GetAllKeysRequest, stream storagepb.StorageService_GetAllKeysServer) error {
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("getAllKeys: no connection found with id "+rqst.GetId())))
 	}
 	store := srv.stores[rqst.GetId()]
 	if store == nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("getAllKeys: no store found for connection id "+rqst.GetId())))
 	}
 
@@ -294,7 +302,7 @@ func (srv *server) GetAllKeys(rqst *storagepb.GetAllKeysRequest, stream storagep
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	const chunkSize = 100	
+	const chunkSize = 100
 	for i := 0; i < len(keys); i += chunkSize {
 		end := i + chunkSize
 		if end > len(keys) {

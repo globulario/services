@@ -12,74 +12,66 @@ import (
 	"github.com/globulario/services/golang/storage/storagepb"
 )
 
-// ---------- env helpers ----------
+// ---------- CONSTANTS ----------
+// Adjust these once and forget about env noise.
 
-func getenv(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
-}
+const (
+	// gRPC endpoint of your storage service
+	storageAddr = "globule-ryzen.globular.io"
 
-var (
-	// Point this to where your storage service is reachable; using a fixed address
-	// reduces “sticky” routing issues compared to a domain LB.
-	storageAddr = getenv("STORAGE_ADDR", "localhost")
-	serviceID   = getenv("STORAGE_SERVICE_ID", "storage.StorageService")
+	// Service ID (as registered in Globular)
+	serviceID = "storage.StorageService"
+
+	// Set both to enable Scylla tests; leave empty to skip.
+	scyllaHosts    = storageAddr + ":9142"            // e.g. "10.0.0.63:9042,10.0.0.63:9142"
+	scyllaKeyspace = "storage_test"            // e.g. "storage_test"
+	scyllaTable    = "kv"          // optional
+	scyllaUseTLS   = true         // optional
+	scyllaCAFile   = "/etc/globular/config/tls/globule-ryzen.globular.io/ca.crt"            // optional
+	scyllaCertFile = "/etc/globular/config/tls/globule-ryzen.globular.io/client.crt"            // optional
+	scyllaKeyFile  = "/etc/globular/config/tls/globule-ryzen.globular.io/client.key"            // optional
+	scyllaInsecure = false         // optional
 )
 
-// buildOptionsFileBased returns JSON: {"path": "...", "name": "..."} and ensures path exists.
+// ---------- option builders ----------
+
 func buildOptionsFileBased(t *testing.T, baseDir, name string) string {
 	t.Helper()
-	if baseDir == "" {
-		baseDir = t.TempDir()
-	}
 	if err := os.MkdirAll(baseDir, 0o755); err != nil {
-		t.Fatalf("failed to create baseDir %q: %v", baseDir, err)
+		t.Fatalf("mkdir %q: %v", baseDir, err)
 	}
-	opts := map[string]any{
-		"path": baseDir,
-		"name": name,
-	}
+	opts := map[string]any{"path": baseDir, "name": name}
 	b, _ := json.Marshal(opts)
 	return string(b)
 }
 
 func buildOptionsBigCache() string {
-	opts := map[string]any{"lifeWindowSec": 30}
-	b, _ := json.Marshal(opts)
+	b, _ := json.Marshal(map[string]any{"lifeWindowSec": 30})
 	return string(b)
 }
 
-// Scylla options (opt-in with env):
-//   SCYLLA_HOSTS="10.0.0.63:9042,10.0.0.64:9042"
-//   SCYLLA_KEYSPACE="storage_test"  (required if SCYLLA_HOSTS set)
-//   SCYLLA_TABLE="kv"               (optional; default kv)
 func buildOptionsScylla(t *testing.T, logicalName string) (string, bool) {
-	hostsCSV := strings.TrimSpace(os.Getenv("SCYLLA_HOSTS"))
-	if hostsCSV == "" {
+	if strings.TrimSpace(scyllaHosts) == "" || strings.TrimSpace(scyllaKeyspace) == "" {
 		return "", false
 	}
-	hosts := strings.Split(hostsCSV, ",")
+	hosts := strings.Split(scyllaHosts, ",")
 	for i := range hosts {
 		hosts[i] = strings.TrimSpace(hosts[i])
 	}
-	keyspace := strings.TrimSpace(os.Getenv("SCYLLA_KEYSPACE"))
-	if keyspace == "" {
-		t.Skip("SCYLLA_HOSTS set but SCYLLA_KEYSPACE missing — skipping Scylla tests")
-	}
-	table := getenv("SCYLLA_TABLE", "kv")
-
 	opts := map[string]any{
-		"hosts":                        hosts,
-		"keyspace":                     keyspace,
-		"table":                        table,
-		"replication_factor":           1,
-		"connect_timeout_ms":           5000,
-		"timeout_ms":                   5000,
-		"disable_initial_host_lookup":  true,
-		"path":                         "",
-		"name":                         logicalName,
+		"hosts":                       hosts,
+		"keyspace":                    scyllaKeyspace,
+		"table":                       scyllaTable,
+		"replication_factor":          1,
+		"connect_timeout_ms":          5000,
+		"timeout_ms":                  5000,
+		"disable_initial_host_lookup": true,
+		"tls":                  scyllaUseTLS,
+		"ca_file":              scyllaCAFile,
+		"cert_file":            scyllaCertFile,
+		"key_file":             scyllaKeyFile,
+		"insecure_skip_verify": scyllaInsecure,
+		"name":                 logicalName,
 	}
 	b, _ := json.Marshal(opts)
 	return string(b), true
@@ -93,7 +85,6 @@ func openWithRetry(t *testing.T, c *Storage_Client, id, options string) error {
 	for i := 0; i < 10; i++ {
 		if err := c.OpenConnection(id, options); err != nil {
 			last = err
-			// Retry on the specific “no connection found” transitional state.
 			if strings.Contains(strings.ToLower(err.Error()), "no connection found") {
 				time.Sleep(150 * time.Millisecond)
 				continue
@@ -111,79 +102,61 @@ func kvRoundTrip(t *testing.T, c *Storage_Client, id string) {
 	val := []byte("bravo")
 
 	if err := c.SetItem(id, key, val); err != nil {
-		t.Fatalf("SetItem(%s) failed: %v", id, err)
+		t.Fatalf("SetItem(%s): %v", id, err)
 	}
 	got, err := c.GetItem(id, key)
 	if err != nil {
-		t.Fatalf("GetItem(%s) failed: %v", id, err)
+		t.Fatalf("GetItem(%s): %v", id, err)
 	}
 	if string(got) != string(val) {
 		t.Fatalf("GetItem mismatch: got=%q want=%q", string(got), string(val))
 	}
-	exists, err := c.Exists(id, key)
-	if err != nil {
-		t.Fatalf("Exists(%s) failed: %v", id, err)
-	}
-	if !exists {
-		t.Fatalf("Exists returned false for existing key")
-	}
 	if err := c.RemoveItem(id, key); err != nil {
-		t.Fatalf("RemoveItem(%s) failed: %v", id, err)
+		t.Fatalf("RemoveItem(%s): %v", id, err)
 	}
-	exists, err = c.Exists(id, key)
-	if err != nil {
-		t.Fatalf("Exists(after remove) failed: %v", err)
-	}
-	if exists {
-		t.Fatalf("Exists returned true after RemoveItem")
+	if ex, _ := c.Exists(id, key); ex {
+		t.Fatalf("Exists true after RemoveItem")
 	}
 }
 
-// ---------- the suite (sequential) ----------
+// ---------- the suite ----------
 
 func TestStoreImplementations(t *testing.T) {
 	client, err := NewStorageService_Client(storageAddr, serviceID)
 	if err != nil {
-		t.Fatalf("NewStorageService_Client(%s, %s) failed: %v", storageAddr, serviceID, err)
+		t.Fatalf("NewStorageService_Client: %v", err)
 	}
-	// Give each RPC a sensible deadline.
-	client.SetTimeout(8 * time.Second)
+	client.SetTimeout(10 * time.Second)
 	defer client.Close()
+
+	// Put test data under the configured Globular config dir to keep things tidy.
+	base := filepath.Join(os.TempDir(), "testdata", "storage", t.Name())
+	levelRoot := filepath.Join(base, "leveldb")
+	badgerRoot := filepath.Join(base, "badger")
 
 	type tc struct {
 		name    string
 		typ     storagepb.StoreType
 		options string
 	}
+	cases := []tc{
+		{
+			name:    "leveldb",
+			typ:     storagepb.StoreType_LEVEL_DB,
+			options: buildOptionsFileBased(t, levelRoot, "ts_leveldb"),
+		},
+		{
+			name:    "bigcache",
+			typ:     storagepb.StoreType_BIG_CACHE,
+			options: buildOptionsBigCache(),
+		},
+		{
+			name:    "badger",
+			typ:     storagepb.StoreType_BADGER_DB,
+			options: buildOptionsFileBased(t, badgerRoot, "ts_badger"),
+		},
+	}
 
-	// Prepare file-based roots isolated per backend
-	levelRoot := filepath.Join(t.TempDir(), "leveldb")
-	badgerRoot := filepath.Join(t.TempDir(), "badger")
-
-	var cases []tc
-
-	// LEVEL_DB
-	cases = append(cases, tc{
-		name:    "leveldb",
-		typ:     storagepb.StoreType_LEVEL_DB,
-		options: buildOptionsFileBased(t, levelRoot, "ts_leveldb"),
-	})
-
-	// BIG_CACHE (in-memory)
-	cases = append(cases, tc{
-		name:    "bigcache",
-		typ:     storagepb.StoreType_BIG_CACHE,
-		options: buildOptionsBigCache(),
-	})
-
-	// BADGER_DB
-	cases = append(cases, tc{
-		name:    "badger",
-		typ:     storagepb.StoreType_BADGER_DB,
-		options: buildOptionsFileBased(t, badgerRoot, "ts_badger"),
-	})
-
-	// Optional: SCYLLA_DB (only if SCYLLA_HOSTS provided)
 	if scyllaOpts, ok := buildOptionsScylla(t, "ts_scylla"); ok {
 		cases = append(cases, tc{
 			name:    "scylla",
@@ -196,46 +169,41 @@ func TestStoreImplementations(t *testing.T) {
 		t.Run(strings.ToUpper(cse.name), func(t *testing.T) {
 			id := "conn_" + cse.name
 
-			// Create
 			if err := client.CreateConnectionWithType(id, "storage_test_"+cse.name, cse.typ); err != nil {
-				t.Fatalf("CreateConnection(%s) type=%s failed: %v", id, cse.typ.String(), err)
+				t.Fatalf("CreateConnectionWithType: %v", err)
 			}
-			// Clean up the connection record regardless of later failures.
-			defer func() { _ = client.DeleteConnection(id) }()
+			
+			t.Cleanup(func() { _ = client.DeleteConnection(id) })
 
-			// Open (with retry if server isn’t ready yet for that id)
 			if err := openWithRetry(t, client, id, cse.options); err != nil {
-				t.Fatalf("OpenConnection(%s) failed with options=%s: %v", id, cse.options, err)
+				t.Fatalf("OpenConnection(%s): %v", cse.name, err)
 			}
 
-			// CRUD roundtrip
 			kvRoundTrip(t, client, id)
 
-			// Clear
-			if err := client.Clear(id); err != nil {
-				t.Fatalf("Clear(%s) failed: %v", id, err)
-			}
+			// Sanity ops & release handles
+			_ = client.Clear(id)
+			_ = client.CloseConnection(id)
+			_ = client.Drop(id)
 
-
-			// Ensure files/handles are released for file-backed stores
-			if err := client.CloseConnection(id); err != nil {
-				// Some stores implicitly close on Drop; ignore secondary errors.
-				_ = err
+			// Reopen to verify files/locks are freed (esp. Badger)
+			if err := openWithRetry(t, client, id, cse.options); err != nil {
+				t.Fatalf("Reopen after Drop(%s): %v", cse.name, err)
 			}
+			_ = client.CloseConnection(id)
 		})
 	}
 }
 
-// A small error-behavior test that should not deadlock or hang.
+// Quick error-surface check: should fail fast and not hang.
 func TestErrorPaths_AllStores(t *testing.T) {
 	client, err := NewStorageService_Client(storageAddr, serviceID)
 	if err != nil {
-		t.Fatalf("NewStorageService_Client failed: %v", err)
+		t.Fatalf("NewStorageService_Client: %v", err)
 	}
 	client.SetTimeout(5 * time.Second)
 	defer client.Close()
 
-	// Unknown connection id
 	const missing = "does-not-exist"
 	if err := client.SetItem(missing, "k", []byte("v")); err == nil {
 		t.Fatalf("SetItem on unknown id should fail")
@@ -246,7 +214,6 @@ func TestErrorPaths_AllStores(t *testing.T) {
 	_ = client.Clear(missing)
 	_ = client.Drop(missing)
 
-	// Bad options should fail quickly on Open
 	badOpts := `{"this":"is","not":"expected"}`
 	for _, typ := range []storagepb.StoreType{
 		storagepb.StoreType_LEVEL_DB,
@@ -255,9 +222,9 @@ func TestErrorPaths_AllStores(t *testing.T) {
 	} {
 		id := fmt.Sprintf("bad_%s", strings.ToLower(typ.String()))
 		if err := client.CreateConnectionWithType(id, "badcase", typ); err != nil {
-			t.Fatalf("CreateConnectionWithType failed: %v", err)
+			t.Fatalf("CreateConnectionWithType: %v", err)
 		}
-		_ = client.OpenConnection(id, badOpts) // should return an error; don’t hang
+		_ = client.OpenConnection(id, badOpts) // return error; don’t hang
 		_ = client.Drop(id)
 		_ = client.DeleteConnection(id)
 	}

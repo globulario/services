@@ -108,36 +108,46 @@ func (client *Storage_Client) SetAddress(address string) {
 
 func (client *Storage_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = client.GetCtx()
+		ctx_, cancel := client.newRPCContext()
+		ctx = ctx_
+		defer cancel()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
-func (client *Storage_Client) GetCtx() context.Context {
-	// start from any existing context; otherwise build the standard one
-	base := client.ctx
-	if base == nil {
-		base = globular.GetClientContext(client)
+// helper inside the client
+func (c *Storage_Client) newRPCContext() (context.Context, context.CancelFunc) {
+	// Start from a parent, but strip any existing deadline/cancel to avoid inheriting it.
+	var base context.Context
+	if c.ctx != nil {
+		base = context.WithoutCancel(c.ctx)
+	} else {
+		// If globular.GetClientContext adds useful values, strip its deadline too
+		base = context.WithoutCancel(globular.GetClientContext(c))
 	}
 
-	// apply per-call timeout if configured
-	if client.timeout > 0 {
-		ctx, _ := context.WithTimeout(base, client.timeout)
-		base = ctx
+	// Apply this call's timeout
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	if c.timeout > 0 {
+		ctx, cancel = context.WithTimeout(base, c.timeout)
+	} else {
+		ctx, cancel = context.WithCancel(base)
 	}
 
-	// attach auth + routing metadata if a local token is available
-	if token, err := security.GetLocalToken(client.GetMac()); err == nil {
-		md := metadata.New(map[string]string{
-			"token":   string(token),
-			"domain":  client.domain,
-			"mac":     client.GetMac(),
-			"address": client.GetAddress(),
-		})
-		return metadata.NewOutgoingContext(base, md)
+	// Attach metadata
+	if token, err := security.GetLocalToken(c.GetMac()); err == nil {
+		md := metadata.Pairs(
+			"token", string(token),
+			"domain", c.domain,
+			"mac", c.GetMac(),
+			"address", c.GetAddress(),
+		)
+		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
-
-	return base
+	return ctx, cancel
 }
 
 // Return the domain
@@ -259,9 +269,11 @@ func (client *Storage_Client) SetCaFile(caFile string) {
 
 // Stop the service.
 func (client *Storage_Client) StopService() {
-	client.c.Stop(client.GetCtx(), &storagepb.StopRequest{})
-}
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
 
+	client.c.Stop(ctx, &storagepb.StopRequest{})
+}
 
 func (client *Storage_Client) CreateConnection(id string, name string, connectionType_ float64) error {
 	var connectionType storagepb.StoreType
@@ -282,7 +294,10 @@ func (client *Storage_Client) CreateConnection(id string, name string, connectio
 		},
 	}
 
-	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.CreateConnection(ctx, rqst)
 
 	return err
 }
@@ -296,7 +311,12 @@ func (client *Storage_Client) CreateConnectionWithType(id, name string, t storag
 			Type: t,
 		},
 	}
-	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
+
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.CreateConnection(ctx, rqst)
 	return err
 }
 
@@ -308,7 +328,11 @@ func (client *Storage_Client) OpenConnection(id string, options string) error {
 		Options: options,
 	}
 
-	_, err := client.c.Open(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.Open(ctx, rqst)
 
 	return err
 }
@@ -322,14 +346,22 @@ func (client *Storage_Client) SetItem(connectionId string, key string, data []by
 		Value: data,
 	}
 
-	_, err := client.c.SetItem(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.SetItem(ctx, rqst)
 	return err
 }
 
 func (client *Storage_Client) SetLargeItem(connectionId string, key string, value []byte) error {
 
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
 	// Open the stream...
-	stream, err := client.c.SetLargeItem(client.GetCtx())
+	stream, err := client.c.SetLargeItem(ctx)
 	if err != nil {
 		return err
 	}
@@ -373,7 +405,12 @@ func (client *Storage_Client) GetItem(connectionId string, key string) ([]byte, 
 		Key: key,
 	}
 
-	stream, err := client.c.GetItem(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	
+	stream, err := client.c.GetItem(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +461,11 @@ func (client *Storage_Client) RemoveItem(connectionId string, key string) error 
 		Key: key,
 	}
 
-	_, err := client.c.RemoveItem(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.RemoveItem(ctx, rqst)
 	return err
 }
 
@@ -435,7 +476,11 @@ func (client *Storage_Client) Clear(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.Clear(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.Clear(ctx, rqst)
 	return err
 }
 
@@ -446,7 +491,11 @@ func (client *Storage_Client) Drop(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.Drop(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.Drop(ctx, rqst)
 	return err
 }
 
@@ -457,7 +506,11 @@ func (client *Storage_Client) CloseConnection(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.Close(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.Close(ctx, rqst)
 	return err
 }
 
@@ -468,6 +521,10 @@ func (client *Storage_Client) DeleteConnection(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.DeleteConnection(client.GetCtx(), rqst)
+
+	ctx, cancel := client.newRPCContext()
+	defer cancel()
+
+	_, err := client.c.DeleteConnection(ctx, rqst)
 	return err
 }

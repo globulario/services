@@ -179,16 +179,28 @@ func (store *Badger_store) clear() error {
 
 // drop destroys the data (DropAll).
 func (store *Badger_store) drop() error {
-    if store.db == nil {
-        return errors.New("badger: drop: db is not open")
+    // If it's open, wipe then close.
+    if store.db != nil {
+        if err := store.db.DropAll(); err != nil {
+            return err
+        }
+        if err := store.db.Close(); err != nil {
+            // still mark closed and try to remove the directory
+            store.db = nil
+            store.isOpen = false
+            if store.path != "" {
+                _ = os.RemoveAll(store.path)
+            }
+            return err
+        }
+        store.db = nil
     }
-    pkgLogger.Info("badger drop", "path", store.path)
-    if err := store.db.DropAll(); err != nil {
-        return err
-    }
-    // release KEYREGISTRY and other files
-    err := store.db.Close()
-    store.db = nil
+
     store.isOpen = false
-    return err
+
+    // Whether it was open or not, remove the directory if we know it.
+    if store.path != "" {
+        return os.RemoveAll(store.path)
+    }
+    return nil
 }

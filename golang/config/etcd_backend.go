@@ -21,7 +21,6 @@ import (
 
 	Utility "github.com/globulario/utility"
 
-	"go.uber.org/zap"
 )
 
 var (
@@ -31,111 +30,62 @@ var (
 
 // etcdClient returns a healthy shared client, selecting transport automatically.
 func etcdClient() (*clientv3.Client, error) {
-	cliMu.Lock()
-	defer cliMu.Unlock()
+    cliMu.Lock()
+    defer cliMu.Unlock()
 
-	if cliShared != nil {
-		if err := probeEtcdHealthy(cliShared, 3*time.Second); err == nil {
-			return cliShared, nil
-		}
-		_ = cliShared.Close()
-		cliShared = nil
-	}
+    if cliShared != nil {
+        if probeEtcdHealthy(cliShared, 1500*time.Millisecond) == nil {
+            return cliShared, nil
+        }
+        _ = cliShared.Close()
+        cliShared = nil
+    }
 
-	tlsCfg, err := GetEtcdTLS()
-	if err != nil {
-		zap.L().Warn("GetEtcdTLS failed; will try HTTP", zap.Error(err))
-		tlsCfg = nil
-	} else {
-		zap.L().Info("GetEtcdTLS succeeded; will try mTLS/TLS first")
-	}
+    eps := etcdEndpointsFromEnv()
+    if len(eps) == 0 {
+        return nil, fmt.Errorf("no etcd endpoints configured")
+    }
 
-	// Build a "TLS but no client cert" config using system roots.
-	sysPool, _ := x509.SystemCertPool()
-	hostname, _ := GetHostname()
+    // Classify endpoints by scheme; default to http if no scheme provided.
+    wantsTLS := false
+    norm := make([]string, 0, len(eps))
+    for _, ep := range eps {
+        u, err := url.Parse(ep)
+        if err != nil || u.Scheme == "" {
+            // assume http if no scheme given; keep original host:port
+            norm = append(norm, ep)
+            continue
+        }
+        if u.Scheme == "https" {
+            wantsTLS = true
+        }
+        norm = append(norm, u.Host)
+    }
 
+    cfg := clientv3.Config{
+        Endpoints:   norm,
+        DialTimeout: 3 * time.Second,
+    }
 
-	type attempt struct {
-		name     string
-		tls      *tls.Config
-		insecure bool // force HTTP
-	}
+    if wantsTLS {
+        tlsCfg, err := GetEtcdTLS()
+        if err != nil {
+            return nil, fmt.Errorf("endpoints require TLS but TLS config unavailable: %w", err)
+        }
+        cfg.TLS = tlsCfg
+    }
 
-	// Order: if we have mTLS config, try that, then plain TLS, then HTTP.
-	// If we have no TLS config, try plain TLS (could work with LE/public cert), then HTTP.
-	// Allow opting into a plain-TLS attempt via env (off by default).
-	tryPlainTLS := strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_ETCD_TRY_PLAINTLS")), "1") ||
-		strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_ETCD_TRY_PLAINTLS")), "true")
-
-	var orders []attempt
-	if tlsCfg != nil {
-		orders = []attempt{
-			{name: "mTLS", tls: tlsCfg},
-		}
-		if tryPlainTLS {
-			// This will likely fail if etcd enforces client cert auth, so keep it opt-in.
-			orders = append(orders, attempt{name: "TLS", tls: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    sysPool,
-				// SNI set to advertised hostname (already computed above)
-				ServerName: hostname,
-			}})
-		}
-		orders = append(orders, attempt{name: "HTTP", insecure: true})
-	} else {
-		// No client certs available: go straight to HTTP (loopback).
-		orders = []attempt{
-			{name: "HTTP", insecure: true},
-		}
-		if tryPlainTLS {
-			orders = append([]attempt{{name: "TLS", tls: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    sysPool,
-				ServerName: hostname,
-			}}}, orders...)
-		}
-	}
-
-	deadline := time.Now().Add(20 * time.Second)
-	var errs []error
-
-	for time.Now().Before(deadline) {
-		for _, o := range orders {
-			cfg := clientv3.Config{
-				Endpoints:   etcdEndpointsFromEnv(),
-				DialTimeout: 4 * time.Second,
-			}
-			if !o.insecure {
-				cfg.TLS = o.tls
-			}
-
-			zap.L().Info("etcdClient: trying transport", zap.String("mode", o.name), zap.Any("endpoints", cfg.Endpoints), zap.Bool("tls", cfg.TLS != nil))
-			c, err := clientv3.New(cfg)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("%s dial: %w", o.name, err))
-				continue
-			}
-			if err := probeEtcdHealthy(c, 3*time.Second); err == nil {
-				cliShared = c
-				return cliShared, nil
-			}
-			errs = append(errs, fmt.Errorf("%s health probe: %w", o.name, err))
-			_ = c.Close()
-		}
-		time.Sleep(400 * time.Millisecond)
-	}
-
-	// Assemble a readable error.
-	var b strings.Builder
-	for i, e := range errs {
-		if i > 0 {
-			b.WriteString(" | ")
-		}
-		b.WriteString(e.Error())
-	}
-	return nil, fmt.Errorf("could not determine etcd transport (mTLS/TLS/HTTP failed; endpoint=%v): %s", etcdEndpointsFromEnv(), b.String())
+    c, err := clientv3.New(cfg)
+    if err != nil {
+        return nil, err
+    }
+    if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
+        _ = c.Close()
+        return nil, err
+    }
+    cliShared = c
+    return cliShared, nil
 }
-
 // GetEtcdClient returns the shared healthy etcd client.
 func GetEtcdClient() (*clientv3.Client, error) {
 	return etcdClient()

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	// NOTE: we import config but call it only AFTER handling --describe/--health
@@ -93,6 +94,7 @@ type server struct {
 	// Storage runtime
 	Connections map[string]connection
 	stores      map[string]storage_store.Store
+	storeLocks  sync.Map // map[id]*sync.Mutex
 }
 
 // --- Globular contract: getters/setters ---

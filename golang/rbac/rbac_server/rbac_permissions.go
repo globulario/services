@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -715,50 +716,46 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 	// already removed above
 	return nil
 }
-
 func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+    chached, err := srv.cache.GetItem(path)
+    if err == nil && chached != nil {
+        permissions := new(rbacpb.Permissions)
+        if err := protojson.Unmarshal(chached, permissions); err == nil {
+            return permissions, nil
+        }
+    }
 
-	chached, err := srv.cache.GetItem(path)
-	if err == nil && chached != nil {
-		permissions := new(rbacpb.Permissions)
-		err := protojson.Unmarshal(chached, permissions)
-		if err == nil {
-			return permissions, nil
-		}
-	}
+    data, err := srv.getItem(path)
+    if err != nil {
+        return nil, err
+    }
 
-	data, err := srv.getItem(path)
-	if err != nil {
-		return nil, err
-	}
+    permissions := new(rbacpb.Permissions)
+    if err := protojson.Unmarshal(data, permissions); err != nil {
+        return nil, err
+    }
 
-	permissions := new(rbacpb.Permissions)
-	err = protojson.Unmarshal(data, permissions)
-	if err != nil {
-		return nil, err
-	}
+    needSave, permissions, err := srv.cleanupPermissions(permissions)
+    if err != nil {
+        // Map cleanup’s “file does not exist …” to a canonical not-found
+        if strings.Contains(strings.ToLower(err.Error()), "file does not exist") {
+            return nil, fmt.Errorf("item not found: %s", path)
+        }
+        return nil, err
+    }
 
-	// remove deleted subjects
-	needSave, permissions, err := srv.cleanupPermissions(permissions)
-	if err != nil {
-		return nil, err
-	}
+    if needSave {
+        if err := srv.setResourcePermissions(path, permissions.ResourceType, permissions); err != nil {
+            logPrintln("cleanupPermissions resave failed for ", path, ": ", err)
+        }
+    }
 
-	// save the value...
-	if needSave {
-		if err := srv.setResourcePermissions(path, permissions.ResourceType, permissions); err != nil {
-			logPrintln("cleanupPermissions resave failed for ", path, ": ", err)
-		}
-	}
+    if jsonStr, err := protojson.Marshal(permissions); err == nil {
+        srv.cache.SetItem(path, []byte(jsonStr))
+    }
 
-	jsonStr, err := protojson.Marshal(permissions)
-	if err == nil {
-		srv.cache.SetItem(path, []byte(jsonStr))
-	}
-
-	return permissions, nil
+    return permissions, nil
 }
-
 // DeleteResourcePermissions deletes all permissions associated with a specified resource path.
 // It first retrieves the current permissions for the resource. If the resource is not found,
 // it returns an empty response without error. If any other error occurs during retrieval or
@@ -799,99 +796,73 @@ func (srv *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.D
 // updates the resource permissions, and returns a DeleteResourcePermissionRsp on success or an error if any operation fails.
 // DeleteResourcePermission removes the whole action entry (e.g. "execute")
 // from Allowed or Denied, then persists.
+// DeleteResourcePermission removes the whole action entry (e.g. "execute")
+// from Allowed or Denied, then persists. The call is idempotent:
+// - If the resource has no permission record, it returns success.
+// - If the action isn't present, it returns success without persisting.
 func (srv *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRsp, error) {
 	path := rqst.Path
 	action := rqst.Name
-	kind := rqst.Type
+	kind := rqst.Type // ALLOWED or DENIED
 
+	// Try to load current permissions. If none exist, treat as success (idempotent).
 	perms, err := srv.getResourcePermissions(path)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "permissions not found for path %q", path)
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "item not found") || strings.Contains(errStr, "key not found") || strings.Contains(errStr, "not found") {
+			// Nothing to delete -> success
+			return &rbacpb.DeleteResourcePermissionRsp{}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	if perms == nil {
+		// Nothing to delete -> success
+		return &rbacpb.DeleteResourcePermissionRsp{}, nil
 	}
 
-	// 1) Collect subjects tied to the action we’re deleting (so we can drop their index entries)
-	var rmAcc, rmGrp, rmOrg, rmApp, rmPeer []string
-	switch kind {
-	case rbacpb.PermissionType_ALLOWED:
-		for _, p := range perms.Allowed {
-			if p != nil && p.Name == action {
-				rmAcc = append(rmAcc, p.Accounts...)
-				rmGrp = append(rmGrp, p.Groups...)
-				rmOrg = append(rmOrg, p.Organizations...)
-				rmApp = append(rmApp, p.Applications...)
-				rmPeer = append(rmPeer, p.Peers...)
-			}
-		}
-	case rbacpb.PermissionType_DENIED:
-		for _, p := range perms.Denied {
-			if p != nil && p.Name == action {
-				rmAcc = append(rmAcc, p.Accounts...)
-				rmGrp = append(rmGrp, p.Groups...)
-				rmOrg = append(rmOrg, p.Organizations...)
-				rmApp = append(rmApp, p.Applications...)
-				rmPeer = append(rmPeer, p.Peers...)
-			}
-		}
-	}
-
-	// 2) Drop index entries *before* we persist, so setResourcePermissions can re-add for any subjects
-	//    that still have other actions or owner rights.
-	for _, a := range rmAcc {
-		if ok, id := srv.accountExist(a); ok {
-			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+id, path)
-		}
-	}
-	for _, g := range rmGrp {
-		if ok, id := srv.groupExist(g); ok {
-			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/GROUPS/"+id, path)
-		}
-	}
-	for _, o := range rmOrg {
-		if ok, id := srv.organizationExist(o); ok {
-			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+id, path)
-		}
-	}
-	for _, a := range rmApp {
-		if ok, id := srv.applicationExist(a); ok {
-			_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+id, path)
-		}
-	}
-	for _, p := range rmPeer {
-		_ = srv.deleteSubjectResourcePermissions("PERMISSIONS/PEERS/"+p, path)
-	}
-
-	// 3) Remove the action from the in-memory perms
-	filter := func(in []*rbacpb.Permission) []*rbacpb.Permission {
+	// Helper to remove by action name; returns (newList, removedAny)
+	removeByName := func(in []*rbacpb.Permission) ([]*rbacpb.Permission, bool) {
 		if len(in) == 0 {
-			return in
+			return in, false
 		}
 		out := in[:0]
+		removed := false
 		for _, p := range in {
 			if p == nil || p.Name != action {
 				out = append(out, p)
+			} else {
+				removed = true
 			}
 		}
+		// Keep non-nil slice to avoid nil/empty ambiguity
 		if len(out) == 0 {
-			return []*rbacpb.Permission{}
+			out = []*rbacpb.Permission{}
 		}
-		return out
+		return out, removed
 	}
 
+	removed := false
 	switch kind {
 	case rbacpb.PermissionType_ALLOWED:
-		perms.Allowed = filter(perms.Allowed)
+		perms.Allowed, removed = removeByName(perms.Allowed)
 	case rbacpb.PermissionType_DENIED:
-		perms.Denied = filter(perms.Denied)
+		perms.Denied, removed = removeByName(perms.Denied)
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unknown PermissionType: %v", kind)
 	}
 
-	// 4) Persist; this will (re)index whatever remains allowed/owner for this path
+	// If nothing was actually removed, return success without persisting (idempotent).
+	if !removed {
+		srv.cache.RemoveItem(path) // best-effort to avoid stale cache
+		return &rbacpb.DeleteResourcePermissionRsp{}, nil
+	}
+
+	// Persist only when we changed something.
 	if err := srv.setResourcePermissions(path, perms.ResourceType, perms); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// 5) Invalidate the per-path cache
+	// Invalidate cache so ValidateAccess sees the updated state.
 	srv.cache.RemoveItem(path)
 
 	return &rbacpb.DeleteResourcePermissionRsp{}, nil
