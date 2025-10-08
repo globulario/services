@@ -218,6 +218,27 @@ func timeIndexKey(level, app string, b int64) string {
 	return Utility.GenerateUUID("idx_time|" + level + "|" + app + "|" + strconv.FormatInt(b, 10))
 }
 
+// at top of file (helpers)
+func decodeMethodSegment(seg string) string {
+	if seg == "" {
+		return ""
+	}
+	// URL-decode first (%2F etc.)
+	if u, err := url.PathUnescape(seg); err == nil && u != "" {
+		seg = u
+	}
+	// Accept common "slash" escape spellings some callers might use
+	seg = strings.ReplaceAll(seg, `\x2F`, "/")
+	seg = strings.ReplaceAll(seg, `\x2f`, "/")
+	seg = strings.ReplaceAll(seg, `\u002F`, "/")
+
+	// Normalize to start with "/" unless wildcard
+	if seg != "*" && !strings.HasPrefix(seg, "/") {
+		seg = "/" + seg
+	}
+	return seg
+}
+
 // log persists a LogInfo, coalescing occurrences for the same (site+message),
 // publishes the event to the bus, and bumps Prometheus counters.
 // NOTE: This is internal; public API methods delegate here.
@@ -267,7 +288,7 @@ func (srv *server) log(info *logpb.LogInfo) error {
 	}
 
 	// Stable id per (level|app|method|line)
-	info.Id = Utility.GenerateUUID(level + "|" + info.Application + "|" + info.Method + "|" + info.Line)
+	info.Id = makeDeterministicID(info, level) // level|app|method|line|message
 
 	if info.TimestampMs == 0 {
 		info.TimestampMs = time.Now().UnixMilli()
@@ -398,7 +419,6 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 		return errors.New("no query was given")
 	}
 
-	// Split path and optional URL-style filters
 	var rawPath, rawQuery string
 	if i := strings.IndexByte(q, '?'); i >= 0 {
 		rawPath, rawQuery = q[:i], q[i+1:]
@@ -406,34 +426,44 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 		rawPath = q
 	}
 
-	// Normalize path: trim leading/trailing slashes and split, ignoring empties
-	parts := strings.FieldsFunc(strings.Trim(rawPath, "/"), func(r rune) bool { return r == '/' })
-	if len(parts) < 2 || len(parts) > 3 {
+	// Trim leading/trailing slashes and split once.
+	// We’ll allow >3 segments by re-joining the tail for the method.
+	raw := strings.Trim(rawPath, "/")
+	if raw == "" {
+		return errors.New("the query must be like /{level}/{application}[/[*|method]]")
+	}
+	parts := strings.Split(raw, "/")
+	if len(parts) < 2 {
 		return errors.New("the query must be like /{level}/{application}[/[*|method]]")
 	}
 
 	level := strings.ToLower(parts[0])
 	app := parts[1]
 
-	// defaults
+	// defaults...
 	nowMs := time.Now().UnixMilli()
 	sinceMs := int64(0)
 	untilMs := nowMs
 	limit := 100
 	orderAsc := true
-	methodFilter := ""    // exact match if set
-	componentFilter := "" // exact match if set
-	contains := ""        // substring on message if set
+	methodFilter := ""
+	componentFilter := ""
+	contains := ""
 
-	// Optional 3rd segment: either "*" (wildcard) or a concrete method name.
-	if len(parts) == 3 && parts[2] != "*" {
-		methodFilter = parts[2]
+	// Optional method segment(s):
+	// - If exactly one segment: it can be "*" or an encoded method (e.g. "%2Fsvc%2FA").
+	// - If more than one segment: join the tail back to a single method string.
+	if len(parts) >= 3 {
+		tail := strings.Join(parts[2:], "/") // reassemble
+		tail = decodeMethodSegment(tail)
+		if tail != "" && tail != "*" {
+			methodFilter = tail
+		}
 	}
 
-	// parse filters (all optional)
+	// parse filters (unchanged)...
 	if rawQuery != "" {
 		v, _ := url.ParseQuery(rawQuery)
-
 		if s := v.Get("since"); s != "" {
 			if ms, err := strconv.ParseInt(s, 10, 64); err == nil {
 				sinceMs = ms
@@ -453,7 +483,7 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 			orderAsc = false
 		}
 		if s := v.Get("method"); s != "" {
-			methodFilter = s
+			methodFilter = s // explicit query param wins
 		}
 		if s := v.Get("component"); s != "" {
 			componentFilter = s
@@ -462,7 +492,6 @@ func (srv *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_GetLog
 			contains = s
 		}
 	}
-
 	if sinceMs > untilMs {
 		sinceMs, untilMs = untilMs, sinceMs
 	}
@@ -605,10 +634,21 @@ func (srv *server) ClearAllLog(ctx context.Context, rqst *logpb.ClearAllLogRqst)
 	}
 
 	parts := strings.Split(query, "/")
-	if len(parts) != 3 {
+
+	// Expect "/{level}/{application}/*"
+	// I will ignore empty parts, so "/info/dns/*" and "info/dns/*" are equivalent.
+	var cleanParts []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			cleanParts = append(cleanParts, p)
+		}
+	}
+	parts = cleanParts
+
+	if len(parts) != 3 || parts[2] != "*" {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the query must be something like /debug/application/*'")),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the query must be like /{level}/{application}/*")),
 		)
 	}
 

@@ -128,7 +128,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		application, err := srv.getApplication(subject)
 		if err != nil {
 
-			srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
 			return false, false, err
 		}
 
@@ -138,7 +137,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := srv.getPeer(subject)
 		if err != nil {
-			srv.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, false, err
 		}
 		actions = peer.Actions
@@ -147,7 +145,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := srv.getRole(subject)
 		if err != nil {
-			srv.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, false, err
 		}
 
@@ -168,7 +165,6 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 
 		account, err := srv.getAccount(subject)
 		if err != nil {
-			srv.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, false, err
 		}
 

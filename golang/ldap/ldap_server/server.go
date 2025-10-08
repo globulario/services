@@ -632,8 +632,6 @@ func main() {
 	ldappb.RegisterLdapServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
 
-	// Start embedded LDAP listener (389/636) in background.
-	go s.StartLDAPFacade()
 
 	logger.Info("service ready",
 		"service", s.Name,

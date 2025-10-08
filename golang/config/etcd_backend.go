@@ -20,7 +20,6 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	Utility "github.com/globulario/utility"
-
 )
 
 var (
@@ -28,64 +27,89 @@ var (
 	cliShared *clientv3.Client
 )
 
-// etcdClient returns a healthy shared client, selecting transport automatically.
 func etcdClient() (*clientv3.Client, error) {
-    cliMu.Lock()
-    defer cliMu.Unlock()
+	cliMu.Lock()
+	defer cliMu.Unlock()
 
-    if cliShared != nil {
-        if probeEtcdHealthy(cliShared, 1500*time.Millisecond) == nil {
-            return cliShared, nil
-        }
-        _ = cliShared.Close()
-        cliShared = nil
-    }
+	// Reuse if still healthy.
+	if cliShared != nil {
+		if probeEtcdHealthy(cliShared, 1500*time.Millisecond) == nil {
+			return cliShared, nil
+		}
+		_ = cliShared.Close()
+		cliShared = nil
+	}
 
-    eps := etcdEndpointsFromEnv()
-    if len(eps) == 0 {
-        return nil, fmt.Errorf("no etcd endpoints configured")
-    }
+	// Build endpoints (with scheme hints) from env / local config.
+	raw := etcdEndpointsFromEnv() // may contain https://
+	// ...
+	// Decide if we must use TLS:
+	//   - true if any endpoint scheme is https
+	//   - or if local server TLS files are present
+	forceTLS := false
+	for _, ep := range raw {
+		if strings.HasPrefix(strings.TrimSpace(strings.ToLower(ep)), "https://") {
+			forceTLS = true
+			break
+		}
+	}
+	if !forceTLS && etcdServerTLSExists() {
+		forceTLS = true
+	}
 
-    // Classify endpoints by scheme; default to http if no scheme provided.
-    wantsTLS := false
-    norm := make([]string, 0, len(eps))
-    for _, ep := range eps {
-        u, err := url.Parse(ep)
-        if err != nil || u.Scheme == "" {
-            // assume http if no scheme given; keep original host:port
-            norm = append(norm, ep)
-            continue
-        }
-        if u.Scheme == "https" {
-            wantsTLS = true
-        }
-        norm = append(norm, u.Host)
-    }
+	// Normalize to host:port for the client (TLS is specified separately).
+	hostports := make([]string, 0, len(raw))
+	for _, ep := range raw {
+		u, err := url.Parse(ep)
+		if err != nil {
+			continue
+		}
+		h := u.Host
+		if h == "" {
+			h = strings.TrimPrefix(ep, "https://")
+			h = strings.TrimPrefix(h, "http://")
+		}
+		// Ensure a port is present.
+		host, port, err := net.SplitHostPort(h)
+		if err != nil {
+			host = h
+			port = "2379"
+		}
+		hostports = append(hostports, net.JoinHostPort(host, port))
+	}
 
-    cfg := clientv3.Config{
-        Endpoints:   norm,
-        DialTimeout: 3 * time.Second,
-    }
+	if len(hostports) == 0 {
+		return nil, fmt.Errorf("no valid etcd endpoints after normalization")
+	}
 
-    if wantsTLS {
-        tlsCfg, err := GetEtcdTLS()
-        if err != nil {
-            return nil, fmt.Errorf("endpoints require TLS but TLS config unavailable: %w", err)
-        }
-        cfg.TLS = tlsCfg
-    }
+	cfg := clientv3.Config{
+		Endpoints:        hostports,
+		DialTimeout:      4 * time.Second,
+		AutoSyncInterval: 30 * time.Second,
+	}
 
-    c, err := clientv3.New(cfg)
-    if err != nil {
-        return nil, err
-    }
-    if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
-        _ = c.Close()
-        return nil, err
-    }
-    cliShared = c
-    return cliShared, nil
+	// Decide TLS strictly from local server state (and not from whatever a caller passed).
+	// This avoids the “first record does not look like a TLS handshake” situation.
+	if forceTLS {
+		tlsCfg, err := GetEtcdTLS()
+		if err != nil {
+			return nil, fmt.Errorf("TLS required but not available: %w", err)
+		}
+		cfg.TLS = tlsCfg
+	}
+
+	c, err := clientv3.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	cliShared = c
+	return cliShared, nil
 }
+
 // GetEtcdClient returns the shared healthy etcd client.
 func GetEtcdClient() (*clientv3.Client, error) {
 	return etcdClient()
@@ -105,12 +129,22 @@ func probeEtcdHealthy(c *clientv3.Client, to time.Duration) error {
 	return err
 }
 
-// -----------------------------
-// Endpoint & TLS helpers
-// -----------------------------
+// --- replace this whole block in etcd_backend.go ---
 
-// etcdEndpointsFromEnv: never return 0.0.0.0; prefer advertised DNS.
+// probe for cert triplet in a directory
+func hasServerTriplet(base string) bool {
+	crt := filepath.Join(base, "server.crt")
+	key := filepath.Join(base, "server.key")
+	if _, err := os.Stat(key); os.IsNotExist(err) {
+		key = filepath.Join(base, "server.pem")
+	}
+	ca := filepath.Join(base, "ca.crt")
+	return fileExists(crt) && fileExists(key) && fileExists(ca)
+}
+
+// etcdEndpointsFromEnv: prefer HTTPS if TLS exists, else HTTP. Always emit scheme.
 func etcdEndpointsFromEnv() []string {
+	// explicit env (may include scheme) wins
 	if s := os.Getenv("GLOBULAR_ETCD_ENDPOINTS"); s != "" {
 		return mapSanitized(splitCSV(s))
 	}
@@ -121,6 +155,7 @@ func etcdEndpointsFromEnv() []string {
 		return mapSanitized(splitCSV(s))
 	}
 
+	// Build stable advertised host (same logic as server)
 	name := Utility.ToString(GetLocalConfigMust(true)["Name"])
 	if name == "" {
 		if n, _ := GetName(); n != "" {
@@ -136,88 +171,74 @@ func etcdEndpointsFromEnv() []string {
 		host = "localhost"
 	}
 
-	// Return both loopback (HTTP listener) and the advertised host (TLS listener).
-	eps := []string{"127.0.0.1:2379", net.JoinHostPort(host, "2379")}
+	scheme := "http"
+	if etcdServerTLSExists() {
+		scheme = "https"
+	}
+	eps := []string{
+		fmt.Sprintf("%s://127.0.0.1:2379", scheme),
+		fmt.Sprintf("%s://%s:2379", scheme, host),
+	}
+
 	return mapSanitized(eps)
 }
 
-func sanitize(ep string) (string, bool) {
-	u := ep
-	if !strings.Contains(u, "://") {
-		u = "http://" + u
-	}
-	if uu, err := url.Parse(u); err == nil {
-		host := uu.Hostname()
-		if host == "0.0.0.0" || host == "" || host == "::" || host == "[::]" {
-			return "", false
-		}
-		port := uu.Port()
-		if port == "" {
-			port = "2379"
-		}
-		return net.JoinHostPort(host, port), true
-	}
-	return "", false
-}
+// GetEtcdTLS returns a tls.Config that trusts the local CA and (optionally) presents a client cert.
+func GetEtcdTLS() (*tls.Config, error) {
+	cfgDir := GetConfigDir()
 
-func mapSanitized(in []string) []string {
-	var out []string
-	for _, ep := range in {
-		if hp, ok := sanitize(strings.TrimSpace(ep)); ok {
-			out = append(out, hp)
-		}
+	// Build search list identical to etcdServerTLSExists
+	name := Utility.ToString(GetLocalConfigMust(true)["Name"])
+	if name == "" {
+		name, _ = GetName()
 	}
-	if len(out) == 0 {
-		// fallback to DNS-first as in your existing code
-		name := Utility.ToString(GetLocalConfigMust(true)["Name"])
-		if name == "" {
-			if n, _ := GetName(); n != "" {
-				name = n
+	dom, _ := GetDomain()
+
+	tryDirs := []string{}
+	if name != "" && dom != "" && !strings.Contains(name, ".") {
+		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", name+"."+dom))
+	}
+	if name != "" {
+		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", name))
+	}
+	if hn, _ := GetHostname(); hn != "" {
+		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", hn))
+	}
+	tlsRoot := filepath.Join(cfgDir, "tls")
+	if entries, err := os.ReadDir(tlsRoot); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				tryDirs = append(tryDirs, filepath.Join(tlsRoot, e.Name()))
 			}
 		}
-		dom, _ := GetDomain()
-		host := strings.TrimSpace(name)
-		if dom != "" && !strings.Contains(host, ".") {
-			host = host + "." + dom
-		}
-		if host == "" {
-			host = "localhost"
-		}
-		out = []string{host + ":2379"}
 	}
-	return out
-}
-
-// tiny helper so we don’t ignore errors silently
-func GetLocalConfigMust(withCache bool) map[string]interface{} {
-	cfg, _ := GetLocalConfig(withCache)
-	if cfg == nil {
-		cfg = map[string]interface{}{}
+	// de-dup
+	uniq := make([]string, 0, len(tryDirs))
+	seen := map[string]bool{}
+	for _, d := range tryDirs {
+		if d != "" && !seen[d] {
+			seen[d] = true
+			uniq = append(uniq, d)
+		}
 	}
-	return cfg
-}
 
-// GetEtcdTLS returns a *tls.Config for talking to etcd over HTTPS (mTLS).
-// Returns (nil, error) if files are missing/invalid.
-func GetEtcdTLS() (*tls.Config, error) {
+	var base string
+	for _, d := range uniq {
+		if hasServerTriplet(d) {
+			base = d
+			break
+		}
+	}
+	if base == "" {
+		return nil, fmt.Errorf("etcd TLS requested but no cert directory found")
+	}
 
-	advHost, _ := GetHostname()
-	base := filepath.Join(GetConfigDir(), "tls", advHost)
 	caPath := filepath.Join(base, "ca.crt")
 	clientCrt := filepath.Join(base, "client.crt")
 	clientKey := filepath.Join(base, "client.pem")
 
-	// Check files
-	for _, p := range []string{caPath, clientCrt, clientKey} {
-		if _, err := os.Stat(p); err != nil {
-			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("missing TLS file: %s", p)
-			}
-			return nil, fmt.Errorf("stat %s: %w", p, err)
-		}
-	}
 
-	// Root pool: prefer system + your CA
+	// Root pool: system + your CA
 	pool, _ := x509.SystemCertPool()
 	if pool == nil {
 		pool = x509.NewCertPool()
@@ -230,21 +251,135 @@ func GetEtcdTLS() (*tls.Config, error) {
 		return nil, fmt.Errorf("append CA failed (invalid PEM?)")
 	}
 
-	cert, err := tls.LoadX509KeyPair(clientCrt, clientKey)
+	tcfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    pool,
+		// IMPORTANT:
+		// - Leave ServerName empty so Go will:
+		//   * use SNI automatically for DNS endpoints, and
+		//   * verify by IP SAN for 127.0.0.1 / 10.0.0.63
+		InsecureSkipVerify: false,
+	}
+
+	// Optional mTLS
+	if fileExists(clientCrt) && fileExists(clientKey) {
+		cert, err := tls.LoadX509KeyPair(clientCrt, clientKey)
+		if err != nil {
+			return nil, fmt.Errorf("load client keypair: %w", err)
+		}
+		tcfg.Certificates = []tls.Certificate{cert}
+	}
+	return tcfg, nil
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// sanitize keeps the scheme and normalizes host:port.
+// Returns a full URL string like "https://host:2379".
+// etcdServerTLSExists reports whether the local etcd server is configured for TLS.
+func etcdServerTLSExists() bool {
+	// Match where StartEtcdServer writes certs:
+	// <config>/tls/<advHost>/{server.crt, server.key, ca.crt}
+	cfgDir := GetConfigDir()
+	// We don't know advHost here; check any host directory that has a full triplet.
+	tlsRoot := filepath.Join(cfgDir, "tls")
+	dirs, err := os.ReadDir(tlsRoot)
 	if err != nil {
-		return nil, fmt.Errorf("load client keypair: %w", err)
+		return false
+	}
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		dir := filepath.Join(tlsRoot, d.Name())
+		crt := filepath.Join(dir, "server.crt")
+		key := filepath.Join(dir, "server.key")
+		if !Utility.Exists(key) {
+			key = filepath.Join(dir, "server.pem")
+		}
+		ca := filepath.Join(dir, "ca.crt")
+		if Utility.Exists(crt) && Utility.Exists(key) {
+			// ca may be optional if client-cert-auth is false, but keep it permissive:
+			return true
+		}
+		if Utility.Exists(crt) && Utility.Exists(key) && Utility.Exists(ca) {
+			return true
+		}
+	}
+	return false
+}
+
+// sanitize keeps scheme if present; if missing, picks https when server TLS exists, else http.
+// Also upgrades http->https when server TLS exists.
+func sanitize(ep string) (string, bool) {
+	u := strings.TrimSpace(ep)
+	if u == "" {
+		return "", false
+	}
+	hasTLS := etcdServerTLSExists()
+
+	// Add a default scheme so url.Parse works, but choose based on local TLS.
+	if !strings.Contains(u, "://") {
+		if hasTLS {
+			u = "https://" + u
+		} else {
+			u = "http://" + u
+		}
+	}
+	uu, err := url.Parse(u)
+	if err != nil {
+		return "", false
 	}
 
-	// (Optional) sanity check the client cert has EKU clientAuth
-	if err := ensureClientAuthEKU(cert); err != nil {
-		return nil, err
+	scheme := uu.Scheme
+	if hasTLS && scheme == "http" {
+		// Caller configured a bare host we defaulted to http; upgrade it.
+		scheme = "https"
 	}
 
-	return &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		RootCAs:      pool,                    // verify the server (etcd)
-		Certificates: []tls.Certificate{cert}, // present client cert (mTLS)
-	}, nil
+	host := uu.Hostname()
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		return "", false
+	}
+	port := uu.Port()
+	if port == "" {
+		port = "2379"
+	}
+	return fmt.Sprintf("%s://%s", scheme, net.JoinHostPort(host, port)), true
+}
+
+func mapSanitized(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, ep := range in {
+		if s, ok := sanitize(ep); ok {
+			if !seen[s] {
+				seen[s] = true
+				out = append(out, s)
+			}
+		}
+	}
+	if len(out) == 0 {
+		// If we truly have nothing, prefer https when TLS exists.
+		if etcdServerTLSExists() {
+			out = []string{"https://127.0.0.1:2379"}
+		} else {
+			out = []string{"http://127.0.0.1:2379"}
+		}
+	}
+	return out
+}
+
+// tiny helper so we don’t ignore errors silently
+func GetLocalConfigMust(withCache bool) map[string]interface{} {
+	cfg, _ := GetLocalConfig(withCache)
+	if cfg == nil {
+		cfg = map[string]interface{}{}
+	}
+	return cfg
 }
 
 // ensureClientAuthEKU checks the leaf (if parseable) has clientAuth EKU.
@@ -291,7 +426,6 @@ func splitCSV(s string) []string {
 // -----------------------------
 // Logging for etcd client
 // -----------------------------
-
 
 // -----------------------------
 // Desired/runtime split helpers

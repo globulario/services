@@ -20,8 +20,6 @@ import (
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -345,29 +343,6 @@ func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-// Log service
-func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
-}
-func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	lc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return lc.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
-}
-func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
-	lc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return lc.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
 
 // Resource helpers
 func (srv *server) removeRolesAction(action string) error {

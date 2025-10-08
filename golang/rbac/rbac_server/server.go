@@ -17,8 +17,6 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -310,30 +308,6 @@ func (srv *server) publish(event string, data []byte) error {
 	return ec.Publish(event, data)
 }
 
-func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	c, err := globular_client.GetClient(srv.Address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return c.(*log_client.Log_Client), nil
-}
-
-func (srv *server) logServiceInfo(method, fileLine, functionName, msg string) error {
-	lc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return lc.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, msg, fileLine, functionName)
-}
-
-func (srv *server) logServiceError(method, fileLine, functionName, msg string) error {
-	lc, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return lc.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, msg, fileLine, functionName)
-}
 
 func (srv *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)

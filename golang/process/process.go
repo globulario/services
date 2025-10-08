@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -27,6 +29,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,9 +49,7 @@ var (
 	servicesMemoryUsage *prometheus.GaugeVec
 )
 
-//
 // Ring buffer for process output
-//
 type ring struct {
 	mu   sync.Mutex
 	buf  []byte
@@ -236,12 +237,6 @@ func RestartAllServicesForEtcdTLS() error {
 			continue
 		}
 
-		// Stop the service (best effort) and start it again.
-		_ = KillServiceProcess(s)
-		if _, err := StartServiceProcess(s, port); err != nil && firstErr == nil {
-			firstErr = err
-		}
-
 		// If this service is exposed through grpcwebproxy with TLS, relaunch its proxy too.
 		if Utility.ToBool(s["TLS"]) {
 			if _, err := StartServiceProxyProcess(s, "ca.crt", "server.crt"); err != nil && firstErr == nil {
@@ -299,7 +294,6 @@ func StartServiceProcessWithWriters(
 ) (int, error) {
 	return startServiceProcessWithWritersInternal(s, port, stdoutWriter, stderrWriter, make(map[string]struct{}))
 }
-
 
 func newRing(n int) *ring { return &ring{size: n, buf: make([]byte, 0, n)} }
 func (r *ring) Write(p []byte) (int, error) {
@@ -555,7 +549,12 @@ func startServiceProcessWithWritersInternal(
 
 		_ = config.PutRuntime(id, map[string]interface{}{
 			"Process": -1,
-			"State":   func() string { if err != nil { return "failed" }; return "stopped" }(),
+			"State": func() string {
+				if err != nil {
+					return "failed"
+				}
+				return "stopped"
+			}(),
 			"LastError": func() string {
 				if err != nil {
 					if sigStr != "" {
@@ -651,6 +650,13 @@ Defenses:
 //   If it doesn't, log+return a concrete error instead of silently skipping.
 // - Still guards against double-start via etcd TryLock and clears stale ProxyProcess PIDs.
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string) (int, error) {
+
+	// if Envoy is running, do not start grpcwebproxy
+	if _, err := Utility.GetProcessIdsByName("envoy"); err == nil {
+		slog.Info("Envoy detected; skipping grpcwebproxy start", "service", s["Name"], "id", s["Id"])
+		return -1, nil
+	}
+
 	// Reconcile from runtime; needed for correct Process/ProxyProcess decisions.
 	syncFromRuntime(s)
 
@@ -1107,20 +1113,84 @@ func RestartEtcdIfCertsReady() error {
 	return StartEtcdServer()
 }
 
-/*
-StartEtcdServer launches etcd using a generated config file. It:
+// ensureEtcdAndScyllaPerms makes etcd happy (0700 data dir) and lets scylla read TLS files.
+// ensureEtcdAndScyllaPerms:
+// - etcd data dir -> 0700
+// - TLS dir -> 0750 (root:scylla so scylla can traverse)
+// - PRIVATE keys   (*.key, client.pem, server.pem, anything with "key" in name & .pem) -> 0640 root:scylla
+// - PUBLIC material (*.crt, *fullchain*.pem, *.csr, .conf, .txt, etc.) -> 0644 root:root
+func ensureEtcdAndScyllaPerms(cfgDir, dataDir, advHost string) error {
+    if err := os.MkdirAll(dataDir, 0o700); err != nil { return err }
+    if err := os.Chmod(dataDir, 0o700); err != nil { return err }
 
-  - Builds listen/advertise URLs (DNS-first) and optional TLS sections.
-  - Skips start if a healthy etcd is already reachable at the advertised URL.
-  - Refuses to start if the listen ports are in use but the endpoint is unhealthy.
-  - Waits for readiness (HTTP /health or TCP).
-  - Handles SIGTERM for graceful shutdown.
+    tlsRoot := filepath.Join(cfgDir, "tls")
+    tlsDir  := filepath.Join(tlsRoot, advHost)
 
-The generated config is written to <config>/etcd.yml and data to <data>/etcd-data.
-*/
+    // ensure parents are traversable
+    _ = os.MkdirAll(tlsRoot, 0o755)
+    _ = os.Chmod(tlsRoot, 0o755)
+
+    // TLS dir: 0755 so public files are actually readable
+    if err := os.MkdirAll(tlsDir, 0o755); err != nil { return err }
+    if err := os.Chmod(tlsDir, 0o755); err != nil { return err }
+
+    var scyllaGID = -1
+    if grp, err := user.LookupGroup("scylla"); err == nil {
+        if gid, e := strconv.Atoi(grp.Gid); e == nil { scyllaGID = gid }
+    }
+    if scyllaGID >= 0 { _ = os.Chown(tlsDir, 0, scyllaGID) }
+
+    isPrivate := func(n string) bool {
+        l := strings.ToLower(n)
+        return strings.HasSuffix(l, ".key") ||
+               l == "client.pem" || l == "server.pem" ||
+               (strings.HasSuffix(l, ".pem") && strings.Contains(l, "key"))
+    }
+    isPublic := func(n string) bool {
+        l := strings.ToLower(n)
+        return strings.HasSuffix(l, ".crt") ||
+               (strings.Contains(l, "fullchain") && strings.HasSuffix(l, ".pem")) ||
+               strings.HasSuffix(l, ".csr") || strings.HasSuffix(l, ".conf") || strings.HasSuffix(l, ".txt")
+    }
+
+    ents, err := os.ReadDir(tlsDir)
+    if err != nil { return err }
+    for _, e := range ents {
+        if !e.Type().IsRegular() { continue }
+        p := filepath.Join(tlsDir, e.Name())
+        switch {
+        case isPrivate(e.Name()):
+            if scyllaGID >= 0 {
+                _ = os.Chown(p, 0, scyllaGID); _ = os.Chmod(p, 0o640)
+            } else {
+                _ = os.Chown(p, 0, 0);        _ = os.Chmod(p, 0o600)
+            }
+        case isPublic(e.Name()):
+            _ = os.Chown(p, 0, 0);            _ = os.Chmod(p, 0o644)
+        default:
+            _ = os.Chown(p, 0, 0);            _ = os.Chmod(p, 0o644)
+        }
+    }
+    return nil
+}
+
+// StartEtcdServer launches etcd using a generated config file. It:
+//
+//   - Builds listen/advertise URLs (DNS-first) and optional TLS sections.
+//   - If Protocol=https but server certs are missing, it tries to generate
+//     local CA + server/client certs using the existing `security` package.
+//   - Skips start if a healthy etcd is already reachable at the advertised URL.
+//   - Refuses to start if the listen ports are in use but the endpoint is unhealthy.
+//   - Waits for readiness (HTTP /health or TCP).
+//   - Handles SIGTERM for graceful shutdown.
+//
+// The generated config is written to <config>/etcd.yml and data to <data>/etcd-data.
 func StartEtcdServer() error {
-	const readyTimeout = 60 * time.Second
-	const probeEvery = 200 * time.Millisecond
+	const (
+		readyTimeout = 60 * time.Second
+		probeEvery   = 200 * time.Millisecond
+		defaultDays  = 3650 // for local bootstrap certs
+	)
 
 	localConfig, err := config.GetLocalConfig(true)
 	if err != nil {
@@ -1145,11 +1215,9 @@ func StartEtcdServer() error {
 		advHost = name + "." + domain
 	}
 	advHost = strings.TrimSpace(advHost)
-
 	if advHost == "" {
 		return errors.New("cannot determine etcd advertised hostname")
 	}
-
 	if advHost == "127.0.0.1" || advHost == "0.0.0.0" {
 		slog.Warn("etcd advertised hostname resolves to localhost; this is not suitable for clustering")
 		advHost = "localhost"
@@ -1159,6 +1227,12 @@ func StartEtcdServer() error {
 	_ = Utility.CreateDirIfNotExist(dataDir)
 	cfgPath := config.GetConfigDir() + "/etcd.yml"
 
+	// Set permissions for etcd data dir and TLS files (if any).
+	cfgDir := config.GetConfigDir()
+	if err := ensureEtcdAndScyllaPerms(cfgDir, dataDir, advHost); err != nil {
+		return fmt.Errorf("perm bootstrap failed: %w", err)
+	}
+
 	// Seed from existing cfg if present.
 	nodeCfg := make(map[string]interface{})
 	if Utility.Exists(cfgPath) {
@@ -1167,78 +1241,164 @@ func StartEtcdServer() error {
 		}
 	}
 
-	// TLS
-	scheme := protocol
-	wantTLS := (protocol == "https")
+	// Ports / addresses
+	const clientPort = "2379"
+	const peerPort = "2380"
+	listenAddress := config.GetLocalIP()
+	clientHP := net.JoinHostPort(listenAddress, clientPort)
+	peerHP := net.JoinHostPort(listenAddress, peerPort)
 
-	var clientCertFile, clientKeyFile, caFile string
+	// Base URLs (we’ll finalize scheme after TLS check)
+	advertiseClientURLs := net.JoinHostPort(advHost, clientPort)
+	initialAdvertisePeerURLs := net.JoinHostPort(advHost, peerPort)
+
+	// --- TLS enablement (reusing existing security package) ---
+	wantTLS := strings.EqualFold(protocol, "https")
+	scheme := "http"
+	var caFile, certFile, keyFile string
+	var clientMTLS bool
+	var peerMTLSDesired bool
+	isSingleNode := true
+	if peers, ok := localConfig["Peers"].([]interface{}); ok && len(peers) > 0 {
+		isSingleNode = false
+	}
 
 	if wantTLS {
-
 		certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
-		certFile := filepath.Join(certDir, "server.crt")
-		// accept either server.pem OR server.key
-		keyFile := filepath.Join(certDir, "server.pem")
-		if !Utility.Exists(keyFile) {
-			keyFile = filepath.Join(certDir, "server.key")
+		serverCRT := filepath.Join(certDir, "server.crt")
+		serverKEY := filepath.Join(certDir, "server.key")
+		if !Utility.Exists(serverKEY) {
+			serverKEY = filepath.Join(certDir, "server.pem")
 		}
-		caFile = filepath.Join(certDir, "ca.crt")
-		clientCertFile := filepath.Join(certDir, "client.crt")
-		clientKeyFile := filepath.Join(certDir, "client.pem")
+		caCRT := filepath.Join(certDir, "ca.crt")
 
-		if !(Utility.Exists(certFile) && Utility.Exists(keyFile) && Utility.Exists(caFile)) {
-			slog.Warn("etcd TLS requested but missing cert/key/CA; falling back to HTTP",
-				"cert", certFile, "key", keyFile, "ca", caFile)
-			wantTLS = false
-			scheme = "http"
-		} else {
-			clientCertAuth := false
-			if Utility.Exists(clientCertFile) && Utility.Exists(clientKeyFile) {
-				if crt, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile); err == nil && isClientAuthCert(crt) {
-					clientCertAuth = true
+		if !(Utility.Exists(serverCRT) && Utility.Exists(serverKEY) && Utility.Exists(caCRT)) {
+			slog.Warn("etcd TLS requested but cert/key/CA missing; generating local certificates via security.GenerateServicesCertificates",
+				"certDir", certDir)
+
+			localIP := listenAddress
+			var alts []interface{}
+			seen := map[string]bool{}
+			addAlt := func(s string) {
+				s = strings.TrimSpace(s)
+				if s == "" {
+					return
+				}
+				k := strings.ToLower(s)
+				if seen[k] {
+					return
+				}
+				seen[k] = true
+				alts = append(alts, s)
+			}
+
+			// concrete hostnames and IPs
+			addAlt(advHost) // e.g. globule-ryzen.globular.io
+			addAlt(name)    // e.g. globule-ryzen
+			if domain != "" && !strings.Contains(name, ".") {
+				addAlt(name + "." + domain) // e.g. globule-ryzen.globular.io (dup filtered)
+			}
+			addAlt("localhost")
+			addAlt("127.0.0.1")
+			addAlt(localIP) // e.g. 10.0.0.63 (or your current local IP)
+
+			// merge AlternateDomains from config.json verbatim (keeps wildcards)
+			if altsFromCfg, ok := localConfig["AlternateDomains"].([]interface{}); ok {
+				for _, v := range altsFromCfg {
+					addAlt(Utility.ToString(v)) // this will include "*.globular.io"
 				}
 			}
+
+			country := Utility.ToString(localConfig["Country"])
+			state := Utility.ToString(localConfig["State"])
+			city := Utility.ToString(localConfig["City"])
+			org := Utility.ToString(localConfig["Organization"])
+
+			if err := security.GenerateServicesCertificates(
+				"1111", defaultDays, advHost, certDir, country, state, city, org, alts,
+			); err != nil {
+				slog.Error("TLS bootstrap failed; falling back to HTTP", "err", err)
+				wantTLS = false
+			}
+		}
+
+		if wantTLS && Utility.Exists(serverCRT) && Utility.Exists(serverKEY) && Utility.Exists(caCRT) {
+			certFile, keyFile, caFile = serverCRT, serverKEY, caCRT
+			scheme = "https"
+
+			// client port: no mTLS during bootstrap
+			clientMTLS = false
+
+			// peer port: only require client certs if server cert has clientAuth EKU and it's multi-node
+			peerHasClientAuth := func(certPath string) bool {
+				b, e := os.ReadFile(certPath)
+				if e != nil {
+					return false
+				}
+				block, _ := pem.Decode(b)
+				if block == nil {
+					return false
+				}
+				c, e := x509.ParseCertificate(block.Bytes)
+				if e != nil {
+					return false
+				}
+				for _, eku := range c.ExtKeyUsage {
+					if eku == x509.ExtKeyUsageClientAuth {
+						return true
+					}
+				}
+				return false
+			}(serverCRT)
+			peerMTLSDesired = peerHasClientAuth && !isSingleNode
+
 			nodeCfg["client-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
-				"client-cert-auth": clientCertAuth,
-			}
-			if clientCertAuth {
-				nodeCfg["client-transport-security"].(map[string]interface{})["trusted-ca-file"] = caFile
+				"client-cert-auth": false, // keep simple during bootstrap
 			}
 			nodeCfg["peer-transport-security"] = map[string]interface{}{
 				"cert-file":        certFile,
 				"key-file":         keyFile,
-				"client-cert-auth": true,
+				"client-cert-auth": peerMTLSDesired,
 				"trusted-ca-file":  caFile,
 			}
+		} else {
+			wantTLS = false
 		}
 	}
+
 	if !wantTLS {
 		delete(nodeCfg, "client-transport-security")
 		delete(nodeCfg, "peer-transport-security")
+		scheme = "http"
 	}
 
-	// DNS-first URLs: bind on all interfaces; advertise the DNS name.
-	const clientPort = "2379"
-	const peerPort = "2380"
+	// Finalize URLs with the scheme we’re actually using
+	listenClientURLs := scheme + "://" + clientHP
+	listenPeerURLs := scheme + "://" + peerHP
+	advClientURL := scheme + "://" + advertiseClientURLs
+	advPeerURL := scheme + "://" + initialAdvertisePeerURLs
 
-	listenAddress := config.GetLocalIP()
-	listenClientURLs := scheme + "://" + net.JoinHostPort(listenAddress, clientPort)
-	listenPeerURLs := scheme + "://" + net.JoinHostPort(listenAddress, peerPort)
-
-	advertiseClientURLs := scheme + "://" + net.JoinHostPort(advHost, clientPort)
-	initialAdvertisePeerURLs := scheme + "://" + net.JoinHostPort(advHost, peerPort)
-
+	// ===================== Core node config (FIX) =====================
 	nodeCfg["name"] = name
 	nodeCfg["data-dir"] = dataDir
-	nodeCfg["listen-client-urls"] = "http://127.0.0.1:" + clientPort + "," + listenClientURLs
+
+	if wantTLS {
+		// Serve TLS on LAN *and* TLS on loopback for local tools
+		nodeCfg["listen-client-urls"] = listenClientURLs + "," + ("https://127.0.0.1:" + clientPort)
+	} else {
+		// In insecure mode, keep plaintext loopback
+		nodeCfg["listen-client-urls"] = "http://127.0.0.1:" + clientPort + "," + listenClientURLs
+	}
+	// ================================================================
+
 	nodeCfg["listen-peer-urls"] = listenPeerURLs
-	nodeCfg["advertise-client-urls"] = advertiseClientURLs
-	nodeCfg["initial-advertise-peer-urls"] = initialAdvertisePeerURLs
+	nodeCfg["advertise-client-urls"] = advClientURL
+	nodeCfg["initial-advertise-peer-urls"] = advPeerURL
 
 	// Initial cluster (use advertised DNS hosts).
-	initialCluster := name + "=" + initialAdvertisePeerURLs
+	initialCluster := name + "=" + advPeerURL
 	if peers, ok := localConfig["Peers"].([]interface{}); ok {
 		for _, raw := range peers {
 			peer, _ := raw.(map[string]interface{})
@@ -1254,10 +1414,9 @@ func StartEtcdServer() error {
 			initialCluster += "," + Utility.ToString(peer["Name"]) + "=" + scheme + "://" + net.JoinHostPort(adv, peerPort)
 		}
 	}
-
 	nodeCfg["initial-cluster"] = initialCluster
 
-	// Cluster state: "existing" if data dir already has a member.
+	// Cluster state
 	if Utility.Exists(filepath.Join(dataDir, "member")) {
 		nodeCfg["initial-cluster-state"] = "existing"
 	} else {
@@ -1265,15 +1424,19 @@ func StartEtcdServer() error {
 	}
 
 	// If etcd already healthy at advertised endpoint, do NOT start another.
+	var clientCertFile, clientKeyFile string
+	if wantTLS && clientMTLS {
+		clientCertFile = filepath.Join(config.GetConfigDir(), "tls", advHost, "client.crt")
+		clientKeyFile = filepath.Join(config.GetConfigDir(), "tls", advHost, "client.pem")
+	}
 	if alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile) {
-		slog.Info("etcd already running and healthy; skipping start", "advertise-client-urls", advertiseClientURLs)
+		slog.Info("etcd already running and healthy; skipping start", "advertise-client-urls", advClientURL)
 		return nil
 	}
 
-	// If ports are bound, refuse to start a second server unless endpoint is healthy.
-	if portInUse(net.JoinHostPort(listenAddress, peerPort)) || portInUse(net.JoinHostPort(listenAddress, clientPort)) {
-		return fmt.Errorf("etcd ports already in use but endpoint not healthy (peer=%s, client=%s)",
-			net.JoinHostPort(listenAddress, peerPort), net.JoinHostPort(listenAddress, clientPort))
+	// Refuse second server if ports busy and endpoint not healthy.
+	if portInUse(peerHP) || portInUse(clientHP) {
+		return fmt.Errorf("etcd ports already in use but endpoint not healthy (peer=%s, client=%s)", peerHP, clientHP)
 	}
 
 	// Write config.
@@ -1291,7 +1454,7 @@ func StartEtcdServer() error {
 		return err
 	}
 
-	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", listenClientURLs, "advertise-client-urls", advertiseClientURLs)
+	slog.Info("starting etcd", "config", cfgPath, "listen-client-urls", nodeCfg["listen-client-urls"], "advertise-client-urls", advClientURL)
 
 	cmd := exec.Command(etcdPath, "--config-file", cfgPath)
 	cmd.Dir = os.TempDir()
@@ -1315,18 +1478,13 @@ func StartEtcdServer() error {
 
 	probeOne := func(u string) bool {
 		raw := u
-
-		// Ensure scheme for HTTP probe
 		if !strings.Contains(u, "://") {
-			// etcd’s /health is HTTP when you’re in insecure mode; use https if your httpClient has TLS.
 			if wantTLS {
 				u = "https://" + u
 			} else {
 				u = "http://" + u
 			}
 		}
-
-		// HTTP /health (short timeout recommended)
 		req, _ := http.NewRequest("GET", u+"/health", nil)
 		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 		defer cancel()
@@ -1341,16 +1499,13 @@ func StartEtcdServer() error {
 			}
 		}
 
-		// TCP fallback: extract host:port even if original had no scheme
 		uu, _ := url.Parse(u)
 		hp := uu.Host
 		if hp == "" {
-			// If Host is empty (because we added scheme above, this normally won't happen),
-			// recover from the original raw input.
 			hp = raw
 		}
 		if !strings.Contains(hp, ":") {
-			hp = net.JoinHostPort(hp, "2379")
+			hp = net.JoinHostPort(hp, clientPort)
 		}
 
 		d := net.Dialer{Timeout: 500 * time.Millisecond}
@@ -1361,6 +1516,7 @@ func StartEtcdServer() error {
 		}
 		return false
 	}
+
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-waitErr:
@@ -1370,14 +1526,10 @@ func StartEtcdServer() error {
 			return fmt.Errorf("etcd exited early: %w", err)
 		default:
 		}
-
-		// You already built these earlier:
-		advertiseClientURLs := scheme + "://" + net.JoinHostPort(advHost, clientPort)
-		if probeOne(advertiseClientURLs) {
+		if probeOne(advClientURL) {
 			slog.Info("etcd is ready")
 			return nil
 		}
-
 		time.Sleep(probeEvery)
 	}
 
@@ -1531,6 +1683,13 @@ wiring stdout/stderr to the parent console and handling graceful shutdown.
 It returns an error if the config file is missing or Envoy fails to start.
 */
 func StartEnvoyProxy() error {
+
+	// If Envoy is already running, do nothing.
+	if ids, err := Utility.GetProcessIdsByName("envoy"); err == nil && len(ids) > 0 {
+		slog.Info("envoy already running; skipping start")
+		return nil
+	}
+
 	cfgPath := config.GetConfigDir() + "/envoy.yml"
 	if !Utility.Exists(cfgPath) {
 		return errors.New("no envoy configuration file found at path " + cfgPath)
@@ -1686,7 +1845,7 @@ inhibit_rules:
 		if !Utility.Exists(webCfg) {
 			cfg := "tls_server_config:\n" +
 				" cert_file: " + config.GetLocalServerCertificatePath() + "\n" +
-				" key_file: " +  config.GetLocalServerKeyPath() + "\n"
+				" key_file: " + config.GetLocalServerKeyPath() + "\n"
 			if err := os.WriteFile(webCfg, []byte(cfg), 0644); err != nil {
 				return err
 			}

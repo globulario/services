@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -199,6 +200,7 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 /* ---------- unchanged public API (kept for completeness) ---------- */
 
 func InstallClientCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+	
 	err := withCredsLock(path, func() error {
 		_, _, _, e := getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
 		return e
@@ -794,23 +796,40 @@ func parseAnyPrivateKey(block *pem.Block) (crypto.Signer, error) {
 	return nil, errors.New("parse private key: unsupported format")
 }
 
-func parseSANsFromConf(path string) ([]string, error) {
-	b, err := os.ReadFile(filepath.Join(path, "san.conf"))
-	if err != nil {
-		return nil, err
+// --- replace this: parseSANsFromConf ---
+// Return both DNS and IP SANs parsed from san.conf
+func parseSANsFromConf(path string) (dns []string, ips []net.IP, err error) {
+	b, e := os.ReadFile(filepath.Join(path, "san.conf"))
+	if e != nil {
+		return nil, nil, e
 	}
-	var sans []string
 	for _, line := range strings.Split(string(b), "\n") {
 		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// DNS.N = value
 		if strings.HasPrefix(line, "DNS.") {
 			if i := strings.Index(line, "="); i > 0 {
-				if val := strings.TrimSpace(line[i+1:]); val != "" {
-					sans = append(sans, val)
+				if v := strings.TrimSpace(line[i+1:]); v != "" {
+					dns = append(dns, v)
 				}
 			}
+			continue
+		}
+		// IP.N = value
+		if strings.HasPrefix(line, "IP.") {
+			if i := strings.Index(line, "="); i > 0 {
+				if v := strings.TrimSpace(line[i+1:]); v != "" {
+					if ip := net.ParseIP(v); ip != nil {
+						ips = append(ips, ip)
+					}
+				}
+			}
+			continue
 		}
 	}
-	return sans, nil
+	return dns, ips, nil
 }
 
 func serialNumber() (*big.Int, error) {
@@ -888,11 +907,84 @@ func GenerateClientPrivateKey(path string, _ string) error {
 
 // SAN config
 
+// --- replace this: GenerateSanConfig ---
+// helper: true if d is covered by any wildcard like *.example.com
+func coveredByWildcard(d string, wildcards map[string]struct{}) bool {
+	d = strings.ToLower(strings.TrimSpace(d))
+	for suffix := range wildcards {
+		// suffix is the zone after "*.", e.g. "globular.io"
+		if strings.HasSuffix(d, "."+suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
-	if fileExists(path + "/san.conf") {
+	if _, err := os.Stat(path + "/san.conf"); err == nil {
 		return nil
 	}
-	cfg := fmt.Sprintf(`
+
+	// 1) Gather raw inputs (CN + alternates), split DNS vs IP
+	dnsSet := map[string]struct{}{}
+	ipSet  := map[string]struct{}{}
+	wildcards := map[string]struct{}{} // values are the suffixes after "*."
+
+	// CN (only if not an IP)
+	if net.ParseIP(domain) == nil && strings.TrimSpace(domain) != "" {
+		dnsSet[strings.ToLower(strings.TrimSpace(domain))] = struct{}{}
+	}
+
+	for _, a := range alternateDomains {
+		a = strings.TrimSpace(a)
+		if a == "" {
+			continue
+		}
+		if strings.HasPrefix(a, "*.") {
+			// record wildcard suffix (e.g. "*.globular.io" -> "globular.io")
+			wildcards[strings.ToLower(strings.TrimPrefix(a, "*."))] = struct{}{}
+			continue
+		}
+		if ip := net.ParseIP(a); ip != nil {
+			ipSet[ip.String()] = struct{}{}
+		} else {
+			dnsSet[strings.ToLower(a)] = struct{}{}
+		}
+	}
+
+	// 2) If a wildcard exists for a zone, drop explicit hosts under that zone
+	//    (keep the apex like "globular.io" because wildcard does not match it)
+	cleanDNS := make([]string, 0, len(dnsSet))
+	for d := range dnsSet {
+		// keep apex even if a wildcard exists (e.g. keep "globular.io")
+		if _, apexWildcard := wildcards[d]; apexWildcard {
+			cleanDNS = append(cleanDNS, d)
+			continue
+		}
+		// drop covered hosts like "host.globular.io" when "*.globular.io" exists
+		if coveredByWildcard(d, wildcards) {
+			continue
+		}
+		cleanDNS = append(cleanDNS, d)
+	}
+
+	// Also include the wildcard labels themselves in the SANs (they’re valid DNS SAN entries)
+	for w := range wildcards {
+		cleanDNS = append(cleanDNS, "*."+w)
+	}
+
+	// 3) Deterministic order (nice for diffs)
+	sort.Strings(cleanDNS)
+
+	ips := make([]string, 0, len(ipSet))
+	for ip := range ipSet {
+		ips = append(ips, ip)
+	}
+	sort.Strings(ips)
+
+	// 4) Write san.conf
+	var b strings.Builder
+	fmt.Fprintf(&b, `
 [req]
 distinguished_name = req_distinguished_name
 req_extensions = v3_req
@@ -913,16 +1005,24 @@ subjectAltName = @alt_names
 [alt_names]
 `, country, state, city, organization, domain)
 
-	for i, d := range append(alternateDomains, domain) {
-		cfg += fmt.Sprintf("DNS.%d = %s\n", i, d)
+	// DNS.N
+	for i, d := range cleanDNS {
+		fmt.Fprintf(&b, "DNS.%d = %s\n", i, d)
 	}
-	return os.WriteFile(filepath.Join(path, "san.conf"), []byte(cfg), 0o644)
+	// IP.N
+	for j, ip := range ips {
+		fmt.Fprintf(&b, "IP.%d = %s\n", j, ip)
+	}
+
+	return os.WriteFile(filepath.Join(path, "san.conf"), []byte(strings.TrimLeft(b.String(), "\n")), 0o644)
 }
+
 
 // CSRs
 
+// --- replace this: GenerateClientCertificateSigningRequest ---
 func GenerateClientCertificateSigningRequest(path string, _ string, domain string) error {
-	if fileExists(path + "/client.csr") {
+	if _, err := os.Stat(path + "/client.csr"); err == nil {
 		return nil
 	}
 	keyBlock, err := readPEM(path + "/client.key")
@@ -933,8 +1033,13 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 	if err != nil {
 		return err
 	}
-	sans, _ := parseSANsFromConf(path)
-	tpl := &x509.CertificateRequest{Subject: pkix.Name{CommonName: domain}, DNSNames: sans}
+
+	dns, ips, _ := parseSANsFromConf(path)
+	tpl := &x509.CertificateRequest{
+		Subject:      pkix.Name{CommonName: domain},
+		DNSNames:     dns,
+		IPAddresses:  ips,
+	}
 	der, err := x509.CreateCertificateRequest(rand.Reader, tpl, signer)
 	if err != nil {
 		return err
@@ -942,8 +1047,10 @@ func GenerateClientCertificateSigningRequest(path string, _ string, domain strin
 	return writePEM(path+"/client.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
 
+
+// --- replace this: GenerateServerCertificateSigningRequest ---
 func GenerateServerCertificateSigningRequest(path string, _ string, domain string) error {
-	if fileExists(path + "/server.csr") {
+	if _, err := os.Stat(path + "/server.csr"); err == nil {
 		return nil
 	}
 	keyBlock, err := readPEM(path + "/server.key")
@@ -954,8 +1061,13 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 	if err != nil {
 		return err
 	}
-	sans, _ := parseSANsFromConf(path)
-	tpl := &x509.CertificateRequest{Subject: pkix.Name{CommonName: domain}, DNSNames: sans}
+
+	dns, ips, _ := parseSANsFromConf(path)
+	tpl := &x509.CertificateRequest{
+		Subject:      pkix.Name{CommonName: domain},
+		DNSNames:     dns,
+		IPAddresses:  ips,
+	}
 	der, err := x509.CreateCertificateRequest(rand.Reader, tpl, signer)
 	if err != nil {
 		return err
@@ -963,33 +1075,25 @@ func GenerateServerCertificateSigningRequest(path string, _ string, domain strin
 	return writePEM(path+"/server.csr", &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}, 0o444)
 }
 
+
 // Signing
 
+// --- replace this: signCSRWithCA (only the tpl fields block changed) ---
 func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isServer bool) error {
 	caBlock, err := readPEM(caCrtPath)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	caCert, err := x509.ParseCertificate(caBlock.Bytes)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
+
 	keyBlock, err := readPEM(caKeyPath)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	caSigner, err := parseAnyPrivateKey(keyBlock)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
+
 	csrBlock, err := readPEM(csrPath)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 
 	now := time.Now()
 	serial, _ := serialNumber()
@@ -997,6 +1101,7 @@ func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isSe
 	if isServer {
 		ext = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
+
 	tpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      csr.Subject,
@@ -1004,14 +1109,18 @@ func signCSRWithCA(csrPath, caCrtPath, caKeyPath, outPath string, days int, isSe
 		NotAfter:     now.Add(time.Duration(days) * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  ext,
+		// carry SANs from CSR
 		DNSNames:     csr.DNSNames,
+		IPAddresses:  csr.IPAddresses,
 	}
+
 	der, err := x509.CreateCertificate(rand.Reader, tpl, caCert, csr.PublicKey, caSigner)
 	if err != nil {
 		return err
 	}
 	return writePEM(outPath, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444)
 }
+
 
 func GenerateSignedClientCertificate(path string, _ string, expiration_delay int) error {
 	if fileExists(path + "/client.crt") {

@@ -99,46 +99,149 @@ type Client interface {
 	Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error)
 }
 
-// GetClient returns a cached Client if one exists for (name,address); otherwise,
-// it constructs one by calling the provided factory function `fct` on the target
-// address/name. Peer "Domain" aliases are resolved from the local Globular config.
-func GetClient(address, name, fct string) (Client, error) {
-	localAddress, _ := config.GetAddress()
-	if localAddress != address {
-		// Resolve peer config to host:port if a matching peer domain is found.
-		localConfig, _ := config.GetLocalConfig(true)
-		if peers, ok := localConfig["Peers"].([]interface{}); ok {
+// normalizeControlAddress converts many address forms to a concrete "host:port".
+func normalizeControlAddress(address, localAddr string, cfg map[string]interface{}) string {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return address
+	}
+
+	// Strip an optional scheme if present.
+	if strings.HasPrefix(address, "http://") || strings.HasPrefix(address, "https://") {
+		address = strings.TrimPrefix(strings.TrimPrefix(address, "https://"), "http://")
+	}
+
+	// If already host:port, keep it.
+	if _, _, err := net.SplitHostPort(address); err == nil {
+		return address
+	}
+
+	// Local helpers
+	asStr := func(k string) string { return Utility.ToString(cfg[k]) }
+	proto := strings.ToLower(asStr("Protocol"))
+	if proto == "" {
+		proto = "http"
+	}
+	httpPort := asStr("PortHTTP")
+	if httpPort == "" { httpPort = "80" }
+	httpsPort := asStr("PortHTTPS")
+	if httpsPort == "" { httpsPort = "443" }
+	defPort := httpPort
+	if proto == "https" {
+		defPort = httpsPort
+	}
+	domain := asStr("Domain")
+	dnsHost := asStr("DNS")
+	if dnsHost == "" {
+		// Fallback: Name.Domain if DNS not set
+		name := asStr("Name")
+		if name != "" && domain != "" {
+			dnsHost = name + "." + domain
+		}
+	}
+
+	// If it's an IP matching our local IP or "localhost", use localAddr as-is.
+	if address == "localhost" {
+		return localAddr
+	}
+	if ip := net.ParseIP(address); ip != nil {
+		if lip, _ := Utility.GetIpv4(localAddr); ip.String() == lip {
+			return localAddr
+		}
+	}
+
+	// If the given address equals the cluster domain, route to default DNS member.
+	if domain != "" && strings.EqualFold(address, domain) && dnsHost != "" {
+		return net.JoinHostPort(dnsHost, defPort)
+	}
+
+	// If it matches a peer by Domain, build "hostname.domain:port" using peer's ports (when present).
+	if cfg != nil {
+		if peers, ok := cfg["Peers"].([]interface{}); ok && len(peers) > 0 {
 			for _, pi := range peers {
-				if p, ok := pi.(map[string]interface{}); ok && p["Domain"].(string) == address {
-					host := p["Hostname"].(string)
-					if p["Domain"].(string) != "localhost" {
-						host += "." + p["Domain"].(string)
-					}
-					address = host + ":" + Utility.ToString(p["Port"])
-					break
+				p, ok := pi.(map[string]interface{})
+				if !ok {
+					continue
 				}
+				pDomain := Utility.ToString(p["Domain"])
+				if !strings.EqualFold(address, pDomain) {
+					continue
+				}
+				host := Utility.ToString(p["Hostname"])
+				if host == "" {
+					host = "localhost"
+				}
+				if pDomain != "" && pDomain != "localhost" && !strings.Contains(host, ".") {
+					host = host + "." + pDomain
+				}
+				// pick the right control port for the peer
+				port := Utility.ToString(p["Port"])
+				if proto == "https" {
+					if v := Utility.ToString(p["PortHTTPS"]); v != "" && v != "0" {
+						port = v
+					}
+				} else {
+					if v := Utility.ToString(p["PortHTTP"]); v != "" && v != "0" {
+						port = v
+					}
+				}
+				if port == "" || port == "0" {
+					port = defPort
+				}
+				return net.JoinHostPort(host, port)
 			}
 		}
 	}
+
+	// If it's a bare hostname (no dots), attach the local domain.
+	host := address
+	if !strings.Contains(host, ".") && domain != "" {
+		host = host + "." + domain
+	}
+	// Default: add the control port from our protocol.
+	return net.JoinHostPort(host, defPort)
+}
+
+// GetClient returns a cached Client for (name, normalized address) or creates one.
+// It accepts an address in any of these forms:
+//   - host:port                (e.g., "globule-ryzen.globular.io:443")
+//   - FQDN or hostname         (e.g., "globule-ryzen.globular.io", "globule-ryzen")
+//   - bare cluster domain      (e.g., "globular.io" -> maps to cfg.DNS + default control port)
+//   - IP or "localhost"        (mapped appropriately)
+//   - peer domain alias        (matches a peer in cfg.Peers, builds "hostname.domain:port")
+func GetClient(address, name, fct string) (Client, error) {
+	// Load local control address and config (best-effort; nil-safe below).
+	localAddr, _ := config.GetAddress()
+	localCfg, _ := config.GetLocalConfig(true)
+
+	// Always normalize to "host:port" before doing anything else.
+	address = normalizeControlAddress(address, localAddr, localCfg)
+
+	// Initialize cache if needed and use the normalized address for the key.
 	if clients == nil {
 		clients = new(sync.Map)
 	}
-	id := Utility.GenerateUUID(name + ":" + address)
-	if existing, ok := clients.Load(id); ok {
+	idKey := Utility.GenerateUUID(name + ":" + address)
+	if existing, ok := clients.Load(idKey); ok {
 		return existing.(Client), nil
 	}
+
+	// Build the client via the provided constructor (fct must be "<pkg>.<Ctor>").
 	results, err := Utility.CallFunction(fct, address, name)
 	if err != nil {
-		slog.Error("GetClient: constructor invocation failed", "function", fct, "address", address, "service", name, "err", err)
+		slog.Error("GetClient: constructor invocation failed",
+			"function", fct, "address", address, "service", name, "err", err)
 		return nil, err
 	}
 	if !results[1].IsNil() {
 		err := results[1].Interface().(error)
-		slog.Error("GetClient: constructor returned error", "function", fct, "address", address, "service", name, "err", err)
+		slog.Error("GetClient: constructor returned error",
+			"function", fct, "address", address, "service", name, "err", err)
 		return nil, err
 	}
+
 	client := results[0].Interface().(Client)
-	clients.Store(id, client)
+	clients.Store(idKey, client)
 	slog.Debug("GetClient: client created", "service", name, "address", address)
 	return client, nil
 }
@@ -183,8 +286,10 @@ func InitClient(client Client, address string, id string) error {
 		return fmt.Errorf("InitClient: invalid control address %q (missing port)", address)
 	}
 	localHost := strings.Split(localAddr, ":")[0]
+
 	// Determine effective FQDN for TLS/certs usage
 	effectiveHost := resolveEffectiveHost(address, host, localCfg)
+	
 	isLocal := (effectiveHost == localHost || effectiveHost == "localhost" || strings.HasPrefix(localHost, effectiveHost))
 
 	client.SetAddress(address)
@@ -257,73 +362,6 @@ func loadInitOptionsFromEnv() initOptions {
 		mandatoryBaseDelay: envGetDuration("GLOBULAR_INIT_MANDATORY_SLEEP", 500*time.Millisecond),
 		verboseInit:        envGetBool("GLOBULAR_CLIENT_VERBOSE_INIT", false),
 	}
-}
-
-// normalizeControlAddress converts an input like "peer-domain" or "host"
-// into "host:port" based on local config, peers list, and protocol defaults.
-// It prefers the peer's HTTPS control port when the peer's Protocol == "https".
-func normalizeControlAddress(address, localAddr string, localCfg map[string]interface{}) string {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return address
-	}
-
-	// If it's already host:port, keep it.
-	if strings.Count(address, ":") == 1 {
-		return address
-	}
-
-	// If it's an IP and equals our local IP, map to local control address.
-	if ip := net.ParseIP(address); ip != nil {
-		if localIP, _ := Utility.GetIpv4(localAddr); ip.String() == localIP {
-			return localAddr // already host:port
-		}
-	}
-
-	// If it matches our local host/domain, use local control port per local protocol.
-	if strings.HasPrefix(localAddr, address) || strings.Split(localAddr, ":")[0] == address {
-		if asString(localCfg["Protocol"]) == "https" {
-			return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTPS"]))
-		}
-		return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTP"]))
-	}
-
-	// Otherwise, try to resolve from Peers in local config.
-	if peers, ok := localCfg["Peers"].([]interface{}); ok {
-		for _, pi := range peers {
-			p, ok := pi.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			if asString(p["Domain"]) != address {
-				continue
-			}
-			host := asString(p["Hostname"])
-			if d := asString(p["Domain"]); d != "" && d != "localhost" {
-				host += "." + d
-			}
-			// Prefer explicit peer HTTPS/HTTP ports if they exist; else fall back to legacy "Port".
-			if strings.EqualFold(asString(p["Protocol"]), "https") {
-				if v := Utility.ToString(p["PortHTTPS"]); v != "" && v != "0" {
-					return net.JoinHostPort(host, v)
-				}
-			} else {
-				if v := Utility.ToString(p["PortHTTP"]); v != "" && v != "0" {
-					return net.JoinHostPort(host, v)
-				}
-			}
-			// Fallback to single Port field if provided.
-			if v := Utility.ToString(p["Port"]); v != "" && v != "0" {
-				return net.JoinHostPort(host, v)
-			}
-		}
-	}
-
-	// Final fallback: use our local protocol defaults with the given host.
-	if asString(localCfg["Protocol"]) == "https" {
-		return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTPS"]))
-	}
-	return net.JoinHostPort(address, Utility.ToString(localCfg["PortHTTP"]))
 }
 
 // resolveEffectiveHost returns the FQDN we should use for TLS (cert dir, SNI).
@@ -516,6 +554,7 @@ func tryUseExistingClientCerts(baseDir, host string) (keyFile, certFile, caFile 
 // For remote peers, it reuses existing client certs under base/<effectiveHost>,
 // and only calls InstallClientCertificates if necessary (can be disabled).
 func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, effectiveHost string, ctrlPort int) error {
+
 	tlsEnabled, _ := cfg["TLS"].(bool)
 	client.SetTLS(tlsEnabled)
 	if !tlsEnabled {
@@ -549,6 +588,7 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 
 	// 3) Install into base/effectiveHost (not into a bare cluster domain)
 	path := filepath.Join(base, effectiveHost)
+
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(
 		effectiveHost, ctrlPort, path,
 		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
@@ -782,36 +822,43 @@ func decodeRuntimeValue(v []byte) (hostport string, secure bool, ok bool) {
 
 // GetClientTlsConfig builds a tls.Config for a client connection (mTLS).
 func GetClientTlsConfig(client Client) (*tls.Config, error) {
-	certFile := client.GetCertFile()
-	if certFile == "" {
-		return nil, errors.New("GetClientTlsConfig: missing client certificate file for client " + client.GetName())
-	}
-	keyFile := client.GetKeyFile()
-	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("GetClientTlsConfig: load key pair failed (cert=%s, key=%s): %w", certFile, keyFile, err)
-	}
-	certPool := x509.NewCertPool()
-	caPem, err := os.ReadFile(client.GetCaFile())
-	if err != nil {
-		return nil, fmt.Errorf("GetClientTlsConfig: read CA file failed: %w", err)
-	}
-	if ok := certPool.AppendCertsFromPEM(caPem); !ok {
-		return nil, errors.New("GetClientTlsConfig: append CA certificate failed")
-	}
+    // Load Root CA (required)
+    root := x509.NewCertPool()
+    ca := client.GetCaFile()
+    b, err := os.ReadFile(ca)
+    if err != nil {
+        return nil, fmt.Errorf("GetClientTlsConfig: read CA %s failed: %w", ca, err)
+    }
+    if ok := root.AppendCertsFromPEM(b); !ok {
+        return nil, fmt.Errorf("GetClientTlsConfig: append CA from %s failed", ca)
+    }
 
-	// Prefer explicit override; else use the effective control host part of address.
-	sni := strings.Split(client.GetAddress(), ":")[0]
-	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_SERVERNAME")); v != "" {
-		sni = v
-	}
+    // Build base config (server-auth)
+    sni := strings.Split(client.GetAddress(), ":")[0]
+    if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_SERVERNAME")); v != "" {
+        sni = v
+    }
+    cfg := &tls.Config{
+        ServerName: sni,
+        RootCAs:    root,
+        MinVersion: tls.VersionTLS12,
+    }
 
-	return &tls.Config{
-		ServerName:   sni,
-		Certificates: []tls.Certificate{certificate},
-		RootCAs:      certPool,
-		MinVersion:   tls.VersionTLS12,
-	}, nil
+    // Try to load client cert (mTLS). If not present/allowed, proceed without it.
+    certFile, keyFile := client.GetCertFile(), client.GetKeyFile()
+    if certFile != "" && keyFile != "" {
+        if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+            cfg.Certificates = []tls.Certificate{cert}
+        } else if os.IsNotExist(err) || errors.Is(err, os.ErrPermission) {
+            slog.Warn("GetClientTlsConfig: client keypair unavailable; using server-auth only",
+                "cert", certFile, "key", keyFile, "err", err)
+            // continue without client cert
+        } else {
+            return nil, fmt.Errorf("GetClientTlsConfig: load client keypair: %w", err)
+        }
+    }
+
+    return cfg, nil
 }
 
 // GetClientConnection dials a gRPC connection to the client's current endpoint,

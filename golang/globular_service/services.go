@@ -269,6 +269,7 @@ func InitService(s Service) error {
 func SaveService(s Service) error {
 	s.SetModTime(time.Now().Unix())
 	cfg, err := Utility.ToMap(s)
+
 	if err != nil {
 		slog.Error("SaveService: to map failed", "service", s.GetName(), "err", err)
 		return err

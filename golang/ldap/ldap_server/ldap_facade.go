@@ -201,7 +201,6 @@ func (lf *ldapFacade) roleAccountIDs(roleID string) []string {
 
 // StartLDAPFacade starts plain LDAP on :389 and LDAPS on :636.
 // Uses Globular TLS certs and binds authenticate via Authentication service (sa + password).
-// StartLDAPFacadeTLS starts LDAP on :389 and LDAPS on :636 with server certs.
 func (s *server) StartLDAPFacade() error {
 	baseDN := toBaseDN(s.Domain)
 

@@ -14,8 +14,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -413,11 +411,9 @@ func (srv *server) getPackageBundleChecksum(id string) (string, error) {
 func (srv *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	resourceClient, err := srv.getResourceClient()
 	if err != nil {
-		_ = srv.logServiceError("setPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return err
 	}
 	if err := resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor); err != nil {
-		_ = srv.logServiceError("setPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return err
 	}
 	return nil
@@ -427,34 +423,6 @@ func (srv *server) setPackageBundle(checksum, platform string, size int32, modif
 // Log service helpers (kept for compatibility with your existing logging)
 // -----------------------------------------------------------------------------
 
-// GetLogClient returns a connected Log service client.
-func (srv *server) GetLogClient() (*log_client.Log_Client, error) {
-	address, _ := config.GetAddress()
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*log_client.Log_Client), nil
-}
-
-// logServiceInfo sends an info log to the Log service.
-func (srv *server) logServiceInfo(method, fileLine, functionName, infos string) error {
-	logClient, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logClient.Log(srv.Name, srv.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
-}
-
-// logServiceError sends an error log to the Log service.
-func (srv *server) logServiceError(method, fileLine, functionName, infos string) error {
-	logClient, err := srv.GetLogClient()
-	if err != nil {
-		return err
-	}
-	return logClient.Log(srv.Name, srv.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
 
 // -----------------------------------------------------------------------------
 // CLI / entrypoint

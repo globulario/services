@@ -230,7 +230,7 @@ func (client *Log_Client) SetCaFile(caFile string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Append a new log information.
-func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string) error {
+func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string, token string) error {
 	// do not log itself.
 	if method == "/log.LogService/Log" {
 		return errors.New("recursive function call cycle")
@@ -249,7 +249,17 @@ func (client *Log_Client) Log(application string, user string, method string, le
 
 	rqst.Info = info
 
-	_, err := client.c.Log(client.GetCtx(), rqst)
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.Log(ctx, rqst)
 
 	return err
 }
@@ -264,63 +274,85 @@ func (client *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
 
 // Append a new log information with a caller-provided context.
 func (client *Log_Client) LogCtx(
-    ctx context.Context,
-    application string,
-    user string,
-    method string,
-    level logpb.LogLevel,
-    message string,
-    fileLine string,
-    functionName string,
+	ctx context.Context,
+	application string,
+	user string,
+	method string,
+	level logpb.LogLevel,
+	message string,
+	fileLine string,
+	functionName string,
+	token string,
 ) error {
-    // do not log itself.
-    if method == "/log.LogService/Log" {
-        return errors.New("recursive function call cycle")
-    }
+	// do not log itself.
+	if method == "/log.LogService/Log" {
+		return errors.New("recursive function call cycle")
+	}
 
-    // Prepare request.
-    rqst := new(logpb.LogRqst)
-    info := new(logpb.LogInfo)
+	// Prepare request.
+	rqst := new(logpb.LogRqst)
+	info := new(logpb.LogInfo)
 
-    info.Method      = method
-    info.Line        = fileLine
-    info.Level       = level
-    info.Application = application
-    info.Message     = message
-    info.Occurences  = 0
+	info.Method = method
+	info.Line = fileLine
+	info.Level = level
+	info.Application = application
+	info.Message = message
+	info.Occurences = 0
 
-    rqst.Info = info
+	rqst.Info = info
 
-    // Use the provided ctx (so caller can inject metadata/deadlines).
-    _, err := client.c.Log(ctx, rqst)
-    return err
+	// If a token is provided, override any token in the context.
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) == 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	// Use the provided ctx (so caller can inject metadata/deadlines).
+	_, err := client.c.Log(ctx, rqst)
+	return err
 }
 
 // Same as LogCtx but lets you include component and structured fields.
 func (client *Log_Client) LogWithFieldsCtx(
-    ctx context.Context,
-    application, user, method string,
-    level logpb.LogLevel,
-    message, fileLine, functionName, component string,
-    fields map[string]string,
+	ctx context.Context,
+	application, user, method string,
+	level logpb.LogLevel,
+	message, fileLine, functionName, component string,
+	fields map[string]string,
+	token string,
 ) error {
-    if method == "/log.LogService/Log" {
-        return errors.New("recursive function call cycle")
-    }
-    rqst := &logpb.LogRqst{
-        Info: &logpb.LogInfo{
-            Method:      method,
-            Line:        fileLine,
-            Level:       level,
-            Application: application,
-            Message:     message,
-            Occurences:  0,
-            Component:   component,
-            Fields:      fields,
-        },
-    }
-    _, err := client.c.Log(ctx, rqst)
-    return err
+	if method == "/log.LogService/Log" {
+		return errors.New("recursive function call cycle")
+	}
+	rqst := &logpb.LogRqst{
+		Info: &logpb.LogInfo{
+			Method:      method,
+			Line:        fileLine,
+			Level:       level,
+			Application: application,
+			Message:     message,
+			Occurences:  0,
+			Component:   component,
+			Fields:      fields,
+		},
+	}
+
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) == 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.Log(ctx, rqst)
+	return err
 }
 
 // GetLogCtx is like GetLog, but uses the provided context (for metadata, deadlines, etc.).
@@ -349,12 +381,23 @@ func (client *Log_Client) GetLogCtx(ctx context.Context, query string) ([]*logpb
 /**
  * Delete a given log.
  */
-func (client *Log_Client) DeleteLog(info *logpb.LogInfo) error {
+func (client *Log_Client) DeleteLog(info *logpb.LogInfo, token string) error {
 	rqst := &logpb.DeleteLogRqst{
 		Log: info,
 	}
 
-	_, err := client.c.DeleteLog(client.GetCtx(), rqst)
+	var ctx context.Context = client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) == 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+
+	_, err := client.c.DeleteLog(ctx, rqst)
 
 	return err
 }
@@ -362,12 +405,22 @@ func (client *Log_Client) DeleteLog(info *logpb.LogInfo) error {
 /**
  * Clear all method
  */
-func (client *Log_Client) ClearLog(query string) error {
+func (client *Log_Client) ClearLog(query string, token string) error {
 	rqst := &logpb.ClearAllLogRqst{
 		Query: query,
 	}
 
-	_, err := client.c.ClearAllLog(client.GetCtx(), rqst)
+	var ctx context.Context = client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) == 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.ClearAllLog(ctx, rqst)
 
 	return err
 }
