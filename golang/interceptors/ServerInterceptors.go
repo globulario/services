@@ -418,8 +418,8 @@ func handleUnaryMethod(routing, token string, ctx context.Context, method string
 // ---- interceptors (unary) ---------------------------------------------------
 
 // ServerUnaryInterceptor is now NORMALLY PERMISSIVE:
-// - If the method is allowlisted → pass through
-// - If RBAC has NO resource mapping for the method → pass through
+// - If the method is allowlisted â†’ pass through
+// - If RBAC has NO resource mapping for the method â†’ pass through
 // - Only if there IS a mapping, we parse token and enforce RBAC.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	var (
@@ -461,7 +461,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		return handler(ctx, rqst)
 	}
 
-	// 3) We need auth → parse token now (not before).
+	// 3) We need auth â†’ parse token now (not before).
 	var clientId, issuer string
 	if token != "" {
 		claims, vErr := security.ValidateToken(token)
@@ -539,17 +539,17 @@ type ServerStreamInterceptorStream struct {
 	uuid         string // cache slot for this stream
 }
 
-func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error { return l.inner.SetHeader(m) }
+func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error  { return l.inner.SetHeader(m) }
 func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error { return l.inner.SendHeader(m) }
-func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD)      { l.inner.SetTrailer(m) }
-func (l ServerStreamInterceptorStream) Context() context.Context      { return l.inner.Context() }
+func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD)       { l.inner.SetTrailer(m) }
+func (l ServerStreamInterceptorStream) Context() context.Context       { return l.inner.Context() }
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
 	return l.inner.SendMsg(rqst)
 }
 
 // RecvMsg is now NORMALLY PERMISSIVE:
-// - Allowlisted → pass
-// - No RBAC mapping → pass
+// - Allowlisted â†’ pass
+// - No RBAC mapping â†’ pass
 // - Only if mapping exists, parse token and enforce RBAC.
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	if err := l.inner.RecvMsg(rqst); err != nil {
@@ -576,7 +576,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return nil
 	}
 
-	// 4) We need auth → parse token now.
+	// 4) We need auth â†’ parse token now.
 	var clientId, issuer string
 	if l.token != "" {
 		claims, vErr := security.ValidateToken(l.token)
@@ -625,10 +625,18 @@ type ServerStreamInterceptorBroadcastStream struct {
 func (b ServerStreamInterceptorBroadcastStream) Context() context.Context {
 	return metadata.AppendToOutgoingContext(context.Background(), "token", b.token)
 }
-func (b ServerStreamInterceptorBroadcastStream) SetHeader(md metadata.MD) error { return b.ServerStream.SetHeader(md) }
-func (b ServerStreamInterceptorBroadcastStream) SendHeader(md metadata.MD) error { return b.ServerStream.SendHeader(md) }
-func (b ServerStreamInterceptorBroadcastStream) SetTrailer(md metadata.MD)       { b.ServerStream.SetTrailer(md) }
-func (b ServerStreamInterceptorBroadcastStream) SendMsg(m interface{}) error     { return b.ServerStream.SendMsg(m) }
+func (b ServerStreamInterceptorBroadcastStream) SetHeader(md metadata.MD) error {
+	return b.ServerStream.SetHeader(md)
+}
+func (b ServerStreamInterceptorBroadcastStream) SendHeader(md metadata.MD) error {
+	return b.ServerStream.SendHeader(md)
+}
+func (b ServerStreamInterceptorBroadcastStream) SetTrailer(md metadata.MD) {
+	b.ServerStream.SetTrailer(md)
+}
+func (b ServerStreamInterceptorBroadcastStream) SendMsg(m interface{}) error {
+	return b.ServerStream.SendMsg(m)
+}
 
 func (b ServerStreamInterceptorBroadcastStream) RecvMsg(m interface{}) error {
 	if err := b.ServerStream.RecvMsg(m); err != nil {

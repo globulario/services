@@ -274,6 +274,9 @@ func SaveService(s Service) error {
 		slog.Error("SaveService: to map failed", "service", s.GetName(), "err", err)
 		return err
 	}
+
+	cfg["RolesDefault"] = s.RolesDefault()
+	
 	if err := config.SaveServiceConfiguration(cfg); err != nil {
 		slog.Error("SaveService: save failed", "service", s.GetName(), "err", err)
 		return err

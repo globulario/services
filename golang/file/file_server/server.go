@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -355,14 +354,7 @@ func (srv *server) setOwner(token, path string) error {
 	}
 	return rbac.AddResourceOwner(token, path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
 }
-func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
-	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
-	c, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return c.(*authentication_client.Authentication_Client), nil
-}
+
 func getMediaClient() (*media_client.Media_Client, error) {
 	address, _ := config.GetAddress()
 	Utility.RegisterFunction("NewMediaService_Client", media_client.NewMediaService_Client)
