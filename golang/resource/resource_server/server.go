@@ -652,7 +652,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			// Create the sessions table.
 			err = srv.store.(*persistence_store.SqlStore).CreateTable(
 				context.Background(), "local_resource", "local_resource", "Sessions",
-				[]string{"accountId TEXT", "domain TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
+				[]string{"account_id TEXT", "domain TEXT", "state INTEGER", "last_state_time INTEGER", "expire_at INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Sessions", "error", err)
 			}
@@ -729,7 +729,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			// Create the sessions table.
 			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
 				context.Background(), "local_resource", "local_resource", "Sessions",
-				[]string{"accountId TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
+				[]string{"account_id TEXT", "domain TEXT", "state INT", "last_state_time BIGINT", "expire_at BIGINT"})
 			if err != nil {
 				logger.Error("fail to create table Sessions", "error", err)
 			}

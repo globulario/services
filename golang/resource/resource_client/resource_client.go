@@ -968,11 +968,14 @@ func (client *Resource_Client) CreateRole(token, id, name string, actions []stri
 	return err
 }
 
-func (client *Resource_Client) DeleteRole(name string) error {
+func (client *Resource_Client) DeleteRole(token, name string) error {
 	rqst := new(resourcepb.DeleteRoleRqst)
 	rqst.RoleId = name
 
-	_, err := client.c.DeleteRole(client.GetCtx(), rqst)
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.DeleteRole(ctx, rqst)
 
 	return err
 }
@@ -999,12 +1002,16 @@ func (client *Resource_Client) UpdateRole(token string, r *resourcepb.Role) erro
 /**
  * Add a action to a given role.
  */
-func (client *Resource_Client) AddRoleActions(roleId string, actions []string) error {
+func (client *Resource_Client) AddRoleActions(token, roleId string, actions []string) error {
 	rqst := &resourcepb.AddRoleActionsRqst{
 		RoleId:  roleId,
 		Actions: actions,
 	}
-	_, err := client.c.AddRoleActions(client.GetCtx(), rqst)
+
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddRoleActions(ctx, rqst)
 
 	return err
 }
@@ -1012,12 +1019,15 @@ func (client *Resource_Client) AddRoleActions(roleId string, actions []string) e
 /**
  * Remove action from a given role.
  */
-func (client *Resource_Client) RemoveRoleAction(roleId string, action string) error {
+func (client *Resource_Client) RemoveRoleAction(token, roleId string, action string) error {
 	rqst := &resourcepb.RemoveRoleActionRqst{
 		RoleId: roleId,
 		Action: action,
 	}
-	_, err := client.c.RemoveRoleAction(client.GetCtx(), rqst)
+
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+	_, err := client.c.RemoveRoleAction(ctx, rqst)
 
 	return err
 }
@@ -1025,11 +1035,14 @@ func (client *Resource_Client) RemoveRoleAction(roleId string, action string) er
 /**
  * Remove an action from all roles.
  */
-func (client *Resource_Client) RemoveRolesAction(action string) error {
+func (client *Resource_Client) RemoveRolesAction(token, action string) error {
 	rqst := &resourcepb.RemoveRolesActionRqst{
 		Action: action,
 	}
-	_, err := client.c.RemoveRolesAction(client.GetCtx(), rqst)
+
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+	_, err := client.c.RemoveRolesAction(ctx, rqst)
 
 	return err
 }

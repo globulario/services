@@ -262,7 +262,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 
 	// Remove it from the accounts
 	if role["members"] != nil {
-		logger.Info("log", "args", []interface{}{"----> role members ", role["members"]})
+		
 		var accounts []interface{}
 		switch role["members"].(type) {
 		case primitive.A:

@@ -97,9 +97,12 @@ func waitForRoleAction(c *Resource_Client, roleID, action string, tries int, sle
 // ---------- End-to-end happy path ----------
 
 func TestResourceServiceLifecycle(t *testing.T) {
+
 	env := newTestEnv(t)
 	c := env.Client
 
+	
+	// Create the account
 	t.Run("RegisterAccount", func(t *testing.T) {
 		// Create account first – many ops depend on it.
 		err := c.RegisterAccount(env.Domain, env.Account, env.Account, env.Account+"@example.com", "1234", "1234")
@@ -125,10 +128,10 @@ func TestResourceServiceLifecycle(t *testing.T) {
 
 	t.Run("AddRoleActionsAndAssignToAccount", func(t *testing.T) {
 		// Explicitly add the action we intend to remove later.
-		mustNoErr(t, "AddRoleActions", c.AddRoleActions(env.Role, []string{env.RoleAction}))
+		mustNoErr(t, "AddRoleActions", c.AddRoleActions(env.Token, env.Role, []string{env.RoleAction}))
 
 		// Assign the role to the account.
-		mustNoErr(t, "AddAccountRole", c.AddAccountRole(env.Account, env.Role))
+		mustNoErr(t, "AddAccountRole", c.AddAccountRole(env.Token, env.Account, env.Role))
 	})
 
 	// sanity check: role actually has the action we’ll remove (poll briefly to absorb store lag)
@@ -160,7 +163,7 @@ func TestResourceServiceLifecycle(t *testing.T) {
 			t.Skipf("skipping RemoveRoleAction: role %s still missing action %s", env.Role, env.RoleAction)
 			return
 		}
-		mustNoErr(t, "RemoveRoleAction", c.RemoveRoleAction(env.Role, env.RoleAction))
+		mustNoErr(t, "RemoveRoleAction", c.RemoveRoleAction(env.Token, env.Role, env.RoleAction))
 	})
 
 	// ---------- Cleanup in reverse order ----------
@@ -170,11 +173,11 @@ func TestResourceServiceLifecycle(t *testing.T) {
 		_ = c.RemoveOrganizationAccount(env.Token, env.Org, env.Account)
 		_ = c.RemoveOrganizationRole(env.Token, env.Org, env.Role)
 		_ = c.RemoveOrganizationGroup(env.Token, env.Org, env.Group)
-		_ = c.RemoveAccountRole(env.Account, env.Role)
+		_ = c.RemoveAccountRole(env.Token, env.Account, env.Role)
 
 		_ = c.DeleteGroup(env.Token, env.Group)
-		_ = c.DeleteRole(env.Role)
-		_ = c.DeleteAccount(env.Account, env.Token)
+		_ = c.DeleteRole(env.Token, env.Role)
+		_ = c.DeleteAccount(env.Token, env.Account)
 		_ = c.DeleteOrganization(env.Token, env.Org)
 	})
 }
@@ -189,15 +192,15 @@ func TestRoleCRUD(t *testing.T) {
 	mustNoErr(t, "CreateRole", c.CreateRole(env.Token, role, role, nil))
 
 	// Add action twice (should be idempotent or return a clear error).
-	mustNoErr(t, "AddRoleActions:first", c.AddRoleActions(role, []string{env.RoleAction}))
-	_ = c.AddRoleActions(role, []string{env.RoleAction})
+	mustNoErr(t, "AddRoleActions:first", c.AddRoleActions(env.Token, role, []string{env.RoleAction}))
+	_ = c.AddRoleActions(env.Token, role, []string{env.RoleAction})
 
 	// Remove, then removing again should be safe to call and return a clear error or no-op.
 	// If the first remove fails because the action didn't stick, it's a server-side issue.
-	mustNoErr(t, "RemoveRoleAction:first", c.RemoveRoleAction(role, env.RoleAction))
-	_ = c.RemoveRoleAction(role, env.RoleAction)
+	mustNoErr(t, "RemoveRoleAction:first", c.RemoveRoleAction(env.Token, role, env.RoleAction))
+	_ = c.RemoveRoleAction(env.Token, role, env.RoleAction)
 
-	mustNoErr(t, "DeleteRole", c.DeleteRole(role))
+	mustNoErr(t, "DeleteRole", c.DeleteRole(env.Token, role))
 }
 
 func TestGroupMembershipLifecycle(t *testing.T) {
@@ -238,7 +241,7 @@ func TestOrganizationLifecycle(t *testing.T) {
 	mustNoErr(t, "RemoveOrganizationGroup", c.RemoveOrganizationGroup(env.Token, env.Org, env.Group))
 	mustNoErr(t, "RemoveOrganizationAccount", c.RemoveOrganizationAccount(env.Token, env.Org, env.Account))
 
-	_ = c.DeleteRole(env.Role)
+	_ = c.DeleteRole(env.Token, env.Role)
 	_ = c.DeleteGroup(env.Token, env.Group)
 	_ = c.DeleteOrganization(env.Token, env.Org)
 	_ = c.DeleteAccount(env.Account, env.Token)

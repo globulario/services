@@ -754,10 +754,10 @@ func (lf *ldapFacade) onModify(w ldap.ResponseWriter, m *ldap.Message) {
 			switch t {
 			case "globularaction":
 				if ch.Operation() == lmsg.ModifyRequestChangeOperationAdd {
-					_ = lf.rc.AddRoleActions(id, toStrings(ch.Modification().Vals()))
+					_ = lf.rc.AddRoleActions(cs.token, id, toStrings(ch.Modification().Vals()))
 				} else if ch.Operation() == lmsg.ModifyRequestChangeOperationDelete {
 					for _, a := range toStrings(ch.Modification().Vals()) {
-						_ = lf.rc.RemoveRoleAction(id, a)
+						_ = lf.rc.RemoveRoleAction(cs.token, id, a)
 					}
 				}
 			case "member":
@@ -830,7 +830,7 @@ func (lf *ldapFacade) onDelete(w ldap.ResponseWriter, m *ldap.Message) {
 	case "group":
 		err = lf.rc.DeleteGroup(cs.token, id)
 	case "role":
-		err = lf.rc.DeleteRole(id)
+		err = lf.rc.DeleteRole(cs.token, id)
 	case "org":
 		err = lf.rc.DeleteOrganization(cs.token, id)
 	}

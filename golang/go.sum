@@ -243,8 +243,8 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/glendc/go-external-ip v0.1.0 h1:iX3xQ2Q26atAmLTbd++nUce2P5ht5P4uD4V7caSY/xg=
 github.com/glendc/go-external-ip v0.1.0/go.mod h1:CNx312s2FLAJoWNdJWZ2Fpf5O4oLsMFwuYviHjS4uJE=
-github.com/globulario/utility v0.1.8 h1:TJDzEELRV2wpxJ+m0DKt3a3vCRlBwQJ4uRioX7IcgQg=
-github.com/globulario/utility v0.1.8/go.mod h1:qq9tQpmAgQYKBJkISigebTd3WOst7XJfEad+6d0kU6A=
+github.com/globulario/utility v0.1.9 h1:gGaBd7HXMKpqj3uH7a2Kqv3Ikm5rtOMiVdhT6+riTl4=
+github.com/globulario/utility v0.1.9/go.mod h1:qq9tQpmAgQYKBJkISigebTd3WOst7XJfEad+6d0kU6A=
 github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd/go.mod h1:/20jfyN9Y5QPEAprSgKAUr+glWDY39ZiUEAYOEv5dsE=
 github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2/go.mod h1:/20jfyN9Y5QPEAprSgKAUr+glWDY39ZiUEAYOEv5dsE=
 github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a/go.mod h1:/20jfyN9Y5QPEAprSgKAUr+glWDY39ZiUEAYOEv5dsE=

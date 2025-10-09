@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	Utility "github.com/globulario/utility"
@@ -350,7 +351,8 @@ func (srv *server) removeRolesAction(action string) error {
 	if err != nil {
 		return err
 	}
-	return rc.RemoveRolesAction(action)
+    token, _ := security.GetLocalToken(srv.GetMac())
+	return rc.RemoveRolesAction(token, action)
 }
 func (srv *server) removeApplicationsAction(token, action string) error {
 	rc, err := srv.getResourceClient()
@@ -371,7 +373,8 @@ func (srv *server) setRoleActions(roleId string, actions []string) error {
 	if err != nil {
 		return err
 	}
-	return rc.AddRoleActions(roleId, actions)
+	token, _ := security.GetLocalToken(srv.GetMac())
+	return rc.AddRoleActions(token, roleId, actions)
 }
 
 // -----------------------------------------------------------------------------
