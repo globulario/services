@@ -349,11 +349,11 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	resource_path := PublisherID + "|" + name + "|" + version
 
 	if len(organization) > 0 {
-		if err := rbac_client_.AddResourceOwner(token, resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION); err != nil {
+		if err := rbac_client_.AddResourceOwner(token, resource_path, organization,"package", rbacpb.SubjectType_ORGANIZATION); err != nil {
 			return -1, err
 		}
 	} else if len(user) > 0 {
-		if err := rbac_client_.AddResourceOwner(token, resource_path, "package", user, rbacpb.SubjectType_ACCOUNT); err != nil {
+		if err := rbac_client_.AddResourceOwner(token, resource_path, user, "package", rbacpb.SubjectType_ACCOUNT); err != nil {
 			return -1, err
 		}
 	}
@@ -523,11 +523,11 @@ func (client *Repository_Service_Client) UploadServicePackage(user, organization
 	}
 	resourcePath := pubID + "|" + id + "|" + name + "|" + version
 	if organization != "" {
-		if err := rbac_client_.AddResourceOwner(token, resourcePath, "package", organization, rbacpb.SubjectType_ORGANIZATION); err != nil {
+		if err := rbac_client_.AddResourceOwner(token, resourcePath, organization, "package", rbacpb.SubjectType_ORGANIZATION); err != nil {
 			return err
 		}
 	} else if user != "" {
-		if err := rbac_client_.AddResourceOwner(token, resourcePath, "package", user, rbacpb.SubjectType_ACCOUNT); err != nil {
+		if err := rbac_client_.AddResourceOwner(token, resourcePath, user, "package", rbacpb.SubjectType_ACCOUNT); err != nil {
 			return err
 		}
 	}

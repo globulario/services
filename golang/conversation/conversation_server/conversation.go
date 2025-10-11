@@ -188,7 +188,7 @@ func (srv *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	if err := srv.addParticipantConversation(clientId, uuid); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	if err := srv.addResourceOwner(token, uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+	if err := srv.addResourceOwner(token, uuid, clientId, "conversation", rbacpb.SubjectType_ACCOUNT); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 

@@ -23,7 +23,7 @@ func isNotFoundErr(err error) bool {
            strings.Contains(s, "item not found")
 }
 
-func (srv *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(path, subject, resourceType_ string, subjectType rbacpb.SubjectType) error {
 	if len(path) == 0 {
 		return errors.New("no resource path was given")
 	}
@@ -146,7 +146,7 @@ func (srv *server) addResourceOwner(path, resourceType_, subject string, subject
 // an error with details; otherwise, it returns an empty AddResourceOwnerRsp on success.
 func (srv *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
 
-	err := srv.addResourceOwner(rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
+	err := srv.addResourceOwner(rqst.Path, rqst.Subject, rqst.ResourceType, rqst.Type)
 
 	if err != nil {
 		return nil, status.Errorf(

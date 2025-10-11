@@ -198,7 +198,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
-	srv.addResourceOwner(token, domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(token, domain,rqst.Peer.Mac, "domain",  rbacpb.SubjectType_PEER)
 	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
@@ -763,7 +763,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 
 		// in case local dns is use that peers will be able to change values releated to it domain.
 		// but no other peer will be able to do it...
-		srv.addResourceOwner(token, peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
+		srv.addResourceOwner(token, peer_.Domain, peer_.Mac, "domain", rbacpb.SubjectType_PEER)
 
 		jsonStr, err := protojson.Marshal(peer_)
 		if err != nil {
@@ -837,7 +837,7 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 		domain += "." + rqst.Peer.Domain
 	}
 
-	srv.addResourceOwner(token, domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(token, domain, rqst.Peer.Mac, "domain", rbacpb.SubjectType_PEER)
 
 	// Insert the peer into the local resource database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")

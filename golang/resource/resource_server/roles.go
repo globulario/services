@@ -400,6 +400,7 @@ func (srv *server) getRole(id string) (*resourcepb.Role, error) {
 // over the gRPC stream. Each role includes its ID, name, description, domain, actions, organizations, and members.
 // If an error occurs during retrieval or streaming, it returns a gRPC status error.
 func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.ResourceService_GetRolesServer) error {
+
 	// Get the persistence connection
 	p, err := srv.getPersistenceStore()
 	if err != nil {
@@ -422,7 +423,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 	maxSize := 100
 	values := make([]*resourcepb.Role, 0)
 
-	for i := 0; i < len(roles); i++ {
+	for i := range roles {
 		role := roles[i].(map[string]interface{})
 		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Description: role["description"].(string), Actions: make([]string, 0)}
 

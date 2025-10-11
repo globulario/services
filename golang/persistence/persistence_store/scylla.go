@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -873,43 +874,155 @@ func (store *ScyllaStore) find(connectionId, keyspace, table, query string) ([]m
 
 // ---------- CRUD surface (Store interface) ----------
 
-func (store *ScyllaStore) Count(ctx context.Context, connectionId string, keyspace string, table string, query string, options string) (int64, error) {
+// Count returns:
+// - Exact count when WHERE targets a single partition (all PK cols with equality)
+// - Estimated count (from system.size_estimates) when no WHERE
+// - Error (or estimate) when WHERE is not partition-key-complete
+func (store *ScyllaStore) Count(ctx context.Context, connectionId, keyspace, table, query, options string) (int64, error) {
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return 0, err
 	}
-	if query == "" || query == "{}" {
-		q := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", keyspace, table)
-		var cnt int64
-		if err := session.Query(q).WithContext(ctx).Scan(&cnt); err != nil {
-			return 0, err
-		}
-		return cnt, nil
+
+	normalize := func(s string) string {
+		// strip optional quotes/backticks and lowercase
+		s = strings.TrimSpace(s)
+		s = strings.Trim(s, "`\"")
+		return strings.ToLower(s)
 	}
-	qt := strings.TrimSpace(strings.ToUpper(query))
-	if strings.HasPrefix(qt, "SELECT ") {
-		up := strings.ToUpper(query)
-		fromIdx := strings.Index(up, " FROM ")
-		var where string
-		if fromIdx >= 0 {
-			whereIdx := strings.Index(up[fromIdx:], " WHERE ")
-			if whereIdx >= 0 {
-				where = query[fromIdx+whereIdx:]
+	keyspace = normalize(keyspace)
+	table = normalize(table)
+
+	// Get table metadata to know partition key columns
+	km, err := session.KeyspaceMetadata(keyspace)
+	if err != nil {
+		return 0, fmt.Errorf("keyspace metadata error: %v", err)
+	}
+	if km == nil {
+		return 0, fmt.Errorf("keyspace not found: %s", keyspace)
+	}
+
+	// Tables map is keyed by lowercase names.
+	tm, ok := km.Tables[table]
+	if !ok || tm == nil {
+		// extra safety: case-insensitive scan if something odd slipped through
+		for name, meta := range km.Tables {
+			if strings.EqualFold(name, table) && meta != nil {
+				tm, ok = meta, true
+				break
 			}
 		}
-		q := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s%s", keyspace, table, where)
-		var cnt int64
-		if err := session.Query(q).WithContext(ctx).Scan(&cnt); err != nil {
-			return 0, err
+		if !ok || tm == nil {
+			return 0, fmt.Errorf("table not found: %s.%s", keyspace, table)
 		}
-		return cnt, nil
 	}
-	slog.Warn("scylla: Count fallback to scan; consider raw CQL", "table", keyspace+"."+table)
+
+	pkCols := make([]string, 0, len(tm.PartitionKey))
+	for _, col := range tm.PartitionKey {
+		pkCols = append(pkCols, strings.ToLower(col.Name))
+	}
+
+	// 1) No query -> return an estimate (safe & fast)
+	if query == "" || query == "{}" {
+		est, err := estimateTableCount(ctx, session, keyspace, table)
+		if err != nil {
+			slog.Warn("scylla: estimate failed; fallback to scan length", "table", keyspace+"."+table, "err", err)
+			entities, ferr := store.find(connectionId, keyspace, table, query)
+			if ferr != nil {
+				return 0, ferr
+			}
+			return int64(len(entities)), nil
+		}
+		return est, nil
+	}
+
+	// 2) Query provided
+	qt := strings.TrimSpace(query)
+	up := strings.ToUpper(qt)
+	if strings.HasPrefix(up, "SELECT ") {
+		where := extractWhereClause(qt)
+		cleanWhere := where
+		// remove trailing semicolon
+		cleanWhere = strings.TrimSuffix(strings.TrimSpace(cleanWhere), ";")
+		// remove ALLOW FILTERING (case-insensitive)
+		reAF := regexp.MustCompile(`(?i)\s+ALLOW\s+FILTERING\s*$`)
+		cleanWhere = reAF.ReplaceAllString(cleanWhere, "")
+
+		if cleanWhere == "" {
+			return estimateTableCount(ctx, session, keyspace, table)
+		}
+		if whereHasAllPKEquals(cleanWhere, pkCols) {
+			cql := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s %s", keyspace, table, cleanWhere)
+			var cnt int64
+			if err := session.Query(cql).WithContext(ctx).Scan(&cnt); err != nil {
+				return 0, err
+			}
+			return cnt, nil
+		}
+		slog.Warn("scylla: COUNT would scan multiple partitions; returning estimate",
+			"table", keyspace+"."+table, "where", cleanWhere)
+		return estimateTableCount(ctx, session, keyspace, table)
+	}
+
+	// 3) Legacy/JSON filter path
+	slog.Warn("scylla: Count fallback to scan; consider raw CQL with PK WHERE", "table", keyspace+"."+table)
 	entities, err := store.find(connectionId, keyspace, table, query)
 	if err != nil {
 		return 0, err
 	}
 	return int64(len(entities)), nil
+}
+
+// --- helpers -----------------------------------------------------------------
+
+// estimateTableCount uses system.size_estimates to approximate row count.
+// It sums partitions_count across token ranges.
+func estimateTableCount(ctx context.Context, session *gocql.Session, keyspace, table string) (int64, error) {
+	iter := session.Query(
+		`SELECT partitions_count FROM system.size_estimates WHERE keyspace_name=? AND table_name=?`,
+		keyspace, table,
+	).WithContext(ctx).Iter()
+	var pcnt, sum int64
+	for iter.Scan(&pcnt) {
+		sum += pcnt
+	}
+	if err := iter.Close(); err != nil {
+		return 0, err
+	}
+	return sum, nil
+}
+
+// extractWhereClause returns "WHERE ..." (including WHERE) if present.
+func extractWhereClause(selectQuery string) string {
+	up := strings.ToUpper(selectQuery)
+	fromIdx := strings.Index(up, " FROM ")
+	if fromIdx < 0 {
+		return ""
+	}
+	// try WHERE
+	whereIdx := strings.Index(up[fromIdx:], " WHERE ")
+	if whereIdx < 0 {
+		return ""
+	}
+	return selectQuery[fromIdx+whereIdx:] // original case-preserving slice
+}
+
+// whereHasAllPKEquals checks that WHERE contains equality conditions for all PK cols.
+// This is a simple heuristic; for robust parsing, consider a real CQL parser.
+func whereHasAllPKEquals(where string, pkCols []string) bool {
+	w := strings.ToLower(where)
+	// normalize whitespace
+	space := regexp.MustCompile(`\s+`)
+	w = space.ReplaceAllString(w, " ")
+
+	for _, col := range pkCols {
+		// naive token check: "<col> ="
+		if !strings.Contains(w, " "+col+" =") && !strings.HasPrefix(w, "where "+col+" =") {
+			return false
+		}
+	}
+	// also ensure there's no IN/>, etc. that could widen range (optional)
+	return true
 }
 
 func (store *ScyllaStore) backfillArrays(connectionId, keyspace, tableName, id string, data map[string]interface{}) {

@@ -407,7 +407,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			_ = srv.addResourceOwner(tokenString, path, "file", "sa@"+srv.Domain, rbacpb.SubjectType_ACCOUNT)
+			_ = srv.addResourceOwner(tokenString, path,"sa@"+srv.Domain, "file", rbacpb.SubjectType_ACCOUNT)
 		}
 
 		// persist updated root password (keep current)
@@ -502,7 +502,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	}
 
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
-	_ = srv.addResourceOwner(tokenString, "/users/"+account.Id+"@"+account.Domain, "file", owner, rbacpb.SubjectType_ACCOUNT)
+	_ = srv.addResourceOwner(tokenString, "/users/"+account.Id+"@"+account.Domain, owner, "file", rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE

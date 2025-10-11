@@ -55,7 +55,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Owner
-	if err := srv.addResourceOwner(token, uuid, "blog", clientId, rbacpb.SubjectType_ACCOUNT); err != nil {
+	if err := srv.addResourceOwner(token, uuid, clientId, "blog", rbacpb.SubjectType_ACCOUNT); err != nil {
 		slog.Error("addResourceOwner failed", "uuid", uuid, "author", clientId, "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}

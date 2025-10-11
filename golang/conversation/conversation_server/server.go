@@ -377,12 +377,12 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	}
 	return c.ValidateAccess(subject, subjectType, name, path)
 }
-func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, subject, resourceType string, subjectType rbacpb.SubjectType) error {
 	c, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-	return c.AddResourceOwner(token, path, resourceType, subject, subjectType)
+	return c.AddResourceOwner(token, path, subject, resourceType, subjectType)
 }
 func (srv *server) setActionResourcesPermissions(token string, permissions map[string]interface{}) error {
 	c, err := GetRbacClient(srv.Address)
@@ -749,7 +749,7 @@ func main() {
 		}
 		s.Port = p
 	}
-	
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":

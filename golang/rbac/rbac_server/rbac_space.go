@@ -216,7 +216,7 @@ func (srv *server) setSubjectUsedSpace(subject string, subject_type rbacpb.Subje
 			Utility.CreateDirIfNotExist(dataPath + "/files/users/" + a)
 
 			// be sure the user is the owner of that directory...
-			srv.addResourceOwner("/users/"+a, "file", a, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner("/users/"+a, a,  "file", rbacpb.SubjectType_ACCOUNT)
 		}
 
 	case rbacpb.SubjectType_APPLICATION:
@@ -503,7 +503,7 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 		path := config.GetDataDir() + "/files/users/" + a
 		if !Utility.Exists(path) {
 			Utility.CreateDirIfNotExist(path)
-			err := srv.addResourceOwner("/users/"+a, "file", a, rbacpb.SubjectType_ACCOUNT)
+			err := srv.addResourceOwner("/users/"+a, a, "file", rbacpb.SubjectType_ACCOUNT)
 			if err != nil {
 				logPrintln("fail to set resource owner: ", err)
 			}

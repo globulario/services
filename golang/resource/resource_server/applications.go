@@ -731,10 +731,10 @@ func (srv *server) save_application(ctx context.Context, app *resourcepb.Applica
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
-	srv.addResourceOwner(token, path, "file", app.Id+"@"+app.Domain, rbacpb.SubjectType_APPLICATION)
+	srv.addResourceOwner(token, path, app.Id+"@"+app.Domain, "file", rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	srv.addResourceOwner(token, app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, app.Id+"@"+app.Domain, owner, "application", rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	srv.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{}, srv.Address)

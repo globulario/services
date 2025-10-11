@@ -259,7 +259,6 @@ func InitService(s Service) error {
 
 	s.SetTls(s.GetTls() || (s.GetCertFile() != "" && s.GetKeyFile() != ""))
 
-
 	// Persist initial snapshot (desired + starting runtime)
 	return SaveService(s)
 }
@@ -276,7 +275,7 @@ func SaveService(s Service) error {
 	}
 
 	cfg["RolesDefault"] = s.RolesDefault()
-	
+
 	if err := config.SaveServiceConfiguration(cfg); err != nil {
 		slog.Error("SaveService: save failed", "service", s.GetName(), "err", err)
 		return err
@@ -435,13 +434,16 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 	// Connection management.
 	opts = append(opts,
 		grpc.MaxConcurrentStreams(grpcMaxConcurrentStreams),
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			Time:    grpcKeepaliveTime,
-			Timeout: grpcKeepaliveTimeout,
-		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             grpcKeepaliveMinTime,
 			PermitWithoutStream: true,
+		}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle:     2 * time.Minute,
+			MaxConnectionAge:      0,
+			MaxConnectionAgeGrace: 0,
+			Time:    grpcKeepaliveTime,
+			Timeout: grpcKeepaliveTimeout,
 		}),
 	)
 
@@ -759,7 +761,6 @@ func applyDesiredToService(s Service, m map[string]any) {
 		s.SetTls(Utility.ToBool(m["TLS"]))
 	}
 
-
 	if m["CertAuthorityTrust"] != nil {
 		if v := Utility.ToString(m["CertAuthorityTrust"]); v != "" {
 			s.SetCertAuthorityTrust(v)
@@ -776,7 +777,7 @@ func applyDesiredToService(s Service, m map[string]any) {
 		if v := Utility.ToString(m["KeyFile"]); v != "" {
 			s.SetKeyFile(v)
 		}
-	} 
+	}
 
 	// TLS enabled if both cert+key are set
 	s.SetTls(s.GetTls() || (s.GetCertFile() != "" && s.GetKeyFile() != ""))

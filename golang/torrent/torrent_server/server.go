@@ -400,13 +400,13 @@ func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, subject, resourceType string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
 
-	err = rbac_client_.AddResourceOwner(token, path, resourceType, subject, subjectType)
+	err = rbac_client_.AddResourceOwner(token, path, subject, resourceType, subjectType)
 	return err
 }
 

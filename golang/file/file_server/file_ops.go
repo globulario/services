@@ -209,32 +209,47 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 	return nil
 }
 
-// SaveFile writes an incoming stream to disk.
+// SaveFile writes an incoming stream to disk, creating parent dirs if needed.
 func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
-	var data []byte
-	var path string
-	for {
-		rqst, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				if err := os.WriteFile(path, data, 0644); err != nil {
-					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-				if err := stream.SendAndClose(&filepb.SaveFileResponse{Result: true}); err != nil {
-					slog.Error("save send/close failed", "err", err)
-					return err
-				}
-				return nil
-			}
-			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-		switch msg := rqst.File.(type) {
-		case *filepb.SaveFileRequest_Path:
-			path = srv.formatPath(msg.Path)
-		case *filepb.SaveFileRequest_Data:
-			data = append(data, msg.Data...)
-		}
-	}
+    var data []byte
+    var path string
+    for {
+        rqst, err := stream.Recv()
+        if err != nil {
+            if err == io.EOF {
+                if len(path) == 0 {
+                    return status.Errorf(codes.InvalidArgument, "%s",
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("empty path")))
+                }
+                // Ensure parent directory exists
+                if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+                    return status.Errorf(codes.Internal, "%s",
+                        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+                }
+                if err := os.WriteFile(path, data, 0o644); err != nil {
+                    return status.Errorf(codes.Internal, "%s",
+                        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+                }
+                if err := stream.SendAndClose(&filepb.SaveFileResponse{Result: true}); err != nil {
+                    slog.Error("save send/close failed", "err", err)
+                    return err
+                }
+                return nil
+            }
+            return status.Errorf(codes.Internal, "%s",
+                Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+        }
+
+        switch msg := rqst.File.(type) {
+        case *filepb.SaveFileRequest_Path:
+            // Normalize/anchor to server storage root
+            path = srv.formatPath(msg.Path)
+        case *filepb.SaveFileRequest_Data:
+            data = append(data, msg.Data...)
+        default:
+            // ignore unknown frames
+        }
+    }
 }
 
 // DeleteFile removes a single file and updates related state.

@@ -80,7 +80,7 @@ func (srv *server) createGroup(token, id, name, owner, description string, membe
 	}
 
 	// Now create the resource permission.
-	srv.addResourceOwner(token, id+"@"+srv.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, id+"@"+srv.Domain, owner, "group", rbacpb.SubjectType_ACCOUNT)
 	logger.Info("group created", "group_id", id, "owner", owner)
 	return nil
 }
@@ -119,7 +119,7 @@ func (srv *server) CreateAccountDir(ctx context.Context) error {
 		path := "/users/" + id + "@" + domain
 		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
 			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-			srv.addResourceOwner(token, path, "file", id+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+			srv.addResourceOwner(token, path, id+"@"+domain, "file", rbacpb.SubjectType_ACCOUNT)
 		}
 	}
 
@@ -175,7 +175,7 @@ func (srv *server) createRole(ctx context.Context, id, name, owner string, descr
 	}
 
 	if name != "admin" {
-		srv.addResourceOwner(token, id+"@"+srv.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+		srv.addResourceOwner(token, id+"@"+srv.Domain, owner, "role", rbacpb.SubjectType_ACCOUNT)
 	}
 
 	return nil
@@ -514,7 +514,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	}
 
 	// create the resource owner.
-	srv.addResourceOwner(token, rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId, rbacpb.SubjectType_ACCOUNT)
+	srv.addResourceOwner(token, rqst.Organization.GetId()+"@"+rqst.Organization.Domain, clientId, "organization", rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -1773,7 +1773,7 @@ func (srv *server) registerAccount(ctx context.Context, domain, id, name, email,
 	// Create the user file directory.
 	path := "/users/" + id + "@" + localDomain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	err = srv.addResourceOwner(token, path, "file", id+"@"+localDomain, rbacpb.SubjectType_ACCOUNT)
+	err = srv.addResourceOwner(token, path, id+"@"+localDomain, "file", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		fmt.Println("fail to add resource owner with error ", err)
 	}

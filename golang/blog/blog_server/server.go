@@ -319,7 +319,7 @@ func (srv *server) addResourceOwner(token, path, resourceType, subject string, s
 	if err != nil {
 		return err
 	}
-	return c.AddResourceOwner(token, path, resourceType, subject, subjectType)
+	return c.AddResourceOwner(token, path, subject, resourceType, subjectType)
 }
 
 // -----------------------------------------------------------------------------

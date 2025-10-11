@@ -25,6 +25,7 @@ import (
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -96,7 +97,12 @@ type server struct {
 	SessionTimeout int
 
 	// Data store where account, role ect are keep...
-	store   persistence_store.Store
+	store persistence_store.Store
+
+	// In-memory cache to speed up things.
+	cache    *storage_store.BigCache_store
+	cacheTTL time.Duration
+
 	isReady bool
 
 	// The grpc server.
@@ -476,12 +482,11 @@ func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
+func (srv *server) addResourceOwner(token, path, subject, resourceType string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := getRbacClient(srv.Address)
 	if err != nil {
 		return err
 	}
-
 
 	err = rbac_client_.AddResourceOwner(token, path, subject, resourceType, subjectType)
 	return err
@@ -808,6 +813,15 @@ func main() {
 	s.AllowedOrigins = allowedOriginsStr
 	s.KeepAlive = true
 	s.KeepUpToDate = true
+	s.cacheTTL = 5 * time.Minute // adjust
+
+	// init BigCache
+    s.cache = storage_store.NewBigCache_store()
+
+    // pass lifeWindow via JSON (your Open() already supports options)
+    // e.g. shards/lifeWindow are bigcache options; tune to your traffic
+    _ = s.cache.Open(`{"lifeWindow":"5m","shards":64}`)
+
 
 	s.Permissions = []interface{}{
 		// --- References ----------------------------------------------------------

@@ -352,7 +352,7 @@ func (srv *server) setOwner(token, path string) error {
 	if strings.Contains(path, "/files/users/") {
 		path = path[strings.Index(path, "/users/"):]
 	}
-	return rbac.AddResourceOwner(token, path, "file", clientId, rbacpb.SubjectType_ACCOUNT)
+	return rbac.AddResourceOwner(token, path, clientId, "file", rbacpb.SubjectType_ACCOUNT)
 }
 
 func getMediaClient() (*media_client.Media_Client, error) {
@@ -786,7 +786,7 @@ func main() {
 					if len(parts) > 2 {
 						owner := parts[2] // user@domain
 						if rbac, err := getRbacClient(); err == nil {
-							if err := rbac.AddResourceOwner(token, path, "file", owner, rbacpb.SubjectType_ACCOUNT); err != nil {
+							if err := rbac.AddResourceOwner(token, path, owner, "file", rbacpb.SubjectType_ACCOUNT); err != nil {
 								logger.Error("set file owner failed", "path", path, "owner", owner, "err", err)
 							}
 						} else {
