@@ -1,14 +1,23 @@
 {
-    "compilerOptions": {
-      "target": "es5",
-      "lib": ["es6", "dom"],
-      "module": "commonjs",
-      "declaration": true,
-      "allowJs": true,
-      "rootDir": "./",
-      "outDir": "./dist",
-      "strict": false
-    },
-    "include": ["**/*.ts"],
-    "exclude": ["node_modules", "**/__tests__/*", "dist"]
-  }
+  "compilerOptions": {
+    "target": "es2017",
+    "lib": [
+      "es2017",
+      "dom"
+    ],
+    "module": "commonjs",
+    "declaration": true,
+    "allowJs": true,
+    "rootDir": "./",
+    "outDir": "./dist",
+    "strict": false
+  },
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/__tests__/*",
+    "dist"
+  ]
+}
