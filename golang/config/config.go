@@ -438,6 +438,21 @@ func GetLocalClientKeyPath() string {
 	return ""
 }
 
+func GetLocalClientCertificatePath() string {
+	if cfg, err := GetLocalConfig(true); err == nil {
+		name, _ := cfg["Name"].(string)
+		domain, _ := cfg["Domain"].(string)
+		if name != "" && domain != "" {
+			p := GetConfigDir() + "/tls/" + name + "." + domain + "/client.crt"
+			if Utility.Exists(p) {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+
 func GetLocalCertificate() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)

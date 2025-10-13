@@ -609,8 +609,10 @@ func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error
 		var d map[string]interface{}
 		if json.Unmarshal(dres.Kvs[0].Value, &d) == nil {
 			var r map[string]interface{}
-			if rres, _ := c.Get(ctx, etcdKey(idOrName, rtKey)); len(rres.Kvs) == 1 {
-				_ = json.Unmarshal(rres.Kvs[0].Value, &r)
+			if rres, err := c.Get(ctx, etcdKey(idOrName, rtKey)); err == nil  {
+				if len(rres.Kvs) == 1 {
+					_ = json.Unmarshal(rres.Kvs[0].Value, &r)
+				}
 			}
 			return mergeDesiredRuntime(d, r), nil
 		}
