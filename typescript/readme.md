@@ -15,10 +15,10 @@ with a **small set of primitives** that are:
 - `transport.ts` — helpers to build `grpc-web` metadata and instantiate generated clients at runtime.
 - `http.ts` — **only** your HTTP utilities (upload, download, GET/POST JSON) with shared headers.
 - `index.ts` — exports a tiny `globular` object to manage config and create clients; no baked-in service list.
-- `examples/rbac.example.ts` — demonstrates direct use of generated `rbac` clients (no wrapper layer).
+- `examples/rbac.getAccounts.example.ts` — demonstrates calling a **server-streaming** `GetAccounts` from your **ResourceService** directly (no wrapper layer).
 
 > Drop these files somewhere in your app (e.g. `apps/web/src/client/`) and import from there.
-> The kit expects your generated code to be available (e.g. `@/gen/rbac_grpc_web_pb`, `@/gen/rbac_pb`).
+> The kit expects your generated code to be available (e.g. from your published `globular-web-client` or local paths).
 
 ## Why this structure
 
@@ -41,21 +41,28 @@ setConfig({
   tokenProvider: async () => localStorage.getItem("access_token") || ""
 });
 
-// Optional: override where services live
+// Optional: override where services live (Envoy subpath example)
 globular.setServiceLocator((serviceId) => {
-  // Example: envoy routes all services via subpaths
   return `${globular.config.protocol}://${globular.config.domain}/grpc/${serviceId}`;
 });
 
 // 2) Use any generated client anywhere
-import { RbacServiceClient } from "@/gen/rbac_grpc_web_pb";
-import * as rbac from "@/gen/rbac_pb";
+import { ResourceServiceClient } from "globular-web-client/resource/resource_grpc_web_pb";
+import * as resource from "globular-web-client/resource/resource_pb";
 
-const rbacClient = globular.client("rbac.RbacService", RbacServiceClient);
-const rq = new rbac.ListAccountsRqst();
-const stream = rbacClient.listAccounts(rq, await globular.metadata());
-stream.on("data", (rsp) => console.log(rsp.toObject()));
-stream.on("error", (e) => console.error(e));
+const client = globular.client<ResourceServiceClient>("resource.ResourceService", ResourceServiceClient);
+const md = await globular.metadata();
+
+const rq = new resource.GetAccountsRqst();
+// e.g. rq.setFilter("active")
+
+// Server-streaming example:
+const stream = client.getAccounts(rq, md);
+stream.on("data", (msg: resource.GetAccountsRsp) => {
+  console.log("accounts message:", msg.toObject ? msg.toObject() : msg);
+});
+stream.on("end", () => console.log("done"));
+stream.on("error", (e: any) => console.error(e));
 ```
 
 ### HTTP helpers
@@ -74,9 +81,9 @@ await http.upload("/uploads", file, { folder: "/tmp", overwrite: true });
 
 - Delete the hand-maintained per-service client fields and wrapper methods.
 - Keep only one app-wide configuration and the service locator.
-- Replace calls to `services.getRbacClient()` with:
+- Replace calls like `services.getXxxClient()` with:
   ```ts
-  const rbacClient = globular.client("rbac.RbacService", RbacServiceClient);
+  const client = globular.client("resource.ResourceService", ResourceServiceClient);
   ```
 
 ## Tauri

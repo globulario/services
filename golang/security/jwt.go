@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,11 +13,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
 	Utility "github.com/globulario/utility"
+	"github.com/golang-jwt/jwt/v5" // maintained fork
 	"google.golang.org/grpc/metadata"
 )
+
+// ============================================================================
+// Integration points (provide implementations in your keystore/control plane)
+// ============================================================================
+
+// GetIssuerSigningKey must return the issuer's Ed25519 private key and its KID.
+// - issuer: your peer/node identity (e.g., MAC, SPIFFE, DNS).
+// - kid:    key id to place in JWT header for rotation.
+var GetIssuerSigningKey func(issuer string) (ed25519.PrivateKey, string, error)
+
+// GetPeerPublicKey must return the issuer's Ed25519 public key for verification.
+// - issuer: token "iss"
+// - kid:    token header "kid"
+var GetPeerPublicKey func(issuer, kid string) (ed25519.PublicKey, error)
 
 // ----------------------------------------------------------------------------
 // Types
@@ -29,21 +44,25 @@ type Authentication struct {
 
 // GetRequestMetadata returns the outgoing metadata containing the JWT token.
 func (a *Authentication) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
-	return map[string]string{"token": a.Token}, nil
+	// Send both a custom header and a standard Authorization header.
+	return map[string]string{
+		"token":         a.Token,
+		"authorization": "Bearer " + a.Token,
+	}, nil
 }
 
 // RequireTransportSecurity indicates whether the credentials require TLS.
 func (a *Authentication) RequireTransportSecurity() bool { return true }
 
-// Claims is the signed JWT payload. It embeds jwt.StandardClaims.
+// Claims is the signed JWT payload. It embeds jwt.RegisteredClaims.
 type Claims struct {
 	ID         string `json:"id"`
 	Username   string `json:"username"`
 	Email      string `json:"email"`
-	Domain     string `json:"domain"` // Where the token was generated
-	UserDomain string `json:"user_domain"`
+	Domain     string `json:"domain"`      // Where the token was generated
+	UserDomain string `json:"user_domain"` // User's domain/tenant
 	Address    string `json:"address"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 // ----------------------------------------------------------------------------
@@ -73,8 +92,9 @@ func tokenPathForMAC(mac string) string {
 }
 
 const (
-	defaultSessionTimeoutMinutes = 60       // fallback if config is missing/zero
-	tokenExpirySkew              = 60 * time.Second // leeway to handle clock skew
+	defaultSessionTimeoutMinutes = 60                 // fallback if config is missing/zero
+	tokenExpirySkew              = 60 * time.Second   // leeway to handle clock skew
+	maxRefreshWindow             = 7 * 24 * time.Hour // 7 days
 )
 
 // readSessionTimeout reads SessionTimeout (minutes) from /etc/globular/config/config.json.
@@ -83,45 +103,19 @@ func readSessionTimeout() (int, error) {
 	cfgPath := filepath.Join(config.GetConfigDir(), "config.json")
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
-		// Use default if the file isn't readable.
 		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: cannot read %s: %w", cfgPath, err)
 	}
 
 	var globular map[string]interface{}
 	if err := json.Unmarshal(data, &globular); err != nil {
-		// Use default if JSON invalid.
 		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: invalid json in %s: %w", cfgPath, err)
 	}
 
 	v := Utility.ToInt(globular["SessionTimeout"])
 	if v <= 0 {
-		// Use default if not set or zero/negative.
 		return defaultSessionTimeoutMinutes, nil
 	}
 	return v, nil
-}
-
-// resolveJWTKey selects the proper HMAC key based on issuer/audience.
-func resolveJWTKey(claims *Claims) ([]byte, error) {
-	macAddress, err := config.GetMacAddress()
-	if err != nil {
-		return nil, fmt.Errorf("resolve jwt key: get mac address: %w", err)
-	}
-
-	// Prefer audience key when set and different from local mac.
-	if aud := claims.Audience; len(aud) > 0 && aud != macAddress {
-		key, err := GetPeerKey(aud)
-		if err != nil {
-			return nil, fmt.Errorf("resolve jwt key: get peer key for audience %q: %w", aud, err)
-		}
-		return key, nil
-	}
-
-	key, err := GetPeerKey(claims.Issuer)
-	if err != nil {
-		return nil, fmt.Errorf("resolve jwt key: get peer key for issuer %q: %w", claims.Issuer, err)
-	}
-	return key, nil
 }
 
 // ----------------------------------------------------------------------------
@@ -129,8 +123,9 @@ func resolveJWTKey(claims *Claims) ([]byte, error) {
 // ----------------------------------------------------------------------------
 
 // GenerateToken creates and signs a JWT for the given user.
-// The token expires after 'timeout' minutes. 'mac' indicates the intended
-// audience peer (optional). The signing key is chosen by issuer/audience.
+// - timeout: expiry in minutes (fallback to config or default).
+// - mac:     intended audience (peer MAC / service id). Optional; empty means “any cluster audience policy”.
+// The token is always signed with the **issuer's** private key (asymmetric).
 func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
 	// Normalize/secure timeout
 	if timeout <= 0 {
@@ -149,23 +144,9 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		return "", fmt.Errorf("generate token: get mac address: %w", err)
 	}
 
-	audience := ""
-	if mac != "" && mac != issuer {
-		audience = mac
-	}
-
-	var jwtKey []byte
-	if audience != "" {
-		jwtKey, err = GetPeerKey(audience)
-		if err != nil {
-			return "", fmt.Errorf("generate token: get peer key for audience %q: %w", audience, err)
-		}
-	} else {
-		jwtKey, err = GetPeerKey(issuer)
-		if err != nil {
-			return "", fmt.Errorf("generate token: get peer key for issuer %q: %w", issuer, err)
-		}
-	}
+	// Audience is optional; use it to scope tokens to a peer/service.
+	audience := mac
+	// If you prefer to scope to a logical API instead of peer MAC, set audience to that name here.
 
 	domain, err := config.GetDomain()
 	if err != nil {
@@ -183,56 +164,90 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 		Email:      email,
 		Domain:     domain,
 		Address:    address,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expiresAt.Unix(),
-			IssuedAt:  now.Unix(),
-			Id:        userId,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        userId,
 			Subject:   userId,
 			Issuer:    issuer,
-			Audience:  audience,
+			Audience:  jwt.ClaimStrings{},
 		},
 	}
+	if audience != "" {
+		claims.Audience = jwt.ClaimStrings{audience}
+	}
 
-	// Build & sign token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString(jwtKey)
+	// Load issuer private key + kid from your keystore
+	if GetIssuerSigningKey == nil {
+		return "", errors.New("generate token: GetIssuerSigningKey not configured")
+	}
+	priv, kid, err := GetIssuerSigningKey(issuer)
+	if err != nil {
+		return "", fmt.Errorf("generate token: get issuer signing key: %w", err)
+	}
+
+	// Build & sign token (EdDSA / Ed25519)
+	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
+	if kid != "" {
+		token.Header["kid"] = kid
+	}
+	signed, err := token.SignedString(priv)
 	if err != nil {
 		return "", fmt.Errorf("generate token: sign: %w", err)
 	}
 
-	// Validate before returning (paranoid sanity check)
+	// Paranoid self-validate before returning
 	if _, err := ValidateToken(signed); err != nil {
 		logger.Error("generate token: self-validate failed", "err", err)
 		return "", fmt.Errorf("generate token: self-validate failed: %w", err)
 	}
-
 	return signed, nil
 }
 
 // ValidateToken parses and validates a signed JWT string and returns its claims.
+// Signature is verified using the **issuer's public key** looked up by iss + kid.
 func ValidateToken(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 
-	tkn, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
-		// Enforce HMAC signing method
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+	keyFunc := func(t *jwt.Token) (interface{}, error) {
+		// Enforce EdDSA/Ed25519
+		if t.Method != jwt.SigningMethodEdDSA {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return resolveJWTKey(claims)
-	})
+
+		iss, _ := t.Claims.(*Claims)
+		if iss == nil || iss.Issuer == "" {
+			return nil, errors.New("validate token: missing issuer")
+		}
+
+		var kid string
+		if k, ok := t.Header["kid"].(string); ok {
+			kid = k
+		}
+
+		if GetPeerPublicKey == nil {
+			return nil, errors.New("validate token: GetPeerPublicKey not configured")
+		}
+		pub, err := GetPeerPublicKey(iss.Issuer, kid)
+		if err != nil {
+			return nil, fmt.Errorf("validate token: get public key (iss=%s,kid=%s): %w", iss.Issuer, kid, err)
+		}
+		return pub, nil
+	}
+
+	parsed, err := jwt.ParseWithClaims(tokenStr, claims, keyFunc,
+		jwt.WithLeeway(tokenExpirySkew),
+		jwt.WithAudience(""), // we'll enforce aud at the service/router layer
+	)
 	if err != nil {
 		return claims, fmt.Errorf("validate token: parse: %w", err)
 	}
-	if !tkn.Valid {
+	if !parsed.Valid {
 		return claims, errors.New("validate token: token signature invalid")
 	}
 
-	// Expiry check with clock-skew leeway
-	exp := time.Unix(claims.ExpiresAt, 0)
-	if time.Now().After(exp.Add(tokenExpirySkew)) {
-		return claims, fmt.Errorf("validate token: token expired at %s", exp.Format(time.RFC3339))
-	}
-
+	// Expiry check is already covered by jwt.ParseWithClaims + leeway.
 	return claims, nil
 }
 
@@ -265,15 +280,15 @@ func GetClientId(ctx context.Context) (string, string, error) {
 	if claims.UserDomain == "" {
 		return "", "", errors.New("get client id: token missing user domain")
 	}
-	username := claims.Id + "@" + claims.UserDomain
+	username := claims.ID + "@" + claims.UserDomain
 	return username, token, nil
 }
 
 // SetLocalToken generates a token for the given identity and writes it
 // to /etc/globular/config/tokens/<normalized_mac>_token, also caching it in memory.
 func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
-	rawMAC := mac                        // keep raw MAC for cache key
-	normMAC := normalizeMACForFile(mac)  // for filesystem path
+	rawMAC := mac                       // keep raw MAC for cache key
+	normMAC := normalizeMACForFile(mac) // for filesystem path
 
 	path := tokenPathForMAC(rawMAC)
 	_ = os.Remove(path) // best-effort cleanup
@@ -289,8 +304,8 @@ func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
 		return fmt.Errorf("set local token: ensure token dir: %w", err)
 	}
 
-	// Write file with normalized filename
-	if err := os.WriteFile(filepath.Join(tokenDir(), normMAC+"_token"), []byte(tokenString), 0o644); err != nil {
+	// Write file with normalized filename (0600 because tokens are secrets)
+	if err := os.WriteFile(filepath.Join(tokenDir(), normMAC+"_token"), []byte(tokenString), 0o600); err != nil {
 		logger.Error("set local token: write file failed", "mac", rawMAC, "err", err)
 		return fmt.Errorf("set local token: write file: %w", err)
 	}
@@ -301,8 +316,7 @@ func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
 }
 
 // GetLocalToken returns a valid local token for the given MAC, refreshing it
-// when possible if it's expired (within 7 days). It reads from memory first,
-// then from the standard token file if needed.
+// when possible if it's expired (within 7 days).
 func GetLocalToken(mac string) (string, error) {
 	// 1) Try in-memory cache
 	if v, ok := tokens.Load(mac); ok {
@@ -326,8 +340,8 @@ func GetLocalToken(mac string) (string, error) {
 		return token, nil
 	}
 
-	// If it's expired, allow refresh within 7 days grace.
-	if claims != nil && time.Unix(claims.ExpiresAt, 0).After(time.Now().AddDate(0, 0, -7)) {
+	// If it's expired, allow refresh within 7 days grace based on original exp.
+	if claims != nil && time.Until(claims.ExpiresAt.Time) > -maxRefreshWindow {
 		newToken, rErr := refreshLocalToken(token)
 		if rErr != nil {
 			return "", fmt.Errorf("get local token: refresh failed: %w", rErr)
@@ -336,34 +350,52 @@ func GetLocalToken(mac string) (string, error) {
 		return newToken, nil
 	}
 
-	return "", errors.New("get local token: token expired beyond 7-day refresh window")
+	return "", errors.New("get local token: token expired beyond refresh window")
 }
 
 // ----------------------------------------------------------------------------
-// Internal functions (unchanged visibility)
+// Internal functions
 // ----------------------------------------------------------------------------
 
 // refreshLocalToken refreshes a (recently expired) local token using its original claims.
 func refreshLocalToken(token string) (string, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
-		// Validate signing method
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Enforce EdDSA
+		if t.Method != jwt.SigningMethodEdDSA {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return resolveJWTKey(claims)
-	})
-	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "expired") {
+		iss, _ := t.Claims.(*Claims)
+		if iss == nil || iss.Issuer == "" {
+			return nil, errors.New("refresh local token: missing issuer")
+		}
+		var kid string
+		if k, ok := t.Header["kid"].(string); ok {
+			kid = k
+		}
+		if GetPeerPublicKey == nil {
+			return nil, errors.New("refresh local token: GetPeerPublicKey not configured")
+		}
+		return GetPeerPublicKey(iss.Issuer, kid)
+	}, jwt.WithLeeway(tokenExpirySkew))
+	// Ignore expiration errors here; we only need the claims to re-issue.
+
+	if err != nil && !isOnlyExpiryError(err) {
 		return "", fmt.Errorf("refresh local token: parse: %w", err)
 	}
 
 	timeout, err := readSessionTimeout()
-	if err != nil {
-		// still proceed with default if config read failed
+	if err != nil || timeout <= 0 {
 		timeout = defaultSessionTimeoutMinutes
 	}
 
-	newToken, err := GenerateToken(timeout, claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
+	// Preserve original audience (peer/service scope) on refresh.
+	var aud string
+	if len(claims.Audience) > 0 {
+		aud = claims.Audience[0]
+	}
+
+	newToken, err := GenerateToken(timeout, aud, claims.ID, claims.Username, claims.Email, claims.UserDomain)
 	if err != nil {
 		return "", fmt.Errorf("refresh local token: generate: %w", err)
 	}
@@ -401,4 +433,13 @@ func extractTokenFromContext(ctx context.Context) string {
 		}
 	}
 	return ""
+}
+
+// isOnlyExpiryError returns true if err indicates token expiration (and nothing else).
+func isOnlyExpiryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "token is expired") || strings.Contains(msg, "expired")
 }

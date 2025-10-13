@@ -51,10 +51,10 @@ func (srv *server) ValidateToken(ctx context.Context, rqst *authenticationpb.Val
 	if err != nil {
 		return nil, logInternal("ValidateToken:validate", err)
 	}
-	slog.Info("ValidateToken:ok", "clientId", claims.Id, "exp", claims.StandardClaims.ExpiresAt)
+	slog.Info("ValidateToken:ok", "clientId", claims.ID, "exp", claims.RegisteredClaims.ExpiresAt)
 	return &authenticationpb.ValidateTokenRsp{
-		ClientId: claims.Id,
-		Expired:  claims.StandardClaims.ExpiresAt,
+		ClientId: claims.ID,
+		Expired:  claims.RegisteredClaims.ExpiresAt.Unix(),
 	}, nil
 }
 
@@ -83,28 +83,28 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 	}
 
 	// refuse refresh if token expired > 7 days ago
-	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+	if time.Unix(claims.RegisteredClaims.ExpiresAt.Unix(), 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return nil, logInternal("RefreshToken:tooOld", errors.New("the token cannot be refreshed after 7 days"))
 	}
 
 	tokenString, err := security.GenerateToken(
-		srv.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain,
+		srv.SessionTimeout, claims.Issuer, claims.ID, claims.Username, claims.Email, claims.UserDomain,
 	)
 	if err != nil {
 		return nil, logInternal("RefreshToken:generate", err)
 	}
 
 	// session maintenance
-	session, err := srv.getSession(claims.Id)
+	session, err := srv.getSession(claims.ID)
 	if err != nil {
 		session = new(resourcepb.Session)
-		session.AccountId = claims.Id + "@" + claims.UserDomain
+		session.AccountId = claims.ID + "@" + claims.UserDomain
 	}
 	session.LastStateTime = time.Now().Unix()
 	session.State = resourcepb.SessionState_ONLINE
 
 	newClaims, _ := security.ValidateToken(tokenString)
-	session.ExpireAt = newClaims.StandardClaims.ExpiresAt
+	session.ExpireAt = newClaims.RegisteredClaims.ExpiresAt.Unix()
 
 	if err = srv.updateSession(session); err != nil {
 		return nil, logInternal("RefreshToken:updateSession", err)
@@ -407,7 +407,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-			_ = srv.addResourceOwner(tokenString, path,"sa@"+srv.Domain, "file", rbacpb.SubjectType_ACCOUNT)
+			_ = srv.addResourceOwner(tokenString, path, "sa@"+srv.Domain, "file", rbacpb.SubjectType_ACCOUNT)
 		}
 
 		// persist updated root password (keep current)
@@ -496,7 +496,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	}
 
 	claims, _ := security.ValidateToken(tokenString)
-	owner := claims.Id
+	owner := claims.ID
 	if !strings.Contains(owner, "@") {
 		owner += "@" + claims.UserDomain
 	}
@@ -504,7 +504,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
 	_ = srv.addResourceOwner(tokenString, "/users/"+account.Id+"@"+account.Domain, owner, "file", rbacpb.SubjectType_ACCOUNT)
 
-	session.ExpireAt = claims.StandardClaims.ExpiresAt
+	session.ExpireAt = claims.RegisteredClaims.ExpiresAt.Unix()
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
 

@@ -1857,7 +1857,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Update user session.
-	err = srv.updateSession(claims.Id+"@"+claims.UserDomain, resourcepb.SessionState_ONLINE, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
+	err = srv.updateSession(claims.ID+"@"+claims.UserDomain, resourcepb.SessionState_ONLINE, time.Now().Unix(), claims.RegisteredClaims.ExpiresAt.Unix())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

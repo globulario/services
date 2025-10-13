@@ -473,7 +473,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		if len(claims.Domain) == 0 {
 			return nil, status.Error(codes.Unauthenticated, "token validation failed: empty domain")
 		}
-		clientId = claims.Id + "@" + claims.UserDomain
+		clientId = claims.ID + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 
@@ -586,7 +586,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		if len(claims.Domain) == 0 {
 			return status.Error(codes.Unauthenticated, "token validation failed: empty domain")
 		}
-		clientId = claims.Id + "@" + claims.UserDomain
+		clientId = claims.ID + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 

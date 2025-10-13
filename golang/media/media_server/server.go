@@ -608,7 +608,7 @@ func (srv *server) setOwner(token, path string) error {
 		if len(claims.UserDomain) == 0 {
 			return errors.New("no user domain was found in the token")
 		}
-		clientId = claims.Id + "@" + claims.UserDomain
+		clientId = claims.ID + "@" + claims.UserDomain
 	} else {
 		return errors.New("CreateBlogPost no token was given")
 	}
@@ -673,7 +673,7 @@ func main() {
 	srv.Dependencies = []string{
 		"rbac.RbacService",
 		"event.EventService",
-		"authentication.AuthenticationService", 
+		"authentication.AuthenticationService",
 		"log.LogService",
 	}
 
