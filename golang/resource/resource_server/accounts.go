@@ -1186,10 +1186,32 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 
 	for _, acc := range accounts {
 		account := acc.(map[string]interface{})
+		lastName := ""
+		firstName := ""
+		middleName := ""
+		profilePicture := ""
+
+		if account["lastName"] != nil {
+			lastName = account["lastName"].(string)
+		}
+		if account["firstName"] != nil {
+			firstName = account["firstName"].(string)
+		}
+		if account["middleName"] != nil {
+			middleName = account["middleName"].(string)
+		}
+		if account["profilePicture"] != nil {
+			profilePicture = account["profilePicture"].(string)
+		}
+
 		a := &resourcepb.Account{
 			Id:    account["_id"].(string),
 			Name:  account["name"].(string),
 			Email: account["email"].(string),
+			FirstName: firstName,
+			LastName: lastName,
+			Middle: middleName,
+			ProfilePicture: profilePicture,
 			Domain: func() string {
 				if account["domain"] != nil {
 					return account["domain"].(string)
@@ -1221,25 +1243,7 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 		processField("roles", &a.Roles)
 		processField("organizations", &a.Organizations)
 
-		// Retrieve user data
-		q := `{"_id":"` + a.Id + `"}`
-		user_data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, "")
-		if err == nil && user_data != nil {
-			if userDataMap, ok := user_data.(map[string]interface{}); ok {
-				if v, ok := userDataMap["profile_picture"].(string); ok {
-					a.ProfilePicture = v
-				}
-				if v, ok := userDataMap["first_name"].(string); ok {
-					a.FirstName = v
-				}
-				if v, ok := userDataMap["last_name"].(string); ok {
-					a.LastName = v
-				}
-				if v, ok := userDataMap["middle_name"].(string); ok {
-					a.Middle = v
-				}
-			}
-		}
+
 		results = append(results, a)
 	}
 
