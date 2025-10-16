@@ -196,7 +196,16 @@ func (srv *server) hashPassword(password string) (string, error) {
  * Return the hash password.
  */
 func (srv *server) validatePassword(password string, hash string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	if err != nil {
+		hashPassword, err := srv.hashPassword(password)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(hashPassword))
+	}
+	return nil
 }
 
 // AccountExist checks whether an account exists based on the provided account ID.
@@ -1205,12 +1214,12 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 		}
 
 		a := &resourcepb.Account{
-			Id:    account["_id"].(string),
-			Name:  account["name"].(string),
-			Email: account["email"].(string),
-			FirstName: firstName,
-			LastName: lastName,
-			Middle: middleName,
+			Id:             account["_id"].(string),
+			Name:           account["name"].(string),
+			Email:          account["email"].(string),
+			FirstName:      firstName,
+			LastName:       lastName,
+			Middle:         middleName,
 			ProfilePicture: profilePicture,
 			Domain: func() string {
 				if account["domain"] != nil {
@@ -1242,7 +1251,6 @@ func (srv *server) getAccount(query string, options string) ([]*resourcepb.Accou
 		processField("groups", &a.Groups)
 		processField("roles", &a.Roles)
 		processField("organizations", &a.Organizations)
-
 
 		results = append(results, a)
 	}
@@ -2124,8 +2132,9 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
-	// In case the request doesn't came from the sa...
-	if clientId != "sa" {
+	fmt.Println("change password for account ", rqst.AccountId, " with name ", name, " requested by ", clientId)
+	// In case the request doesn't came from the sa or sa@
+	if clientId != "sa" && !strings.HasPrefix(clientId, "sa@") {
 		err = srv.validatePassword(rqst.OldPassword, account["password"].(string))
 		if err != nil {
 			return nil, status.Errorf(
@@ -2134,25 +2143,27 @@ func (srv *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetA
 		}
 	}
 
-	var changePasswordScript string
-	if p.GetStoreType() == "MONGO" {
-		changePasswordScript = fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
-	} else if p.GetStoreType() == "SCYLLA" {
-		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
-	} else if p.GetStoreType() == "SQL" {
-		changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
-	} else {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
-	}
+	if clientId == "sa" && (rqst.AccountId == "sa" || strings.HasPrefix(rqst.AccountId, "sa@")) {
+		var changePasswordScript string
+		if p.GetStoreType() == "MONGO" {
+			changePasswordScript = fmt.Sprintf("db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+		} else if p.GetStoreType() == "SCYLLA" {
+			changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
+		} else if p.GetStoreType() == "SQL" {
+			changePasswordScript = fmt.Sprintf("ALTER USER '%s' WITH PASSWORD '%s';", name, rqst.NewPassword)
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("unknown database type "+p.GetStoreType())))
+		}
 
-	// Change the password...
-	err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, changePasswordScript)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		// Change the password...
+		err = p.RunAdminCmd(context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, changePasswordScript)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// Create bcrypt...

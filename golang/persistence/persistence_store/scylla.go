@@ -1780,41 +1780,47 @@ func splitCQLScript(script string) []string {
 	return statements
 }
 
-func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
+func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId, user, password, script string) error {
+    store.lock.Lock()
+    connection := store.connections[connectionId]
+    store.lock.Unlock()
+    if connection == nil {
+        return errors.New("the connection does not exist")
+    }
 
-	store.lock.Lock()
-	connection := store.connections[connectionId]
-	store.lock.Unlock()
-	if connection == nil {
-		return errors.New("the connection does not exist")
-	}
-	opts := map[string]string{}
-	for k, v := range connection.Options {
-		opts[k] = v
-	}
-	if user != "" {
-		opts["username"] = user
-	}
-	if password != "" {
-		opts["password"] = password
-	}
-	adminCluster := store.buildCluster(connection.Hosts, connection.Port, "system", opts)
-	adminSession, err := adminCluster.CreateSession()
-	if err != nil {
-		return err
-	}
-	defer adminSession.Close()
+    // Prefer explicit args, else fall back to connection.Options["username"/"password"]
+    opts := map[string]string{}
+    for k, v := range connection.Options {
+        opts[k] = v
+    }
+    if user == "" {
+        user = opts["username"]
+    }
+    if password == "" {
+        password = opts["password"]
+    }
+    if user == "" || password == "" {
+        return errors.New("RunAdminCmd: no admin username/password available for admin script")
+    }
 
-	for _, stmt := range splitCQLScript(script) {
-		if stmt == "" {
-			continue
-		}
-		if err := adminSession.Query(stmt).Exec(); err != nil {
-			slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
-			return err
-		}
-	}
-	return nil
+    opts["username"] = user
+    opts["password"] = password
+
+    adminCluster := store.buildCluster(connection.Hosts, connection.Port, "system", opts)
+    adminSession, err := adminCluster.CreateSession()
+    if err != nil {
+        return err
+    }
+    defer adminSession.Close()
+
+    for _, stmt := range splitCQLScript(script) {
+        if stmt == "" { continue }
+        if err := adminSession.Query(stmt).Exec(); err != nil {
+            slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
+            return err
+        }
+    }
+    return nil
 }
 
 // ---------- Not implemented (explicit) ----------
