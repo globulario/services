@@ -15,9 +15,33 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+/************* helpers for canonical link tables *************/
+
+// canonicalize two collection names (lowercased) and tell if a is first
+func canonicalPair(a, b string) (left, right string, aIsFirst bool) {
+	la, lb := strings.ToLower(strings.TrimSpace(a)), strings.ToLower(strings.TrimSpace(b))
+	if la <= lb {
+		return la, lb, true
+	}
+	return lb, la, false
+}
+
+// derive the “other” collection name from a field (roles -> roles, roleIds -> roles)
+func inferCollectionFromField(field string) string {
+	f := strings.ToLower(strings.TrimSpace(field))
+	for _, suf := range []string{"ids", "id", "_ids", "_id"} {
+		f = strings.TrimSuffix(f, suf)
+	}
+	if !strings.HasSuffix(f, "s") {
+		f += "s"
+	}
+	return f
+}
+
+/************************************************************/
 
 func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
-
+	// Remote routing based on ids (keep current behavior)
 	if strings.Contains(targetId, "@") {
 		domain := strings.Split(targetId, "@")[1]
 		targetId = strings.Split(targetId, "@")[0]
@@ -26,23 +50,14 @@ func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, t
 		if err != nil {
 			return err
 		}
-
 		if localDomain != domain {
-			// so here I will redirect the call to the resource server at remote location.
 			client, err := getResourceClient(domain)
 			if err != nil {
 				return err
 			}
-
-			err = client.DeleteReference(refId, targetId, targetField, targetCollection)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return client.DeleteReference(refId, targetId, targetField, targetCollection)
 		}
 	}
-
 	if strings.Contains(refId, "@") {
 		domain := strings.Split(refId, "@")[1]
 		refId = strings.Split(refId, "@")[0]
@@ -51,59 +66,75 @@ func (srv *server) deleteReference(p persistence_store.Store, refId, targetId, t
 		if err != nil {
 			return err
 		}
-
 		if localDomain != domain {
-			// so here I will redirect the call to the resource server at remote location.
 			client, err := getResourceClient(domain)
 			if err != nil {
 				return err
 			}
+			return client.DeleteReference(refId, targetId, targetField, targetCollection)
+		}
+	}
 
-			err = client.DeleteReference(refId, targetId, targetField, targetCollection)
-			if err != nil {
-				return err
+	// Branch per store type
+	switch p.GetStoreType() {
+	case "MONGO":
+		// Original array-in-document logic stays the same
+		q := `{"_id":"` + targetId + `"}`
+		values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
+		if err != nil {
+			return err
+		}
+		target := values.(map[string]interface{})
+		if target[targetField] == nil {
+			return errors.New("No field named " + targetField + " was found in object with id " + targetId + "!")
+		}
+		var references []interface{}
+		switch target[targetField].(type) {
+		case primitive.A:
+			references = []interface{}(target[targetField].(primitive.A))
+		case []interface{}:
+			references = target[targetField].([]interface{})
+		}
+		references_ := make([]interface{}, 0, len(references))
+		for j := 0; j < len(references); j++ {
+			if references[j].(map[string]interface{})["$id"] != refId {
+				references_ = append(references_, references[j])
 			}
-
-			return nil
 		}
-	}
+		target[targetField] = references_
+		jsonStr := serialyseObject(target)
+		return p.ReplaceOne(context.Background(), "local_resource", "local_resource", targetCollection, q, jsonStr, ``)
 
-	q := `{"_id":"` + targetId + `"}`
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, q, ``)
-	if err != nil {
+	case "SQL", "SCYLLA":
+		// Canonical link table deletion
+		other := inferCollectionFromField(targetField)
+		left, right, aIsFirst := canonicalPair(targetCollection, other)
+		linkTable := left + "_" + right
+
+		tid := targetId
+		rid := refId
+		// put (source_id, target_id) in canonical orientation
+		src, dst := tid, rid
+		if !aIsFirst { // canonical (other, targetCollection)
+			src, dst = rid, tid
+		}
+
+		if p.GetStoreType() == "SCYLLA" {
+			session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
+			if session == nil {
+				return errors.New("fail to get session for local_resource")
+			}
+			del := fmt.Sprintf("DELETE FROM %s WHERE source_id=? AND target_id=?", linkTable)
+			return session.Query(del, src, dst).Exec()
+		}
+
+		// SQL
+		del := fmt.Sprintf("DELETE FROM %s WHERE source_id=? AND target_id=?", linkTable)
+		_, err := p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", del, []interface{}{src, dst}, 0)
 		return err
 	}
 
-	target := values.(map[string]interface{})
-
-	if target[targetField] == nil {
-		return errors.New("No field named " + targetField + " was found in object with id " + targetId + "!")
-	}
-
-	var references []interface{}
-	switch target[targetField].(type) {
-	case primitive.A:
-		references = []interface{}(target[targetField].(primitive.A))
-	case []interface{}:
-		references = target[targetField].([]interface{})
-	}
-
-	references_ := make([]interface{}, 0)
-	for j := 0; j < len(references); j++ {
-		if references[j].(map[string]interface{})["$id"] != refId {
-			references_ = append(references_, references[j])
-		}
-	}
-
-	target[targetField] = references_
-
-	jsonStr := serialyseObject(target)
-
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", targetCollection, q, jsonStr, ``)
-	if err != nil {
-		return err
-	}
-
+	// Unknown store type — no-op to keep parity with existing behavior
 	return nil
 }
 
@@ -112,75 +143,52 @@ func (srv *server) createCrossReferences(sourceId, sourceCollection, sourceField
 	if err != nil {
 		return err
 	}
-
-	err = srv.createReference(p, targetId, targetCollection, targetField, sourceId, sourceCollection)
-	if err != nil {
+	if err = srv.createReference(p, targetId, targetCollection, targetField, sourceId, sourceCollection); err != nil {
 		return err
 	}
-
-	err = srv.createReference(p, sourceId, sourceCollection, sourceField, targetId, targetCollection)
-
-	return err
-
+	return srv.createReference(p, sourceId, sourceCollection, sourceField, targetId, targetCollection)
 }
 
 func (srv *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
-
 	var err error
 	var source map[string]interface{}
 
-	// the must contain the domain in the id.
+	// the target must contain the domain in the id.
 	if !strings.Contains(targetId, "@") {
 		return errors.New("target id must be a valid id with domain")
 	}
 
-	// Here I will check if the target id is on the same domain as the source id.
+	// Ensure same domain (current behavior)
 	if strings.Split(targetId, "@")[1] != srv.Domain {
-
-		// TODO create a remote reference... (not implemented yet)
 		return errors.New("target id must be on the same domain as the source id")
 	}
+	targetId = strings.Split(targetId, "@")[0] // remove domain
 
-	// TODO see how to handle the case where the target id is not on the same domain as the source id.
-	targetId = strings.Split(targetId, "@")[0] // remove the domain from the id.
-
+	// route if source id is remote
 	if strings.Contains(id, "@") {
 		domain := strings.Split(id, "@")[1]
 		id = strings.Split(id, "@")[0]
-
-		// if the domain is not the same as the local domain then I will redirect the call to the remote resource srv.
 		if srv.Domain != domain {
-			// so here I will redirect the call to the resource server at remote location.
 			client, err := getResourceClient(domain)
 			if err != nil {
 				return err
 			}
-
-			err = client.CreateReference(id, sourceCollection, field, targetId, targetCollection)
-			if err != nil {
-				return err
-			}
-			return nil // exit...
+			return client.CreateReference(id, sourceCollection, field, targetId, targetCollection)
 		}
 	}
 
-	// I will first check if the reference already exist.
+	// load source
 	q := `{"_id":"` + id + `"}`
-
-	// Get the source object.
 	source_values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, ``)
 	if err != nil {
 		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " at address " + srv.Address + " err: " + err.Error())
 	}
-
-	// append the account.
 	source = source_values.(map[string]interface{})
-	// be sure that the target id is a valid id.
 	if source["_id"] == nil {
 		return errors.New("No _id field was found in object with id " + id + "!")
 	}
 
-	// append the domain to the id.
+	// Mongo: keep array-in-document behavior
 	if p.GetStoreType() == "MONGO" {
 		var references []interface{}
 		if source[field] != nil {
@@ -191,132 +199,86 @@ func (srv *server) createReference(p persistence_store.Store, id, sourceCollecti
 				references = source[field].([]interface{})
 			}
 		}
-
 		for j := 0; j < len(references); j++ {
 			if references[j].(map[string]interface{})["$id"] == targetId {
 				return errors.New(" named " + targetId + " already exist in  " + field + "!")
 			}
 		}
-
 		source[field] = append(references, map[string]interface{}{"$ref": targetCollection, "$id": targetId, "$db": "local_resource"})
 		jsonStr := serialyseObject(source)
+		return p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, jsonStr, ``)
+	}
 
-		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", sourceCollection, q, jsonStr, ``)
-		if err != nil {
-			return err
-		}
-	} else if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
+	// SQL / SCYLLA: single canonical link table per pair
+	if p.GetStoreType() == "SQL" || p.GetStoreType() == "SCYLLA" {
+		left, right, aIsFirst := canonicalPair(sourceCollection, targetCollection)
+		linkTable := left + "_" + right
 
-		// I will create the table if not already exist.
-		if p.GetStoreType() == "SQL" {
-			createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS `+sourceCollection+`_`+field+` (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`, sourceCollection, targetCollection)
-			_, err := p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", createTable, nil, 0)
-			if err != nil {
-				return err
-			}
+		// ensure link table exists
+		create := fmt.Sprintf(
+			`CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`,
+			linkTable,
+		)
 
-		} else if p.GetStoreType() == "SCYLLA" {
-			// the foreign key is not supported by SCYLLA.
-			createTable := `CREATE TABLE IF NOT EXISTS ` + sourceCollection + `_` + field + ` (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`
+		if p.GetStoreType() == "SCYLLA" {
 			session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
-
 			if session == nil {
 				return errors.New("fail to get session for local_resource")
 			}
-
-			err = session.Query(createTable).Exec()
-			if err != nil {
+			if err := session.Query(create).Exec(); err != nil {
+				return err
+			}
+		} else {
+			if _, err := p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", create, nil, 0); err != nil {
 				return err
 			}
 		}
 
-		// Here I will insert the reference in the database.
+		// choose (source_id,target_id) according to canonical order
+		src, dst := id, targetId
+		if !aIsFirst {
+			src, dst = targetId, id
+		}
 
-		// I will first check if the reference already exist.
-		q = `SELECT * FROM ` + sourceCollection + `_` + field + ` WHERE source_id='` + Utility.ToString(source["_id"]) + `' AND target_id='` + targetId + `'`
+		// idempotent insert (Scylla INSERT is upsert; SQL has PK to avoid dup rows)
 		if p.GetStoreType() == "SCYLLA" {
-			q += ` ALLOW FILTERING`
-		}
-
-		count, _ := p.Count(context.Background(), "local_resource", "local_resource", sourceCollection+`_`+field, q, ``)
-
-		if count == 0 {
-			q = `INSERT INTO ` + sourceCollection + `_` + field + ` (source_id, target_id) VALUES (?,?)`
-
-			if p.GetStoreType() == "SCYLLA" {
-
-				session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
-				if session == nil {
-					return errors.New("fail to get session for local_resource")
-				}
-
-				err = session.Query(q, source["_id"], targetId).Exec()
-				if err != nil {
-					return err
-				}
-
-			} else if p.GetStoreType() == "SQL" {
-				_, err = p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{source["_id"], targetId}, 0)
-				if err != nil {
-					return err
-				}
+			session := p.(*persistence_store.ScyllaStore).GetSession("local_resource")
+			if session == nil {
+				return errors.New("fail to get session for local_resource")
 			}
+			q := fmt.Sprintf("INSERT INTO %s (source_id, target_id) VALUES (?,?)", linkTable)
+			return session.Query(q, src, dst).Exec()
 		}
+
+		// SQL
+		q := fmt.Sprintf("INSERT OR IGNORE INTO %s (source_id, target_id) VALUES (?,?)", linkTable)
+		_, err := p.(*persistence_store.SqlStore).ExecContext("local_resource", "local_resource", q, []interface{}{src, dst}, 0)
+		return err
 	}
 
 	return nil
 }
 
-// CreateReference creates a reference between a source and target resource.
-// It uses the persistence service to store the reference information.
-// Returns a CreateReferenceRsp on success, or an error if the operation fails.
-//
-// Parameters:
-//   ctx - the context for the request.
-//   rqst - the request containing source and target details.
-//
-// Returns:
-//   *resourcepb.CreateReferenceRsp - response indicating success.
-//   error - error if the reference could not be created.
+// CreateReference API
 func (srv *server) CreateReference(ctx context.Context, rqst *resourcepb.CreateReferenceRqst) (*resourcepb.CreateReferenceRsp, error) {
-	// That service made user of persistence service.
 	p, err := srv.getPersistenceStore()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	err = srv.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = srv.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// reference was created...
 	return &resourcepb.CreateReferenceRsp{}, nil
 }
 
-// DeleteReference deletes a reference from a resource.
-// It retrieves the persistence store and attempts to remove the specified reference
-// identified by RefId, TargetId, TargetField, and TargetCollection from the store.
-// Returns a DeleteReferenceRsp on success, or an error with appropriate status code
-// if the operation fails.
+// DeleteReference API
 func (srv *server) DeleteReference(ctx context.Context, rqst *resourcepb.DeleteReferenceRqst) (*resourcepb.DeleteReferenceRsp, error) {
 	p, err := srv.getPersistenceStore()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	err = srv.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	if err = srv.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 	return &resourcepb.DeleteReferenceRsp{}, nil
 }

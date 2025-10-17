@@ -46,14 +46,6 @@ func (store *SqlStore) GetStoreType() string {
 
 // --------- Canonical link-table helpers (NEW) ----------
 
-func ensurePlural(s string) string {
-	s = strings.ToLower(s)
-	if !strings.HasSuffix(s, "s") {
-		return s + "s"
-	}
-	return s
-}
-
 // Connect establishes a new logical connection to a SQL database (SQLite file).
 // If the database file does not exist, it will be created.
 // It authenticates the user with the Authentication service before opening the DB.
@@ -1106,7 +1098,7 @@ func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db s
 	return err
 }
 
-func generateUpdateTableQuery(tableName string, fields []interface{}, whereClause string) (string, error) {
+func generateSqlUpdateTableQuery(tableName string, fields []interface{}, whereClause string) (string, error) {
 	updateQuery := "UPDATE " + tableName + " SET "
 	for i, field := range fields {
 		updateQuery += field.(string) + " = ?"
@@ -1149,7 +1141,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 		}
 	}
 
-	q, err := generateUpdateTableQuery(table, fields, query)
+	q, err := generateSqlUpdateTableQuery(table, fields, query)
 	if err != nil {
 		return err
 	}
@@ -1197,7 +1189,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 		}
 	}
 
-	updateQuery, err := generateUpdateTableQuery(table, fields, query)
+	updateQuery, err := generateSqlUpdateTableQuery(table, fields, query)
 	if err != nil {
 		return err
 	}

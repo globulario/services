@@ -2,6 +2,15 @@ package persistence_store
 
 import "strings"
 
+
+func ensurePlural(s string) string {
+	s = strings.ToLower(s)
+	if !strings.HasSuffix(s, "s") {
+		return s + "s"
+	}
+	return s
+}
+
 // canonicalize a pair of entity/table names (lowercased, alphabetical)
 func canonicalPair(a, b string) (string, string) {
 	a = strings.ToLower(a)

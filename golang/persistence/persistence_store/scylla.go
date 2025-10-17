@@ -225,8 +225,6 @@ func extractID(m map[string]interface{}) string {
 
 // ---------- Canonical link-table helpers (NEW) ----------
 
-
-
 func (store *ScyllaStore) buildCluster(hosts []string, port int, keyspace string, opts map[string]string) *gocql.ClusterConfig {
 	cluster := gocql.NewCluster(hosts...)
 
@@ -500,6 +498,11 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	}
 	connection.sessions[keyspace] = session
 
+	// Best-effort canonical migration so legacy <b>_<a> tables are collapsed into <a>_<b>
+	if err := store.MigrateLinkTables(id, keyspace); err != nil {
+		slog.Warn("scylla: link-table migration skipped/failed", "keyspace", keyspace, "err", err)
+	}
+
 	slog.Info("scylla: connected", "id", id, "hosts", hosts, "port", effectivePort, "keyspace", keyspace)
 	return nil
 }
@@ -721,6 +724,12 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable st
 		return nil
 	}
 
+	// only follow canonical link tables
+	lc, rc := canonicalPair(parts[0], parts[1])
+	if strings.ToLower(linkTable) != lc+"_"+rc {
+		return nil // ignore legacy non-canonical table
+	}
+
 	a, b := parts[0], parts[1]
 	baseIsA := (base == a)
 	baseIsB := (base == b)
@@ -856,6 +865,12 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 		lower := strings.ToLower(tName)
 		parts := strings.SplitN(lower, "_", 2)
 		if len(parts) != 2 {
+			continue
+		}
+
+		// Skip non-canonical link tables to avoid duplicates
+		lc, rc := canonicalPair(parts[0], parts[1])
+		if lower != lc+"_"+rc {
 			continue
 		}
 
@@ -1073,6 +1088,30 @@ func whereHasAllPKEquals(where string, pkCols []string) bool {
 	}
 	// also ensure there's no IN/>, etc. that could widen range (optional)
 	return true
+}
+
+// local CQL version (so we don't rely on the sqlite helper)
+func generateCqlUpdateTableQuery(tableName string, fields []interface{}, whereClause string) (string, error) {
+	if len(fields) == 0 {
+		return "", nil
+	}
+	// If a SELECT was passed in as whereClause, extract its WHERE part.
+	w := whereClause
+	up := strings.ToUpper(w)
+	if strings.HasPrefix(up, "SELECT ") {
+		w = extractWhereClause(w)
+	}
+	w = strings.TrimSpace(w)
+	if !strings.HasPrefix(strings.ToUpper(w), "WHERE ") {
+		if w != "" {
+			w = "WHERE " + w
+		}
+	}
+	setParts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		setParts = append(setParts, fmt.Sprintf("%s = ?", f.(string)))
+	}
+	return fmt.Sprintf("UPDATE %s SET %s %s", tableName, strings.Join(setParts, ", "), w), nil
 }
 
 func (store *ScyllaStore) backfillArrays(connectionId, keyspace, tableName, id string, data map[string]interface{}) {
@@ -1406,6 +1445,11 @@ func (store *ScyllaStore) deleteSideTables(connectionId, keyspace, baseTable str
 		// ref link table?
 		if _, ok := cols["source_id"]; ok {
 			if _, ok2 := cols["target_id"]; ok2 {
+				// skip non-canonical names
+				lc, rc := canonicalPair(parts[0], parts[1])
+				if lower != lc+"_"+rc {
+					continue
+				}
 				if parts[0] == base {
 					q := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, tname)
 					if err := session.Query(q, id).Exec(); err != nil {
@@ -1524,12 +1568,14 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 		baseQuery := "SELECT * FROM " + table + " WHERE id = ?"
 		vals = append(vals, entity["_id"])
 
-		q, err := generateUpdateTableQuery(table, fields, baseQuery) // external helper
+		q, err := generateCqlUpdateTableQuery(table, fields, baseQuery) // now local to this file
 		if err != nil {
 			return err
 		}
-		if err := session.Query(q, vals...).Exec(); err != nil {
-			return err
+		if q != "" {
+			if err := session.Query(q, vals...).Exec(); err != nil {
+				return err
+			}
 		}
 
 		for _, field := range arrayFields {
@@ -1912,6 +1958,82 @@ func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId, user, p
 		if err := adminSession.Query(stmt).Exec(); err != nil {
 			slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
 			return err
+		}
+	}
+	return nil
+}
+
+// ---------- Migration of legacy link tables ----------
+
+// MigrateLinkTables scans for non-canonical "<x>_<y>" link tables (with source_id/target_id),
+// moves rows into the canonical, sorted "<min>_<max>" table (swapping source/target when needed),
+// and drops the legacy tables.
+func (store *ScyllaStore) MigrateLinkTables(connectionId, keyspace string) error {
+	session, err := store.getSession(connectionId, keyspace)
+	if err != nil {
+		return err
+	}
+
+	iter := session.Query(
+		"SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?",
+		keyspace,
+	).Iter()
+	defer iter.Close()
+
+	var tname string
+	for iter.Scan(&tname) {
+		lower := strings.ToLower(tname)
+		parts := strings.SplitN(lower, "_", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		cols, _ := store.getTableColumns(session, keyspace, tname)
+		if _, ok := cols["source_id"]; !ok {
+			continue
+		}
+		if _, ok := cols["target_id"]; !ok {
+			continue
+		}
+
+		left, right := canonicalPair(parts[0], parts[1])
+		canonical := left + "_" + right
+		if lower == canonical {
+			continue // already canonical
+		}
+
+		// ensure canonical table exists
+		createRef := fmt.Sprintf(
+			`CREATE TABLE IF NOT EXISTS %s.%s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`,
+			keyspace, canonical,
+		)
+		if err := session.Query(createRef).Exec(); err != nil {
+			slog.Error("migrate: create canonical failed", "table", canonical, "err", err)
+			continue
+		}
+
+		// copy rows: since table name is reversed, swap source/target on insert
+		q := fmt.Sprintf("SELECT source_id, target_id FROM %s.%s", keyspace, tname)
+		it := session.Query(q).Iter()
+		row := map[string]interface{}{}
+		for it.MapScan(row) {
+			src := row["source_id"]
+			dst := row["target_id"]
+			ins := fmt.Sprintf("INSERT INTO %s.%s (source_id, target_id) VALUES (?, ?)", keyspace, canonical)
+			if err := session.Query(ins, dst, src).Exec(); err != nil {
+				slog.Warn("migrate: insert into canonical failed", "table", canonical, "err", err)
+			}
+			for k := range row {
+				delete(row, k)
+			}
+		}
+		_ = it.Close()
+
+		// drop legacy table
+		if err := dropTable(session, keyspace, tname); err != nil {
+			slog.Warn("migrate: drop legacy link table failed", "table", tname, "err", err)
+		} else {
+			slog.Info("migrate: dropped legacy link table", "table", tname)
 		}
 	}
 	return nil
