@@ -168,44 +168,57 @@ func deduceColumnType(value interface{}) string {
 }
 
 // ---- New helpers for reference inference ----
+// ListLinkedIDs returns, for baseCollection/id, a map like:
+//   {"roles": ["r1","r2"], "groups": ["g3"] }
+func (store *ScyllaStore) ListLinkedIDs(connectionId, keyspace, baseCollection, id string) (map[string][]string, error) {
+    session, err := store.getSession(connectionId, keyspace)
+    if err != nil { return nil, err }
 
-func isRefOnly(m map[string]interface{}) bool {
-	allowed := map[string]struct{}{
-		"id": {}, "_id": {}, "$id": {}, "domain": {}, "$ref": {}, "typeName": {},
-	}
-	for k := range m {
-		if _, ok := allowed[k]; !ok {
-			return false
-		}
-	}
-	return true
-}
+    base := strings.ToLower(strings.TrimSpace(baseCollection))
+    if !strings.HasSuffix(base, "s") { base += "s" }
 
-// Infer collection/type from a JSON field (right-hand of <base>_<field>)
-func inferTypeFromField(field string) string {
-	f := strings.ToLower(field)
-	if !strings.HasSuffix(f, "s") {
-		f += "s"
-	}
-	return ucFirst(f)
-}
+    out := map[string][]string{}
 
-// detect if an interface{} looks like an entity/reference map
-func isEntityRef(v interface{}) (map[string]interface{}, bool) {
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		return nil, false
-	}
-	if _, ok := m["$ref"]; ok {
-		return m, true
-	}
-	if _, ok := m["typeName"]; ok {
-		return m, true
-	}
-	if _, ok := m["$id"]; ok {
-		return m, true
-	}
-	return m, true // generic map; caller can still validate presence of id later
+    iter := session.Query(`SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?`, keyspace).Iter()
+    defer iter.Close()
+
+    var t string
+    for iter.Scan(&t) {
+        parts := strings.SplitN(strings.ToLower(t), "_", 2)
+        if len(parts) != 2 { continue }
+        a, b := parts[0], parts[1]
+
+        // canonical link table: has (source_id,target_id)
+        cols, _ := store.getTableColumns(session, keyspace, t)
+        if _, ok := cols["source_id"]; !ok { continue }
+        if _, ok := cols["target_id"]; !ok { continue }
+
+        var q string
+        var other string
+        if a == base {
+            q = fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ?", keyspace, t)
+            other = b
+        } else if b == base {
+            q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, t)
+            other = a
+        } else {
+            continue
+        }
+
+        it := session.Query(q, id).Iter()
+        row := map[string]interface{}{}
+        for it.MapScan(row) {
+            if a == base {
+                out[other] = append(out[other], Utility.ToString(row["target_id"]))
+            } else {
+                out[other] = append(out[other], Utility.ToString(row["source_id"]))
+            }
+            row = map[string]interface{}{}
+        }
+        _ = it.Close()
+    }
+    if err := iter.Close(); err != nil { return nil, err }
+    return out, nil
 }
 
 // extract a best-effort id from a reference/entity map (more aggressive)
@@ -593,6 +606,8 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 		slog.Error("scylla: create table failed", "table", tableName, "err", err)
 		return err
 	}
+
+
 	return nil
 }
 
@@ -750,6 +765,9 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable st
 		q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, linkTable)
 	}
 
+	// Removed invalid slog.Info referencing undefined variables.
+
+
 	iter := session.Query(q, id).Iter()
 	defer iter.Close()
 
@@ -771,6 +789,8 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable st
 	if len(array) > 0 {
 		entity[snakeToCamel(other)] = array
 	}
+
+	
 	return nil
 }
 
