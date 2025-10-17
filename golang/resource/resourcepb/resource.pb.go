@@ -1037,7 +1037,7 @@ type Role struct {
 	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"` // Description of the role.
 	Actions     []string               `protobuf:"bytes,5,rep,name=actions,proto3" json:"actions,omitempty"`         // Actions associated with the role.
 	// References to other entities.
-	Members       []string `protobuf:"bytes,6,rep,name=members,proto3" json:"members,omitempty"`             // Accounts that are members of this role.
+	Accounts      []string `protobuf:"bytes,6,rep,name=accounts,proto3" json:"accounts,omitempty"`           // Accounts that are members of this role.
 	Organizations []string `protobuf:"bytes,7,rep,name=organizations,proto3" json:"organizations,omitempty"` // Organizations associated with this role.
 	TypeName      string   `protobuf:"bytes,8,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type name for object type identification.
 	unknownFields protoimpl.UnknownFields
@@ -1109,9 +1109,9 @@ func (x *Role) GetActions() []string {
 	return nil
 }
 
-func (x *Role) GetMembers() []string {
+func (x *Role) GetAccounts() []string {
 	if x != nil {
-		return x.Members
+		return x.Accounts
 	}
 	return nil
 }
@@ -4108,7 +4108,7 @@ type Group struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                   // Name of the group, unique on the network.
 	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`               // Domain associated with the group.
 	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`     // Description of the group.
-	Members       []string               `protobuf:"bytes,5,rep,name=members,proto3" json:"members,omitempty"`             // Members of the group, can be empty.
+	Accounts      []string               `protobuf:"bytes,5,rep,name=accounts,proto3" json:"accounts,omitempty"`           // Members of the group, can be empty.
 	Organizations []string               `protobuf:"bytes,6,rep,name=organizations,proto3" json:"organizations,omitempty"` // Organizations associated with the group, can be empty.
 	TypeName      string                 `protobuf:"bytes,7,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type information about the object.
 	unknownFields protoimpl.UnknownFields
@@ -4173,9 +4173,9 @@ func (x *Group) GetDescription() string {
 	return ""
 }
 
-func (x *Group) GetMembers() []string {
+func (x *Group) GetAccounts() []string {
 	if x != nil {
-		return x.Members
+		return x.Accounts
 	}
 	return nil
 }
@@ -8988,14 +8988,14 @@ const file_resource_proto_rawDesc = "" +
 	"\x1dFindPackagesDescriptorRequest\x12\x1a\n" +
 	"\bkeywords\x18\x01 \x03(\tR\bkeywords\"W\n" +
 	"\x1eFindPackagesDescriptorResponse\x125\n" +
-	"\aresults\x18\x01 \x03(\v2\x1b.resource.PackageDescriptorR\aresults\"\xda\x01\n" +
+	"\aresults\x18\x01 \x03(\v2\x1b.resource.PackageDescriptorR\aresults\"\xdc\x01\n" +
 	"\x04Role\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
-	"\aactions\x18\x05 \x03(\tR\aactions\x12\x18\n" +
-	"\amembers\x18\x06 \x03(\tR\amembers\x12$\n" +
+	"\aactions\x18\x05 \x03(\tR\aactions\x12\x1a\n" +
+	"\baccounts\x18\x06 \x03(\tR\baccounts\x12$\n" +
 	"\rorganizations\x18\a \x03(\tR\rorganizations\x12\x1a\n" +
 	"\btypeName\x18\b \x01(\tR\btypeName\"F\n" +
 	"\x12AddRoleActionsRqst\x12\x16\n" +
@@ -9161,13 +9161,13 @@ const file_resource_proto_rawDesc = "" +
 	"\x17GetApplicationAliasRqst\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\".\n" +
 	"\x16GetApplicationAliasRsp\x12\x14\n" +
-	"\x05alias\x18\x01 \x01(\tR\x05alias\"\xc1\x01\n" +
+	"\x05alias\x18\x01 \x01(\tR\x05alias\"\xc3\x01\n" +
 	"\x05Group\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
-	"\amembers\x18\x05 \x03(\tR\amembers\x12$\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1a\n" +
+	"\baccounts\x18\x05 \x03(\tR\baccounts\x12$\n" +
 	"\rorganizations\x18\x06 \x03(\tR\rorganizations\x12\x1a\n" +
 	"\btypeName\x18\a \x01(\tR\btypeName\"8\n" +
 	"\x0fCreateGroupRqst\x12%\n" +

@@ -343,7 +343,7 @@ namespace Resource {
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.PackageBundle), global::Resource.PackageBundle.Parser, new[]{ "PackageDescriptor", "Checksum", "Plaform", "Size", "Modified", "Binairies" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.PackageDescriptor), global::Resource.PackageDescriptor.Parser, new[]{ "Id", "Name", "Type", "PublisherID", "Version", "Description", "Repositories", "Discoveries", "Keywords", "Actions", "Roles", "Groups", "Icon", "Alias" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Account), global::Resource.Account.Parser, new[]{ "Id", "Name", "Email", "Password", "Organizations", "Groups", "Roles" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Role), global::Resource.Role.Parser, new[]{ "Id", "Name", "Actions", "Members", "Organizations" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Role), global::Resource.Role.Parser, new[]{ "Id", "Name", "Actions", "Accounts", "Organizations" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.RegisterAccountRqst), global::Resource.RegisterAccountRqst.Parser, new[]{ "Account", "ConfirmPassword" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.RegisterAccountRsp), global::Resource.RegisterAccountRsp.Parser, new[]{ "Result" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.AccountExistRqst), global::Resource.AccountExistRqst.Parser, new[]{ "Id" }, null, null, null, null),
@@ -392,7 +392,7 @@ namespace Resource {
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.SetPackageBundleResponse), global::Resource.SetPackageBundleResponse.Parser, new[]{ "Result" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackageBundleChecksumRequest), global::Resource.GetPackageBundleChecksumRequest.Parser, new[]{ "Id" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.GetPackageBundleChecksumResponse), global::Resource.GetPackageBundleChecksumResponse.Parser, new[]{ "Checksum" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Group), global::Resource.Group.Parser, new[]{ "Id", "Name", "Members", "Organizations" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Resource.Group), global::Resource.Group.Parser, new[]{ "Id", "Name", "Accounts", "Organizations" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.CreateGroupRqst), global::Resource.CreateGroupRqst.Parser, new[]{ "Group" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.CreateGroupRsp), global::Resource.CreateGroupRsp.Parser, new[]{ "Result" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Resource.UpdateGroupRqst), global::Resource.UpdateGroupRqst.Parser, new[]{ "GroupId", "Values" }, null, null, null, null),
@@ -1919,7 +1919,7 @@ namespace Resource {
       get { return actions_; }
     }
 
-    /// <summary>Field number for the "members" field.</summary>
+    /// <summary>Field number for the "accounts" field.</summary>
     public const int MembersFieldNumber = 4;
     private static readonly pb::FieldCodec<string> _repeated_members_codec
         = pb::FieldCodec.ForString(34);
@@ -11357,7 +11357,7 @@ namespace Resource {
       }
     }
 
-    /// <summary>Field number for the "members" field.</summary>
+    /// <summary>Field number for the "accounts" field.</summary>
     public const int MembersFieldNumber = 3;
     private static readonly pb::FieldCodec<string> _repeated_members_codec
         = pb::FieldCodec.ForString(26);

@@ -482,7 +482,7 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 			return nil, err
 		}
 
-		if !Utility.Contains(admin.Members, account.Id+"@"+account.Domain) {
+		if !Utility.Contains(admin.Accounts, account.Id+"@"+account.Domain) {
 			return nil, errors.New(account.Id + "@" + account.Domain + " must be admin to set Allocated space.")
 		}
 	}

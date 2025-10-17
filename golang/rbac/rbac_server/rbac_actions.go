@@ -199,7 +199,7 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 				for i := range roles {
 					roleId := roles[i].Id + "@" + roles[i].Domain
 
-					if Utility.Contains(roles[i].Members, subject) {
+					if Utility.Contains(roles[i].Accounts, subject) {
 
 						// if the role id is local admin
 						hasAccess, _, _ = srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)

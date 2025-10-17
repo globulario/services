@@ -228,7 +228,7 @@ func (srv *server) validateAccessDenied(subject string, subjectType rbacpb.Subje
 						// Also handle memberships only present on the group/org entities (mirrors allow path)
 						if groups, err := srv.getGroups(); err == nil {
 							for i := range groups {
-								if matchID(groups[i].Members, subject) { // FIX: was Utility.Contains
+								if matchID(groups[i].Accounts, subject) { // FIX: was Utility.Contains
 									id := groups[i].Id + "@" + groups[i].Domain
 									if srv.validateAccessDenied(id, rbacpb.SubjectType_GROUP, name, path) {
 										return true
@@ -343,7 +343,7 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 						// external memberships
 						if groups, err := srv.getGroups(); err == nil {
 							for i := range groups {
-								if matchID(groups[i].Members, subject) { // FIX: was Utility.Contains
+								if matchID(groups[i].Accounts, subject) { // FIX: was Utility.Contains
 									id := groups[i].Id + "@" + groups[i].Domain
 									if srv.validateAccessAllowed(id, rbacpb.SubjectType_GROUP, name, path) {
 										return true

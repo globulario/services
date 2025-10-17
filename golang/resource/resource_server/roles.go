@@ -32,7 +32,7 @@ func (srv *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccou
 	}
 
 	// That service made user of persistence service.
-	err := srv.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
+	err := srv.createCrossReferences(rqst.RoleId, "Roles", "accounts", rqst.AccountId, "Accounts", "roles")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -192,9 +192,9 @@ func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRq
 
 	// Now I will set the reference for
 
-	// members...
-	for i := 0; i < len(rqst.Role.Members); i++ {
-		srv.createCrossReferences(rqst.Role.Members[i], "Accounts", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "members")
+	// accounts...
+	for i := 0; i < len(rqst.Role.Accounts); i++ {
+		srv.createCrossReferences(rqst.Role.Accounts[i], "Accounts", "roles", rqst.Role.GetId()+"@"+rqst.Role.GetDomain(), "Roles", "accounts")
 	}
 
 	// Organizations
@@ -261,16 +261,16 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 	role := values.(map[string]interface{})
 
 	// Remove it from the accounts
-	if role["members"] != nil {
+	if role["accounts"] != nil {
 		
 		var accounts []interface{}
-		switch role["members"].(type) {
+		switch role["accounts"].(type) {
 		case primitive.A:
-			accounts = []interface{}(role["members"].(primitive.A))
+			accounts = []interface{}(role["accounts"].(primitive.A))
 		case []interface{}:
-			accounts = []interface{}(role["members"].([]interface{}))
+			accounts = []interface{}(role["accounts"].([]interface{}))
 		default:
-			logger.Warn("unknown type", "value", role["members"])
+			logger.Warn("unknown type", "value", role["accounts"])
 		}
 		for i := 0; i < len(accounts); i++ {
 			accountId := accounts[i].(map[string]interface{})["$id"].(string)
@@ -373,21 +373,21 @@ func (srv *server) getRole(id string) (*resourcepb.Role, error) {
 		}
 	}
 
-	if role["members"] != nil {
+	if role["accounts"] != nil {
 		var members []interface{}
-		switch role["members"].(type) {
+		switch role["accounts"].(type) {
 		case primitive.A:
-			members = []interface{}(role["members"].(primitive.A))
+			members = []interface{}(role["accounts"].(primitive.A))
 		case []interface{}:
-			members = []interface{}(role["members"].([]interface{}))
+			members = []interface{}(role["accounts"].([]interface{}))
 		default:
-			logger.Warn("unknown type", "value", role["members"])
+			logger.Warn("unknown type", "value", role["accounts"])
 		}
 
 		if members != nil {
 			for i := 0; i < len(members); i++ {
 				memberId := members[i].(map[string]interface{})["$id"].(string)
-				r.Members = append(r.Members, memberId)
+				r.Accounts = append(r.Accounts, memberId)
 			}
 		}
 	}
@@ -469,21 +469,21 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 			}
 		}
 
-		if role["members"] != nil {
+		if role["accounts"] != nil {
 			var members []interface{}
-			switch role["members"].(type) {
+			switch role["accounts"].(type) {
 			case primitive.A:
-				members = []interface{}(role["members"].(primitive.A))
+				members = []interface{}(role["accounts"].(primitive.A))
 			case []interface{}:
-				members = []interface{}(role["members"].([]interface{}))
+				members = []interface{}(role["accounts"].([]interface{}))
 			default:
-				logger.Warn("unknown type", "value", role["members"])
+				logger.Warn("unknown type", "value", role["accounts"])
 			}
 
 			if members != nil {
 				for i := 0; i < len(members); i++ {
 					memberId := members[i].(map[string]interface{})["$id"].(string)
-					r.Members = append(r.Members, memberId)
+					r.Accounts = append(r.Accounts, memberId)
 				}
 			}
 		}
@@ -534,7 +534,7 @@ func (srv *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.Remov
 	}
 
 	// That service made user of persistence service.
-	err = srv.deleteReference(p, rqst.AccountId, rqst.RoleId, "members", "Roles")
+	err = srv.deleteReference(p, rqst.AccountId, rqst.RoleId, "accounts", "Roles")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

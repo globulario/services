@@ -223,6 +223,10 @@ func extractID(m map[string]interface{}) string {
 	return ""
 }
 
+// ---------- Canonical link-table helpers (NEW) ----------
+
+
+
 func (store *ScyllaStore) buildCluster(hosts []string, port int, keyspace string, opts map[string]string) *gocql.ClusterConfig {
 	cluster := gocql.NewCluster(hosts...)
 
@@ -689,38 +693,75 @@ func (store *ScyllaStore) getSession(connectionId, keyspace string) (*gocql.Sess
 	return nil, errors.New("connection with id " + connectionId + " does not have a session for keyspace " + keyspace)
 }
 
-func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, tableName string, entity map[string]interface{}) error {
-	parts := strings.SplitN(tableName, "_", 2)
-	if len(parts) != 2 {
-		return nil
-	}
-	field := snakeToCamel(parts[1])
-	if entity[field] != nil {
-		return nil
-	}
+// Reworked: bi-directional array entity initialization using canonical link tables
+func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable string, entity map[string]interface{}) error {
 	session, err := store.getSession(connectionId, keyspace)
 	if err != nil {
 		return err
 	}
-	q := fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ?", keyspace, tableName)
-	iter := session.Query(q, entity["_id"]).Iter()
+	typeName, _ := entity["typeName"].(string)
+	if typeName == "" {
+		return fmt.Errorf("initArrayEntities: missing typeName in entity")
+	}
+	base := strings.ToLower(typeName)
+	if !strings.HasSuffix(base, "s") {
+		base += "s"
+	}
+
+	id := Utility.ToString(entity["_id"])
+	if id == "" {
+		id = Utility.ToString(entity["id"])
+	}
+	if id == "" {
+		return fmt.Errorf("initArrayEntities: missing id")
+	}
+
+	parts := strings.SplitN(strings.ToLower(linkTable), "_", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+
+	a, b := parts[0], parts[1]
+	baseIsA := (base == a)
+	baseIsB := (base == b)
+	if !baseIsA && !baseIsB {
+		return nil
+	}
+
+	other := b
+	if baseIsB {
+		other = a
+	}
+
+	// query: if base is first token, id is in source_id; else in target_id
+	var q string
+	if baseIsA {
+		q = fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ?", keyspace, linkTable)
+	} else {
+		q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, linkTable)
+	}
+
+	iter := session.Query(q, id).Iter()
 	defer iter.Close()
 
 	array := []interface{}{}
+	col := "target_id"
+	if baseIsB {
+		col = "source_id"
+	}
 	for {
 		row := make(map[string]interface{})
 		if !iter.MapScan(row) {
 			break
 		}
-		if targetId, ok := row["target_id"]; ok {
-			tableName_ := field
-			if field == "members" {
-				tableName_ = "accounts"
-			}
-			array = append(array, map[string]interface{}{"$ref": tableName_, "$id": targetId, "$db": keyspace})
+		if tid, ok := row[col]; ok {
+			refTable := other
+			array = append(array, map[string]interface{}{"$ref": refTable, "$id": tid, "$db": keyspace})
 		}
 	}
-	entity[field] = array
+	if len(array) > 0 {
+		entity[snakeToCamel(other)] = array
+	}
 	return nil
 }
 
@@ -806,21 +847,30 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 	defer iter.Close()
 
 	base := strings.ToLower(typeName)
+	if !strings.HasSuffix(base, "s") {
+		base += "s"
+	}
+
 	var tName string
 	for iter.Scan(&tName) {
 		lower := strings.ToLower(tName)
-		if !strings.HasPrefix(lower, base+"_") {
+		parts := strings.SplitN(lower, "_", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
 		cols, _ := store.getTableColumns(session, keyspace, tName)
+		// ref link tables (source_id,target_id) where base is either token
 		if _, ok := cols["source_id"]; ok {
 			if _, ok2 := cols["target_id"]; ok2 {
-				_ = store.initArrayEntities(connectionId, keyspace, tName, entity)
-				continue
+				if parts[0] == base || parts[1] == base {
+					_ = store.initArrayEntities(connectionId, keyspace, tName, entity)
+					continue
+				}
 			}
 		}
-		pkCol := base + "_id"
+		// scalar arrays remain as before
+		pkCol := parts[0] + "_id"
 		if _, ok := cols[pkCol]; ok {
 			if _, ok2 := cols["value"]; ok2 {
 				_ = store.initArrayValues(connectionId, keyspace, tName, entity)
@@ -1124,7 +1174,8 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 					// **New behavior**: aggressively extract an id; if present, treat as REF ONLY.
 					_tid := extractID(entity)
 					if _tid != "" {
-						refTable := fmt.Sprintf("%s_%s", tableName, field)
+						// canonical ref table & direction
+						refTable, baseIsFirst := canonicalRefTable(tableName, field)
 						createRef := fmt.Sprintf(
 							`CREATE TABLE IF NOT EXISTS %s.%s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`,
 							keyspace, refTable,
@@ -1133,15 +1184,18 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 							slog.Error("scylla: create ref table failed", "table", keyspace+"."+refTable, "err", err)
 							break
 						}
+						src, dst := id, _tid
+						if !baseIsFirst {
+							src, dst = _tid, id
+						}
 						insRef := fmt.Sprintf("INSERT INTO %s.%s (source_id, target_id) VALUES (?, ?);", keyspace, refTable)
-						if err := session.Query(insRef, id, _tid).Exec(); err != nil {
+						if err := session.Query(insRef, src, dst).Exec(); err != nil {
 							slog.Error("scylla: insert ref failed", "table", keyspace+"."+refTable, "err", err)
 						}
 						break
 					}
 
 					// No id found; as a safety, do NOT attempt to upsert nested entity without id.
-					// Just warn and skip linking.
 					slog.Warn("scylla: array entity has no identifiable id; skipping upsert and link",
 						"table", keyspace+"."+tableName, "field", field)
 					break
@@ -1178,14 +1232,18 @@ func (store *ScyllaStore) insertData(connectionId, keyspace, tableName string, d
 			field := camelToSnake(column)
 
 			if _tid != "" {
-				refTable := fmt.Sprintf("%s_%s", tableName, field)
+				refTable, baseIsFirst := canonicalRefTable(tableName, field)
 				createRef := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s.%s (source_id TEXT, target_id TEXT, PRIMARY KEY (source_id, target_id))`, keyspace, refTable)
 				if err := session.Query(createRef).Exec(); err != nil {
 					slog.Error("scylla: create ref table failed", "table", keyspace+"."+refTable, "err", err)
 					break
 				}
+				src, dst := id, _tid
+				if !baseIsFirst {
+					src, dst = _tid, id
+				}
 				insRef := fmt.Sprintf("INSERT INTO %s.%s (source_id, target_id) VALUES (?, ?);", keyspace, refTable)
-				if err := session.Query(insRef, id, _tid).Exec(); err != nil {
+				if err := session.Query(insRef, src, dst).Exec(); err != nil {
 					slog.Error("scylla: insert ref failed", "table", keyspace+"."+refTable, "err", err)
 				}
 				break
@@ -1316,6 +1374,9 @@ func (store *ScyllaStore) deleteSideTables(connectionId, keyspace, baseTable str
 	}
 
 	base := strings.ToLower(baseTable)
+	if !strings.HasSuffix(base, "s") {
+		base += "s"
+	}
 
 	iter := session.Query(
 		"SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?",
@@ -1325,7 +1386,9 @@ func (store *ScyllaStore) deleteSideTables(connectionId, keyspace, baseTable str
 
 	var tname string
 	for iter.Scan(&tname) {
-		if !strings.HasPrefix(strings.ToLower(tname), base+"_") {
+		lower := strings.ToLower(tname)
+		parts := strings.SplitN(lower, "_", 2)
+		if len(parts) != 2 {
 			continue
 		}
 
@@ -1340,29 +1403,34 @@ func (store *ScyllaStore) deleteSideTables(connectionId, keyspace, baseTable str
 		}
 		citer.Close()
 
-		deleted := false
-
+		// ref link table?
 		if _, ok := cols["source_id"]; ok {
-			q := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, tname)
-			if err := session.Query(q, id).Exec(); err != nil {
-				slog.Warn("scylla: side delete by source_id failed", "table", tname, "err", err)
-			} else {
-				deleted = true
+			if _, ok2 := cols["target_id"]; ok2 {
+				if parts[0] == base {
+					q := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, tname)
+					if err := session.Query(q, id).Exec(); err != nil {
+						slog.Warn("scylla: side delete by source_id failed", "table", tname, "err", err)
+					}
+					continue
+				}
+				if parts[1] == base {
+					q := fmt.Sprintf("DELETE FROM %s.%s WHERE target_id = ?", keyspace, tname)
+					if err := session.Query(q, id).Exec(); err != nil {
+						slog.Warn("scylla: side delete by target_id failed", "table", tname, "err", err)
+					}
+					continue
+				}
 			}
 		}
 
+		// scalar array cleanup (table_<field> with table_id)
 		keyCol := base + "_id"
 		if _, ok := cols[keyCol]; ok {
 			q := fmt.Sprintf("DELETE FROM %s.%s WHERE %s = ?", keyspace, tname, keyCol)
 			if err := session.Query(q, id).Exec(); err != nil {
 				slog.Warn("scylla: side delete by base_id failed", "table", tname, "pk", keyCol, "err", err)
-			} else {
-				deleted = true
 			}
-		}
-
-		if !deleted {
-			slog.Debug("scylla: skip table (no matching PK columns)", "table", tname)
+			continue
 		}
 	}
 }
@@ -1466,7 +1534,8 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 
 		for _, field := range arrayFields {
 			values := values_["$set"].(map[string]interface{})[field].([]interface{})
-			arrayTable := table + "_" + camelToSnake(field)
+			fieldSnake := camelToSnake(field)
+			arrayTable, baseIsFirst := canonicalRefTable(table, fieldSnake)
 
 			cols, _ := store.getTableColumns(session, keyspace, arrayTable)
 			isRefTable := false
@@ -1478,8 +1547,14 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 			keyCol := table + "_id"
 
 			if isRefTable {
-				delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, arrayTable)
-				_ = session.Query(delQ, entity["_id"]).Exec()
+				// delete where the base id sits (source if base is first, else target)
+				if baseIsFirst {
+					delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, arrayTable)
+					_ = session.Query(delQ, entity["_id"]).Exec()
+				} else {
+					delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE target_id = ?", keyspace, arrayTable)
+					_ = session.Query(delQ, entity["_id"]).Exec()
+				}
 			} else if _, ok := cols[strings.ToLower(keyCol)]; ok {
 				delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE %s = ?", keyspace, arrayTable, keyCol)
 				_ = session.Query(delQ, entity["_id"]).Exec()
@@ -1503,8 +1578,14 @@ func (store *ScyllaStore) Update(ctx context.Context, connectionId string, keysp
 						slog.Warn("scylla: array ref update skipped (missing target id)", "table", arrayTable, "field", field)
 						continue
 					}
+					var src, dst interface{}
+					if baseIsFirst {
+						src, dst = entity["_id"], tid
+					} else {
+						src, dst = tid, entity["_id"]
+					}
 					ins := fmt.Sprintf("INSERT INTO %s.%s (source_id, target_id) VALUES (?, ?)", keyspace, arrayTable)
-					if err := session.Query(ins, entity["_id"], tid).WithContext(ctx).Exec(); err != nil {
+					if err := session.Query(ins, src, dst).WithContext(ctx).Exec(); err != nil {
 						slog.Error("scylla: insert ref failed", "table", arrayTable, "err", err)
 					}
 					continue
@@ -1617,7 +1698,7 @@ func (store *ScyllaStore) UpdateOne(
 
 	for _, field := range arrayFields {
 		fieldSnake := camelToSnake(field)
-		arrayTable := table + "_" + fieldSnake
+		arrayTable, baseIsFirst := canonicalRefTable(table, fieldSnake)
 
 		cols, _ := store.getTableColumns(session, keyspace, arrayTable)
 		isRefTable := false
@@ -1629,8 +1710,13 @@ func (store *ScyllaStore) UpdateOne(
 		keyCol := table + "_id"
 
 		if isRefTable {
-			delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, arrayTable)
-			_ = session.Query(delQ, entityID).WithContext(ctx).Exec()
+			if baseIsFirst {
+				delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE source_id = ?", keyspace, arrayTable)
+				_ = session.Query(delQ, entityID).WithContext(ctx).Exec()
+			} else {
+				delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE target_id = ?", keyspace, arrayTable)
+				_ = session.Query(delQ, entityID).WithContext(ctx).Exec()
+			}
 		} else if _, ok := cols[strings.ToLower(keyCol)]; ok {
 			delQ := fmt.Sprintf("DELETE FROM %s.%s WHERE %s = ?", keyspace, arrayTable, keyCol)
 			_ = session.Query(delQ, entityID).WithContext(ctx).Exec()
@@ -1654,8 +1740,14 @@ func (store *ScyllaStore) UpdateOne(
 					slog.Warn("scylla: array ref insert skipped (missing target id)", "table", arrayTable, "field", field)
 					continue
 				}
+				var src, dst interface{}
+				if baseIsFirst {
+					src, dst = entityID, tid
+				} else {
+					src, dst = tid, entityID
+				}
 				ins := fmt.Sprintf("INSERT INTO %s.%s (source_id, target_id) VALUES (?, ?)", keyspace, arrayTable)
-				if err := session.Query(ins, entityID, tid).WithContext(ctx).Exec(); err != nil {
+				if err := session.Query(ins, src, dst).WithContext(ctx).Exec(); err != nil {
 					slog.Error("scylla: insert ref failed", "table", arrayTable, "err", err)
 				}
 				continue
@@ -1781,46 +1873,48 @@ func splitCQLScript(script string) []string {
 }
 
 func (store *ScyllaStore) RunAdminCmd(ctx context.Context, connectionId, user, password, script string) error {
-    store.lock.Lock()
-    connection := store.connections[connectionId]
-    store.lock.Unlock()
-    if connection == nil {
-        return errors.New("the connection does not exist")
-    }
+	store.lock.Lock()
+	connection := store.connections[connectionId]
+	store.lock.Unlock()
+	if connection == nil {
+		return errors.New("the connection does not exist")
+	}
 
-    // Prefer explicit args, else fall back to connection.Options["username"/"password"]
-    opts := map[string]string{}
-    for k, v := range connection.Options {
-        opts[k] = v
-    }
-    if user == "" {
-        user = opts["username"]
-    }
-    if password == "" {
-        password = opts["password"]
-    }
-    if user == "" || password == "" {
-        return errors.New("RunAdminCmd: no admin username/password available for admin script")
-    }
+	// Prefer explicit args, else fall back to connection.Options["username"/"password"]
+	opts := map[string]string{}
+	for k, v := range connection.Options {
+		opts[k] = v
+	}
+	if user == "" {
+		user = opts["username"]
+	}
+	if password == "" {
+		password = opts["password"]
+	}
+	if user == "" || password == "" {
+		return errors.New("RunAdminCmd: no admin username/password available for admin script")
+	}
 
-    opts["username"] = user
-    opts["password"] = password
+	opts["username"] = user
+	opts["password"] = password
 
-    adminCluster := store.buildCluster(connection.Hosts, connection.Port, "system", opts)
-    adminSession, err := adminCluster.CreateSession()
-    if err != nil {
-        return err
-    }
-    defer adminSession.Close()
+	adminCluster := store.buildCluster(connection.Hosts, connection.Port, "system", opts)
+	adminSession, err := adminCluster.CreateSession()
+	if err != nil {
+		return err
+	}
+	defer adminSession.Close()
 
-    for _, stmt := range splitCQLScript(script) {
-        if stmt == "" { continue }
-        if err := adminSession.Query(stmt).Exec(); err != nil {
-            slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
-            return err
-        }
-    }
-    return nil
+	for _, stmt := range splitCQLScript(script) {
+		if stmt == "" {
+			continue
+		}
+		if err := adminSession.Query(stmt).Exec(); err != nil {
+			slog.Error("scylla: admin script exec failed", "stmt", stmt, "err", err)
+			return err
+		}
+	}
+	return nil
 }
 
 // ---------- Not implemented (explicit) ----------

@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 goog.exportSymbol('proto.resource.AcceptPeerRqst', null, global);
 goog.exportSymbol('proto.resource.AcceptPeerRsp', null, global);
@@ -3788,14 +3797,14 @@ proto.resource.PackageBundle.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.PackageBundle.toObject = function(includeInstance, msg) {
   var f, obj = {
-    packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f),
-    checksum: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    plaform: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    size: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    modified: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    binairies: msg.getBinairies_asB64(),
-    mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
+packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f),
+checksum: jspb.Message.getFieldWithDefault(msg, 2, ""),
+plaform: jspb.Message.getFieldWithDefault(msg, 3, ""),
+size: jspb.Message.getFieldWithDefault(msg, 4, 0),
+modified: jspb.Message.getFieldWithDefault(msg, 5, 0),
+binairies: msg.getBinairies_asB64(),
+mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
+typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -4173,7 +4182,7 @@ proto.resource.SetPackageBundleRequest.prototype.toObject = function(opt_include
  */
 proto.resource.SetPackageBundleRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    bundle: (f = msg.getBundle()) && proto.resource.PackageBundle.toObject(includeInstance, f)
+bundle: (f = msg.getBundle()) && proto.resource.PackageBundle.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4324,7 +4333,7 @@ proto.resource.SetPackageBundleResponse.prototype.toObject = function(opt_includ
  */
 proto.resource.SetPackageBundleResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -4454,7 +4463,7 @@ proto.resource.GetPackageBundleChecksumRequest.prototype.toObject = function(opt
  */
 proto.resource.GetPackageBundleChecksumRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4584,7 +4593,7 @@ proto.resource.GetPackageBundleChecksumResponse.prototype.toObject = function(op
  */
 proto.resource.GetPackageBundleChecksumResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    checksum: jspb.Message.getFieldWithDefault(msg, 1, "")
+checksum: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4721,23 +4730,23 @@ proto.resource.PackageDescriptor.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.PackageDescriptor.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    repositoriesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    discoveriesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
-    rolesList: jspb.Message.toObjectList(msg.getRolesList(),
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+type: jspb.Message.getFieldWithDefault(msg, 3, 0),
+publisherid: jspb.Message.getFieldWithDefault(msg, 4, ""),
+version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+repositoriesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+discoveriesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+actionsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
+rolesList: jspb.Message.toObjectList(msg.getRolesList(),
     proto.resource.Role.toObject, includeInstance),
-    groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
+groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
     proto.resource.Group.toObject, includeInstance),
-    icon: jspb.Message.getFieldWithDefault(msg, 14, ""),
-    alias: jspb.Message.getFieldWithDefault(msg, 15, ""),
-    typename: jspb.Message.getFieldWithDefault(msg, 16, "")
+icon: jspb.Message.getFieldWithDefault(msg, 14, ""),
+alias: jspb.Message.getFieldWithDefault(msg, 15, ""),
+typename: jspb.Message.getFieldWithDefault(msg, 16, "")
   };
 
   if (includeInstance) {
@@ -4788,7 +4797,7 @@ proto.resource.PackageDescriptor.deserializeBinaryFromReader = function(msg, rea
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
@@ -4886,7 +4895,7 @@ proto.resource.PackageDescriptor.serializeBinaryToWriter = function(message, wri
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       4,
@@ -5033,7 +5042,7 @@ proto.resource.PackageDescriptor.prototype.setType = function(value) {
  * optional string PublisherID = 4;
  * @return {string}
  */
-proto.resource.PackageDescriptor.prototype.getPublisherID = function() {
+proto.resource.PackageDescriptor.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -5042,7 +5051,7 @@ proto.resource.PackageDescriptor.prototype.getPublisherID = function() {
  * @param {string} value
  * @return {!proto.resource.PackageDescriptor} returns this
  */
-proto.resource.PackageDescriptor.prototype.setPublisherID = function(value) {
+proto.resource.PackageDescriptor.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -5393,8 +5402,8 @@ proto.resource.GetPackageDescriptorRequest.prototype.toObject = function(opt_inc
  */
 proto.resource.GetPackageDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 2, "")
+serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -5437,7 +5446,7 @@ proto.resource.GetPackageDescriptorRequest.deserializeBinaryFromReader = functio
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     default:
       reader.skipField();
@@ -5475,7 +5484,7 @@ proto.resource.GetPackageDescriptorRequest.serializeBinaryToWriter = function(me
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -5507,7 +5516,7 @@ proto.resource.GetPackageDescriptorRequest.prototype.setServiceid = function(val
  * optional string PublisherID = 2;
  * @return {string}
  */
-proto.resource.GetPackageDescriptorRequest.prototype.getPublisherID = function() {
+proto.resource.GetPackageDescriptorRequest.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -5516,7 +5525,7 @@ proto.resource.GetPackageDescriptorRequest.prototype.getPublisherID = function()
  * @param {string} value
  * @return {!proto.resource.GetPackageDescriptorRequest} returns this
  */
-proto.resource.GetPackageDescriptorRequest.prototype.setPublisherID = function(value) {
+proto.resource.GetPackageDescriptorRequest.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -5560,7 +5569,7 @@ proto.resource.GetPackageDescriptorResponse.prototype.toObject = function(opt_in
  */
 proto.resource.GetPackageDescriptorResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    resultsList: jspb.Message.toObjectList(msg.getResultsList(),
+resultsList: jspb.Message.toObjectList(msg.getResultsList(),
     proto.resource.PackageDescriptor.toObject, includeInstance)
   };
 
@@ -5713,8 +5722,8 @@ proto.resource.GetPackagesDescriptorRequest.prototype.toObject = function(opt_in
  */
 proto.resource.GetPackagesDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -5880,7 +5889,7 @@ proto.resource.GetPackagesDescriptorResponse.prototype.toObject = function(opt_i
  */
 proto.resource.GetPackagesDescriptorResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    resultsList: jspb.Message.toObjectList(msg.getResultsList(),
+resultsList: jspb.Message.toObjectList(msg.getResultsList(),
     proto.resource.PackageDescriptor.toObject, includeInstance)
   };
 
@@ -6033,7 +6042,7 @@ proto.resource.SetPackageDescriptorRequest.prototype.toObject = function(opt_inc
  */
 proto.resource.SetPackageDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f)
+packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6184,7 +6193,7 @@ proto.resource.SetPackageDescriptorResponse.prototype.toObject = function(opt_in
  */
 proto.resource.SetPackageDescriptorResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -6321,7 +6330,7 @@ proto.resource.FindPackagesDescriptorRequest.prototype.toObject = function(opt_i
  */
 proto.resource.FindPackagesDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6477,7 +6486,7 @@ proto.resource.FindPackagesDescriptorResponse.prototype.toObject = function(opt_
  */
 proto.resource.FindPackagesDescriptorResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    resultsList: jspb.Message.toObjectList(msg.getResultsList(),
+resultsList: jspb.Message.toObjectList(msg.getResultsList(),
     proto.resource.PackageDescriptor.toObject, includeInstance)
   };
 
@@ -6637,14 +6646,14 @@ proto.resource.Role.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Role.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    membersList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+description: jspb.Message.getFieldWithDefault(msg, 4, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+accountsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -6703,7 +6712,7 @@ proto.resource.Role.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.addAccounts(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
@@ -6777,7 +6786,7 @@ proto.resource.Role.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getMembersList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       6,
@@ -6911,10 +6920,10 @@ proto.resource.Role.prototype.clearActionsList = function() {
 
 
 /**
- * repeated string members = 6;
+ * repeated string accounts = 6;
  * @return {!Array<string>}
  */
-proto.resource.Role.prototype.getMembersList = function() {
+proto.resource.Role.prototype.getAccountsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
@@ -6923,7 +6932,7 @@ proto.resource.Role.prototype.getMembersList = function() {
  * @param {!Array<string>} value
  * @return {!proto.resource.Role} returns this
  */
-proto.resource.Role.prototype.setMembersList = function(value) {
+proto.resource.Role.prototype.setAccountsList = function(value) {
   return jspb.Message.setField(this, 6, value || []);
 };
 
@@ -6933,7 +6942,7 @@ proto.resource.Role.prototype.setMembersList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.resource.Role} returns this
  */
-proto.resource.Role.prototype.addMembers = function(value, opt_index) {
+proto.resource.Role.prototype.addAccounts = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
@@ -6942,8 +6951,8 @@ proto.resource.Role.prototype.addMembers = function(value, opt_index) {
  * Clears the list making it empty but non-null.
  * @return {!proto.resource.Role} returns this
  */
-proto.resource.Role.prototype.clearMembersList = function() {
-  return this.setMembersList([]);
+proto.resource.Role.prototype.clearAccountsList = function() {
+  return this.setAccountsList([]);
 };
 
 
@@ -7041,8 +7050,8 @@ proto.resource.AddRoleActionsRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.AddRoleActionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -7220,7 +7229,7 @@ proto.resource.AddRoleActionsRsp.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.AddRoleActionsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7350,8 +7359,8 @@ proto.resource.RemoveRoleActionRqst.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemoveRoleActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7510,7 +7519,7 @@ proto.resource.RemoveRoleActionRsp.prototype.toObject = function(opt_includeInst
  */
 proto.resource.RemoveRoleActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7640,7 +7649,7 @@ proto.resource.RemoveRolesActionRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.RemoveRolesActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7770,7 +7779,7 @@ proto.resource.RemoveRolesActionRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemoveRolesActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7907,20 +7916,20 @@ proto.resource.Account.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Account.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    email: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    refreshtoken: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    profilepicture: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    firstname: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    lastname: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    middle: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 13)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 14, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+email: jspb.Message.getFieldWithDefault(msg, 3, ""),
+password: jspb.Message.getFieldWithDefault(msg, 4, ""),
+refreshtoken: jspb.Message.getFieldWithDefault(msg, 5, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 6, ""),
+profilepicture: jspb.Message.getFieldWithDefault(msg, 7, ""),
+firstname: jspb.Message.getFieldWithDefault(msg, 8, ""),
+lastname: jspb.Message.getFieldWithDefault(msg, 9, ""),
+middle: jspb.Message.getFieldWithDefault(msg, 10, ""),
+organizationsList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
+groupsList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
+rolesList: (f = jspb.Message.getRepeatedField(msg, 13)) == null ? undefined : f,
+typename: jspb.Message.getFieldWithDefault(msg, 14, "")
   };
 
   if (includeInstance) {
@@ -8484,8 +8493,8 @@ proto.resource.RegisterAccountRqst.prototype.toObject = function(opt_includeInst
  */
 proto.resource.RegisterAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f),
-    confirmPassword: jspb.Message.getFieldWithDefault(msg, 2, "")
+account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f),
+confirmPassword: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8665,7 +8674,7 @@ proto.resource.RegisterAccountRsp.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.RegisterAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -8795,7 +8804,7 @@ proto.resource.AccountExistRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.resource.AccountExistRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -8925,7 +8934,7 @@ proto.resource.AccountExistRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.AccountExistRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -9055,8 +9064,8 @@ proto.resource.GetAccountsRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.GetAccountsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -9222,7 +9231,7 @@ proto.resource.GetAccountsRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.GetAccountsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountsList: jspb.Message.toObjectList(msg.getAccountsList(),
+accountsList: jspb.Message.toObjectList(msg.getAccountsList(),
     proto.resource.Account.toObject, includeInstance)
   };
 
@@ -9375,7 +9384,7 @@ proto.resource.GetAccountRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.GetAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -9505,7 +9514,7 @@ proto.resource.GetAccountRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.GetAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f)
+account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -9656,7 +9665,7 @@ proto.resource.SetAccountRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.SetAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f)
+account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -9908,9 +9917,9 @@ proto.resource.SetAccountPasswordRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.SetAccountPasswordRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    oldPassword: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    newPassword: jspb.Message.getFieldWithDefault(msg, 3, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+oldPassword: jspb.Message.getFieldWithDefault(msg, 2, ""),
+newPassword: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -10199,9 +10208,9 @@ proto.resource.SetEmailRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.SetEmailRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    oldemail: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    newemail: jspb.Message.getFieldWithDefault(msg, 3, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+oldemail: jspb.Message.getFieldWithDefault(msg, 2, ""),
+newemail: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -10490,7 +10499,7 @@ proto.resource.DeleteAccountRqst.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.DeleteAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -10620,7 +10629,7 @@ proto.resource.DeleteAccountRsp.prototype.toObject = function(opt_includeInstanc
  */
 proto.resource.DeleteAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -10750,8 +10759,8 @@ proto.resource.AddAccountRoleRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.AddAccountRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -10910,7 +10919,7 @@ proto.resource.AddAccountRoleRsp.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.AddAccountRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -11040,8 +11049,8 @@ proto.resource.RemoveAccountRoleRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.RemoveAccountRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -11200,7 +11209,7 @@ proto.resource.RemoveAccountRoleRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemoveAccountRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -11330,11 +11339,11 @@ proto.resource.Contact.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Contact.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    invitationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    status: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    ringtone: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    profilepicture: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+invitationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
+status: jspb.Message.getFieldWithDefault(msg, 3, ""),
+ringtone: jspb.Message.getFieldWithDefault(msg, 4, ""),
+profilepicture: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -11580,8 +11589,8 @@ proto.resource.SetAccountContactRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.SetAccountContactRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    contact: (f = msg.getContact()) && proto.resource.Contact.toObject(includeInstance, f)
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+contact: (f = msg.getContact()) && proto.resource.Contact.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11761,7 +11770,7 @@ proto.resource.SetAccountContactRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.SetAccountContactRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -11891,7 +11900,7 @@ proto.resource.CreateRoleRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.CreateRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    role: (f = msg.getRole()) && proto.resource.Role.toObject(includeInstance, f)
+role: (f = msg.getRole()) && proto.resource.Role.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -12042,7 +12051,7 @@ proto.resource.CreateRoleRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.CreateRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -12172,8 +12181,8 @@ proto.resource.UpdateRoleRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.UpdateRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    values: jspb.Message.getFieldWithDefault(msg, 2, "")
+roleid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+values: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -12332,7 +12341,7 @@ proto.resource.UpdateRoleRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.UpdateRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -12462,8 +12471,8 @@ proto.resource.GetRolesRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.GetRolesRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -12629,7 +12638,7 @@ proto.resource.GetRolesRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.GetRolesRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    rolesList: jspb.Message.toObjectList(msg.getRolesList(),
+rolesList: jspb.Message.toObjectList(msg.getRolesList(),
     proto.resource.Role.toObject, includeInstance)
   };
 
@@ -12782,7 +12791,7 @@ proto.resource.DeleteRoleRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.DeleteRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    roleid: jspb.Message.getFieldWithDefault(msg, 1, "")
+roleid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -12912,7 +12921,7 @@ proto.resource.DeleteRoleRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.DeleteRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -13049,21 +13058,21 @@ proto.resource.Application.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Application.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    icon: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    alias: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 12, ""),
-    creationDate: jspb.Message.getFieldWithDefault(msg, 13, 0),
-    lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0),
-    typename: jspb.Message.getFieldWithDefault(msg, 15, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+password: jspb.Message.getFieldWithDefault(msg, 4, ""),
+path: jspb.Message.getFieldWithDefault(msg, 5, ""),
+version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+icon: jspb.Message.getFieldWithDefault(msg, 10, ""),
+alias: jspb.Message.getFieldWithDefault(msg, 11, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 12, ""),
+creationDate: jspb.Message.getFieldWithDefault(msg, 13, 0),
+lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0),
+typename: jspb.Message.getFieldWithDefault(msg, 15, "")
   };
 
   if (includeInstance) {
@@ -13146,7 +13155,7 @@ proto.resource.Application.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 12:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 13:
       var value = /** @type {number} */ (reader.readInt64());
@@ -13266,7 +13275,7 @@ proto.resource.Application.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       12,
@@ -13537,7 +13546,7 @@ proto.resource.Application.prototype.setAlias = function(value) {
  * optional string PublisherID = 12;
  * @return {string}
  */
-proto.resource.Application.prototype.getPublisherID = function() {
+proto.resource.Application.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
 };
 
@@ -13546,7 +13555,7 @@ proto.resource.Application.prototype.getPublisherID = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setPublisherID = function(value) {
+proto.resource.Application.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 12, value);
 };
 
@@ -13637,7 +13646,7 @@ proto.resource.CreateApplicationRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.CreateApplicationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    application: (f = msg.getApplication()) && proto.resource.Application.toObject(includeInstance, f)
+application: (f = msg.getApplication()) && proto.resource.Application.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13889,8 +13898,8 @@ proto.resource.UpdateApplicationRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.UpdateApplicationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    values: jspb.Message.getFieldWithDefault(msg, 2, "")
+applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+values: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -14049,7 +14058,7 @@ proto.resource.UpdateApplicationRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.UpdateApplicationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -14179,7 +14188,7 @@ proto.resource.DeleteApplicationRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.DeleteApplicationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationid: jspb.Message.getFieldWithDefault(msg, 1, "")
+applicationid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -14309,7 +14318,7 @@ proto.resource.DeleteApplicationRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.DeleteApplicationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -14446,8 +14455,8 @@ proto.resource.AddApplicationActionsRqst.prototype.toObject = function(opt_inclu
  */
 proto.resource.AddApplicationActionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -14625,7 +14634,7 @@ proto.resource.AddApplicationActionsRsp.prototype.toObject = function(opt_includ
  */
 proto.resource.AddApplicationActionsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -14755,8 +14764,8 @@ proto.resource.RemoveApplicationActionRqst.prototype.toObject = function(opt_inc
  */
 proto.resource.RemoveApplicationActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -14915,7 +14924,7 @@ proto.resource.RemoveApplicationActionRsp.prototype.toObject = function(opt_incl
  */
 proto.resource.RemoveApplicationActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -15045,7 +15054,7 @@ proto.resource.RemoveApplicationsActionRqst.prototype.toObject = function(opt_in
  */
 proto.resource.RemoveApplicationsActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -15175,7 +15184,7 @@ proto.resource.RemoveApplicationsActionRsp.prototype.toObject = function(opt_inc
  */
 proto.resource.RemoveApplicationsActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -15305,8 +15314,8 @@ proto.resource.GetApplicationsRqst.prototype.toObject = function(opt_includeInst
  */
 proto.resource.GetApplicationsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -15472,7 +15481,7 @@ proto.resource.GetApplicationsRsp.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.GetApplicationsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationsList: jspb.Message.toObjectList(msg.getApplicationsList(),
+applicationsList: jspb.Message.toObjectList(msg.getApplicationsList(),
     proto.resource.Application.toObject, includeInstance)
   };
 
@@ -15625,7 +15634,7 @@ proto.resource.GetApplicationVersionRqst.prototype.toObject = function(opt_inclu
  */
 proto.resource.GetApplicationVersionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -15755,7 +15764,7 @@ proto.resource.GetApplicationVersionRsp.prototype.toObject = function(opt_includ
  */
 proto.resource.GetApplicationVersionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    version: jspb.Message.getFieldWithDefault(msg, 1, "")
+version: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -15885,7 +15894,7 @@ proto.resource.GetApplicationIconRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.GetApplicationIconRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -16015,7 +16024,7 @@ proto.resource.GetApplicationIconRsp.prototype.toObject = function(opt_includeIn
  */
 proto.resource.GetApplicationIconRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    icon: jspb.Message.getFieldWithDefault(msg, 1, "")
+icon: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -16145,7 +16154,7 @@ proto.resource.GetApplicationAliasRqst.prototype.toObject = function(opt_include
  */
 proto.resource.GetApplicationAliasRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -16275,7 +16284,7 @@ proto.resource.GetApplicationAliasRsp.prototype.toObject = function(opt_includeI
  */
 proto.resource.GetApplicationAliasRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    alias: jspb.Message.getFieldWithDefault(msg, 1, "")
+alias: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -16412,13 +16421,13 @@ proto.resource.Group.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Group.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    membersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 7, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+description: jspb.Message.getFieldWithDefault(msg, 4, ""),
+accountsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+typename: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -16473,7 +16482,7 @@ proto.resource.Group.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.addAccounts(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
@@ -16540,7 +16549,7 @@ proto.resource.Group.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getMembersList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       5,
@@ -16637,10 +16646,10 @@ proto.resource.Group.prototype.setDescription = function(value) {
 
 
 /**
- * repeated string members = 5;
+ * repeated string accounts = 5;
  * @return {!Array<string>}
  */
-proto.resource.Group.prototype.getMembersList = function() {
+proto.resource.Group.prototype.getAccountsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
@@ -16649,7 +16658,7 @@ proto.resource.Group.prototype.getMembersList = function() {
  * @param {!Array<string>} value
  * @return {!proto.resource.Group} returns this
  */
-proto.resource.Group.prototype.setMembersList = function(value) {
+proto.resource.Group.prototype.setAccountsList = function(value) {
   return jspb.Message.setField(this, 5, value || []);
 };
 
@@ -16659,7 +16668,7 @@ proto.resource.Group.prototype.setMembersList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.resource.Group} returns this
  */
-proto.resource.Group.prototype.addMembers = function(value, opt_index) {
+proto.resource.Group.prototype.addAccounts = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
@@ -16668,8 +16677,8 @@ proto.resource.Group.prototype.addMembers = function(value, opt_index) {
  * Clears the list making it empty but non-null.
  * @return {!proto.resource.Group} returns this
  */
-proto.resource.Group.prototype.clearMembersList = function() {
-  return this.setMembersList([]);
+proto.resource.Group.prototype.clearAccountsList = function() {
+  return this.setAccountsList([]);
 };
 
 
@@ -16760,7 +16769,7 @@ proto.resource.CreateGroupRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.CreateGroupRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    group: (f = msg.getGroup()) && proto.resource.Group.toObject(includeInstance, f)
+group: (f = msg.getGroup()) && proto.resource.Group.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -16911,7 +16920,7 @@ proto.resource.CreateGroupRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.CreateGroupRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -17041,8 +17050,8 @@ proto.resource.UpdateGroupRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.UpdateGroupRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    values: jspb.Message.getFieldWithDefault(msg, 2, "")
+groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+values: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -17201,7 +17210,7 @@ proto.resource.UpdateGroupRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.UpdateGroupRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -17331,8 +17340,8 @@ proto.resource.GetGroupsRqst.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.GetGroupsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -17498,7 +17507,7 @@ proto.resource.GetGroupsRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.GetGroupsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
+groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
     proto.resource.Group.toObject, includeInstance)
   };
 
@@ -17651,7 +17660,7 @@ proto.resource.DeleteGroupRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.DeleteGroupRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    group: jspb.Message.getFieldWithDefault(msg, 1, "")
+group: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -17781,7 +17790,7 @@ proto.resource.DeleteGroupRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.DeleteGroupRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -17911,8 +17920,8 @@ proto.resource.AddGroupMemberAccountRqst.prototype.toObject = function(opt_inclu
  */
 proto.resource.AddGroupMemberAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
+groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -18071,7 +18080,7 @@ proto.resource.AddGroupMemberAccountRsp.prototype.toObject = function(opt_includ
  */
 proto.resource.AddGroupMemberAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -18201,8 +18210,8 @@ proto.resource.RemoveGroupMemberAccountRqst.prototype.toObject = function(opt_in
  */
 proto.resource.RemoveGroupMemberAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
+groupid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -18361,7 +18370,7 @@ proto.resource.RemoveGroupMemberAccountRsp.prototype.toObject = function(opt_inc
  */
 proto.resource.RemoveGroupMemberAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -18498,17 +18507,17 @@ proto.resource.Organization.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Organization.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    email: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    icon: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 11, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+email: jspb.Message.getFieldWithDefault(msg, 4, ""),
+icon: jspb.Message.getFieldWithDefault(msg, 5, ""),
+description: jspb.Message.getFieldWithDefault(msg, 6, ""),
+accountsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+groupsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+rolesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+applicationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+typename: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -19004,7 +19013,7 @@ proto.resource.CreateOrganizationRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.CreateOrganizationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organization: (f = msg.getOrganization()) && proto.resource.Organization.toObject(includeInstance, f)
+organization: (f = msg.getOrganization()) && proto.resource.Organization.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -19155,7 +19164,7 @@ proto.resource.CreateOrganizationRsp.prototype.toObject = function(opt_includeIn
  */
 proto.resource.CreateOrganizationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -19285,8 +19294,8 @@ proto.resource.UpdateOrganizationRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.UpdateOrganizationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    values: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+values: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -19445,7 +19454,7 @@ proto.resource.UpdateOrganizationRsp.prototype.toObject = function(opt_includeIn
  */
 proto.resource.UpdateOrganizationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -19575,8 +19584,8 @@ proto.resource.GetOrganizationsRqst.prototype.toObject = function(opt_includeIns
  */
 proto.resource.GetOrganizationsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -19742,7 +19751,7 @@ proto.resource.GetOrganizationsRsp.prototype.toObject = function(opt_includeInst
  */
 proto.resource.GetOrganizationsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationsList: jspb.Message.toObjectList(msg.getOrganizationsList(),
+organizationsList: jspb.Message.toObjectList(msg.getOrganizationsList(),
     proto.resource.Organization.toObject, includeInstance)
   };
 
@@ -19895,8 +19904,8 @@ proto.resource.AddOrganizationAccountRqst.prototype.toObject = function(opt_incl
  */
 proto.resource.AddOrganizationAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -20055,7 +20064,7 @@ proto.resource.AddOrganizationAccountRsp.prototype.toObject = function(opt_inclu
  */
 proto.resource.AddOrganizationAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -20185,8 +20194,8 @@ proto.resource.AddOrganizationGroupRqst.prototype.toObject = function(opt_includ
  */
 proto.resource.AddOrganizationGroupRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    groupid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+groupid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -20345,7 +20354,7 @@ proto.resource.AddOrganizationGroupRsp.prototype.toObject = function(opt_include
  */
 proto.resource.AddOrganizationGroupRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -20475,8 +20484,8 @@ proto.resource.AddOrganizationRoleRqst.prototype.toObject = function(opt_include
  */
 proto.resource.AddOrganizationRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -20635,7 +20644,7 @@ proto.resource.AddOrganizationRoleRsp.prototype.toObject = function(opt_includeI
  */
 proto.resource.AddOrganizationRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -20765,8 +20774,8 @@ proto.resource.AddOrganizationApplicationRqst.prototype.toObject = function(opt_
  */
 proto.resource.AddOrganizationApplicationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    applicationid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+applicationid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -20925,7 +20934,7 @@ proto.resource.AddOrganizationApplicationRsp.prototype.toObject = function(opt_i
  */
 proto.resource.AddOrganizationApplicationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -21055,8 +21064,8 @@ proto.resource.RemoveOrganizationGroupRqst.prototype.toObject = function(opt_inc
  */
 proto.resource.RemoveOrganizationGroupRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    groupid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+groupid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -21215,7 +21224,7 @@ proto.resource.RemoveOrganizationGroupRsp.prototype.toObject = function(opt_incl
  */
 proto.resource.RemoveOrganizationGroupRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -21345,8 +21354,8 @@ proto.resource.RemoveOrganizationRoleRqst.prototype.toObject = function(opt_incl
  */
 proto.resource.RemoveOrganizationRoleRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+roleid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -21505,7 +21514,7 @@ proto.resource.RemoveOrganizationRoleRsp.prototype.toObject = function(opt_inclu
  */
 proto.resource.RemoveOrganizationRoleRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -21635,8 +21644,8 @@ proto.resource.RemoveOrganizationApplicationRqst.prototype.toObject = function(o
  */
 proto.resource.RemoveOrganizationApplicationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    applicationid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+applicationid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -21795,7 +21804,7 @@ proto.resource.RemoveOrganizationApplicationRsp.prototype.toObject = function(op
  */
 proto.resource.RemoveOrganizationApplicationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -21925,8 +21934,8 @@ proto.resource.RemoveOrganizationAccountRqst.prototype.toObject = function(opt_i
  */
 proto.resource.RemoveOrganizationAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -22085,7 +22094,7 @@ proto.resource.RemoveOrganizationAccountRsp.prototype.toObject = function(opt_in
  */
 proto.resource.RemoveOrganizationAccountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22215,8 +22224,8 @@ proto.resource.IsOrgnanizationMemberRqst.prototype.toObject = function(opt_inclu
  */
 proto.resource.IsOrgnanizationMemberRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
+organizationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -22375,7 +22384,7 @@ proto.resource.IsOrgnanizationMemberRsp.prototype.toObject = function(opt_includ
  */
 proto.resource.IsOrgnanizationMemberRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22505,7 +22514,7 @@ proto.resource.DeleteOrganizationRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.DeleteOrganizationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    organization: jspb.Message.getFieldWithDefault(msg, 1, "")
+organization: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -22635,7 +22644,7 @@ proto.resource.DeleteOrganizationRsp.prototype.toObject = function(opt_includeIn
  */
 proto.resource.DeleteOrganizationRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22772,17 +22781,17 @@ proto.resource.Peer.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Peer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    ExternalIPAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    LocalIPAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    mac: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    PortHTTP: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    PortHTTPS: jspb.Message.getFieldWithDefault(msg, 7, 0),
-    protocol: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    state: jspb.Message.getFieldWithDefault(msg, 9, 0),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
-    typename: jspb.Message.getFieldWithDefault(msg, 11, "")
+hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+externalIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
+localIpAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
+mac: jspb.Message.getFieldWithDefault(msg, 5, ""),
+portHttp: jspb.Message.getFieldWithDefault(msg, 6, 0),
+portHttps: jspb.Message.getFieldWithDefault(msg, 7, 0),
+protocol: jspb.Message.getFieldWithDefault(msg, 8, ""),
+state: jspb.Message.getFieldWithDefault(msg, 9, 0),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+typename: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -22829,11 +22838,11 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setExternalIPAddress(value);
+      msg.setExternalIpAddress(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLocalIPAddress(value);
+      msg.setLocalIpAddress(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
@@ -22841,11 +22850,11 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 6:
       var value = /** @type {number} */ (reader.readInt32());
-      msg.setPortHTTP(value);
+      msg.setPortHttp(value);
       break;
     case 7:
       var value = /** @type {number} */ (reader.readInt32());
-      msg.setPortHTTPS(value);
+      msg.setPortHttps(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
@@ -22906,14 +22915,14 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getExternalIPAddress();
+  f = message.getExternalIpAddress();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getLocalIPAddress();
+  f = message.getLocalIpAddress();
   if (f.length > 0) {
     writer.writeString(
       4,
@@ -22927,14 +22936,14 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPortHTTP();
+  f = message.getPortHttp();
   if (f !== 0) {
     writer.writeInt32(
       6,
       f
     );
   }
-  f = message.getPortHTTPS();
+  f = message.getPortHttps();
   if (f !== 0) {
     writer.writeInt32(
       7,
@@ -23012,7 +23021,7 @@ proto.resource.Peer.prototype.setDomain = function(value) {
  * optional string external_ip_address = 3;
  * @return {string}
  */
-proto.resource.Peer.prototype.getExternalIPAddress = function() {
+proto.resource.Peer.prototype.getExternalIpAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -23021,7 +23030,7 @@ proto.resource.Peer.prototype.getExternalIPAddress = function() {
  * @param {string} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setExternalIPAddress = function(value) {
+proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -23030,7 +23039,7 @@ proto.resource.Peer.prototype.setExternalIPAddress = function(value) {
  * optional string local_ip_address = 4;
  * @return {string}
  */
-proto.resource.Peer.prototype.getLocalIPAddress = function() {
+proto.resource.Peer.prototype.getLocalIpAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -23039,7 +23048,7 @@ proto.resource.Peer.prototype.getLocalIPAddress = function() {
  * @param {string} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setLocalIPAddress = function(value) {
+proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -23063,10 +23072,10 @@ proto.resource.Peer.prototype.setMac = function(value) {
 
 
 /**
- * optional int32 PortHTTP = 6;
+ * optional int32 port_http = 6;
  * @return {number}
  */
-proto.resource.Peer.prototype.getPortHTTP = function() {
+proto.resource.Peer.prototype.getPortHttp = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
 };
 
@@ -23075,16 +23084,16 @@ proto.resource.Peer.prototype.getPortHTTP = function() {
  * @param {number} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setPortHTTP = function(value) {
+proto.resource.Peer.prototype.setPortHttp = function(value) {
   return jspb.Message.setProto3IntField(this, 6, value);
 };
 
 
 /**
- * optional int32 PortHTTPS = 7;
+ * optional int32 port_https = 7;
  * @return {number}
  */
-proto.resource.Peer.prototype.getPortHTTPS = function() {
+proto.resource.Peer.prototype.getPortHttps = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
 };
 
@@ -23093,7 +23102,7 @@ proto.resource.Peer.prototype.getPortHTTPS = function() {
  * @param {number} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setPortHTTPS = function(value) {
+proto.resource.Peer.prototype.setPortHttps = function(value) {
   return jspb.Message.setProto3IntField(this, 7, value);
 };
 
@@ -23221,8 +23230,8 @@ proto.resource.GetPeerApprovalStateRqst.prototype.toObject = function(opt_includ
  */
 proto.resource.GetPeerApprovalStateRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
+mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -23381,7 +23390,7 @@ proto.resource.GetPeerApprovalStateRsp.prototype.toObject = function(opt_include
  */
 proto.resource.GetPeerApprovalStateRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    state: jspb.Message.getFieldWithDefault(msg, 1, 0)
+state: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -23511,8 +23520,8 @@ proto.resource.GetPeerPublicKeyRqst.prototype.toObject = function(opt_includeIns
  */
 proto.resource.GetPeerPublicKeyRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
+mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -23671,7 +23680,7 @@ proto.resource.GetPeerPublicKeyRsp.prototype.toObject = function(opt_includeInst
  */
 proto.resource.GetPeerPublicKeyRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    publicKey: jspb.Message.getFieldWithDefault(msg, 1, "")
+publicKey: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -23801,8 +23810,8 @@ proto.resource.RegisterPeerRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.resource.RegisterPeerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f),
-    publicKey: jspb.Message.getFieldWithDefault(msg, 2, "")
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f),
+publicKey: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -23982,8 +23991,8 @@ proto.resource.RegisterPeerRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.resource.RegisterPeerRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f),
-    publicKey: jspb.Message.getFieldWithDefault(msg, 2, "")
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f),
+publicKey: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -24163,7 +24172,7 @@ proto.resource.UpdatePeerRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.UpdatePeerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -24314,7 +24323,7 @@ proto.resource.UpdatePeerRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.UpdatePeerRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -24444,8 +24453,8 @@ proto.resource.GetPeersRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.GetPeersRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -24611,7 +24620,7 @@ proto.resource.GetPeersRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.GetPeersRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peersList: jspb.Message.toObjectList(msg.getPeersList(),
+peersList: jspb.Message.toObjectList(msg.getPeersList(),
     proto.resource.Peer.toObject, includeInstance)
   };
 
@@ -24764,7 +24773,7 @@ proto.resource.DeletePeerRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.DeletePeerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -24915,7 +24924,7 @@ proto.resource.DeletePeerRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.DeletePeerRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -25052,8 +25061,8 @@ proto.resource.AddPeerActionsRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.AddPeerActionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -25231,7 +25240,7 @@ proto.resource.AddPeerActionsRsp.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.AddPeerActionsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -25361,8 +25370,8 @@ proto.resource.RemovePeerActionRqst.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemovePeerActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -25521,7 +25530,7 @@ proto.resource.RemovePeerActionRsp.prototype.toObject = function(opt_includeInst
  */
 proto.resource.RemovePeerActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -25651,7 +25660,7 @@ proto.resource.RemovePeersActionRqst.prototype.toObject = function(opt_includeIn
  */
 proto.resource.RemovePeersActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    action: jspb.Message.getFieldWithDefault(msg, 2, "")
+action: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -25781,7 +25790,7 @@ proto.resource.RemovePeersActionRsp.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemovePeersActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -25911,7 +25920,7 @@ proto.resource.AcceptPeerRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.AcceptPeerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -26062,7 +26071,7 @@ proto.resource.AcceptPeerRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.AcceptPeerRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -26192,7 +26201,7 @@ proto.resource.RejectPeerRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.RejectPeerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
+peer: (f = msg.getPeer()) && proto.resource.Peer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -26343,7 +26352,7 @@ proto.resource.RejectPeerRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.RejectPeerRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -26473,12 +26482,12 @@ proto.resource.Call.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Call.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    caller: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    callee: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    starttime: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    endtime: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    typename: jspb.Message.getFieldWithDefault(msg, 6, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+caller: jspb.Message.getFieldWithDefault(msg, 2, ""),
+callee: jspb.Message.getFieldWithDefault(msg, 3, ""),
+starttime: jspb.Message.getFieldWithDefault(msg, 4, 0),
+endtime: jspb.Message.getFieldWithDefault(msg, 5, 0),
+typename: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -26753,7 +26762,7 @@ proto.resource.GetCallHistoryRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.GetCallHistoryRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountId: jspb.Message.getFieldWithDefault(msg, 1, "")
+accountId: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -26890,7 +26899,7 @@ proto.resource.GetCallHistoryRsp.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.GetCallHistoryRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    callsList: jspb.Message.toObjectList(msg.getCallsList(),
+callsList: jspb.Message.toObjectList(msg.getCallsList(),
     proto.resource.Call.toObject, includeInstance)
   };
 
@@ -27043,7 +27052,7 @@ proto.resource.SetCallRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.SetCallRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    call: (f = msg.getCall()) && proto.resource.Call.toObject(includeInstance, f)
+call: (f = msg.getCall()) && proto.resource.Call.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -27295,8 +27304,8 @@ proto.resource.DeleteCallRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.DeleteCallRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -27556,8 +27565,8 @@ proto.resource.ClearCallsRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.resource.ClearCallsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    filter: jspb.Message.getFieldWithDefault(msg, 2, "")
+accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+filter: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -27817,14 +27826,14 @@ proto.resource.Notification.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Notification.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    date: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    message: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    recipient: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    sender: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    notificationType: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    typename: jspb.Message.getFieldWithDefault(msg, 8, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+date: jspb.Message.getFieldWithDefault(msg, 2, 0),
+message: jspb.Message.getFieldWithDefault(msg, 3, ""),
+recipient: jspb.Message.getFieldWithDefault(msg, 4, ""),
+sender: jspb.Message.getFieldWithDefault(msg, 5, ""),
+notificationType: jspb.Message.getFieldWithDefault(msg, 6, 0),
+mac: jspb.Message.getFieldWithDefault(msg, 7, ""),
+typename: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -28157,7 +28166,7 @@ proto.resource.CreateNotificationRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.CreateNotificationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    notification: (f = msg.getNotification()) && proto.resource.Notification.toObject(includeInstance, f)
+notification: (f = msg.getNotification()) && proto.resource.Notification.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -28409,7 +28418,7 @@ proto.resource.GetNotificationsRqst.prototype.toObject = function(opt_includeIns
  */
 proto.resource.GetNotificationsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    recipient: jspb.Message.getFieldWithDefault(msg, 1, "")
+recipient: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -28546,7 +28555,7 @@ proto.resource.GetNotificationsRsp.prototype.toObject = function(opt_includeInst
  */
 proto.resource.GetNotificationsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    notificationsList: jspb.Message.toObjectList(msg.getNotificationsList(),
+notificationsList: jspb.Message.toObjectList(msg.getNotificationsList(),
     proto.resource.Notification.toObject, includeInstance)
   };
 
@@ -28699,8 +28708,8 @@ proto.resource.DeleteNotificationRqst.prototype.toObject = function(opt_includeI
  */
 proto.resource.DeleteNotificationRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    recipient: jspb.Message.getFieldWithDefault(msg, 2, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+recipient: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -28960,7 +28969,7 @@ proto.resource.ClearAllNotificationsRqst.prototype.toObject = function(opt_inclu
  */
 proto.resource.ClearAllNotificationsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    recipient: jspb.Message.getFieldWithDefault(msg, 1, "")
+recipient: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -29191,8 +29200,8 @@ proto.resource.ClearNotificationsByTypeRqst.prototype.toObject = function(opt_in
  */
 proto.resource.ClearNotificationsByTypeRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    recipient: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    notificationType: jspb.Message.getFieldWithDefault(msg, 2, 0)
+recipient: jspb.Message.getFieldWithDefault(msg, 1, ""),
+notificationType: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -29452,11 +29461,11 @@ proto.resource.Session.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Session.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    state: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    lastStateTime: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    expireAt: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    typename: jspb.Message.getFieldWithDefault(msg, 5, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+state: jspb.Message.getFieldWithDefault(msg, 2, 0),
+lastStateTime: jspb.Message.getFieldWithDefault(msg, 3, 0),
+expireAt: jspb.Message.getFieldWithDefault(msg, 4, 0),
+typename: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -29702,7 +29711,7 @@ proto.resource.UpdateSessionRequest.prototype.toObject = function(opt_includeIns
  */
 proto.resource.UpdateSessionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    session: (f = msg.getSession()) && proto.resource.Session.toObject(includeInstance, f)
+session: (f = msg.getSession()) && proto.resource.Session.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -29954,7 +29963,7 @@ proto.resource.RemoveSessionRequest.prototype.toObject = function(opt_includeIns
  */
 proto.resource.RemoveSessionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -30185,8 +30194,8 @@ proto.resource.GetSessionsRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.GetSessionsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 2, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+options: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -30352,7 +30361,7 @@ proto.resource.GetSessionsResponse.prototype.toObject = function(opt_includeInst
  */
 proto.resource.GetSessionsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    sessionsList: jspb.Message.toObjectList(msg.getSessionsList(),
+sessionsList: jspb.Message.toObjectList(msg.getSessionsList(),
     proto.resource.Session.toObject, includeInstance)
   };
 
@@ -30505,7 +30514,7 @@ proto.resource.GetSessionRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.resource.GetSessionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -30635,7 +30644,7 @@ proto.resource.GetSessionResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.resource.GetSessionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    session: (f = msg.getSession()) && proto.resource.Session.toObject(includeInstance, f)
+session: (f = msg.getSession()) && proto.resource.Session.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -30786,11 +30795,11 @@ proto.resource.CreateReferenceRqst.prototype.toObject = function(opt_includeInst
  */
 proto.resource.CreateReferenceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    sourceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    sourcecollection: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    fieldname: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    targetid: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    targetcollection: jspb.Message.getFieldWithDefault(msg, 5, "")
+sourceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+sourcecollection: jspb.Message.getFieldWithDefault(msg, 2, ""),
+fieldname: jspb.Message.getFieldWithDefault(msg, 3, ""),
+targetid: jspb.Message.getFieldWithDefault(msg, 4, ""),
+targetcollection: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -31137,10 +31146,10 @@ proto.resource.DeleteReferenceRqst.prototype.toObject = function(opt_includeInst
  */
 proto.resource.DeleteReferenceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    refid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    targetid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    targetfield: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    targetcollection: jspb.Message.getFieldWithDefault(msg, 4, "")
+refid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+targetid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+targetfield: jspb.Message.getFieldWithDefault(msg, 3, ""),
+targetcollection: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {

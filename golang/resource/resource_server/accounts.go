@@ -73,7 +73,7 @@ func (srv *server) createGroup(token, id, name, owner, description string, membe
 			members[i] = members[i] + "@" + localDomain
 		}
 
-		err := srv.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
+		err := srv.createCrossReferences(id, "Groups", "accounts", members[i], "Accounts", "groups")
 		if err != nil {
 			return err
 		}
@@ -293,7 +293,7 @@ func (srv *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.A
 		rqst.GroupId += "@" + srv.Domain
 	}
 
-	err := srv.createCrossReferences(rqst.GroupId, "Groups", "members", rqst.AccountId, "Accounts", "groups")
+	err := srv.createCrossReferences(rqst.GroupId, "Groups", "accounts", rqst.AccountId, "Accounts", "groups")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -399,7 +399,7 @@ func (srv *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroup
 	}
 
 	// Get the persistence connection
-	err = srv.createGroup(token, rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
+	err = srv.createGroup(token, rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Accounts)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -612,7 +612,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
-			srv.deleteReference(p, rqst.Id, groupId, "members", "Groups")
+			srv.deleteReference(p, rqst.Id, groupId, "accounts", "Groups")
 			srv.publishEvent("update_group_"+groupId+"_evt", []byte{}, srv.Address)
 		}
 	}
@@ -630,7 +630,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
-			srv.deleteReference(p, rqst.Id, roleId, "members", "Roles")
+			srv.deleteReference(p, rqst.Id, roleId, "accounts", "Roles")
 			srv.publishEvent("update_role_"+roleId+"_evt", []byte{}, srv.Address)
 		}
 
@@ -779,14 +779,14 @@ func (srv *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroup
 
 	// I will remove it from accounts...
 
-	if group["members"] != nil {
+	if group["accounts"] != nil {
 
 		var members []interface{}
-		switch group["members"].(type) {
+		switch group["accounts"].(type) {
 		case primitive.A:
-			members = []interface{}(group["members"].(primitive.A))
+			members = []interface{}(group["accounts"].(primitive.A))
 		case []interface{}:
-			members = group["members"].([]interface{})
+			members = group["accounts"].([]interface{})
 		}
 
 		for j := 0; j < len(members); j++ {
@@ -1318,26 +1318,26 @@ func (srv *server) getGroup(id string) (*resourcepb.Group, error) {
 		group.Name = values.(map[string]interface{})["name"].(string)
 		group.Id = values.(map[string]interface{})["_id"].(string)
 		group.Description = values.(map[string]interface{})["description"].(string)
-		group.Members = make([]string, 0)
+		group.Accounts = make([]string, 0)
 		if values.(map[string]interface{})["domain"] != nil {
 			group.Domain = values.(map[string]interface{})["domain"].(string)
 		} else {
 			group.Domain = srv.Domain
 		}
 
-		if values.(map[string]interface{})["members"] != nil {
+		if values.(map[string]interface{})["accounts"] != nil {
 
 			var members []interface{}
-			switch values.(map[string]interface{})["members"].(type) {
+			switch values.(map[string]interface{})["accounts"].(type) {
 			case primitive.A:
-				members = []interface{}(values.(map[string]interface{})["members"].(primitive.A))
+				members = []interface{}(values.(map[string]interface{})["accounts"].(primitive.A))
 			case []interface{}:
-				members = values.(map[string]interface{})["members"].([]interface{})
+				members = values.(map[string]interface{})["accounts"].([]interface{})
 			}
 
-			group.Members = make([]string, 0)
+			group.Accounts = make([]string, 0)
 			for j := 0; j < len(members); j++ {
-				group.Members = append(group.Members, members[j].(map[string]interface{})["$id"].(string))
+				group.Accounts = append(group.Accounts, members[j].(map[string]interface{})["$id"].(string))
 			}
 		}
 
@@ -1391,26 +1391,26 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 
 	for i := 0; i < len(groups); i++ {
 
-		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Members: make([]string, 0)}
+		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Accounts: make([]string, 0)}
 		if groups[i].(map[string]interface{})["domain"] != nil {
 			g.Domain = groups[i].(map[string]interface{})["domain"].(string)
 		} else {
 			g.Domain = srv.Domain
 		}
 
-		if groups[i].(map[string]interface{})["members"] != nil {
+		if groups[i].(map[string]interface{})["accounts"] != nil {
 
 			var members []interface{}
-			switch groups[i].(map[string]interface{})["members"].(type) {
+			switch groups[i].(map[string]interface{})["accounts"].(type) {
 			case primitive.A:
-				members = []interface{}(groups[i].(map[string]interface{})["members"].(primitive.A))
+				members = []interface{}(groups[i].(map[string]interface{})["accounts"].(primitive.A))
 			case []interface{}:
-				members = groups[i].(map[string]interface{})["members"].([]interface{})
+				members = groups[i].(map[string]interface{})["accounts"].([]interface{})
 			}
 
-			g.Members = make([]string, 0)
+			g.Accounts = make([]string, 0)
 			for j := 0; j < len(members); j++ {
-				g.Members = append(g.Members, members[j].(map[string]interface{})["$id"].(string))
+				g.Accounts = append(g.Accounts, members[j].(map[string]interface{})["$id"].(string))
 			}
 		} else if groups[i].(map[string]interface{})["organizations"] != nil {
 
@@ -1771,7 +1771,7 @@ func (srv *server) registerAccount(ctx context.Context, domain, id, name, email,
 		if !strings.Contains(roles[i], "@") {
 			roles[i] = roles[i] + "@" + localDomain
 		}
-		srv.createCrossReferences(roles[i], "Roles", "members", id, "Accounts", "roles")
+		srv.createCrossReferences(roles[i], "Roles", "accounts", id, "Accounts", "roles")
 	}
 
 	// Groups
@@ -1779,7 +1779,7 @@ func (srv *server) registerAccount(ctx context.Context, domain, id, name, email,
 		if !strings.Contains(groups[i], "@") {
 			groups[i] = groups[i] + "@" + localDomain
 		}
-		srv.createCrossReferences(groups[i], "Groups", "members", id, "Accounts", "groups")
+		srv.createCrossReferences(groups[i], "Groups", "accounts", id, "Accounts", "groups")
 	}
 
 	// Create the user file directory.
@@ -1903,7 +1903,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 //
 // The function performs the following steps:
 //  1. Retrieves the persistence store.
-//  2. Deletes the reference from the account to the group ("members" in "Groups").
+//  2. Deletes the reference from the account to the group ("accounts" in "Groups").
 //  3. Deletes the reference from the group to the account ("groups" in "Accounts").
 //  4. Publishes update events for both the group and the account.
 func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcepb.RemoveGroupMemberAccountRqst) (*resourcepb.RemoveGroupMemberAccountRsp, error) {
@@ -1913,7 +1913,7 @@ func (srv *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcep
 	}
 
 	// That service made user of persistence service.
-	err = srv.deleteReference(p, rqst.AccountId, rqst.GroupId, "members", "Groups")
+	err = srv.deleteReference(p, rqst.AccountId, rqst.GroupId, "accounts", "Groups")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

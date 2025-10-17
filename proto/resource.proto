@@ -100,7 +100,7 @@ message Role {
   repeated string actions = 5; // Actions associated with the role.
 
   // References to other entities.
-  repeated string members = 6; // Accounts that are members of this role.
+  repeated string accounts = 6; // Accounts that are members of this role.
   repeated string organizations = 7; // Organizations associated with this role.
 
   string typeName = 8; // Type name for object type identification.
@@ -429,7 +429,7 @@ message Group {
   string name = 2;                  // Name of the group, unique on the network.
   string domain = 3;                // Domain associated with the group.
   string description = 4;           // Description of the group.
-  repeated string members = 5;      // Members of the group, can be empty.
+  repeated string accounts = 5;      // Members of the group, can be empty.
   repeated string organizations = 6;// Organizations associated with the group, can be empty.
   string typeName = 7;              // Type information about the object.
 }

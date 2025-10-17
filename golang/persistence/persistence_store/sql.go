@@ -44,6 +44,16 @@ func (store *SqlStore) GetStoreType() string {
 	return "SQL"
 }
 
+// --------- Canonical link-table helpers (NEW) ----------
+
+func ensurePlural(s string) string {
+	s = strings.ToLower(s)
+	if !strings.HasSuffix(s, "s") {
+		return s + "s"
+	}
+	return s
+}
+
 // Connect establishes a new logical connection to a SQL database (SQLite file).
 // If the database file does not exist, it will be created.
 // It authenticates the user with the Authentication service before opening the DB.
@@ -572,28 +582,38 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 
 		// Arrays of primitives or references.
 		if reflect.Slice == reflect.TypeOf(columnValue).Kind() {
-			arrayTableName := tableName + "_" + columnName
 			sliceValue := reflect.ValueOf(columnValue)
 			length := sliceValue.Len()
 
 			for i := 0; i < length; i++ {
 				element := sliceValue.Index(i)
 
-				arrayInsertSQL := fmt.Sprintf("INSERT INTO %s (value, %s_id) VALUES (?, ?);", arrayTableName, tableName)
-				parameters := make([]interface{}, 0)
-
 				switch el := element.Interface().(type) {
-				case int:
-					parameters = append(parameters, el)
-				case float64:
-					parameters = append(parameters, el)
-				case string:
-					parameters = append(parameters, el)
+				case int, float64, string:
+					// Primitive arrays keep the old shape <table>_<field>
+					arrayTableName := tableName + "_" + columnName
+					// Ensure primitive array table exists.
+					if !store.isTableExist(connectionId, db, arrayTableName) {
+						sqlType := getSQLType(reflect.TypeOf(el))
+						createTableSQL := fmt.Sprintf(
+							"CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT)",
+							arrayTableName, sqlType, tableName,
+						)
+						if _, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0); err != nil {
+							return nil, err
+						}
+					}
+					insert := fmt.Sprintf("INSERT INTO %s (value, %s_id) VALUES (?, ?);", arrayTableName, tableName)
+					if _, err := store.ExecContext(connectionId, db, insert, []interface{}{el, id}, 0); err != nil {
+						log.Error("insert array value failed", "arrayTable", arrayTableName, "err", err)
+						return nil, err
+					}
+
 				case map[string]interface{}:
 					entity := el
-					// Store embedded typed entity -> create reference row.
+					// Embedded typed entity -> persist and link
 					if entity["typeName"] != nil {
-						typeName := entity["typeName"].(string)
+						typeName := ensurePlural(Utility.ToString(entity["typeName"]))
 						// normalize domain
 						localDomain, _ := config.GetDomain()
 						if entity["domain"] == nil {
@@ -601,59 +621,51 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 						} else if entity["domain"] == "localhost" {
 							entity["domain"] = localDomain
 						}
-						// persist target entity (in plural table)
 						var err error
-						entity, err = store.insertData(connectionId, db, typeName+"s", entity)
+						entity, err = store.insertData(connectionId, db, typeName, entity)
 						if err != nil {
 							log.Error("insert nested entity failed", "type", typeName, "err", err)
 						}
-						// create reference table and link
-						_id := Utility.ToInt(entity["_id"])
-						sourceCollection := tableName
-						targetCollection := typeName + "s"
-						field := columnName
+						targetID := Utility.ToString(entity["_id"])
+						linkTable, baseIsFirst := canonicalRefTable(tableName, typeName)
 
-						createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s_%s (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`,
-							sourceCollection, field, sourceCollection, targetCollection)
-						_, _ = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+						createLink := fmt.Sprintf(
+							"CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)",
+							linkTable,
+						)
+						_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
 
-						insertRefSQL := fmt.Sprintf("INSERT INTO %s_%s (source_id, target_id) VALUES (?, ?);", sourceCollection, field)
-						_, _ = store.ExecContext("local_resource", db, insertRefSQL, []interface{}{id, _id}, 0)
-						// handled as reference; skip primitive array insert
-						parameters = nil
+						var src, dst interface{}
+						if baseIsFirst {
+							src, dst = id, targetID
+						} else {
+							src, dst = targetID, id
+						}
+						ins := fmt.Sprintf("INSERT INTO %s (source_id, target_id) VALUES (?, ?);", linkTable)
+						_, _ = store.ExecContext(connectionId, db, ins, []interface{}{src, dst}, 0)
+
 					} else if entity["$ref"] != nil {
-						sourceCollection := tableName
-						targetCollection := entity["$ref"].(string)
-						_id := entity["$id"].(string)
-						field := columnName
+						targetCollection := ensurePlural(Utility.ToString(entity["$ref"]))
+						targetID := Utility.ToString(entity["$id"])
+						linkTable, baseIsFirst := canonicalRefTable(tableName, targetCollection)
 
-						createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s_%s (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`,
-							sourceCollection, field, sourceCollection, targetCollection)
-						_, _ = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+						createLink := fmt.Sprintf(
+							"CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)",
+							linkTable,
+						)
+						_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
 
-						insertRefSQL := fmt.Sprintf("INSERT INTO %s_%s (source_id, target_id) VALUES (?, ?);", sourceCollection, field)
-						_, _ = store.ExecContext("local_resource", db, insertRefSQL, []interface{}{id, _id}, 0)
-						parameters = nil
+						var src, dst interface{}
+						if baseIsFirst {
+							src, dst = id, targetID
+						} else {
+							src, dst = targetID, id
+						}
+						ins := fmt.Sprintf("INSERT INTO %s (source_id, target_id) VALUES (?, ?);", linkTable)
+						_, _ = store.ExecContext(connectionId, db, ins, []interface{}{src, dst}, 0)
 					}
 				default:
 					// Unknown element type: skip
-					parameters = nil
-				}
-
-				if len(parameters) > 0 {
-					// Ensure array table exists (primitive arrays).
-					if !store.isTableExist(connectionId, db, arrayTableName) {
-						createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT, FOREIGN KEY (%s_id) REFERENCES %s(_id) ON DELETE CASCADE)",
-							arrayTableName, getSQLType(reflect.TypeOf(columnValue)), tableName, tableName, tableName)
-						if _, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0); err != nil {
-							return nil, err
-						}
-					}
-					parameters = append(parameters, id)
-					if _, err := store.ExecContext(connectionId, db, arrayInsertSQL, parameters, 0); err != nil {
-						log.Error("insert array value failed", "arrayTable", arrayTableName, "err", err)
-						return nil, err
-					}
 				}
 			}
 
@@ -661,40 +673,47 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 			// Single reference/embedded object
 			entity := columnValue.(map[string]interface{})
 			if entity["typeName"] != nil {
-				typeName := entity["typeName"].(string)
+				typeName := ensurePlural(Utility.ToString(entity["typeName"]))
 				if entity["domain"] == nil {
 					localDomain, _ := config.GetDomain()
 					entity["domain"] = localDomain
 				}
 				var err error
-				entity, err = store.insertData(connectionId, db, typeName+"s", entity)
+				entity, err = store.insertData(connectionId, db, typeName, entity)
 				if err != nil {
 					log.Error("insert nested entity failed", "type", typeName, "err", err)
 				}
-				_id := Utility.ToInt(entity["_id"])
-				sourceCollection := tableName
-				targetCollection := typeName + "s"
-				field := columnName
+				targetID := Utility.ToString(entity["_id"])
+				linkTable, baseIsFirst := canonicalRefTable(tableName, typeName)
 
-				createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s_%s (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`,
-					sourceCollection, field, sourceCollection, targetCollection)
-				_, _ = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+				createLink := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)", linkTable)
+				_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
 
-				insertRefSQL := fmt.Sprintf("INSERT INTO %s_%s (source_id, target_id) VALUES (?, ?);", sourceCollection, field)
-				_, _ = store.ExecContext("local_resource", db, insertRefSQL, []interface{}{id, _id}, 0)
+				var src, dst interface{}
+				if baseIsFirst {
+					src, dst = id, targetID
+				} else {
+					src, dst = targetID, id
+				}
+				ins := fmt.Sprintf("INSERT INTO %s (source_id, target_id) VALUES (?, ?);", linkTable)
+				_, _ = store.ExecContext(connectionId, db, ins, []interface{}{src, dst}, 0)
 
 			} else if entity["$ref"] != nil {
-				sourceCollection := tableName
-				targetCollection := entity["$ref"].(string)
-				_id := entity["$id"].(string)
-				field := columnName
+				targetCollection := ensurePlural(Utility.ToString(entity["$ref"]))
+				targetID := Utility.ToString(entity["$id"])
+				linkTable, baseIsFirst := canonicalRefTable(tableName, targetCollection)
 
-				createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s_%s (source_id TEXT, target_id TEXT, FOREIGN KEY (source_id) REFERENCES %s(_id) ON DELETE CASCADE, FOREIGN KEY (target_id) REFERENCES %s(_id) ON DELETE CASCADE)`,
-					sourceCollection, field, sourceCollection, targetCollection)
-				_, _ = store.ExecContext("local_resource", db, createTableSQL, nil, 0)
+				createLink := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)", linkTable)
+				_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
 
-				insertRefSQL := fmt.Sprintf("INSERT INTO %s_%s (source_id, target_id) VALUES (?, ?);", sourceCollection, field)
-				_, _ = store.ExecContext("local_resource", db, insertRefSQL, []interface{}{id, _id}, 0)
+				var src, dst interface{}
+				if baseIsFirst {
+					src, dst = id, targetID
+				} else {
+					src, dst = targetID, id
+				}
+				ins := fmt.Sprintf("INSERT INTO %s (source_id, target_id) VALUES (?, ?);", linkTable)
+				_, _ = store.ExecContext(connectionId, db, ins, []interface{}{src, dst}, 0)
 			}
 		}
 	}
@@ -812,7 +831,7 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 
 		objects = append(objects, object)
 
-		// Discover auxiliary tables that belong to this collection.
+		// Discover auxiliary tables that belong to this database.
 		query := "SELECT name FROM sqlite_master WHERE type='table'"
 		str, err := store.QueryContext(connectionId, db, query, "[]")
 		if err != nil {
@@ -825,57 +844,87 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 		}
 
 		domain, _ := config.GetDomain()
+		base := ensurePlural(tableName)
+		id := Utility.ToString(object["_id"])
 
 		for _, values := range tables["data"].([]interface{}) {
 			for _, value := range values.([]interface{}) {
-				table := value.(string)
-				if !strings.HasPrefix(table, tableName+"_") {
+				t := value.(string)
+
+				// 1) Primitive array tables: <tableName>_<field>
+				if strings.HasPrefix(t, tableName+"_") {
+					field := strings.TrimPrefix(t, tableName+"_")
+					if object[field] != nil {
+						continue
+					}
+					q := fmt.Sprintf("SELECT value FROM %s WHERE %s=?", t, tableName+"_id")
+					paramsJSON, _ := Utility.ToJson([]interface{}{id})
+					if s, e := store.QueryContext(connectionId, db, q, paramsJSON); e == nil {
+						data := make(map[string]interface{})
+						if err := json.Unmarshal([]byte(s), &data); err != nil {
+							return nil, err
+						}
+						array := make([]interface{}, 0, len(data["data"].([]interface{})))
+						for _, v := range data["data"].([]interface{}) {
+							array = append(array, v.([]interface{})[0])
+						}
+						object[field] = array
+						continue
+					}
+				}
+
+				// 2) Canonical ref tables: <left>_<right>, alphabetical
+				parts := strings.Split(t, "_")
+				if len(parts) != 2 {
 					continue
 				}
-				field := strings.Replace(table, tableName+"_", "", 1)
+				left := parts[0]
+				right := parts[1]
+
+				if left != base && right != base {
+					continue
+				}
+
+				// field name becomes the "other" token (plural)
+				other := left
+				colSelect := "source_id"
+				whereCol := "target_id"
+				if left == base {
+					other = right
+					colSelect = "target_id"
+					whereCol = "source_id"
+				}
+
+				field := other // keep plural as field (roles, organizations, etc.)
 				if object[field] != nil {
 					continue
 				}
 
-				// Try primitive array table shape.
-				query = fmt.Sprintf("SELECT value FROM %s WHERE %s=?", table, tableName+"_id")
-				paramsJSON, _ := Utility.ToJson([]interface{}{object["_id"]})
-				if str, err = store.QueryContext(connectionId, db, query, paramsJSON); err == nil {
+				// read refs from the correct side
+				q := fmt.Sprintf("SELECT %s FROM %s WHERE %s=?", colSelect, t, whereCol)
+				paramsJSON, _ := Utility.ToJson([]interface{}{id})
+				if s, e := store.QueryContext(connectionId, db, q, paramsJSON); e == nil {
 					data := make(map[string]interface{})
-					if err := json.Unmarshal([]byte(str), &data); err != nil {
-						return nil, err
-					}
-					array := make([]interface{}, 0, len(data["data"].([]interface{})))
-					for _, v := range data["data"].([]interface{}) {
-						array = append(array, v.([]interface{})[0])
-					}
-					object[field] = array
-					continue
-				}
-
-				// Try reference table shape (source_id,target_id).
-				query = fmt.Sprintf("SELECT * FROM %s WHERE source_id=?", table)
-				if str, err = store.QueryContext(connectionId, db, query, paramsJSON); err == nil {
-					data := make(map[string]interface{})
-					if json.Unmarshal([]byte(str), &data) == nil {
-						for _, vv := range data["data"].([]interface{}) {
-							refID := Utility.ToString(vv.([]interface{})[1])
+					if json.Unmarshal([]byte(s), &data) == nil {
+						arr := make([]interface{}, 0)
+						for _, row := range data["data"].([]interface{}) {
+							refID := Utility.ToString(row.([]interface{})[0])
 							if strings.Contains(refID, "@") {
 								if strings.Split(refID, "@")[0] != domain {
 									continue
 								}
 								refID = strings.Split(refID, "@")[0]
 							}
-							b := []byte(field)
-							b[0] = byte(unicode.ToUpper(rune(b[0])))
+							// $ref TypeName: capitalize the other token's first letter (compat with previous)
+							b := []byte(other)
+							if len(b) > 0 {
+								b[0] = byte(unicode.ToUpper(rune(b[0])))
+							}
 							typeName := string(b)
-							if typeName == "Members" {
-								typeName = "Accounts"
-							}
-							if object[field] == nil {
-								object[field] = make([]interface{}, 0)
-							}
-							object[field] = append(object[field].([]interface{}), map[string]interface{}{"$ref": typeName, "$id": refID, "$db": db})
+							arr = append(arr, map[string]interface{}{"$ref": typeName, "$id": refID, "$db": db})
+						}
+						if len(arr) > 0 {
+							object[field] = arr
 						}
 					}
 				}
@@ -1109,11 +1158,12 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 		return err
 	}
 
-	// Array fields are handled per-entity in UpdateOne; here we keep parity with original behavior.
+	// Array/reference sync for bulk update is not handled to keep parity with original behavior.
 	return nil
 }
 
-// UpdateOne applies a $set patch to a single entity and synchronizes array tables.
+// UpdateOne applies a $set patch to a single entity and synchronizes primitive array tables.
+// (Reference arrays are best updated via ReplaceOne/InsertOne in this minimal change.)
 func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
 	values_ := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(value), &values_); err != nil {
@@ -1155,7 +1205,7 @@ func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db st
 		return err
 	}
 
-	// Sync array tables for the updated entity.
+	// Sync primitive array tables for the updated entity.
 	for _, field := range arrayFields {
 		arrayTableName := table + "_" + field
 		if store.isTableExist(connectionId, db, arrayTableName) {
@@ -1213,20 +1263,50 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 	}
 
 	// Delete related rows from array/reference tables.
-	for columnName, columnValue := range entity.(map[string]interface{}) {
-		if columnName == "typeName" || columnValue == nil {
-			continue
-		}
-		if reflect.Slice == reflect.TypeOf(columnValue).Kind() {
-			arrayTableName := table + "_" + columnName
-			// Try primitive array table
-			delArr := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", arrayTableName, table)
-			if _, err := store.ExecContext(connectionId, db, delArr, []interface{}{entity.(map[string]interface{})["_id"]}, 0); err != nil {
-				// Try reference table (source_id, target_id)
-				delRef := fmt.Sprintf("DELETE FROM %s WHERE source_id=?", arrayTableName)
-				if _, err := store.ExecContext(connectionId, db, delRef, []interface{}{entity.(map[string]interface{})["_id"]}, 0); err != nil {
-					return err
-				}
+	// We will:
+	//  - remove primitive arrays: <table>_<field> WHERE <table>_id = ?
+	//  - remove canonical refs: <left>_<right> WHERE (source_id|target_id) = ? depending on side
+	id := Utility.ToString(entity.(map[string]interface{})["_id"])
+	base := ensurePlural(table)
+
+	// List tables once
+	list := "SELECT name FROM sqlite_master WHERE type='table'"
+	str, err := store.QueryContext(connectionId, db, list, "[]")
+	if err != nil {
+		return err
+	}
+	dbTables := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(str), &dbTables); err != nil {
+		return err
+	}
+
+	for _, values := range dbTables["data"].([]interface{}) {
+		for _, v := range values.([]interface{}) {
+			name := v.(string)
+
+			// Primitive arrays
+			if strings.HasPrefix(name, table+"_") {
+				delArr := fmt.Sprintf("DELETE FROM %s WHERE %s_id=?", name, table)
+				_, _ = store.ExecContext(connectionId, db, delArr, []interface{}{id}, 0)
+				continue
+			}
+
+			// Canonical refs
+			parts := strings.Split(name, "_")
+			if len(parts) != 2 {
+				continue
+			}
+			left := parts[0]
+			right := parts[1]
+			if left != base && right != base {
+				continue
+			}
+			if left == base {
+				delRef := fmt.Sprintf("DELETE FROM %s WHERE source_id=?", name)
+				_, _ = store.ExecContext(connectionId, db, delRef, []interface{}{id}, 0)
+			} else {
+				delRef := fmt.Sprintf("DELETE FROM %s WHERE target_id=?", name)
+				_, _ = store.ExecContext(connectionId, db, delRef, []interface{}{id}, 0)
 			}
 		}
 	}
@@ -1261,7 +1341,7 @@ func (store *SqlStore) CreateCollection(ctx context.Context, connectionId string
 	return errors.New("not implemented")
 }
 
-// DeleteCollection drops the table and all its auxiliary tables (<table>_*).
+// DeleteCollection drops the table and all its auxiliary tables (<table>_*) and ref tables containing this table.
 func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string, database string, collection string) error {
 	// Drop main table.
 	drop := fmt.Sprintf("DROP TABLE IF EXISTS %s", collection)
@@ -1269,7 +1349,7 @@ func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string
 		return err
 	}
 
-	// Drop auxiliary tables.
+	// Drop auxiliary and ref tables.
 	list := "SELECT name FROM sqlite_master WHERE type='table'"
 	str, err := store.QueryContext(connectionId, database, list, "[]")
 	if err != nil {
@@ -1281,13 +1361,17 @@ func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string
 		return err
 	}
 
+	base := ensurePlural(collection)
 	for _, values := range data["data"].([]interface{}) {
 		for _, v := range values.([]interface{}) {
 			name := v.(string)
 			if strings.HasPrefix(name, collection+"_") {
-				if _, err := store.ExecContext(connectionId, database, fmt.Sprintf("DROP TABLE IF EXISTS %s", name), nil, 0); err != nil {
-					return err
-				}
+				_, _ = store.ExecContext(connectionId, database, fmt.Sprintf("DROP TABLE IF EXISTS %s", name), nil, 0)
+				continue
+			}
+			parts := strings.Split(name, "_")
+			if len(parts) == 2 && (parts[0] == base || parts[1] == base) {
+				_, _ = store.ExecContext(connectionId, database, fmt.Sprintf("DROP TABLE IF EXISTS %s", name), nil, 0)
 			}
 		}
 	}
