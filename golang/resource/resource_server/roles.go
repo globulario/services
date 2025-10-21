@@ -16,6 +16,59 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// AddGroupRole associates a role with a group within the current domain.
+func (srv *server) AddGroupRole(ctx context.Context, rqst *resourcepb.AddGroupRoleRqst) (*resourcepb.AddGroupRoleRsp, error) {
+	if !strings.Contains(rqst.RoleId, "@") {
+		rqst.RoleId = rqst.RoleId + "@" + srv.Domain
+	}
+	if !strings.Contains(rqst.GroupId, "@") {
+		rqst.GroupId = rqst.GroupId + "@" + srv.Domain
+	}
+	// That service made user of persistence service.
+	err := srv.createCrossReferences(rqst.RoleId, "Roles", "groups", rqst.GroupId, "Groups", "roles")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
+	return &resourcepb.AddGroupRoleRsp{Result: true}, nil
+}
+
+// RemoveGroupRole removes the association between a role and a group.
+func (srv *server) RemoveGroupRole(ctx context.Context, rqst *resourcepb.RemoveGroupRoleRqst) (*resourcepb.RemoveGroupRoleRsp, error) {
+	if !strings.Contains(rqst.RoleId, "@") {
+		rqst.RoleId = rqst.RoleId + "@" + srv.Domain
+	}
+	if !strings.Contains(rqst.GroupId, "@") {
+		rqst.GroupId = rqst.GroupId + "@" + srv.Domain
+	}
+
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	err = srv.deleteReference(p, rqst.GroupId, rqst.RoleId, "roles", "Groups")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = srv.deleteReference(p, rqst.RoleId, rqst.GroupId, "groups", "Roles")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	srv.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
+	srv.publishEvent("update_group_"+rqst.GroupId+"_evt", []byte{}, srv.Address)
+
+	return &resourcepb.RemoveGroupRoleRsp{Result: true}, nil
+}
+
 // AddAccountRole associates an account with a role within the current domain.
 // It ensures that both the RoleId and AccountId contain the domain suffix, appending it if necessary.
 // The method creates cross-references between the role and account using the persistence service.
@@ -169,12 +222,14 @@ func (srv *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleA
 // Returns an error if any step fails.
 //
 // Parameters:
-//   ctx - the context for the request, containing authentication and tracing information.
-//   rqst - the request containing the role details to be created.
+//
+//	ctx - the context for the request, containing authentication and tracing information.
+//	rqst - the request containing the role details to be created.
 //
 // Returns:
-//   *resourcepb.CreateRoleRsp - the response indicating the result of the operation.
-//   error - an error if the operation fails.
+//
+//	*resourcepb.CreateRoleRsp - the response indicating the result of the operation.
+//	error - an error if the operation fails.
 func (srv *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
 
 	clientId, _, err := security.GetClientId(ctx)
@@ -262,7 +317,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 
 	// Remove it from the accounts
 	if role["accounts"] != nil {
-		
+
 		var accounts []interface{}
 		switch role["accounts"].(type) {
 		case primitive.A:
@@ -307,7 +362,7 @@ func (srv *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRq
 
 	// TODO delete role permissions
 	srv.deleteResourcePermissions(token, rqst.RoleId)
-	srv.deleteAllAccess(token,rqst.RoleId, rbacpb.SubjectType_ROLE)
+	srv.deleteAllAccess(token, rqst.RoleId, rbacpb.SubjectType_ROLE)
 
 	srv.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("delete_role_evt", []byte(rqst.RoleId), srv.Address)
@@ -443,6 +498,7 @@ func (srv *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.Res
 			default:
 				logger.Warn("unknown type", "value", role["actions"])
 			}
+
 			if actions != nil {
 				for i := 0; i < len(actions); i++ {
 					r.Actions = append(r.Actions, actions[i].(string))
@@ -588,12 +644,14 @@ func (srv *server) RemoveOrganizationRole(ctx context.Context, rqst *resourcepb.
 // or if there are issues with domain validation or persistence operations.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the RoleId and Action to be removed.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the RoleId and Action to be removed.
 //
 // Returns:
-//   *resourcepb.RemoveRoleActionRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.RemoveRoleActionRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
 	roleId := rqst.RoleId
 	localDomain, err := config.GetDomain()
@@ -690,12 +748,14 @@ func (srv *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.Remove
 // Returns a response indicating success or an error if any operation fails.
 //
 // Parameters:
-//   ctx  - The context for the request.
-//   rqst - The request containing the action to be removed.
+//
+//	ctx  - The context for the request.
+//	rqst - The request containing the action to be removed.
 //
 // Returns:
-//   *resourcepb.RemoveRolesActionRsp - The response indicating the result of the operation.
-//   error                            - An error if the operation fails.
+//
+//	*resourcepb.RemoveRolesActionRsp - The response indicating the result of the operation.
+//	error                            - An error if the operation fails.
 func (srv *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
 	// That service made user of persistence service.
 	p, err := srv.getPersistenceStore()

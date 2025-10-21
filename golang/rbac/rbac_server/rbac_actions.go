@@ -99,7 +99,9 @@ func (srv *server) GetActionResourceInfos(ctx context.Context, rqst *rbacpb.GetA
 }
 
 func (srv *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
-	// Exception
+	// ---------------------------------------------------------------
+	// Exceptions: allow a few infra calls when no resources provided
+	// ---------------------------------------------------------------
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") ||
 			strings.HasPrefix(action, "/resource.ResourceService") ||
@@ -109,56 +111,52 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		}
 	}
 
-
-	// test if the subject exist.
+	// Validate/normalize subject (e.g., ensure it exists; may return canonical id)
 	subject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {
 		return false, false, err
 	}
 
-	var actions []string
+	// Helper: ensure id is fully-qualified with domain if missing
+	withDomain := func(id string, domain string) string {
+		if id == "" || strings.Contains(id, "@") {
+			return id
+		}
+		return id + "@" + domain
+	}
 
-	// Validate the access for a given suject...
+	var actions []string
 	hasAccess := false
 
-	// So first of all I will validate the actions itself...
-	if subjectType == rbacpb.SubjectType_APPLICATION {
-		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
-
-		application, err := srv.getApplication(subject)
+	switch subjectType {
+	case rbacpb.SubjectType_APPLICATION:
+		app, err := srv.getApplication(subject)
 		if err != nil {
-
 			return false, false, err
 		}
+		actions = app.Actions
 
-		actions = application.Actions
-
-	} else if subjectType == rbacpb.SubjectType_PEER {
-		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
+	case rbacpb.SubjectType_PEER:
 		peer, err := srv.getPeer(subject)
 		if err != nil {
 			return false, false, err
 		}
 		actions = peer.Actions
 
-	} else if subjectType == rbacpb.SubjectType_ROLE {
-		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
+	case rbacpb.SubjectType_ROLE:
 		role, err := srv.getRole(subject)
 		if err != nil {
 			return false, false, err
 		}
-
-		// If the role is sa then I will it has all permission...
+		// Local "admin" role → full access
 		domain, _ := config.GetDomain()
 		if role.Domain == domain && role.Name == "admin" {
 			return true, false, nil
 		}
-
 		actions = role.Actions
 
-	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
-		//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
-		// If the user is the super admin i will return true.
+	case rbacpb.SubjectType_ACCOUNT:
+		// Super-admin account → full access
 		if subject == "sa@"+srv.Domain {
 			return true, false, nil
 		}
@@ -168,88 +166,163 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 			return false, false, err
 		}
 
-		// call the rpc method.
+		// -----------------------------------------------------------
+		// (A) Direct Account → Role assignments (unchanged)
+		// -----------------------------------------------------------
 		if account.Roles != nil {
+			for _, rid := range account.Roles {
+				roleId := withDomain(rid, srv.Domain)
 
-			for i := range account.Roles {
-				roleId := account.Roles[i]
-
-				// Here I will add the domain to the role id if it's not already set.
-				if !strings.Contains(roleId, "@") {
-					roleId = roleId + "@" + srv.Domain
-				}
-
-				// if the role id is local admin
+				// Local admin role → full access
 				if roleId == "admin@"+srv.Domain {
 					return true, false, nil
-				} else if strings.HasSuffix(roleId, "@"+srv.Domain) {
-					hasAccess, _, _ = srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-					if hasAccess {
+				}
+
+				// Only recurse for local roles (keep previous semantics)
+				if strings.HasSuffix(roleId, "@"+srv.Domain) {
+					ok, _, _ := srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+					if ok {
+						hasAccess = true
 						break
 					}
 				}
-
 			}
 		}
 
-		// Validate external account with local roles....
+		// -----------------------------------------------------------
+		// (B) External account that local roles list in Role.Accounts
+		//     (existing behavior retained)
+		// -----------------------------------------------------------
 		if !hasAccess {
-			roles, err := srv.getRoles()
-			if err == nil {
+			if roles, err := srv.getRoles(); err == nil {
 				for i := range roles {
-					roleId := roles[i].Id + "@" + roles[i].Domain
-
+					roleFQN := roles[i].Id + "@" + roles[i].Domain
 					if Utility.Contains(roles[i].Accounts, subject) {
-
-						// if the role id is local admin
-						hasAccess, _, _ = srv.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-						if hasAccess {
+						ok, _, _ := srv.validateAction(action, roleFQN, rbacpb.SubjectType_ROLE, resources)
+						if ok {
+							hasAccess = true
 							break
 						}
 					}
 				}
 			}
 		}
-	}
 
-	if !hasAccess {
-		if actions != nil {
-			for i := 0; i < len(actions) && !hasAccess; i++ {
-				if actions[i] == action {
-					hasAccess = true
-					break
+		// -----------------------------------------------------------
+		// (C) NEW: Account → Groups → Roles
+		//     Group now contains Roles []string; if the account is in
+		//     a group, grant via any group role.
+		// -----------------------------------------------------------
+		if !hasAccess {
+			// 1) Collect groups for this account
+			var accountGroups []struct {
+				Id     string
+				Domain string
+				Roles  []string
+			}
+
+			// Prefer a direct membership list if your Account model has it (account.Groups).
+			// If not, derive via srv.getGroups().
+			haveGroups := false
+			if len(account.Groups) > 0 {
+				haveGroups = true
+			}
+
+			if haveGroups {
+				// We need group domains & roles; fetch groups and filter to those ids.
+				if groups, err := srv.getGroups(); err == nil {
+					for _, g := range groups {
+						// accept both raw id and fqdn
+						if Utility.Contains(account.Groups, g.Id) ||
+							Utility.Contains(account.Groups, withDomain(g.Id, g.Domain)) {
+							accountGroups = append(accountGroups, struct {
+								Id     string
+								Domain string
+								Roles  []string
+							}{Id: g.Id, Domain: g.Domain, Roles: g.Roles})
+						}
+					}
+				}
+			} else {
+				// Derive by scanning groups to find membership (Members/Accounts fields)
+				if groups, err := srv.getGroups(); err == nil {
+					for _, g := range groups {
+						if Utility.Contains(g.Accounts, subject) {
+							accountGroups = append(accountGroups, struct {
+								Id     string
+								Domain string
+								Roles  []string
+							}{Id: g.Id, Domain: g.Domain, Roles: g.Roles})
+						}
+					}
+				}
+			}
+
+			// 2) From groups, walk their roles and validate
+			if len(accountGroups) > 0 {
+				seen := make(map[string]struct{})
+				for _, ag := range accountGroups {
+					for _, rid := range ag.Roles {
+						roleFQN := withDomain(rid, ag.Domain)
+						if _, done := seen[roleFQN]; done {
+							continue
+						}
+						seen[roleFQN] = struct{}{}
+
+						ok, _, _ := srv.validateAction(action, roleFQN, rbacpb.SubjectType_ROLE, resources)
+						if ok {
+							hasAccess = true
+							break
+						}
+					}
+					if hasAccess {
+						break
+					}
 				}
 			}
 		}
 	}
 
+	// If still not granted, check the subject's own action list
+	if !hasAccess && actions != nil {
+		for _, a := range actions {
+			if a == action {
+				hasAccess = true
+				break
+			}
+		}
+	}
+
+	// If method not granted, return early (resource checks not needed)
 	if !hasAccess {
 		return false, true, nil
-	} else if subjectType == rbacpb.SubjectType_ROLE {
-		// I will not validate the resource access for the role only the method.
+	}
+
+	// Roles: method-level only (resource checks happen at the caller’s subject)
+	if subjectType == rbacpb.SubjectType_ROLE {
 		return true, false, nil
 	}
 
-	// Now I will validate the resource access infos
+	// -----------------------------------------------------------
+	// Resource-level checks (if resources provided)
+	// -----------------------------------------------------------
 	permissions_, _ := srv.getActionResourcesPermissions(action)
 	if len(resources) > 0 {
 		if permissions_ == nil {
-			err := errors.New("no resources path are given for validations")
-			return false, false, err
+			return false, false, errors.New("no resources path are given for validations")
 		}
 		for i := range resources {
-			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
-				hasAccess, accessDenied, err := srv.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
+			if len(resources[i].Path) > 0 { // empty path => skip validation
+				ok, accessDenied, err := srv.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
 				if err != nil {
 					return false, false, err
 				}
-
-				return hasAccess, accessDenied, nil
+				return ok, accessDenied, nil
 			}
 		}
 	}
 
-	//srv.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
+	// Granted: method ok, no resource constraints to enforce
 	return true, false, nil
 }
 

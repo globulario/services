@@ -102,8 +102,9 @@ message Role {
   // References to other entities.
   repeated string accounts = 6; // Accounts that are members of this role.
   repeated string organizations = 7; // Organizations associated with this role.
+  repeated string groups = 8; // Groups associated with this role.
 
-  string typeName = 8; // Type name for object type identification.
+  string typeName = 9; // Type name for object type identification.
 }
 
 
@@ -132,6 +133,8 @@ message RemoveRolesActionRqst {
 message RemoveRolesActionRsp { 
   bool result = 1; // The result of the request to remove an action from multiple roles, typically true if successful.
 }
+
+
 
 /** 
  * Represents an account with various attributes.
@@ -429,9 +432,11 @@ message Group {
   string name = 2;                  // Name of the group, unique on the network.
   string domain = 3;                // Domain associated with the group.
   string description = 4;           // Description of the group.
-  repeated string accounts = 5;      // Members of the group, can be empty.
-  repeated string organizations = 6;// Organizations associated with the group, can be empty.
-  string typeName = 7;              // Type information about the object.
+  string icon = 5;                  // Icon representing the group.
+  repeated string accounts = 6;      // Members of the group, can be empty.
+  repeated string organizations = 7;// Organizations associated with the group, can be empty.
+  repeated string roles = 8;        // List of roles assigned to the account.
+  string typeName = 9;              // Type information about the object.
 }
 
 /** Request to create a new group. */
@@ -491,6 +496,25 @@ message RemoveGroupMemberAccountRqst {
 message RemoveGroupMemberAccountRsp {
   bool result = 1;      // Result of removing the member account.
 }
+
+message AddGroupRoleRqst {
+  string groupId = 1; // The unique identifier of the group to add a role to.
+  string roleId = 2; // The unique identifier of the role to be added to the group.
+}
+
+message AddGroupRoleRsp {
+  bool result = 1; // The result of the add role request, typically true if successful.
+}
+
+message RemoveGroupRoleRqst {
+  string groupId = 1; // The unique identifier of the group to remove a role from.
+  string roleId = 2; // The unique identifier of the role to be removed from the group.
+}
+
+message RemoveGroupRoleRsp {
+  bool result = 1; // The result of the remove role request, typically true if successful.
+}
+
 
 /** Represents an organization with various attributes and associated entities. */
 message Organization {
@@ -1040,6 +1064,12 @@ service ResourceService {
 
   // Adds an application to an organization.
   rpc AddOrganizationApplication(AddOrganizationApplicationRqst) returns (AddOrganizationApplicationRsp);
+
+  // Adds role to a group.
+  rpc AddGroupRole(AddGroupRoleRqst) returns (AddGroupRoleRsp);
+
+  // Removes role from a group.
+  rpc RemoveGroupRole(RemoveGroupRoleRqst) returns (RemoveGroupRoleRsp);
 
   // Removes an account from an organization.
   rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst) returns (RemoveOrganizationAccountRsp);

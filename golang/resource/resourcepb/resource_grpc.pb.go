@@ -29,6 +29,8 @@ const (
 	ResourceService_AddOrganizationGroup_FullMethodName          = "/resource.ResourceService/AddOrganizationGroup"
 	ResourceService_AddOrganizationRole_FullMethodName           = "/resource.ResourceService/AddOrganizationRole"
 	ResourceService_AddOrganizationApplication_FullMethodName    = "/resource.ResourceService/AddOrganizationApplication"
+	ResourceService_AddGroupRole_FullMethodName                  = "/resource.ResourceService/AddGroupRole"
+	ResourceService_RemoveGroupRole_FullMethodName               = "/resource.ResourceService/RemoveGroupRole"
 	ResourceService_RemoveOrganizationAccount_FullMethodName     = "/resource.ResourceService/RemoveOrganizationAccount"
 	ResourceService_RemoveOrganizationGroup_FullMethodName       = "/resource.ResourceService/RemoveOrganizationGroup"
 	ResourceService_RemoveOrganizationRole_FullMethodName        = "/resource.ResourceService/RemoveOrganizationRole"
@@ -127,6 +129,10 @@ type ResourceServiceClient interface {
 	AddOrganizationRole(ctx context.Context, in *AddOrganizationRoleRqst, opts ...grpc.CallOption) (*AddOrganizationRoleRsp, error)
 	// Adds an application to an organization.
 	AddOrganizationApplication(ctx context.Context, in *AddOrganizationApplicationRqst, opts ...grpc.CallOption) (*AddOrganizationApplicationRsp, error)
+	// Adds role to a group.
+	AddGroupRole(ctx context.Context, in *AddGroupRoleRqst, opts ...grpc.CallOption) (*AddGroupRoleRsp, error)
+	// Removes role from a group.
+	RemoveGroupRole(ctx context.Context, in *RemoveGroupRoleRqst, opts ...grpc.CallOption) (*RemoveGroupRoleRsp, error)
 	// Removes an account from an organization.
 	RemoveOrganizationAccount(ctx context.Context, in *RemoveOrganizationAccountRqst, opts ...grpc.CallOption) (*RemoveOrganizationAccountRsp, error)
 	// Removes a group from an organization.
@@ -376,6 +382,26 @@ func (c *resourceServiceClient) AddOrganizationApplication(ctx context.Context, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddOrganizationApplicationRsp)
 	err := c.cc.Invoke(ctx, ResourceService_AddOrganizationApplication_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourceServiceClient) AddGroupRole(ctx context.Context, in *AddGroupRoleRqst, opts ...grpc.CallOption) (*AddGroupRoleRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddGroupRoleRsp)
+	err := c.cc.Invoke(ctx, ResourceService_AddGroupRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourceServiceClient) RemoveGroupRole(ctx context.Context, in *RemoveGroupRoleRqst, opts ...grpc.CallOption) (*RemoveGroupRoleRsp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveGroupRoleRsp)
+	err := c.cc.Invoke(ctx, ResourceService_RemoveGroupRole_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1153,6 +1179,10 @@ type ResourceServiceServer interface {
 	AddOrganizationRole(context.Context, *AddOrganizationRoleRqst) (*AddOrganizationRoleRsp, error)
 	// Adds an application to an organization.
 	AddOrganizationApplication(context.Context, *AddOrganizationApplicationRqst) (*AddOrganizationApplicationRsp, error)
+	// Adds role to a group.
+	AddGroupRole(context.Context, *AddGroupRoleRqst) (*AddGroupRoleRsp, error)
+	// Removes role from a group.
+	RemoveGroupRole(context.Context, *RemoveGroupRoleRqst) (*RemoveGroupRoleRsp, error)
 	// Removes an account from an organization.
 	RemoveOrganizationAccount(context.Context, *RemoveOrganizationAccountRqst) (*RemoveOrganizationAccountRsp, error)
 	// Removes a group from an organization.
@@ -1327,6 +1357,12 @@ func (UnimplementedResourceServiceServer) AddOrganizationRole(context.Context, *
 }
 func (UnimplementedResourceServiceServer) AddOrganizationApplication(context.Context, *AddOrganizationApplicationRqst) (*AddOrganizationApplicationRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddOrganizationApplication not implemented")
+}
+func (UnimplementedResourceServiceServer) AddGroupRole(context.Context, *AddGroupRoleRqst) (*AddGroupRoleRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddGroupRole not implemented")
+}
+func (UnimplementedResourceServiceServer) RemoveGroupRole(context.Context, *RemoveGroupRoleRqst) (*RemoveGroupRoleRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveGroupRole not implemented")
 }
 func (UnimplementedResourceServiceServer) RemoveOrganizationAccount(context.Context, *RemoveOrganizationAccountRqst) (*RemoveOrganizationAccountRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveOrganizationAccount not implemented")
@@ -1721,6 +1757,42 @@ func _ResourceService_AddOrganizationApplication_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ResourceServiceServer).AddOrganizationApplication(ctx, req.(*AddOrganizationApplicationRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourceService_AddGroupRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddGroupRoleRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourceServiceServer).AddGroupRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ResourceService_AddGroupRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourceServiceServer).AddGroupRole(ctx, req.(*AddGroupRoleRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ResourceService_RemoveGroupRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveGroupRoleRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ResourceServiceServer).RemoveGroupRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ResourceService_RemoveGroupRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ResourceServiceServer).RemoveGroupRole(ctx, req.(*RemoveGroupRoleRqst))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2942,6 +3014,14 @@ var ResourceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddOrganizationApplication",
 			Handler:    _ResourceService_AddOrganizationApplication_Handler,
+		},
+		{
+			MethodName: "AddGroupRole",
+			Handler:    _ResourceService_AddGroupRole_Handler,
+		},
+		{
+			MethodName: "RemoveGroupRole",
+			Handler:    _ResourceService_RemoveGroupRole_Handler,
 		},
 		{
 			MethodName: "RemoveOrganizationAccount",

@@ -633,7 +633,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			// Create groups table.
 			err = srv.store.(*persistence_store.SqlStore).CreateTable(
 				context.Background(), "local_resource", "local_resource", "Groups",
-				[]string{"name TEXT", "domain TEXT", "description TEXT"})
+				[]string{"name TEXT", "domain TEXT", "icon TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Groups", "error", err)
 			}
@@ -718,7 +718,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			// Create groups table.
 			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
 				context.Background(), "local_resource", "local_resource", "Groups",
-				[]string{"name TEXT", "domain TEXT", "description TEXT"})
+				[]string{"name TEXT", "domain TEXT", "icon TEXT", "description TEXT"})
 			if err != nil {
 				logger.Error("fail to create table Groups", "error", err)
 			}

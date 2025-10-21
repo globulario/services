@@ -479,7 +479,7 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 	}
 
 	srv := grpc.NewServer(opts...)
-
+	
 	// Health + metrics.
 	grpc_health_v1.RegisterHealthServer(srv, health.NewServer())
 	grpc_prometheus.Register(srv)

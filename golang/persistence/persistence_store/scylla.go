@@ -43,15 +43,6 @@ func (store *ScyllaStore) GetStoreType() string { return "SCYLLA" }
 
 // ---------- Helpers ----------
 
-func ucFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	r := []rune(s)
-	r[0] = unicode.ToUpper(r[0])
-	return string(r)
-}
-
 func camelToSnake(input string) string {
 	var result bytes.Buffer
 	for i, r := range input {
@@ -171,54 +162,54 @@ func deduceColumnType(value interface{}) string {
 // ListLinkedIDs returns, for baseCollection/id, a map like:
 //   {"roles": ["r1","r2"], "groups": ["g3"] }
 func (store *ScyllaStore) ListLinkedIDs(connectionId, keyspace, baseCollection, id string) (map[string][]string, error) {
-    session, err := store.getSession(connectionId, keyspace)
-    if err != nil { return nil, err }
+	session, err := store.getSession(connectionId, keyspace)
+	if err != nil { return nil, err }
 
-    base := strings.ToLower(strings.TrimSpace(baseCollection))
-    if !strings.HasSuffix(base, "s") { base += "s" }
+	base := strings.ToLower(strings.TrimSpace(baseCollection))
+	if !strings.HasSuffix(base, "s") { base += "s" }
 
-    out := map[string][]string{}
+	out := map[string][]string{}
 
-    iter := session.Query(`SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?`, keyspace).Iter()
-    defer iter.Close()
+	iter := session.Query(`SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?`, keyspace).Iter()
+	defer iter.Close()
 
-    var t string
-    for iter.Scan(&t) {
-        parts := strings.SplitN(strings.ToLower(t), "_", 2)
-        if len(parts) != 2 { continue }
-        a, b := parts[0], parts[1]
+	var t string
+	for iter.Scan(&t) {
+		parts := strings.SplitN(strings.ToLower(t), "_", 2)
+		if len(parts) != 2 { continue }
+		a, b := parts[0], parts[1]
 
-        // canonical link table: has (source_id,target_id)
-        cols, _ := store.getTableColumns(session, keyspace, t)
-        if _, ok := cols["source_id"]; !ok { continue }
-        if _, ok := cols["target_id"]; !ok { continue }
+		// canonical link table: has (source_id,target_id)
+		cols, _ := store.getTableColumns(session, keyspace, t)
+		if _, ok := cols["source_id"]; !ok { continue }
+		if _, ok := cols["target_id"]; !ok { continue }
 
-        var q string
-        var other string
-        if a == base {
-            q = fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ?", keyspace, t)
-            other = b
-        } else if b == base {
-            q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, t)
-            other = a
-        } else {
-            continue
-        }
+		var q string
+		var other string
+		if a == base {
+			q = fmt.Sprintf("SELECT target_id FROM %s.%s WHERE source_id = ?", keyspace, t)
+			other = b
+		} else if b == base {
+			q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, t)
+			other = a
+		} else {
+			continue
+		}
 
-        it := session.Query(q, id).Iter()
-        row := map[string]interface{}{}
-        for it.MapScan(row) {
-            if a == base {
-                out[other] = append(out[other], Utility.ToString(row["target_id"]))
-            } else {
-                out[other] = append(out[other], Utility.ToString(row["source_id"]))
-            }
-            row = map[string]interface{}{}
-        }
-        _ = it.Close()
-    }
-    if err := iter.Close(); err != nil { return nil, err }
-    return out, nil
+		it := session.Query(q, id).Iter()
+		row := map[string]interface{}{}
+		for it.MapScan(row) {
+			if a == base {
+				out[other] = append(out[other], Utility.ToString(row["target_id"]))
+			} else {
+				out[other] = append(out[other], Utility.ToString(row["source_id"]))
+			}
+			row = map[string]interface{}{}
+		}
+		_ = it.Close()
+	}
+	if err := iter.Close(); err != nil { return nil, err }
+	return out, nil
 }
 
 // extract a best-effort id from a reference/entity map (more aggressive)
@@ -607,7 +598,6 @@ func (store *ScyllaStore) createScyllaTable(session *gocql.Session, keyspace, ta
 		return err
 	}
 
-
 	return nil
 }
 
@@ -765,9 +755,6 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable st
 		q = fmt.Sprintf("SELECT source_id FROM %s.%s WHERE target_id = ?", keyspace, linkTable)
 	}
 
-	// Removed invalid slog.Info referencing undefined variables.
-
-
 	iter := session.Query(q, id).Iter()
 	defer iter.Close()
 
@@ -790,7 +777,6 @@ func (store *ScyllaStore) initArrayEntities(connectionId, keyspace, linkTable st
 		entity[snakeToCamel(other)] = array
 	}
 
-	
 	return nil
 }
 
@@ -888,31 +874,39 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 			continue
 		}
 
-		// Skip non-canonical link tables to avoid duplicates
-		lc, rc := canonicalPair(parts[0], parts[1])
-		if lower != lc+"_"+rc {
-			continue
-		}
-
 		cols, _ := store.getTableColumns(session, keyspace, tName)
-		// ref link tables (source_id,target_id) where base is either token
+
+		// ---- LINK TABLES (refs) ----
 		if _, ok := cols["source_id"]; ok {
 			if _, ok2 := cols["target_id"]; ok2 {
-				if parts[0] == base || parts[1] == base {
-					_ = store.initArrayEntities(connectionId, keyspace, tName, entity)
+				// Apply canonicalization ONLY to link tables
+				lc, rc := canonicalPair(parts[0], parts[1])
+				if lower != lc+"_"+rc {
+					// non-canonical, skip to avoid dup loading
 					continue
 				}
+				// follow links only if base matches one side
+				if parts[0] == base || parts[1] == base {
+					_ = store.initArrayEntities(connectionId, keyspace, tName, entity)
+				}
+				continue
 			}
 		}
-		// scalar arrays remain as before
+
+		// ---- SCALAR ARRAY TABLES (<base>_<field> with <base>_id, value) ----
+		// DO NOT canonicalize here — <base>_<field> is the actual table name
+		
 		pkCol := parts[0] + "_id"
+	
 		if _, ok := cols[pkCol]; ok {
 			if _, ok2 := cols["value"]; ok2 {
+				
 				_ = store.initArrayValues(connectionId, keyspace, tName, entity)
 				continue
 			}
 		}
 	}
+
 	return entity, nil
 }
 

@@ -1389,9 +1389,9 @@ func (srv *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.R
 	maxSize := 50
 	values := make([]*resourcepb.Group, 0)
 
-	for i := 0; i < len(groups); i++ {
+	for i := range groups {
 
-		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Accounts: make([]string, 0)}
+		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Icon: groups[i].(map[string]interface{})["icon"].(string), Accounts: make([]string, 0)}
 		if groups[i].(map[string]interface{})["domain"] != nil {
 			g.Domain = groups[i].(map[string]interface{})["domain"].(string)
 		} else {

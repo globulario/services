@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
@@ -23,9 +25,15 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	reflectionpb "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -82,7 +90,6 @@ func (srv *server) uninstallService(token, PublisherID, serviceId, version strin
 	}
 	return nil
 }
-
 
 // updateService reacts to repo events and updates a service if KeepUpToDate is true.
 func updateService(srv *server, service map[string]interface{}) func(evt *eventpb.Event) {
@@ -593,49 +600,277 @@ func (srv *server) SaveServiceConfig(ctx context.Context, rqst *services_manager
 	return &services_managerpb.SaveServiceConfigResponse{}, nil
 }
 
-// GetAllActions parses all known .proto files referenced by service configs,
-// and returns the list of fully-qualified gRPC method paths (e.g. /pkg.Service/Method).
-// Public signature preserved.
+// GetAllActions queries each running service over gRPC reflection and returns
+// action strings like "/package.Service/Method".
 func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
-	services, err := config.GetServicesConfigurations()
+	svcs, err := config.GetServicesConfigurations()
 	if err != nil {
 		logger.Error("get services configurations failed", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	actions := make([]string, 0, 64)
+	actionSet := make(map[string]struct{})
+	const perAttemptTimeout = 2 * time.Second // short, because we try multiple targets
 
-	for _, svc := range services {
-		path := Utility.ToString(svc["Proto"])
-		if path == "" || !Utility.Exists(path) {
-			// skip services without on-disk proto
+	for _, svc := range svcs {
+		// Skip non-gRPC services
+		if p := strings.ToLower(Utility.ToString(svc["Protocol"])); p != "" && p != "grpc" {
 			continue
 		}
 
-		reader, err := os.Open(path)
+		targets := buildCandidateTargets(svc)
+		if len(targets) == 0 {
+			continue
+		}
+		logger.Info("reflection targets", "service", Utility.ToString(svc["Name"]), "targets", targets)
+
+
+		dialOpts, err := buildGRPCDialOptions(svc) // pass svc only, function expects one argument
 		if err != nil {
-			logger.Warn("open proto failed", "path", path, "err", err)
+			logger.Warn("build dial options failed", "service", Utility.ToString(svc["Name"]), "err", err)
 			continue
 		}
 
-		def, perr := proto.NewParser(reader).Parse()
-		_ = reader.Close()
-		if perr != nil {
-			logger.Warn("parse proto failed", "path", path, "err", perr)
+		var got []string
+		var lastErr error
+		for _, t := range targets {
+			acts, err := listActionsViaReflection(ctx, t, perAttemptTimeout, dialOpts...)
+			if err != nil {
+				lastErr = err
+				logger.Warn("reflection attempt failed",
+					"service", Utility.ToString(svc["Name"]),
+					"target", t, "err", err)
+				continue
+			}
+			got = acts
+			break // success
+		}
+		if got == nil && lastErr != nil {
 			continue
 		}
-
-		var pkg, svcName string
-		proto.Walk(def,
-			proto.WithPackage(func(p *proto.Package) { pkg = p.Name }),
-			proto.WithService(func(s *proto.Service) { svcName = s.Name }),
-			proto.WithRPC(func(r *proto.RPC) {
-				if pkg != "" && svcName != "" && r != nil {
-					actions = append(actions, "/"+pkg+"."+svcName+"/"+r.Name)
-				}
-			}),
-		)
+		for _, a := range got {
+			actionSet[a] = struct{}{}
+		}
 	}
 
+	actions := make([]string, 0, len(actionSet))
+	for a := range actionSet {
+		actions = append(actions, a)
+	}
 	return &services_managerpb.GetAllActionsResponse{Actions: actions}, nil
+}
+
+/* ----------------------- target building ----------------------- */
+
+// Prefer exact Address:Port (or Proxy) from your config.
+func buildCandidateTargets(svc map[string]interface{}) []string {
+    // Explicit target first
+    if t := getStr(svc, "Target", "Endpoint", "Url", "URL", "Addr", "AddressWithPort"); looksLikeNetworkTarget(t) {
+        return []string{t}
+    }
+
+    addr := getStr(svc, "Address", "IP")
+    port := getStr(svc, "Port")            // service’s gRPC port in your configs
+    domain := getStr(svc, "Domain", "Host","Hostname")
+
+    var cands []string
+    push := func(h, p string) {
+        if strings.TrimSpace(h) != "" && strings.TrimSpace(p) != "" {
+            cands = append(cands, fmt.Sprintf("%s:%s", h, p))
+        }
+    }
+
+    // 1) Exact internal address+port first
+    push(addr, port)
+
+    // 2) Domain:port (what you were trying before)
+    push(domain, port)
+
+
+    // dedup
+    seen := map[string]struct{}{}
+    out := make([]string, 0, len(cands))
+    for _, t := range cands {
+        if _, ok := seen[t]; ok || !looksLikeNetworkTarget(t) {
+            continue
+        }
+        seen[t] = struct{}{}
+        out = append(out, t)
+    }
+    return out
+}
+
+
+func looksLikeNetworkTarget(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	return strings.Contains(s, ":") && !strings.Contains(s, "/") && !strings.Contains(s, "\\")
+}
+
+
+/* ----------------------- TLS dial options builder ----------------------- */
+
+// Build TLS creds; default SNI to Domain if not explicitly set.
+func buildGRPCDialOptions(svc map[string]interface{}) ([]grpc.DialOption, error) {
+	useTLS := getBool(svc, "TLS", "Tls", "EnableTLS", "SSL", "Ssl")
+	if !useTLS {
+		return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, nil
+	}
+
+	tcfg := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if caPath := getStr(svc, "CertAuthorityTrust", "CACert", "CA", "RootCA"); caPath != "" {
+		pem, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA %q: %w", caPath, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("append CA from %q failed", caPath)
+		}
+		tcfg.RootCAs = pool
+	}
+
+	// mTLS (optional)
+	certPath := getStr(svc, "ClientCert", "ClientCertFile", "CertFile")
+	certPath = strings.ReplaceAll(certPath, "server", "client")
+	keyPath := getStr(svc, "ClientKey", "ClientKeyFile", "KeyFile")
+	keyPath = strings.ReplaceAll(keyPath, "server", "client")
+
+	if certPath != "" && keyPath != "" {
+		crt, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load client cert/key: %w", err)
+		}
+		tcfg.Certificates = []tls.Certificate{crt}
+	}
+
+	// SNI / host verification
+	sni := getStr(svc, "ServerName", "SNI", "Domain")
+	if sni == "" {
+		sni = getStr(svc, "Domain") // <-- your configs use Domain
+	}
+	if sni != "" {
+		tcfg.ServerName = sni
+	} else {
+		tcfg.InsecureSkipVerify = true
+	}
+
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
+	}, nil
+}
+
+
+/* ----------------------- reflection logic ----------------------- */
+
+func listActionsViaReflection(parent context.Context, target string, timeout time.Duration, dialOpts ...grpc.DialOption) ([]string, error) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+
+	// Block so the timeout is respected
+	dialOpts = append([]grpc.DialOption{grpc.WithBlock()}, dialOpts...)
+
+	conn, err := grpc.DialContext(ctx, target, dialOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", target, err)
+	}
+	defer conn.Close()
+
+	client := reflectionpb.NewServerReflectionClient(conn)
+	stream, err := client.ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("reflection stream: %w", err)
+	}
+	defer stream.CloseSend()
+
+	// Ask for all services
+	if err := stream.Send(&reflectionpb.ServerReflectionRequest{
+		MessageRequest: &reflectionpb.ServerReflectionRequest_ListServices{ListServices: "*"},
+	}); err != nil {
+		return nil, fmt.Errorf("send ListServices: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("recv ListServices: %w", err)
+	}
+
+	var actions []string
+	seen := make(map[string]struct{})
+
+	for _, svc := range resp.GetListServicesResponse().Service {
+		fullService := svc.GetName()
+		if fullService == "grpc.reflection.v1alpha.ServerReflection" {
+			continue
+		}
+
+		if err := stream.Send(&reflectionpb.ServerReflectionRequest{
+			MessageRequest: &reflectionpb.ServerReflectionRequest_FileContainingSymbol{
+				FileContainingSymbol: fullService,
+			},
+		}); err != nil {
+			continue
+		}
+		fdResp, err := stream.Recv()
+		if err != nil {
+			continue
+		}
+
+		fdset := fdResp.GetFileDescriptorResponse()
+		for _, raw := range fdset.GetFileDescriptorProto() {
+			var fd descriptorpb.FileDescriptorProto
+			if err := gproto.Unmarshal(raw, &fd); err != nil {
+				continue
+			}
+			pkg := fd.GetPackage()
+			for _, sv := range fd.GetService() {
+				if makeFullServiceName(pkg, sv.GetName()) != fullService {
+					continue
+				}
+				for _, m := range sv.GetMethod() {
+					action := fmt.Sprintf("/%s/%s", fullService, m.GetName())
+					if _, ok := seen[action]; !ok {
+						seen[action] = struct{}{}
+						actions = append(actions, action)
+					}
+				}
+			}
+		}
+	}
+	return actions, nil
+}
+
+func makeFullServiceName(pkg, service string) string {
+	if pkg == "" {
+		return service
+	}
+	return pkg + "." + service
+}
+
+/* ----------------------- small config helpers ----------------------- */
+
+func getStr(m map[string]interface{}, keys ...string) string {
+	for _, k := range keys {
+		if v := Utility.ToString(m[k]); strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+func getBool(m map[string]interface{}, keys ...string) bool {
+	for _, k := range keys {
+		switch v := m[k].(type) {
+		case bool:
+			return v
+		case string:
+			if strings.EqualFold(v, "true") || v == "1" || strings.EqualFold(v, "yes") {
+				return true
+			}
+		case float64:
+			return v != 0
+		}
+	}
+	return false
 }

@@ -682,6 +682,128 @@ proto.resource.ResourceServicePromiseClient.prototype.addOrganizationApplication
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddGroupRoleRqst,
+ *   !proto.resource.AddGroupRoleRsp>}
+ */
+const methodDescriptor_ResourceService_AddGroupRole = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddGroupRole',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddGroupRoleRqst,
+  proto.resource.AddGroupRoleRsp,
+  /**
+   * @param {!proto.resource.AddGroupRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddGroupRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddGroupRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.AddGroupRoleRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddGroupRoleRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addGroupRole =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddGroupRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddGroupRole,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddGroupRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddGroupRoleRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addGroupRole =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddGroupRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddGroupRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveGroupRoleRqst,
+ *   !proto.resource.RemoveGroupRoleRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveGroupRole = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveGroupRole',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveGroupRoleRqst,
+  proto.resource.RemoveGroupRoleRsp,
+  /**
+   * @param {!proto.resource.RemoveGroupRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveGroupRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveGroupRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.RemoveGroupRoleRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveGroupRoleRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeGroupRole =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveGroupRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveGroupRole,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveGroupRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveGroupRoleRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeGroupRole =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveGroupRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveGroupRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.RemoveOrganizationAccountRqst,
  *   !proto.resource.RemoveOrganizationAccountRsp>}
  */

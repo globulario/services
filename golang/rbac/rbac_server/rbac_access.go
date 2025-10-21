@@ -93,19 +93,19 @@ func (srv *server) isOwner(subject string, subjectType rbacpb.SubjectType, path 
 			owners := permissions.Owners
 			if owners != nil {
 				hasOwner := false
-				if owners.Accounts != nil && len(owners.Accounts) > 0 {
+				if len(owners.Accounts) > 0 {
 					hasOwner = true
 				}
-				if owners.Applications != nil && len(owners.Applications) > 0 {
+				if len(owners.Applications) > 0 {
 					hasOwner = true
 				}
-				if owners.Groups != nil && len(owners.Groups) > 0 {
+				if len(owners.Groups) > 0 {
 					hasOwner = true
 				}
-				if owners.Organizations != nil && len(owners.Organizations) > 0 {
+				if len(owners.Organizations) > 0 {
 					hasOwner = true
 				}
-				if owners.Peers != nil && len(owners.Peers) > 0 {
+				if len(owners.Peers) > 0 {
 					hasOwner = true
 				}
 
