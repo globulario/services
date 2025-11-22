@@ -512,6 +512,9 @@ func main() {
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
 			}
+						if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+			}
 			b, err := globular.DescribeJSON(s)
 			if err != nil {
 				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)

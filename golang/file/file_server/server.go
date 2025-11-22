@@ -181,6 +181,9 @@ func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
+func (srv *server) SetPublicDirs(dirs []string) {
+	srv.Public = append([]string{}, dirs...)
+}
 
 // -------------------- Lifecycle --------------------
 
@@ -680,6 +683,9 @@ func main() {
 				s.Address = strings.ToLower(v)
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
+			}
+			if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 			}
 			b, err := globular.DescribeJSON(s)
 			if err != nil {

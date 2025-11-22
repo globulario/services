@@ -111,16 +111,14 @@ func (srv *server) CreateAccountDir(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < len(accounts); i++ {
-
-		a := accounts[i].(map[string]interface{})
+	for i := range accounts {
+		a := accounts[i].(map[string]any)
 		id := a["_id"].(string)
 		domain := a["domain"].(string)
 		path := "/users/" + id + "@" + domain
-		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
-			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-			srv.addResourceOwner(token, path, id+"@"+domain, "file", rbacpb.SubjectType_ACCOUNT)
-		}
+		Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+		srv.addResourceOwner(token, path, id+"@"+domain, "file", rbacpb.SubjectType_ACCOUNT)
+
 	}
 
 	return nil

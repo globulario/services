@@ -344,14 +344,13 @@ func (srv *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-
 // Resource helpers
 func (srv *server) removeRolesAction(action string) error {
 	rc, err := srv.getResourceClient()
 	if err != nil {
 		return err
 	}
-    token, _ := security.GetLocalToken(srv.GetMac())
+	token, _ := security.GetLocalToken(srv.GetMac())
 	return rc.RemoveRolesAction(token, action)
 }
 func (srv *server) removeApplicationsAction(token, action string) error {
@@ -545,6 +544,9 @@ func main() {
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
 			}
+			if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+			}
 			b, err := globular.DescribeJSON(s)
 			if err != nil {
 				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
@@ -553,7 +555,6 @@ func main() {
 			_, _ = os.Stdout.Write(b)
 			_, _ = os.Stdout.Write([]byte("\n"))
 			return
-
 
 		case "--health":
 			if err := s.healthCheck(); err != nil {

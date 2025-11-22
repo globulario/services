@@ -1986,6 +1986,7 @@ func (srv *server) IsProcessVideo(ctx context.Context, _ *mediapb.IsProcessVideo
 //	error - An error if the process could not be terminated.
 func (srv *server) CreateVideoPreview(ctx context.Context, rqst *mediapb.CreateVideoPreviewRequest) (*mediapb.CreateVideoPreviewResponse, error) {
 	path := srv.formatPath(rqst.Path)
+
 	if !Utility.Exists(path) {
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}

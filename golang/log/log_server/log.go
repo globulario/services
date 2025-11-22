@@ -274,6 +274,9 @@ func (srv *server) log(info *logpb.LogInfo) error {
 		level = "info"
 	}
 
+	// NEW: persist only Error/Fatal
+	isPersistent := level == "error" || level == "fatal"
+
 	if info.TimestampMs == 0 {
 		info.TimestampMs = time.Now().UnixMilli()
 	}
@@ -287,81 +290,85 @@ func (srv *server) log(info *logpb.LogInfo) error {
 		}
 	}
 
-	// Stable id per (level|app|method|line)
-	info.Id = makeDeterministicID(info, level) // level|app|method|line|message
+	// Stable id per (level|app|method|line|message)
+	info.Id = makeDeterministicID(info, level)
 
-	if info.TimestampMs == 0 {
-		info.TimestampMs = time.Now().UnixMilli()
-	}
+	// Occurrences:
 	info.Occurences = 1
-
-	if data, err := srv.logs.GetItem(info.Id); err == nil {
-		prev := new(logpb.LogInfo)
-		if e := protojson.Unmarshal(data, prev); e == nil {
-			info.Occurences = prev.Occurences + 1
-			if prev.TimestampMs > info.TimestampMs {
-				info.TimestampMs = prev.TimestampMs
+	if isPersistent {
+		// Only attempt coalescing if we actually persist
+		if data, err := srv.logs.GetItem(info.Id); err == nil {
+			prev := new(logpb.LogInfo)
+			if e := protojson.Unmarshal(data, prev); e == nil {
+				info.Occurences = prev.Occurences + 1
+				if prev.TimestampMs > info.TimestampMs {
+					info.TimestampMs = prev.TimestampMs
+				}
 			}
 		}
 	}
 
-	// Primary (level,app) index (coarse)
-	idx := indexKey(level, info.Application)
-	if data, err := srv.logs.GetItem(idx); err == nil {
-		var ids []string
-		if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
-			ids = append(ids, info.Id)
+	// --- Persisted indices/records only for Error & Fatal ---
+	if isPersistent {
+		// Primary (level,app) index (coarse)
+		idx := indexKey(level, info.Application)
+		if data, err := srv.logs.GetItem(idx); err == nil {
+			var ids []string
+			if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
+				ids = append(ids, info.Id)
+				if b, e := json.Marshal(ids); e == nil {
+					_ = srv.logs.SetItem(idx, b)
+				}
+			}
+		} else {
+			ids := []string{info.Id}
 			if b, e := json.Marshal(ids); e == nil {
 				_ = srv.logs.SetItem(idx, b)
 			}
 		}
-	} else {
-		ids := []string{info.Id}
-		if b, e := json.Marshal(ids); e == nil {
-			_ = srv.logs.SetItem(idx, b)
-		}
-	}
 
-	// --- NEW: time bucket index + registry and boundaries ---
-	bStart := bucketStart(info.TimestampMs)
-	tidx := timeIndexKey(level, info.Application, bStart)
-	if data, err := srv.logs.GetItem(tidx); err == nil {
-		var ids []string
-		if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
-			ids = append(ids, info.Id)
+		// Time bucket index + registry and boundaries
+		bStart := bucketStart(info.TimestampMs)
+		tidx := timeIndexKey(level, info.Application, bStart)
+		if data, err := srv.logs.GetItem(tidx); err == nil {
+			var ids []string
+			if json.Unmarshal(data, &ids) == nil && !Utility.Contains(ids, info.Id) {
+				ids = append(ids, info.Id)
+				if b, e := json.Marshal(ids); e == nil {
+					_ = srv.logs.SetItem(tidx, b)
+				}
+			}
+		} else {
+			ids := []string{info.Id}
 			if b, e := json.Marshal(ids); e == nil {
 				_ = srv.logs.SetItem(tidx, b)
 			}
 		}
-	} else {
-		ids := []string{info.Id}
-		if b, e := json.Marshal(ids); e == nil {
-			_ = srv.logs.SetItem(tidx, b)
+
+		// Register app under this level (used by janitor)
+		srv.addAppToLevel(level, info.Application)
+
+		// Maintain oldest/newest bucket pointers per (level, app)
+		oK := oldestKey(level, info.Application)
+		nK := newestKey(level, info.Application)
+		if old, ok := srv.getBoundary(oK); !ok || bStart < old {
+			srv.setBoundary(oK, bStart)
 		}
+		if neu, ok := srv.getBoundary(nK); !ok || bStart > neu {
+			srv.setBoundary(nK, bStart)
+		}
+
+		// Store the entry blob
+		js, err := protojson.Marshal(info)
+		if err != nil {
+			return err
+		}
+		_ = srv.logs.SetItem(info.Id, js)
 	}
 
-	// Register app under this level (used by janitor)
-	srv.addAppToLevel(level, info.Application)
-
-	// Maintain oldest/newest bucket pointers per (level, app)
-	oK := oldestKey(level, info.Application)
-	nK := newestKey(level, info.Application)
-	if old, ok := srv.getBoundary(oK); !ok || bStart < old {
-		srv.setBoundary(oK, bStart)
-	}
-	if neu, ok := srv.getBoundary(nK); !ok || bStart > neu {
-		srv.setBoundary(nK, bStart)
-	}
-	// --- END NEW ---
-
-	// Store the entry blob
-	js, err := protojson.Marshal(info)
-	if err != nil {
-		return err
-	}
-	_ = srv.logs.SetItem(info.Id, js)
-
-	// Fan out & metrics
+	// Fan out & metrics for all levels (unchanged)
+	// NOTE: we publish regardless of persistence so live UIs still see non-persistent logs.
+	js, _ := protojson.Marshal(info)
 	srv.publish("new_log_evt", js)
 	srv.logCount.WithLabelValues(level, info.Application, info.Method).Inc()
 	return nil

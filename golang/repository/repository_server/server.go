@@ -423,7 +423,6 @@ func (srv *server) setPackageBundle(checksum, platform string, size int32, modif
 // Log service helpers (kept for compatibility with your existing logging)
 // -----------------------------------------------------------------------------
 
-
 // -----------------------------------------------------------------------------
 // CLI / entrypoint
 // -----------------------------------------------------------------------------
@@ -522,6 +521,9 @@ func main() {
 				s.Address = strings.ToLower(v)
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
+			}
+			if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 			}
 
 			b, err := globular.DescribeJSON(s)

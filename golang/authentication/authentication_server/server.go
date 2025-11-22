@@ -179,7 +179,6 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
 
-
 // RolesDefault returns curated roles for AuthenticationService.
 func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
@@ -231,7 +230,6 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		},
 	}
 }
-
 
 // Lifecycle
 func (srv *server) Init() error {
@@ -501,7 +499,7 @@ func main() {
 		}
 		s.Port = p
 	}
-	
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
@@ -516,6 +514,9 @@ func main() {
 				s.Address = strings.ToLower(v)
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
+			}
+			if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 			}
 			b, err := globular.DescribeJSON(s)
 			if err != nil {

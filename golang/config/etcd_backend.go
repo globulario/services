@@ -786,7 +786,10 @@ func PutRuntime(id string, patch map[string]any) error {
 	if patch == nil {
 		patch = map[string]any{}
 	}
-	current, _ := GetRuntime(id)
+	current, err := GetRuntime(id)
+	if err != nil || current == nil {
+		current = map[string]any{}
+	}
 	for k, v := range patch {
 		current[k] = v
 	}

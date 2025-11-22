@@ -229,6 +229,17 @@ func (srv *server) Init() error {
 	if srv.logger == nil {
 		srv.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
+
+	// Ensure control channels are initialized BEFORE any RPCs can hit them.
+	if srv.actions == nil {
+		// Small buffer so RPC handlers don't immediately block if the event loop
+		// is briefly busy. Size can be tuned if needed.
+		srv.actions = make(chan map[string]interface{}, 1024)
+	}
+	if srv.exit == nil {
+		srv.exit = make(chan bool)
+	}
+
 	if err := globular.InitService(srv); err != nil {
 		srv.logger.Error("init service failed", "service", srv.Name, "id", srv.Id, "err", err)
 		return err
@@ -239,7 +250,6 @@ func (srv *server) Init() error {
 		return err
 	}
 	srv.grpcServer = grpcSrv
-	srv.exit = make(chan bool)
 	srv.logger.Info("service initialized", "service", srv.Name, "id", srv.Id)
 	return nil
 }
@@ -279,12 +289,19 @@ func (srv *server) run() {
 	if srv.logger == nil {
 		srv.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
+
+	// Safety: Init() is supposed to set this; if it's still nil something
+	// is badly wrong, so log and block rather than panic on send.
+	if srv.actions == nil {
+		srv.logger.Error("event loop starting with nil actions channel; Init() may have failed")
+		// fall back to a sane default to avoid nil-channel deadlocks
+		srv.actions = make(chan map[string]interface{}, 1024)
+	}
+
 	channels := make(map[string][]string)                          // channel -> uuids
 	streams := make(map[string]eventpb.EventService_OnEventServer) // uuid -> stream
 	quits := make(map[string]chan bool)                            // uuid -> quit
 	ka := make(chan *eventpb.KeepAlive)
-
-	srv.actions = make(chan map[string]interface{})
 
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -313,8 +330,13 @@ func (srv *server) run() {
 				default:
 				}
 				delete(quits, uuid)
+				delete(streams, uuid)
 			}
-			srv.logger.Info("event loop stopped", "service", srv.Name, "id", srv.Id)
+			srv.logger.Info("event loop stopped",
+				"service", srv.Name,
+				"id", srv.Id,
+				"channels", len(channels),
+				"streams", len(streams))
 			return
 
 		case ka_ := <-ka:
@@ -330,7 +352,7 @@ func (srv *server) run() {
 				}
 			}
 			if len(toDelete) > 0 {
-				srv.cleanupSubscribers(toDelete, channels, quits)
+				srv.cleanupSubscribers(toDelete, channels, quits, streams)
 			}
 
 		case a := <-srv.actions:
@@ -360,7 +382,7 @@ func (srv *server) run() {
 				}
 				if !Utility.Contains(channels[name], uuid) {
 					channels[name] = append(channels[name], uuid)
-					srv.logger.Info("subscribed", "channel", name, "uuid", uuid)
+					srv.logger.Info("subscribed", "channel", name, "uuid", uuid, "subscribers", len(channels[name]))
 				}
 
 			case "publish":
@@ -372,6 +394,7 @@ func (srv *server) run() {
 				}
 				uuids := channels[name]
 				if uuids == nil {
+					// No subscribers is not an error; just nothing to do.
 					continue
 				}
 				var toDelete []string
@@ -392,7 +415,7 @@ func (srv *server) run() {
 					}
 				}
 				if len(toDelete) > 0 {
-					srv.cleanupSubscribers(toDelete, channels, quits)
+					srv.cleanupSubscribers(toDelete, channels, quits, streams)
 				}
 
 			case "unsubscribe":
@@ -408,8 +431,12 @@ func (srv *server) run() {
 						uuids = append(uuids, id)
 					}
 				}
-				channels[name] = uuids
-				srv.logger.Info("unsubscribed", "channel", name, "uuid", uuid)
+				if len(uuids) == 0 {
+					delete(channels, name)
+				} else {
+					channels[name] = uuids
+				}
+				srv.logger.Info("unsubscribed", "channel", name, "uuid", uuid, "remaining", len(channels[name]))
 
 			case "quit":
 				uuid, _ := a["uuid"].(string)
@@ -417,22 +444,7 @@ func (srv *server) run() {
 					srv.logger.Error("invalid quit request: missing uuid")
 					continue
 				}
-				for name, ch := range channels {
-					uuids := make([]string, 0, len(ch))
-					for _, id := range ch {
-						if id != uuid {
-							uuids = append(uuids, id)
-						}
-					}
-					channels[name] = uuids
-				}
-				if q, ok := quits[uuid]; ok {
-					select {
-					case q <- true:
-					default:
-					}
-					delete(quits, uuid)
-				}
+				srv.cleanupSubscribers([]string{uuid}, channels, quits, streams)
 				srv.logger.Info("stream quit", "uuid", uuid)
 
 			default:
@@ -442,8 +454,14 @@ func (srv *server) run() {
 	}
 }
 
-func (srv *server) cleanupSubscribers(toDelete []string, channels map[string][]string, quits map[string]chan bool) {
+func (srv *server) cleanupSubscribers(
+	toDelete []string,
+	channels map[string][]string,
+	quits map[string]chan bool,
+	streams map[string]eventpb.EventService_OnEventServer,
+) {
 	for _, uuid := range toDelete {
+		// Remove from all channels
 		for name, ch := range channels {
 			uuids := make([]string, 0, len(ch))
 			for _, id := range ch {
@@ -451,8 +469,14 @@ func (srv *server) cleanupSubscribers(toDelete []string, channels map[string][]s
 					uuids = append(uuids, id)
 				}
 			}
-			channels[name] = uuids
+			if len(uuids) == 0 {
+				delete(channels, name)
+			} else {
+				channels[name] = uuids
+			}
 		}
+
+		// Signal quit (if any) and remove
 		if q, ok := quits[uuid]; ok {
 			select {
 			case q <- true:
@@ -460,7 +484,13 @@ func (srv *server) cleanupSubscribers(toDelete []string, channels map[string][]s
 			}
 			delete(quits, uuid)
 		}
-		delete(quits, uuid)
+
+		// Remove stream entry so future keepalives don't see it
+		if _, ok := streams[uuid]; ok {
+			delete(streams, uuid)
+		}
+
+		srv.logger.Info("subscriber cleanup", "uuid", uuid)
 	}
 }
 
@@ -638,7 +668,7 @@ func main() {
 			logger.Error("fail to create port allocator", "error", err)
 			os.Exit(1)
 		}
-		
+
 		p, err := allocator.Next(srv.Id)
 		if err != nil {
 			logger.Error("fail to allocate port", "error", err)
@@ -646,7 +676,7 @@ func main() {
 		}
 		srv.Port = p
 	}
-	
+
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":

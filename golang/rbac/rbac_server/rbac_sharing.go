@@ -69,6 +69,7 @@ func (srv *server) unsetSubjectSharedResource(subject, resourceUuid string) erro
 }
 
 func (srv *server) shareResource(share *rbacpb.Share) error {
+	sanitizeShareLists(share)
 
 	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
 	uuid := Utility.GenerateUUID(share.Domain + share.Path)
@@ -359,6 +360,31 @@ func (srv *server) getSharedResource(subject string, subjectType rbacpb.SubjectT
 		}
 	}
 	return share_, nil
+}
+
+// sanitizeShareLists removes duplicates and empty entries from the repeated fields of Share.
+func sanitizeShareLists(share *rbacpb.Share) {
+	dedupe := func(values []string) []string {
+		seen := make(map[string]struct{}, len(values))
+		out := make([]string, 0, len(values))
+		for _, v := range values {
+			if v == "" {
+				continue
+			}
+			if _, ok := seen[v]; ok {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+		return out
+	}
+
+	share.Applications = dedupe(share.Applications)
+	share.Peers = dedupe(share.Peers)
+	share.Accounts = dedupe(share.Accounts)
+	share.Groups = dedupe(share.Groups)
+	share.Organizations = dedupe(share.Organizations)
 }
 
 // GetSharedResource retrieves all shared resources for a given subject.

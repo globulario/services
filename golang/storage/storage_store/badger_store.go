@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	badger "github.com/dgraph-io/badger/v3"
 )
@@ -86,6 +87,19 @@ func (store *Badger_store) open(optionsStr string) error {
 	if err != nil {
 		return err
 	}
+	
+	// Start a goroutine to run value log GC periodically
+    ticker := time.NewTicker(1 * time.Hour)
+    go func() {
+        for range ticker.C {
+            for {
+                if err := store.runValueLogGCOnce(); err != nil { // wrap method name
+                    break // ErrNoRewrite or transient error
+                }
+            }
+        }
+    }()
+
 
 	store.db = db
 	store.path = path
@@ -203,4 +217,13 @@ func (store *Badger_store) drop() error {
         return os.RemoveAll(store.path)
     }
     return nil
+}
+
+// in badger_store.go
+func (store *Badger_store) runValueLogGCOnce() error {
+    if store.db == nil {
+        return errors.New("badger: GC: db is not open")
+    }
+    // Badger recommends iterating until it returns ErrNoRewrite.
+    return store.db.RunValueLogGC(0.5) // 50% reclaim threshold
 }

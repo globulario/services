@@ -816,12 +816,11 @@ func main() {
 	s.cacheTTL = 5 * time.Minute // adjust
 
 	// init BigCache
-    s.cache = storage_store.NewBigCache_store()
+	s.cache = storage_store.NewBigCache_store()
 
-    // pass lifeWindow via JSON (your Open() already supports options)
-    // e.g. shards/lifeWindow are bigcache options; tune to your traffic
-    _ = s.cache.Open(`{"lifeWindow":"5m","shards":64}`)
-
+	// pass lifeWindow via JSON (your Open() already supports options)
+	// e.g. shards/lifeWindow are bigcache options; tune to your traffic
+	_ = s.cache.Open(`{"lifeWindow":"5m","shards":64}`)
 
 	s.Permissions = []interface{}{
 		// --- References ----------------------------------------------------------
@@ -1302,6 +1301,9 @@ func main() {
 			} else {
 				s.Address = "localhost:" + Utility.ToString(s.Port)
 			}
+			if s.Id == "" {
+				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+			}
 			b, err := globular.DescribeJSON(s)
 			if err != nil {
 				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
@@ -1396,6 +1398,11 @@ func main() {
 		"version", s.Version,
 		"store", s.Backend_type,
 	)
+
+	err := s.CreateAccountDir(context.Background())
+	if err != nil {
+		logger.Error("fail to create account dir", "error", err)
+	}
 
 	if err := s.StartService(); err != nil {
 		logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)

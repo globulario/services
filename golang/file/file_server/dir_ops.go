@@ -369,12 +369,18 @@ func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) 
 
 // isPublic returns true if a concrete filesystem path is inside a public root.
 func (srv *server) isPublic(path string) bool {
-	p := toSlash(path)
-	if Utility.Exists(p) {
-		for _, root := range srv.Public {
-			if strings.HasPrefix(p, toSlash(root)) {
-				return true
-			}
+	p := toSlash(filepath.Clean(path))
+	sep := "/"
+	if p == "" {
+		return false
+	}
+	for _, root := range srv.Public {
+		cleanRoot := toSlash(filepath.Clean(root))
+		if cleanRoot == "" {
+			continue
+		}
+		if strings.HasPrefix(p+sep, cleanRoot+sep) || p == cleanRoot {
+			return true
 		}
 	}
 	return false
@@ -747,6 +753,13 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 	for i := 0; i < len(rqst.Files); i++ {
 		from := srv.formatPath(rqst.Files[i])
 		dest := srv.formatPath(rqst.Path)
+
+		// Test if from has same parent as dest
+		if filepath.Dir(from) == dest || from == dest {
+			// no need to move
+			continue
+		}
+
 		info, _ := os.Stat(from)
 		filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
 

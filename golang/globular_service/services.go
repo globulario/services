@@ -750,6 +750,24 @@ func applyDesiredToService(s Service, m map[string]any) {
 		}
 	}
 
+	// Optional: file service public directories.
+	if raw := m["Public"]; raw != nil {
+		var dirs []string
+		switch v := raw.(type) {
+		case []any:
+			for _, x := range v {
+				if dir := Utility.ToString(x); dir != "" {
+					dirs = append(dirs, dir)
+				}
+			}
+		case []string:
+			dirs = append(dirs, v...)
+		}
+		if setter, ok := s.(interface{ SetPublicDirs([]string) }); ok {
+			setter.SetPublicDirs(dirs)
+		}
+	}
+
 	// Ports & TLS
 	if m["Port"] != nil {
 		s.SetPort(Utility.ToInt(m["Port"]))

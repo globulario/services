@@ -221,7 +221,7 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 		}
 		logger.Info("ffmpeg: generate GIF preview", "src", path, "out", gifOut, "fps", fps, "scale", scale, "t", duration)
 		wait := make(chan error)
-		Utility.RunCmd("ffmpeg", outDir, gifArgs, wait)
+		go Utility.RunCmd("ffmpeg", outDir, gifArgs, wait)
 		if err := <-wait; err != nil {
 			_ = os.Remove(gifOut)
 			logger.Error("ffmpeg: GIF preview failed", "src", path, "out", gifOut, "err", err)
@@ -254,7 +254,7 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 
 		logger.Info("ffmpeg: generate MP4 preview", "src", path, "out", mp4Out, "venc", venc, "scale", scale, "t", duration)
 		wait := make(chan error)
-		Utility.RunCmd("ffmpeg", outDir, mp4Args, wait)
+		go Utility.RunCmd("ffmpeg", outDir, mp4Args, wait)
 		if err := <-wait; err != nil {
 			_ = os.Remove(mp4Out)
 			logger.Warn("ffmpeg: MP4 preview failed; retrying with libx264 if applicable", "src", path, "err", err)
@@ -269,7 +269,7 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 					}
 				}
 				wait2 := make(chan error)
-				Utility.RunCmd("ffmpeg", outDir, mp4ArgsRetry, wait2)
+				go Utility.RunCmd("ffmpeg", outDir, mp4ArgsRetry, wait2)
 				if err2 := <-wait2; err2 != nil {
 					logger.Error("ffmpeg: MP4 preview retry failed", "src", path, "err", err2)
 					return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", path, err2)
@@ -300,6 +300,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 		return fmt.Errorf("createVideoTimeLine: file not found: %q", path)
 	}
 
+	fmt.Println("--------> createVideoTimeLine called for path:", path, " width:", width, " fps:", fps, " force:", force)
 	// Limit concurrent ffmpeg instances.
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("createVideoTimeLine: maximum concurrent ffmpeg instances reached; try again later")
@@ -333,6 +334,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 
 	output := filepath.ToSlash(filepath.Join(baseDir, ".hidden", name, "__timeline__"))
 
+	
 	// If it already exists, either reuse (create VTT only) or rebuild.
 	if Utility.Exists(output) {
 		if !force {
@@ -360,6 +362,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 	//   - fps as requested
 	wait := make(chan error)
 	args := []string{
+		"-y",
 		"-i", path,
 		"-ss", "0",
 		"-t", Utility.ToString(durationSec),
@@ -373,7 +376,7 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 		"fps", fps,
 		"duration_sec", durationSec)
 
-	Utility.RunCmd("ffmpeg", output, args, wait)
+	go Utility.RunCmd("ffmpeg", output, args, wait)
 	if err := <-wait; err != nil {
 		logger.Error("ffmpeg timeline extraction failed", "video", path, "out", output, "err", err)
 		return fmt.Errorf("createVideoTimeLine: ffmpeg extraction failed for %q: %w", path, err)
@@ -484,7 +487,7 @@ func (s *server) createVideoPreview(path string, nb, height int, force bool) err
 			"-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250",
 			"preview_%05d.jpg",
 		}
-		Utility.RunCmd("ffmpeg", outDir, args, wait)
+		go Utility.RunCmd("ffmpeg", outDir, args, wait)
 
 		if err := <-wait; err == nil {
 			runErr = nil
@@ -547,7 +550,7 @@ func ensureAACDefault(video string) error {
 	}
 	args = append(args, output)
 	wait := make(chan error)
-	Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
+	go Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
 	if err := <-wait; err != nil {
 		return err
 	}
@@ -642,7 +645,7 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	args = append(args, out)
 
 	wait := make(chan error)
-	Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
+	go Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
 	if err := <-wait; err != nil {
 		return "", err
 	}
@@ -859,7 +862,7 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 
 	// Run ffmpeg once to produce all variant playlists and segments.
 	wait := make(chan error)
-	Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
+	go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
 	if runErr := <-wait; runErr != nil {
 		logger.Error("createHlsStream: ffmpeg failed", "src", src, "dest", dest, "err", runErr)
 		return runErr
@@ -1064,7 +1067,7 @@ func extractSubtitleTracks(videoPath string) error {
 
 	// Run ffmpeg in destination directory so output files land there.
 	wait := make(chan error)
-	Utility.RunCmd("ffmpeg", dest, args, wait)
+	go Utility.RunCmd("ffmpeg", dest, args, wait)
 	if err := <-wait; err != nil {
 		logger.Error("ffmpeg: subtitle extraction failed", "src", videoPath, "dest", dest, "err", err)
 		return fmt.Errorf("subtitle extraction failed for %q: %w", videoPath, err)

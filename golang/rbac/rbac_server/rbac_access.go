@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -293,9 +294,17 @@ func (srv *server) validateAccessDenied(subject string, subjectType rbacpb.Subje
 }
 
 func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.SubjectType, name string, path string) bool {
+
 	subject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {
+		fmt.Println("validateAccessAllowed: subject validation error:", err)
 		return false
+	}
+
+	// Test if the user is the sa
+	if subjectType == rbacpb.SubjectType_ACCOUNT && strings.HasPrefix(subject, "sa@") {
+		fmt.Println("Subject is service account, allowing access")
+		return true
 	}
 
 	permissions, err := srv.getResourcePermissions(path)

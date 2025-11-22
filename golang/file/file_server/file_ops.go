@@ -192,6 +192,7 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 	if err != nil {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	defer f.Close()
 	buf := make([]byte, 5*1024)
 	for {

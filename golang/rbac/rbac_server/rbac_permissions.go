@@ -717,45 +717,167 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 	return nil
 }
 func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-    chached, err := srv.cache.GetItem(path)
-    if err == nil && chached != nil {
-        permissions := new(rbacpb.Permissions)
-        if err := protojson.Unmarshal(chached, permissions); err == nil {
-            return permissions, nil
-        }
-    }
-
-    data, err := srv.getItem(path)
-    if err != nil {
-        return nil, err
-    }
-
-    permissions := new(rbacpb.Permissions)
-    if err := protojson.Unmarshal(data, permissions); err != nil {
-        return nil, err
-    }
-
-    needSave, permissions, err := srv.cleanupPermissions(permissions)
-    if err != nil {
-        // Map cleanup’s “file does not exist …” to a canonical not-found
-        if strings.Contains(strings.ToLower(err.Error()), "file does not exist") {
-            return nil, fmt.Errorf("item not found: %s", path)
-        }
-        return nil, err
-    }
-
-    if needSave {
-        if err := srv.setResourcePermissions(path, permissions.ResourceType, permissions); err != nil {
-            logPrintln("cleanupPermissions resave failed for ", path, ": ", err)
-        }
-    }
-
-    if jsonStr, err := protojson.Marshal(permissions); err == nil {
-        srv.cache.SetItem(path, []byte(jsonStr))
-    }
-
-    return permissions, nil
+	perms, foundAt, err := srv.resolvePermissions(path)
+	if err != nil {
+		return nil, err
+	}
+	srv.inheritOwnersIfMissing(perms, foundAt)
+	return perms, nil
 }
+
+func (srv *server) resolvePermissions(path string) (*rbacpb.Permissions, string, error) {
+	perms, err := srv.loadPermissionsRecord(path)
+	if err == nil {
+		return perms, path, nil
+	}
+	if !isNotFoundErr(err) {
+		return nil, "", err
+	}
+
+	parent := parentPath(path)
+	if parent == "" {
+		return nil, "", err
+	}
+
+	ancestor, ancestorPath, ancErr := srv.findAncestorPermissions(parent)
+	if ancErr != nil {
+		return nil, "", ancErr
+	}
+	if ancestor == nil {
+		return nil, "", err
+	}
+
+	clone := proto.Clone(ancestor).(*rbacpb.Permissions)
+	clone.Path = path
+	return clone, ancestorPath, nil
+}
+
+func (srv *server) loadPermissionsRecord(path string) (*rbacpb.Permissions, error) {
+	chached, err := srv.cache.GetItem(path)
+	if err == nil && chached != nil {
+		permissions := new(rbacpb.Permissions)
+		if err := protojson.Unmarshal(chached, permissions); err == nil {
+			return permissions, nil
+		}
+	}
+
+	data, err := srv.getItem(path)
+	if err != nil {
+		return nil, err
+	}
+
+	permissions := new(rbacpb.Permissions)
+	if err := protojson.Unmarshal(data, permissions); err != nil {
+		return nil, err
+	}
+
+	needSave, permissions, err := srv.cleanupPermissions(permissions)
+	if err != nil {
+		// Map cleanup’s “file does not exist …” to a canonical not-found
+		if strings.Contains(strings.ToLower(err.Error()), "file does not exist") {
+			return nil, fmt.Errorf("item not found: %s", path)
+		}
+		return nil, err
+	}
+
+	if needSave {
+		if err := srv.setResourcePermissions(path, permissions.ResourceType, permissions); err != nil {
+			logPrintln("cleanupPermissions resave failed for ", path, ": ", err)
+		}
+	}
+
+	if jsonStr, err := protojson.Marshal(permissions); err == nil {
+		srv.cache.SetItem(path, []byte(jsonStr))
+	}
+
+	return permissions, nil
+}
+
+func (srv *server) findAncestorPermissions(start string) (*rbacpb.Permissions, string, error) {
+	current := start
+	var lastErr error
+	for current != "" {
+		perms, err := srv.loadPermissionsRecord(current)
+		if err == nil {
+			return perms, current, nil
+		}
+		if !isNotFoundErr(err) {
+			return nil, "", err
+		}
+		lastErr = err
+		current = parentPath(current)
+	}
+	if lastErr != nil {
+		return nil, "", lastErr
+	}
+	return nil, "", fmt.Errorf("item not found: %s", start)
+}
+
+func (srv *server) inheritOwnersIfMissing(perms *rbacpb.Permissions, currentPath string) {
+	if perms == nil || hasOwners(perms) {
+		return
+	}
+	parent := parentPath(currentPath)
+	for parent != "" {
+		ancestor, err := srv.loadPermissionsRecord(parent)
+		if err != nil {
+			if isNotFoundErr(err) {
+				parent = parentPath(parent)
+				continue
+			}
+			return
+		}
+		if hasOwners(ancestor) {
+			perms.Owners = clonePermission(ancestor.Owners)
+			return
+		}
+		parent = parentPath(parent)
+	}
+}
+
+func hasOwners(perms *rbacpb.Permissions) bool {
+	if perms == nil || perms.Owners == nil {
+		return false
+	}
+	o := perms.Owners
+	return len(o.Accounts) > 0 ||
+		len(o.Groups) > 0 ||
+		len(o.Organizations) > 0 ||
+		len(o.Applications) > 0 ||
+		len(o.Peers) > 0
+}
+
+func clonePermission(in *rbacpb.Permission) *rbacpb.Permission {
+	if in == nil {
+		return nil
+	}
+	cp, _ := proto.Clone(in).(*rbacpb.Permission)
+	return cp
+}
+
+func parentPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if p != "/" {
+		p = strings.TrimRight(p, "/")
+		if p == "" {
+			return ""
+		}
+	}
+	if p == "/" {
+		return ""
+	}
+	idx := strings.LastIndex(p, "/")
+	if idx == -1 {
+		return ""
+	}
+	if idx == 0 {
+		return "/"
+	}
+	return p[:idx]
+}
+
 // DeleteResourcePermissions deletes all permissions associated with a specified resource path.
 // It first retrieves the current permissions for the resource. If the resource is not found,
 // it returns an empty response without error. If any other error occurs during retrieval or
@@ -1004,7 +1126,6 @@ func (srv *server) SetResourcePermission(ctx context.Context, rqst *rbacpb.SetRe
 // It takes a context and a GetResourcePermissionsRqst containing the resource path.
 // Returns a GetResourcePermissionsRsp with the permissions or an error if retrieval fails.
 func (srv *server) GetResourcePermissions(ctx context.Context, rqst *rbacpb.GetResourcePermissionsRqst) (*rbacpb.GetResourcePermissionsRsp, error) {
-
 	permissions, err := srv.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(

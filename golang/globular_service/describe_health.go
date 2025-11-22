@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
+	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -18,6 +20,7 @@ import (
 // DescribeMap returns a stable map of public, cluster-relevant fields.
 // It intentionally excludes runtime-only internals like grpcServer pointers.
 func DescribeMap(s Service) map[string]any {
+	ensureDescribeID(s)
 	return map[string]any{
 		"Id":                 s.GetId(),
 		"Name":               s.GetName(),
@@ -60,6 +63,28 @@ func DescribeMap(s Service) map[string]any {
 func DescribeJSON(s Service) ([]byte, error) {
 	m := DescribeMap(s)
 	return json.MarshalIndent(m, "", "  ")
+}
+
+// ensureDescribeID assigns a deterministic ID before emitting --describe output.
+func ensureDescribeID(s Service) {
+	if s.GetId() != "" {
+		return
+	}
+	name := strings.TrimSpace(s.GetName())
+	addr := strings.ToLower(strings.TrimSpace(s.GetAddress()))
+	if addr == "" {
+		host := strings.ToLower(strings.TrimSpace(s.GetDomain()))
+		if host == "" {
+			host = "localhost"
+		}
+		if port := s.GetPort(); port > 0 {
+			addr = fmt.Sprintf("%s:%d", host, port)
+		} else {
+			addr = host
+		}
+	}
+	seed := fmt.Sprintf("%s:%s", name, addr)
+	s.SetId(Utility.GenerateUUID(seed))
 }
 
 /* ---------- Health probing ---------- */
