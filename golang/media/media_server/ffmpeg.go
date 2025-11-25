@@ -300,7 +300,6 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 		return fmt.Errorf("createVideoTimeLine: file not found: %q", path)
 	}
 
-	fmt.Println("--------> createVideoTimeLine called for path:", path, " width:", width, " fps:", fps, " force:", force)
 	// Limit concurrent ffmpeg instances.
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("createVideoTimeLine: maximum concurrent ffmpeg instances reached; try again later")
@@ -624,23 +623,32 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 		}
 	}
 
-	// map video
-	args = append(args, "-map", "0:v")
-	for i := 0; i < 8; i++ {
+	// map primary video stream only (ignore cover art or extra video matter)
+	args = append(args, "-map", "0:v:0")
+	audioCount := countStreamsByType(streams, "audio")
+	if audioCount == 0 {
+		audioCount = 1
+	}
+	for i := 0; i < audioCount; i++ {
 		args = append(args, "-map", fmt.Sprintf("0:a:%d?", i), "-c:a:"+fmt.Sprint(i), "aac")
 	}
 
 	// map compatible subtitles
 	subIdx := 0
+	streamIdx := 0
 	for _, s := range streams["streams"].([]any) {
 		sm := s.(map[string]any)
 		if sm["codec_type"].(string) == "subtitle" {
 			codec := sm["codec_name"].(string)
 			if codec == "subrip" || codec == "ass" || codec == "ssa" {
-				args = append(args, "-map", fmt.Sprintf("0:s:%d?", subIdx), "-c:s:"+fmt.Sprint(subIdx), "mov_text")
+				args = append(args,
+					"-map", fmt.Sprintf("0:s:%d?", streamIdx),
+					"-c:s:"+fmt.Sprint(subIdx), "mov_text",
+				)
 				subIdx++
 			}
 		}
+		streamIdx++
 	}
 	args = append(args, out)
 
@@ -651,6 +659,23 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	}
 	_ = os.Remove(path)
 	return out, nil
+}
+
+func countStreamsByType(streams map[string]any, kind string) int {
+	if streams == nil {
+		return 0
+	}
+	cnt := 0
+	if sList, ok := streams["streams"].([]any); ok {
+		for _, entry := range sList {
+			if sm, _ := entry.(map[string]any); ok {
+				if codecType, _ := sm["codec_type"].(string); codecType == kind {
+					cnt++
+				}
+			}
+		}
+	}
+	return cnt
 }
 
 func (srv *server) hasEnableCudaNvcc() bool {

@@ -89,10 +89,14 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 
 // getAudioById returns an Audio stored in the index's internal store by its id.
 func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
-	if !Utility.Exists(indexPath) {
-		return nil, errors.New("no database found at path " + indexPath)
+	resolved, err := srv.resolveIndexPath(indexPath)
+	if err != nil {
+		return nil, err
 	}
-	index, err := srv.getIndex(indexPath)
+	if !Utility.Exists(resolved) {
+		return nil, errors.New("no database found at path " + resolved)
+	}
+	index, err := srv.getIndex(resolved)
 	if err != nil {
 		return nil, errf("open index %q", err, indexPath)
 	}
@@ -113,13 +117,17 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 
 // GetAudioById returns an Audio with associated file paths, if any.
 func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdRequest) (*titlepb.GetAudioByIdResponse, error) {
-	audio, err := srv.getAudioById(rqst.IndexPath, rqst.AudioId)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	audio, err := srv.getAudioById(resolved, rqst.AudioId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 
 	paths := []string{}
-	if store := srv.getAssociations(rqst.IndexPath); store != nil {
+	if store := srv.getAssociations(resolved); store != nil {
 		if data, err := store.GetItem(rqst.AudioId); err == nil {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {
@@ -201,7 +209,6 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 	// TODO: remove associated files / tracks if you want cascade behavior.
 	return &titlepb.DeleteAlbumResponse{}, nil
 }
-
 
 // deleteAudio removes an Audio and all associations, RBAC permissions and publishes events.
 func (srv *server) deleteAudio(token, indexPath string, audioId string) error {

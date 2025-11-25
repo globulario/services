@@ -40,13 +40,13 @@ func (store *Badger_store) run() {
 			action["result"].(chan error) <- store.close()
 
 		case "GetAllKeys":
-			// Not supported by BadgerDB
+			// Not supported by BadgerDB but provided for compatibility.
 			keys, err := store.getAllKeys()
 			action["results"].(chan map[string]interface{}) <- map[string]interface{}{
 				"keys": keys, "err": err,
 			}
-			// Exit the goroutine cleanly.
-			return
+			// Keep the goroutine alive so future actions can execute.
+			continue
 		}
 	}
 }

@@ -1,8 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/blevesearch/bleve/v2"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/storage/storage_store"
+	Utility "github.com/globulario/utility"
 )
 
 // getStore opens/returns the key-value store used for file/title associations.
@@ -36,20 +43,43 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
 	if srv.indexs == nil {
 		srv.indexs = make(map[string]bleve.Index, 0)
 	}
-	if idx, ok := srv.indexs[path]; ok && idx != nil {
+	resolved, err := srv.resolveIndexPath(path)
+	if err != nil {
+		return nil, err
+	}
+	if idx, ok := srv.indexs[resolved]; ok && idx != nil {
 		return idx, nil
 	}
-	index, err := bleve.Open(path)
+	index, err := bleve.Open(resolved)
 	if err != nil {
 		mapping := bleve.NewIndexMapping()
-		index, err = bleve.New(path, mapping)
+		index, err = bleve.New(resolved, mapping)
 		if err != nil {
 			return nil, err
 		}
 	}
-	srv.indexs[path] = index
-	logger.Info("index opened", "path", path)
+	srv.indexs[resolved] = index
+	logger.Info("index opened", "path", resolved)
 	return index, nil
+}
+
+func (srv *server) resolveIndexPath(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("index path is required")
+	}
+	clean := strings.ReplaceAll(path, "\\", "/")
+	if Utility.Exists(clean) {
+		return clean, nil
+	}
+	dataDir := config.GetDataDir()
+	fallback := filepath.Join(dataDir, strings.TrimPrefix(clean, "/"))
+	if Utility.Exists(fallback) {
+		return fallback, nil
+	}
+	if err := os.MkdirAll(fallback, 0o755); err != nil {
+		return "", err
+	}
+	return fallback, nil
 }
 
 // getAssociations returns the opened association store by id, if any.

@@ -127,6 +127,11 @@ type server struct {
 	AutomaticStreamConversion   bool
 	StartVideoConversionHour    string
 	MaximumVideoConversionDelay string
+	restoreFailureMu            sync.Mutex
+	restoreFailures             map[string]time.Time
+	processPendingMu            sync.Mutex
+	processPending              bool
+	pendingProcessDirs          []string
 }
 
 // --- Globular getters/setters (unchanged public prototypes) ---
@@ -676,6 +681,7 @@ func main() {
 		"authentication.AuthenticationService",
 		"log.LogService",
 	}
+	srv.restoreFailures = make(map[string]time.Time)
 
 	// srv.Permissions for media.MediaService
 	srv.Permissions = []interface{}{

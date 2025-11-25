@@ -54,6 +54,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+replace github.com/globulario/utility => ../../utility
+
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect

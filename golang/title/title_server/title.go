@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/config"
@@ -19,13 +20,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // saveVideoMetadata persists minimal, recoverable metadata next to the media.
-// - If absolutefilePath is a directory: writes "<dir>/infos.json" with the JSON-serialized Video.
-// - If it's a file: writes base64(protojson(video)) into the media container's "comment" tag.
-//   If that write changes the file checksum, the associations KV key is migrated from the
-//   old checksum to the new one so lookups remain valid. Finally, it publishes a reload event.
+//   - If absolutefilePath is a directory: writes "<dir>/infos.json" with the JSON-serialized Video.
+//   - If it's a file: writes base64(protojson(video)) into the media container's "comment" tag.
+//     If that write changes the file checksum, the associations KV key is migrated from the
+//     old checksum to the new one so lookups remain valid. Finally, it publishes a reload event.
 //
 // absolutefilePath: absolute OS path to a media file OR directory.
 // indexPath:        bleve index path (used to find the right associations store).
@@ -45,6 +47,14 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 		return fmt.Errorf("marshal video %q: %w", video.GetID(), err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(raw)
+
+	if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
+		logger.Warn("saveVideoMetadata: cache write failed", "path", absolutefilePath, "err", err)
+	}
+
+	if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
+		logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "err", err)
+	}
 
 	if info.IsDir() {
 		dst := filepath.Join(absolutefilePath, "infos.json")
@@ -76,7 +86,7 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 
 	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
 
-	if err := Utility.SetMetadata(absolutefilePath, "comment", encoded); err != nil {
+	if err := writeMetadataTag(absolutefilePath, "comment", encoded); err != nil {
 		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
 	}
 
@@ -101,10 +111,10 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 }
 
 // saveTitleMetadata persists minimal, recoverable metadata next to the media.
-// - For directories: writes "<dir>/infos.json" (pretty small JSON bundle).
-// - For files: writes base64(protojson(title)) into the media container's
-//   "comment" tag (via Utility.SetMetadata). If that write changes the file
-//   checksum, the associations KV is updated to the new checksum key.
+//   - For directories: writes "<dir>/infos.json" (pretty small JSON bundle).
+//   - For files: writes base64(protojson(title)) into the media container's
+//     "comment" tag (via Utility.SetMetadata). If that write changes the file
+//     checksum, the associations KV is updated to the new checksum key.
 //
 // absolutefilePath: absolute OS path to a media file OR a directory containing it.
 // indexPath:        path to the bleve index (used to find the right associations store).
@@ -127,15 +137,18 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 	encoded := base64.StdEncoding.EncodeToString(raw)
 
 	if info.IsDir() {
-		// Folder case → write infos.json then tell clients to reload that dir.
-		dst := filepath.Join(absolutefilePath, "infos.json")
-		if err := os.WriteFile(dst, raw, 0o664); err != nil {
-			return fmt.Errorf("write %s: %w", dst, err)
+		if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
+			return fmt.Errorf("saveTitleMetadataCache failed (dir): %w", err)
 		}
+		path := metadataCachePath(absolutefilePath)
 		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
 		_ = srv.publish("reload_dir_event", []byte(dir))
-		logger.Info("saved title metadata (dir)", "path", dst, "titleID", title.GetID())
+		logger.Info("saved title metadata (dir)", "path", path, "titleID", title.GetID())
 		return nil
+	}
+
+	if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
+		logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "titleID", title.GetID(), "err", err)
 	}
 
 	// File case → only write tag when it has actually changed, to avoid unnecessary rewrites.
@@ -158,7 +171,7 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
 
 	// Write the new metadata into the media file's "comment" tag.
-	if err := Utility.SetMetadata(absolutefilePath, "comment", encoded); err != nil {
+	if err := writeMetadataTag(absolutefilePath, "comment", encoded); err != nil {
 		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
 	}
 
@@ -182,38 +195,139 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 	return nil
 }
 
-// getTitleById returns a Title stored in the internal store.
-func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
-	if !Utility.Exists(indexPath) {
-		return nil, errors.New("no database found at path " + indexPath)
+func writeMetadataTag(path, key, value string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
+	idx := strings.LastIndex(path, ".")
+	if idx == -1 || idx+1 >= len(path) {
+		return fmt.Errorf("writeMetadataTag: path %q has no extension", path)
 	}
-	index, err := srv.getIndex(indexPath)
+	ext := path[idx+1:]
+
+	try := 30
+	for try > 0 {
+		dest := strings.ReplaceAll(path, "."+ext, ".temp."+ext)
+		if Utility.Exists(dest) {
+			_ = os.Remove(dest)
+		}
+
+		args := []string{
+			"-y",
+			"-nostdin",
+			"-i", path,
+			"-c:v", "copy",
+			"-c:a", "copy",
+			"-c:s", "mov_text",
+			"-map", "0",
+			"-metadata", key + "=" + value,
+			dest,
+		}
+
+		wait := make(chan error, 1)
+		go Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
+		err := <-wait
+		if err != nil || !Utility.Exists(dest) {
+			if err != nil {
+				logger.Warn("writeMetadataTag: ffmpeg failed", "path", path, "err", err)
+			}
+			try--
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		if err := os.Rename(dest, path); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("writeMetadataTag: failed to write metadata for %s", path)
+}
+
+func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
+	// Resolve index path and open index
+	resolved, err := srv.resolveIndexPath(indexPath)
 	if err != nil {
 		return nil, err
 	}
+	if !Utility.Exists(resolved) {
+		return nil, errors.New("no database found at path " + resolved)
+	}
+	index, err := srv.getIndex(resolved)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to fetch existing raw title from internal store
 	uuid := Utility.GenerateUUID(titleId)
 	raw, err := index.GetInternal([]byte(uuid))
-	if err != nil {
-		return nil, err
+	if err == nil && len(raw) > 0 {
+		t := new(titlepb.Title)
+		if err := protojson.Unmarshal(raw, t); err != nil {
+			return nil, err
+		}
+
+		if needsFix := srv.titleNeedsFix(t); needsFix && imdbIDRE.MatchString(t.ID) {
+			titleCopy := proto.Clone(t).(*titlepb.Title)
+			go srv.asyncEnrichTitle(resolved, titleCopy)
+		}
+
+		return t, nil
 	}
-	if len(raw) == 0 {
-		return nil, errors.New("no title found with id " + titleId)
+
+	// If we reach here, no stored title was found. If the requested ID looks like
+	// an IMDb ID, attempt to build it on-demand and persist it for future calls.
+	if imdbIDRE.MatchString(titleId) {
+		enriched, err := srv.buildTitleFromIMDB(titleId)
+		if err != nil {
+			return nil, err
+		}
+		if enriched == nil {
+			return nil, errors.New("no title found with id " + titleId)
+		}
+
+		// Ensure UUID
+		if enriched.UUID == "" {
+			enriched.UUID = Utility.GenerateUUID(enriched.ID)
+		}
+
+		// Update casting index
+		enriched.Actors = srv.saveTitleCasting(resolved, enriched.ID, "Acting", enriched.Actors)
+		enriched.Writers = srv.saveTitleCasting(resolved, enriched.ID, "Writing", enriched.Writers)
+		enriched.Directors = srv.saveTitleCasting(resolved, enriched.ID, "Directing", enriched.Directors)
+
+		// Index document
+		if err := index.Index(enriched.UUID, enriched); err != nil {
+			logger.Warn("index imdb-built title", "titleID", enriched.ID, "err", err)
+		}
+		// Persist raw
+		if rawOut, err := protojson.Marshal(enriched); err == nil {
+			if err := index.SetInternal([]byte(enriched.UUID), rawOut); err != nil {
+				logger.Warn("store imdb-built title raw", "titleID", enriched.ID, "err", err)
+			}
+		} else {
+			logger.Warn("marshal imdb-built title", "titleID", enriched.ID, "err", err)
+		}
+
+		return enriched, nil
 	}
-	t := new(titlepb.Title)
-	if err := protojson.Unmarshal(raw, t); err != nil {
-		return nil, err
-	}
-	return t, nil
+
+	return nil, errors.New("no title found with id " + titleId)
 }
 
 // GetTitleById returns Title with associated file paths, if any.
 func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
-	title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	title, err := srv.getTitleById(resolved, rqst.TitleId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	paths := []string{}
-	if assoc := srv.getAssociations(rqst.IndexPath); assoc != nil {
+	if assoc := srv.getAssociations(resolved); assoc != nil {
 		if data, err := assoc.GetItem(rqst.TitleId); err == nil {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {
@@ -222,6 +336,135 @@ func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 		}
 	}
 	return &titlepb.GetTitleByIdResponse{Title: title, FilesPaths: paths}, nil
+}
+
+func (srv *server) titleNeedsFix(t *titlepb.Title) bool {
+	if t == nil {
+		return false
+	}
+	if t.Year == 0 || t.Rating == 0 || t.RatingCount == 0 || t.Duration == "" {
+		return true
+	}
+	if len(t.Actors) == 0 || len(t.Writers) == 0 || len(t.Directors) == 0 {
+		return true
+	}
+	if t.Type == "TVEpisode" && (t.Season == 0 || t.Episode == 0 || t.Serie == "") {
+		return true
+	}
+	return false
+}
+
+func (srv *server) asyncEnrichTitle(indexPath string, title *titlepb.Title) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("asyncEnrichTitle: panic recovered", "titleID", title.GetID(), "err", r)
+		}
+	}()
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		logger.Warn("asyncEnrichTitle: open index failed", "indexPath", indexPath, "err", err)
+		return
+	}
+	enriched, err := srv.buildTitleFromIMDB(title.ID)
+	if err != nil || enriched == nil {
+		if err != nil {
+			logger.Warn("asyncEnrichTitle: buildTitleFromIMDB failed", "titleID", title.ID, "err", err)
+		}
+		return
+	}
+
+	merged := proto.Clone(title).(*titlepb.Title)
+	srv.mergeTitleWithEnriched(merged, enriched)
+	if merged.UUID == "" {
+		merged.UUID = Utility.GenerateUUID(merged.ID)
+	}
+	merged.Actors = srv.saveTitleCasting(indexPath, merged.ID, "Acting", merged.Actors)
+	merged.Writers = srv.saveTitleCasting(indexPath, merged.ID, "Writing", merged.Writers)
+	merged.Directors = srv.saveTitleCasting(indexPath, merged.ID, "Directing", merged.Directors)
+
+	if err := index.Index(merged.UUID, merged); err != nil {
+		logger.Warn("asyncEnrichTitle: reindex enriched title failed", "titleID", merged.ID, "err", err)
+	}
+	if rawOut, err := protojson.Marshal(merged); err == nil {
+		if err := index.SetInternal([]byte(merged.UUID), rawOut); err != nil {
+			logger.Warn("asyncEnrichTitle: store enriched title raw failed", "titleID", merged.ID, "err", err)
+		}
+	} else {
+		logger.Warn("asyncEnrichTitle: marshal enriched title failed", "titleID", merged.ID, "err", err)
+	}
+}
+
+func (srv *server) mergeTitleWithEnriched(target, enriched *titlepb.Title) {
+	if target == nil || enriched == nil {
+		return
+	}
+	if target.Year == 0 && enriched.Year != 0 {
+		target.Year = enriched.Year
+	}
+	if (target.Rating == 0 && enriched.Rating != 0) || (target.RatingCount == 0 && enriched.RatingCount != 0) {
+		if target.Rating == 0 {
+			target.Rating = enriched.Rating
+		}
+		if target.RatingCount == 0 {
+			target.RatingCount = enriched.RatingCount
+		}
+	}
+	if target.Duration == "" && enriched.Duration != "" {
+		target.Duration = enriched.Duration
+	}
+	if len(target.Genres) == 0 && len(enriched.Genres) > 0 {
+		target.Genres = enriched.Genres
+	}
+	if len(target.Language) == 0 && len(enriched.Language) > 0 {
+		target.Language = enriched.Language
+	}
+	if len(target.Nationalities) == 0 && len(enriched.Nationalities) > 0 {
+		target.Nationalities = enriched.Nationalities
+	}
+	if target.Description == "" && enriched.Description != "" {
+		target.Description = enriched.Description
+	}
+	if target.Poster == nil && enriched.Poster != nil {
+		target.Poster = enriched.Poster
+	}
+
+	mergePersons := func(dst []*titlepb.Person, src []*titlepb.Person) []*titlepb.Person {
+		if len(src) == 0 {
+			return dst
+		}
+		seen := make(map[string]struct{}, len(dst))
+		for _, p := range dst {
+			if p != nil && p.ID != "" {
+				seen[p.ID] = struct{}{}
+			}
+		}
+		for _, p := range src {
+			if p == nil || p.ID == "" {
+				continue
+			}
+			if _, ok := seen[p.ID]; ok {
+				continue
+			}
+			dst = append(dst, p)
+			seen[p.ID] = struct{}{}
+		}
+		return dst
+	}
+
+	target.Actors = mergePersons(target.Actors, enriched.Actors)
+	target.Writers = mergePersons(target.Writers, enriched.Writers)
+	target.Directors = mergePersons(target.Directors, enriched.Directors)
+	if target.Type == "TVEpisode" {
+		if target.Season == 0 && enriched.Season != 0 {
+			target.Season = enriched.Season
+		}
+		if target.Episode == 0 && enriched.Episode != 0 {
+			target.Episode = enriched.Episode
+		}
+		if target.Serie == "" && enriched.Serie != "" {
+			target.Serie = enriched.Serie
+		}
+	}
 }
 
 // CreateTitle indexes or updates a Title, enriches poster with a thumbnail, sets RBAC ownership, and publishes update event.
@@ -238,15 +481,23 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		return nil, status.Errorf(codes.Internal, "resolve client id: %v", err)
 	}
 
-	index, err := srv.getIndex(rqst.IndexPath)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	index, err := srv.getIndex(resolved)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "open index: %v", err)
 	}
 
 	rqst.Title.UUID = Utility.GenerateUUID(rqst.Title.ID)
-	rqst.Title.Actors = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Acting", rqst.Title.Actors)
-	rqst.Title.Writers = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Writing", rqst.Title.Writers)
-	rqst.Title.Directors = srv.saveTitleCasting(rqst.IndexPath, rqst.Title.ID, "Directing", rqst.Title.Directors)
+	if existing, err := srv.getTitleById(resolved, rqst.Title.ID); err == nil && existing != nil {
+		srv.mergeTitleWithEnriched(rqst.Title, existing)
+	}
+	rqst.Title.Actors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Acting", rqst.Title.Actors)
+	rqst.Title.Writers = srv.saveTitleCasting(resolved, rqst.Title.ID, "Writing", rqst.Title.Writers)
+	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
 
 	if err := index.Index(rqst.Title.UUID, rqst.Title); err != nil {
 		return nil, status.Errorf(codes.Internal, "index title: %v", err)
@@ -296,14 +547,18 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 // UpdateTitleMetadata updates persisted metadata for files associated with the title.
 func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.UpdateTitleMetadataRequest) (*titlepb.UpdateTitleMetadataResponse, error) {
-	index, err := srv.getIndex(rqst.IndexPath)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	index, err := srv.getIndex(resolved)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "open index: %v", err)
 	}
 	if _, err := index.GetInternal([]byte(Utility.GenerateUUID(rqst.Title.ID))); err != nil {
 		return nil, status.Errorf(codes.NotFound, "title %q not found in index", rqst.Title.ID)
 	}
-	if paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.Title.ID); err == nil {
+	if paths, err := srv.getTitleFiles(resolved, rqst.Title.ID); err == nil {
 		for _, p := range paths {
 			abs := strings.ReplaceAll(p, "\\", "/")
 			if !Utility.Exists(abs) {
@@ -316,7 +571,7 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
 				}
 			}
-			_ = srv.saveTitleMetadata(abs, rqst.IndexPath, rqst.Title)
+			_ = srv.saveTitleMetadata(abs, resolved, rqst.Title)
 		}
 	}
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
@@ -481,10 +736,14 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 
 // getVideoById returns a Video by ID.
 func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
-	if !Utility.Exists(indexPath) {
-		return nil, errors.New("no database found at path " + indexPath)
+	resolved, err := srv.resolveIndexPath(indexPath)
+	if err != nil {
+		return nil, err
 	}
-	index, err := srv.getIndex(indexPath)
+	if !Utility.Exists(resolved) {
+		return nil, errors.New("no database found at path " + resolved)
+	}
+	index, err := srv.getIndex(resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -513,12 +772,16 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 // GetVideoById returns a Video and associated file paths.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
-	video, err := srv.getVideoById(rqst.IndexPath, rqst.VideoId)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	video, err := srv.getVideoById(resolved, rqst.VideoId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	paths := []string{}
-	if assoc := srv.getAssociations(rqst.IndexPath); assoc != nil {
+	if assoc := srv.getAssociations(resolved); assoc != nil {
 		if data, err := assoc.GetItem(rqst.VideoId); err == nil {
 			a := new(fileTileAssociation)
 			if err := json.Unmarshal(data, a); err == nil {

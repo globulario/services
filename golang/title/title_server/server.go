@@ -900,6 +900,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// non-blocking TSV pre-download
+	go srv.prewarmIMDBDatasets()
+
 	titlepb.RegisterTitleServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
 
