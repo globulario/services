@@ -13,11 +13,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/StalkR/imdb"
 	"github.com/globulario/services/golang/config"
@@ -98,6 +100,10 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	}
 	p := filepath.ToSlash(videoPath)
 
+	if stored, err := loadVideoFromHiddenMetadata(p); err == nil && stored != nil && stored.ID != "" {
+		return srv.wrapRestoreResult(videoPath, restoreAsVideo(client, stored, p))
+	}
+
 	infos, err := getVideoInfos(p, domain)
 	if err != nil {
 		logger.Error("restoreVideoInfos: getVideoInfos failed", "path", p, "err", err)
@@ -128,6 +134,9 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	rawComment, _ := tags["comment"].(string)
 	comment := strings.TrimSpace(rawComment)
 	if comment == "" {
+		if handled, err := srv.tryRestoreFromFilename(client, token, videoPath); handled {
+			return err
+		}
 		fmt.Println("restoreVideoInfos: no comment found for path:", p)
 		return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
 	}
@@ -161,8 +170,14 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 		if storedTitle, err := loadTitleFromHiddenMetadata(p); err == nil && storedTitle != nil && storedTitle.ID != "" {
 			return srv.wrapRestoreResult(videoPath, restoreAsTitle(client, storedTitle, p))
 		}
+		if handled, err := srv.restoreUsingURL(client, token, videoPath, comment); handled {
+			return err
+		}
 		titleID := strings.TrimSpace(comment)
 		if titleID == "" {
+			if handled, err := srv.tryRestoreFromFilename(client, token, videoPath); handled {
+				return err
+			}
 			fmt.Println("restoreVideoInfos: no title ID available for path:", p)
 			return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
 		}
@@ -181,6 +196,9 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	}
 
 	logger.Error("restoreVideoInfos: unmarshal failed for Title and Video", "path", p, "err", err)
+	if handled, ferr := srv.tryRestoreFromFilename(client, token, videoPath); handled {
+		return ferr
+	}
 	return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
 }
 
@@ -264,6 +282,171 @@ func restoreAsVideo(client *title_client.Title_Client, video *titlepb.Video, vid
 
 	fmt.Println("restoreAsVideo: associated video", "id", existing.ID, "path", videoPath)
 	return nil
+}
+
+var (
+	youtubeIDRegex = regexp.MustCompile(`[A-Za-z0-9_-]{11}`)
+	imdbIDRegex    = regexp.MustCompile(`tt\d+`)
+)
+
+func (srv *server) tryRestoreFromFilename(client *title_client.Title_Client, token, videoPath string) (bool, error) {
+	if imdbID, ok := findIMDBID(videoPath); ok {
+		title := &titlepb.Title{ID: imdbID}
+		if err := enrichTitleFromIMDB(title, videoPath); err != nil {
+			logger.Warn("tryRestoreFromFilename: enrich from IMDB failed", "id", imdbID, "err", err)
+		}
+		return true, srv.wrapRestoreResult(videoPath, restoreAsTitle(client, title, videoPath))
+	}
+	if ytID, ok := findYouTubeID(videoPath); ok {
+		url := fmt.Sprintf("https://www.youtube.com/watch?v=%s", ytID)
+		data, err := fetchVideoInfoByURL(url)
+		if err != nil {
+			return true, err
+		}
+		info := map[string]interface{}{}
+		if err := json.Unmarshal(data, &info); err != nil {
+			return true, err
+		}
+		video, err := srv.buildVideoFromYTDLPInfo(info, videoPath)
+		if err != nil {
+			return true, err
+		}
+		if err := writeVideoMetadataCache(videoPath, video); err != nil {
+			logger.Warn("tryRestoreFromFilename: cache write failed", "path", videoPath, "err", err)
+		}
+		return true, srv.wrapRestoreResult(videoPath, restoreAsVideo(client, video, videoPath))
+	}
+	return false, nil
+}
+
+func findIMDBID(path string) (string, bool) {
+	if match := imdbIDRegex.FindString(path); match != "" {
+		return match, true
+	}
+	return "", false
+}
+
+func findYouTubeID(path string) (string, bool) {
+	if idx := strings.Index(path, "watch?v="); idx != -1 {
+		candidate := path[idx+len("watch?v="):]
+		if len(candidate) >= 11 {
+			candidate = candidate[:11]
+			if youtubeIDRegex.MatchString(candidate) {
+				return candidate, true
+			}
+		}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	if youtubeIDRegex.MatchString(base) && len(base) == 11 {
+		return base, true
+	}
+	for _, token := range strings.FieldsFunc(base, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '-' && r != '_'
+	}) {
+		if youtubeIDRegex.MatchString(token) {
+			return token, true
+		}
+	}
+	return "", false
+}
+
+func fetchVideoInfoByURL(urlStr string) ([]byte, error) {
+	dir, err := os.MkdirTemp("", "globular-info-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+
+	cmd := exec.Command("yt-dlp", "-j", "--skip-download", "--no-warnings", "--no-playlist", "--no-config", "-o", "%(id)s.%(ext)s", urlStr)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".info.json") {
+			return os.ReadFile(filepath.Join(dir, entry.Name()))
+		}
+	}
+	return nil, errors.New("yt-dlp did not produce info.json")
+}
+
+func (srv *server) restoreUsingURL(client *title_client.Title_Client, token, videoPath, urlStr string) (bool, error) {
+	urlStr = strings.TrimSpace(urlStr)
+	if urlStr == "" {
+		return false, nil
+	}
+	data, err := fetchVideoInfoByURL(urlStr)
+	if err != nil {
+		return true, err
+	}
+	info := map[string]interface{}{}
+	if err := json.Unmarshal(data, &info); err != nil {
+		return true, err
+	}
+	video, err := srv.buildVideoFromYTDLPInfo(info, videoPath)
+	if err != nil {
+		return true, err
+	}
+	if err := writeVideoMetadataCache(videoPath, video); err != nil {
+		logger.Warn("restoreUsingURL: cache write failed", "path", videoPath, "err", err)
+	}
+	return true, srv.wrapRestoreResult(videoPath, restoreAsVideo(client, video, videoPath))
+}
+
+func writeVideoMetadataCache(videoPath string, video *titlepb.Video) error {
+	if video == nil {
+		return errors.New("missing video metadata")
+	}
+	data, err := protojson.Marshal(video)
+	if err != nil {
+		return err
+	}
+	dest := metadataCachePath(videoPath)
+	if dest == "" {
+		return fmt.Errorf("metadata path not available for %s", videoPath)
+	}
+	if err := Utility.CreateIfNotExists(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, data, 0o664)
+}
+
+func (srv *server) buildVideoFromYTDLPInfo(info map[string]interface{}, videoPath string) (*titlepb.Video, error) {
+	videoID, _ := info["id"].(string)
+	videoURL, _ := info["webpage_url"].(string)
+	if videoID == "" || videoURL == "" {
+		return nil, errors.New("yt-dlp metadata missing id or url")
+	}
+	indexPath := filepath.ToSlash(config.GetDataDir() + "/search/videos")
+	video, err := indexYoutubeVideo("", videoID, videoURL, indexPath, videoPath, videoPath)
+	if err != nil {
+		return nil, err
+	}
+	if title, ok := info["title"].(string); ok && title != "" && video.Title == "" {
+		video.Title = title
+	}
+	if description, ok := info["description"].(string); ok && description != "" {
+		video.Description = description
+	}
+	if thumb, ok := info["thumbnail"].(string); ok && thumb != "" {
+		if video.Poster == nil {
+			video.Poster = new(titlepb.Poster)
+		}
+		if video.Poster.URL == "" {
+			video.Poster.URL = thumb
+		}
+	}
+	if duration, ok := info["duration"].(float64); ok && duration > 0 {
+		video.Duration = int32(duration)
+	}
+	return video, nil
 }
 
 func normalizeEmbeddedProtoJSON(data []byte) []byte {
@@ -725,7 +908,7 @@ func getVideoPaths(dirs []string) []string {
 			if strings.Contains(p, ".temp") {
 				return nil
 			}
-			if strings.HasSuffix(p, "playlist.m3u8") || strings.HasSuffix(p, ".mp4") || strings.HasSuffix(p, ".mkv") || strings.HasSuffix(p, ".avi") || strings.HasSuffix(p, ".mov") || strings.HasSuffix(p, ".wmv") {
+			if strings.HasSuffix(p, "playlist.m3u8") || strings.HasSuffix(p, ".mp4") || strings.HasSuffix(p, ".webm") || strings.HasSuffix(p, ".mkv") || strings.HasSuffix(p, ".avi") || strings.HasSuffix(p, ".mov") || strings.HasSuffix(p, ".wmv") {
 				out = append(out, p)
 			}
 			return nil

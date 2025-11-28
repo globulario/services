@@ -37,7 +37,10 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 	if err != nil {
 		return fmt.Errorf("marshal video %q: %w", video.GetID(), err)
 	}
-	encoded := base64.StdEncoding.EncodeToString(raw)
+	commentValue := strings.TrimSpace(video.GetURL())
+	if commentValue == "" {
+		commentValue = base64.StdEncoding.EncodeToString(raw)
+	}
 
 	if info.IsDir() {
 		if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
@@ -69,7 +72,7 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 		if f, ok := meta["format"].(map[string]any); ok {
 			if tags, ok := f["tags"].(map[string]any); ok {
 				if c, ok := tags["comment"].(string); ok && len(c) > 0 {
-					needSave = c != encoded
+					needSave = c != commentValue
 				}
 			}
 		}
@@ -82,7 +85,7 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 
 	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
 
-	if err := writeMetadataTag(absolutefilePath, "comment", encoded); err != nil {
+	if err := writeMetadataTag(absolutefilePath, "comment", commentValue); err != nil {
 		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
 	}
 
