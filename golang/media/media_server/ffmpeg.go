@@ -333,7 +333,11 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 
 	output := filepath.ToSlash(filepath.Join(baseDir, ".hidden", name, "__timeline__"))
 
-	
+	// Ensure the parent hidden directory exists before touching subfolders.
+	if err := Utility.CreateDirIfNotExist(filepath.Dir(output)); err != nil {
+		return fmt.Errorf("createVideoTimeLine: create dir %q: %w", filepath.Dir(output), err)
+	}
+
 	// If it already exists, either reuse (create VTT only) or rebuild.
 	if Utility.Exists(output) {
 		if !force {
@@ -359,27 +363,41 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 	//   - entire duration
 	//   - scaled to -1:height (keep AR)
 	//   - fps as requested
-	wait := make(chan error)
+	thumbPattern := "thumbnail_%05d.jpg"
 	args := []string{
 		"-y",
 		"-i", path,
 		"-ss", "0",
 		"-t", Utility.ToString(durationSec),
 		"-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps),
-		"thumbnail_%05d.jpg",
+		thumbPattern,
 	}
 	logger.Info("ffmpeg: timeline extraction",
 		"video", path,
-		"out", output,
+		"out", filepath.Join(output, thumbPattern),
 		"height", width,
 		"fps", fps,
 		"duration_sec", durationSec)
 
-	go Utility.RunCmd("ffmpeg", output, args, wait)
-	if err := <-wait; err != nil {
+	runFFmpeg := func() error {
+		wait := make(chan error, 1)
+		go Utility.RunCmd("ffmpeg", output, args, wait)
+		return <-wait
+	}
+
+	if err := runFFmpeg(); err != nil {
+		// Some filesystems take a moment to expose newly created directories.
+		// Retry once after re-confirming the directory exists.
+		time.Sleep(500 * time.Millisecond)
+		if mkErr := Utility.CreateDirIfNotExist(output); mkErr == nil {
+			if retryErr := runFFmpeg(); retryErr == nil {
+				goto afterFFmpeg
+			}
+		}
 		logger.Error("ffmpeg timeline extraction failed", "video", path, "out", output, "err", err)
 		return fmt.Errorf("createVideoTimeLine: ffmpeg extraction failed for %q: %w", path, err)
 	}
+afterFFmpeg:
 
 	// Build WEBVTT index for the generated thumbnails.
 	if err := createVttFile(output, fps); err != nil {

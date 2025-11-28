@@ -4,8 +4,7 @@
 package main
 
 import (
-	"bufio"
-	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"github.com/StalkR/imdb"
+	tmdb "github.com/cyruzin/golang-tmdb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -27,7 +27,13 @@ import (
 
 // imdbIDRE is already defined in your HTTP entrypoint, but we redefine locally
 // here to avoid importing that file.
-var imdbIDRE = regexp.MustCompile(`^tt\d+$`)
+var (
+	imdbIDRE           = regexp.MustCompile(`^tt\d+$`)
+	imdbNameIDRE       = regexp.MustCompile(`^nm\d+$`)
+	imdbPersonLDJSONRe = regexp.MustCompile(
+		`(?s)<script[^>]+type=["']application/ld\+json["'][^>]*>(.*?)</script>`,
+	)
+)
 
 // User-Agent we send to IMDb; needs to look like a real browser.
 const imdbUserAgent = "Mozilla/5.0 (compatible; GlobularTitleService/1.0; +https://globular.io)"
@@ -69,9 +75,6 @@ func newIMDBClient(timeout time.Duration) *http.Client {
 var (
 	imdbCache     *storage_store.BigCache_store
 	imdbCacheOnce sync.Once
-
-	imdbNamesIndexOnce   sync.Once
-	imdbRatingsIndexOnce sync.Once
 )
 
 func getIMDBCache() *storage_store.BigCache_store {
@@ -124,6 +127,180 @@ func imdbCacheSetJSON(key string, val interface{}) {
 		return
 	}
 	imdbCacheSetBytes(key, data)
+}
+
+var (
+	tmdbClient     *tmdb.Client
+	tmdbClientOnce sync.Once
+)
+
+func getTMDBClient() *tmdb.Client {
+	tmdbClientOnce.Do(func() {
+		apiKey := strings.TrimSpace(os.Getenv("TMDB_API_KEY"))
+		if apiKey == "" {
+			logger.Warn("TMDb enrichment disabled: TMDB_API_KEY env var not set")
+			return
+		}
+		client, err := tmdb.Init(apiKey)
+		if err != nil {
+			logger.Warn("TMDb init failed", "err", err)
+			return
+		}
+		client.SetClientAutoRetry()
+		tmdbClient = client
+	})
+	return tmdbClient
+}
+
+type tmdbTitleInfo struct {
+	ID            int
+	Kind          string
+	ShowID        int
+	SeasonNumber  int
+	EpisodeNumber int
+}
+
+func getTMDBTitleInfo(imdbID string, client *tmdb.Client) (*tmdbTitleInfo, error) {
+	if client == nil {
+		return nil, fmt.Errorf("tmdb client is nil")
+	}
+	if !imdbIDRE.MatchString(imdbID) {
+		return nil, fmt.Errorf("invalid imdb id %q", imdbID)
+	}
+
+	key := "tmdb_title:" + imdbID
+	var cached tmdbTitleInfo
+	if imdbCacheGetJSON(key, &cached) && cached.ID != 0 && cached.Kind != "" {
+		return &cached, nil
+	}
+
+	res, err := client.GetFindByID(imdbID, map[string]string{
+		"external_source": "imdb_id",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, fmt.Errorf("tmdb find: empty response for %s", imdbID)
+	}
+
+	if len(res.MovieResults) > 0 {
+		info := tmdbTitleInfo{ID: int(res.MovieResults[0].ID), Kind: "movie"}
+		imdbCacheSetJSON(key, info)
+		return &info, nil
+	}
+	if len(res.TvResults) > 0 {
+		info := tmdbTitleInfo{ID: int(res.TvResults[0].ID), Kind: "tv"}
+		imdbCacheSetJSON(key, info)
+		return &info, nil
+	}
+	if len(res.TvEpisodeResults) > 0 {
+		r := res.TvEpisodeResults[0]
+		if r.ShowID != 0 && r.SeasonNumber != 0 && r.EpisodeNumber != 0 {
+			info := tmdbTitleInfo{
+				ID:            int(r.ShowID),
+				Kind:          "tv_episode",
+				ShowID:        int(r.ShowID),
+				SeasonNumber:  r.SeasonNumber,
+				EpisodeNumber: r.EpisodeNumber,
+			}
+			imdbCacheSetJSON(key, info)
+			return &info, nil
+		}
+	}
+
+	return nil, fmt.Errorf("tmdb find: no movie/tv result for %s", imdbID)
+}
+
+func getIMDBNameIDFromTMDBPerson(tmdbPersonID int, client *tmdb.Client) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("tmdb client is nil")
+	}
+	key := "tmdb_person_imdb:" + strconv.Itoa(tmdbPersonID)
+	var cached string
+	if imdbCacheGetJSON(key, &cached) && cached != "" {
+		return cached, nil
+	}
+	ids, err := client.GetPersonExternalIDs(tmdbPersonID, nil)
+	if err != nil {
+		return "", err
+	}
+	if ids == nil || ids.IMDbID == "" {
+		return "", fmt.Errorf("tmdb person %d missing imdb id", tmdbPersonID)
+	}
+	imdbCacheSetJSON(key, ids.IMDbID)
+	return ids.IMDbID, nil
+}
+
+func getTMDBPersonIDForIMDB(imdbNameID string, client *tmdb.Client) (int, error) {
+	if client == nil {
+		return 0, fmt.Errorf("tmdb client is nil")
+	}
+	if !imdbNameIDRE.MatchString(imdbNameID) {
+		return 0, fmt.Errorf("invalid imdb name id %q", imdbNameID)
+	}
+
+	key := "tmdb_person_id:" + imdbNameID
+	var cached int
+	if imdbCacheGetJSON(key, &cached) && cached != 0 {
+		return cached, nil
+	}
+
+	res, err := client.GetFindByID(imdbNameID, map[string]string{
+		"external_source": "imdb_id",
+	})
+	if err != nil {
+		return 0, err
+	}
+	if res == nil || len(res.PersonResults) == 0 {
+		return 0, fmt.Errorf("tmdb find: no person results for %s", imdbNameID)
+	}
+	id := res.PersonResults[0].ID
+	imdbCacheSetJSON(key, int(id))
+	return int(id), nil
+}
+
+type tmdbPersonCacheInfo struct {
+	ProfilePath  string   `json:"profile_path"`
+	Biography    string   `json:"biography"`
+	Birthday     string   `json:"birthday"`
+	PlaceOfBirth string   `json:"place_of_birth"`
+	Gender       int      `json:"gender"`
+	AlsoKnownAs  []string `json:"also_known_as"`
+}
+
+func getTMDBPersonCacheInfo(imdbNameID string, client *tmdb.Client) (*tmdbPersonCacheInfo, error) {
+	if client == nil {
+		return nil, fmt.Errorf("tmdb client is nil")
+	}
+	key := "tmdb_person_info:" + imdbNameID
+	var cached tmdbPersonCacheInfo
+	if imdbCacheGetJSON(key, &cached) {
+		return &cached, nil
+	}
+
+	tmdbID, err := getTMDBPersonIDForIMDB(imdbNameID, client)
+	if err != nil {
+		return nil, err
+	}
+	details, derr := client.GetPersonDetails(tmdbID, nil)
+	if derr != nil {
+		return nil, derr
+	}
+	if details == nil {
+		return nil, fmt.Errorf("tmdb person %d missing details", tmdbID)
+	}
+
+	info := &tmdbPersonCacheInfo{
+		ProfilePath:  strings.TrimSpace(details.ProfilePath),
+		Biography:    strings.TrimSpace(details.Biography),
+		Birthday:     strings.TrimSpace(details.Birthday),
+		PlaceOfBirth: strings.TrimSpace(details.PlaceOfBirth),
+		Gender:       details.Gender,
+		AlsoKnownAs:  details.AlsoKnownAs,
+	}
+	imdbCacheSetJSON(key, info)
+	return info, nil
 }
 
 // ---------------- Shared IMDb HTML fetch ----------------
@@ -352,460 +529,784 @@ func (srv *server) buildTitleFromIMDB(imdbID string) (*titlepb.Title, error) {
 		})
 	}
 
-	// IMDb datasets dir: data/imdb
-	datasetsDir := filepath.Join(config.GetDataDir(), "imdb")
-
-	// Fallback rating from IMDb ratings dataset if missing from API
-	if title.Rating == 0 || title.RatingCount == 0 {
-		if r, c, err := readIMDBRating(datasetsDir, imdbID); err == nil {
-			if title.Rating == 0 {
-				title.Rating = r
-			}
-			if title.RatingCount == 0 {
-				title.RatingCount = c
-			}
-		} else {
-			logger.Warn("readIMDBRating failed", "imdbID", imdbID, "err", err)
-		}
+	// Enrich with TMDb data when available.
+	if err := srv.enrichTitleFromTMDB(title); err != nil {
+		logger.Warn("enrichTitleFromTMDB failed", "imdbID", imdbID, "err", err)
 	}
 
-	// Now enrich missing pieces from IMDb datasets
-	if err := srv.enrichTitleFromIMDBDatasets(datasetsDir, imdbID, title); err != nil {
-		logger.Warn("enrichTitleFromIMDBDatasets failed", "imdbID", imdbID, "err", err)
+	// 1) Enrich persons from IMDb HTML (ld+json)
+	if err := srv.enrichPersonsFromIMDB(client, title); err != nil {
+		logger.Warn("enrichPersonsFromIMDB failed", "imdbID", imdbID, "err", err)
+	}
+
+	// 2) Enrich persons from TMDb (biography, photo, birth date/place, aliases)
+	if err := srv.enrichPersonsFromTMDB(title); err != nil {
+		logger.Warn("enrichPersonsFromTMDB failed", "imdbID", imdbID, "err", err)
 	}
 
 	return title, nil
 }
 
-// enrichTitleFromIMDBDatasets looks in title.crew.tsv.gz + title.principals.tsv.gz
-// and name.basics.tsv.gz for any extra people not present in the API result.
-func (srv *server) enrichTitleFromIMDBDatasets(dir, imdbID string, title *titlepb.Title) error {
-	// 1) Crew: directors + writers
-	crew, err := readIMDBCrew(dir, imdbID)
+type tmdbCastMember struct {
+	ID          int
+	Name        string
+	ProfilePath string
+}
+
+type tmdbCrewMember struct {
+	ID          int
+	Name        string
+	ProfilePath string
+	Department  string
+	Job         string
+}
+
+func (srv *server) enrichTitleFromTMDB(title *titlepb.Title) error {
+	if title == nil {
+		return nil
+	}
+
+	client := getTMDBClient()
+	if client == nil {
+		return nil
+	}
+
+	httpClient := newIMDBClient(15 * time.Second)
+
+	info, err := getTMDBTitleInfo(title.ID, client)
 	if err != nil {
 		return err
 	}
-	// 2) Principals (main cast)
-	principals, err := readIMDBPrincipals(dir, imdbID)
-	if err != nil {
-		return err
+	if info == nil {
+		return nil
 	}
 
-	// We will lookup all nconst -> (primaryName) via name.basics in one pass
-	needed := make(map[string]struct{})
-
-	for _, n := range crew.Directors {
-		needed[n] = struct{}{}
-	}
-	for _, n := range crew.Writers {
-		needed[n] = struct{}{}
-	}
-	for _, p := range principals {
-		needed[p.nconst] = struct{}{}
-	}
-
-	nameMap, err := readIMDBNames(dir, needed)
-	if err != nil {
-		return err
-	}
-
-	// Helper to test if a person ID is already present
-	hasPerson := func(list []*titlepb.Person, id string) bool {
-		for _, p := range list {
-			if p.ID == id {
-				return true
+	switch info.Kind {
+	case "movie":
+		details, derr := client.GetMovieDetails(info.ID, nil)
+		if derr == nil && details != nil {
+			applyMovieDetailsToTitle(title, details, httpClient)
+		} else if derr != nil {
+			logger.Warn("GetMovieDetails failed", "tmdbID", info.ID, "err", derr)
+		}
+		if credits, cerr := client.GetMovieCredits(info.ID, nil); cerr == nil && credits != nil {
+			cast := make([]tmdbCastMember, 0, len(credits.Cast))
+			for _, c := range credits.Cast {
+				cast = append(cast, tmdbCastMember{
+					ID:          int(c.ID),
+					Name:        c.Name,
+					ProfilePath: c.ProfilePath,
+				})
 			}
+			crew := make([]tmdbCrewMember, 0, len(credits.Crew))
+			for _, c := range credits.Crew {
+				crew = append(crew, tmdbCrewMember{
+					ID:          int(c.ID),
+					Name:        c.Name,
+					ProfilePath: c.ProfilePath,
+					Department:  c.Department,
+					Job:         c.Job,
+				})
+			}
+			srv.applyTMDBCredits(title, cast, crew, client)
 		}
-		return false
-	}
+	case "tv":
+		details, derr := client.GetTVDetails(info.ID, nil)
+		if derr == nil && details != nil {
+			applyTVDetailsToTitle(title, details, httpClient)
+		} else if derr != nil {
+			logger.Warn("GetTVDetails failed", "tmdbID", info.ID, "err", derr)
+		}
+		if credits, cerr := client.GetTVCredits(info.ID, nil); cerr == nil && credits != nil {
+			cast := make([]tmdbCastMember, 0, len(credits.Cast))
+			for _, c := range credits.Cast {
+				cast = append(cast, tmdbCastMember{
+					ID:          int(c.ID),
+					Name:        c.Name,
+					ProfilePath: c.ProfilePath,
+				})
+			}
+			crew := make([]tmdbCrewMember, 0, len(credits.Crew))
+			for _, c := range credits.Crew {
+				crew = append(crew, tmdbCrewMember{
+					ID:          int(c.ID),
+					Name:        c.Name,
+					ProfilePath: c.ProfilePath,
+					Department:  c.Department,
+					Job:         c.Job,
+				})
+			}
+			srv.applyTMDBCredits(title, cast, crew, client)
+		}
+	case "tv_episode":
+		if info.ShowID != 0 && info.SeasonNumber != 0 && info.EpisodeNumber != 0 {
+			details, derr := client.GetTVEpisodeDetails(info.ShowID, info.SeasonNumber, info.EpisodeNumber, nil)
+			if derr == nil && details != nil {
+				applyTVEpisodeDetailsToTitle(title, details, httpClient)
+			} else if derr != nil {
+				logger.Warn("GetTVEpisodeDetails failed", "showID", info.ShowID, "season", info.SeasonNumber, "episode", info.EpisodeNumber, "err", derr)
+			}
 
-	// Merge directors
-	for _, nconst := range crew.Directors {
-		if hasPerson(title.Directors, nconst) {
-			continue
-		}
-		if name, ok := nameMap[nconst]; ok {
-			title.Directors = append(title.Directors, &titlepb.Person{
-				ID:       nconst,
-				FullName: name,
-			})
-		}
-	}
-
-	// Merge writers
-	for _, nconst := range crew.Writers {
-		if hasPerson(title.Writers, nconst) {
-			continue
-		}
-		if name, ok := nameMap[nconst]; ok {
-			title.Writers = append(title.Writers, &titlepb.Person{
-				ID:       nconst,
-				FullName: name,
-			})
-		}
-	}
-
-	// Merge cast (actors/actresses/self)
-	for _, p := range principals {
-		if p.category != "actor" && p.category != "actress" && p.category != "self" {
-			continue
-		}
-		if hasPerson(title.Actors, p.nconst) {
-			continue
-		}
-		if name, ok := nameMap[p.nconst]; ok {
-			title.Actors = append(title.Actors, &titlepb.Person{
-				ID:       p.nconst,
-				FullName: name,
-			})
+			if credits, cerr := client.GetTVEpisodeCredits(info.ShowID, info.SeasonNumber, info.EpisodeNumber); cerr == nil && credits != nil {
+				cast := make([]tmdbCastMember, 0, len(credits.Cast)+len(credits.GuestStars))
+				for _, c := range credits.Cast {
+					cast = append(cast, tmdbCastMember{
+						ID:          int(c.ID),
+						Name:        c.Name,
+						ProfilePath: c.ProfilePath,
+					})
+				}
+				for _, c := range credits.GuestStars {
+					cast = append(cast, tmdbCastMember{
+						ID:          int(c.ID),
+						Name:        c.Name,
+						ProfilePath: c.ProfilePath,
+					})
+				}
+				crew := make([]tmdbCrewMember, 0, len(credits.Crew))
+				for _, c := range credits.Crew {
+					crew = append(crew, tmdbCrewMember{
+						ID:          int(c.ID),
+						Name:        c.Name,
+						ProfilePath: c.ProfilePath,
+						Department:  c.Department,
+						Job:         c.Job,
+					})
+				}
+				srv.applyTMDBCredits(title, cast, crew, client)
+			}
 		}
 	}
 
 	return nil
 }
 
-// ---------------- IMDb dataset readers ----------------
-
-// We only read the single row we need for imdbID/nconst from each TSV,
-// to avoid indexing the whole dump in memory *except* for the two big ones
-// we explicitly index once: name.basics.tsv.gz and title.ratings.tsv.gz.
-
-const imdbDatasetBaseURL = "https://datasets.imdbws.com/"
-
-func ensureIMDBGZ(dir, name string) (string, error) {
-	if err := Utility.CreateIfNotExists(dir, 0o755); err != nil {
-		return "", err
+func applyMovieDetailsToTitle(title *titlepb.Title, details *tmdb.MovieDetails, httpClient *http.Client) {
+	if title == nil || details == nil {
+		return
 	}
-	dst := filepath.Join(dir, name)
-	if Utility.Exists(dst) {
-		return dst, nil
+	if title.Rating == 0 && details.VoteAverage != 0 {
+		title.Rating = details.VoteAverage
 	}
-
-	url := imdbDatasetBaseURL + name
-	logger.Info("downloading IMDb dataset", "file", name, "url", url)
-
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return "", fmt.Errorf("download %s: %w", url, err)
+	if title.RatingCount == 0 && details.VoteCount != 0 {
+		title.RatingCount = int32(details.VoteCount)
 	}
-	defer resp.Body.Close()
-
-	tmp := dst + ".tmp"
-	out, err := os.Create(tmp)
-	if err != nil {
-		return "", err
+	if title.Description == "" && strings.TrimSpace(details.Overview) != "" {
+		title.Description = strings.TrimSpace(details.Overview)
 	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		out.Close()
-		return "", err
+	if len(title.Genres) == 0 && len(details.Genres) > 0 {
+		genres := make([]string, 0, len(details.Genres))
+		for _, g := range details.Genres {
+			if g.Name != "" {
+				genres = append(genres, g.Name)
+			}
+		}
+		title.Genres = genres
 	}
-	out.Close()
-
-	if err := os.Rename(tmp, dst); err != nil {
-		return "", err
+	if len(title.Language) == 0 && len(details.SpokenLanguages) > 0 {
+		langs := make([]string, 0, len(details.SpokenLanguages))
+		for _, l := range details.SpokenLanguages {
+			if l.Name != "" {
+				langs = append(langs, l.Name)
+			}
+		}
+		title.Language = langs
 	}
-	return dst, nil
+	if len(title.Nationalities) == 0 && len(details.ProductionCountries) > 0 {
+		nats := make([]string, 0, len(details.ProductionCountries))
+		for _, p := range details.ProductionCountries {
+			if p.Name != "" {
+				nats = append(nats, p.Name)
+			}
+		}
+		title.Nationalities = nats
+	}
+	if title.Duration == "" && details.Runtime > 0 {
+		title.Duration = fmt.Sprintf("%dm", details.Runtime)
+	}
+	if details.PosterPath != "" {
+		setTitlePosterFromTMDB(title, details.PosterPath, httpClient)
+	}
 }
 
-func openIMDBGZ(dir, name string) (*gzip.Reader, *os.File, error) {
-	path, err := ensureIMDBGZ(dir, name)
-	if err != nil {
-		return nil, nil, err
+func applyTVDetailsToTitle(title *titlepb.Title, details *tmdb.TVDetails, httpClient *http.Client) {
+	if title == nil || details == nil {
+		return
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, nil, err
+	if title.Rating == 0 && details.VoteAverage != 0 {
+		title.Rating = details.VoteAverage
 	}
-	gr, err := gzip.NewReader(f)
-	if err != nil {
-		f.Close()
-		return nil, nil, err
+	if title.RatingCount == 0 && details.VoteCount != 0 {
+		title.RatingCount = int32(details.VoteCount)
 	}
-	return gr, f, nil
+	if title.Description == "" && strings.TrimSpace(details.Overview) != "" {
+		title.Description = strings.TrimSpace(details.Overview)
+	}
+	if len(title.Genres) == 0 && len(details.Genres) > 0 {
+		genres := make([]string, 0, len(details.Genres))
+		for _, g := range details.Genres {
+			if g.Name != "" {
+				genres = append(genres, g.Name)
+			}
+		}
+		title.Genres = genres
+	}
+	if len(title.Language) == 0 {
+		langs := make([]string, 0, len(details.Languages))
+		for _, l := range details.Languages {
+			if strings.TrimSpace(l) != "" {
+				langs = append(langs, l)
+			}
+		}
+		if len(langs) > 0 {
+			title.Language = langs
+		}
+	}
+	if len(title.Nationalities) == 0 && len(details.ProductionCountries) > 0 {
+		nats := make([]string, 0, len(details.ProductionCountries))
+		for _, p := range details.ProductionCountries {
+			if p.Name != "" {
+				nats = append(nats, p.Name)
+			}
+		}
+		title.Nationalities = nats
+	}
+	if title.Duration == "" && len(details.EpisodeRunTime) > 0 {
+		title.Duration = fmt.Sprintf("%dm", details.EpisodeRunTime[0])
+	}
+	if details.PosterPath != "" {
+		setTitlePosterFromTMDB(title, details.PosterPath, httpClient)
+	}
 }
 
-// ---- title.crew.tsv.gz ----
-
-type imdbCrew struct {
-	Directors []string
-	Writers   []string
+func applyTVEpisodeDetailsToTitle(title *titlepb.Title, details *tmdb.TVEpisodeDetails, httpClient *http.Client) {
+	if title == nil || details == nil {
+		return
+	}
+	if title.Rating == 0 && details.VoteAverage != 0 {
+		title.Rating = details.VoteAverage
+	}
+	if title.RatingCount == 0 && details.VoteCount != 0 {
+		title.RatingCount = int32(details.VoteCount)
+	}
+	if title.Description == "" && strings.TrimSpace(details.Overview) != "" {
+		title.Description = strings.TrimSpace(details.Overview)
+	}
+	if title.Duration == "" && details.Runtime > 0 {
+		title.Duration = fmt.Sprintf("%dm", details.Runtime)
+	}
+	if details.StillPath != "" {
+		setTitlePosterFromTMDB(title, details.StillPath, httpClient)
+	}
 }
 
-func readIMDBCrew(dir, imdbID string) (*imdbCrew, error) {
-	key := "crew:" + imdbID
+func setTitlePosterFromTMDB(title *titlepb.Title, posterPath string, httpClient *http.Client) {
+	if title == nil || posterPath == "" {
+		return
+	}
+	if httpClient == nil {
+		httpClient = newIMDBClient(15 * time.Second)
+	}
+	if title.Poster == nil {
+		title.Poster = &titlepb.Poster{}
+	}
+	title.Poster.URL = tmdb.GetImageURL(posterPath, tmdb.W500)
+	if title.Poster.ContentUrl == "" {
+		if dataURL := tmdbImageToDataURL(posterPath, httpClient); dataURL != "" {
+			title.Poster.ContentUrl = dataURL
+		}
+	}
+}
 
-	var cached imdbCrew
+func (srv *server) applyTMDBCredits(title *titlepb.Title, cast []tmdbCastMember, crew []tmdbCrewMember, client *tmdb.Client) {
+	if title == nil || client == nil {
+		return
+	}
+	httpClient := newIMDBClient(15 * time.Second)
+
+	for _, member := range cast {
+		id, err := getIMDBNameIDFromTMDBPerson(member.ID, client)
+		if err != nil || id == "" {
+			continue
+		}
+		if hasPerson(title.Actors, id) {
+			continue
+		}
+		person := &titlepb.Person{
+			ID:       id,
+			FullName: member.Name,
+			URL:      normalizeIMDBPersonURL("", id),
+		}
+		if member.ProfilePath != "" {
+			if dataURL := tmdbImageToDataURL(member.ProfilePath, httpClient); dataURL != "" {
+				person.Picture = dataURL
+			}
+		}
+		title.Actors = append(title.Actors, person)
+	}
+
+	for _, member := range crew {
+		id, err := getIMDBNameIDFromTMDBPerson(member.ID, client)
+		if err != nil || id == "" {
+			continue
+		}
+		person := &titlepb.Person{
+			ID:       id,
+			FullName: member.Name,
+			URL:      normalizeIMDBPersonURL("", id),
+		}
+		if member.ProfilePath != "" {
+			if dataURL := tmdbImageToDataURL(member.ProfilePath, httpClient); dataURL != "" {
+				person.Picture = dataURL
+			}
+		}
+		switch strings.ToLower(member.Job) {
+		case "director":
+			if !hasPerson(title.Directors, id) {
+				title.Directors = append(title.Directors, person)
+			}
+		case "writer", "screenplay", "story", "author":
+			if !hasPerson(title.Writers, id) {
+				title.Writers = append(title.Writers, person)
+			}
+		}
+	}
+}
+
+func tmdbImageToDataURL(path string, client *http.Client) string {
+	if path == "" || client == nil {
+		return ""
+	}
+	url := tmdb.GetImageURL(path, tmdb.W500)
+	if data, err := getImageDataURL(client, url); err == nil {
+		return data
+	}
+	return ""
+}
+
+func hasPerson(list []*titlepb.Person, id string) bool {
+	for _, p := range list {
+		if p != nil && p.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+type imdbPersonInfo struct {
+	URL        string   `json:"url"`
+	Picture    string   `json:"picture"`
+	Biography  string   `json:"biography"`
+	BirthDate  string   `json:"birthDate"`
+	BirthPlace string   `json:"birthPlace"`
+	Gender     string   `json:"gender"`
+	Aliases    []string `json:"aliases"`
+}
+
+func (srv *server) enrichPersonsFromIMDB(client *http.Client, title *titlepb.Title) error {
+	if title == nil || client == nil {
+		return nil
+	}
+
+	lists := [][]*titlepb.Person{
+		title.Directors,
+		title.Writers,
+		title.Actors,
+	}
+
+	seen := make(map[string]*titlepb.Person)
+	for _, group := range lists {
+		for _, person := range group {
+			if person == nil || person.ID == "" {
+				continue
+			}
+			if _, ok := seen[person.ID]; ok {
+				continue
+			}
+			ensureIMDBPersonURL(person, person.ID)
+			seen[person.ID] = person
+		}
+	}
+
+	for id, person := range seen {
+		info, err := getIMDBPersonInfo(client, id)
+		if err != nil {
+			logger.Debug("getIMDBPersonInfo failed", "imdbID", id, "err", err)
+			continue
+		}
+		applyIMDBPersonInfo(person, info)
+	}
+	return nil
+}
+
+func ensureIMDBPersonURL(person *titlepb.Person, id string) {
+	if person == nil {
+		return
+	}
+	person.URL = normalizeIMDBPersonURL(person.URL, id)
+}
+
+func applyIMDBPersonInfo(person *titlepb.Person, info *imdbPersonInfo) {
+	if person == nil || info == nil {
+		return
+	}
+	if info.URL != "" {
+		person.URL = normalizeIMDBPersonURL(info.URL, person.ID)
+	}
+	if person.Picture == "" && info.Picture != "" {
+		person.Picture = info.Picture
+	}
+	if person.Biography == "" && info.Biography != "" {
+		person.Biography = info.Biography
+	}
+	if person.BirthDate == "" && info.BirthDate != "" {
+		person.BirthDate = info.BirthDate
+	}
+	if person.BirthPlace == "" && info.BirthPlace != "" {
+		person.BirthPlace = info.BirthPlace
+	}
+	if person.Gender == "" && info.Gender != "" {
+		person.Gender = info.Gender
+	}
+	person.Aliases = info.Aliases
+}
+
+func getIMDBPersonInfo(client *http.Client, personID string) (*imdbPersonInfo, error) {
+	if !imdbNameIDRE.MatchString(personID) {
+		return nil, fmt.Errorf("getIMDBPersonInfo: invalid imdb name id %q", personID)
+	}
+
+	key := "person:" + personID
+	var cached imdbPersonInfo
 	if imdbCacheGetJSON(key, &cached) {
 		return &cached, nil
 	}
 
-	gr, f, err := openIMDBGZ(dir, "title.crew.tsv.gz")
+	html, err := getIMDBPersonHTML(client, personID)
 	if err != nil {
-		return &imdbCrew{}, nil // soft fail
-	}
-	defer f.Close()
-	defer gr.Close()
-
-	scanner := bufio.NewScanner(gr)
-	first := true
-	for scanner.Scan() {
-		line := scanner.Text()
-		if first {
-			first = false
-			continue // header
-		}
-		if line == "" {
-			continue
-		}
-		cols := strings.Split(line, "\t")
-		if len(cols) < 3 {
-			continue
-		}
-		if cols[0] != imdbID {
-			continue
-		}
-		c := &imdbCrew{}
-		if cols[1] != `\N` {
-			c.Directors = strings.Split(cols[1], ",")
-		}
-		if cols[2] != `\N` {
-			c.Writers = strings.Split(cols[2], ",")
-		}
-
-		imdbCacheSetJSON(key, c)
-		return c, nil
+		return nil, err
 	}
 
-	empty := &imdbCrew{}
-	imdbCacheSetJSON(key, empty)
-	return empty, nil
-}
-
-// ---- title.principals.tsv.gz ----
-
-type imdbPrincipal struct {
-	nconst   string
-	category string
-}
-
-func readIMDBPrincipals(dir, imdbID string) ([]imdbPrincipal, error) {
-	key := "principals:" + imdbID
-
-	var cached []imdbPrincipal
-	if imdbCacheGetJSON(key, &cached) {
-		return cached, nil
-	}
-
-	gr, f, err := openIMDBGZ(dir, "title.principals.tsv.gz")
+	data, err := parseIMDBPersonLDJSON(html)
 	if err != nil {
-		return nil, nil // soft fail
-	}
-	defer f.Close()
-	defer gr.Close()
-
-	out := make([]imdbPrincipal, 0, 8)
-	scanner := bufio.NewScanner(gr)
-	first := true
-	for scanner.Scan() {
-		line := scanner.Text()
-		if first {
-			first = false
-			continue // header
-		}
-		if line == "" {
-			continue
-		}
-		cols := strings.Split(line, "\t")
-		if len(cols) < 4 {
-			continue
-		}
-		if cols[0] != imdbID {
-			continue
-		}
-		out = append(out, imdbPrincipal{
-			nconst:   cols[2],
-			category: cols[3],
-		})
+		return nil, err
 	}
 
-	imdbCacheSetJSON(key, out)
-	return out, nil
+	rawPicture := anyToString(data["image"])
+	pictureData, picErr := getImageDataURL(client, rawPicture)
+	if picErr != nil {
+		logger.Debug("getImageDataURL failed", "personID", personID, "err", picErr)
+	}
+	if pictureData == "" {
+		pictureData = rawPicture
+	}
+
+	info := &imdbPersonInfo{
+		URL:        normalizeIMDBPersonURL(anyToString(data["url"]), personID),
+		Picture:    pictureData,
+		Biography:  strings.TrimSpace(anyToString(data["description"])),
+		BirthDate:  strings.TrimSpace(anyToString(data["birthDate"])),
+		BirthPlace: strings.TrimSpace(parseBirthPlace(data["birthPlace"])),
+		Gender:     strings.TrimSpace(anyToString(data["gender"])),
+		Aliases:    anyToStringSlice(data["alternateName"]),
+	}
+
+	imdbCacheSetJSON(key, info)
+	return info, nil
 }
 
-// ---- name.basics.tsv.gz ----
+func getIMDBPersonHTML(client *http.Client, personID string) (string, error) {
+	if !imdbNameIDRE.MatchString(personID) {
+		return "", fmt.Errorf("getIMDBPersonHTML: invalid imdb name id %q", personID)
+	}
 
-// indexAllIMDBNames builds a full index nconst -> primaryName in BigCache.
-// It is called once via ensureIMDBNamesIndex (sync.Once).
-func indexAllIMDBNames(dir string) {
-	gr, f, err := openIMDBGZ(dir, "name.basics.tsv.gz")
+	key := "personhtml:" + personID
+	if b, ok := imdbCacheGetBytes(key); ok {
+		return string(b), nil
+	}
+
+	resp, err := client.Get("https://www.imdb.com/name/" + personID + "/")
 	if err != nil {
-		logger.Warn("indexAllIMDBNames open failed", "err", err)
-		return
+		return "", err
 	}
-	defer f.Close()
-	defer gr.Close()
+	defer resp.Body.Close()
 
-	scanner := bufio.NewScanner(gr)
-	first := true
-	count := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		if first {
-			first = false
-			continue // header
-		}
-		if line == "" {
-			continue
-		}
-		cols := strings.Split(line, "\t")
-		if len(cols) < 2 {
-			continue
-		}
-		nconst := cols[0]
-		primaryName := cols[1]
-
-		key := "name:" + nconst
-		imdbCacheSetBytes(key, []byte(primaryName))
-		count++
-	}
-	if err := scanner.Err(); err != nil {
-		logger.Warn("indexAllIMDBNames scan error", "err", err)
-	}
-	logger.Info("indexAllIMDBNames done", "count", count)
-}
-
-func ensureIMDBNamesIndex(dir string) {
-	imdbNamesIndexOnce.Do(func() {
-		indexAllIMDBNames(dir)
-	})
-}
-
-// readIMDBNames loads primaryName for each nconst in "needed" from BigCache.
-// The full name.basics index is built once by ensureIMDBNamesIndex.
-func readIMDBNames(dir string, needed map[string]struct{}) (map[string]string, error) {
-	names := make(map[string]string, len(needed))
-	if len(needed) == 0 {
-		return names, nil
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("getIMDBPersonHTML: http %d", resp.StatusCode)
 	}
 
-	ensureIMDBNamesIndex(dir)
-
-	for nconst := range needed {
-		key := "name:" + nconst
-		if b, ok := imdbCacheGetBytes(key); ok {
-			names[nconst] = string(b)
-		}
-	}
-
-	return names, nil
-}
-
-// ---- title.ratings.tsv.gz ----
-
-type ratingInfo struct {
-	Rating float32
-	Count  int32
-}
-
-// indexAllIMDBRatings builds a full index imdbID -> {rating,count} in BigCache.
-func indexAllIMDBRatings(dir string) {
-	gr, f, err := openIMDBGZ(dir, "title.ratings.tsv.gz")
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Warn("indexAllIMDBRatings open failed", "err", err)
-		return
+		return "", err
 	}
-	defer f.Close()
-	defer gr.Close()
 
-	scanner := bufio.NewScanner(gr)
-	first := true
-	count := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		if first {
-			first = false
-			continue // header
-		}
-		if line == "" {
+	imdbCacheSetBytes(key, body)
+	return string(body), nil
+}
+
+func parseIMDBPersonLDJSON(html string) (map[string]interface{}, error) {
+	matches := imdbPersonLDJSONRe.FindAllStringSubmatch(html, -1)
+	for _, match := range matches {
+		if len(match) < 2 {
 			continue
 		}
-		cols := strings.Split(line, "\t")
-		if len(cols) < 3 {
-			continue
-		}
-		id := cols[0]
 
-		var r float32
-		var c int32
+		raw := strings.TrimSpace(match[1])
 
-		if cols[1] != `\N` {
-			if f64, err := strconv.ParseFloat(cols[1], 32); err == nil {
-				r = float32(f64)
+		var obj map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &obj); err == nil {
+			if typ, ok := obj["@type"].(string); ok && typ == "Person" {
+				return obj, nil
 			}
-		}
-		if cols[2] != `\N` {
-			if n, err := strconv.Atoi(cols[2]); err == nil {
-				c = int32(n)
+			if graph, ok := obj["@graph"].([]interface{}); ok {
+				for _, node := range graph {
+					if m, ok := node.(map[string]interface{}); ok {
+						if typ, ok := m["@type"].(string); ok && typ == "Person" {
+							return m, nil
+						}
+					}
+				}
 			}
 		}
 
-		ri := ratingInfo{Rating: r, Count: c}
-		key := "rating:" + id
-		imdbCacheSetJSON(key, ri)
-		count++
+		var arr []interface{}
+		if err := json.Unmarshal([]byte(raw), &arr); err == nil {
+			for _, node := range arr {
+				if m, ok := node.(map[string]interface{}); ok {
+					if typ, ok := m["@type"].(string); ok && typ == "Person" {
+						return m, nil
+					}
+				}
+			}
+		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		logger.Warn("indexAllIMDBRatings scan error", "err", err)
-	}
-	logger.Info("indexAllIMDBRatings done", "count", count)
+	return nil, fmt.Errorf("parseIMDBPersonLDJSON: person block not found")
 }
 
-func ensureIMDBRatingsIndex(dir string) {
-	imdbRatingsIndexOnce.Do(func() {
-		indexAllIMDBRatings(dir)
-	})
-}
-
-// readIMDBRating loads the rating + vote count from BigCache.
-// The full ratings index is built once by ensureIMDBRatingsIndex.
-func readIMDBRating(dir, imdbID string) (float32, int32, error) {
-	ensureIMDBRatingsIndex(dir)
-
-	key := "rating:" + imdbID
-	var cached ratingInfo
-	if imdbCacheGetJSON(key, &cached) {
-		return cached.Rating, cached.Count, nil
+func getImageDataURL(client *http.Client, imageURL string) (string, error) {
+	imageURL = strings.TrimSpace(imageURL)
+	if imageURL == "" {
+		return "", nil
+	}
+	if strings.HasPrefix(imageURL, "data:") {
+		return imageURL, nil
 	}
 
-	// Not found in ratings dataset.
-	return 0, 0, nil
+	key := "imagedata:" + imageURL
+	if b, ok := imdbCacheGetBytes(key); ok {
+		return string(b), nil
+	}
+
+	resp, err := client.Get(imageURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("getImageDataURL: http %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(body)
+	}
+	data := "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(body)
+	imdbCacheSetBytes(key, []byte(data))
+	return data, nil
+}
+
+func normalizeIMDBPersonURL(raw string, id string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "https://www.imdb.com/name/" + id + "/"
+	}
+	if strings.HasPrefix(raw, "/") {
+		return "https://www.imdb.com" + raw
+	}
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		return raw
+	}
+	return "https://www.imdb.com/name/" + id + "/"
+}
+
+func parseBirthPlace(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+	if str, ok := value.(string); ok {
+		return str
+	}
+	if m, ok := value.(map[string]interface{}); ok {
+		if name, ok := m["name"].(string); ok && name != "" {
+			return name
+		}
+		if loc, ok := m["address"].(map[string]interface{}); ok {
+			if locality, ok := loc["addressLocality"].(string); ok && locality != "" {
+				return locality
+			}
+		}
+	}
+	return ""
+}
+
+func anyToString(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case map[string]interface{}:
+		if url, ok := v["url"].(string); ok {
+			return url
+		}
+		if name, ok := v["name"].(string); ok {
+			return name
+		}
+	case []interface{}:
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				return str
+			}
+		}
+	}
+	return ""
+}
+
+func anyToStringSlice(value interface{}) []string {
+	switch v := value.(type) {
+	case string:
+		if v = strings.TrimSpace(v); v != "" {
+			return []string{v}
+		}
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				str = strings.TrimSpace(str)
+				if str != "" {
+					out = append(out, str)
+				}
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func (srv *server) enrichPersonsFromTMDB(title *titlepb.Title) error {
+	if title == nil {
+		return nil
+	}
+
+	client := getTMDBClient()
+	if client == nil {
+		return nil
+	}
+
+	lists := [][]*titlepb.Person{
+		title.Directors,
+		title.Writers,
+		title.Actors,
+	}
+
+	seen := make(map[string]*titlepb.Person)
+	for _, group := range lists {
+		for _, person := range group {
+			if person == nil || person.ID == "" {
+				continue
+			}
+			if !imdbNameIDRE.MatchString(person.ID) {
+				continue
+			}
+			if _, ok := seen[person.ID]; ok {
+				continue
+			}
+			seen[person.ID] = person
+		}
+	}
+
+	for imdbNameID, person := range seen {
+		if !personNeedsTMDB(person) {
+			continue
+		}
+
+		info, err := getTMDBPersonCacheInfo(imdbNameID, client)
+		if err != nil {
+			logger.Debug("TMDb person info failed", "imdbNameID", imdbNameID, "err", err)
+			continue
+		}
+
+		if person.Picture == "" && info.ProfilePath != "" {
+			person.Picture = tmdbImageToDataURL(info.ProfilePath, newIMDBClient(15*time.Second))
+		}
+
+		if person.Biography == "" && info.Biography != "" {
+			person.Biography = info.Biography
+		}
+
+		if person.BirthDate == "" && info.Birthday != "" {
+			person.BirthDate = info.Birthday
+		}
+
+		if person.BirthPlace == "" && info.PlaceOfBirth != "" {
+			person.BirthPlace = info.PlaceOfBirth
+		}
+
+		if person.Gender == "" {
+			switch info.Gender {
+			case 1:
+				person.Gender = "Female"
+			case 2:
+				person.Gender = "Male"
+			default:
+				person.Gender = ""
+			}
+		}
+
+		if len(info.AlsoKnownAs) > 0 || len(person.Aliases) > 0 {
+			if aliases, _ := mergeUniqueStrings(info.AlsoKnownAs, person.Aliases); aliases != nil {
+				person.Aliases = aliases
+			}
+		}
+	}
+
+	return nil
+}
+
+func personNeedsTMDB(person *titlepb.Person) bool {
+	if person == nil {
+		return true
+	}
+	if strings.TrimSpace(person.Picture) == "" {
+		return true
+	}
+	if strings.TrimSpace(person.Biography) == "" {
+		return true
+	}
+	if strings.TrimSpace(person.BirthDate) == "" {
+		return true
+	}
+	if strings.TrimSpace(person.BirthPlace) == "" {
+		return true
+	}
+	if person.Gender == "" {
+		return true
+	}
+	if len(person.Aliases) == 0 {
+		return true
+	}
+	return false
 }
 
 // ---------------- Prewarm helper ----------------
 
-// prewarmIMDBDatasets downloads the IMDb TSVs once in the background so that
-// the first user request does not pay that cost, and builds the name+rating
-// indexes in BigCache.
 func (srv *server) prewarmIMDBDatasets() {
 	dir := filepath.Join(config.GetDataDir(), "imdb")
-	files := []string{
-		"title.crew.tsv.gz",
-		"title.principals.tsv.gz",
-		"name.basics.tsv.gz",
-		"title.ratings.tsv.gz",
+	if err := Utility.CreateIfNotExists(dir, 0o755); err != nil {
+		logger.Warn("ensure imdb data dir failed", "dir", dir, "err", err)
 	}
-
-	for _, name := range files {
-		if _, err := ensureIMDBGZ(dir, name); err != nil {
-			logger.Warn("prewarm imdb dataset failed", "file", name, "err", err)
-		} else {
-			logger.Info("prewarm imdb dataset ok", "file", name)
-		}
-	}
-
-	// Build heavy indexes in the same background goroutine.
-	ensureIMDBNamesIndex(dir)
-	ensureIMDBRatingsIndex(dir)
 }

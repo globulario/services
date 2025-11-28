@@ -473,12 +473,6 @@ func (srv *server) buildVideoFromSavedMetadata(abs, videoID string) (*titlepb.Vi
 		}
 		return video, nil
 	}
-	if video, err := readVideoFromInfosJSON(abs); err == nil {
-		if video.ID == "" {
-			video.ID = videoID
-		}
-		return video, nil
-	}
 	if video, err := readVideoFromMetadataComment(abs); err == nil {
 		if video.ID == "" {
 			video.ID = videoID
@@ -486,34 +480,6 @@ func (srv *server) buildVideoFromSavedMetadata(abs, videoID string) (*titlepb.Vi
 		return video, nil
 	}
 	return nil, errors.New("no persisted video metadata available")
-}
-
-func readVideoFromInfosJSON(abs string) (*titlepb.Video, error) {
-	info, err := os.Stat(abs)
-	if err != nil {
-		return nil, err
-	}
-	candidates := []string{}
-	if info.IsDir() {
-		candidates = append(candidates, filepath.Join(abs, "infos.json"))
-	} else {
-		candidates = append(candidates, filepath.Join(filepath.Dir(abs), "infos.json"))
-	}
-	for _, candidate := range candidates {
-		if candidate == "" || !Utility.Exists(candidate) {
-			continue
-		}
-		data, err := os.ReadFile(candidate)
-		if err != nil {
-			return nil, err
-		}
-		video := new(titlepb.Video)
-		if err := protojson.Unmarshal(data, video); err != nil {
-			return nil, err
-		}
-		return video, nil
-	}
-	return nil, fmt.Errorf("infos.json metadata not found for %s", abs)
 }
 
 func readVideoFromMetadataComment(abs string) (*titlepb.Video, error) {

@@ -23,15 +23,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// saveVideoMetadata persists minimal, recoverable metadata next to the media.
-//   - If absolutefilePath is a directory: writes "<dir>/infos.json" with the JSON-serialized Video.
-//   - If it's a file: writes base64(protojson(video)) into the media container's "comment" tag.
-//     If that write changes the file checksum, the associations KV key is migrated from the
-//     old checksum to the new one so lookups remain valid. Finally, it publishes a reload event.
-//
-// absolutefilePath: absolute OS path to a media file OR directory.
-// indexPath:        bleve index path (used to find the right associations store).
-// video:            the Video proto to persist (Poster.ContentUrl may be pre-filled by caller).
 func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *titlepb.Video) error {
 	if video == nil {
 		return fmt.Errorf("missing video")
@@ -48,26 +39,31 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 	}
 	encoded := base64.StdEncoding.EncodeToString(raw)
 
+	if info.IsDir() {
+		if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
+			logger.Warn("saveVideoMetadata: cache write failed", "path", absolutefilePath, "err", err)
+		}
+
+		if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
+			logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "err", err)
+		}
+		if dest := metadataCachePath(absolutefilePath); dest != "" {
+			if err := Utility.CreateIfNotExists(filepath.Dir(dest), 0o755); err != nil {
+				logger.Warn("saveVideoMetadata: ensure metadata dir failed", "path", dest, "err", err)
+			} else if err := os.WriteFile(dest, raw, 0o664); err != nil {
+				return fmt.Errorf("write %s: %w", dest, err)
+			}
+		}
+		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
+		_ = srv.publish("reload_dir_event", []byte(dir))
+		logger.Info("saved video metadata (dir)", "path", absolutefilePath, "videoID", video.GetID())
+		return nil
+	}
+
 	if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
 		logger.Warn("saveVideoMetadata: cache write failed", "path", absolutefilePath, "err", err)
 	}
 
-	if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
-		logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "err", err)
-	}
-
-	if info.IsDir() {
-		dst := filepath.Join(absolutefilePath, "infos.json")
-		if err := os.WriteFile(dst, raw, 0o664); err != nil {
-			return fmt.Errorf("write %s: %w", dst, err)
-		}
-		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
-		_ = srv.publish("reload_dir_event", []byte(dir))
-		logger.Info("saved video metadata (dir)", "path", dst, "videoID", video.GetID())
-		return nil
-	}
-
-	// Only write tag if it actually changed to avoid unnecessary rewrites.
 	needSave := true
 	if meta, err := Utility.ReadMetadata(absolutefilePath); err == nil {
 		if f, ok := meta["format"].(map[string]any); ok {
@@ -90,35 +86,17 @@ func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *
 		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
 	}
 
-	// If the file checksum changed, migrate the association key to the new checksum.
 	newChecksum := Utility.CreateFileChecksum(absolutefilePath)
 	if oldChecksum != newChecksum {
-		if store := srv.getAssociations(indexPath); store != nil {
-			if data, err := store.GetItem(oldChecksum); err == nil {
-				_ = store.RemoveItem(oldChecksum)
-				_ = store.SetItem(newChecksum, data)
-				logger.Info("associations key migrated after metadata write",
-					"old", oldChecksum, "new", newChecksum, "file", absolutefilePath)
-			}
-		}
+		srv.migrateAssociationKey(indexPath, oldChecksum, newChecksum, absolutefilePath)
 	}
 
-	// Ask clients to refresh that folder view.
 	dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
 	_ = srv.publish("reload_dir_event", []byte(dir))
 	logger.Info("saved video metadata (file)", "file", absolutefilePath, "videoID", video.GetID())
 	return nil
 }
 
-// saveTitleMetadata persists minimal, recoverable metadata next to the media.
-//   - For directories: writes "<dir>/infos.json" (pretty small JSON bundle).
-//   - For files: writes base64(protojson(title)) into the media container's
-//     "comment" tag (via Utility.SetMetadata). If that write changes the file
-//     checksum, the associations KV is updated to the new checksum key.
-//
-// absolutefilePath: absolute OS path to a media file OR a directory containing it.
-// indexPath:        path to the bleve index (used to find the right associations store).
-// title:            the Title proto to persist (Poster.ContentUrl may be filled by caller).
 func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *titlepb.Title) error {
 	if title == nil || len(title.Name) == 0 {
 		return errors.New("missing title or empty title name")
@@ -129,12 +107,11 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		return fmt.Errorf("stat %s: %w", absolutefilePath, err)
 	}
 
-	// Serialize title as JSON; the file-tagged variant is base64-encoded.
 	raw, err := protojson.Marshal(title)
 	if err != nil {
 		return fmt.Errorf("marshal title %q: %w", title.GetID(), err)
 	}
-	encoded := base64.StdEncoding.EncodeToString(raw)
+	commentValue := title.GetID()
 
 	if info.IsDir() {
 		if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
@@ -147,17 +124,12 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 		return nil
 	}
 
-	if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
-		logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "titleID", title.GetID(), "err", err)
-	}
-
-	// File case → only write tag when it has actually changed, to avoid unnecessary rewrites.
 	needSave := true
 	if meta, err := Utility.ReadMetadata(absolutefilePath); err == nil {
 		if f, ok := meta["format"].(map[string]any); ok {
 			if tags, ok := f["tags"].(map[string]any); ok {
 				if c, ok := tags["comment"].(string); ok && len(c) > 0 {
-					needSave = c != encoded
+					needSave = c != title.GetID()
 				}
 			}
 		}
@@ -170,25 +142,23 @@ func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *
 
 	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
 
-	// Write the new metadata into the media file's "comment" tag.
-	if err := writeMetadataTag(absolutefilePath, "comment", encoded); err != nil {
+	if err := writeMetadataTag(absolutefilePath, "comment", commentValue); err != nil {
 		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
 	}
 
-	// If the write changed the file checksum, update the associations KV key.
-	newChecksum := Utility.CreateFileChecksum(absolutefilePath)
-	if oldChecksum != newChecksum {
-		if store := srv.getAssociations(indexPath); store != nil {
-			if data, err := store.GetItem(oldChecksum); err == nil {
-				_ = store.RemoveItem(oldChecksum)
-				_ = store.SetItem(newChecksum, data)
-				logger.Info("associations key migrated after metadata write",
-					"old", oldChecksum, "new", newChecksum, "file", absolutefilePath)
-			}
+	if dest := metadataCachePath(absolutefilePath); dest != "" {
+		if err := Utility.CreateIfNotExists(filepath.Dir(dest), 0o755); err != nil {
+			logger.Warn("saveTitleMetadata: ensure metadata dir failed", "path", dest, "err", err)
+		} else if err := os.WriteFile(dest, raw, 0o664); err != nil {
+			logger.Warn("saveTitleMetadata: write metadata cache failed", "path", dest, "err", err)
 		}
 	}
 
-	// Ask clients to refresh that folder view.
+	newChecksum := Utility.CreateFileChecksum(absolutefilePath)
+	if oldChecksum != newChecksum {
+		srv.migrateAssociationKey(indexPath, oldChecksum, newChecksum, absolutefilePath)
+	}
+
 	dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
 	_ = srv.publish("reload_dir_event", []byte(dir))
 	logger.Info("saved title metadata (file)", "file", absolutefilePath, "titleID", title.GetID())
@@ -210,15 +180,17 @@ func writeMetadataTag(path, key, value string) error {
 			_ = os.Remove(dest)
 		}
 
+		metadataArg := fmt.Sprintf("%s=%s", key, value)
 		args := []string{
 			"-y",
 			"-nostdin",
+			"-loglevel", "error",
 			"-i", path,
 			"-c:v", "copy",
 			"-c:a", "copy",
 			"-c:s", "mov_text",
 			"-map", "0",
-			"-metadata", key + "=" + value,
+			"-metadata", metadataArg,
 			dest,
 		}
 
@@ -547,6 +519,12 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 // UpdateTitleMetadata updates persisted metadata for files associated with the title.
 func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.UpdateTitleMetadataRequest) (*titlepb.UpdateTitleMetadataResponse, error) {
+	if err := checkNotNil("title", rqst.Title); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := checkArg("title id", rqst.Title.GetID()); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
 	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
@@ -558,6 +536,33 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 	if _, err := index.GetInternal([]byte(Utility.GenerateUUID(rqst.Title.ID))); err != nil {
 		return nil, status.Errorf(codes.NotFound, "title %q not found in index", rqst.Title.ID)
 	}
+
+	if existing, err := srv.getTitleById(resolved, rqst.Title.ID); err == nil && existing != nil {
+		srv.mergeTitleWithEnriched(rqst.Title, existing)
+	}
+
+	if enriched, err := srv.buildTitleFromIMDB(rqst.Title.ID); err != nil {
+		logger.Warn("UpdateTitleMetadata buildTitleFromIMDB failed", "titleID", rqst.Title.ID, "err", err)
+	} else if enriched != nil {
+		srv.mergeTitleWithEnriched(rqst.Title, enriched)
+	}
+
+	rqst.Title.Actors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Acting", rqst.Title.Actors)
+	rqst.Title.Writers = srv.saveTitleCasting(resolved, rqst.Title.ID, "Writing", rqst.Title.Writers)
+	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
+
+	uuid := Utility.GenerateUUID(rqst.Title.ID)
+	if err := index.Index(uuid, rqst.Title); err != nil {
+		return nil, status.Errorf(codes.Internal, "reindex title: %v", err)
+	}
+	if raw, err := protojson.Marshal(rqst.Title); err == nil {
+		if err := index.SetInternal([]byte(uuid), raw); err != nil {
+			return nil, status.Errorf(codes.Internal, "store raw title: %v", err)
+		}
+	} else {
+		logger.Error("marshal title", "titleID", rqst.Title.ID, "err", err)
+	}
+
 	if paths, err := srv.getTitleFiles(resolved, rqst.Title.ID); err == nil {
 		for _, p := range paths {
 			abs := strings.ReplaceAll(p, "\\", "/")
@@ -571,7 +576,6 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
 				}
 			}
-			_ = srv.saveTitleMetadata(abs, resolved, rqst.Title)
 		}
 	}
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
@@ -676,6 +680,7 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 			return err
 		}
 	}
+
 	if raw, err := protojson.Marshal(video); err == nil {
 		if err := index.SetInternal([]byte(video.UUID), raw); err != nil {
 			return err
@@ -695,7 +700,11 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 // UpdateVideoMetadata updates persisted metadata of files associated with a given video.
 func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.UpdateVideoMetadataRequest) (*titlepb.UpdateVideoMetadataResponse, error) {
 	video := rqst.Video
-	index, err := srv.getIndex(rqst.IndexPath)
+	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resolve index path: %v", err)
+	}
+	index, err := srv.getIndex(resolved)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "open index: %v", err)
 	}
@@ -715,7 +724,7 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
 				}
 			}
-			_ = srv.saveVideoMetadata(abs, rqst.IndexPath, video)
+			_ = srv.saveVideoMetadata(abs, resolved, video)
 		}
 	}
 	return &titlepb.UpdateVideoMetadataResponse{}, nil
@@ -730,7 +739,6 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	if err := srv.createVideo(token, rqst.IndexPath, clientId, rqst.Video); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	logger.Info("video created", "videoID", rqst.Video.GetID())
 	return &titlepb.CreateVideoResponse{}, nil
 }
 

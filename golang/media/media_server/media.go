@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // NOTE: This file has been refactored to use slog for logging, clearer error messages, and
@@ -137,12 +139,36 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	}
 
 	if !strings.Contains(string(jsonBytes), "{") {
-		fmt.Println("restoreVideoInfos: comment is not valid JSON for path:", p)
-		return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
+		titleID := strings.TrimSpace(comment)
+		var title *titlepb.Title
+		if storedTitle, serr := loadTitleFromHiddenMetadata(p); serr == nil && storedTitle != nil && storedTitle.ID != "" {
+			title = storedTitle
+		} else if titleID != "" {
+			title = &titlepb.Title{ID: titleID}
+		}
+		if title == nil {
+			fmt.Println("restoreVideoInfos: comment is not valid JSON for path:", p)
+			return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
+		}
+		return srv.wrapRestoreResult(videoPath, restoreAsTitle(client, title, p))
 	}
 
 	jsonBytes = normalizeEmbeddedProtoJSON(jsonBytes)
 	fmt.Println("restoreVideoInfos: decoded JSON for path:", p, "json:", string(jsonBytes))
+
+	str := string(jsonBytes)
+	if !strings.Contains(str, "{") {
+		if storedTitle, err := loadTitleFromHiddenMetadata(p); err == nil && storedTitle != nil && storedTitle.ID != "" {
+			return srv.wrapRestoreResult(videoPath, restoreAsTitle(client, storedTitle, p))
+		}
+		titleID := strings.TrimSpace(comment)
+		if titleID == "" {
+			fmt.Println("restoreVideoInfos: no title ID available for path:", p)
+			return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
+		}
+		title := &titlepb.Title{ID: titleID}
+		return srv.wrapRestoreResult(videoPath, restoreAsTitle(client, title, p))
+	}
 
 	title := new(titlepb.Title)
 	if err = protojson.Unmarshal(jsonBytes, title); err == nil && title.ID != "" {
@@ -162,25 +188,37 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 func restoreAsTitle(client *title_client.Title_Client, title *titlepb.Title, videoPath string) error {
 	indexPath := config.GetDataDir() + "/search/titles"
 	rel := strings.ReplaceAll(strings.ReplaceAll(videoPath, config.GetDataDir()+"/files", ""), "/playlist.m3u8", "")
-	// Check if Title already exists.
-	existing, _, err := client.GetTitleById(indexPath, title.ID)
-	if err != nil && existing == nil {
+	incoming := resolveTitleMetadata(videoPath, title)
+	if incoming == nil || incoming.ID == "" {
+		return fmt.Errorf("restoreAsTitle: unable to resolve metadata for path %s", videoPath)
+	}
 
-		// Not found: try to enrich from IMDB and create it.
-		if err := enrichTitleFromIMDB(title, videoPath); err != nil {
-			logger.Warn("restoreAsTitle: enrich from IMDB failed", "id", title.ID, "err", err)
+	// Check if Title already exists.
+	existing, _, err := client.GetTitleById(indexPath, incoming.ID)
+	needsCreate := err != nil && existing == nil
+	if err != nil && existing == nil {
+		// not found, will create below
+	} else if err != nil {
+		return err
+	} else if titleNeedsUpdate(existing, incoming) {
+		needsCreate = true
+	}
+	if needsCreate {
+		if err := enrichTitleFromIMDB(incoming, videoPath); err != nil {
+			logger.Warn("restoreAsTitle: enrich from IMDB failed", "id", incoming.ID, "err", err)
 		}
-		if err := client.CreateTitle("", indexPath, title); err != nil {
-			logger.Error("restoreAsTitle: CreateTitle failed", "id", title.ID, "err", err)
+		if err := client.CreateTitle("", indexPath, incoming); err != nil {
+			logger.Error("restoreAsTitle: CreateTitle failed", "id", incoming.ID, "err", err)
 			return err
 		}
-		logger.Info("restoreAsTitle: created title", "id", title.ID)
-
+		logger.Info("restoreAsTitle: created title", "id", incoming.ID)
+	} else if existing == nil {
+		return fmt.Errorf("restoreAsTitle: title %s not found and creation skipped", incoming.ID)
 	}
 
 	// (Re)associate file path.
-	if err := client.AssociateFileWithTitle(indexPath, title.ID, rel); err != nil {
-		logger.Error("restoreAsTitle: AssociateFileWithTitle failed", "id", title.ID, "path", rel, "err", err)
+	if err := client.AssociateFileWithTitle(indexPath, incoming.ID, rel); err != nil {
+		logger.Error("restoreAsTitle: AssociateFileWithTitle failed", "id", incoming.ID, "path", rel, "err", err)
 		return err
 	}
 
@@ -192,32 +230,33 @@ func restoreAsVideo(client *title_client.Title_Client, video *titlepb.Video, vid
 	indexPath := config.GetDataDir() + "/search/videos"
 	rel := strings.ReplaceAll(strings.ReplaceAll(videoPath, config.GetDataDir()+"/files", ""), "/playlist.m3u8", "")
 
-	// Check if Video already exists.
-	existing, _, err := client.GetVideoById(indexPath, video.ID)
-	if err != nil && existing == nil {
-		// Prepare poster/thumbnail if missing; compute duration.
-		if video.Poster == nil {
-			video.Poster = &titlepb.Poster{ID: video.ID}
-		}
-		if video.Poster.ContentUrl == "" {
-			if url, _ := downloadThumbnail(video.ID, video.URL, videoPath); url != "" {
-				video.Poster.ContentUrl = url
-			}
-		}
-		video.Duration = int32(getVideoDuration(videoPath))
+	incoming := resolveVideoMetadata(videoPath, video)
+	if incoming == nil || incoming.ID == "" {
+		return fmt.Errorf("restoreAsVideo: unable to resolve metadata for path %s", videoPath)
+	}
 
-		if err := client.CreateVideo("", indexPath, video); err != nil {
-			logger.Error("---> restoreAsVideo: CreateVideo failed", "id", video.ID, "err", err)
+	// Check if Video already exists.
+	existing, _, err := client.GetVideoById(indexPath, incoming.ID)
+	needsCreate := err != nil && existing == nil
+	if err != nil && existing == nil {
+		// not found, will create below
+	} else if err != nil {
+		return err
+	} else if videoNeedsUpdate(existing, incoming) {
+		needsCreate = true
+	}
+	if needsCreate {
+		ensureVideoMetadata(incoming, videoPath)
+		if err := client.CreateVideo("", indexPath, incoming); err != nil {
 			return err
 		}
-		existing = video
-		fmt.Println("restoreAsVideo: created video", "id", video.ID, "path", videoPath)
-	} else {
-		fmt.Println("---> restoreAsVideo: video already exists", "id", existing.ID, "path", videoPath)
+		existing = incoming
+		fmt.Println("restoreAsVideo: created video", "id", incoming.ID, "path", videoPath)
+	} else if existing == nil {
+		return fmt.Errorf("restoreAsVideo: video %s not found and creation skipped", incoming.ID)
 	}
 
 	// Already exists: (re)associate path, best-effort.
-	fmt.Println("-------> restoreAsVideo: re-associating existing video", "id", existing.ID, "path", rel)
 	if err := client.AssociateFileWithTitle(indexPath, existing.ID, rel); err != nil {
 		logger.Error("restoreAsVideo: AssociateFileWithTitle failed", "id", existing.ID, "path", rel, "err", err)
 		return err
@@ -619,14 +658,14 @@ func metadataCachePath(dir string) string {
 	if dir == "" {
 		return ""
 	}
-	clean := filepath.ToSlash(dir)
+	clean := filepath.ToSlash(filepath.Clean(dir))
+	parent := filepath.Dir(clean)
 	base := filepath.Base(clean)
+	if info, err := os.Stat(clean); err == nil && !info.IsDir() {
+		base = strings.TrimSuffix(base, filepath.Ext(base))
+	}
 	if base == "" {
 		return ""
-	}
-	parent := filepath.Dir(clean)
-	if parent == "." {
-		parent = ""
 	}
 	hidden := filepath.Join(parent, ".hidden", base)
 	return filepath.Join(hidden, "metadata.json")
@@ -991,9 +1030,10 @@ func createVttFile(output string, fps float32) error {
 // would produce for "format:tags:comment" (base64-encoded JSON blob).
 //
 // Behavior:
-//   - For HLS inputs (.../playlist.m3u8): tries <dir>/infos.json first. If absent,
-//     attempts to derive info from previously indexed Video/Title entities, then
-//     writes <dir>/infos.json for future reads.
+//   - For HLS inputs (.../playlist.m3u8): tries the per-folder metadata cache
+//     (`.hidden/<name>/metadata.json`) first. If absent, attempts to derive info
+//     from previously indexed Video/Title entities, then writes the metadata
+//     cache for future reads.
 //   - For regular media files: defers to Utility.ReadMetadata(path).
 //
 // The returned map is of the form:
@@ -1074,7 +1114,107 @@ func getVideoInfos(path, domain string) (map[string]interface{}, error) {
 		logger.Error("getVideoInfos: Utility.ReadMetadata failed", "path", p, "err", err)
 		return nil, err
 	}
+
 	return infos, nil
+}
+
+func loadTitleFromHiddenMetadata(videoPath string) (*titlepb.Title, error) {
+	metaPath := metadataCachePath(videoPath)
+	if metaPath == "" {
+		return nil, fmt.Errorf("metadata path not available for %s", videoPath)
+	}
+	if !Utility.Exists(metaPath) {
+		return nil, fmt.Errorf("metadata file not found for %s", videoPath)
+	}
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, err
+	}
+	title := new(titlepb.Title)
+	if err := protojson.Unmarshal(data, title); err != nil {
+		return nil, err
+	}
+	return title, nil
+}
+
+func loadVideoFromHiddenMetadata(videoPath string) (*titlepb.Video, error) {
+	metaPath := metadataCachePath(videoPath)
+	if metaPath == "" {
+		return nil, fmt.Errorf("metadata path not available for %s", videoPath)
+	}
+	if !Utility.Exists(metaPath) {
+		return nil, fmt.Errorf("metadata file not found for %s", videoPath)
+	}
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		return nil, err
+	}
+	video := new(titlepb.Video)
+	if err := protojson.Unmarshal(data, video); err != nil {
+		return nil, err
+	}
+	return video, nil
+}
+
+func resolveTitleMetadata(videoPath string, fallback *titlepb.Title) *titlepb.Title {
+	if stored, err := loadTitleFromHiddenMetadata(videoPath); err == nil && stored != nil && stored.ID != "" {
+		return stored
+	}
+	if fallback == nil {
+		return nil
+	}
+	if cloned, ok := proto.Clone(fallback).(*titlepb.Title); ok {
+		return cloned
+	}
+	return fallback
+}
+
+func resolveVideoMetadata(videoPath string, fallback *titlepb.Video) *titlepb.Video {
+	if stored, err := loadVideoFromHiddenMetadata(videoPath); err == nil && stored != nil && stored.ID != "" {
+		return stored
+	}
+	if fallback == nil {
+		return nil
+	}
+	if cloned, ok := proto.Clone(fallback).(*titlepb.Video); ok {
+		return cloned
+	}
+	return fallback
+}
+
+func titleNeedsUpdate(existing, incoming *titlepb.Title) bool {
+	if incoming == nil || incoming.ID == "" {
+		return false
+	}
+	if existing == nil {
+		return true
+	}
+	return !proto.Equal(existing, incoming)
+}
+
+func videoNeedsUpdate(existing, incoming *titlepb.Video) bool {
+	if incoming == nil || incoming.ID == "" {
+		return false
+	}
+	if existing == nil {
+		return true
+	}
+	return !proto.Equal(existing, incoming)
+}
+
+func ensureVideoMetadata(video *titlepb.Video, videoPath string) {
+	if video == nil {
+		return
+	}
+	if video.Poster == nil {
+		video.Poster = &titlepb.Poster{ID: video.ID}
+	}
+	if video.Poster.ContentUrl == "" {
+		if url, _ := downloadThumbnail(video.ID, video.URL, videoPath); url != "" {
+			video.Poster.ContentUrl = url
+		}
+	}
+	video.Duration = int32(getVideoDuration(videoPath))
 }
 
 // buildInfoMapFromJSON wraps a raw JSON blob (Title or Video) into the ffprobe-like
@@ -1709,14 +1849,43 @@ func (srv *server) createVideoInfo(token, dirPath, filePath, infoJSON string) er
 	}
 
 	// Title/description/poster
-	if full, ok := info["fulltitle"].(string); ok && full != "" {
-		v.Description = full
-		if thumb, ok := info["thumbnail"].(string); ok && thumb != "" {
-			if v.Poster == nil {
-				v.Poster = new(titlepb.Poster)
-			}
+	if title, ok := info["title"].(string); ok && title != "" && v.Title == "" {
+		v.Title = title
+	}
+	if description, ok := info["description"].(string); ok && description != "" {
+		v.Description = description
+	}
+	if thumb, ok := info["thumbnail"].(string); ok && thumb != "" {
+		if v.Poster == nil {
+			v.Poster = new(titlepb.Poster)
+		}
+		if v.Poster.URL == "" {
 			v.Poster.URL = thumb
 		}
+	}
+
+	// Publisher/channel details from yt-dlp metadata as fallback if scraper missed them.
+	if v.PublisherID == nil {
+		v.PublisherID = new(titlepb.Publisher)
+	}
+	if uploader, ok := info["uploader"].(string); ok && uploader != "" && v.PublisherID.Name == "" {
+		v.PublisherID.Name = uploader
+	}
+	if uploaderURL, ok := info["uploader_url"].(string); ok && uploaderURL != "" && v.PublisherID.URL == "" {
+		v.PublisherID.URL = uploaderURL
+	}
+	if publisherID, ok := info["uploader_id"].(string); ok && publisherID != "" && v.PublisherID.ID == "" {
+		v.PublisherID.ID = publisherID
+	} else if channelID, ok := info["channel_id"].(string); ok && channelID != "" && v.PublisherID.ID == "" {
+		v.PublisherID.ID = channelID
+	}
+	if v.PublisherID.Name == "" && v.PublisherID.URL != "" {
+		if parts := strings.Split(v.PublisherID.URL, "/"); len(parts) > 0 {
+			v.PublisherID.Name = parts[len(parts)-1]
+		}
+	}
+	if v.PublisherID.ID == "" && v.PublisherID.Name != "" {
+		v.PublisherID.ID = v.PublisherID.Name
 	}
 
 	// Genres (categories)
@@ -1753,6 +1922,7 @@ func (srv *server) createVideoInfo(token, dirPath, filePath, infoJSON string) er
 		}
 	}
 
+	fmt.Println("-----------------> video ", v)
 	tcli, err := getTitleClient()
 	if err != nil {
 		return err
@@ -1905,26 +2075,45 @@ func asString(v interface{}) string {
 
 // Download (via yt-dlp) a single video/audio item and process it.
 // Returns the yt-dlp PID (if obtained) and an error.
-func (srv *server) uploadedVideo(token, urlStr, dest, format, outFile string, stream mediapb.MediaService_UploadVideoServer) (int, error) {
+func (srv *server) uploadedVideo(
+	token, urlStr, dest, format, outFile string,
+	stream mediapb.MediaService_UploadVideoServer,
+) (int, error) {
 	dirPath := srv.formatPath(dest)
 	if !Utility.Exists(dirPath) {
 		return -1, errors.New("destination does not exist: " + dirPath)
 	}
 
-	Utility.CreateDirIfNotExist(dirPath)
+	if err := Utility.CreateDirIfNotExist(dirPath); err != nil {
+		return -1, err
+	}
 
 	baseCmd := "yt-dlp"
 	var args []string
-	if format == "mp3" {
+
+	switch format {
+	case "mp3":
 		args = []string{
+			"--newline", // <<< add this
 			"-f", "bestaudio",
 			"--extract-audio", "--audio-format", "mp3", "--audio-quality", "0",
 			"--embed-thumbnail", "--embed-metadata", "--write-info-json",
-			"-o", `%(id)s.%(ext)s`, urlStr,
+			"-o", `%(id)s.%(ext)s`,
+			urlStr,
 		}
-	} else if format == "mp4" {
-		args = []string{"--write-info-json", "--embed-metadata", "--embed-thumbnail", "-o", `%(id)s.%(ext)s`, urlStr}
-	} else {
+	case "mp4":
+		args = []string{
+			"--newline", // <<< add this
+			"-f", "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best",
+			"--recode-video", "mp4",
+			"--merge-output-format", "mp4",
+			"--write-info-json",
+			"--embed-metadata",
+			"--embed-thumbnail",
+			"-o", `%(id)s.%(ext)s`,
+			urlStr,
+		}
+	default:
 		return -1, errors.New("format " + format + " not supported")
 	}
 
@@ -1935,58 +2124,97 @@ func (srv *server) uploadedVideo(token, urlStr, dest, format, outFile string, st
 	if err != nil {
 		return -1, err
 	}
-	defer stdout.Close()
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return -1, err
+	}
+
+	stdoutLines := make(chan string)
+	stderrLines := make(chan string)
+
+	// Start goroutines to read stdout and stderr streams into their own channels.
+	go Utility.ReadOutput(stdoutLines, stdout)
+	go Utility.ReadOutput(stderrLines, stderr)
 
 	output := make(chan string)
-	done := make(chan bool)
-	var pid int = -1
+	var pipeWg sync.WaitGroup
 
-	// Stream progress to client
+	pipeWg.Add(2)
 	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case line := <-output:
-				if cmd.Process != nil {
-					pid = cmd.Process.Pid
-				}
-				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: line})
-			}
+		defer pipeWg.Done()
+		for line := range stdoutLines {
+			output <- line
+		}
+	}()
+	go func() {
+		defer pipeWg.Done()
+		for line := range stderrLines {
+			output <- line
 		}
 	}()
 
-	go Utility.ReadOutput(output, stdout)
-	if err := cmd.Run(); err != nil {
-		done <- true
-		return pid, err
-	}
-	done <- true
+	// Close the channel once both stream forwarding goroutines finish.
+	go func() {
+		pipeWg.Wait()
+		close(output)
+	}()
 
-	// Post-processing
+	var pid int32 = -1
+
+	// Stream lines back to the client as they arrive.
+	go func() {
+		for line := range output {
+			if cmd.Process != nil {
+				pid = int32(cmd.Process.Pid)
+			}
+			_ = stream.Send(&mediapb.UploadVideoResponse{
+				Pid:    pid,
+				Result: line,
+			})
+		}
+	}()
+
+	// Start the process (non-blocking relative to the output goroutines)
+	if err := cmd.Start(); err != nil {
+		return -1, err
+	}
+	if cmd.Process != nil {
+		pid = int32(cmd.Process.Pid)
+	}
+
+	// Wait until yt-dlp exits. This blocks this handler goroutine,
+	// but *not* the output streaming goroutines.
+	if err := cmd.Wait(); err != nil {
+		// You still get all output up to the failure.
+		_ = stream.Send(&mediapb.UploadVideoResponse{
+			Pid:    pid,
+			Result: "yt-dlp failed: " + err.Error(),
+		})
+		return int(pid), err
+	}
+
+	// ---------- Post-processing (unchanged logic, just moved below) ----------
+
 	switch format {
 	case "mp4":
 		infoPath := strings.ReplaceAll(outFile, ".mp4", ".info.json")
 		if Utility.Exists(infoPath) {
-			_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "create video info for " + outFile})
+			_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "create video info for " + outFile})
 			if err := srv.createVideoInfo(token, dest, outFile, infoPath); err != nil {
-				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "fail to create video info with error " + err.Error()})
+				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "fail to create video info with error " + err.Error()})
 			}
 
-			// Permissions
 			if err := srv.setOwner(token, dest+"/"+filepath.Base(outFile)); err != nil {
-				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "fail to create video permission with error " + err.Error()})
+				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "fail to create video permission with error " + err.Error()})
 			} else {
-				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "create permission " + outFile})
+				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "create permission " + outFile})
 			}
 
-			// Cleanup info.json
-			_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "remove file " + infoPath})
+			_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "remove file " + infoPath})
 			if err := os.Remove(infoPath); err != nil {
-				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "fail to remove file " + err.Error()})
+				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "fail to remove file " + err.Error()})
 			}
 
-			// Regenerate playlists
 			if Utility.Exists(dirPath + "/video.m3u") {
 				_ = os.Remove(dirPath + "/video.m3u")
 			}
@@ -1994,7 +2222,7 @@ func (srv *server) uploadedVideo(token, urlStr, dest, format, outFile string, st
 				fmt.Println("fail to generate playlist with error ", err)
 			}
 
-			// Kick off previews asynchronously (best-effort)
+			// Fire-and-forget: previews
 			go func() {
 				fileName := strings.ReplaceAll(outFile, "/.hidden/", "/")
 				_ = srv.createVideoPreview(fileName, 20, 128, false)
@@ -2025,9 +2253,13 @@ func (srv *server) uploadedVideo(token, urlStr, dest, format, outFile string, st
 		}
 	}
 
-	_ = stream.Send(&mediapb.UploadVideoResponse{Pid: int32(pid), Result: "done"})
+	_ = stream.Send(&mediapb.UploadVideoResponse{
+		Pid:    pid,
+		Result: "done",
+	})
+
 	srv.publishReloadDirEvent(dirPath)
-	return pid, nil
+	return int(pid), nil
 }
 
 // --- Audio playlist -------------------------------------------------------
@@ -2223,12 +2455,23 @@ func (srv *server) getYTDLPInfos(urlStr, path, format string) (string, []map[str
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", urlStr)
 	cmd.Dir = filepath.Dir(path)
 
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, fmt.Errorf("yt-dlp failed: %w; output=%s", err, strings.TrimSpace(string(out)))
 	}
 
-	jsonStr := "[" + strings.ReplaceAll(string(out), "}\n{", "},\n{") + "]"
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var objs []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "{") {
+			objs = append(objs, line)
+		}
+	}
+	if len(objs) == 0 {
+		return "", nil, nil, fmt.Errorf("yt-dlp output contains no JSON objects")
+	}
+	jsonStr := "[" + strings.Join(objs, ",") + "]"
 	var playlist []map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &playlist); err != nil {
 		return "", nil, nil, err

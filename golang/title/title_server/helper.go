@@ -91,3 +91,23 @@ func (srv *server) getAssociations(id string) storage_store.Store {
 	}
 	return nil
 }
+
+func (srv *server) migrateAssociationKey(indexPath, oldKey, newKey, file string) {
+	if indexPath == "" || oldKey == "" || newKey == "" || oldKey == newKey {
+		return
+	}
+	resolved, err := srv.resolveIndexPath(indexPath)
+	if err != nil {
+		return
+	}
+	store, cerr := srv.getStore(filepath.Base(indexPath), resolved)
+	if cerr != nil {
+		return
+	}
+	if data, err := store.GetItem(oldKey); err == nil && len(data) > 0 {
+		_ = store.RemoveItem(oldKey)
+		_ = store.SetItem(newKey, data)
+		logger.Info("associations key migrated after metadata write",
+			"old", oldKey, "new", newKey, "file", file)
+	}
+}

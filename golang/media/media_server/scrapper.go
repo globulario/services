@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,14 +25,14 @@ import (
 // -----------------------------------------------------------------------------
 
 const (
-	ytDlpBinary              = "yt-dlp"
-	ytDlpTimeout             = 30 * time.Second
-	thumbWidth               = 300
-	thumbHeight              = 180
-	thumbDataURLFilename     = "data_url.txt"
-	hiddenDirName            = ".hidden"
-	thumbnailLeafFolderName  = "__thumbnail__"
-	noEmbedEndpointTemplate  = "https://noembed.com/embed?url="
+	ytDlpBinary             = "yt-dlp"
+	ytDlpTimeout            = 30 * time.Second
+	thumbWidth              = 300
+	thumbHeight             = 180
+	thumbDataURLFilename    = "data_url.txt"
+	hiddenDirName           = ".hidden"
+	thumbnailLeafFolderName = "__thumbnail__"
+	noEmbedEndpointTemplate = "https://noembed.com/embed?url="
 )
 
 // buildThumbnailDir returns the hidden thumbnail directory for a given video file path.
@@ -39,6 +42,21 @@ func buildThumbnailDir(videoPath string) (string, string) {
 	base := filepath.Base(videoPath)
 	name := strings.TrimSuffix(base, filepath.Ext(base))
 	return filepath.Join(dir, hiddenDirName, name, thumbnailLeafFolderName), name
+}
+
+var flashvarsPattern = regexp.MustCompile(`(?s)var\s+flashvars_[^=]+=\s*(\{.*?\});`)
+
+func appendUnique(list *[]string, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	for _, existing := range *list {
+		if strings.EqualFold(existing, value) {
+			return
+		}
+	}
+	*list = append(*list, value)
 }
 
 // viewCountFromSuffix parses simple K/M suffixed counts to an int64 (best-effort).
@@ -170,8 +188,50 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 
 	c := colly.NewCollector(colly.AllowedDomains("pornhub.com", "www.pornhub.com"))
 
-	c.OnHTML(".inlineFree", func(e *colly.HTMLElement) {
-		currentVideo.Description = strings.TrimSpace(e.Text)
+	c.OnResponse(func(r *colly.Response) {
+		matches := flashvarsPattern.FindStringSubmatch(string(r.Body))
+		if len(matches) < 2 {
+			return
+		}
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(matches[1]), &payload); err != nil {
+			slog.Warn("pornhub flashvars parse failed", "err", err)
+			return
+		}
+		if titleRaw, ok := payload["video_title"].(string); ok {
+			title := strings.TrimSpace(html.UnescapeString(titleRaw))
+			if title != "" {
+				currentVideo.Title = title
+				if currentVideo.Description == "" {
+					currentVideo.Description = title
+				}
+			}
+		}
+		if duration, ok := payload["video_duration"].(float64); ok && duration > 0 {
+			currentVideo.Duration = int32(duration)
+		}
+		if img, ok := payload["image_url"].(string); ok {
+			if currentVideo.Poster != nil && currentVideo.Poster.URL == "" {
+				currentVideo.Poster.URL = img
+			}
+		}
+	})
+
+	c.OnHTML(".title-container .inlineFree", func(e *colly.HTMLElement) {
+		text := strings.TrimSpace(e.Text)
+		if text == "" {
+			return
+		}
+		currentVideo.Title = text
+		if currentVideo.Description == "" {
+			currentVideo.Description = text
+		}
+	})
+
+	c.OnHTML("meta[name=description]", func(e *colly.HTMLElement) {
+		if currentVideo.Description == "" {
+			currentVideo.Description = strings.TrimSpace(e.Attr("content"))
+		}
 	})
 
 	c.OnHTML(".pstar-list-btn", func(e *colly.HTMLElement) {
@@ -188,11 +248,19 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 		}
 	})
 
-	c.OnHTML("#hd-leftColVideoPage .userInfo a", func(e *colly.HTMLElement) {
+	c.OnHTML(".video-info-row .userInfo a", func(e *colly.HTMLElement) {
+		name := strings.TrimSpace(e.Text)
+		if name == "" {
+			return
+		}
+		url := e.Attr("href")
+		if !strings.HasPrefix(url, "http") {
+			url = "https://www.pornhub.com" + url
+		}
 		currentVideo.PublisherID = &titlepb.Publisher{
-			ID:   e.Text,
-			Name: e.Text,
-			URL:  e.Attr("href"),
+			ID:   name,
+			Name: name,
+			URL:  url,
 		}
 	})
 
@@ -200,20 +268,46 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 		currentVideo.Count = viewCountFromSuffix(e.Text)
 	})
 
-	c.OnHTML(".percent", func(e *colly.HTMLElement) {
-		percent := strings.TrimSpace(strings.ReplaceAll(e.Text, "%", ""))
-		currentVideo.Rating = float32(Utility.ToNumeric(percent) / 10)
+	c.OnHTML(".votesUp", func(e *colly.HTMLElement) {
+		likes := strings.TrimSpace(e.Attr("data-rating"))
+		if likes == "" {
+			likes = strings.TrimSpace(e.Text)
+		}
+		if likes != "" {
+			currentVideo.Likes = int64(Utility.ToNumeric(likes))
+		}
+	})
+
+	c.OnHTML(".video-info-row .videoInfo", func(e *colly.HTMLElement) {
+		if currentVideo.Date == "" {
+			currentVideo.Date = strings.TrimSpace(e.Text)
+		}
 	})
 
 	c.OnHTML(".categoriesWrapper a", func(e *colly.HTMLElement) {
-		tag := strings.TrimSpace(e.Text)
-		if tag != "Suggest" {
-			currentVideo.Tags = append(currentVideo.Tags, tag)
+		val := strings.TrimSpace(e.Text)
+		if val == "" || val == "Suggest" {
+			return
 		}
+		appendUnique(&currentVideo.Genres, val)
+	})
+
+	c.OnHTML(".tagsWrapper a", func(e *colly.HTMLElement) {
+		val := strings.TrimSpace(e.Text)
+		if val == "" {
+			return
+		}
+		appendUnique(&currentVideo.Tags, val)
 	})
 
 	if err := c.Visit(video_url); err != nil {
 		return nil, err
+	}
+	if currentVideo.Title == "" {
+		currentVideo.Title = currentVideo.Description
+	}
+	if currentVideo.Title == "" {
+		currentVideo.Title = filepath.Base(file_path)
 	}
 	return currentVideo, nil
 }
@@ -315,75 +409,201 @@ func _indexPersonInformation_(p *titlepb.Person, id string) error {
 // -----------------------------------------------------------------------------
 // Indexers – XHamster
 // -----------------------------------------------------------------------------
-
-func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
+func indexXhamsterVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
-		URL:      video_url,
-		ID:       video_id,
-		Duration: int32(getVideoDuration(file_path)),
-		Poster:   &titlepb.Poster{ID: video_id + "-thumnail"},
+		URL:      videoURL,
+		ID:       videoID,
+		Duration: int32(getVideoDuration(filePath)),
+		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
 	}
 
-	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path)
+	fmt.Println("Indexing xhamster video:", videoURL)
+
+	// Thumbnail
+	contentURL, err := downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("download thumbnail: %w", err)
 	}
-	currentVideo.Poster.URL = video_url
+	currentVideo.Poster.ContentUrl = contentURL
+	currentVideo.Poster.URL = videoURL
 	currentVideo.Poster.TitleId = currentVideo.ID
 
-	c := colly.NewCollector(colly.AllowedDomains("www.xhamster.com", "xhamster.com", "fr.xhamster.com"))
+	// Colly collector
+	c := colly.NewCollector(
+		colly.AllowedDomains("www.xhamster.com", "xhamster.com", "fr.xhamster.com"),
+	)
+	c.SetRequestTimeout(30 * time.Second)
 
-	c.OnHTML("body > div.main-wrap > main > div.width-wrap.with-player-container > h1", func(e *colly.HTMLElement) {
-		currentVideo.Description = strings.TrimSpace(e.Text)
-	})
+	// --- SELECTORS FOR NEW LAYOUT -----------------------------------------
 
-	c.OnHTML("body > div.main-wrap > main > div.width-wrap.with-player-container > nav > ul > li > a", func(e *colly.HTMLElement) {
-		href := e.Attr("href")
-		switch {
-		case strings.Contains(href, "pornstars"):
-			p := &titlepb.Person{
-				URL:      href,
-				ID:       strings.TrimSpace(e.Text),
-				FullName: strings.TrimSpace(e.Text),
-			}
-			if err := IndexPersonInformation(p); err != nil {
-				slog.Warn("IndexPersonInformation failed", "person", p.FullName, "err", err)
-			}
-			if len(p.ID) > 0 {
-				currentVideo.Casting = append(currentVideo.Casting, p)
-			}
-		case strings.Contains(href, "categories"):
-			if tag := strings.TrimSpace(e.Text); len(tag) > 3 {
-				currentVideo.Tags = append(currentVideo.Tags, tag)
-			}
-		case strings.Contains(href, "channels"):
-			currentVideo.PublisherID = &titlepb.Publisher{
-				URL:  href,
-				ID:   e.Text,
-				Name: e.Text,
-			}
+	const (
+		// <div data-role="video-title"><h1>...</h1>...</div>
+		selectorTitle = `div[data-role="video-title"] h1`
+
+		// Views + rating are inside:
+		// <div data-role="video-title"> ... <p class="icons-a993a"> ... </p> ... </div>
+		selectorStats = `div[data-role="video-title"] p.icons-a993a`
+
+		// All tags / channel / pornstars / categories are inside:
+		// <nav id="video-tags-list-container"> ... <a href="..."> ... </a> ...
+		selectorMetaNavLinks = `nav#video-tags-list-container a`
+	)
+
+	// --- Title / description ----------------------------------------------
+
+	c.OnHTML(selectorTitle, func(e *colly.HTMLElement) {
+		text := strings.TrimSpace(e.Text)
+		if text == "" {
+			return
 		}
+		// Old code was using that as Description; keep same behavior.
+		currentVideo.Description = text
+
+		// If your proto has a Title field, you can also set it here:
+		// currentVideo.Title = text
 	})
 
-	c.OnHTML(".header-icons", func(e *colly.HTMLElement) {
+	// --- Views & rating (from icons / aria-labels) ------------------------
+
+	c.OnHTML(selectorStats, func(e *colly.HTMLElement) {
+		// First, parse aria-label from <i> icons:
+		e.ForEach("i", func(_ int, child *colly.HTMLElement) {
+			label := strings.TrimSpace(child.Attr("aria-label"))
+			if label == "" {
+				return
+			}
+
+			// Example: "22812 views"
+			if strings.Contains(strings.ToLower(label), "views") {
+				fields := strings.Fields(label)
+				if len(fields) > 0 {
+					n := Utility.ToNumeric(strings.ReplaceAll(fields[0], ",", ""))
+					if n > 0 {
+						// Adjust type to whatever Count is in your proto.
+						currentVideo.Count = int64(n)
+					}
+				}
+				return
+			}
+
+			// Example: "100% likes"
+			if strings.Contains(strings.ToLower(label), "likes") && strings.Contains(label, "%") {
+				parts := strings.SplitN(label, "%", 2)
+				if len(parts) > 0 {
+					p := strings.TrimSpace(parts[0])
+					if p != "" {
+						percent := Utility.ToNumeric(p)
+						currentVideo.Rating = float32(percent / 10.0) // keep your previous /10 convention
+					}
+				}
+			}
+		})
+
+		// Fallback: parse the <span> numbers if for some reason aria-labels change.
 		e.ForEach("span", func(_ int, child *colly.HTMLElement) {
 			txt := strings.TrimSpace(child.Text)
+			if txt == "" {
+				return
+			}
+
+			// If it contains %, treat as rating
 			if strings.Contains(txt, "%") {
-				percent := strings.TrimSpace(strings.ReplaceAll(txt, "%", ""))
-				currentVideo.Rating = float32(Utility.ToNumeric(percent) / 10)
-			} else {
-				currentVideo.Count = viewCountFromSuffix(txt)
+				p := strings.TrimSpace(strings.ReplaceAll(txt, "%", ""))
+				if p != "" {
+					percent := Utility.ToNumeric(p)
+					if percent > 0 {
+						currentVideo.Rating = float32(percent / 10.0)
+					}
+				}
+				return
+			}
+
+			// Otherwise maybe it's the views ("22,812")
+			if strings.IndexFunc(txt, func(r rune) bool { return r >= '0' && r <= '9' }) != -1 {
+				n := Utility.ToNumeric(strings.ReplaceAll(txt, ",", ""))
+				if n > 0 && currentVideo.Count == 0 {
+					currentVideo.Count = int64(n)
+				}
 			}
 		})
 	})
 
-	if err := c.Visit(video_url); err != nil {
+	// --- Pornstars / categories / channels / tags -------------------------
+
+	c.OnHTML(selectorMetaNavLinks, func(e *colly.HTMLElement) {
+		href := e.Attr("href")
+		if href == "" {
+			return
+		}
+
+		txt := strings.TrimSpace(e.Text)
+		if txt == "" {
+			return
+		}
+
+		switch {
+		// Pornstars
+		case strings.Contains(href, "/pornstars/"):
+			p := &titlepb.Person{
+				URL:      href,
+				ID:       txt,
+				FullName: txt,
+			}
+			if err := IndexPersonInformation(p); err != nil {
+				slog.Warn("IndexPersonInformation failed", "person", p.FullName, "err", err)
+			}
+			if p.ID != "" {
+				currentVideo.Casting = append(currentVideo.Casting, p)
+			}
+
+		// Channel / publisher (first "channel" entry will usually be the main one)
+		case strings.Contains(href, "/channels/"):
+			// Only set if not already set, so we prefer the first channel tag
+			if currentVideo.PublisherID == nil {
+				currentVideo.PublisherID = &titlepb.Publisher{
+					URL:  href,
+					ID:   txt,
+					Name: txt,
+				}
+			}
+
+		// Categories (e.g. /categories/big-cock)
+		case strings.Contains(href, "/categories/"):
+			if len(txt) > 1 {
+				currentVideo.Tags = append(currentVideo.Tags, txt)
+			}
+
+		// Tags (e.g. /tags/fucked)
+		case strings.Contains(href, "/tags/"):
+			if len(txt) > 1 {
+				currentVideo.Tags = append(currentVideo.Tags, txt)
+			}
+		}
+	})
+
+	// Optional debugging hooks
+	c.OnScraped(func(r *colly.Response) {
+		if currentVideo.Description == "" {
+			slog.Warn("xhamster: description/title not found", "url", videoURL)
+		}
+		if len(currentVideo.Casting) == 0 {
+			slog.Debug("xhamster: no casting found", "url", videoURL)
+		}
+		if len(currentVideo.Tags) == 0 {
+			slog.Debug("xhamster: no tags/tags found", "url", videoURL)
+		}
+		if currentVideo.PublisherID == nil {
+			slog.Debug("xhamster: no publisher found", "url", videoURL)
+		}
+	})
+
+	if err := c.Visit(videoURL); err != nil {
 		return nil, err
 	}
+
 	return currentVideo, nil
 }
 
@@ -391,96 +611,132 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 // Indexers – XNXX
 // -----------------------------------------------------------------------------
 
-func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
+func indexXnxxVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
-		URL:      video_url,
-		Duration: int32(getVideoDuration(file_path)),
-		ID:       video_id,
-		Poster:   &titlepb.Poster{ID: video_id + "-thumnail"},
+		URL:      videoURL,
+		Duration: int32(getVideoDuration(filePath)),
+		ID:       videoID,
+		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path)
+	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
 		return nil, err
 	}
-	currentVideo.Poster.URL = video_url
+	currentVideo.Poster.URL = videoURL
 	currentVideo.Poster.TitleId = currentVideo.ID
 
 	c := colly.NewCollector(colly.AllowedDomains("www.xnxx.com", "xnxx.com"))
 
+	// Title + duration / resolution / views
 	c.OnHTML(".clear-infobar", func(e *colly.HTMLElement) {
-		currentVideo.Description = strings.TrimSpace(e.Text)
+		// Title: <strong>...</strong> inside .video-title
+		titleSel := e.DOM.Find(".video-title strong")
+		title := strings.TrimSpace(titleSel.Text())
+		if title != "" {
+			currentVideo.Description = title
+		}
 
-		e.ForEach("strong", func(_ int, ch *colly.HTMLElement) {
-			currentVideo.Description = strings.TrimSpace(ch.Text)
-		})
-
-		e.ForEach("p", func(_ int, ch *colly.HTMLElement) {
-			currentVideo.Description += "</br>" + strings.TrimSpace(ch.Text)
-		})
-
+		// Metadata: "7min - 720p - 677,572"
 		e.ForEach(".metadata", func(_ int, ch *colly.HTMLElement) {
-			ch.ForEach(".gold-plate, .free-plate", func(_ int, ch2 *colly.HTMLElement) {
-				currentVideo.PublisherID = &titlepb.Publisher{
-					URL:  "https://www.xnxx.com" + ch2.Attr("href"),
-					ID:   ch2.Text,
-					Name: ch2.Text,
-				}
-			})
-
-			parts := strings.Split(ch.Text, "-")
-			if currentVideo.PublisherID != nil {
-				txt := strings.TrimSpace(parts[0])
-				if len(txt) > len(currentVideo.PublisherID.Name) {
-					currentVideo.PublisherID.Name = txt[len(currentVideo.PublisherID.Name)+1:]
-				}
-			} else if len(parts) > 0 {
-				name := strings.TrimSpace(parts[0])
-				currentVideo.PublisherID = &titlepb.Publisher{ID: name, Name: name}
+			metaText := strings.TrimSpace(ch.Text)
+			if metaText == "" {
+				return
 			}
 
-			if len(parts) > 2 {
-				currentVideo.Count = viewCountFromSuffix(parts[2])
+			parts := strings.Split(metaText, "-")
+			for i := range parts {
+				parts[i] = strings.TrimSpace(parts[i])
 			}
+
+			// parts[0] = "7min"
+			if len(parts) > 0 {
+				// optionally parse duration if you want:
+				// e.g. "7min" -> 7 * 60
+				// but you already have local duration from file, so we can ignore or use as fallback
+			}
+
+			// parts[1] = "720p" -> treat as quality tag
 			if len(parts) > 1 {
-				tag := strings.TrimSpace(parts[1]) // e.g., "720p"
-				currentVideo.Tags = append(currentVideo.Tags, tag)
+				if quality := parts[1]; quality != "" {
+					currentVideo.Tags = append(currentVideo.Tags, quality)
+				}
+			}
+
+			// parts[2] = "677,572" (maybe plus icon text)
+			if len(parts) > 2 {
+				viewsPart := parts[2]
+				fields := strings.Fields(viewsPart)
+				if len(fields) > 0 {
+					currentVideo.Count = viewCountFromSuffix(fields[0])
+				}
 			}
 		})
 	})
 
+	// Extra description block if present
 	c.OnHTML(".metadata-row.video-description", func(e *colly.HTMLElement) {
+		txt := strings.TrimSpace(e.Text)
+		if txt == "" {
+			return
+		}
 		if len(currentVideo.Description) > 0 {
 			currentVideo.Description += "</br>"
 		}
-		currentVideo.Description += strings.TrimSpace(e.Text)
+		currentVideo.Description += txt
 	})
 
-	c.OnHTML("#video-content-metadata > div.metadata-row.video-tags > a", func(e *colly.HTMLElement) {
-		if strings.Contains(e.Attr("class"), "is-pornstar") {
+	// Tags + pornstars
+	c.OnHTML("#video-content-metadata .metadata-row.video-tags a", func(e *colly.HTMLElement) {
+		classAttr := e.Attr("class")
+
+		// pornstar / model links
+		if strings.Contains(classAttr, "is-pornstar") {
+			name := strings.TrimSpace(e.Text)
+			if name == "" {
+				return
+			}
 			p := &titlepb.Person{
 				URL:      "https://www.xnxx.com" + e.Attr("href"),
-				ID:       strings.TrimSpace(e.Text),
-				FullName: strings.TrimSpace(e.Text),
+				ID:       name,
+				FullName: name,
 			}
 			if err := IndexPersonInformation(p); err != nil {
 				slog.Warn("IndexPersonInformation failed", "person", p.FullName, "err", err)
 			}
-			if len(p.ID) > 0 {
-				currentVideo.Casting = append(currentVideo.Casting, p)
-			}
-		} else {
-			if tag := strings.TrimSpace(e.Text); len(tag) > 3 {
-				currentVideo.Tags = append(currentVideo.Tags, tag)
-			}
+			currentVideo.Casting = append(currentVideo.Casting, p)
+			return
+		}
+
+		// regular tags
+		tag := strings.TrimSpace(e.Text)
+		if len(tag) > 0 {
+			currentVideo.Tags = append(currentVideo.Tags, tag)
 		}
 	})
 
-	c.OnHTML(".vote-actions", func(e *colly.HTMLElement) {
+	// Rating from explicit percentage: <span class="rating-box value">99.01%</span>
+	c.OnHTML("#video-votes .rating-box.value", func(e *colly.HTMLElement) {
+		percentStr := strings.TrimSpace(e.Text) // "99.01%"
+		percentStr = strings.TrimSuffix(percentStr, "%")
+		if percentStr == "" {
+			return
+		}
+		r := Utility.ToNumeric(percentStr) // 99.01
+		currentVideo.Rating = float32(r / 10.0)
+	})
+
+	// Fallback rating from up/down votes if needed
+	c.OnHTML("#video-votes .vote-actions", func(e *colly.HTMLElement) {
+		// only compute if we didn't get rating above
+		if currentVideo.Rating > 0 {
+			return
+		}
+
 		var like, unlike float32
 
 		e.ForEach(".vote-action-good .value", func(_ int, ch *colly.HTMLElement) {
@@ -491,11 +747,11 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 		})
 
 		if like+unlike > 0 {
-			currentVideo.Rating = like / (like + unlike) * 10
+			currentVideo.Rating = like / (like + unlike) * 10.0
 		}
 	})
 
-	if err := c.Visit(video_url); err != nil {
+	if err := c.Visit(videoURL); err != nil {
 		return nil, err
 	}
 	return currentVideo, nil
@@ -505,83 +761,127 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 // Indexers – XVideos
 // -----------------------------------------------------------------------------
 
-func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
+func indexXvideosVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
-		URL:      video_url,
-		ID:       video_id,
-		Poster:   &titlepb.Poster{ID: video_id + "-thumnail"},
-		Duration: int32(getVideoDuration(file_path)),
+		URL:      videoURL,
+		ID:       videoID,
+		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
+		Duration: int32(getVideoDuration(filePath)), // keep your local duration
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path)
+	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
 		return nil, err
 	}
-	currentVideo.Poster.URL = video_url
+	currentVideo.Poster.URL = videoURL
 	currentVideo.Poster.TitleId = currentVideo.ID
 
-	c := colly.NewCollector(colly.AllowedDomains("www.xvideos.com", "xvideos.com"))
+	c := colly.NewCollector(
+		colly.AllowedDomains("www.xvideos.com", "xvideos.com"),
+	)
 
-	c.OnHTML(".page-title", func(e *colly.HTMLElement) {
-		currentVideo.Description = strings.TrimSpace(e.Text)
-		e.ForEach(".video-hd-mark", func(_ int, ch *colly.HTMLElement) {
-			if tag := strings.TrimSpace(ch.Text); len(tag) > 3 {
+	// Title + HD mark
+	c.OnHTML("h2.page-title", func(e *colly.HTMLElement) {
+		// Remove duration / hd spans from the title text
+		titleSel := e.DOM.Clone()
+		titleSel.Find("span").Remove()
+		title := strings.TrimSpace(titleSel.Text())
+
+		// Store it as description (or Title if you have that field)
+		currentVideo.Description = title
+
+		// e.g. <span class="video-hd-mark">1440p</span>
+		e.ForEach("span.video-hd-mark", func(_ int, ch *colly.HTMLElement) {
+			if tag := strings.TrimSpace(ch.Text); tag != "" {
 				currentVideo.Tags = append(currentVideo.Tags, tag)
 			}
 		})
 	})
 
-	c.OnHTML(".label.profile", func(e *colly.HTMLElement) {
+	// Casting models
+	c.OnHTML("a.label.profile", func(e *colly.HTMLElement) {
 		p := &titlepb.Person{
 			URL: "https://www.xvideos.com" + e.Attr("href"),
 		}
-		e.ForEach(".name", func(_ int, ch *colly.HTMLElement) {
-			p.ID = ch.Text
-			p.FullName = ch.Text
+		e.ForEach("span.name", func(_ int, ch *colly.HTMLElement) {
+			name := strings.TrimSpace(ch.Text)
+			if name == "" {
+				return
+			}
+			p.ID = name
+			p.FullName = name
 			if err := IndexPersonInformation(p); err != nil {
 				slog.Warn("IndexPersonInformation failed", "person", p.FullName, "err", err)
 			}
 		})
-		if len(p.ID) > 0 {
+		if p.ID != "" {
 			currentVideo.Casting = append(currentVideo.Casting, p)
 		}
 	})
 
-	c.OnHTML(".uploader-tag", func(e *colly.HTMLElement) {
-		pub := &titlepb.Publisher{URL: e.Attr("href")}
-		e.ForEach(".name", func(_ int, ch *colly.HTMLElement) {
-			pub.ID = ch.Text
-			pub.Name = ch.Text
+	// Uploader / publisher
+	c.OnHTML("a.uploader-tag", func(e *colly.HTMLElement) {
+		pub := &titlepb.Publisher{
+			URL: "https://www.xvideos.com" + e.Attr("href"),
+		}
+		e.ForEach("span.name", func(_ int, ch *colly.HTMLElement) {
+			name := strings.TrimSpace(ch.Text)
+			if name == "" {
+				return
+			}
+			pub.ID = name
+			pub.Name = name
 		})
 		currentVideo.PublisherID = pub
 	})
 
-	c.OnHTML("#v-actions-left > div.vote-actions > div.rate-infos > span", func(e *colly.HTMLElement) {
-		// first span typically: "1,234,567 views"
-		fields := strings.SplitN(strings.TrimSpace(e.Text), " ", 2)
-		if len(fields) > 0 {
-			currentVideo.Count = viewCountFromSuffix(fields[0])
+	c.OnHTML(".video-metadata.video-tags-list.ordered-label-list.cropped a.is-keyword", func(e *colly.HTMLElement) {
+		tag := strings.TrimSpace(e.Text)
+		if tag == "" {
+			return
 		}
+		currentVideo.Tags = append(currentVideo.Tags, tag)
 	})
 
+	// Views – use #v-views, not rate-infos/votes
+	c.OnHTML("#v-views strong.mobile-hide", func(e *colly.HTMLElement) {
+		text := strings.TrimSpace(e.Text) // e.g. "367,157"
+		if text == "" {
+			return
+		}
+		currentVideo.Count = viewCountFromSuffix(text)
+	})
+
+	// Rating % (e.g. 100.0%)
 	c.OnHTML("#v-actions-left .rating-good-perc", func(e *colly.HTMLElement) {
-		percent := strings.ReplaceAll(strings.TrimSpace(e.Text), "%", "")
-		currentVideo.Rating = float32(Utility.ToNumeric(percent) / 10)
+		percent := strings.TrimSpace(strings.TrimSuffix(e.Text, "%"))
+		if percent == "" {
+			return
+		}
+		// Utility.ToNumeric("100.0") -> 100.0, /10 -> 10.0 (rating over 10)
+		currentVideo.Rating = float32(Utility.ToNumeric(percent) / 10.0)
 	})
 
-	c.OnHTML("#main .video-metadata.video-tags-list.ordered-label-list.cropped a", func(e *colly.HTMLElement) {
-		if strings.HasPrefix(e.Attr("href"), "/tags/") {
-			currentVideo.Tags = append(currentVideo.Tags, strings.TrimSpace(e.Text))
+	// Tags list
+	c.OnHTML(".video-metadata.video-tags-list.ordered-label-list.cropped a.is-keyword", func(e *colly.HTMLElement) {
+		// Only /tags/... links
+		if !strings.HasPrefix(e.Attr("href"), "/tags/") {
+			return
+		}
+		tag := strings.TrimSpace(e.Text)
+		if tag != "" {
+			currentVideo.Tags = append(currentVideo.Tags, tag)
 		}
 	})
 
-	if err := c.Visit(video_url); err != nil {
+	if err := c.Visit(videoURL); err != nil {
 		return nil, err
 	}
+
 	return currentVideo, nil
 }
 

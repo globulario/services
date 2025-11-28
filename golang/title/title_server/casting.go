@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/security"
@@ -155,7 +156,7 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 	}
 	for _, vid := range person.Casting {
 		if video, err := srv.getVideoById(rqst.IndexPath, vid); err == nil {
-			_ = srv.createVideo(token,rqst.IndexPath, clientId, video)
+			_ = srv.createVideo(token, rqst.IndexPath, clientId, video)
 		}
 	}
 	logger.Info("person deleted", "personID", rqst.PersonId)
@@ -199,51 +200,175 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 func (srv *server) saveTitleCasting(indexPath, titleId, role string, persons []*titlepb.Person) []*titlepb.Person {
 	out := make([]*titlepb.Person, 0, len(persons))
 	for _, person := range persons {
-		if existing, err := srv.getPersonById(indexPath, person.ID); err == nil {
-			switch role {
-			case "Casting":
-				for _, v := range existing.Casting {
-					if !Utility.Contains(person.Casting, v) {
-						person.Casting = append(person.Casting, v)
-					}
-				}
-				if !Utility.Contains(person.Casting, titleId) {
-					person.Casting = append(person.Casting, titleId)
-				}
-			case "Acting":
-				for _, v := range existing.Acting {
-					if !Utility.Contains(person.Acting, v) {
-						person.Acting = append(person.Acting, v)
-					}
-				}
-				if !Utility.Contains(person.Acting, titleId) {
-					person.Acting = append(person.Acting, titleId)
-				}
-			case "Directing":
-				for _, v := range existing.Directing {
-					if !Utility.Contains(person.Directing, v) {
-						person.Directing = append(person.Directing, v)
-					}
-				}
-				if !Utility.Contains(person.Directing, titleId) {
-					person.Directing = append(person.Directing, titleId)
-				}
-			case "Writing":
-				for _, v := range existing.Writing {
-					if !Utility.Contains(person.Writing, v) {
-						person.Writing = append(person.Writing, v)
-					}
-				}
-				if !Utility.Contains(person.Writing, titleId) {
-					person.Writing = append(person.Writing, titleId)
-				}
-			}
-			slog.Info("update person", "personID", person.ID, "titleID", titleId, "role", role)
+		if person == nil || person.ID == "" {
+			out = append(out, person)
+			continue
 		}
-		_ = srv.createPerson(indexPath, person)
+
+		existing, err := srv.getPersonById(indexPath, person.ID)
+		if err == nil && existing != nil {
+			mergeExistingRoleList(person, existing, role)
+		}
+
+		roleChanged := appendTitleRole(person, role, titleId)
+		needSave := existing == nil || roleChanged
+		if existing != nil {
+			needSave = roleChanged || mergePersonMetadata(existing, person)
+		}
+
+		if needSave {
+			slog.Info("update person", "personID", person.ID, "titleID", titleId, "role", role)
+			_ = srv.createPerson(indexPath, person)
+		}
+
 		out = append(out, person)
 	}
 	return out
+}
+
+func mergePersonMetadata(existing, candidate *titlepb.Person) bool {
+	if existing == nil || candidate == nil {
+		return true
+	}
+	changed := false
+
+	if mergeStringField(&candidate.URL, existing.URL) {
+		changed = true
+	}
+	if mergeStringField(&candidate.FullName, existing.FullName) {
+		changed = true
+	}
+	if mergeStringField(&candidate.Picture, existing.Picture) {
+		changed = true
+	}
+	if mergeStringField(&candidate.Biography, existing.Biography) {
+		changed = true
+	}
+	if mergeStringField(&candidate.CareerStatus, existing.CareerStatus) {
+		changed = true
+	}
+	if mergeStringField(&candidate.Gender, existing.Gender) {
+		changed = true
+	}
+	if mergeStringField(&candidate.BirthPlace, existing.BirthPlace) {
+		changed = true
+	}
+	if mergeStringField(&candidate.BirthDate, existing.BirthDate) {
+		changed = true
+	}
+
+	if aliases, aliasChanged := mergeUniqueStrings(candidate.Aliases, existing.Aliases); aliases != nil {
+		candidate.Aliases = aliases
+		if aliasChanged {
+			changed = true
+		}
+	}
+
+	return changed
+}
+
+func mergeStringField(candidate *string, existing string) bool {
+	if candidate == nil {
+		return false
+	}
+	if *candidate == "" {
+		*candidate = existing
+		return false
+	}
+	if existing != *candidate {
+		return true
+	}
+	return false
+}
+
+func appendTitleRole(person *titlepb.Person, role, titleID string) bool {
+	if person == nil || titleID == "" {
+		return false
+	}
+	switch role {
+	case "Casting":
+		return appendUnique(&person.Casting, titleID)
+	case "Acting":
+		return appendUnique(&person.Acting, titleID)
+	case "Directing":
+		return appendUnique(&person.Directing, titleID)
+	case "Writing":
+		return appendUnique(&person.Writing, titleID)
+	default:
+		return false
+	}
+}
+
+func appendUnique(slice *[]string, value string) bool {
+	if value == "" || slice == nil {
+		return false
+	}
+	if Utility.Contains(*slice, value) {
+		return false
+	}
+	*slice = append(*slice, value)
+	return true
+}
+
+func mergeExistingRoleList(person, existing *titlepb.Person, role string) {
+	if person == nil || existing == nil {
+		return
+	}
+	switch role {
+	case "Casting":
+		appendExistingEntries(&person.Casting, existing.Casting)
+	case "Acting":
+		appendExistingEntries(&person.Acting, existing.Acting)
+	case "Directing":
+		appendExistingEntries(&person.Directing, existing.Directing)
+	case "Writing":
+		appendExistingEntries(&person.Writing, existing.Writing)
+	}
+}
+
+func appendExistingEntries(target *[]string, values []string) {
+	if target == nil || len(values) == 0 {
+		return
+	}
+	for _, v := range values {
+		appendUnique(target, v)
+	}
+}
+
+func mergeUniqueStrings(primary, fallback []string) ([]string, bool) {
+	if len(primary) == 0 && len(fallback) == 0 {
+		return nil, false
+	}
+	seen := make(map[string]struct{}, len(primary)+len(fallback))
+	result := make([]string, 0, len(primary)+len(fallback))
+	for _, v := range fallback {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		result = append(result, v)
+	}
+	changed := false
+	for _, v := range primary {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		result = append(result, v)
+		changed = true
+	}
+	if len(result) == 0 {
+		return nil, false
+	}
+	return result, changed
 }
 
 // SearchPersons queries the people index and streams a summary followed by hits.

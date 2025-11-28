@@ -58,8 +58,10 @@ replace github.com/globulario/utility => ../../utility
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cyruzin/golang-tmdb v1.9.1 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
