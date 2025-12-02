@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -67,19 +66,22 @@ func (srv *server) resolveIndexPath(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("index path is required")
 	}
-	clean := strings.ReplaceAll(path, "\\", "/")
-	if Utility.Exists(clean) {
-		return clean, nil
+
+	dataDir := filepath.Clean(config.GetDataDir())
+
+	if strings.HasPrefix(path, dataDir) {
+		if Utility.Exists(path) {
+			return path, nil
+		}
+		return "", fmt.Errorf("index path not found: %s", path)
 	}
-	dataDir := config.GetDataDir()
-	fallback := filepath.Join(dataDir, strings.TrimPrefix(clean, "/"))
+
+	fallback := filepath.Join(dataDir, path)
 	if Utility.Exists(fallback) {
 		return fallback, nil
 	}
-	if err := os.MkdirAll(fallback, 0o755); err != nil {
-		return "", err
-	}
-	return fallback, nil
+
+	return "", fmt.Errorf("index path not found: %s", fallback)
 }
 
 // getAssociations returns the opened association store by id, if any.

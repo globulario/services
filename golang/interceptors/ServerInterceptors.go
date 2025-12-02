@@ -336,6 +336,16 @@ func log(address, application, user, method, fileLine, functionName, msg string,
 	}
 }
 
+func shouldLogError(method string, err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(method, "/file.FileService/ReadFile") && strings.Contains(err.Error(), "/.hidden/") {
+		return false
+	}
+	return true
+}
+
 // ---- dynamic client + routing -----------------------------------------------
 
 func getClient(address, serviceName string) (globular_client.Client, error) {
@@ -742,7 +752,9 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 			method:       method,
 			token:        token,
 		}); err != nil {
-			log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			if shouldLogError(method, err) {
+				log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			}
 			return err
 		}
 		return nil
@@ -757,7 +769,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		application: application,
 		// clientId/peer computed lazily in RecvMsg only if RBAC is needed
 	})
-	if err != nil {
+	if err != nil && shouldLogError(method, err) {
 		log(address, application, "", method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 

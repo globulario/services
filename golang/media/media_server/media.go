@@ -63,7 +63,8 @@ func processAudios(srv *server, dirs []string) {
 
 	for _, audio := range getAudioPaths(dirs) {
 		dir := filepath.Dir(audio)
-		if !Utility.Exists(dir + "/audio.m3u") {
+		audioPlaylist := filepath.Join(playlistHiddenDir(dir), "audio.m3u")
+		if !Utility.Exists(audioPlaylist) {
 			if err := srv.generatePlaylist(dir, ""); err != nil {
 				logger.Error("generate audio playlist failed", "dir", dir, "err", err)
 			}
@@ -854,6 +855,16 @@ func metadataCachePath(dir string) string {
 	return filepath.Join(hidden, "metadata.json")
 }
 
+func playlistHiddenDir(path string) string {
+	if path == "" {
+		return ""
+	}
+	clean := filepath.ToSlash(filepath.Clean(path))
+	parent := filepath.Dir(clean)
+	name := filepath.Base(clean)
+	return filepath.Join(parent, ".hidden", name)
+}
+
 // getAudioPaths returns all audio file paths under the given directories.
 func getAudioPaths(dirs []string) []string {
 	var out []string
@@ -1477,6 +1488,7 @@ func (srv *server) getFileAudiosAssociation(client *title_client.Title_Client, p
 	pathNorm := srv.formatPath(path)
 	auds, err := client.GetFileAudios(config.GetDataDir()+"/search/audios", pathNorm)
 	if err == nil {
+		fmt.Println("----------> 1491 ", path, len(auds))
 		// Store under the original caller key to match their lookup.
 		audios[path] = auds
 	}
@@ -1486,6 +1498,7 @@ func (srv *server) getFileAudiosAssociation(client *title_client.Title_Client, p
 // Create an audio info if not exist and reassociate path with the title.
 func (srv *server) createAudio(client *title_client.Title_Client, path string, duration int, metadata map[string]interface{}) error {
 	// Already have associations?
+
 	audiosByPath := make(map[string][]*titlepb.Audio)
 	if err := srv.getFileAudiosAssociation(client, path, audiosByPath); err != nil {
 		// If none exist, create from metadata.
@@ -1532,6 +1545,8 @@ func (srv *server) createAudio(client *title_client.Title_Client, path string, d
 		}
 		// Unexpected error
 		return err
+	}else{
+		logger.Info("createAudio: audio already indexed", "path", path, "count", len(audiosByPath[path]))
 	}
 
 	// Force re-associations for already-known tracks.
@@ -1540,6 +1555,8 @@ func (srv *server) createAudio(client *title_client.Title_Client, path string, d
 			logger.Warn("createAudio: reassociate failed", "path", path, "id", a.ID, "err", aErr)
 		}
 	}
+
+
 	return nil
 }
 
@@ -1708,8 +1725,9 @@ func (srv *server) generateVideoPlaylist(path, token string, paths []string) err
 		b.WriteString(fullURL + "\n\n")
 	}
 
-	cache.RemoveItem(path + "/video.m3u")
-	Utility.WriteStringToFile(path+"/video.m3u", b.String())
+	cache.RemoveItem(filepath.Join(playlistHiddenDir(path), "video.m3u"))
+	_ = Utility.CreateIfNotExists(playlistHiddenDir(path), 0o755)
+	Utility.WriteStringToFile(filepath.Join(playlistHiddenDir(path), "video.m3u"), b.String())
 	return nil
 }
 
@@ -2397,9 +2415,9 @@ func (srv *server) uploadedVideo(
 			if err := os.Remove(infoPath); err != nil {
 				_ = stream.Send(&mediapb.UploadVideoResponse{Pid: pid, Result: "fail to remove file " + err.Error()})
 			}
-
-			if Utility.Exists(dirPath + "/video.m3u") {
-				_ = os.Remove(dirPath + "/video.m3u")
+			videoPlaylist := filepath.Join(playlistHiddenDir(dirPath), "video.m3u")
+			if Utility.Exists(videoPlaylist) {
+				_ = os.Remove(videoPlaylist)
 			}
 			if err := srv.generatePlaylist(dirPath, ""); err != nil {
 				fmt.Println("fail to generate playlist with error ", err)
@@ -2427,8 +2445,9 @@ func (srv *server) uploadedVideo(
 			}
 		}
 		if needRefresh {
-			if Utility.Exists(dirPath + "/audio.m3u") {
-				_ = os.Remove(dirPath + "/audio.m3u")
+			audioPlaylist := filepath.Join(playlistHiddenDir(dirPath), "audio.m3u")
+			if Utility.Exists(audioPlaylist) {
+				_ = os.Remove(audioPlaylist)
 			}
 			if err := srv.generatePlaylist(dirPath, ""); err != nil {
 				fmt.Println("fail to generate playlist with error ", err)
@@ -2500,11 +2519,17 @@ func (srv *server) generateAudioPlaylist(path, token string, paths []string) err
 		b.WriteString(fullURL + "\n\n")
 
 		// Ensure audio entity exists / associated.
-		_ = srv.createAudio(client, p, dur, metadata)
+		err = srv.createAudio(client, p, dur, metadata)
+		if err != nil {
+			fmt.Println("fail to create audio entity: ", err)
+		}else{
+			fmt.Println("audio entity created/updated for ", p)
+		}
 	}
 
-	cache.RemoveItem(path + "/audio.m3u")
-	Utility.WriteStringToFile(path+"/audio.m3u", b.String())
+	cache.RemoveItem(filepath.Join(playlistHiddenDir(path), "audio.m3u"))
+	_ = Utility.CreateIfNotExists(playlistHiddenDir(path), 0o755)
+	Utility.WriteStringToFile(filepath.Join(playlistHiddenDir(path), "audio.m3u"), b.String())
 	return nil
 }
 
@@ -2585,8 +2610,8 @@ func (srv *server) GeneratePlaylist(ctx context.Context, rqst *mediapb.GenerateP
 		return nil, errors.New("no file found at path " + rqst.Dir)
 	}
 
-	_ = os.Remove(path + "/audio.m3u")
-	_ = os.Remove(path + "/video.m3u")
+	_ = os.Remove(filepath.Join(playlistHiddenDir(path), "audio.m3u"))
+	_ = os.Remove(filepath.Join(playlistHiddenDir(path), "video.m3u"))
 
 	if err := srv.generatePlaylist(path, token); err != nil {
 		slog.With("path", path).Error("generate playlist failed", "err", err)

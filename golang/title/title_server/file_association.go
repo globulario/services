@@ -724,7 +724,8 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		return nil, status.Errorf(codes.Internal, "resolve index path: %v", err)
 	}
 
-	store, err := srv.getStore(filepath.Base(resolved), resolved)
+	fmt.Println("727 ------------------------------> ", resolved)
+	store, err := srv.getStore(filepath.Base(rqst.IndexPath), resolved)
 	if err != nil {
 		logger.Error("open associations store failed", "indexPath", resolved, "err", err)
 		return nil, status.Errorf(codes.Internal, "open associations: %v", err)
