@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +44,42 @@ func getVideoDuration(path string) int {
 		return 0
 	}
 	return Utility.ToInt(dur + 0.5)
+}
+
+// ensureFastStartMP4 rewrites an MP4 so that its 'moov' atom is placed
+// at the beginning of the file, which allows browsers to start playback
+// immediately when streaming over HTTP (progressive download).
+// It does a fast remux with `-c copy`, so it is cheap compared to a full re-encode.
+// You can also call this on MP4s downloaded via yt-dlp (e.g. in uploadedVideo).
+func ensureFastStartMP4(path string) error {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".mp4" {
+		return nil
+	}
+
+	dir := filepath.Dir(path)
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	tmpName := base + ".faststart.mp4"
+	tmpPath := filepath.Join(dir, tmpName)
+
+	args := []string{
+		"-y",
+		"-i", filepath.Base(path),
+		"-c", "copy",
+		"-movflags", "+faststart",
+		filepath.Base(tmpPath),
+	}
+
+	wait := make(chan error, 1)
+	go Utility.RunCmd("ffmpeg", dir, args, wait)
+	if err := <-wait; err != nil {
+		return err
+	}
+
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (srv *server) getStartTime() time.Time {
@@ -249,7 +286,7 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 			"-filter_complex", fmt.Sprintf("[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=%d:-2", scale),
 			"-an",
 			"-vcodec", venc,
-			"preview.mp4",
+			"-movflags", "+faststart", "preview.mp4",
 		}
 
 		logger.Info("ffmpeg: generate MP4 preview", "src", path, "out", mp4Out, "venc", venc, "scale", scale, "t", duration)
@@ -338,11 +375,36 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 		return fmt.Errorf("createVideoTimeLine: create dir %q: %w", filepath.Dir(output), err)
 	}
 
+	durationSec := getVideoDuration(path)
+	if durationSec <= 0 {
+		return fmt.Errorf("createVideoTimeLine: zero-length or unreadable video: %q", path)
+	}
+	expectedThumbs := int(math.Ceil(float64(durationSec) * float64(fps)))
+	if expectedThumbs < 1 {
+		expectedThumbs = 1
+	}
+
 	// If it already exists, either reuse (create VTT only) or rebuild.
 	if Utility.Exists(output) {
 		if !force {
-			logger.Info("timeline already exists; generating VTT only", "video", orig, "dir", output, "fps", fps)
-			return createVttFile(output, fps)
+			thumbCount := 0
+			if entries, err := Utility.ReadDir(output); err == nil {
+				for _, e := range entries {
+					if strings.HasSuffix(strings.ToLower(e.Name()), ".jpg") {
+						thumbCount++
+					}
+				}
+			} else {
+				logger.Warn("timeline check: failed to read directory", "video", orig, "dir", output, "err", err)
+			}
+
+			diff := math.Abs(float64(thumbCount - expectedThumbs))
+			if thumbCount > 0 && diff <= 1 {
+				logger.Info("timeline already exists; regenerating VTT only", "video", orig, "dir", output, "fps", fps, "thumbnails", thumbCount)
+				return createVttFile(output, fps)
+			}
+
+			logger.Info("timeline mismatch detected; regenerating thumbnails", "video", orig, "dir", output, "expected", expectedThumbs, "found", thumbCount)
 		}
 		if err := os.RemoveAll(output); err != nil {
 			return fmt.Errorf("createVideoTimeLine: remove existing timeline %q: %w", output, err)
@@ -351,12 +413,6 @@ func (s *server) createVideoTimeLine(path string, width int, fps float32, force 
 
 	if err := Utility.CreateDirIfNotExist(output); err != nil {
 		return fmt.Errorf("createVideoTimeLine: create dir %q: %w", output, err)
-	}
-
-	// Ensure video is readable and non-zero length.
-	durationSec := getVideoDuration(path)
-	if durationSec <= 0 {
-		return fmt.Errorf("createVideoTimeLine: zero-length or unreadable video: %q", path)
 	}
 
 	// Extract thumbnails with ffmpeg:
@@ -528,55 +584,6 @@ func (s *server) createVideoPreview(path string, nb, height int, force bool) err
 	return nil
 }
 
-func ensureAACDefault(video string) error {
-	streamInfos, err := getStreamInfos(video)
-	if err != nil {
-		return err
-	}
-	var audioEncoding string
-	aacIndex := -1
-	audioCount := 0
-	for _, s := range streamInfos["streams"].([]any) {
-		sm := s.(map[string]any)
-		if sm["codec_type"].(string) == "audio" {
-			audioCount++
-			codec := sm["codec_name"].(string)
-			if codec == "aac" && aacIndex == -1 {
-				aacIndex = audioCount - 1
-			}
-			audioEncoding = codec
-		}
-	}
-	if audioEncoding == "aac" && (audioCount <= 1 || aacIndex == -1) {
-		return nil
-	}
-	output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
-	defer os.Remove(output)
-	args := []string{"-i", video, "-map", "0", "-c:v", "copy", "-c:s", "mov_text"}
-	if audioEncoding != "aac" {
-		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
-	} else {
-		args = append(args, "-c:a", "copy")
-		for i := 0; i < audioCount; i++ {
-			if i == aacIndex {
-				args = append(args, fmt.Sprintf("-disposition:a:%d", i), "default")
-			} else {
-				args = append(args, fmt.Sprintf("-disposition:a:%d", i), "none")
-			}
-		}
-	}
-	args = append(args, output)
-	wait := make(chan error)
-	go Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
-	if err := <-wait; err != nil {
-		return err
-	}
-	if err := os.Remove(video); err != nil {
-		return err
-	}
-	return os.Rename(output, video)
-}
-
 // createVideoMpeg4H264 converts any input to MP4/H.264, mapping audio/subtitle tracks.
 // (Public method signature preserved.)
 func (srv *server) createVideoMpeg4H264(path string) (string, error) {
@@ -668,9 +675,9 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 		}
 		streamIdx++
 	}
-	args = append(args, out)
+	args = append(args, "-movflags", "+faststart", out)
 
-	wait := make(chan error)
+	wait := make(chan error, 1)
 	go Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
 	if err := <-wait; err != nil {
 		return "", err
@@ -904,7 +911,7 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 	)
 
 	// Run ffmpeg once to produce all variant playlists and segments.
-	wait := make(chan error)
+	wait := make(chan error, 1)
 	go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
 	if runErr := <-wait; runErr != nil {
 		logger.Error("createHlsStream: ffmpeg failed", "src", src, "dest", dest, "err", runErr)
@@ -1109,7 +1116,7 @@ func extractSubtitleTracks(videoPath string) error {
 	logger.Info("ffmpeg: extract subtitles", "src", videoPath, "dest", dest, "streams", mapped)
 
 	// Run ffmpeg in destination directory so output files land there.
-	wait := make(chan error)
+	wait := make(chan error, 1)
 	go Utility.RunCmd("ffmpeg", dest, args, wait)
 	if err := <-wait; err != nil {
 		logger.Error("ffmpeg: subtitle extraction failed", "src", videoPath, "dest", dest, "err", err)

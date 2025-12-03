@@ -1814,6 +1814,100 @@ func (*CreateVttFileResponse) Descriptor() ([]byte, []int) {
 	return file_media_proto_rawDescGZIP(), []int{41}
 }
 
+// Request for streaming the list of all media (audio + video) files
+// known by the server. Currently has no filters but is kept as its
+// own message for future backward-compatible extensions.
+type ListMediaFilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListMediaFilesRequest) Reset() {
+	*x = ListMediaFilesRequest{}
+	mi := &file_media_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListMediaFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListMediaFilesRequest) ProtoMessage() {}
+
+func (x *ListMediaFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListMediaFilesRequest.ProtoReflect.Descriptor instead.
+func (*ListMediaFilesRequest) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{42}
+}
+
+// Single media file entry returned by ListMediaFiles.
+type MediaFile struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Path relative to the /files root, e.g. "/users/john/movies/file.mp4".
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// "audio" or "video".
+	MediaType     string `protobuf:"bytes,2,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MediaFile) Reset() {
+	*x = MediaFile{}
+	mi := &file_media_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MediaFile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MediaFile) ProtoMessage() {}
+
+func (x *MediaFile) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MediaFile.ProtoReflect.Descriptor instead.
+func (*MediaFile) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *MediaFile) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *MediaFile) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
 type StopRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1822,7 +1916,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_media_proto_msgTypes[42]
+	mi := &file_media_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1834,7 +1928,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_media_proto_msgTypes[42]
+	mi := &file_media_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +1941,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_media_proto_rawDescGZIP(), []int{42}
+	return file_media_proto_rawDescGZIP(), []int{44}
 }
 
 type StopResponse struct {
@@ -1858,7 +1952,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_media_proto_msgTypes[43]
+	mi := &file_media_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1870,7 +1964,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_media_proto_msgTypes[43]
+	mi := &file_media_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1883,7 +1977,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_media_proto_rawDescGZIP(), []int{43}
+	return file_media_proto_rawDescGZIP(), []int{45}
 }
 
 var File_media_proto protoreflect.FileDescriptor
@@ -1966,9 +2060,14 @@ const file_media_proto_rawDesc = "" +
 	"\x14CreateVttFileRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x10\n" +
 	"\x03fps\x18\x02 \x01(\x02R\x03fps\"\x17\n" +
-	"\x15CreateVttFileResponse\"\r\n" +
+	"\x15CreateVttFileResponse\"\x17\n" +
+	"\x15ListMediaFilesRequest\">\n" +
+	"\tMediaFile\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x02 \x01(\tR\tmediaType\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\xd8\x0f\n" +
+	"\fStopResponse2\x9c\x10\n" +
 	"\fMediaService\x12/\n" +
 	"\x04Stop\x12\x12.media.StopRequest\x1a\x13.media.StopResponse\x12F\n" +
 	"\vUploadVideo\x12\x19.media.UploadVideoRequest\x1a\x1a.media.UploadVideoResponse0\x01\x12Y\n" +
@@ -1990,7 +2089,8 @@ const file_media_proto_rawDesc = "" +
 	"\x18ClearVideoConversionLogs\x12&.media.ClearVideoConversionLogsRequest\x1a'.media.ClearVideoConversionLogsResponse\x12e\n" +
 	"\x16GetVideoConversionLogs\x12$.media.GetVideoConversionLogsRequest\x1a%.media.GetVideoConversionLogsResponse\x12S\n" +
 	"\x10GeneratePlaylist\x12\x1e.media.GeneratePlaylistRequest\x1a\x1f.media.GeneratePlaylistResponse\x12J\n" +
-	"\rCreateVttFile\x12\x1b.media.CreateVttFileRequest\x1a\x1c.media.CreateVttFileResponseB5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
+	"\rCreateVttFile\x12\x1b.media.CreateVttFileRequest\x1a\x1c.media.CreateVttFileResponse\x12B\n" +
+	"\x0eListMediaFiles\x12\x1c.media.ListMediaFilesRequest\x1a\x10.media.MediaFile0\x01B5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
 
 var (
 	file_media_proto_rawDescOnce sync.Once
@@ -2004,7 +2104,7 @@ func file_media_proto_rawDescGZIP() []byte {
 	return file_media_proto_rawDescData
 }
 
-var file_media_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
+var file_media_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_media_proto_goTypes = []any{
 	(*CreateVideoPreviewRequest)(nil),              // 0: media.CreateVideoPreviewRequest
 	(*CreateVideoPreviewResponse)(nil),             // 1: media.CreateVideoPreviewResponse
@@ -2048,13 +2148,15 @@ var file_media_proto_goTypes = []any{
 	(*GeneratePlaylistResponse)(nil),               // 39: media.GeneratePlaylistResponse
 	(*CreateVttFileRequest)(nil),                   // 40: media.CreateVttFileRequest
 	(*CreateVttFileResponse)(nil),                  // 41: media.CreateVttFileResponse
-	(*StopRequest)(nil),                            // 42: media.StopRequest
-	(*StopResponse)(nil),                           // 43: media.StopResponse
+	(*ListMediaFilesRequest)(nil),                  // 42: media.ListMediaFilesRequest
+	(*MediaFile)(nil),                              // 43: media.MediaFile
+	(*StopRequest)(nil),                            // 44: media.StopRequest
+	(*StopResponse)(nil),                           // 45: media.StopResponse
 }
 var file_media_proto_depIdxs = []int32{
 	26, // 0: media.GetVideoConversionErrorsResponse.errors:type_name -> media.VideoConversionError
 	35, // 1: media.GetVideoConversionLogsResponse.logs:type_name -> media.VideoConversionLog
-	42, // 2: media.MediaService.Stop:input_type -> media.StopRequest
+	44, // 2: media.MediaService.Stop:input_type -> media.StopRequest
 	14, // 3: media.MediaService.UploadVideo:input_type -> media.UploadVideoRequest
 	0,  // 4: media.MediaService.CreateVideoPreview:input_type -> media.CreateVideoPreviewRequest
 	2,  // 5: media.MediaService.CreateVideoTimeLine:input_type -> media.CreateVideoTimeLineRequest
@@ -2075,29 +2177,31 @@ var file_media_proto_depIdxs = []int32{
 	36, // 20: media.MediaService.GetVideoConversionLogs:input_type -> media.GetVideoConversionLogsRequest
 	38, // 21: media.MediaService.GeneratePlaylist:input_type -> media.GeneratePlaylistRequest
 	40, // 22: media.MediaService.CreateVttFile:input_type -> media.CreateVttFileRequest
-	43, // 23: media.MediaService.Stop:output_type -> media.StopResponse
-	15, // 24: media.MediaService.UploadVideo:output_type -> media.UploadVideoResponse
-	1,  // 25: media.MediaService.CreateVideoPreview:output_type -> media.CreateVideoPreviewResponse
-	3,  // 26: media.MediaService.CreateVideoTimeLine:output_type -> media.CreateVideoTimeLineResponse
-	5,  // 27: media.MediaService.ConvertVideoToMpeg4H264:output_type -> media.ConvertVideoToMpeg4H264Response
-	7,  // 28: media.MediaService.ConvertVideoToHls:output_type -> media.ConvertVideoToHlsResponse
-	9,  // 29: media.MediaService.StartProcessVideo:output_type -> media.StartProcessVideoResponse
-	11, // 30: media.MediaService.StartProcessAudio:output_type -> media.StartProcessAudioResponse
-	17, // 31: media.MediaService.StopProcessVideo:output_type -> media.StopProcessVideoResponse
-	13, // 32: media.MediaService.IsProcessVideo:output_type -> media.IsProcessVideoResponse
-	19, // 33: media.MediaService.SetVideoConversion:output_type -> media.SetVideoConversionResponse
-	21, // 34: media.MediaService.SetVideoStreamConversion:output_type -> media.SetVideoStreamConversionResponse
-	23, // 35: media.MediaService.SetStartVideoConversionHour:output_type -> media.SetStartVideoConversionHourResponse
-	25, // 36: media.MediaService.SetMaximumVideoConversionDelay:output_type -> media.SetMaximumVideoConversionDelayResponse
-	28, // 37: media.MediaService.GetVideoConversionErrors:output_type -> media.GetVideoConversionErrorsResponse
-	30, // 38: media.MediaService.ClearVideoConversionErrors:output_type -> media.ClearVideoConversionErrorsResponse
-	32, // 39: media.MediaService.ClearVideoConversionError:output_type -> media.ClearVideoConversionErrorResponse
-	34, // 40: media.MediaService.ClearVideoConversionLogs:output_type -> media.ClearVideoConversionLogsResponse
-	37, // 41: media.MediaService.GetVideoConversionLogs:output_type -> media.GetVideoConversionLogsResponse
-	39, // 42: media.MediaService.GeneratePlaylist:output_type -> media.GeneratePlaylistResponse
-	41, // 43: media.MediaService.CreateVttFile:output_type -> media.CreateVttFileResponse
-	23, // [23:44] is the sub-list for method output_type
-	2,  // [2:23] is the sub-list for method input_type
+	42, // 23: media.MediaService.ListMediaFiles:input_type -> media.ListMediaFilesRequest
+	45, // 24: media.MediaService.Stop:output_type -> media.StopResponse
+	15, // 25: media.MediaService.UploadVideo:output_type -> media.UploadVideoResponse
+	1,  // 26: media.MediaService.CreateVideoPreview:output_type -> media.CreateVideoPreviewResponse
+	3,  // 27: media.MediaService.CreateVideoTimeLine:output_type -> media.CreateVideoTimeLineResponse
+	5,  // 28: media.MediaService.ConvertVideoToMpeg4H264:output_type -> media.ConvertVideoToMpeg4H264Response
+	7,  // 29: media.MediaService.ConvertVideoToHls:output_type -> media.ConvertVideoToHlsResponse
+	9,  // 30: media.MediaService.StartProcessVideo:output_type -> media.StartProcessVideoResponse
+	11, // 31: media.MediaService.StartProcessAudio:output_type -> media.StartProcessAudioResponse
+	17, // 32: media.MediaService.StopProcessVideo:output_type -> media.StopProcessVideoResponse
+	13, // 33: media.MediaService.IsProcessVideo:output_type -> media.IsProcessVideoResponse
+	19, // 34: media.MediaService.SetVideoConversion:output_type -> media.SetVideoConversionResponse
+	21, // 35: media.MediaService.SetVideoStreamConversion:output_type -> media.SetVideoStreamConversionResponse
+	23, // 36: media.MediaService.SetStartVideoConversionHour:output_type -> media.SetStartVideoConversionHourResponse
+	25, // 37: media.MediaService.SetMaximumVideoConversionDelay:output_type -> media.SetMaximumVideoConversionDelayResponse
+	28, // 38: media.MediaService.GetVideoConversionErrors:output_type -> media.GetVideoConversionErrorsResponse
+	30, // 39: media.MediaService.ClearVideoConversionErrors:output_type -> media.ClearVideoConversionErrorsResponse
+	32, // 40: media.MediaService.ClearVideoConversionError:output_type -> media.ClearVideoConversionErrorResponse
+	34, // 41: media.MediaService.ClearVideoConversionLogs:output_type -> media.ClearVideoConversionLogsResponse
+	37, // 42: media.MediaService.GetVideoConversionLogs:output_type -> media.GetVideoConversionLogsResponse
+	39, // 43: media.MediaService.GeneratePlaylist:output_type -> media.GeneratePlaylistResponse
+	41, // 44: media.MediaService.CreateVttFile:output_type -> media.CreateVttFileResponse
+	43, // 45: media.MediaService.ListMediaFiles:output_type -> media.MediaFile
+	24, // [24:46] is the sub-list for method output_type
+	2,  // [2:24] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -2114,7 +2218,7 @@ func file_media_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_media_proto_rawDesc), len(file_media_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   44,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

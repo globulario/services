@@ -579,6 +579,8 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
 				}
 			}
+			// Actually persist metadata for each associated file
+			_ = srv.saveTitleMetadata(abs, resolved, rqst.Title)
 		}
 	}
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
@@ -800,14 +802,6 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 			}
 		}
 	}
-	// Refresh casting to latest persons
-	cast := make([]*titlepb.Person, len(video.Casting))
-	for i := range video.Casting {
-		if p, err := srv.getPersonById(rqst.IndexPath, video.Casting[i].ID); err == nil {
-			cast[i] = p
-		}
-	}
-	video.Casting = cast
 	return &titlepb.GetVideoByIdResponse{Video: video, FilesPaths: paths}, nil
 }
 

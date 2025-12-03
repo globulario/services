@@ -396,6 +396,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/media.MediaService/GetVideoConversionErrors",
 				"/media.MediaService/GetVideoConversionLogs",
 				"/media.MediaService/IsProcessVideo",
+				"/media.MediaService/ListMediaFiles",
 			},
 			TypeName: "resource.Role",
 		},
@@ -454,6 +455,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/media.MediaService/GetVideoConversionLogs",
 				"/media.MediaService/GeneratePlaylist",
 				"/media.MediaService/CreateVttFile",
+				"/media.MediaService/ListMediaFiles",
 			},
 			TypeName: "resource.Role",
 		},
@@ -901,6 +903,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	srv.applyStoredMediaSettings()
+
 	// Register RPCs
 	mediapb.RegisterMediaServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
@@ -982,4 +986,28 @@ func printUsage() {
 	fmt.Println("Arguments:")
 	fmt.Println("  id           Optional service instance ID")
 	fmt.Println("  config_path  Optional path to configuration file")
+}
+
+// applyStoredMediaSettings reloads persisted media-specific configuration values after Init().
+func (srv *server) applyStoredMediaSettings() {
+	cfg, err := config.GetServiceConfigurationById(srv.Id)
+	if err != nil || cfg == nil {
+		return
+	}
+	if raw, ok := cfg["AutomaticVideoConversion"]; ok {
+		srv.AutomaticVideoConversion = Utility.ToBool(raw)
+	}
+	if raw, ok := cfg["AutomaticStreamConversion"]; ok {
+		srv.AutomaticStreamConversion = Utility.ToBool(raw)
+	}
+	if raw, ok := cfg["StartVideoConversionHour"]; ok {
+		if val := Utility.ToString(raw); val != "" {
+			srv.StartVideoConversionHour = val
+		}
+	}
+	if raw, ok := cfg["MaximumVideoConversionDelay"]; ok {
+		if val := Utility.ToString(raw); val != "" {
+			srv.MaximumVideoConversionDelay = val
+		}
+	}
 }

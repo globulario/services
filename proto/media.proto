@@ -196,6 +196,21 @@ message CreateVttFileResponse {
     // This message is empty as the response does not require specific data.
 }
 
+// Request for streaming the list of all media (audio + video) files
+// known by the server. Currently has no filters but is kept as its
+// own message for future backward-compatible extensions.
+message ListMediaFilesRequest {
+}
+
+// Single media file entry returned by ListMediaFiles.
+message MediaFile {
+  // Path relative to the /files root, e.g. "/users/john/movies/file.mp4".
+  string path = 1;
+
+  // "audio" or "video".
+  string media_type = 2;
+}
+
 message StopRequest {
     // No fields required for this request.
 }
@@ -270,4 +285,8 @@ service MediaService {
 
     // Create a VTT file for a video.
     rpc CreateVttFile(CreateVttFileRequest) returns (CreateVttFileResponse);
+
+    // Stream back all media files (audio + video) visible under the
+    // public, users and applications trees.
+    rpc ListMediaFiles(ListMediaFilesRequest) returns (stream MediaFile);
 }

@@ -40,6 +40,7 @@ const (
 	MediaService_GetVideoConversionLogs_FullMethodName         = "/media.MediaService/GetVideoConversionLogs"
 	MediaService_GeneratePlaylist_FullMethodName               = "/media.MediaService/GeneratePlaylist"
 	MediaService_CreateVttFile_FullMethodName                  = "/media.MediaService/CreateVttFile"
+	MediaService_ListMediaFiles_FullMethodName                 = "/media.MediaService/ListMediaFiles"
 )
 
 // MediaServiceClient is the client API for MediaService service.
@@ -91,6 +92,9 @@ type MediaServiceClient interface {
 	GeneratePlaylist(ctx context.Context, in *GeneratePlaylistRequest, opts ...grpc.CallOption) (*GeneratePlaylistResponse, error)
 	// Create a VTT file for a video.
 	CreateVttFile(ctx context.Context, in *CreateVttFileRequest, opts ...grpc.CallOption) (*CreateVttFileResponse, error)
+	// Stream back all media files (audio + video) visible under the
+	// public, users and applications trees.
+	ListMediaFiles(ctx context.Context, in *ListMediaFilesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[MediaFile], error)
 }
 
 type mediaServiceClient struct {
@@ -320,6 +324,25 @@ func (c *mediaServiceClient) CreateVttFile(ctx context.Context, in *CreateVttFil
 	return out, nil
 }
 
+func (c *mediaServiceClient) ListMediaFiles(ctx context.Context, in *ListMediaFilesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[MediaFile], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &MediaService_ServiceDesc.Streams[1], MediaService_ListMediaFiles_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ListMediaFilesRequest, MediaFile]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type MediaService_ListMediaFilesClient = grpc.ServerStreamingClient[MediaFile]
+
 // MediaServiceServer is the server API for MediaService service.
 // All implementations should embed UnimplementedMediaServiceServer
 // for forward compatibility.
@@ -369,6 +392,9 @@ type MediaServiceServer interface {
 	GeneratePlaylist(context.Context, *GeneratePlaylistRequest) (*GeneratePlaylistResponse, error)
 	// Create a VTT file for a video.
 	CreateVttFile(context.Context, *CreateVttFileRequest) (*CreateVttFileResponse, error)
+	// Stream back all media files (audio + video) visible under the
+	// public, users and applications trees.
+	ListMediaFiles(*ListMediaFilesRequest, grpc.ServerStreamingServer[MediaFile]) error
 }
 
 // UnimplementedMediaServiceServer should be embedded to have
@@ -440,6 +466,9 @@ func (UnimplementedMediaServiceServer) GeneratePlaylist(context.Context, *Genera
 }
 func (UnimplementedMediaServiceServer) CreateVttFile(context.Context, *CreateVttFileRequest) (*CreateVttFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVttFile not implemented")
+}
+func (UnimplementedMediaServiceServer) ListMediaFiles(*ListMediaFilesRequest, grpc.ServerStreamingServer[MediaFile]) error {
+	return status.Errorf(codes.Unimplemented, "method ListMediaFiles not implemented")
 }
 func (UnimplementedMediaServiceServer) testEmbeddedByValue() {}
 
@@ -832,6 +861,17 @@ func _MediaService_CreateVttFile_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MediaService_ListMediaFiles_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListMediaFilesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(MediaServiceServer).ListMediaFiles(m, &grpc.GenericServerStream[ListMediaFilesRequest, MediaFile]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type MediaService_ListMediaFilesServer = grpc.ServerStreamingServer[MediaFile]
+
 // MediaService_ServiceDesc is the grpc.ServiceDesc for MediaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -924,6 +964,11 @@ var MediaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "UploadVideo",
 			Handler:       _MediaService_UploadVideo_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListMediaFiles",
+			Handler:       _MediaService_ListMediaFiles_Handler,
 			ServerStreams: true,
 		},
 	},
