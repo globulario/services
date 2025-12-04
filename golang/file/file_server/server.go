@@ -90,6 +90,7 @@ type server struct {
 	grpcServer *grpc.Server
 
 	Root                   string
+	storage                Storage
 	CacheType              string
 	CacheAddress           string
 	CacheReplicationFactor int
@@ -436,6 +437,16 @@ Options:
   --health     Print service health as JSON (no etcd/config access)
 
 `, filepath.Base(os.Args[0]))
+}
+
+// Helper to ensure we always have a storage impl.
+func (srv *server) Storage() Storage {
+	if srv.storage != nil {
+		return srv.storage
+	}
+	// Default: local filesystem with Root as base dir
+	srv.storage = NewOSStorage(srv.Root)
+	return srv.storage
 }
 
 // -------------------- main --------------------

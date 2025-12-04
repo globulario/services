@@ -11,9 +11,9 @@ require (
 	github.com/anacrolix/torrent v1.56.1
 	github.com/barasher/go-exiftool v1.10.0
 	github.com/blevesearch/bleve/v2 v2.4.1
+	github.com/cyruzin/golang-tmdb v1.9.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.1
@@ -35,6 +35,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mhale/smtpd v0.8.3
 	github.com/miekg/dns v1.1.67
+	github.com/minio/minio-go/v7 v7.0.97
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/schollz/progressbar/v3 v3.14.4
@@ -58,10 +59,16 @@ replace github.com/globulario/utility => ../../utility
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cyruzin/golang-tmdb v1.9.1 // indirect
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
+	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/klauspost/crc32 v1.3.0 // indirect
+	github.com/minio/crc64nvme v1.1.0 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/rs/xid v1.6.0 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
@@ -122,7 +129,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/glendc/go-external-ip v0.1.0 // indirect
@@ -151,8 +158,8 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kalafut/imohash v1.1.0 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
+	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
@@ -209,7 +216,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.3.7 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.14 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.14
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
@@ -217,7 +224,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
-	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
+	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
 	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
