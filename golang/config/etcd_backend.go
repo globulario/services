@@ -552,7 +552,79 @@ func etcdKey(id, leaf string) string {
 	return etcdPrefix + id + "/" + leaf
 }
 
-// SaveServiceConfiguration persists desired/runtime in separate keys.
+// BootstrapServicesFromFiles loads all JSON configs from
+// /etc/globular/config/services and applies them to etcd by calling
+// SaveServiceConfiguration for each.
+//
+// It is safe to call this on every startup: it will simply re-assert the
+// desired configs into etcd (overwriting whatever was there with the
+// file's contents).
+func BootstrapServicesFromFiles() error {
+	dir := GetServicesConfigDir()
+
+	fi, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// nothing to bootstrap yet
+			return nil
+		}
+		return fmt.Errorf("bootstrap: stat %s: %w", dir, err)
+	}
+	if !fi.IsDir() {
+		return nil
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("bootstrap: readdir %s: %w", dir, err)
+	}
+
+	count := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".json") {
+			continue
+		}
+
+		path := filepath.Join(dir, name)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Printf("BootstrapServicesFromFiles: read %s: %v\n", path, err)
+			continue
+		}
+
+		var desired map[string]interface{}
+		if err := json.Unmarshal(b, &desired); err != nil {
+			fmt.Printf("BootstrapServicesFromFiles: unmarshal %s: %v\n", path, err)
+			continue
+		}
+
+		id := Utility.ToString(desired["Id"])
+		if id == "" {
+			base := strings.TrimSuffix(name, filepath.Ext(name))
+			id = base
+			desired["Id"] = id
+		}
+
+		if err := SaveServiceConfiguration(desired); err != nil {
+			fmt.Printf("BootstrapServicesFromFiles: SaveServiceConfiguration(%s): %v\n", id, err)
+			continue
+		}
+		count++
+	}
+
+	fmt.Printf("BootstrapServicesFromFiles: loaded %d service configs from %s\n", count, dir)
+	return nil
+}
+
+// SaveServiceConfiguration persists desired/runtime in separate keys
+// and mirrors the desired config to a JSON file on disk:
+//
+//   /etc/globular/config/services/<Id>.json
+//
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -578,6 +650,11 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 		return fmt.Errorf("save runtime: %w", err)
 	}
 
+	// Mirror desired config to disk (best effort).
+	if err := saveServiceConfigFile(id, desired); err != nil {
+		fmt.Printf("SaveServiceConfiguration: failed to persist %s to disk: %v\n", id, err)
+	}
+
 	// Fire-and-forget backup of /globular keys (best-effort).
 	go func() {
 		_, _ = BackupGlobularKeysJSON()
@@ -585,6 +662,7 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 
 	return nil
 }
+
 
 // IsEtcdHealthy checks any endpoint for health within timeout.
 func IsEtcdHealthy(endpoints []string, to time.Duration) bool {
@@ -1134,6 +1212,41 @@ func RestoreGlobularKeysJSON(path string) error {
 		if _, err := c.Put(ctx, kv.Key, kv.Value); err != nil {
 			return fmt.Errorf("restore put %s: %w", kv.Key, err)
 		}
+	}
+	return nil
+}
+
+// saveServiceConfigFile writes the "desired" config to
+//   /etc/globular/config/services/<id>.json
+// using an atomic tmp+rename write.
+func saveServiceConfigFile(id string, desired map[string]interface{}) error {
+	if id == "" {
+		return errors.New("saveServiceConfigFile: empty id")
+	}
+
+	dir := GetServicesConfigDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("saveServiceConfigFile mkdir: %w", err)
+	}
+
+	// Ensure Id is present in the payload.
+	if _, ok := desired["Id"]; !ok {
+		desired["Id"] = id
+	}
+
+	b, err := json.MarshalIndent(desired, "", "  ")
+	if err != nil {
+		return fmt.Errorf("saveServiceConfigFile marshal: %w", err)
+	}
+
+	tmp := filepath.Join(dir, id+".json.tmp")
+	final := filepath.Join(dir, id+".json")
+
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return fmt.Errorf("saveServiceConfigFile write tmp: %w", err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		return fmt.Errorf("saveServiceConfigFile rename: %w", err)
 	}
 	return nil
 }

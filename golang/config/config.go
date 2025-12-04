@@ -539,6 +539,12 @@ func GetConfigDir() string {
 	return "/etc/globular/config"
 }
 
+// New: persistent services config directory.
+// On Linux this is: /etc/globular/config/services
+func GetServicesConfigDir() string {
+	return filepath.Join(GetConfigDir(), "services")
+}
+
 func GetDataDir() string {
 	if runtime.GOOS == "windows" {
 		var programFilePath string

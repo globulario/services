@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -639,6 +640,45 @@ func watchDesiredConfig(s Service, srv *grpc.Server) {
 	}
 }
 
+var reservedServiceKeys = map[string]struct{}{
+	"Logger":             {},
+	"Id":                 {},
+	"Name":               {},
+	"Description":        {},
+	"Domain":             {},
+	"Address":            {},
+	"Protocol":           {},
+	"Checksum":           {},
+	"PublisherID":        {},
+	"Version":            {},
+	"Proto":              {},
+	"Path":               {},
+	"Keywords":           {},
+	"Discoveries":        {},
+	"Repositories":       {},
+	"Permissions":        {},
+	"Dependencies":       {},
+	"Public":             {},
+	"Port":               {},
+	"Proxy":              {},
+	"TLS":                {},
+	"CertAuthorityTrust": {},
+	"CertFile":           {},
+	"KeyFile":            {},
+	"AllowAllOrigins":    {},
+	"AllowedOrigins":     {},
+	"KeepAlive":          {},
+	"KeepUpToDate":       {},
+	"Process":            {},
+	"ProxyProcess":       {},
+	"State":              {},
+	"LastError":          {},
+	"ModTime":            {},
+	"UpdatedAt":          {},
+	"RolesDefault":       {},
+	"Mac":                {},
+}
+
 // applyDesiredToService copies expected desired fields from a map onto the Service via setters.
 func applyDesiredToService(s Service, m map[string]any) {
 	if m == nil {
@@ -817,6 +857,65 @@ func applyDesiredToService(s Service, m map[string]any) {
 	if m["KeepUpToDate"] != nil {
 		s.SetKeepUptoDate(Utility.ToBool(m["KeepUpToDate"]))
 	}
+
+	// Apply any additional service-specific fields not covered by the interface setters.
+	applyAdditionalServiceFields(s, m)
+}
+
+// applyAdditionalServiceFields sets extra configuration keys onto the concrete service struct
+// so that service-specific settings loaded from etcd/files survive restarts.
+func applyAdditionalServiceFields(s Service, cfg map[string]any) {
+	if len(cfg) == 0 {
+		return
+	}
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Ptr {
+		return
+	}
+	elem := val.Elem()
+	if !elem.IsValid() || elem.Kind() != reflect.Struct {
+		return
+	}
+
+	for key, raw := range cfg {
+		if raw == nil {
+			continue
+		}
+		if _, skip := reservedServiceKeys[key]; skip {
+			continue
+		}
+		field := elem.FieldByName(key)
+		if !field.IsValid() || !field.CanSet() {
+			continue
+		}
+		if err := assignValueToField(field, raw); err != nil {
+			// Swallow conversion errors but log at debug level when enabled.
+			slog.Debug("applyAdditionalServiceFields: failed to assign field",
+				"field", key, "err", err)
+		}
+	}
+}
+
+func assignValueToField(field reflect.Value, raw any) error {
+	if !field.CanSet() {
+		return fmt.Errorf("field not settable")
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	if string(data) == "null" {
+		return nil
+	}
+	if field.Kind() == reflect.Ptr {
+		valPtr := reflect.New(field.Type().Elem())
+		if err := json.Unmarshal(data, valPtr.Interface()); err != nil {
+			return err
+		}
+		field.Set(valPtr)
+		return nil
+	}
+	return json.Unmarshal(data, field.Addr().Interface())
 }
 
 // ------------------------------
