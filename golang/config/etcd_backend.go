@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	etcdserverpb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	Utility "github.com/globulario/utility"
@@ -27,22 +29,35 @@ var (
 	cliShared *clientv3.Client
 )
 
+// -----------------------------
+// etcd client + health / corruption detection
+// -----------------------------
+
+// ErrEtcdCorrupt is returned when etcd appears to be in a CORRUPT alarm state
+// or when errors clearly indicate a corrupted data-dir.
+var ErrEtcdCorrupt = errors.New("etcd store appears to be corrupted")
+
 func etcdClient() (*clientv3.Client, error) {
 	cliMu.Lock()
 	defer cliMu.Unlock()
 
 	// Reuse if still healthy.
 	if cliShared != nil {
-		if probeEtcdHealthy(cliShared, 1500*time.Millisecond) == nil {
+		if err := probeEtcdHealthy(cliShared, 1500*time.Millisecond); err == nil {
 			return cliShared, nil
+		} else {
+			_ = cliShared.Close()
+			cliShared = nil
+			// If etcd is corrupt, bubble that up instead of retrying forever.
+			if errors.Is(err, ErrEtcdCorrupt) {
+				return nil, ErrEtcdCorrupt
+			}
 		}
-		_ = cliShared.Close()
-		cliShared = nil
 	}
 
 	// Build endpoints (with scheme hints) from env / local config.
 	raw := etcdEndpointsFromEnv() // may contain https://
-	// ...
+
 	// Decide if we must use TLS:
 	//   - true if any endpoint scheme is https
 	//   - or if local server TLS files are present
@@ -104,6 +119,9 @@ func etcdClient() (*clientv3.Client, error) {
 	}
 	if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
 		_ = c.Close()
+		if errors.Is(err, ErrEtcdCorrupt) {
+			return nil, ErrEtcdCorrupt
+		}
 		return nil, err
 	}
 	cliShared = c
@@ -115,21 +133,69 @@ func GetEtcdClient() (*clientv3.Client, error) {
 	return etcdClient()
 }
 
-// GetEtcdEndpointsHostPorts exposes the resolved endpoints (host:port form).
+// GetEtcdEndpointsHostPorts exposes the resolved endpoints (currently as URL strings).
 func GetEtcdEndpointsHostPorts() []string {
-
 	return etcdEndpointsFromEnv()
 }
 
-// probeEtcdHealthy does a simple v3 GET (exercises full client path).
+// isCorruptionError is a cheap text-based check for corruption errors coming from etcd.
+func isCorruptionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "corrupt") || strings.Contains(s, "corruption")
+}
+
+// checkEtcdCorruptAlarm queries etcd's alarm list and returns ErrEtcdCorrupt
+// if the CORRUPT alarm is present.
+func checkEtcdCorruptAlarm(c *clientv3.Client, to time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), to)
+	defer cancel()
+
+	m := clientv3.NewMaintenance(c)
+	resp, err := m.AlarmList(ctx)
+	if err != nil {
+		return err
+	}
+	for _, a := range resp.Alarms {
+		if a.Alarm == etcdserverpb.AlarmType_CORRUPT {
+			return ErrEtcdCorrupt
+		}
+	}
+	return nil
+}
+
+// probeEtcdHealthy does a simple v3 GET (exercises full client path) and also
+// checks the CORRUPT alarm.
 func probeEtcdHealthy(c *clientv3.Client, to time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), to)
 	defer cancel()
+
 	_, err := c.Get(ctx, "health-probe", clientv3.WithSerializable())
-	return err
+	if err != nil {
+		// If we see "corrupt" in the error, treat it as a hard corruption signal.
+		if isCorruptionError(err) {
+			return ErrEtcdCorrupt
+		}
+		// Best-effort alarm check as a second opinion.
+		if aerr := checkEtcdCorruptAlarm(c, to); aerr == ErrEtcdCorrupt {
+			return aerr
+		}
+		return err
+	}
+
+	// Even if Get works, quickly check alarms; etcd may have raised CORRUPT.
+	if aerr := checkEtcdCorruptAlarm(c, to); aerr == ErrEtcdCorrupt {
+		return aerr
+	}
+	// Ignore other maintenance errors; health probe is otherwise fine.
+	return nil
 }
 
-// --- replace this whole block in etcd_backend.go ---
+// -----------------------------
+// TLS helpers and endpoints
+// -----------------------------
 
 // probe for cert triplet in a directory
 func hasServerTriplet(base string) bool {
@@ -237,7 +303,6 @@ func GetEtcdTLS() (*tls.Config, error) {
 	clientCrt := filepath.Join(base, "client.crt")
 	clientKey := filepath.Join(base, "client.pem")
 
-
 	// Root pool: system + your CA
 	pool, _ := x509.SystemCertPool()
 	if pool == nil {
@@ -252,12 +317,8 @@ func GetEtcdTLS() (*tls.Config, error) {
 	}
 
 	tcfg := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    pool,
-		// IMPORTANT:
-		// - Leave ServerName empty so Go will:
-		//   * use SNI automatically for DNS endpoints, and
-		//   * verify by IP SAN for 127.0.0.1 / 10.0.0.63
+		MinVersion:         tls.VersionTLS12,
+		RootCAs:            pool,
 		InsecureSkipVerify: false,
 	}
 
@@ -277,8 +338,6 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
-// sanitize keeps the scheme and normalizes host:port.
-// Returns a full URL string like "https://host:2379".
 // etcdServerTLSExists reports whether the local etcd server is configured for TLS.
 func etcdServerTLSExists() bool {
 	// Match where StartEtcdServer writes certs:
@@ -424,12 +483,9 @@ func splitCSV(s string) []string {
 }
 
 // -----------------------------
-// Logging for etcd client
-// -----------------------------
-
-// -----------------------------
 // Desired/runtime split helpers
 // -----------------------------
+
 var runtimeKeys = map[string]struct{}{
 	"Process":      {},
 	"ProxyProcess": {},
@@ -483,10 +539,13 @@ func mergeDesiredRuntime(desired, runtime map[string]interface{}) map[string]int
 // -----------------------------
 
 const (
-	etcdPrefix = "/globular/services/"
-	cfgKey     = "config"
-	rtKey      = "runtime"
-	liveKey    = "live"
+	etcdPrefix          = "/globular/services/"
+	cfgKey              = "config"
+	rtKey               = "runtime"
+	liveKey             = "live"
+	globularRootPrefix  = "/globular/"
+	etcdSnapshotDirName = "etcd-snapshots"
+	servicesBackupName  = "globular_config_backup.json"
 )
 
 func etcdKey(id, leaf string) string {
@@ -518,6 +577,12 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	if _, err = c.Put(ctx, etcdKey(id, rtKey), string(rtBytes)); err != nil {
 		return fmt.Errorf("save runtime: %w", err)
 	}
+
+	// Fire-and-forget backup of /globular keys (best-effort).
+	go func() {
+		_, _ = BackupGlobularKeysJSON()
+	}()
+
 	return nil
 }
 
@@ -548,7 +613,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	resp, err := c.Get(ctx, etcdPrefix, clientv3.WithPrefix())
 	if err != nil {
-
 		return nil, err
 	}
 
@@ -609,7 +673,7 @@ func GetServiceConfigurationById(idOrName string) (map[string]interface{}, error
 		var d map[string]interface{}
 		if json.Unmarshal(dres.Kvs[0].Value, &d) == nil {
 			var r map[string]interface{}
-			if rres, err := c.Get(ctx, etcdKey(idOrName, rtKey)); err == nil  {
+			if rres, err := c.Get(ctx, etcdKey(idOrName, rtKey)); err == nil {
 				if len(rres.Kvs) == 1 {
 					_ = json.Unmarshal(rres.Kvs[0].Value, &r)
 				}
@@ -932,4 +996,144 @@ func WatchRuntimes(ctx context.Context, cb func(RuntimeEvent)) error {
 			}
 		}
 	}
+}
+
+// -----------------------------
+// Backup & snapshot helpers
+// -----------------------------
+
+// CreateEtcdSnapshot saves a binary etcd snapshot under
+//   <configDir>/etcd-snapshots/etcd-<unix>.db
+// and returns the snapshot filepath.
+//
+// You still need to use "etcdutl snapshot restore" offline to rebuild
+// a corrupted data-dir from this file, but this gives you the snapshot.
+func CreateEtcdSnapshot() (string, error) {
+	c, err := etcdClient()
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	m := clientv3.NewMaintenance(c)
+	r, err := m.Snapshot(ctx)
+	if err != nil {
+		return "", fmt.Errorf("snapshot: %w", err)
+	}
+	defer r.Close()
+
+	snapDir := filepath.Join(GetConfigDir(), etcdSnapshotDirName)
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		return "", fmt.Errorf("snapshot mkdir: %w", err)
+	}
+
+	fn := filepath.Join(snapDir, fmt.Sprintf("etcd-%d.db", time.Now().Unix()))
+	f, err := os.Create(fn)
+	if err != nil {
+		return "", fmt.Errorf("snapshot create: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return "", fmt.Errorf("snapshot copy: %w", err)
+	}
+	return fn, nil
+}
+
+// BackupGlobularKeysJSON exports all keys under "/globular/" (including
+// /globular/services, /globular/accounts, etc.) to a JSON file:
+//
+//   <configDir>/backups/globular_config_backup.json
+//
+// It returns the full path to the backup file.
+func BackupGlobularKeysJSON() (string, error) {
+	c, err := etcdClient()
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := c.Get(ctx, globularRootPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return "", fmt.Errorf("backup etcd get: %w", err)
+	}
+
+	type kv struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	payload := struct {
+		CreatedAt int64 `json:"created_at"`
+		Items     []kv  `json:"items"`
+	}{
+		CreatedAt: time.Now().Unix(),
+		Items:     make([]kv, 0, len(resp.Kvs)),
+	}
+	for _, kvp := range resp.Kvs {
+		payload.Items = append(payload.Items, kv{
+			Key:   string(kvp.Key),
+			Value: string(kvp.Value),
+		})
+	}
+
+	b, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("backup marshal: %w", err)
+	}
+
+	backupDir := filepath.Join(GetConfigDir(), "backups")
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		return "", fmt.Errorf("backup mkdir: %w", err)
+	}
+
+	tmp := filepath.Join(backupDir, servicesBackupName+".tmp")
+	final := filepath.Join(backupDir, servicesBackupName)
+
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return "", fmt.Errorf("backup write tmp: %w", err)
+	}
+	if err := os.Rename(tmp, final); err != nil {
+		return "", fmt.Errorf("backup rename: %w", err)
+	}
+	return final, nil
+}
+
+// RestoreGlobularKeysJSON replays all keys from a JSON backup file created
+// by BackupGlobularKeysJSON into the current etcd cluster.
+//
+// Use this AFTER you have rebuilt or re-initialized your etcd data-dir.
+func RestoreGlobularKeysJSON(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("restore read file: %w", err)
+	}
+
+	var payload struct {
+		CreatedAt int64 `json:"created_at"`
+		Items     []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return fmt.Errorf("restore unmarshal: %w", err)
+	}
+
+	c, err := etcdClient()
+	if err != nil {
+		return fmt.Errorf("restore etcd connect: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, kv := range payload.Items {
+		if _, err := c.Put(ctx, kv.Key, kv.Value); err != nil {
+			return fmt.Errorf("restore put %s: %w", kv.Key, err)
+		}
+	}
+	return nil
 }

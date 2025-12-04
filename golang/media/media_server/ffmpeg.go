@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"os"
@@ -76,10 +77,40 @@ func ensureFastStartMP4(path string) error {
 		return err
 	}
 
+	if err := rewriteInPlace(path, tmpPath); err == nil {
+		_ = os.Remove(tmpPath)
+		return nil
+	} else {
+		logger.Warn("faststart rewrite fallback to rename", "path", path, "err", err)
+	}
+
+	// If the atomic rename failed (e.g. on Windows when the destination exists),
+	// fall back to the old two-step swap as a last resort.
 	if err := os.Remove(path); err != nil {
 		return err
 	}
 	return os.Rename(tmpPath, path)
+}
+
+// rewriteInPlace copies the content of src over dst without changing dst's inode, so
+// filesystem watchers only see a modification instead of a delete + recreate.
+func rewriteInPlace(dst, src string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 func (srv *server) getStartTime() time.Time {
