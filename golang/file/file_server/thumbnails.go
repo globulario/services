@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/config"
+	//"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/file/filepb"
 	Utility "github.com/globulario/utility"
 	_ "golang.org/x/image/webp"
@@ -24,7 +24,7 @@ import (
 )
 
 func (s *server) getThumbnail(path string, h, w int) (string, error) {
-	id := fmt.Sprintf("%s_%dx%d@%s", toSlash(path), h, w, s.Domain)
+	id := fmt.Sprintf("%s_%dx%d@%s",path, h, w, s.Domain)
 
 	if data, err := cache.GetItem(id); err == nil {
 		return string(data), nil
@@ -39,19 +39,13 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 // getFileInfo returns metadata & thumbnail info for a given path.
 func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*filepb.FileInfo, error) {
-	p := toSlash(path)
+	p :=  s.formatPath(path)
 	info := new(filepb.FileInfo)
 	info.Path = p
 
 	st, err := os.Stat(p)
 	if err != nil {
 		return nil, err
-	}
-
-	// Make paths relative to data/files for external consumers
-	rootPrefix := toSlash(config.GetDataDir() + "/files")
-	if strings.HasPrefix(info.Path, rootPrefix) {
-		info.Path = info.Path[len(rootPrefix):]
 	}
 
 	// Short-circuit hidden special dirs
@@ -78,7 +72,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	if info.IsDir {
 		info.Mime = "inode/directory"
 		if cwd, err := os.Getwd(); err == nil {
-			icon := toSlash(filepath.Join(cwd, "mimetypes", "inode-directory.png"))
+			icon := s.formatPath(filepath.Join(cwd, "mimetypes", "inode-directory.png"))
 			info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 		}
 	} else {
@@ -99,7 +93,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 		// Default thumbnail placeholder
 		if cwd, err := os.Getwd(); err == nil && !strings.Contains(p, "/.hidden/") {
-			icon := toSlash(filepath.Join(cwd, "mimetypes", "unknown.png"))
+			icon := s.formatPath(filepath.Join(cwd, "mimetypes", "unknown.png"))
 			info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 		}
 
@@ -107,7 +101,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		dir := filepath.Dir(p)
 		base := filepath.Base(p)
 		nameNoExt := strings.TrimSuffix(base, filepath.Ext(base))
-		hidden := toSlash(filepath.Join(dir, ".hidden", nameNoExt))
+		hidden := s.formatPath(filepath.Join(dir, ".hidden", nameNoExt))
 
 		switch {
 		case strings.HasPrefix(info.Mime, "image/"):
@@ -149,7 +143,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					}
 				}
 			} else if cwd, err := os.Getwd(); err == nil {
-				icon := toSlash(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
+				icon := s.formatPath(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
 				info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 			}
 
@@ -167,7 +161,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				}
 			} else if strings.Contains(info.Mime, "/") {
 				if cwd, err := os.Getwd(); err == nil {
-					icon := toSlash(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-")+".png"))
+					icon := s.formatPath(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-")+".png"))
 					info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 				}
 			}
@@ -177,7 +171,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		if Utility.Exists(filepath.Join(p, "playlist.m3u8")) {
 			d := filepath.Dir(p)
 			bn := filepath.Base(p)
-			h := filepath.Join(d, ".hidden", bn, "__preview__", "preview_00001.jpg")
+			h := s.formatPath(filepath.Join(d, ".hidden", bn, "__preview__", "preview_00001.jpg"))
 			if Utility.Exists(h) {
 				if thumb, err := s.getThumbnail(h, -1, -1); err == nil {
 					info.Thumbnail = thumb
@@ -185,7 +179,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					slog.Error("hls preview thumb failed", "path", p, "err", err)
 				}
 			} else if cwd, err := os.Getwd(); err == nil {
-				icon := toSlash(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
+				icon := s.formatPath(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
 				info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 			}
 		}

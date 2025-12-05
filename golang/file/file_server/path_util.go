@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/globulario/services/golang/config"
-	Utility "github.com/globulario/utility"
+	//"github.com/globulario/services/golang/config"
+	//Utility "github.com/globulario/utility"
 )
 
 func hasVirtualRoot(p string) bool {
@@ -21,8 +21,6 @@ func hasVirtualRoot(p string) bool {
 	return false
 }
 
-// toSlash normalizes path separators to forward slashes, for consistent internal logic.
-func toSlash(p string) string { return strings.ReplaceAll(p, "\\", "/") }
 
 // cleanPath cleans redundant elements and converts to OS-native separators for FS ops.
 func cleanPathOS(p string) string { return filepath.Clean(p) }
@@ -53,7 +51,7 @@ func (srv *server) formatPath(in string) string {
 
 	// Unescape URL-encoded input, unify slashes for internal checks.
 	p, _ := url.PathUnescape(in)
-	p = toSlash(p)
+	
 
 	// Fast-path root
 	if p == "/" {
@@ -61,7 +59,7 @@ func (srv *server) formatPath(in string) string {
 	}
 
 	// Respect already-public absolute paths.
-	if isAbsLike(p) {
+	/*if isAbsLike(p) {
 		// If path lives in a public mount, keep it as-is.
 		if srv.isPublic(p) {
 			return cleanPathOS(p)
@@ -86,6 +84,7 @@ func (srv *server) formatPath(in string) string {
 				return cleanPathOS(pp)
 			}
 		}
+
 		if pr := toSlash(config.GetWebRootDir() + p); Utility.Exists(pr) {
 			return cleanPathOS(pr)
 		}
@@ -98,12 +97,14 @@ func (srv *server) formatPath(in string) string {
 
 	// Relative input → anchor under Root
 	return cleanPathOS(filepath.Join(srv.Root, p))
+	*/
+	return p
 }
 
 // getMimeTypesUrl returns a data-URL thumbnail for a mime icon path.
 func (srv *server) getMimeTypesUrl(iconPath string) (string, error) {
 	// Resolve relative icon paths against CWD just like original code did.
-	icon := toSlash(iconPath)
+	icon := srv.formatPath(iconPath)
 	thumb, err := srv.getThumbnail(icon, 80, 80)
 	if err != nil {
 		slog.Error("mime icon thumbnail failed", "icon", icon, "err", err)

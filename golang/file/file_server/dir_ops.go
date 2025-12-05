@@ -5,8 +5,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -214,8 +216,59 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 	return nil
 }
 
+
+// ReadDir streams FileInfo structures for a directory.
+func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+	if len(rqst.Path) == 0 {
+		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
+	}
+	p := srv.formatPath(rqst.Path)
+	ctx := stream.Context()
+	storage := srv.storageForPath(p)
+	info, err := storage.Stat(ctx, p)
+	fmt.Println("-------------> ", info)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
+			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
+		}
+		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	if !info.IsDir() {
+		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s is not a directory", p)))
+	}
+
+	filesInfoChan := make(chan *filepb.FileInfo)
+	errChan := make(chan error)
+	go func() {
+		defer close(filesInfoChan)
+		defer close(errChan)
+		_, _ = readDir(ctx, srv, p, rqst.GetRecursive(), rqst.ThumbnailWidth, rqst.ThumbnailHeight, true, filesInfoChan, errChan)
+	}()
+	for {
+		select {
+		case fi, ok := <-filesInfoChan:
+			if !ok {
+				if err := <-errChan; err != nil {
+					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+				return nil
+			}
+			if err := stream.Send(&filepb.ReadDirResponse{Info: fi}); err != nil {
+				if strings.Contains(err.Error(), "context canceled") {
+					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+			}
+		case err := <-errChan:
+			if err != nil {
+				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			return nil
+		}
+	}
+}
+
 // readDir recursively reads directory entries and emits FileInfo structures.
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, fileInfosChan chan *filepb.FileInfo, errChan chan error) (*filepb.FileInfo, error) {
+func readDir(ctx context.Context, s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, fileInfosChan chan *filepb.FileInfo, errChan chan error) (*filepb.FileInfo, error) {
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
 	if err != nil {
 		if errChan != nil {
@@ -231,7 +284,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(path)
+	entries, err := s.storageForPath(path).ReadDir(ctx, path)
 	if err != nil {
 		if errChan != nil {
 			errChan <- err
@@ -245,9 +298,9 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	for _, e := range entries {
 		p := filepath.Join(path, e.Name())
 		if e.IsDir() {
-			isHls := Utility.Exists(filepath.Join(p, "playlist.m3u8"))
+			isHls := s.pathExists(ctx, filepath.Join(p, "playlist.m3u8"))
 			if recursive && !isHls && e.Name() != ".hidden" {
-				child, err := readDir(s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, fileInfosChan, errChan)
+				child, err := readDir(ctx, s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, fileInfosChan, errChan)
 				if err != nil {
 					if errChan != nil {
 						errChan <- err
@@ -260,7 +313,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					info.Files = append(info.Files, child)
 				}
 			} else if e.Name() != ".hidden" {
-				child, err := readDir(s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, fileInfosChan, errChan)
+				child, err := readDir(ctx, s, p, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, fileInfosChan, errChan)
 				if err != nil {
 					if errChan != nil {
 						errChan <- err
@@ -287,8 +340,10 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			if !fi.IsDir {
 				if dot := strings.LastIndex(e.Name(), "."); dot != -1 {
 					fi.Mime = mime.TypeByExtension(e.Name()[dot:])
-				} else if f, err := os.Open(p); err == nil {
-					fi.Mime, _ = Utility.GetFileContentType(f)
+				} else if f, err := s.storageForPath(p).Open(ctx, p); err == nil {
+					if file, ok := f.(*os.File); ok {
+						fi.Mime, _ = Utility.GetFileContentType(file)
+					}
 					_ = f.Close()
 				}
 				if !strings.Contains(path, ".hidden") && len(fi.Thumbnail) == 0 {
@@ -296,11 +351,11 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						fi.Thumbnail, _ = s.getThumbnail(p, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 					} else if strings.Contains(fi.Mime, "/") {
 						if cwd, err := os.Getwd(); err == nil {
-							icon := toSlash(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(fi.Mime, ";")[0], "/", "-")+".png"))
+							icon := s.formatPath(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(fi.Mime, ";")[0], "/", "-")+".png"))
 							fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 						}
 					} else if cwd, err := os.Getwd(); err == nil {
-						icon := toSlash(filepath.Join(cwd, "mimetypes", "unknown.png"))
+						icon := s.formatPath(filepath.Join(cwd, "mimetypes", "unknown.png"))
 						fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 					}
 				}
@@ -318,7 +373,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 // publishReloadDirEvent notifies clients to refresh a directory.
 func (srv *server) publishReloadDirEvent(path string) {
 	client, err := getEventClient()
-	p := strings.ReplaceAll(toSlash(path), toSlash(config.GetDataDir()+"/files"), "")
+	p := srv.formatPath(path)
 	if err != nil {
 		slog.Warn("publish reload dir event: no event client", "path", p, "err", err)
 		return
@@ -330,8 +385,8 @@ func (srv *server) publishReloadDirEvent(path string) {
 
 // AddPublicDir registers a folder as public.
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
-	p := toSlash(rqst.Path)
-	if !Utility.Exists(p) {
+	p := rqst.Path
+	if p == "" || !Utility.Exists(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if Utility.Contains(srv.Public, p) {
@@ -347,8 +402,8 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 
 // RemovePublicDir unregisters a public folder.
 func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
-	p := toSlash(rqst.Path)
-	if !Utility.Exists(p) {
+	p := rqst.Path
+	if p == "" || !Utility.Exists(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if !Utility.Contains(srv.Public, p) {
@@ -369,13 +424,13 @@ func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) 
 
 // isPublic returns true if a concrete filesystem path is inside a public root.
 func (srv *server) isPublic(path string) bool {
-	p := toSlash(filepath.Clean(path))
+	p := srv.formatPath(filepath.Clean(path))
 	sep := "/"
 	if p == "" {
 		return false
 	}
 	for _, root := range srv.Public {
-		cleanRoot := toSlash(filepath.Clean(root))
+		cleanRoot := srv.formatPath(filepath.Clean(root))
 		if cleanRoot == "" {
 			continue
 		}
@@ -713,7 +768,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	if permissions, err := rbacClient.GetResourcePermissionsByResourceType("file"); err == nil {
 		for _, p := range permissions {
 			if strings.HasPrefix(p.Path, path) {
-				if err := rbacClient.DeleteResourcePermissions(token,p.GetPath()); err != nil {
+				if err := rbacClient.DeleteResourcePermissions(token, p.GetPath()); err != nil {
 					slog.Warn("delete sub-permission failed", "path", p.GetPath(), "err", err)
 				}
 			}

@@ -142,49 +142,6 @@ func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequ
 	return &filepb.GetFileInfoResponse{Info: infos[0]}, nil
 }
 
-// ReadDir streams FileInfo structures for a directory.
-func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
-	if len(rqst.Path) == 0 {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
-	}
-	p := srv.formatPath(rqst.Path)
-	if !Utility.Exists(p) {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
-	}
-	if info, err := getFileInfo(srv, p, 64, 64); err != nil || !info.IsDir {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s is not a directory", p)))
-	}
-
-	filesInfoChan := make(chan *filepb.FileInfo)
-	errChan := make(chan error)
-	go func() {
-		defer close(filesInfoChan)
-		defer close(errChan)
-		_, _ = readDir(srv, p, rqst.GetRecursive(), rqst.ThumbnailWidth, rqst.ThumbnailHeight, true, filesInfoChan, errChan)
-	}()
-	for {
-		select {
-		case fi, ok := <-filesInfoChan:
-			if !ok {
-				if err := <-errChan; err != nil {
-					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-				return nil
-			}
-			if err := stream.Send(&filepb.ReadDirResponse{Info: fi}); err != nil {
-				if strings.Contains(err.Error(), "context canceled") {
-					return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			}
-		case err := <-errChan:
-			if err != nil {
-				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			return nil
-		}
-	}
-}
-
 // ReadFile streams file bytes in chunks.
 func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
 	p := srv.formatPath(rqst.GetPath())
@@ -212,45 +169,45 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 
 // SaveFile writes an incoming stream to disk, creating parent dirs if needed.
 func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
-    var data []byte
-    var path string
-    for {
-        rqst, err := stream.Recv()
-        if err != nil {
-            if err == io.EOF {
-                if len(path) == 0 {
-                    return status.Errorf(codes.InvalidArgument, "%s",
+	var data []byte
+	var path string
+	for {
+		rqst, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				if len(path) == 0 {
+					return status.Errorf(codes.InvalidArgument, "%s",
 						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("empty path")))
-                }
-                // Ensure parent directory exists
-                if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-                    return status.Errorf(codes.Internal, "%s",
-                        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-                }
-                if err := os.WriteFile(path, data, 0o644); err != nil {
-                    return status.Errorf(codes.Internal, "%s",
-                        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-                }
-                if err := stream.SendAndClose(&filepb.SaveFileResponse{Result: true}); err != nil {
-                    slog.Error("save send/close failed", "err", err)
-                    return err
-                }
-                return nil
-            }
-            return status.Errorf(codes.Internal, "%s",
-                Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-        }
+				}
+				// Ensure parent directory exists
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					return status.Errorf(codes.Internal, "%s",
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+				if err := os.WriteFile(path, data, 0o644); err != nil {
+					return status.Errorf(codes.Internal, "%s",
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+				if err := stream.SendAndClose(&filepb.SaveFileResponse{Result: true}); err != nil {
+					slog.Error("save send/close failed", "err", err)
+					return err
+				}
+				return nil
+			}
+			return status.Errorf(codes.Internal, "%s",
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 
-        switch msg := rqst.File.(type) {
-        case *filepb.SaveFileRequest_Path:
-            // Normalize/anchor to server storage root
-            path = srv.formatPath(msg.Path)
-        case *filepb.SaveFileRequest_Data:
-            data = append(data, msg.Data...)
-        default:
-            // ignore unknown frames
-        }
-    }
+		switch msg := rqst.File.(type) {
+		case *filepb.SaveFileRequest_Path:
+			// Normalize/anchor to server storage root
+			path = srv.formatPath(msg.Path)
+		case *filepb.SaveFileRequest_Data:
+			data = append(data, msg.Data...)
+		default:
+			// ignore unknown frames
+		}
+	}
 }
 
 // DeleteFile removes a single file and updates related state.
@@ -334,10 +291,9 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 // GetThumbnails returns a JSON stream of thumbnails for files under a directory.
 func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
 	p := rqst.GetPath()
-	if strings.HasPrefix(p, "/") {
-		p = toSlash(filepath.Join(srv.Root, p))
-	}
-	info, err := readDir(srv, p, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, nil, nil)
+	p = srv.formatPath(p)
+	
+	info, err := readDir(stream.Context(), srv, p, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, nil, nil)
 	if err != nil {
 		return err
 	}

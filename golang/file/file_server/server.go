@@ -91,10 +91,19 @@ type server struct {
 
 	Root                   string
 	storage                Storage
+	publicStorage          Storage
 	CacheType              string
 	CacheAddress           string
 	CacheReplicationFactor int
 	Public                 []string
+
+	UseMinio       bool
+	MinioEndpoint  string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioBucket    string
+	MinioPrefix    string
+	MinioUseSSL    bool
 }
 
 // -------------------- Globular getters/setters --------------------
@@ -183,13 +192,17 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 func (srv *server) SetPublicDirs(dirs []string) {
-	srv.Public = append([]string{}, dirs...)
+	srv.Public = dirs
 }
+
 
 // -------------------- Lifecycle --------------------
 
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
+		return err
+	}
+	if err := srv.initStorage(); err != nil {
 		return err
 	}
 	gs, err := globular.InitGrpcServer(srv)
@@ -439,14 +452,69 @@ Options:
 `, filepath.Base(os.Args[0]))
 }
 
-// Helper to ensure we always have a storage impl.
-func (srv *server) Storage() Storage {
-	if srv.storage != nil {
-		return srv.storage
+// initStorage selects the default and public storage implementations based on config.
+func (srv *server) initStorage() error {
+
+	// Public storage always uses local filesystem
+	srv.publicStorage = NewOSStorage("")
+
+	if srv.UseMinio {
+		if srv.MinioEndpoint == "" || srv.MinioBucket == "" {
+			return fmt.Errorf("inio storage enabled but endpoint or bucket is empty")
+		}
+		m, err := NewMinioStorage(
+			srv.MinioEndpoint,
+			srv.MinioAccessKey,
+			srv.MinioSecretKey,
+			srv.MinioBucket,
+			srv.MinioPrefix,
+			srv.MinioUseSSL,
+		)
+		if err != nil {
+			return err
+		}
+		srv.storage = m
+
+		fmt.Println("---------------------------------> storage minio success!")
+		return nil
 	}
-	// Default: local filesystem with Root as base dir
-	srv.storage = NewOSStorage(srv.Root)
+
+	// Public storage always uses local filesystem
+	srv.publicStorage = NewOSStorage("")
+
+	srv.storage = NewOSStorage("")
+	return nil
+}
+
+// Storage returns the configured backend (defaulting to local filesystem).
+func (srv *server) Storage() Storage {
+	if srv.storage == nil {
+		if err := srv.initStorage(); err != nil {
+			logger.Error("failed to initialize storage; falling back to local filesystem", "err", err)
+			srv.storage = NewOSStorage("")
+		}
+	}
 	return srv.storage
+}
+
+// storageForPath returns the appropriate storage implementation for a specific path.
+// Public directories are always served from the local filesystem; everything else uses the default backend.
+func (srv *server) storageForPath(path string) Storage {
+	if srv.isPublic(path) {
+		if srv.publicStorage == nil {
+			srv.publicStorage =NewOSStorage("")
+		}
+		return srv.publicStorage
+	}
+	return srv.Storage()
+}
+
+// pathExists reports whether a path exists within the selected backend.
+func (srv *server) pathExists(ctx context.Context, path string) bool {
+	if _, err := srv.storageForPath(path).Stat(ctx, path); err == nil {
+		return true
+	}
+	return false
 }
 
 // -------------------- main --------------------

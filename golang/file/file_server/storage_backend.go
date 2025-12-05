@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -53,13 +54,16 @@ func NewOSStorage(root string) *OSStorage {
 }
 
 func (s *OSStorage) resolve(path string) string {
-	if s.Root == "" {
-		return filepath.Clean(path)
-	}
-	// Ensure no path escapes the root.
 	clean := filepath.Clean(path)
+	if s.Root == "" {
+		return clean
+	}
+
 	if filepath.IsAbs(clean) {
-		clean = clean[1:]
+		if strings.HasPrefix(clean, s.Root) {
+			clean = strings.TrimPrefix(clean, s.Root)
+		}
+		clean = strings.TrimPrefix(clean, string(filepath.Separator))
 	}
 	return filepath.Join(s.Root, clean)
 }
@@ -136,9 +140,14 @@ type minioFileInfo struct {
 	etag    string
 }
 
-func (i *minioFileInfo) Name() string       { return i.name }
-func (i *minioFileInfo) Size() int64        { return i.size }
-func (i *minioFileInfo) Mode() fs.FileMode  { if i.isDir { return fs.ModeDir | 0o755 }; return 0o644 }
+func (i *minioFileInfo) Name() string { return i.name }
+func (i *minioFileInfo) Size() int64  { return i.size }
+func (i *minioFileInfo) Mode() fs.FileMode {
+	if i.isDir {
+		return fs.ModeDir | 0o755
+	}
+	return 0o644
+}
 func (i *minioFileInfo) ModTime() time.Time { return i.modTime }
 func (i *minioFileInfo) IsDir() bool        { return i.isDir }
 func (i *minioFileInfo) Sys() any           { return map[string]any{"etag": i.etag} }
@@ -151,7 +160,7 @@ type readSeekCloser struct {
 }
 
 func (r *readSeekCloser) Read(p []byte) (int, error) { return r.reader.Read(p) }
-func (r *readSeekCloser) Close() error                { return r.reader.Close() }
+func (r *readSeekCloser) Close() error               { return r.reader.Close() }
 func (r *readSeekCloser) Seek(offset int64, whence int) (int64, error) {
 	return r.seekFn(offset, whence)
 }
@@ -238,6 +247,9 @@ func (s *MinioStorage) Stat(ctx context.Context, path string) (fs.FileInfo, erro
 
 // ReadDir lists first-level children by scanning objects with the requested prefix.
 func (s *MinioStorage) ReadDir(ctx context.Context, path string) ([]fs.DirEntry, error) {
+
+	fmt.Println("try to read dir: ", path)
+	
 	keyPrefix := s.pathToKey(path)
 	if keyPrefix != "" && !strings.HasSuffix(keyPrefix, "/") {
 		keyPrefix += "/"
