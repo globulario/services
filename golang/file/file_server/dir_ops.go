@@ -30,7 +30,7 @@ import (
 )
 
 // printDownloadPercent periodically sends progress updates to the stream.
-func printDownloadPercent(done chan int64, path string, total int64, stream filepb.FileService_UploadFileServer) {
+func (srv *server) printDownloadPercent(done chan int64, path string, total int64, stream filepb.FileService_UploadFileServer) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -39,18 +39,12 @@ func printDownloadPercent(done chan int64, path string, total int64, stream file
 		case <-done:
 			return
 		case <-ticker.C:
-			f, err := os.Open(path)
-			if err != nil {
-				slog.Error("upload progress open failed", "path", path, "err", err)
-				return
-			}
-			st, err := f.Stat()
-			_ = f.Close()
+			info, err := srv.storageStat(stream.Context(), path)
 			if err != nil {
 				slog.Error("upload progress stat failed", "path", path, "err", err)
 				return
 			}
-			sz := st.Size()
+			sz := info.Size()
 			if sz == 0 {
 				sz = 1
 			}
@@ -67,15 +61,15 @@ func printDownloadPercent(done chan int64, path string, total int64, stream file
 
 func (srv *server) uploadFile(token, urlStr, dest, name string, stream filepb.FileService_UploadFileServer) error {
 	path := srv.formatPath(dest)
-	if !Utility.Exists(path) {
+	if !srv.storageForPath(path).Exists(stream.Context(), path) {
 		return fmt.Errorf("no folder found with path %s", path)
 	}
-	if err := Utility.CreateDirIfNotExist(path); err != nil {
+	if err := srv.storageMkdirAll(stream.Context(), path, 0o755); err != nil {
 		return err
 	}
 
 	outPath := filepath.Join(path, name)
-	out, err := os.Create(outPath)
+	out, err := srv.storageCreate(stream.Context(), outPath)
 	if err != nil {
 		return err
 	}
@@ -92,7 +86,7 @@ func (srv *server) uploadFile(token, urlStr, dest, name string, stream filepb.Fi
 		return err
 	}
 	done := make(chan int64)
-	go printDownloadPercent(done, outPath, int64(size), stream)
+	go srv.printDownloadPercent(done, outPath, int64(size), stream)
 
 	slog.Info("upload: downloading", "url", urlStr, "dest", outPath)
 	resp, err := http.Get(urlStr)
@@ -171,9 +165,9 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 
 		path := srv.formatPath(rqst.Dest)
 		_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Unpack archive for " + rqst.Name + " ..."})
-		defer os.RemoveAll(filepath.Join(path, tmpName+".tar.gz"))
+		defer srv.storageRemoveAll(stream.Context(), filepath.Join(path, tmpName+".tar.gz"))
 
-		f, err := os.Open(filepath.Join(path, tmpName+".tar.gz"))
+		f, err := srv.storageOpen(stream.Context(), filepath.Join(path, tmpName+".tar.gz"))
 		if err != nil {
 			return err
 		}
@@ -187,11 +181,11 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 		if err := Utility.Move(extracted, path); err != nil {
 			return err
 		}
-		if err := os.Rename(filepath.Join(path, filepath.Base(extracted)), filepath.Join(path, rqst.Name)); err != nil {
+		if err := srv.storageRename(stream.Context(), filepath.Join(path, filepath.Base(extracted)), filepath.Join(path, rqst.Name)); err != nil {
 			return err
 		}
 
-		if Utility.Exists(filepath.Join(path, rqst.Name, "playlist.m3u8")) {
+		if srv.storageForPath(filepath.Join(path, rqst.Name, "playlist.m3u8")).Exists(stream.Context(), filepath.Join(path, rqst.Name, "playlist.m3u8")) {
 			_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Process video information..."})
 			processVideos(srv, token, []string{filepath.Join(path, rqst.Name)})
 		}
@@ -216,7 +210,6 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 	return nil
 }
 
-
 // ReadDir streams FileInfo structures for a directory.
 func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 	if len(rqst.Path) == 0 {
@@ -226,7 +219,6 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	ctx := stream.Context()
 	storage := srv.storageForPath(p)
 	info, err := storage.Stat(ctx, p)
-	fmt.Println("-------------> ", info)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
 			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
@@ -341,8 +333,8 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 				if dot := strings.LastIndex(e.Name(), "."); dot != -1 {
 					fi.Mime = mime.TypeByExtension(e.Name()[dot:])
 				} else if f, err := s.storageForPath(p).Open(ctx, p); err == nil {
-					if file, ok := f.(*os.File); ok {
-						fi.Mime, _ = Utility.GetFileContentType(file)
+					if mime, err := detectContentTypeFromReader(f); err == nil {
+						fi.Mime = mime
 					}
 					_ = f.Close()
 				}
@@ -350,11 +342,11 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 					if strings.HasPrefix(fi.Mime, "image/") && thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 						fi.Thumbnail, _ = s.getThumbnail(p, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 					} else if strings.Contains(fi.Mime, "/") {
-						if cwd, err := os.Getwd(); err == nil {
+						if cwd, err := s.Storage().Getwd(); err == nil {
 							icon := s.formatPath(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(fi.Mime, ";")[0], "/", "-")+".png"))
 							fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 						}
-					} else if cwd, err := os.Getwd(); err == nil {
+					} else if cwd, err := s.Storage().Getwd(); err == nil {
 						icon := s.formatPath(filepath.Join(cwd, "mimetypes", "unknown.png"))
 						fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 					}
@@ -386,7 +378,7 @@ func (srv *server) publishReloadDirEvent(path string) {
 // AddPublicDir registers a folder as public.
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	p := rqst.Path
-	if p == "" || !Utility.Exists(p) {
+	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if Utility.Contains(srv.Public, p) {
@@ -403,7 +395,7 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 // RemovePublicDir unregisters a public folder.
 func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
 	p := rqst.Path
-	if p == "" || !Utility.Exists(p) {
+	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
 	}
 	if !Utility.Contains(srv.Public, p) {
@@ -443,14 +435,14 @@ func (srv *server) isPublic(path string) bool {
 
 func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
 	path_ := srv.formatPath(path)
-	info, err := os.Stat(path_)
+	info, err := srv.storageStat(context.Background(), path_)
 	if err != nil {
 		return err
 	}
 
 	// If it's a directory and not an HLS stream, recurse into children
-	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
-		files, err := os.ReadDir(path_)
+	if info.IsDir() && !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
+		files, err := srv.storageReadDir(context.Background(), path_)
 		if err == nil {
 			for _, f := range files {
 				childPath := path + "/" + f.Name()
@@ -471,13 +463,13 @@ func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, p
 // Recursively get all titles for a given path.
 func (srv *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
 	path_ := srv.formatPath(path)
-	info, err := os.Stat(path_)
+	info, err := srv.storageStat(context.Background(), path_)
 	if err != nil {
 		return err
 	}
 
-	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
-		files, err := os.ReadDir(path_)
+	if info.IsDir() && !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
+		files, err := srv.storageReadDir(context.Background(), path_)
 		if err == nil {
 			for _, f := range files {
 				child := path + "/" + f.Name()
@@ -530,12 +522,13 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 		videos := make(map[string][]*titlepb.Video)
 		_ = srv.getFileVideosAssociation(titleClient, rqst.Files[i], videos)
 
-		if Utility.Exists(srcFile) {
-			info, err := os.Stat(srcFile)
+		if srv.storageForPath(srcFile).Exists(ctx, srcFile) {
+			info, err := srv.storageStat(ctx, srcFile)
 			if err == nil {
 				if info.IsDir() {
 					// Copy the directory
-					if err := Utility.CopyDir(srcFile, destPath); err != nil {
+					destDir := filepath.Join(destPath, filepath.Base(srcFile))
+					if err := srv.storageCopyDir(ctx, srcFile, destDir); err != nil {
 						slog.Error("copy dir failed", "src", srcFile, "dest", destPath, "err", err)
 						return nil, err
 					}
@@ -578,7 +571,8 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 					}
 				} else {
 					// Copy the file
-					if err := Utility.CopyFile(srcFile, destPath); err != nil {
+					destFile := filepath.Join(destPath, filepath.Base(srcFile))
+					if err := srv.storageCopyFile(ctx, srcFile, destFile); err != nil {
 						slog.Error("copy file failed", "src", srcFile, "dest", destPath, "err", err)
 						return nil, err
 					}
@@ -618,8 +612,9 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 						fileName = fileName[:dot]
 					}
 					hiddenFolder := filepath.Join(baseDir, ".hidden", fileName)
-					if Utility.Exists(hiddenFolder) {
-						if err := Utility.CopyDir(hiddenFolder, filepath.Join(destPath, ".hidden")); err != nil {
+					if srv.storageForPath(hiddenFolder).Exists(ctx, hiddenFolder) {
+						targetHidden := filepath.Join(destPath, ".hidden", filepath.Base(hiddenFolder))
+						if err := srv.storageCopyDir(ctx, hiddenFolder, targetHidden); err != nil {
 							slog.Warn("copy hidden folder failed", "src", hiddenFolder, "dest", filepath.Join(destPath, ".hidden"), "err", err)
 						}
 					}
@@ -647,10 +642,10 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 		if !srv.isPublic(p) {
 			p = srv.formatPath(p)
 		}
-		if !Utility.Exists(p) {
+		if !srv.storageForPath(p).Exists(ctx, p) {
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file exist for path %s", p)))
 		}
-		if info, _ := os.Stat(p); info.IsDir() {
+		if info, _ := srv.storageStat(ctx, p); info.IsDir() {
 			tmp = p
 			createTempDir = false
 		}
@@ -663,9 +658,9 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 		defer os.RemoveAll(tmp)
 
 		for _, rp := range rqst.Paths {
-			if Utility.Exists(srv.Root+rp) || srv.isPublic(rp) {
+			if srv.storageForPath(srv.Root+rp).Exists(ctx, srv.Root+rp) || srv.isPublic(rp) {
 				p := srv.formatPath(rp)
-				info, _ := os.Stat(p)
+				info, _ := srv.storageStat(ctx, p)
 				fileName := p[strings.LastIndex(p, "/"):]
 				if info.IsDir() {
 					if err := Utility.CopyDir(p, filepath.Join(tmp, fileName)); err != nil {
@@ -691,7 +686,8 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 		slog.Warn("create archive: set owner failed", "path", dest, "err", err)
 	}
 
-	if err := os.WriteFile(srv.Root+dest, buf.Bytes(), 0644); err != nil {
+	destPath := srv.formatPath(dest)
+	if err := srv.storageWriteFile(ctx, destPath, buf.Bytes(), 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -701,7 +697,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 
 func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
 	path := srv.formatPath(rqst.GetPath())
-	if err := Utility.CreateDirIfNotExist(filepath.Join(path, rqst.GetName())); err != nil {
+	if err := srv.storageMkdirAll(ctx, filepath.Join(path, rqst.GetName()), 0o755); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -723,11 +719,11 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 		return nil, err
 	}
 	path := srv.formatPath(rqst.GetPath())
-	if !Utility.Exists(path) {
+	if !srv.storageForPath(path).Exists(ctx, path) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
 	}
 
-	cache.RemoveItem(path)
+	srv.cacheRemove(path)
 
 	// Remove file associations contained by files in that directory
 	client, err := getTitleClient()
@@ -781,7 +777,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	}
 
 	// Remove the directory itself
-	if err := os.RemoveAll(path); err != nil {
+	if err := srv.storageRemoveAll(ctx, path); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -815,10 +811,10 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 			continue
 		}
 
-		info, _ := os.Stat(from)
+		info, _ := srv.storageStat(ctx, from)
 		filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
 
-		if Utility.Exists(from) {
+		if srv.storageForPath(from).Exists(ctx, from) {
 			titles := make(map[string][]*titlepb.Title)
 			_ = srv.getFileTitlesAssociation(client, rqst.Files[i], titles)
 			videos := make(map[string][]*titlepb.Video)
@@ -845,13 +841,14 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 			}
 
 			// Move the file/dir
-			if err := Utility.Move(from, dest); err != nil {
+			target := filepath.Join(dest, filepath.Base(from))
+			if err := srv.storageMove(ctx, from, target); err != nil {
 				slog.Error("move failed", "from", from, "dest", dest, "err", err)
 				continue
 			}
 
 			// purge cache of old path
-			cache.RemoveItem(from)
+			srv.cacheRemove(from)
 
 			// Re-associate at new path(s)
 			for f, list := range titles {
@@ -917,11 +914,11 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 				fileName = fileName[:dot]
 			}
 			hiddenFolder := filepath.Join(baseDir, ".hidden", fileName)
-			if Utility.Exists(hiddenFolder) {
-				if err := Utility.CreateDirIfNotExist(filepath.Join(dest, ".hidden")); err != nil {
+			if srv.storageForPath(hiddenFolder).Exists(ctx, hiddenFolder) {
+				if err := srv.storageMkdirAll(ctx, filepath.Join(dest, ".hidden"), 0o755); err != nil {
 					slog.Warn("move: ensure .hidden failed", "dest", dest, "err", err)
 				}
-				if err := Utility.Move(hiddenFolder, filepath.Join(dest, ".hidden")); err != nil {
+				if err := srv.storageMove(ctx, hiddenFolder, filepath.Join(dest, ".hidden", filepath.Base(hiddenFolder))); err != nil {
 					slog.Warn("move: move hidden failed", "src", hiddenFolder, "dest", filepath.Join(dest, ".hidden"), "err", err)
 				} else {
 					output := filepath.Join(dest, ".hidden", fileName, "__timeline__")
@@ -942,7 +939,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	}
 
 	path := srv.formatPath(rqst.GetPath())
-	if Utility.Exists(filepath.Join(path, rqst.NewName)) {
+	if srv.storageForPath(filepath.Join(path, rqst.NewName)).Exists(ctx, filepath.Join(path, rqst.NewName)) {
 		return nil, fmt.Errorf("file with name %q already exists at path %q", rqst.NewName, path)
 	}
 
@@ -960,7 +957,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	// Dissociate titles
 	for f, list := range titles {
 		for _, t := range list {
-			if err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f); err != nil {
+			if err := client.DissociateFileWithTitle("/search/titles", t.ID, f); err != nil {
 				slog.Warn("rename: dissociate title failed", "file", f, "titleID", t.ID, "err", err)
 			}
 		}
@@ -968,7 +965,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	// Dissociate videos
 	for f, list := range videos {
 		for _, v := range list {
-			if err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, f); err != nil {
+			if err := client.DissociateFileWithTitle("/search/videos", v.ID, f); err != nil {
 				slog.Warn("rename: dissociate video failed", "file", f, "videoID", v.ID, "err", err)
 			}
 		}
@@ -976,7 +973,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 
 	from := rqst.GetPath() + "/" + rqst.OldName
 	dest := rqst.GetPath() + "/" + rqst.NewName
-	info, _ := os.Stat(srv.formatPath(from))
+	info, _ := srv.storageStat(ctx, srv.formatPath(from))
 
 	rbacClient, err := getRbacClient()
 	if err != nil {
@@ -985,10 +982,10 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
 	perm, _ := rbacClient.GetResourcePermissions(from)
 
-	cache.RemoveItem(filepath.Join(path, rqst.OldName))
-	cache.RemoveItem(path)
+	srv.cacheRemove(filepath.Join(path, rqst.OldName))
+	srv.cacheRemove(path)
 
-	if err := os.Rename(filepath.Join(path, rqst.OldName), filepath.Join(path, rqst.NewName)); err != nil {
+	if err := srv.storageRename(ctx, filepath.Join(path, rqst.OldName), filepath.Join(path, rqst.NewName)); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -1064,8 +1061,8 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 
 	hiddenFrom := filepath.Join(path, ".hidden", oldBase)
 	hiddenTo := filepath.Join(path, ".hidden", newBase)
-	if Utility.Exists(hiddenFrom) {
-		if err := os.Rename(hiddenFrom, hiddenTo); err != nil {
+	if srv.storageForPath(hiddenFrom).Exists(ctx, hiddenFrom) {
+		if err := srv.storageRename(ctx, hiddenFrom, hiddenTo); err != nil {
 			slog.Warn("rename: rename hidden folder failed", "from", hiddenFrom, "to", hiddenTo, "err", err)
 		}
 	}

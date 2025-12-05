@@ -34,22 +34,22 @@ func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) 
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
 		path_ := srv.formatPath(info.Files[i].Path)
-		if Utility.Exists(path_) {
+		if srv.storageForPath(path_).Exists(context.Background(), path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir {
-				if !Utility.Exists(path_ + "/playlist.m3u8") {
+				if !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
 					info.Files[i].Thumbnail = "" // remove the icon for dir
 				}
 			}
 			infos = getFileInfos(srv, info.Files[i], infos)
 		} else {
-			cache.RemoveItem(info.Files[i].Path)
+			srv.cacheRemove(info.Files[i].Path)
 		}
 	}
 	// empty the arrays...
 	if info.IsDir {
 		path_ := srv.formatPath(info.Path)
-		if !Utility.Exists(path_ + "/playlist.m3u8") {
+		if !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
 			info.Files = make([]*filepb.FileInfo, 0)
 		}
 	}
@@ -145,7 +145,7 @@ func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequ
 // ReadFile streams file bytes in chunks.
 func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
 	p := srv.formatPath(rqst.GetPath())
-	f, err := os.Open(p)
+	f, err := srv.storageOpen(stream.Context(), p)
 	if err != nil {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -171,6 +171,7 @@ func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileServ
 func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 	var data []byte
 	var path string
+	ctx := stream.Context()
 	for {
 		rqst, err := stream.Recv()
 		if err != nil {
@@ -180,11 +181,11 @@ func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("empty path")))
 				}
 				// Ensure parent directory exists
-				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				if err := srv.storageMkdirAll(ctx, filepath.Dir(path), 0o755); err != nil {
 					return status.Errorf(codes.Internal, "%s",
 						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
-				if err := os.WriteFile(path, data, 0o644); err != nil {
+				if err := srv.storageWriteFile(ctx, path, data, 0o644); err != nil {
 					return status.Errorf(codes.Internal, "%s",
 						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 				}
@@ -217,8 +218,8 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 		return nil, err
 	}
 	p := srv.formatPath(rqst.GetPath())
-	cache.RemoveItem(p)
-	cache.RemoveItem(filepath.Dir(p))
+	srv.cacheRemove(p)
+	srv.cacheRemove(filepath.Dir(p))
 	rbac, err := getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -228,22 +229,22 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 	dir := filepath.Dir(p)
 	name := strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))
 	hidden := filepath.Join(dir, ".hidden", name)
-	if Utility.Exists(hidden) {
-		_ = os.RemoveAll(hidden)
+	if srv.storageForPath(hidden).Exists(ctx, hidden) {
+		_ = srv.storageRemoveAll(ctx, hidden)
 	}
 	_ = dissociateFileWithTitle(rqst.GetPath(), srv.Domain)
 
-	if Utility.Exists(filepath.Join(dir, "audio.m3u")) {
+	if srv.storageForPath(filepath.Join(dir, "audio.m3u")).Exists(ctx, filepath.Join(dir, "audio.m3u")) {
 		cache.RemoveItem(filepath.Join(dir, "audio.m3u"))
-		_ = os.Remove(filepath.Join(dir, "audio.m3u"))
+		_ = srv.storageRemove(ctx, filepath.Join(dir, "audio.m3u"))
 		_ = srv.generatePlaylist(dir, token)
 	}
-	if Utility.Exists(filepath.Join(dir, "video.m3u")) {
+	if srv.storageForPath(filepath.Join(dir, "video.m3u")).Exists(ctx, filepath.Join(dir, "video.m3u")) {
 		cache.RemoveItem(filepath.Join(dir, "video.m3u"))
-		_ = os.Remove(filepath.Join(dir, "video.m3u"))
+		_ = srv.storageRemove(ctx, filepath.Join(dir, "video.m3u"))
 		_ = srv.generatePlaylist(dir, token)
 	}
-	if err := os.Remove(p); err != nil {
+	if err := srv.storageRemove(ctx, p); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &filepb.DeleteFileResponse{Result: true}, nil
@@ -292,7 +293,7 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
 	p := rqst.GetPath()
 	p = srv.formatPath(p)
-	
+
 	info, err := readDir(stream.Context(), srv, p, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, nil, nil)
 	if err != nil {
 		return err
@@ -316,14 +317,14 @@ func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filep
 // CreateLnk writes a link file into a directory and assigns ownership.
 func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
 	p := srv.formatPath(rqst.Path)
-	if !Utility.Exists(p) {
+	if !srv.storageForPath(p).Exists(ctx, p) {
 		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory found at path %s", p)))
 	}
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(p, rqst.Name), []byte(rqst.Lnk), 0644); err != nil {
+	if err := srv.storageWriteFile(ctx, filepath.Join(p, rqst.Name), []byte(rqst.Lnk), 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	_ = srv.setOwner(token, rqst.Path+"/"+rqst.Name)
@@ -333,8 +334,8 @@ func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest)
 // WriteExcelFile writes an .xlsx file from JSON data.
 func (srv *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
 	p := srv.formatPath(rqst.Path)
-	if Utility.Exists(p) {
-		if err := os.Remove(p); err != nil {
+	if srv.storageForPath(p).Exists(ctx, p) {
+		if err := srv.storageRemove(ctx, p); err != nil {
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}

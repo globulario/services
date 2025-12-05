@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"math"
 	"os"
@@ -19,32 +21,45 @@ import (
 	Utility "github.com/globulario/utility"
 )
 
-// getVideoDuration returns the duration of the given media file in seconds, rounded.
-func getVideoDuration(path string) int {
-	path = strings.ReplaceAll(path, "\\", "/")
+func probeVideoDuration(local string) (int, error) {
+	local = strings.ReplaceAll(local, "\\", "/")
 	cmd := exec.Command(
 		"ffprobe",
 		"-v", "quiet",
 		"-print_format", "compact=print_section=0:nokey=1:escape=csv",
 		"-show_entries", "format=duration",
-		path,
+		local,
 	)
-	cmd.Dir = filepath.Dir(path)
+	cmd.Dir = filepath.Dir(local)
 
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		logger.Error("ffprobe duration failed", "path", path, "stderr", strings.TrimSpace(stderr.String()), "err", err)
-		return 0
+		logger.Error("ffprobe duration failed", "path", local, "stderr", strings.TrimSpace(stderr.String()), "err", err)
+		return 0, err
 	}
 
 	dur, err := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
 	if err != nil {
-		logger.Error("ffprobe duration parse failed", "path", path, "raw", strings.TrimSpace(out.String()), "err", err)
-		return 0
+		logger.Error("ffprobe duration parse failed", "path", local, "raw", strings.TrimSpace(out.String()), "err", err)
+		return 0, err
 	}
-	return Utility.ToInt(dur + 0.5)
+	return Utility.ToInt(dur + 0.5), nil
+}
+
+// getVideoDuration returns the duration of the given media file in seconds, rounded.
+func (srv *server) getVideoDuration(path string) int {
+	duration := 0
+	_ = srv.withWorkFile(path, func(wf mediaWorkFile) error {
+		d, err := probeVideoDuration(wf.LocalPath)
+		if err != nil {
+			return err
+		}
+		duration = d
+		return nil
+	})
+	return duration
 }
 
 // ensureFastStartMP4 rewrites an MP4 so that its 'moov' atom is placed
@@ -52,44 +67,105 @@ func getVideoDuration(path string) int {
 // immediately when streaming over HTTP (progressive download).
 // It does a fast remux with `-c copy`, so it is cheap compared to a full re-encode.
 // You can also call this on MP4s downloaded via yt-dlp (e.g. in uploadedVideo).
-func ensureFastStartMP4(path string) error {
+func (srv *server) ensureFastStartMP4(path string) error {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".mp4" {
 		return nil
 	}
-
-	dir := filepath.Dir(path)
-	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	tmpName := base + ".faststart.mp4"
-	tmpPath := filepath.Join(dir, tmpName)
-
-	args := []string{
-		"-y",
-		"-i", filepath.Base(path),
-		"-c", "copy",
-		"-movflags", "+faststart",
-		filepath.Base(tmpPath),
-	}
-
-	wait := make(chan error, 1)
-	go Utility.RunCmd("ffmpeg", dir, args, wait)
-	if err := <-wait; err != nil {
-		return err
-	}
-
-	if err := rewriteInPlace(path, tmpPath); err == nil {
-		_ = os.Remove(tmpPath)
+	if strings.Contains(path, "/.hidden/") || strings.Contains(path, "__preview__") {
 		return nil
-	} else {
-		logger.Warn("faststart rewrite fallback to rename", "path", path, "err", err)
 	}
 
-	// If the atomic rename failed (e.g. on Windows when the destination exists),
-	// fall back to the old two-step swap as a last resort.
-	if err := os.Remove(path); err != nil {
-		return err
+	return srv.withWorkFile(path, func(wf mediaWorkFile) error {
+		localPath := strings.ReplaceAll(wf.LocalPath, "\\", "/")
+
+		hasFastStart, err := hasFastStartMoov(localPath)
+		if err != nil {
+			logger.Warn("faststart check failed, forcing remux", "path", localPath, "err", err)
+		}
+		if err == nil && hasFastStart {
+			return nil
+		}
+
+		dir := filepath.Dir(localPath)
+		base := strings.TrimSuffix(filepath.Base(localPath), filepath.Ext(localPath))
+		tmpName := base + ".faststart.mp4"
+		tmpPath := filepath.Join(dir, tmpName)
+
+		args := []string{
+			"-y",
+			"-i", filepath.Base(localPath),
+			"-c", "copy",
+			"-movflags", "+faststart",
+			filepath.Base(tmpPath),
+		}
+
+		wait := make(chan error, 1)
+		go Utility.RunCmd("ffmpeg", dir, args, wait)
+		if err := <-wait; err != nil {
+			return err
+		}
+
+		if err := rewriteInPlace(localPath, tmpPath); err == nil {
+			_ = os.Remove(tmpPath)
+		} else {
+			logger.Warn("faststart rewrite fallback to rename", "path", localPath, "err", err)
+			if err := os.Remove(localPath); err != nil {
+				return err
+			}
+			if err := os.Rename(tmpPath, localPath); err != nil {
+				return err
+			}
+		}
+
+		if wf.IsMinio {
+			ctx := context.Background()
+			if err := srv.minioUploadFile(ctx, wf.LogicalPath, localPath, "video/mp4"); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func hasFastStartMoov(path string) (bool, error) {
+	cmd := exec.Command(
+		"ffprobe",
+		"-v", "error",
+		"-show_entries", "format_tags=major_brand",
+		"-show_entries", "format_flags=faststart",
+		"-of", "json",
+		path,
+	)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		return false, err
 	}
-	return os.Rename(tmpPath, path)
+	type probeResp struct {
+		Format struct {
+			Tags struct {
+				MajorBrand string `json:"major_brand"`
+			} `json:"tags"`
+			FormatFlags string `json:"format_flags"`
+		} `json:"format"`
+	}
+	var resp probeResp
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		return false, err
+	}
+	flags := strings.ToLower(resp.Format.FormatFlags)
+	if strings.Contains(flags, "faststart") {
+		return true, nil
+	}
+	brand := strings.ToLower(resp.Format.Tags.MajorBrand)
+	if strings.Contains(brand, "isom") || strings.Contains(brand, "mp42") {
+		if strings.Contains(flags, "movflags=+faststart") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // rewriteInPlace copies the content of src over dst without changing dst's inode, so
@@ -137,58 +213,67 @@ func (srv *server) isExpired() bool {
 }
 
 // getStreamFrameRateInterval returns FPS as an integer derived from r_frame_rate.
-func getStreamFrameRateInterval(path string) (int, error) {
-	path = strings.ReplaceAll(path, "\\", "/")
-	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
-	cmd.Dir = filepath.Dir(path)
-	data, err := cmd.CombinedOutput()
-	if err != nil {
-		return -1, fmt.Errorf("ffprobe r_frame_rate failed: %w", err)
-	}
-	parts := strings.Split(strings.TrimSpace(string(data)), "/")
-	if len(parts) != 2 {
-		return -1, fmt.Errorf("unexpected r_frame_rate: %q", strings.TrimSpace(string(data)))
-	}
-	fps := Utility.ToNumeric(parts[0]) / Utility.ToNumeric(parts[1])
-	return int(fps + .5), nil
+func (srv *server) getStreamFrameRateInterval(path string) (int, error) {
+	fps := -1
+	err := srv.withWorkFile(path, func(wf mediaWorkFile) error {
+		local := strings.ReplaceAll(wf.LocalPath, "\\", "/")
+		cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", local)
+		cmd.Dir = filepath.Dir(local)
+		data, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("ffprobe r_frame_rate failed: %w", err)
+		}
+		parts := strings.Split(strings.TrimSpace(string(data)), "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("unexpected r_frame_rate: %q", strings.TrimSpace(string(data)))
+		}
+		fpsVal := Utility.ToNumeric(parts[0]) / Utility.ToNumeric(parts[1])
+		fps = int(fpsVal + .5)
+		return nil
+	})
+	return fps, err
 }
 
 // getTrackInfos runs ffprobe to extract stream info of a given type (e.g. "a" for audio, "s" for subtitles).
 //
 // It returns a slice of stream metadata (as generic maps) or nil if none were found.
 // Errors are logged but not returned, to keep the original function signature.
-func getTrackInfos(path, streamType string) []interface{} {
-	path = filepath.ToSlash(path)
+func (srv *server) getTrackInfos(path, streamType string) []interface{} {
+	var streams []interface{}
+	_ = srv.withWorkFile(path, func(wf mediaWorkFile) error {
+		local := filepath.ToSlash(wf.LocalPath)
 
-	args := []string{
-		"-v", "error",
-		"-show_entries", "stream=index,codec_name,codec_type:stream_tags=language",
-		"-select_streams", streamType,
-		"-of", "json",
-		path,
-	}
+		args := []string{
+			"-v", "error",
+			"-show_entries", "stream=index,codec_name,codec_type:stream_tags=language",
+			"-select_streams", streamType,
+			"-of", "json",
+			local,
+		}
 
-	cmd := exec.Command("ffprobe", args...)
-	cmd.Dir = filepath.Dir(path)
+		cmd := exec.Command("ffprobe", args...)
+		cmd.Dir = filepath.Dir(local)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.Error("ffprobe getTrackInfos failed", "path", path, "streamType", streamType, "err", err, "stderr", string(output))
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			logger.Error("ffprobe getTrackInfos failed", "path", local, "streamType", streamType, "err", err, "stderr", string(output))
+			return nil
+		}
+
+		var infos map[string]interface{}
+		if err := json.Unmarshal(output, &infos); err != nil {
+			logger.Error("ffprobe getTrackInfos: invalid JSON", "path", local, "err", err, "raw", string(output))
+			return nil
+		}
+
+		sVal, ok := infos["streams"].([]interface{})
+		if !ok {
+			logger.Warn("ffprobe getTrackInfos: no streams found", "path", local, "streamType", streamType)
+			return nil
+		}
+		streams = sVal
 		return nil
-	}
-
-	var infos map[string]interface{}
-	if err := json.Unmarshal(output, &infos); err != nil {
-		logger.Error("ffprobe getTrackInfos: invalid JSON", "path", path, "err", err, "raw", string(output))
-		return nil
-	}
-
-	streams, ok := infos["streams"].([]interface{})
-	if !ok {
-		logger.Warn("ffprobe getTrackInfos: no streams found", "path", path, "streamType", streamType)
-		return nil
-	}
-
+	})
 	return streams
 }
 
@@ -199,156 +284,167 @@ func getTrackInfos(path, streamType string) []interface{} {
 //   - MP4: short, silent H.264 clip using either NVENC or libx264.
 //
 // It will skip work if outputs already exist unless `force` is true.
-func (s *server) generateVideoPreview(path string, fps, scale, duration int, force bool) error {
-	path = s.formatPath(filepath.ToSlash(path))
-	if !Utility.Exists(path) {
-		return fmt.Errorf("generateVideoPreview: no file found at path %q", path)
+func (srv *server) generateVideoPreview(path string, fps, scale, duration int, force bool) error {
+
+	logicalPath := filepath.ToSlash(path)
+
+	if strings.Contains(logicalPath, ".hidden") || strings.Contains(logicalPath, ".temp") {
+		logger.Info("generateVideoPreview: skipping hidden/temp path", "path", logicalPath)
+		return nil
 	}
 
-	// Limit concurrent ffmpeg
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("generateVideoPreview: maximum ffmpeg instances reached; try again later")
 	}
 
-	// Skip temp/hidden inputs
-	if strings.Contains(path, ".hidden") || strings.Contains(path, ".temp") {
-		logger.Info("generateVideoPreview: skipping hidden/temp path", "path", path)
-		return nil
-	}
-
-	totalSec := getVideoDuration(path)
-	if totalSec == 0 {
-		return fmt.Errorf("generateVideoPreview: video length is 0 sec for %q", path)
-	}
-
-	// If the path is a directory containing HLS playlist, point to the .m3u8
-	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
-		path = filepath.ToSlash(filepath.Join(path, "playlist.m3u8"))
-	}
-
-	// Must have an extension or be a .m3u8
-	if !strings.Contains(path, ".") {
-		return fmt.Errorf("generateVideoPreview: %q has no file extension", path)
-	}
-
-	// Derive output folder: <dir>/.hidden/<basename>
-	dir := path[:strings.LastIndex(path, "/")]
-	name := ""
-	if strings.HasSuffix(path, "playlist.m3u8") {
-		// HLS: name is the parent folder name
-		name = dir[strings.LastIndex(dir, "/")+1:]
-		dir = dir[:strings.LastIndex(dir, "/")]
-	} else {
-		name = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
-	}
-	outDir := filepath.ToSlash(filepath.Join(dir, ".hidden", name))
-
-	gifOut := filepath.ToSlash(filepath.Join(outDir, "preview.gif"))
-	mp4Out := filepath.ToSlash(filepath.Join(outDir, "preview.mp4"))
-
-	// Fast exit if already present and not forcing re-gen
-	if Utility.Exists(gifOut) && Utility.Exists(mp4Out) && !force {
-		logger.Info("generateVideoPreview: previews already exist; skipping", "path", path, "out", outDir)
-		return nil
-	}
-
-	if err := Utility.CreateDirIfNotExist(outDir); err != nil {
-		logger.Error("generateVideoPreview: mkdir failed", "dir", outDir, "err", err)
-		return fmt.Errorf("generateVideoPreview: cannot create output dir %q: %w", outDir, err)
-	}
-
-	start := totalSec / 10
-	if start < 0 {
-		start = 0
-	}
-	if duration <= 0 {
-		// choose a sane default if caller passes 0/negative
-		duration = 10
-	}
-	if fps <= 0 {
-		fps = 10
-	}
-	if scale <= 0 {
-		scale = 320
-	}
-
-	// --- GIF ---
-	if !Utility.Exists(gifOut) || force {
-		if force && Utility.Exists(gifOut) {
-			_ = os.Remove(gifOut)
+	return srv.withWorkFile(logicalPath, func(wf mediaWorkFile) error {
+		localInput := filepath.ToSlash(wf.LocalPath)
+		if !srv.pathExists(localInput) {
+			return fmt.Errorf("generateVideoPreview: no file found at path %q", logicalPath)
 		}
 
-		gifArgs := []string{
-			"-ss", strconv.Itoa(start),
-			"-t", strconv.Itoa(duration),
-			"-i", path,
-			"-vf",
-			fmt.Sprintf("fps=%d,scale=%d:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", fps, scale),
-			"-loop", "0",
-			"preview.gif",
-		}
-		logger.Info("ffmpeg: generate GIF preview", "src", path, "out", gifOut, "fps", fps, "scale", scale, "t", duration)
-		wait := make(chan error)
-		go Utility.RunCmd("ffmpeg", outDir, gifArgs, wait)
-		if err := <-wait; err != nil {
-			_ = os.Remove(gifOut)
-			logger.Error("ffmpeg: GIF preview failed", "src", path, "out", gifOut, "err", err)
-			return fmt.Errorf("generateVideoPreview: GIF generation failed for %q: %w", path, err)
-		}
-	}
-
-	// --- MP4 ---
-	if !Utility.Exists(mp4Out) || force {
-		if force && Utility.Exists(mp4Out) {
-			_ = os.Remove(mp4Out)
-		}
-
-		venc := "libx264"
-		if s.hasEnableCudaNvcc() {
-			venc = "h264_nvenc"
-		}
-
-		// Sample a sparse set of frames (~10 fps logical cadence via select)
-		mp4Args := []string{
-			"-y",
-			"-i", path,
-			"-ss", strconv.Itoa(start),
-			"-t", strconv.Itoa(duration),
-			"-filter_complex", fmt.Sprintf("[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=%d:-2", scale),
-			"-an",
-			"-vcodec", venc,
-			"-movflags", "+faststart", "preview.mp4",
-		}
-
-		logger.Info("ffmpeg: generate MP4 preview", "src", path, "out", mp4Out, "venc", venc, "scale", scale, "t", duration)
-		wait := make(chan error)
-		go Utility.RunCmd("ffmpeg", outDir, mp4Args, wait)
-		if err := <-wait; err != nil {
-			_ = os.Remove(mp4Out)
-			logger.Warn("ffmpeg: MP4 preview failed; retrying with libx264 if applicable", "src", path, "err", err)
-
-			// Retry with libx264 if NVENC failed
-			if s.hasEnableCudaNvcc() {
-				mp4ArgsRetry := append([]string(nil), mp4Args...)
-				for i := range mp4ArgsRetry {
-					if i > 0 && mp4ArgsRetry[i-1] == "-vcodec" {
-						mp4ArgsRetry[i] = "libx264"
-						break
-					}
-				}
-				wait2 := make(chan error)
-				go Utility.RunCmd("ffmpeg", outDir, mp4ArgsRetry, wait2)
-				if err2 := <-wait2; err2 != nil {
-					logger.Error("ffmpeg: MP4 preview retry failed", "src", path, "err", err2)
-					return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", path, err2)
-				}
-			} else {
-				return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", path, err)
+		inputLogical := filepath.ToSlash(wf.LogicalPath)
+		if !strings.HasSuffix(localInput, "playlist.m3u8") && !wf.IsMinio {
+			playlistLocal := filepath.ToSlash(filepath.Join(localInput, "playlist.m3u8"))
+			if srv.pathExists(playlistLocal) && !strings.HasSuffix(inputLogical, "playlist.m3u8") {
+				localInput = playlistLocal
+				inputLogical = filepath.ToSlash(filepath.Join(inputLogical, "playlist.m3u8"))
 			}
 		}
-	}
 
-	return nil
+		if !strings.Contains(localInput, ".") {
+			return fmt.Errorf("generateVideoPreview: %q has no file extension", inputLogical)
+		}
+
+		totalSec, err := probeVideoDuration(localInput)
+		if err != nil || totalSec == 0 {
+			return fmt.Errorf("generateVideoPreview: video length is 0 sec for %q", inputLogical)
+		}
+
+		dir := inputLogical[:strings.LastIndex(inputLogical, "/")]
+		name := ""
+		if strings.HasSuffix(inputLogical, "playlist.m3u8") {
+			name = dir[strings.LastIndex(dir, "/")+1:]
+			dir = dir[:strings.LastIndex(dir, "/")]
+		} else {
+			name = inputLogical[strings.LastIndex(inputLogical, "/")+1 : strings.LastIndex(inputLogical, ".")]
+		}
+		logicalOutDir := filepath.ToSlash(filepath.Join(dir, ".hidden", name))
+
+		localOutDir, cleanup, err := srv.prepareOutputDir(logicalOutDir, wf)
+		if err != nil {
+			return fmt.Errorf("generateVideoPreview: cannot create output dir %q: %w", logicalOutDir, err)
+		}
+		defer cleanup()
+
+		gifLogical := filepath.ToSlash(filepath.Join(logicalOutDir, "preview.gif"))
+		mp4Logical := filepath.ToSlash(filepath.Join(logicalOutDir, "preview.mp4"))
+		gifOut := filepath.ToSlash(filepath.Join(localOutDir, "preview.gif"))
+		mp4Out := filepath.ToSlash(filepath.Join(localOutDir, "preview.mp4"))
+
+		exists := func(logical, local string) bool {
+			if wf.IsMinio {
+				return srv.minioObjectExists(context.Background(), logical)
+			}
+			return srv.pathExists(local)
+		}
+
+		gifExists := exists(gifLogical, gifOut)
+		mp4Exists := exists(mp4Logical, mp4Out)
+		if gifExists && mp4Exists && !force {
+			logger.Info("generateVideoPreview: previews already exist; skipping", "path", inputLogical, "out", logicalOutDir)
+			return nil
+		}
+
+		start := totalSec / 10
+		if start < 0 {
+			start = 0
+		}
+		if duration <= 0 {
+			duration = 10
+		}
+		if fps <= 0 {
+			fps = 10
+		}
+		if scale <= 0 {
+			scale = 320
+		}
+
+		runCmd := func(args []string, workdir string) error {
+			wait := make(chan error, 1)
+			go Utility.RunCmd("ffmpeg", workdir, args, wait)
+			return <-wait
+		}
+
+		if !gifExists || force {
+			if !wf.IsMinio && force && srv.pathExists(gifOut) {
+				_ = os.Remove(gifOut)
+			}
+			gifArgs := []string{
+				"-ss", strconv.Itoa(start),
+				"-t", strconv.Itoa(duration),
+				"-i", localInput,
+				"-vf",
+				fmt.Sprintf("fps=%d,scale=%d:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", fps, scale),
+				"-loop", "0",
+				"preview.gif",
+			}
+			logger.Info("ffmpeg: generate GIF preview", "src", inputLogical, "out", gifLogical, "fps", fps, "scale", scale, "t", duration)
+			if err := runCmd(gifArgs, localOutDir); err != nil {
+				_ = os.Remove(gifOut)
+				return fmt.Errorf("generateVideoPreview: GIF generation failed for %q: %w", inputLogical, err)
+			}
+		}
+
+		if !mp4Exists || force {
+			if !wf.IsMinio && force && srv.pathExists(mp4Out) {
+				_ = os.Remove(mp4Out)
+			}
+
+			venc := "libx264"
+			if srv.hasEnableCudaNvcc() {
+				venc = "h264_nvenc"
+			}
+
+			mp4Args := []string{
+				"-y",
+				"-i", localInput,
+				"-ss", strconv.Itoa(start),
+				"-t", strconv.Itoa(duration),
+				"-filter_complex", fmt.Sprintf("[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=%d:-2", scale),
+				"-an",
+				"-vcodec", venc,
+				"-movflags", "+faststart", "preview.mp4",
+			}
+
+			logger.Info("ffmpeg: generate MP4 preview", "src", inputLogical, "out", mp4Logical, "venc", venc, "scale", scale, "t", duration)
+			if err := runCmd(mp4Args, localOutDir); err != nil {
+				logger.Warn("ffmpeg: MP4 preview failed; retrying with libx264 if applicable", "src", inputLogical, "err", err)
+				if srv.hasEnableCudaNvcc() {
+					mp4ArgsRetry := append([]string(nil), mp4Args...)
+					for i := range mp4ArgsRetry {
+						if i > 0 && mp4ArgsRetry[i-1] == "-vcodec" {
+							mp4ArgsRetry[i] = "libx264"
+							break
+						}
+					}
+					if err2 := runCmd(mp4ArgsRetry, localOutDir); err2 != nil {
+						return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", inputLogical, err2)
+					}
+				} else {
+					return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", inputLogical, err)
+				}
+			}
+		}
+
+		if wf.IsMinio {
+			ctx := context.Background()
+			if err := srv.minioUploadDir(ctx, logicalOutDir, localOutDir); err != nil {
+				return fmt.Errorf("generateVideoPreview: upload to minio failed: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 // createVideoTimeLine extracts periodic thumbnails to build a timeline strip and
@@ -361,142 +457,202 @@ func (s *server) generateVideoPreview(path string, fps, scale, duration int, for
 //   - force: if true, regenerates timeline even if it already exists
 //
 // Returns an error if the input is invalid or the ffmpeg step fails.
-func (s *server) createVideoTimeLine(path string, width int, fps float32, force bool) error {
-	orig := path
-	path = s.formatPath(path)
-	if !Utility.Exists(path) {
-		return fmt.Errorf("createVideoTimeLine: file not found: %q", path)
-	}
+func (srv *server) createVideoTimeLine(path string, width int, fps float32, force bool) error {
+	logicalOrig := filepath.ToSlash(path)
 
-	// Limit concurrent ffmpeg instances.
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("createVideoTimeLine: maximum concurrent ffmpeg instances reached; try again later")
 	}
 
-	// Defaults.
 	if fps <= 0 {
-		fps = 0.2 // 1 frame every 5 seconds
+		fps = 0.2
 	}
 	if width <= 0 {
 		width = 180
 	}
 
-	// Support HLS dir paths (…/video/playlist.m3u8 or its parent directory).
-	if Utility.Exists(filepath.ToSlash(path)+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
-		path = filepath.ToSlash(path) + "/playlist.m3u8"
-	}
+	return srv.withWorkFile(logicalOrig, func(wf mediaWorkFile) error {
+		inputLogical := filepath.ToSlash(wf.LogicalPath)
+		localPath := filepath.ToSlash(wf.LocalPath)
 
-	if !strings.Contains(path, ".") {
-		return fmt.Errorf("createVideoTimeLine: missing file extension for %q", path)
-	}
+		if !strings.HasSuffix(localPath, "playlist.m3u8") && !wf.IsMinio {
+			plLocal := filepath.ToSlash(localPath + "/playlist.m3u8")
+			if srv.pathExists(plLocal) && !strings.HasSuffix(inputLogical, "playlist.m3u8") {
+				localPath = plLocal
+				inputLogical = filepath.ToSlash(filepath.Join(inputLogical, "playlist.m3u8"))
+			}
+		}
 
-	baseDir := path[:strings.LastIndex(path, "/")]
-	name := ""
-	if strings.HasSuffix(path, "playlist.m3u8") {
-		name = baseDir[strings.LastIndex(baseDir, "/")+1:]
-		baseDir = baseDir[:strings.LastIndex(baseDir, "/")]
-	} else {
-		name = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
-	}
+		if !strings.Contains(localPath, ".") {
+			return fmt.Errorf("createVideoTimeLine: missing file extension for %q", inputLogical)
+		}
 
-	output := filepath.ToSlash(filepath.Join(baseDir, ".hidden", name, "__timeline__"))
+		baseDir := inputLogical[:strings.LastIndex(inputLogical, "/")]
+		name := ""
+		if strings.HasSuffix(inputLogical, "playlist.m3u8") {
+			name = baseDir[strings.LastIndex(baseDir, "/")+1:]
+			baseDir = baseDir[:strings.LastIndex(baseDir, "/")]
+		} else {
+			name = inputLogical[strings.LastIndex(inputLogical, "/")+1 : strings.LastIndex(inputLogical, ".")]
+		}
+		logicalOutput := filepath.ToSlash(filepath.Join(baseDir, ".hidden", name, "__timeline__"))
 
-	// Ensure the parent hidden directory exists before touching subfolders.
-	if err := Utility.CreateDirIfNotExist(filepath.Dir(output)); err != nil {
-		return fmt.Errorf("createVideoTimeLine: create dir %q: %w", filepath.Dir(output), err)
-	}
-
-	durationSec := getVideoDuration(path)
-	if durationSec <= 0 {
-		return fmt.Errorf("createVideoTimeLine: zero-length or unreadable video: %q", path)
-	}
-	expectedThumbs := int(math.Ceil(float64(durationSec) * float64(fps)))
-	if expectedThumbs < 1 {
-		expectedThumbs = 1
-	}
-
-	// If it already exists, either reuse (create VTT only) or rebuild.
-	if Utility.Exists(output) {
 		if !force {
-			thumbCount := 0
-			if entries, err := Utility.ReadDir(output); err == nil {
-				for _, e := range entries {
-					if strings.HasSuffix(strings.ToLower(e.Name()), ".jpg") {
-						thumbCount++
+			if hasImages, err := srv.timelineHasImages(logicalOutput); err == nil && hasImages {
+				logger.Info("timeline already exists; skipping", "video", logicalOrig, "dir", logicalOutput)
+				return nil
+			} else if err != nil {
+				logger.Warn("timeline check failed", "video", logicalOrig, "dir", logicalOutput, "err", err)
+			}
+		}
+
+		if !wf.IsMinio {
+			if err := Utility.CreateDirIfNotExist(filepath.Dir(srv.formatPath(logicalOutput))); err != nil {
+				return fmt.Errorf("createVideoTimeLine: create dir %q: %w", filepath.Dir(logicalOutput), err)
+			}
+		}
+
+		durationSec, err := probeVideoDuration(localPath)
+		if err != nil || durationSec <= 0 {
+			return fmt.Errorf("createVideoTimeLine: zero-length or unreadable video: %q", inputLogical)
+		}
+		expectedThumbs := int(math.Ceil(float64(durationSec) * float64(fps)))
+		if expectedThumbs < 1 {
+			expectedThumbs = 1
+		}
+
+		if !wf.IsMinio {
+			localOutput := srv.formatPath(logicalOutput)
+			if srv.pathExists(localOutput) {
+				if !force {
+					thumbCount := 0
+					if entries, err := Utility.ReadDir(localOutput); err == nil {
+						for _, e := range entries {
+							if strings.HasSuffix(strings.ToLower(e.Name()), ".jpg") {
+								thumbCount++
+							}
+						}
+					} else {
+						logger.Warn("timeline check: failed to read directory", "video", inputLogical, "dir", localOutput, "err", err)
+					}
+
+					diff := math.Abs(float64(thumbCount - expectedThumbs))
+					if thumbCount > 0 && diff <= 1 {
+						logger.Info("timeline already exists; regenerating VTT only", "video", logicalOrig, "dir", logicalOutput, "fps", fps, "thumbnails", thumbCount)
+						return srv.createVttFile(localOutput, logicalOutput, fps)
+					}
+
+					logger.Info("timeline mismatch detected; regenerating thumbnails", "video", logicalOrig, "dir", logicalOutput, "expected", expectedThumbs, "found", thumbCount)
+				}
+				if err := os.RemoveAll(localOutput); err != nil {
+					return fmt.Errorf("createVideoTimeLine: remove existing timeline %q: %w", localOutput, err)
+				}
+			}
+		}
+
+		outDir, cleanup, err := srv.prepareOutputDir(logicalOutput, wf)
+		if err != nil {
+			return fmt.Errorf("createVideoTimeLine: create dir %q: %w", logicalOutput, err)
+		}
+		defer cleanup()
+
+		thumbPattern := "thumbnail_%05d.jpg"
+		args := []string{
+			"-y",
+			"-i", localPath,
+			"-ss", "0",
+			"-t", Utility.ToString(durationSec),
+			"-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps),
+			thumbPattern,
+		}
+		logger.Info("ffmpeg: timeline extraction",
+			"video", inputLogical,
+			"out", filepath.Join(logicalOutput, thumbPattern),
+			"height", width,
+			"fps", fps,
+			"duration_sec", durationSec)
+
+		runFFmpeg := func() error {
+			wait := make(chan error, 1)
+			go Utility.RunCmd("ffmpeg", outDir, args, wait)
+			return <-wait
+		}
+
+		if err := runFFmpeg(); err != nil {
+			if !wf.IsMinio {
+				time.Sleep(500 * time.Millisecond)
+				if mkErr := Utility.CreateDirIfNotExist(outDir); mkErr == nil {
+					if retryErr := runFFmpeg(); retryErr == nil {
+						goto afterFF
 					}
 				}
-			} else {
-				logger.Warn("timeline check: failed to read directory", "video", orig, "dir", output, "err", err)
 			}
-
-			diff := math.Abs(float64(thumbCount - expectedThumbs))
-			if thumbCount > 0 && diff <= 1 {
-				logger.Info("timeline already exists; regenerating VTT only", "video", orig, "dir", output, "fps", fps, "thumbnails", thumbCount)
-				return createVttFile(output, fps)
-			}
-
-			logger.Info("timeline mismatch detected; regenerating thumbnails", "video", orig, "dir", output, "expected", expectedThumbs, "found", thumbCount)
+			logger.Error("ffmpeg timeline extraction failed", "video", inputLogical, "out", logicalOutput, "err", err)
+			return fmt.Errorf("createVideoTimeLine: ffmpeg extraction failed for %q: %w", inputLogical, err)
 		}
-		if err := os.RemoveAll(output); err != nil {
-			return fmt.Errorf("createVideoTimeLine: remove existing timeline %q: %w", output, err)
+	afterFF:
+
+		if err := srv.createVttFile(outDir, logicalOutput, fps); err != nil {
+			return fmt.Errorf("createVideoTimeLine: VTT generation failed for %q: %w", logicalOutput, err)
 		}
-	}
 
-	if err := Utility.CreateDirIfNotExist(output); err != nil {
-		return fmt.Errorf("createVideoTimeLine: create dir %q: %w", output, err)
-	}
-
-	// Extract thumbnails with ffmpeg:
-	//   - entire duration
-	//   - scaled to -1:height (keep AR)
-	//   - fps as requested
-	thumbPattern := "thumbnail_%05d.jpg"
-	args := []string{
-		"-y",
-		"-i", path,
-		"-ss", "0",
-		"-t", Utility.ToString(durationSec),
-		"-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps),
-		thumbPattern,
-	}
-	logger.Info("ffmpeg: timeline extraction",
-		"video", path,
-		"out", filepath.Join(output, thumbPattern),
-		"height", width,
-		"fps", fps,
-		"duration_sec", durationSec)
-
-	runFFmpeg := func() error {
-		wait := make(chan error, 1)
-		go Utility.RunCmd("ffmpeg", output, args, wait)
-		return <-wait
-	}
-
-	if err := runFFmpeg(); err != nil {
-		// Some filesystems take a moment to expose newly created directories.
-		// Retry once after re-confirming the directory exists.
-		time.Sleep(500 * time.Millisecond)
-		if mkErr := Utility.CreateDirIfNotExist(output); mkErr == nil {
-			if retryErr := runFFmpeg(); retryErr == nil {
-				goto afterFFmpeg
+		if wf.IsMinio {
+			ctx := context.Background()
+			if err := srv.minioUploadDir(ctx, logicalOutput, outDir); err != nil {
+				return fmt.Errorf("createVideoTimeLine: upload failed for %q: %w", logicalOutput, err)
 			}
 		}
-		logger.Error("ffmpeg timeline extraction failed", "video", path, "out", output, "err", err)
-		return fmt.Errorf("createVideoTimeLine: ffmpeg extraction failed for %q: %w", path, err)
-	}
-afterFFmpeg:
 
-	// Build WEBVTT index for the generated thumbnails.
-	if err := createVttFile(output, fps); err != nil {
-		return fmt.Errorf("createVideoTimeLine: VTT generation failed for %q: %w", output, err)
-	}
+		logger.Info("timeline created",
+			"video", logicalOrig,
+			"dir", logicalOutput,
+			"fps", fps,
+			"height", width)
+		return nil
+	})
+}
 
-	logger.Info("timeline created",
-		"video", orig,
-		"dir", output,
-		"fps", fps,
-		"height", width)
-	return nil
+func (srv *server) timelineHasImages(logicalDir string) (bool, error) {
+	logicalDir = filepath.ToSlash(logicalDir)
+
+	entries, err := srv.readDirEntries(logicalDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".jpg") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (srv *server) previewHasImages(logicalDir string) (bool, error) {
+	logicalDir = filepath.ToSlash(logicalDir)
+
+	entries, err := srv.readDirEntries(logicalDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := strings.ToLower(entry.Name())
+		if strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".gif") || strings.HasSuffix(name, ".mp4") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // createVideoPreview generates still-image previews for a video into
@@ -510,116 +666,129 @@ afterFFmpeg:
 //     the previous behavior: scale=<height>:-1.
 //
 // The `nb` parameter is currently unused (kept for API compatibility).
-func (s *server) createVideoPreview(path string, nb, height int, force bool) error {
-	p := s.formatPath(path)
-	if !Utility.Exists(p) {
-		return fmt.Errorf("no file found at path %s", path)
-	}
-
-	// Skip hidden and temp content.
-	if strings.Contains(p, ".hidden") || strings.Contains(p, ".temp") {
+func (srv *server) createVideoPreview(path string, nb, height int, force bool) error {
+	logicalPath := filepath.ToSlash(path)
+	if strings.Contains(logicalPath, ".hidden") || strings.Contains(logicalPath, ".temp") {
 		return nil
 	}
 
-	// Limit concurrent ffmpeg invocations.
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("number of ffmpeg instances has been reached; try later")
 	}
 
-	// If path is a directory containing an HLS playlist, point to playlist.m3u8.
-	if Utility.Exists(p+"/playlist.m3u8") && !strings.HasSuffix(p, "playlist.m3u8") {
-		p += "/playlist.m3u8"
-	}
+	return srv.withWorkFile(logicalPath, func(wf mediaWorkFile) error {
+		inputLogical := filepath.ToSlash(wf.LogicalPath)
+		localPath := filepath.ToSlash(wf.LocalPath)
 
-	// Basic extension sanity check.
-	if !strings.Contains(p, ".") {
-		return fmt.Errorf("%s does not have an extension", p)
-	}
-
-	// Derive parent dir and "base name" used for the preview folder.
-	parent := p[:strings.LastIndex(p, "/")]
-	base := ""
-	if strings.HasSuffix(p, "playlist.m3u8") {
-		// For HLS: base is the folder name that contains playlist.m3u8, parent is its parent.
-		base = parent[strings.LastIndex(parent, "/")+1:]
-		parent = parent[:strings.LastIndex(parent, "/")]
-	} else {
-		// For regular files.
-		base = p[strings.LastIndex(p, "/")+1 : strings.LastIndex(p, ".")]
-	}
-
-	outDir := parent + "/.hidden/" + base + "/__preview__"
-
-	// Handle existing output directory.
-	if Utility.Exists(outDir) {
-		if !force {
-			return nil
+		if !strings.HasSuffix(localPath, "playlist.m3u8") && !wf.IsMinio {
+			plLocal := filepath.ToSlash(localPath + "/playlist.m3u8")
+			if srv.pathExists(plLocal) && !strings.HasSuffix(inputLogical, "playlist.m3u8") {
+				localPath = plLocal
+				inputLogical = filepath.ToSlash(filepath.Join(inputLogical, "playlist.m3u8"))
+			}
 		}
-		_ = os.RemoveAll(outDir) // ensure a clean slate
-	}
 
-	// Remove related cache entries.
-	cache.RemoveItem(p)
-	cache.RemoveItem(outDir)
-
-	// Probe duration; wait up to 5 minutes if needed.
-	const maxWaitSec = 300
-	dur := getVideoDuration(p)
-	for tries := 0; dur == 0 && tries < maxWaitSec; tries++ {
-		time.Sleep(1 * time.Second)
-		dur = getVideoDuration(p)
-	}
-	if dur == 0 {
-		slog.Warn("createVideoPreview: video duration is zero", "path", p)
-		return errors.New("the video length is 0 sec")
-	}
-
-	// Extract a short window of frames starting at 10% of the video.
-	start := dur / 10
-	span := 120 // seconds
-
-	// Windows sometimes fails on first mkdir; keep the resilient loop.
-	var runErr error
-	for tries := 0; tries < maxWaitSec; tries++ {
-		Utility.CreateDirIfNotExist(outDir)
-
-		wait := make(chan error, 1)
-		args := []string{
-			"-i", p,
-			"-ss", Utility.ToString(start),
-			"-t", Utility.ToString(span),
-			"-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250",
-			"preview_%05d.jpg",
+		if !strings.Contains(localPath, ".") {
+			return fmt.Errorf("%s does not have an extension", localPath)
 		}
-		go Utility.RunCmd("ffmpeg", outDir, args, wait)
 
-		if err := <-wait; err == nil {
-			runErr = nil
-			break
+		parent := inputLogical[:strings.LastIndex(inputLogical, "/")]
+		base := ""
+		if strings.HasSuffix(inputLogical, "playlist.m3u8") {
+			base = parent[strings.LastIndex(parent, "/")+1:]
+			parent = parent[:strings.LastIndex(parent, "/")]
 		} else {
-			runErr = err
+			base = inputLogical[strings.LastIndex(inputLogical, "/")+1 : strings.LastIndex(inputLogical, ".")]
+		}
+		logicalOutDir := parent + "/.hidden/" + base + "/__preview__"
+
+		cache.RemoveItem(inputLogical)
+		cache.RemoveItem(logicalOutDir)
+
+		if !force {
+			if exists, err := srv.previewHasImages(logicalOutDir); err == nil && exists {
+				logger.Info("preview already exists; skipping", "path", inputLogical, "dir", logicalOutDir)
+				return nil
+			} else if err != nil {
+				logger.Warn("preview check failed", "path", inputLogical, "dir", logicalOutDir, "err", err)
+			}
+		}
+
+		if !wf.IsMinio && srv.pathExists(srv.formatPath(logicalOutDir)) {
+			_ = os.RemoveAll(srv.formatPath(logicalOutDir))
+		}
+
+		outDir, cleanup, err := srv.prepareOutputDir(logicalOutDir, wf)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		const maxWaitSec = 300
+		dur := 0
+		for tries := 0; tries < maxWaitSec; tries++ {
+			if d, err := probeVideoDuration(localPath); err == nil && d > 0 {
+				dur = d
+				break
+			}
 			time.Sleep(1 * time.Second)
 		}
-	}
-	if runErr != nil {
-		return runErr
-	}
+		if dur == 0 {
+			slog.Warn("createVideoPreview: video duration is zero", "path", inputLogical)
+			return errors.New("the video length is 0 sec")
+		}
 
-	// Notify clients to refresh the directory view.
-	if client, err := getEventClient(); err == nil {
-		dir := filepath.Dir(p)
-		dir = strings.ReplaceAll(dir, "\\", "/")
-		client.Publish("reload_dir_event", []byte(dir))
-	}
+		start := dur / 10
+		span := 120
 
-	return nil
+		var runErr error
+		for tries := 0; tries < maxWaitSec; tries++ {
+			Utility.CreateDirIfNotExist(outDir)
+
+			wait := make(chan error, 1)
+			args := []string{
+				"-i", localPath,
+				"-ss", Utility.ToString(start),
+				"-t", Utility.ToString(span),
+				"-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250",
+				"preview_%05d.jpg",
+			}
+			go Utility.RunCmd("ffmpeg", outDir, args, wait)
+
+			if err := <-wait; err == nil {
+				runErr = nil
+				break
+			} else {
+				runErr = err
+				time.Sleep(1 * time.Second)
+			}
+		}
+		if runErr != nil {
+			return runErr
+		}
+
+		if wf.IsMinio {
+			ctx := context.Background()
+			if err := srv.minioUploadDir(ctx, logicalOutDir, outDir); err != nil {
+				return err
+			}
+		}
+
+		if client, err := getEventClient(); err == nil {
+			dir := filepath.Dir(srv.formatPath(inputLogical))
+			dir = strings.ReplaceAll(dir, "\\", "/")
+			client.Publish("reload_dir_event", []byte(dir))
+		}
+
+		return nil
+	})
 }
 
 // createVideoMpeg4H264 converts any input to MP4/H.264, mapping audio/subtitle tracks.
 // (Public method signature preserved.)
 func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	cache.RemoveItem(path)
-	_ = extractSubtitleTracks(path)
+	_ = srv.extractSubtitleTracks(path)
 
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return "", errors.New("maximum concurrent ffmpeg processes reached; try again later")
@@ -634,19 +803,19 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	out := dir + "/" + name + ".mp4"
 
 	if !strings.HasSuffix(strings.ToLower(path), ".mp4") {
-		if Utility.Exists(out) {
+		if srv.pathExists(out) {
 			_ = os.Remove(out)
 		}
 	} else {
 		hevc := dir + "/" + name + ".hevc"
-		if Utility.Exists(hevc) {
+		if srv.pathExists(hevc) {
 			return "", fmt.Errorf("conversion already in progress: %s", out)
 		}
 		_ = Utility.MoveFile(out, hevc)
 		path = hevc
 	}
 
-	streams, err := getStreamInfos(path)
+	streams, err := srv.getStreamInfos(path)
 	if err != nil {
 		return "", err
 	}
@@ -721,14 +890,18 @@ func countStreamsByType(streams map[string]any, kind string) int {
 	if streams == nil {
 		return 0
 	}
+	sList, ok := streams["streams"].([]any)
+	if !ok {
+		return 0
+	}
 	cnt := 0
-	if sList, ok := streams["streams"].([]any); ok {
-		for _, entry := range sList {
-			if sm, _ := entry.(map[string]any); ok {
-				if codecType, _ := sm["codec_type"].(string); codecType == kind {
-					cnt++
-				}
-			}
+	for _, entry := range sList {
+		sm, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if codecType, _ := sm["codec_type"].(string); codecType == kind {
+			cnt++
 		}
 	}
 	return cnt
@@ -769,13 +942,13 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 	}
 
 	// Probe stream info.
-	streamInfos, err := getStreamInfos(src)
+	streamInfos, err := srv.getStreamInfos(src)
 	if err != nil {
 		logger.Error("createHlsStream: getStreamInfos failed", "src", src, "err", err)
 		return err
 	}
 
-	keyint, err := getStreamFrameRateInterval(src)
+	keyint, err := srv.getStreamFrameRateInterval(src)
 	if err != nil || keyint <= 0 {
 		if err != nil {
 			logger.Warn("createHlsStream: FPS probe failed, falling back", "src", src, "err", err)
@@ -834,7 +1007,7 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 	}
 
 	// Decide rendition ladder from input width.
-	w, _ := getVideoResolution(src) // if probe fails, w == -1; ladder will be minimal
+	w, _ := srv.getVideoResolution(src) // if probe fails, w == -1; ladder will be minimal
 	renditions := make([]map[string]string, 0, 6)
 	if w >= 426 {
 		renditions = append(renditions, map[string]string{"res": "426x240", "vbit": "1400k", "abit": "128k"})
@@ -1035,7 +1208,7 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 
 	// Success condition: master playlist exists.
 	master := filepath.ToSlash(filepath.Join(outputBase, "playlist.m3u8"))
-	if Utility.Exists(master) {
+	if srv.pathExists(master) {
 		// Reassociate index entries from file.mp4 -> file (folder).
 		rel := strings.ReplaceAll(p, config.GetDataDir()+"/files", "")
 		newRel := rel[:strings.LastIndex(rel, ".")] // drop extension
@@ -1060,11 +1233,11 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 // beside the input, under: <dir>/.hidden/<basename>/__subtitles__/.
 // If there are 0 subtitle tracks it returns an error, if there is exactly 1 it
 // returns nil (nothing to split), matching the original behavior.
-func extractSubtitleTracks(videoPath string) error {
+func (srv *server) extractSubtitleTracks(videoPath string) error {
 	videoPath = filepath.ToSlash(videoPath)
 
 	// Probe subtitle streams ("s").
-	tracks := getTrackInfos(videoPath, "s")
+	tracks := srv.getTrackInfos(videoPath, "s")
 	if len(tracks) == 0 {
 		return fmt.Errorf("no subtitle track found for %q", videoPath)
 	}
@@ -1083,7 +1256,7 @@ func extractSubtitleTracks(videoPath string) error {
 	dest := filepath.ToSlash(filepath.Join(dir, ".hidden", name, "__subtitles__"))
 
 	// If already extracted, don't redo work.
-	if Utility.Exists(dest) {
+	if srv.pathExists(dest) {
 		return fmt.Errorf("subtitle tracks for %q already exist at %s", base, dest)
 	}
 	if err := Utility.CreateDirIfNotExist(dest); err != nil {

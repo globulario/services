@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	Utility "github.com/globulario/utility"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -20,6 +20,8 @@ type Storage interface {
 	// Basic file / dir metadata
 	Stat(ctx context.Context, path string) (fs.FileInfo, error)
 	ReadDir(ctx context.Context, path string) ([]fs.DirEntry, error)
+	Exists(ctx context.Context, path string) bool
+	ReadFile(ctx context.Context, path string) ([]byte, error)
 
 	// File reading / writing
 	Open(ctx context.Context, path string) (io.ReadSeekCloser, error) // for streaming + range support
@@ -28,6 +30,7 @@ type Storage interface {
 
 	// Mutations
 	RemoveAll(ctx context.Context, path string) error
+	Remove(ctx context.Context, path string) error
 	Rename(ctx context.Context, oldPath, newPath string) error
 	MkdirAll(ctx context.Context, path string, perm fs.FileMode) error
 
@@ -73,9 +76,20 @@ func (s *OSStorage) Stat(ctx context.Context, path string) (fs.FileInfo, error) 
 	return os.Stat(s.resolve(path))
 }
 
+// Exists checks for file existence under the storage root.
+func (s *OSStorage) Exists(ctx context.Context, path string) bool {
+	
+	return Utility.Exists(s.resolve(path))
+}
+
 // ReadDir mirrors os.ReadDir within the storage root.
 func (s *OSStorage) ReadDir(ctx context.Context, path string) ([]fs.DirEntry, error) {
 	return os.ReadDir(s.resolve(path))
+}
+
+// ReadFile reads the file content into memory.
+func (s *OSStorage) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	return os.ReadFile(s.resolve(path))
 }
 
 // We'll use *os.File which already implements io.ReadSeekCloser.
@@ -105,6 +119,11 @@ func (s *OSStorage) WriteFile(ctx context.Context, path string, data []byte, per
 // RemoveAll delegates to os.RemoveAll within the storage root.
 func (s *OSStorage) RemoveAll(ctx context.Context, path string) error {
 	return os.RemoveAll(s.resolve(path))
+}
+
+// Remove deletes a single file.
+func (s *OSStorage) Remove(ctx context.Context, path string) error {
+	return os.Remove(s.resolve(path))
 }
 
 // Rename renames/moves a file between two rooted paths.
@@ -201,6 +220,12 @@ func (s *MinioStorage) pathToKey(path string) string {
 
 // ---- Metadata ----
 
+// Exists checks for file existence under the storage root.
+func (s *MinioStorage) Exists(ctx context.Context, path string) bool {
+	_, err := s.Stat(ctx, path)
+	return err == nil
+}
+
 // Stat retrieves metadata for the given path, emulating directories when needed.
 func (s *MinioStorage) Stat(ctx context.Context, path string) (fs.FileInfo, error) {
 	key := s.pathToKey(path)
@@ -247,9 +272,6 @@ func (s *MinioStorage) Stat(ctx context.Context, path string) (fs.FileInfo, erro
 
 // ReadDir lists first-level children by scanning objects with the requested prefix.
 func (s *MinioStorage) ReadDir(ctx context.Context, path string) ([]fs.DirEntry, error) {
-
-	fmt.Println("try to read dir: ", path)
-	
 	keyPrefix := s.pathToKey(path)
 	if keyPrefix != "" && !strings.HasSuffix(keyPrefix, "/") {
 		keyPrefix += "/"
@@ -353,6 +375,16 @@ func (s *MinioStorage) Open(ctx context.Context, path string) (io.ReadSeekCloser
 	}, nil
 }
 
+// ReadFile loads the full object into memory.
+func (s *MinioStorage) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	rc, err := s.Open(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
 // Create returns a writer that uploads data to MinIO when closed.
 func (s *MinioStorage) Create(ctx context.Context, path string) (io.WriteCloser, error) {
 	// For S3/MinIO we don't "create then write". We just buffer and PutObject on Close.
@@ -408,6 +440,12 @@ func (s *MinioStorage) RemoveAll(ctx context.Context, path string) error {
 		}
 	}
 	return nil
+}
+
+// Remove deletes a single object.
+func (s *MinioStorage) Remove(ctx context.Context, path string) error {
+	key := s.pathToKey(path)
+	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
 }
 
 // Rename copies an object to the new path and removes the original key.

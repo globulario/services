@@ -34,6 +34,8 @@ import (
 	"github.com/globulario/services/golang/title/title_client"
 	Utility "github.com/globulario/utility"
 	"github.com/jasonlvhit/gocron"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -132,6 +134,17 @@ type server struct {
 	processPendingMu            sync.Mutex
 	processPending              bool
 	pendingProcessDirs          []string
+
+	// MinIO configuration (optional)
+	UseMinio       bool
+	MinioEndpoint  string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioBucket    string
+	MinioPrefix    string
+	MinioUseSSL    bool
+
+	minioClient *minio.Client
 }
 
 // --- Globular getters/setters (unchanged public prototypes) ---
@@ -472,7 +485,7 @@ func (srv *server) isPublic(path string) bool {
 	if err != nil {
 		return false
 	}
-	if Utility.Exists(path) {
+	if srv.localPathExists(path) {
 		for _, p := range publics {
 			if strings.HasPrefix(path, p) {
 				return true
@@ -480,6 +493,28 @@ func (srv *server) isPublic(path string) bool {
 		}
 	}
 	return false
+}
+
+func (srv *server) minioEnabled() bool {
+	return srv.UseMinio && srv.MinioEndpoint != "" && srv.MinioBucket != ""
+}
+
+func (srv *server) ensureMinioClient() error {
+	if !srv.minioEnabled() {
+		return fmt.Errorf("minio is not enabled")
+	}
+	if srv.minioClient != nil {
+		return nil
+	}
+	client, err := minio.New(srv.MinioEndpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(srv.MinioAccessKey, srv.MinioSecretKey, ""),
+		Secure: srv.MinioUseSSL,
+	})
+	if err != nil {
+		return err
+	}
+	srv.minioClient = client
+	return nil
 }
 
 func (srv *server) formatPath(path string) string {
@@ -490,13 +525,11 @@ func (srv *server) formatPath(path string) string {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !srv.isPublic(path) {
-					if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
-						path = config.GetDataDir() + "/files" + path
-					} else if Utility.Exists(config.GetWebRootDir() + path) {
+					if srv.localPathExists(config.GetWebRootDir() + path) {
 						path = config.GetWebRootDir() + path
-					} else if Utility.Exists(srv.Root + path) {
+					} else if srv.localPathExists(srv.Root + path) {
 						path = srv.Root + path
-					} else if Utility.Exists("/" + path) {
+					} else if srv.localPathExists("/" + path) {
 						path = "/" + path
 					} else {
 						path = srv.Root + "/" + path

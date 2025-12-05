@@ -97,7 +97,7 @@ func runYtDlpThumbnail(ctx context.Context, dir, videoID, videoURL string) error
 //   - video_id:   unique ID for the video (used as output name for yt-dlp)
 //   - video_url:  source URL
 //   - video_path: local path to the downloaded video file (used to build cache dir)
-func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
+func (srv *server) downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 	// Validation
 	if len(video_id) == 0 {
 		return "", errors.New("no video id was given")
@@ -113,7 +113,7 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 	cachePath := filepath.Join(thumbDir, thumbDataURLFilename)
 
 	// Return cached data URL if present
-	if Utility.Exists(cachePath) {
+	if srv.pathExists(cachePath) {
 		b, err := os.ReadFile(cachePath)
 		if err != nil {
 			return "", err
@@ -168,19 +168,19 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 
 // indexPornhubVideo extracts metadata for a Pornhub video and returns a titlepb.Video.
 // token/index_path/video_path are preserved for compatibility with the wider system.
-func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
+func (srv *server) indexPornhubVideo(token, id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
-		Duration: int32(getVideoDuration(file_path)),
+		Duration: int32(srv.getVideoDuration(file_path)),
 		URL:      video_url,
 		ID:       id,
 		Poster:   &titlepb.Poster{ID: id + "-thumnail"}, // keep original ID spelling for compatibility
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path)
+	currentVideo.Poster.ContentUrl, err = srv.downloadThumbnail(currentVideo.ID, video_url, file_path)
 	if err != nil {
 		return nil, err
 	}
@@ -409,21 +409,21 @@ func _indexPersonInformation_(p *titlepb.Person, id string) error {
 // -----------------------------------------------------------------------------
 // Indexers – XHamster
 // -----------------------------------------------------------------------------
-func indexXhamsterVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
+func (srv *server) indexXhamsterVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
 		URL:      videoURL,
 		ID:       videoID,
-		Duration: int32(getVideoDuration(filePath)),
+		Duration: int32(srv.getVideoDuration(filePath)),
 		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
 	}
 
 	fmt.Println("Indexing xhamster video:", videoURL)
 
 	// Thumbnail
-	contentURL, err := downloadThumbnail(currentVideo.ID, videoURL, filePath)
+	contentURL, err := srv.downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("download thumbnail: %w", err)
 	}
@@ -611,19 +611,19 @@ func indexXhamsterVideo(token, videoID, videoURL, indexPath, videoPath, filePath
 // Indexers – XNXX
 // -----------------------------------------------------------------------------
 
-func indexXnxxVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
+func (srv *server) indexXnxxVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
 		Tags:     []string{},
 		URL:      videoURL,
-		Duration: int32(getVideoDuration(filePath)),
+		Duration: int32(srv.getVideoDuration(filePath)),
 		ID:       videoID,
 		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, videoURL, filePath)
+	currentVideo.Poster.ContentUrl, err = srv.downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +761,7 @@ func indexXnxxVideo(token, videoID, videoURL, indexPath, videoPath, filePath str
 // Indexers – XVideos
 // -----------------------------------------------------------------------------
 
-func indexXvideosVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
+func (srv *server) indexXvideosVideo(token, videoID, videoURL, indexPath, videoPath, filePath string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting:  make([]*titlepb.Person, 0),
 		Genres:   []string{"adult"},
@@ -769,11 +769,11 @@ func indexXvideosVideo(token, videoID, videoURL, indexPath, videoPath, filePath 
 		URL:      videoURL,
 		ID:       videoID,
 		Poster:   &titlepb.Poster{ID: videoID + "-thumbnail"},
-		Duration: int32(getVideoDuration(filePath)), // keep your local duration
+		Duration: int32(srv.getVideoDuration(filePath)), // keep your local duration
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, videoURL, filePath)
+	currentVideo.Poster.ContentUrl, err = srv.downloadThumbnail(currentVideo.ID, videoURL, filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -889,7 +889,7 @@ func indexXvideosVideo(token, videoID, videoURL, indexPath, videoPath, filePath 
 // Indexers – YouTube
 // -----------------------------------------------------------------------------
 
-func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
+func (srv *server) indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
 	currentVideo := &titlepb.Video{
 		Casting: make([]*titlepb.Person, 0),
 		Genres:  []string{"youtube"},
@@ -900,7 +900,7 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 	}
 
 	var err error
-	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path)
+	currentVideo.Poster.ContentUrl, err = srv.downloadThumbnail(currentVideo.ID, video_url, file_path)
 	if err != nil {
 		return nil, err
 	}
@@ -942,6 +942,6 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 		}
 	}
 
-	currentVideo.Duration = int32(getVideoDuration(file_path))
+	currentVideo.Duration = int32(srv.getVideoDuration(file_path))
 	return currentVideo, nil
 }

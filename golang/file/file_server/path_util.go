@@ -2,12 +2,15 @@
 package main
 
 import (
+	"context"
+	"encoding/base64"
 	"log/slog"
+	"mime"
 	"net/url"
 	"path/filepath"
 	"runtime"
 	"strings"
-
+	"sync"
 	//"github.com/globulario/services/golang/config"
 	//Utility "github.com/globulario/utility"
 )
@@ -20,7 +23,6 @@ func hasVirtualRoot(p string) bool {
 	}
 	return false
 }
-
 
 // cleanPath cleans redundant elements and converts to OS-native separators for FS ops.
 func cleanPathOS(p string) string { return filepath.Clean(p) }
@@ -51,7 +53,6 @@ func (srv *server) formatPath(in string) string {
 
 	// Unescape URL-encoded input, unify slashes for internal checks.
 	p, _ := url.PathUnescape(in)
-	
 
 	// Fast-path root
 	if p == "/" {
@@ -101,13 +102,26 @@ func (srv *server) formatPath(in string) string {
 	return p
 }
 
-// getMimeTypesUrl returns a data-URL thumbnail for a mime icon path.
+var mimeIconCache sync.Map
+
+// getMimeTypesUrl returns a cached data URL for a static mime icon.
 func (srv *server) getMimeTypesUrl(iconPath string) (string, error) {
-	// Resolve relative icon paths against CWD just like original code did.
-	icon := srv.formatPath(iconPath)
-	thumb, err := srv.getThumbnail(icon, 80, 80)
-	if err != nil {
-		slog.Error("mime icon thumbnail failed", "icon", icon, "err", err)
+	icon := filepath.ToSlash(srv.formatPath(iconPath))
+	if val, ok := mimeIconCache.Load(icon); ok {
+		return val.(string), nil
 	}
-	return thumb, err
+
+	data, err := srv.storageReadFile(context.Background(), icon)
+	if err != nil {
+		slog.Error("mime icon read failed", "icon", icon, "err", err)
+		return "", err
+	}
+
+	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(icon)))
+	if mimeType == "" {
+		mimeType = "image/png"
+	}
+	thumb := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
+	mimeIconCache.Store(icon, thumb)
+	return thumb, nil
 }
