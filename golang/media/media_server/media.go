@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -336,6 +337,7 @@ func (srv *server) restoreAsVideo(client *title_client.Title_Client, video *titl
 var (
 	youtubeIDRegex = regexp.MustCompile(`[A-Za-z0-9_-]{11}`)
 	imdbIDRegex    = regexp.MustCompile(`tt\d+`)
+	pornhubIDRegex = regexp.MustCompile(`ph[0-9a-f]+`)
 	urlSchemeRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*://`)
 )
 
@@ -354,6 +356,29 @@ func (srv *server) tryRestoreFromFilename(client *title_client.Title_Client, tok
 	}
 	if ytID, ok := findYouTubeID(videoPath); ok {
 		url := fmt.Sprintf("https://www.youtube.com/watch?v=%s", ytID)
+		data, err := srv.fetchVideoInfoByURL(url)
+		if err != nil {
+			return true, err
+		}
+		info := map[string]interface{}{}
+		if err := json.Unmarshal(data, &info); err != nil {
+			return true, err
+		}
+		video, err := srv.buildVideoFromYTDLPInfo(info, videoPath)
+		if err != nil {
+			return true, err
+		}
+		if err := srv.writeVideoMetadataCache(videoPath, video); err != nil {
+			logger.Warn("tryRestoreFromFilename: cache write failed", "path", videoPath, "err", err)
+		}
+		restoreErr := srv.wrapRestoreResult(videoPath, srv.restoreAsVideo(client, video, videoPath))
+		if restoreErr == nil {
+			srv.publishRestoreLog(videoPath, fmt.Sprintf("Restored video %s from filename", formatVideoLabel(video)))
+		}
+		return true, restoreErr
+	}
+	if phID, ok := findPornhubID(videoPath); ok {
+		url := fmt.Sprintf("https://www.pornhub.com/view_video.php?viewkey=%s", phID)
 		data, err := srv.fetchVideoInfoByURL(url)
 		if err != nil {
 			return true, err
@@ -403,6 +428,31 @@ func findYouTubeID(path string) (string, bool) {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '-' && r != '_'
 	}) {
 		if youtubeIDRegex.MatchString(token) {
+			return token, true
+		}
+	}
+	return "", false
+}
+
+func findPornhubID(path string) (string, bool) {
+	if idx := strings.Index(path, "viewkey="); idx != -1 {
+		candidate := path[idx+len("viewkey="):]
+		end := strings.Index(candidate, "&")
+		if end != -1 {
+			candidate = candidate[:end]
+		}
+		if pornhubIDRegex.MatchString(candidate) {
+			return candidate, true
+		}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	if pornhubIDRegex.MatchString(base) {
+		return base, true
+	}
+	for _, token := range strings.FieldsFunc(base, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	}) {
+		if pornhubIDRegex.MatchString(token) {
 			return token, true
 		}
 	}
@@ -1526,6 +1576,82 @@ func formatDuration(d time.Duration) string {
 //   - localDir: filesystem path where JPG thumbnails live (may be a temp dir)
 //   - logicalDir: logical/media path that should be encoded in the URLs inside the VTT
 //   - fps: frames per second used to space cues (must be > 0)
+
+func (srv *server) assetBaseURL() string {
+	proto := strings.ToLower(strings.TrimSpace(srv.Protocol))
+	scheme := "https"
+	switch proto {
+	case "http", "https":
+		scheme = proto
+	case "":
+		if !srv.TLS {
+			scheme = "http"
+		}
+	default:
+		if strings.HasPrefix(proto, "http") {
+			scheme = proto
+		} else if !srv.TLS {
+			scheme = "http"
+		}
+	}
+
+	domain := strings.TrimSpace(srv.Domain)
+	if strings.Contains(domain, "://") {
+		if u, err := url.Parse(domain); err == nil {
+			if u.Scheme != "" {
+				scheme = u.Scheme
+			}
+			if u.Host != "" {
+				domain = u.Host
+			}
+		}
+	}
+	if domain == "" {
+		if d, err := config.GetDomain(); err == nil && d != "" {
+			domain = d
+		}
+	}
+	if domain == "" {
+		domain = "localhost"
+	}
+	domain = strings.TrimPrefix(domain, "//")
+	domain = strings.TrimSuffix(domain, "/")
+	return fmt.Sprintf("%s://%s", scheme, domain)
+}
+
+func (srv *server) timelineAssetURL(logicalDir, fileName string) string {
+	dir := srv.logicalPath(logicalDir)
+	if dir == "" {
+		dir = "/"
+	}
+	dir = filepath.ToSlash(dir)
+	dir = strings.TrimRight(dir, "/")
+	if dir == "" {
+		dir = "/"
+	}
+
+	name := strings.TrimSpace(fileName)
+	if name != "" {
+		name = path.Base(filepath.ToSlash(name))
+	}
+
+	var assetPath string
+	if name != "" {
+		if dir == "/" {
+			assetPath = "/" + name
+		} else {
+			assetPath = dir + "/" + name
+		}
+	} else {
+		assetPath = dir
+		if assetPath == "" {
+			assetPath = "/"
+		}
+	}
+
+	return srv.assetBaseURL() + assetPath
+}
+
 func (srv *server) createVttFile(localDir, logicalDir string, fps float32) error {
 	// Validate inputs early.
 	if fps <= 0 {
@@ -1544,15 +1670,6 @@ func (srv *server) createVttFile(localDir, logicalDir string, fps float32) error
 	delaySec := int(math.Ceil(1.0 / float64(fps)))
 	if delaySec < 1 {
 		delaySec = 1
-	}
-
-	address, _ := config.GetAddress()
-	localCfg, _ := config.GetLocalConfig(true)
-
-	// Build base URL (best-effort; if protocol missing, fallback to http).
-	proto, _ := localCfg["Protocol"].(string)
-	if proto == "" {
-		proto = "http"
 	}
 
 	// Build the WEBVTT content.
@@ -1581,19 +1698,7 @@ func (srv *server) createVttFile(localDir, logicalDir string, fps float32) error
 		b.WriteString(formatDuration(end))
 		b.WriteByte('\n')
 
-		// Resource URL: /<trimmed-output>/<file>.jpg
-		trimmed := strings.TrimPrefix(strings.ReplaceAll(logicalDir, filepath.ToSlash(config.GetDataDir())+"/files/", ""), "/")
-		b.WriteString(proto)
-		b.WriteString("://")
-		b.WriteString(address)
-		b.WriteByte('/')
-		if trimmed != "" {
-			b.WriteString(trimmed)
-			if !strings.HasSuffix(trimmed, "/") {
-				b.WriteByte('/')
-			}
-		}
-		b.WriteString(name)
+		b.WriteString(srv.timelineAssetURL(logicalDir, name))
 		b.WriteString("\n\n")
 
 		index++
@@ -1624,6 +1729,57 @@ func (srv *server) createVttFile(localDir, logicalDir string, fps float32) error
 		"cues", index-1,
 	)
 	return nil
+}
+
+func (srv *server) updateVttFile(logicalDir string) error {
+	logicalDir = filepath.ToSlash(logicalDir)
+	vttPath := filepath.ToSlash(filepath.Join(logicalDir, "thumbnails.vtt"))
+
+	data, err := srv.readFile(vttPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	changed := false
+
+	for i, line := range lines {
+		str := strings.TrimSpace(line)
+		if str == "" {
+			continue
+		}
+
+		var name string
+		if strings.Contains(str, "://") {
+			if u, err := url.Parse(str); err == nil {
+				name = path.Base(u.Path)
+			}
+		} else {
+			name = path.Base(filepath.ToSlash(str))
+		}
+
+		name = strings.TrimSpace(name)
+		if name == "" || !strings.HasSuffix(strings.ToLower(name), ".jpg") {
+			continue
+		}
+
+		newLine := srv.timelineAssetURL(logicalDir, name)
+		if str == newLine {
+			continue
+		}
+		lines[i] = newLine
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	updated := strings.Join(lines, "\n")
+	return srv.writeFile(vttPath, []byte(updated), 0o644)
 }
 
 // getVideoInfos returns metadata for a media path in the same shape that ffprobe

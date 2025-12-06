@@ -501,6 +501,9 @@ func (srv *server) createVideoTimeLine(path string, width int, fps float32, forc
 
 		if !force {
 			if hasImages, err := srv.timelineHasImages(logicalOutput); err == nil && hasImages {
+				if err := srv.updateVttFile(logicalOutput); err != nil {
+					logger.Warn("timeline VTT update failed", "video", logicalOrig, "dir", logicalOutput, "err", err)
+				}
 				logger.Info("timeline already exists; skipping", "video", logicalOrig, "dir", logicalOutput)
 				return nil
 			} else if err != nil {
