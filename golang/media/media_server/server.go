@@ -520,29 +520,11 @@ func (srv *server) ensureMinioClient() error {
 func (srv *server) formatPath(path string) string {
 	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
+	normalized := filepath.ToSlash(path)
+	
 
-	if strings.HasPrefix(path, "/") {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, "/") {
-				if !srv.isPublic(path) {
-					if srv.localPathExists(config.GetWebRootDir() + path) {
-						path = config.GetWebRootDir() + path
-					} else if srv.localPathExists(srv.Root + path) {
-						path = srv.Root + path
-					} else if srv.localPathExists("/" + path) {
-						path = "/" + path
-					} else {
-						path = srv.Root + "/" + path
-					}
-				}
-			} else {
-				path = srv.Root + "/" + path
-			}
-		} else {
-			path = srv.Root
-		}
-	}
-	return strings.ReplaceAll(path, "//", "/")
+	return normalized
+
 }
 
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {

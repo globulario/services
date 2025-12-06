@@ -47,7 +47,15 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
 		return nil, err
 	}
 	if idx, ok := srv.indexs[resolved]; ok && idx != nil {
-		return idx, nil
+		if Utility.Exists(resolved) {
+			return idx, nil
+		}
+		_ = idx.Close()
+		delete(srv.indexs, resolved)
+		logger.Warn("index handle reset after directory removal", "path", resolved)
+	}
+	if err := Utility.CreateIfNotExists(resolved, 0o755); err != nil {
+		return nil, fmt.Errorf("ensure index directory %s: %w", resolved, err)
 	}
 	index, err := bleve.Open(resolved)
 	if err != nil {
@@ -68,20 +76,28 @@ func (srv *server) resolveIndexPath(path string) (string, error) {
 	}
 
 	dataDir := filepath.Clean(config.GetDataDir())
+	clean := filepath.Clean(path)
 
-	if strings.HasPrefix(path, dataDir) {
-		if Utility.Exists(path) {
-			return path, nil
-		}
-		return "", fmt.Errorf("index path not found: %s", path)
+	var resolved string
+	if strings.HasPrefix(clean, dataDir) {
+		resolved = clean
+	} else {
+		trimmed := strings.TrimLeft(clean, string(filepath.Separator))
+		resolved = filepath.Join(dataDir, trimmed)
+	}
+	resolved = filepath.Clean(resolved)
+
+	if Utility.Exists(resolved) {
+		return resolved, nil
 	}
 
-	fallback := filepath.Join(dataDir, path)
-	if Utility.Exists(fallback) {
-		return fallback, nil
+	parent := filepath.Dir(resolved)
+	if err := Utility.CreateIfNotExists(parent, 0o755); err != nil {
+		return "", fmt.Errorf("ensure parent dir %s: %w", parent, err)
 	}
 
-	return "", fmt.Errorf("index path not found: %s", fallback)
+	// Caller (Bleve/store) will create the final path; just return it.
+	return resolved, nil
 }
 
 // getAssociations returns the opened association store by id, if any.

@@ -51,54 +51,13 @@ func (srv *server) formatPath(in string) string {
 		return srv.Root
 	}
 
-	// Unescape URL-encoded input, unify slashes for internal checks.
 	p, _ := url.PathUnescape(in)
+	p = filepath.ToSlash(p)
 
-	// Fast-path root
 	if p == "/" {
-		return cleanPathOS(srv.Root)
+		return srv.Root
 	}
 
-	// Respect already-public absolute paths.
-	/*if isAbsLike(p) {
-		// If path lives in a public mount, keep it as-is.
-		if srv.isPublic(p) {
-			return cleanPathOS(p)
-		}
-
-		// Ensure virtual roots map under the data files directory.
-		if hasVirtualRoot(p) {
-			trimmed := strings.TrimPrefix(p, "/")
-			mapped := filepath.Join(config.GetDataDir(), "files", trimmed)
-			return cleanPathOS(mapped)
-		}
-
-		// If the absolute path is directly on disk, prefer it (network mounts etc.)
-		if Utility.Exists(p) {
-			return cleanPathOS(p)
-		}
-
-		// Try data/files roots and webroot mirroring semantics
-		if strings.HasPrefix(p, "/users/") || strings.HasPrefix(p, "/applications/") {
-			pp := toSlash(config.GetDataDir() + "/files" + p)
-			if Utility.Exists(pp) {
-				return cleanPathOS(pp)
-			}
-		}
-
-		if pr := toSlash(config.GetWebRootDir() + p); Utility.Exists(pr) {
-			return cleanPathOS(pr)
-		}
-		if pr := toSlash(srv.Root + p); Utility.Exists(pr) {
-			return cleanPathOS(pr)
-		}
-		// Last resort, join under Root (even if it doesn't exist yet—creator funcs may follow)
-		return cleanPathOS(filepath.Join(srv.Root, p))
-	}
-
-	// Relative input → anchor under Root
-	return cleanPathOS(filepath.Join(srv.Root, p))
-	*/
 	return p
 }
 

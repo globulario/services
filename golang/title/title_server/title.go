@@ -2,17 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -22,203 +19,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
-
-func (srv *server) saveVideoMetadata(absolutefilePath, indexPath string, video *titlepb.Video) error {
-	if video == nil {
-		return fmt.Errorf("missing video")
-	}
-
-	info, err := os.Stat(absolutefilePath)
-	if err != nil {
-		return fmt.Errorf("stat %s: %w", absolutefilePath, err)
-	}
-
-	raw, err := protojson.Marshal(video)
-	if err != nil {
-		return fmt.Errorf("marshal video %q: %w", video.GetID(), err)
-	}
-	commentValue := strings.TrimSpace(video.GetURL())
-	if commentValue == "" {
-		commentValue = base64.StdEncoding.EncodeToString(raw)
-	}
-
-	if info.IsDir() {
-		if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
-			logger.Warn("saveVideoMetadata: cache write failed", "path", absolutefilePath, "err", err)
-		}
-
-		if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
-			logger.Warn("saveTitleMetadata: cache write failed", "path", absolutefilePath, "err", err)
-		}
-		if dest := metadataCachePath(absolutefilePath); dest != "" {
-			if err := Utility.CreateIfNotExists(filepath.Dir(dest), 0o755); err != nil {
-				logger.Warn("saveVideoMetadata: ensure metadata dir failed", "path", dest, "err", err)
-			} else if err := os.WriteFile(dest, raw, 0o664); err != nil {
-				return fmt.Errorf("write %s: %w", dest, err)
-			}
-		}
-		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
-		_ = srv.publish("reload_dir_event", []byte(dir))
-		logger.Info("saved video metadata (dir)", "path", absolutefilePath, "videoID", video.GetID())
-		return nil
-	}
-
-	if err := saveVideoMetadataCache(absolutefilePath, raw); err != nil {
-		logger.Warn("saveVideoMetadata: cache write failed", "path", absolutefilePath, "err", err)
-	}
-
-	needSave := true
-	if meta, err := Utility.ReadMetadata(absolutefilePath); err == nil {
-		if f, ok := meta["format"].(map[string]any); ok {
-			if tags, ok := f["tags"].(map[string]any); ok {
-				if c, ok := tags["comment"].(string); ok && len(c) > 0 {
-					needSave = c != commentValue
-				}
-			}
-		}
-	}
-
-	if !needSave {
-		logger.Debug("video metadata unchanged; skipping write", "file", absolutefilePath, "videoID", video.GetID())
-		return nil
-	}
-
-	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
-
-	if err := writeMetadataTag(absolutefilePath, "comment", commentValue); err != nil {
-		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
-	}
-
-	newChecksum := Utility.CreateFileChecksum(absolutefilePath)
-	if oldChecksum != newChecksum {
-		srv.migrateAssociationKey(indexPath, oldChecksum, newChecksum, absolutefilePath)
-	}
-
-	dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
-	_ = srv.publish("reload_dir_event", []byte(dir))
-	logger.Info("saved video metadata (file)", "file", absolutefilePath, "videoID", video.GetID())
-	return nil
-}
-
-func (srv *server) saveTitleMetadata(absolutefilePath, indexPath string, title *titlepb.Title) error {
-	if title == nil || len(title.Name) == 0 {
-		return errors.New("missing title or empty title name")
-	}
-
-	info, err := os.Stat(absolutefilePath)
-	if err != nil {
-		return fmt.Errorf("stat %s: %w", absolutefilePath, err)
-	}
-
-	raw, err := protojson.Marshal(title)
-	if err != nil {
-		return fmt.Errorf("marshal title %q: %w", title.GetID(), err)
-	}
-	commentValue := title.GetID()
-
-	if info.IsDir() {
-		if err := saveTitleMetadataCache(absolutefilePath, raw); err != nil {
-			return fmt.Errorf("saveTitleMetadataCache failed (dir): %w", err)
-		}
-		path := metadataCachePath(absolutefilePath)
-		dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
-		_ = srv.publish("reload_dir_event", []byte(dir))
-		logger.Info("saved title metadata (dir)", "path", path, "titleID", title.GetID())
-		return nil
-	}
-
-	needSave := true
-	if meta, err := Utility.ReadMetadata(absolutefilePath); err == nil {
-		if f, ok := meta["format"].(map[string]any); ok {
-			if tags, ok := f["tags"].(map[string]any); ok {
-				if c, ok := tags["comment"].(string); ok && len(c) > 0 {
-					needSave = c != title.GetID()
-				}
-			}
-		}
-	}
-
-	if !needSave {
-		logger.Debug("title metadata unchanged; skipping write", "file", absolutefilePath, "titleID", title.GetID())
-		return nil
-	}
-
-	oldChecksum := Utility.CreateFileChecksum(absolutefilePath)
-
-	if err := writeMetadataTag(absolutefilePath, "comment", commentValue); err != nil {
-		return fmt.Errorf("set metadata on %s: %w", absolutefilePath, err)
-	}
-
-	if dest := metadataCachePath(absolutefilePath); dest != "" {
-		if err := Utility.CreateIfNotExists(filepath.Dir(dest), 0o755); err != nil {
-			logger.Warn("saveTitleMetadata: ensure metadata dir failed", "path", dest, "err", err)
-		} else if err := os.WriteFile(dest, raw, 0o664); err != nil {
-			logger.Warn("saveTitleMetadata: write metadata cache failed", "path", dest, "err", err)
-		}
-	}
-
-	newChecksum := Utility.CreateFileChecksum(absolutefilePath)
-	if oldChecksum != newChecksum {
-		srv.migrateAssociationKey(indexPath, oldChecksum, newChecksum, absolutefilePath)
-	}
-
-	dir := filepath.Dir(strings.ReplaceAll(absolutefilePath, config.GetDataDir()+"/files", ""))
-	_ = srv.publish("reload_dir_event", []byte(dir))
-	logger.Info("saved title metadata (file)", "file", absolutefilePath, "titleID", title.GetID())
-	return nil
-}
-
-func writeMetadataTag(path, key, value string) error {
-	path = strings.ReplaceAll(path, "\\", "/")
-	idx := strings.LastIndex(path, ".")
-	if idx == -1 || idx+1 >= len(path) {
-		return fmt.Errorf("writeMetadataTag: path %q has no extension", path)
-	}
-	ext := path[idx+1:]
-
-	try := 30
-	for try > 0 {
-		dest := strings.ReplaceAll(path, "."+ext, ".temp."+ext)
-		if Utility.Exists(dest) {
-			_ = os.Remove(dest)
-		}
-
-		metadataArg := fmt.Sprintf("%s=%s", key, value)
-		args := []string{
-			"-y",
-			"-nostdin",
-			"-loglevel", "error",
-			"-i", path,
-			"-c:v", "copy",
-			"-c:a", "copy",
-			"-c:s", "mov_text",
-			"-map", "0",
-			"-metadata", metadataArg,
-			dest,
-		}
-
-		wait := make(chan error, 1)
-		go Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
-		err := <-wait
-		if err != nil || !Utility.Exists(dest) {
-			if err != nil {
-				logger.Warn("writeMetadataTag: ffmpeg failed", "path", path, "err", err)
-			}
-			try--
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		if err := os.Remove(path); err != nil {
-			return err
-		}
-		if err := os.Rename(dest, path); err != nil {
-			return err
-		}
-		return nil
-	}
-	return fmt.Errorf("writeMetadataTag: failed to write metadata for %s", path)
-}
 
 func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
 	// Resolve index path and open index
@@ -565,24 +365,7 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 	} else {
 		logger.Error("marshal title", "titleID", rqst.Title.ID, "err", err)
 	}
-
-	if paths, err := srv.getTitleFiles(resolved, rqst.Title.ID); err == nil {
-		for _, p := range paths {
-			abs := strings.ReplaceAll(p, "\\", "/")
-			if !Utility.Exists(abs) {
-				if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-					abs = config.GetDataDir() + "/files" + abs
-				} else if Utility.Exists("/" + abs) {
-					abs = "/" + abs
-				}
-				if !Utility.Exists(abs) {
-					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
-				}
-			}
-			// Actually persist metadata for each associated file
-			_ = srv.saveTitleMetadata(abs, resolved, rqst.Title)
-		}
-	}
+	
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
 }
 
@@ -615,7 +398,7 @@ func (srv *server) deleteTitle(token, indexPath, titleId string) error {
 	if paths, err := srv.getTitleFiles(indexPath, titleId); err == nil {
 		for _, p := range paths {
 			_ = srv.dissociateFileWithTitle(token, indexPath, titleId, p)
-			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
+			dirs = append(dirs, filepath.Dir(p))
 		}
 	}
 
@@ -716,22 +499,7 @@ func (srv *server) UpdateVideoMetadata(ctx context.Context, rqst *titlepb.Update
 	if _, err := index.GetInternal([]byte(Utility.GenerateUUID(video.ID))); err != nil {
 		return nil, status.Errorf(codes.NotFound, "video %q not found in index", video.ID)
 	}
-	if paths, err := srv.getTitleFiles(rqst.IndexPath, video.ID); err == nil {
-		for _, p := range paths {
-			abs := strings.ReplaceAll(p, "\\", "/")
-			if !Utility.Exists(abs) {
-				if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-					abs = config.GetDataDir() + "/files" + abs
-				} else if Utility.Exists("/" + abs) {
-					abs = "/" + abs
-				}
-				if !Utility.Exists(abs) {
-					return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
-				}
-			}
-			_ = srv.saveVideoMetadata(abs, resolved, video)
-		}
-	}
+
 	return &titlepb.UpdateVideoMetadataResponse{}, nil
 }
 
@@ -822,7 +590,7 @@ func (srv *server) deleteVideo(token, indexPath, videoId string) error {
 	if paths, err := srv.getTitleFiles(indexPath, videoId); err == nil {
 		for _, p := range paths {
 			_ = srv.dissociateFileWithTitle(token, indexPath, videoId, p)
-			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
+			dirs = append(dirs, filepath.Dir(p))
 		}
 	}
 

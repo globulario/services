@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -104,6 +105,8 @@ type server struct {
 	MinioBucket    string
 	MinioPrefix    string
 	MinioUseSSL    bool
+
+	checksumCache sync.Map
 }
 
 // -------------------- Globular getters/setters --------------------
@@ -194,7 +197,6 @@ func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 func (srv *server) SetPublicDirs(dirs []string) {
 	srv.Public = dirs
 }
-
 
 // -------------------- Lifecycle --------------------
 
@@ -502,7 +504,7 @@ func (srv *server) Storage() Storage {
 func (srv *server) storageForPath(path string) Storage {
 	if srv.isPublic(path) || !strings.HasPrefix(path, "/users/") {
 		if srv.publicStorage == nil {
-			srv.publicStorage =NewOSStorage("")
+			srv.publicStorage = NewOSStorage("")
 		}
 		return srv.publicStorage
 	}

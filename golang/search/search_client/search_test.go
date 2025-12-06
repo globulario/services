@@ -113,8 +113,10 @@ func TestSearchDocument(t *testing.T) {
 }
 
 func TestSearchPdf(t *testing.T) {
-
-	paths := []string{`/var/globular/data/files/users/sa@globular.io/.hidden/img1/__index_db__`, `/var/globular/data/files/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`}
+	paths := []string{
+		`/users/sa@globular.io/.hidden/img1/__index_db__`,
+		`/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`,
+	}
 	query := `Text:Golf`
 	language := "english"
 	fields := []string{"DocId", "Text"}
@@ -131,7 +133,6 @@ func TestSearchPdf(t *testing.T) {
 	for i := 0; i < len(results); i++ {
 		log.Println("--", results[i])
 	}
-
 }
 
 func TestDeleteDocument(t *testing.T) {

@@ -8,7 +8,15 @@ import (
 	"io/fs"
 	"net/http"
 	"path/filepath"
+
+	Utility "github.com/globulario/utility"
 )
+
+type checksumEntry struct {
+	size    int64
+	modTime int64
+	sum     string
+}
 
 func (srv *server) cacheKey(path string) string {
 	return path + "@" + srv.Domain
@@ -29,6 +37,7 @@ func (srv *server) cacheSet(path string, data []byte) {
 func (srv *server) cacheRemove(path string) {
 	cache.RemoveItem(srv.cacheKey(path))
 	cache.RemoveItem(path)
+	srv.checksumCache.Delete(filepath.ToSlash(path))
 }
 
 func (srv *server) storageStat(ctx context.Context, path string) (fs.FileInfo, error) {
@@ -196,14 +205,46 @@ func (srv *server) computeChecksum(ctx context.Context, path string) (string, er
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reader, err := srv.storageOpen(ctx, path)
+	info, err := srv.storageStat(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	key := filepath.ToSlash(path)
+	if entryRaw, ok := srv.checksumCache.Load(key); ok {
+		if entry, ok := entryRaw.(checksumEntry); ok {
+			if entry.size == info.Size() && entry.modTime == info.ModTime().UnixNano() {
+				return entry.sum, nil
+			}
+		}
+	}
+
+	storage := srv.storageForPath(path)
+	if _, ok := storage.(*OSStorage); ok {
+		localPath := srv.formatPath(path)
+		sum := Utility.CreateFileChecksum(localPath)
+		srv.checksumCache.Store(key, checksumEntry{
+			size:    info.Size(),
+			modTime: info.ModTime().UnixNano(),
+			sum:     sum,
+		})
+		return sum, nil
+	}
+
+	reader, err := storage.Open(ctx, path)
 	if err != nil {
 		return "", err
 	}
 	defer reader.Close()
+
 	h := sha256.New()
 	if _, err := io.Copy(h, reader); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	sum := hex.EncodeToString(h.Sum(nil))
+	srv.checksumCache.Store(key, checksumEntry{
+		size:    info.Size(),
+		modTime: info.ModTime().UnixNano(),
+		sum:     sum,
+	})
+	return sum, nil
 }

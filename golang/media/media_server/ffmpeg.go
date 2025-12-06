@@ -81,9 +81,10 @@ func (srv *server) ensureFastStartMP4(path string) error {
 
 		hasFastStart, err := hasFastStartMoov(localPath)
 		if err != nil {
-			logger.Warn("faststart check failed, forcing remux", "path", localPath, "err", err)
+			logger.Debug("faststart check skipped (probe failed)", "path", localPath, "err", err)
+			return nil
 		}
-		if err == nil && hasFastStart {
+		if hasFastStart {
 			return nil
 		}
 
@@ -141,7 +142,7 @@ func hasFastStartMoov(path string) (bool, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: %s", err, strings.TrimSpace(out.String()))
 	}
 	type probeResp struct {
 		Format struct {
@@ -460,6 +461,7 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 func (srv *server) createVideoTimeLine(path string, width int, fps float32, force bool) error {
 	logicalOrig := filepath.ToSlash(path)
 
+	fmt.Println("------------------------> create time line ", logicalOrig)
 	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
 		return errors.New("createVideoTimeLine: maximum concurrent ffmpeg instances reached; try again later")
 	}

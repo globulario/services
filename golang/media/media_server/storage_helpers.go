@@ -143,15 +143,23 @@ func (srv *server) withWorkFile(path string, fn func(wf mediaWorkFile) error) er
 	if srv.isMinioPath(logical) {
 		ctx := context.Background()
 		tmp, cleanup, err := srv.minioDownloadToTemp(ctx, logical)
-		if err != nil {
-			return err
+		if err == nil {
+			defer cleanup()
+			return fn(mediaWorkFile{
+				LogicalPath: logical,
+				LocalPath:   filepath.ToSlash(tmp),
+				IsMinio:     true,
+			})
 		}
-		defer cleanup()
-		return fn(mediaWorkFile{
-			LogicalPath: logical,
-			LocalPath:   filepath.ToSlash(tmp),
-			IsMinio:     true,
-		})
+		localFallback := srv.formatPath(logical)
+		if srv.localPathExists(localFallback) {
+			return fn(mediaWorkFile{
+				LogicalPath: logical,
+				LocalPath:   filepath.ToSlash(localFallback),
+				IsMinio:     false,
+			})
+		}
+		return err
 	}
 
 	local := srv.formatPath(logical)

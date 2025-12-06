@@ -56,39 +56,7 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		return nil, fmt.Errorf("decode associations for title %s: %w", titleId, err)
 	}
 
-	// Prune non-existent paths; keep relative paths that resolve under dataDir or root.
-	pruned := make([]string, 0, len(assoc.Paths))
-	for _, p := range assoc.Paths {
-		switch {
-		case Utility.Exists(p):
-			pruned = append(pruned, p)
-		case Utility.Exists(config.GetDataDir() + "/files" + p):
-			pruned = append(pruned, p)
-		case Utility.Exists("/" + p):
-			pruned = append(pruned, p)
-		default:
-			logger.Debug("dropping stale association path", "titleID", titleId, "path", p)
-		}
-	}
-
-	// Persist cleanup or delete empty associations.
-	if len(pruned) != len(assoc.Paths) {
-		assoc.Paths = pruned
-		if len(assoc.Paths) == 0 {
-			_ = store.RemoveItem(titleId)
-			if assoc.ID != "" {
-				_ = store.RemoveItem(assoc.ID)
-			}
-		} else {
-			if raw, e := json.Marshal(assoc); e == nil {
-				_ = store.SetItem(assoc.ID, raw)
-				_ = store.SetItem(titleId, raw)
-			}
-		}
-	}
-
-	logger.Debug("getTitleFiles", "titleID", titleId, "paths", pruned)
-	return pruned, nil
+	return assoc.Paths, nil
 }
 
 // GetTitleFiles is the public RPC that returns all file paths associated with a title.
@@ -115,16 +83,6 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	}
 
 	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
-	if !Utility.Exists(abs) {
-		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-			abs = config.GetDataDir() + "/files" + abs
-		} else if Utility.Exists("/" + abs) {
-			abs = "/" + abs
-		}
-	}
-	if !Utility.Exists(abs) {
-		return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
-	}
 
 	if err := srv.dissociateFileWithTitle(token, rqst.IndexPath, rqst.TitleId, abs); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
@@ -140,18 +98,10 @@ func (srv *server) dissociateFileWithTitle(token, indexPath, titleId, absoluteFi
 		return err
 	}
 	var uuid string
-	info, err := os.Stat(absoluteFilePath)
-	if err != nil {
-		return err
-	}
+
 	filePath := strings.ReplaceAll(absoluteFilePath, config.GetDataDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	if info.IsDir() {
-		uuid = Utility.GenerateUUID(filePath)
-	} else {
-		uuid = Utility.CreateFileChecksum(absoluteFilePath)
-	}
-
+	uuid = Utility.CreateFileChecksum(absoluteFilePath)
 	associations, err := srv.getStore(filepath.Base(indexPath), resolved)
 	if err != nil {
 		return err
@@ -212,17 +162,6 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
 
-	if !Utility.Exists(abs) {
-		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-			abs = config.GetDataDir() + "/files" + abs
-		} else if Utility.Exists("/" + abs) {
-			abs = "/" + abs
-		}
-	}
-	if !Utility.Exists(abs) {
-		return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
-	}
-
 	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
@@ -248,16 +187,9 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 	if !Utility.Exists(resolved) {
 		return nil, errors.New("no database found at path " + resolved)
 	}
-	var uuid string
-	info, err := os.Stat(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-	if info.IsDir() {
-		uuid = Utility.GenerateUUID(filePath)
-	} else {
-		uuid = Utility.CreateFileChecksum(absolutePath)
-	}
+
+	uuid := Utility.GenerateUUID(filePath)
+
 	associations, err := srv.getStore(filepath.Base(indexPath), indexPath)
 	if err != nil {
 		return nil, err
@@ -277,32 +209,39 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		}
 	}
 
-	if info.IsDir() && !Utility.Exists(absolutePath+"/playlist.m3u8") {
-		files, err := os.ReadDir(absolutePath)
-		if err == nil {
-			for _, f := range files {
-				sub, err := srv.getFileTitles(indexPath, filePath+"/"+f.Name(), absolutePath+"/"+f.Name())
-				if err == nil {
-					titles = append(titles, sub...)
-				}
+	playlist := filepath.ToSlash(filepath.Join(absolutePath, "playlist.m3u8"))
+	if Utility.Exists(playlist) {
+		filePlaylist := filepath.ToSlash(filepath.Join(filePath, "playlist.m3u8"))
+		if plTitles, err := srv.getFileTitles(indexPath, filePlaylist, playlist); err == nil {
+			titles = append(titles, plTitles...)
+		}
+	}
+	files, err := os.ReadDir(absolutePath)
+	if err == nil {
+		for _, f := range files {
+			if strings.EqualFold(f.Name(), "playlist.m3u8") {
+				continue
+			}
+			sub, err := srv.getFileTitles(indexPath, filePath+"/"+f.Name(), absolutePath+"/"+f.Name())
+			if err == nil {
+				titles = append(titles, sub...)
 			}
 		}
 	}
+
 	return titles, nil
 }
 
 // AssociateFileWithTitle associates a file/folder to a title, and persists minimal metadata.
 func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
-
-	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
-	if !Utility.Exists(abs) {
-		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-			abs = config.GetDataDir() + "/files" + abs
-		} else if Utility.Exists("/" + abs) {
-			abs = "/" + abs
-		}
-		if !Utility.Exists(abs) {
-			return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
+	rawPath := filepath.ToSlash(rqst.FilePath)
+	logicalPath := srv.logicalAssociationPath(rawPath)
+	abs, hasLocal := srv.resolveLocalAssociationPath(rawPath, logicalPath)
+	if !hasLocal {
+		abs = ""
+		// Reject obviously invalid requests, but allow well-known logical prefixes
+		if !strings.HasPrefix(logicalPath, "/users/") && !strings.HasPrefix(logicalPath, "/applications/") {
+			return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", rqst.FilePath)
 		}
 	}
 
@@ -315,7 +254,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Save lightweight metadata for recovery.
-	if strings.HasSuffix(resolved, "/search/titles") {
+	if hasLocal && strings.HasSuffix(resolved, "/search/titles") {
 		title, err := srv.getTitleById(resolved, rqst.TitleId)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "%v", err)
@@ -323,8 +262,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if title.Poster != nil && len(title.Poster.ContentUrl) == 0 {
 			title.Poster.ContentUrl = title.Poster.URL
 		}
-		_ = srv.saveTitleMetadata(abs, resolved, title)
-	} else if strings.HasSuffix(resolved, "/search/videos") {
+	} else if hasLocal && strings.HasSuffix(resolved, "/search/videos") {
 		video, err := srv.getVideoById(resolved, rqst.TitleId)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "%v", err)
@@ -335,19 +273,10 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if video.Poster != nil && len(video.Poster.ContentUrl) == 0 {
 			video.Poster.ContentUrl = video.Poster.URL
 		}
-		_ = srv.saveVideoMetadata(abs, resolved, video)
 	}
 
-	var uuid string
-	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	info, _ := os.Stat(abs)
-	if info.IsDir() {
-		uuid = Utility.GenerateUUID(filePath)
-	} else {
-		uuid = Utility.CreateFileChecksum(abs)
-	}
-
+	filePath := logicalPath
+	uuid := Utility.GenerateUUID(filePath)
 	store, err := srv.getStore(filepath.Base(rqst.IndexPath), resolved)
 	if err != nil {
 		return nil, err
@@ -392,7 +321,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 
-	dir := filepath.Dir(strings.ReplaceAll(filePath, config.GetDataDir()+"/files", ""))
+	dir := filepath.Dir(filePath)
 	_ = srv.publish("reload_dir_event", []byte(dir))
 
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
@@ -400,31 +329,12 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 // GetFileVideos returns the list of Videos associated with a file/folder.
 func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
-	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir()+"/files", "")
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
-
-	if !Utility.Exists(abs) {
-		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-			abs = config.GetDataDir() + "/files" + abs
-		} else if Utility.Exists("/" + abs) {
-			abs = "/" + abs
-		}
+	filePath := srv.logicalAssociationPath(filepath.ToSlash(rqst.FilePath))
+	uuid := normalizeAssociationPath(filePath)
+	if uuid == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid file path %q", rqst.FilePath)
 	}
-	if !Utility.Exists(abs) {
-		return nil, status.Errorf(codes.InvalidArgument, "no file found with path %s", abs)
-	}
-
-	var uuid string
-	info, err := os.Stat(abs)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
-	}
-	if info.IsDir() {
-		uuid = Utility.GenerateUUID(filePath)
-	} else {
-		uuid = Utility.CreateFileChecksum(abs)
-	}
+	abs, hasLocal := srv.resolveLocalAssociationPath(filepath.ToSlash(rqst.FilePath), filePath)
 
 	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
 	if err != nil {
@@ -446,12 +356,13 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	}
 
 	videos := make([]*titlepb.Video, 0, len(assoc.Titles))
-	fmt.Println("assoc titles:", assoc.Titles)
 	for _, t := range assoc.Titles {
-		if recovery, err := srv.buildVideoFromSavedMetadata(abs, t); err == nil && recovery != nil && recovery.ID != "" {
-			logger.Debug("GetFileVideos: recovered metadata for video", "path", abs, "videoID", recovery.ID)
-			videos = append(videos, recovery)
-			continue
+		if hasLocal {
+			if recovery, err := srv.buildVideoFromSavedMetadata(abs, t); err == nil && recovery != nil && recovery.ID != "" {
+				logger.Debug("GetFileVideos: recovered metadata for video", "path", abs, "videoID", recovery.ID)
+				videos = append(videos, recovery)
+				continue
+			}
 		}
 		if v, err := srv.getVideoById(rqst.IndexPath, t); err == nil && v != nil && v.ID != "" {
 			videos = append(videos, v)
@@ -467,6 +378,9 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 }
 
 func (srv *server) buildVideoFromSavedMetadata(abs, videoID string) (*titlepb.Video, error) {
+	if abs == "" {
+		return nil, fmt.Errorf("no local path")
+	}
 	if video, err := loadVideoMetadataCache(abs); err == nil {
 		if video.ID == "" {
 			video.ID = videoID
@@ -479,7 +393,7 @@ func (srv *server) buildVideoFromSavedMetadata(abs, videoID string) (*titlepb.Vi
 		}
 		return video, nil
 	}
-	return nil, errors.New("no persisted video metadata available")
+	return nil, fmt.Errorf("no saved metadata for %s", abs)
 }
 
 func readVideoFromMetadataComment(abs string) (*titlepb.Video, error) {
@@ -531,19 +445,19 @@ func (srv *server) loadAssociation(store storage_store.Store, uuid, filePath, ab
 	if store == nil {
 		return nil, errors.New("association store unavailable")
 	}
+	lookups := canonicalPaths(abs, filePath)
 	if uuid != "" {
-		if assoc, err := srv.readAssociation(store, uuid); err == nil {
-			return assoc, nil
-		}
+		lookups = append([]string{uuid}, lookups...)
 	}
-
-	normalizedFilePath := normalizeAssociationPath(filePath)
-	normalizedAbs := normalizeAssociationPath(abs)
-	fallbacks := canonicalPaths(normalizedAbs, normalizedFilePath)
-	for _, key := range fallbacks {
+	seen := map[string]struct{}{}
+	for _, key := range lookups {
 		if key == "" {
 			continue
 		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
 		if assoc, err := srv.readAssociation(store, key); err == nil {
 			if assoc.ID == "" {
 				assoc.ID = uuid
@@ -556,6 +470,10 @@ func (srv *server) loadAssociation(store storage_store.Store, uuid, filePath, ab
 			return assoc, nil
 		}
 	}
+
+	normalizedFilePath := normalizeAssociationPath(filePath)
+	normalizedAbs := normalizeAssociationPath(abs)
+	fallbacks := canonicalPaths(normalizedAbs, normalizedFilePath)
 	if assoc, err := srv.searchAssociationByPath(store, normalizedFilePath); err == nil {
 		return assoc, nil
 	}
@@ -586,6 +504,60 @@ func normalizeAssociationPath(path string) string {
 		return ""
 	}
 	return cleaned
+}
+
+func (srv *server) logicalAssociationPath(path string) string {
+	cleaned := normalizeAssociationPath(path)
+	if cleaned == "" {
+		return "/"
+	}
+	dataPrefix := filepath.ToSlash(config.GetDataDir() + "/files")
+	configPrefix := filepath.ToSlash(config.GetConfigDir() + "/files")
+	switch {
+	case strings.HasPrefix(cleaned, dataPrefix):
+		cleaned = strings.TrimPrefix(cleaned, dataPrefix)
+	case strings.HasPrefix(cleaned, configPrefix):
+		cleaned = strings.TrimPrefix(cleaned, configPrefix)
+	}
+	cleaned = strings.TrimPrefix(cleaned, "/")
+	if cleaned == "" {
+		return "/"
+	}
+	return "/" + cleaned
+}
+
+func (srv *server) resolveLocalAssociationPath(raw, logical string) (string, bool) {
+	candidates := []string{}
+	appendCandidate := func(p string) {
+		if p == "" {
+			return
+		}
+		candidates = append(candidates, filepath.ToSlash(p))
+	}
+	appendCandidate(raw)
+	if strings.HasPrefix(raw, "/") {
+		appendCandidate(raw)
+	} else {
+		appendCandidate("/" + strings.TrimPrefix(raw, "/"))
+	}
+	if logical != "" {
+		appendCandidate(logical)
+	}
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		normalized := normalizeAssociationPath(candidate)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		if Utility.Exists(normalized) {
+			return normalized, true
+		}
+	}
+	return "", false
 }
 
 func canonicalPaths(abs, filePath string) []string {
@@ -690,32 +662,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	relPath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 	relPath = strings.ReplaceAll(relPath, "\\", "/")
 
-	// Normalize absolute path (try resolving under dataDir if needed)
-	abs := strings.ReplaceAll(rqst.FilePath, "\\", "/")
-	if !Utility.Exists(abs) {
-		if strings.HasPrefix(abs, "/users/") || strings.HasPrefix(abs, "/applications/") {
-			abs = config.GetDataDir() + "/files" + abs
-		} else if Utility.Exists("/" + abs) {
-			abs = "/" + abs
-		}
-	}
-	if !Utility.Exists(abs) {
-		logger.Error("file not found", "path", rqst.FilePath, "resolved", abs)
-		return nil, status.Errorf(codes.NotFound, "no file found at %s", rqst.FilePath)
-	}
-
-	// Compute the association key for the file/folder.
-	var key string
-	info, err := os.Stat(abs)
-	if err != nil {
-		logger.Error("stat failed", "path", abs, "err", err)
-		return nil, status.Errorf(codes.Internal, "stat %s: %v", abs, err)
-	}
-	if info.IsDir() {
-		key = Utility.GenerateUUID(relPath)
-	} else {
-		key = Utility.CreateFileChecksum(abs)
-	}
+	uuid := Utility.GenerateUUID(relPath)
 
 	// Load associations
 	resolved, err := srv.resolveIndexPath(rqst.IndexPath)
@@ -730,11 +677,11 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		return nil, status.Errorf(codes.Internal, "open associations: %v", err)
 	}
 
-	data, err := store.GetItem(key)
-	assoc := &fileTileAssociation{ID: key, Titles: []string{}, Paths: []string{}}
+	data, err := store.GetItem(uuid)
+	assoc := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil && len(data) > 0 {
 		if uerr := json.Unmarshal(data, assoc); uerr != nil {
-			logger.Error("decode association failed", "key", key, "err", uerr)
+			logger.Error("decode association failed", "key", uuid, "err", uerr)
 			return nil, status.Errorf(codes.Internal, "decode association: %v", uerr)
 		}
 	}
