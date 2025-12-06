@@ -439,6 +439,20 @@ func (srv *server) walkMinioDir(root string, fn fs.WalkDirFunc) error {
 		root = "/"
 	}
 
+	if root != "/" {
+		key := srv.minioKeyFromPath(root)
+		if key != "" {
+			if statInfo, err := srv.minioClient.StatObject(context.Background(), srv.MinioBucket, key, minio.StatObjectOptions{}); err == nil {
+				entry := walkDirEntry{name: filepath.Base(root), dir: false}
+				if err := fn(root, entry, nil); err != nil && !errors.Is(err, fs.SkipDir) {
+					return err
+				}
+				_ = statInfo
+				return nil
+			}
+		}
+	}
+
 	rootEntry := walkDirEntry{name: filepath.Base(root), dir: true}
 	if root == "/" {
 		rootEntry.name = "/"

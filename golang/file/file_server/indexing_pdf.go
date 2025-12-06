@@ -40,7 +40,7 @@ func (srv *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
 	}
 	defer doc.Close()
 
-	metadata, _ := ExtractMetada(path)
+	metadata, _ := srv.ExtractMetada(path)
 	metaJSON, _ := Utility.ToJson(metadata)
 	docId := Utility.GenerateUUID(path)
 	metadata["DocId"] = docId

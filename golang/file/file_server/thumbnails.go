@@ -193,7 +193,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			}
 
 		case strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(p, ".flac") || strings.HasSuffix(p, ".mp3"):
-			if meta, err := Utility.ReadAudioMetadata(p, thumbnailMaxHeight, thumbnailMaxWidth); err == nil {
+			if meta, err := s.readAudioMetadata(p, thumbnailMaxHeight, thumbnailMaxWidth); err == nil {
 				if v, ok := meta["ImageUrl"].(string); ok {
 					info.Thumbnail = v
 				}

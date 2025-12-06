@@ -389,7 +389,7 @@ func (srv *server) writeExcelFile(path string, sheets map[string]interface{}) er
 // GetFileMetadata returns structured file metadata extracted by ExifTool.
 func (srv *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
 	p := srv.formatPath(rqst.Path)
-	md, err := ExtractMetada(p)
+	md, err := srv.ExtractMetada(p)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}

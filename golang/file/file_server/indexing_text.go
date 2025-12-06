@@ -32,7 +32,7 @@ func (srv *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error 
 		return errors.New("info already exist")
 	}
 
-	metadata, _ := ExtractMetada(path)
+	metadata, _ := srv.ExtractMetada(path)
 	metaJSON, _ := Utility.ToJson(metadata)
 	if err := srv.IndexJsonObject(indexDir, metaJSON, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, ""); err != nil {
 		slog.Warn("metadata index failed", "err", err)

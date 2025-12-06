@@ -112,53 +112,64 @@ func (srv *server) downloadThumbnail(video_id, video_url, video_path string) (st
 	thumbDir, _ := buildThumbnailDir(video_path)
 	cachePath := filepath.Join(thumbDir, thumbDataURLFilename)
 
-	// Return cached data URL if present
-	if srv.pathExists(cachePath) {
-		b, err := os.ReadFile(cachePath)
+	// Return cached data URL if present.
+	if data, err := srv.readFile(cachePath); err == nil {
+		return string(data), nil
+	}
+
+	isMinio := srv.isMinioPath(thumbDir)
+	localDir := srv.formatPath(thumbDir)
+	cleanup := func() {}
+	if isMinio {
+		tmp, err := os.MkdirTemp("", "thumb-work-*")
 		if err != nil {
 			return "", err
 		}
-		return string(b), nil
+		localDir = filepath.ToSlash(tmp)
+		cleanup = func() { _ = os.RemoveAll(tmp) }
+	} else if err := Utility.CreateDirIfNotExist(localDir); err != nil {
+		return "", err
 	}
+	defer cleanup()
 
-	// Ensure folder exists
-	if err := Utility.CreateDirIfNotExist(thumbDir); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), ytDlpTimeout)
+	defer cancel()
+
+	slog.Info("Fetching thumbnail with yt-dlp", "url", video_url, "dir", thumbDir, "video_id", video_id)
+	if err := runYtDlpThumbnail(ctx, localDir, video_id, video_url); err != nil {
 		return "", err
 	}
 
-	// If directory is empty, try to fetch a thumbnail via yt-dlp
-	files, err := Utility.ReadDir(thumbDir)
+	files, err := os.ReadDir(localDir)
 	if err != nil {
 		return "", err
 	}
-	if len(files) == 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), ytDlpTimeout)
-		defer cancel()
-
-		slog.Info("Fetching thumbnail with yt-dlp", "url", video_url, "dir", thumbDir, "video_id", video_id)
-		if err := runYtDlpThumbnail(ctx, thumbDir, video_id, video_url); err != nil {
-			return "", err
-		}
-		files, err = Utility.ReadDir(thumbDir)
-		if err != nil {
-			return "", err
-		}
-	}
-
 	if len(files) == 0 {
 		return "", errors.New("no thumbnail found for url " + video_url)
 	}
 
-	// Pick first file produced by yt-dlp and turn it into a data URL thumbnail
-	src := filepath.Join(thumbDir, files[0].Name())
+	src := filepath.Join(localDir, files[0].Name())
 	dataURL, err := Utility.CreateThumbnail(src, thumbWidth, thumbHeight)
 	if err != nil {
 		return "", err
 	}
-
-	if err := os.WriteFile(cachePath, []byte(dataURL), 0o664); err != nil {
+	if err := srv.writeFile(cachePath, []byte(dataURL), 0o664); err != nil {
 		return "", err
 	}
+
+	if isMinio {
+		for _, entry := range files {
+			if entry.IsDir() {
+				continue
+			}
+			localFile := filepath.Join(localDir, entry.Name())
+			target := filepath.Join(thumbDir, entry.Name())
+			if err := srv.moveLocalFileToPath(localFile, target); err != nil {
+				return "", err
+			}
+		}
+	}
+
 	return dataURL, nil
 }
 
