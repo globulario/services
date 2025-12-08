@@ -797,9 +797,9 @@ func main() {
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
 	srv.associations = new(sync.Map)
-	srv.CacheType = "BADGER"
+	srv.CacheType = "SCYLLADB"
 	srv.CacheAddress = srv.Address
-	srv.CacheReplicationFactor = 3
+	srv.CacheReplicationFactor = 1
 
 	// Register Title client factory (used elsewhere in service).
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)

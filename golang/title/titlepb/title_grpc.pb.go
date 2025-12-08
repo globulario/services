@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -46,6 +47,11 @@ const (
 	TitleService_GetTitleFiles_FullMethodName           = "/title.TitleService/GetTitleFiles"
 	TitleService_SearchTitles_FullMethodName            = "/title.TitleService/SearchTitles"
 	TitleService_SearchPersons_FullMethodName           = "/title.TitleService/SearchPersons"
+	TitleService_ListWatching_FullMethodName            = "/title.TitleService/ListWatching"
+	TitleService_GetWatching_FullMethodName             = "/title.TitleService/GetWatching"
+	TitleService_SaveWatching_FullMethodName            = "/title.TitleService/SaveWatching"
+	TitleService_RemoveWatching_FullMethodName          = "/title.TitleService/RemoveWatching"
+	TitleService_RebuildIndexFromStore_FullMethodName   = "/title.TitleService/RebuildIndexFromStore"
 )
 
 // TitleServiceClient is the client API for TitleService service.
@@ -111,6 +117,16 @@ type TitleServiceClient interface {
 	SearchTitles(ctx context.Context, in *SearchTitlesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchTitlesResponse], error)
 	// Searches for persons (e.g., YouTubers, actors, directors) based on given criteria.
 	SearchPersons(ctx context.Context, in *SearchPersonsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchPersonsResponse], error)
+	// Lists all watching entries with optional filters.
+	ListWatching(ctx context.Context, in *ListWatchingRequest, opts ...grpc.CallOption) (*ListWatchingResponse, error)
+	// Retrieves a specific watching entry by title ID.
+	GetWatching(ctx context.Context, in *GetWatchingRequest, opts ...grpc.CallOption) (*WatchingEntry, error)
+	// Saves or updates a watching entry.
+	SaveWatching(ctx context.Context, in *SaveWatchingRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Removes a watching entry by title ID.
+	RemoveWatching(ctx context.Context, in *RemoveWatchingRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Rebuilds Bleve indices from the persisted KV store.
+	RebuildIndexFromStore(ctx context.Context, in *RebuildIndexRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type titleServiceClient struct {
@@ -409,6 +425,56 @@ func (c *titleServiceClient) SearchPersons(ctx context.Context, in *SearchPerson
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TitleService_SearchPersonsClient = grpc.ServerStreamingClient[SearchPersonsResponse]
 
+func (c *titleServiceClient) ListWatching(ctx context.Context, in *ListWatchingRequest, opts ...grpc.CallOption) (*ListWatchingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWatchingResponse)
+	err := c.cc.Invoke(ctx, TitleService_ListWatching_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *titleServiceClient) GetWatching(ctx context.Context, in *GetWatchingRequest, opts ...grpc.CallOption) (*WatchingEntry, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WatchingEntry)
+	err := c.cc.Invoke(ctx, TitleService_GetWatching_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *titleServiceClient) SaveWatching(ctx context.Context, in *SaveWatchingRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, TitleService_SaveWatching_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *titleServiceClient) RemoveWatching(ctx context.Context, in *RemoveWatchingRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, TitleService_RemoveWatching_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *titleServiceClient) RebuildIndexFromStore(ctx context.Context, in *RebuildIndexRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, TitleService_RebuildIndexFromStore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TitleServiceServer is the server API for TitleService service.
 // All implementations should embed UnimplementedTitleServiceServer
 // for forward compatibility.
@@ -472,6 +538,16 @@ type TitleServiceServer interface {
 	SearchTitles(*SearchTitlesRequest, grpc.ServerStreamingServer[SearchTitlesResponse]) error
 	// Searches for persons (e.g., YouTubers, actors, directors) based on given criteria.
 	SearchPersons(*SearchPersonsRequest, grpc.ServerStreamingServer[SearchPersonsResponse]) error
+	// Lists all watching entries with optional filters.
+	ListWatching(context.Context, *ListWatchingRequest) (*ListWatchingResponse, error)
+	// Retrieves a specific watching entry by title ID.
+	GetWatching(context.Context, *GetWatchingRequest) (*WatchingEntry, error)
+	// Saves or updates a watching entry.
+	SaveWatching(context.Context, *SaveWatchingRequest) (*emptypb.Empty, error)
+	// Removes a watching entry by title ID.
+	RemoveWatching(context.Context, *RemoveWatchingRequest) (*emptypb.Empty, error)
+	// Rebuilds Bleve indices from the persisted KV store.
+	RebuildIndexFromStore(context.Context, *RebuildIndexRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedTitleServiceServer should be embedded to have
@@ -561,6 +637,21 @@ func (UnimplementedTitleServiceServer) SearchTitles(*SearchTitlesRequest, grpc.S
 }
 func (UnimplementedTitleServiceServer) SearchPersons(*SearchPersonsRequest, grpc.ServerStreamingServer[SearchPersonsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SearchPersons not implemented")
+}
+func (UnimplementedTitleServiceServer) ListWatching(context.Context, *ListWatchingRequest) (*ListWatchingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWatching not implemented")
+}
+func (UnimplementedTitleServiceServer) GetWatching(context.Context, *GetWatchingRequest) (*WatchingEntry, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWatching not implemented")
+}
+func (UnimplementedTitleServiceServer) SaveWatching(context.Context, *SaveWatchingRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveWatching not implemented")
+}
+func (UnimplementedTitleServiceServer) RemoveWatching(context.Context, *RemoveWatchingRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveWatching not implemented")
+}
+func (UnimplementedTitleServiceServer) RebuildIndexFromStore(context.Context, *RebuildIndexRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RebuildIndexFromStore not implemented")
 }
 func (UnimplementedTitleServiceServer) testEmbeddedByValue() {}
 
@@ -1054,6 +1145,96 @@ func _TitleService_SearchPersons_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TitleService_SearchPersonsServer = grpc.ServerStreamingServer[SearchPersonsResponse]
 
+func _TitleService_ListWatching_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWatchingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).ListWatching(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_ListWatching_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).ListWatching(ctx, req.(*ListWatchingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TitleService_GetWatching_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWatchingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).GetWatching(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_GetWatching_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).GetWatching(ctx, req.(*GetWatchingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TitleService_SaveWatching_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveWatchingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).SaveWatching(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_SaveWatching_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).SaveWatching(ctx, req.(*SaveWatchingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TitleService_RemoveWatching_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveWatchingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).RemoveWatching(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_RemoveWatching_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).RemoveWatching(ctx, req.(*RemoveWatchingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TitleService_RebuildIndexFromStore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RebuildIndexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TitleServiceServer).RebuildIndexFromStore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TitleService_RebuildIndexFromStore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TitleServiceServer).RebuildIndexFromStore(ctx, req.(*RebuildIndexRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TitleService_ServiceDesc is the grpc.ServiceDesc for TitleService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1160,6 +1341,26 @@ var TitleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTitleFiles",
 			Handler:    _TitleService_GetTitleFiles_Handler,
+		},
+		{
+			MethodName: "ListWatching",
+			Handler:    _TitleService_ListWatching_Handler,
+		},
+		{
+			MethodName: "GetWatching",
+			Handler:    _TitleService_GetWatching_Handler,
+		},
+		{
+			MethodName: "SaveWatching",
+			Handler:    _TitleService_SaveWatching_Handler,
+		},
+		{
+			MethodName: "RemoveWatching",
+			Handler:    _TitleService_RemoveWatching_Handler,
+		},
+		{
+			MethodName: "RebuildIndexFromStore",
+			Handler:    _TitleService_RebuildIndexFromStore_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

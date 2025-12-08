@@ -274,7 +274,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	rqst.Title.Writers = srv.saveTitleCasting(resolved, rqst.Title.ID, "Writing", rqst.Title.Writers)
 	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
 
-	if err := index.Index(rqst.Title.UUID, rqst.Title); err != nil {
+	if err := srv.indexTitleDoc(index, rqst.Title); err != nil {
 		return nil, status.Errorf(codes.Internal, "index title: %v", err)
 	}
 
@@ -302,13 +302,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 		}
 	}
 
-	// Persist raw JSON
-	if raw, err := protojson.Marshal(rqst.Title); err == nil {
-		if err := index.SetInternal([]byte(rqst.Title.UUID), raw); err != nil {
-			return nil, status.Errorf(codes.Internal, "store raw title: %v", err)
-		}
-	} else {
-		logger.Error("marshal title", "titleID", rqst.Title.ID, "err", err)
+	if err := srv.persistMetadata(rqst.IndexPath, "titles", rqst.Title.ID, rqst.Title); err != nil {
+		logger.Warn("persistMetadata title failed", "titleID", rqst.Title.ID, "err", err)
 	}
 
 	evt, err := srv.getEventClient()
@@ -355,17 +350,14 @@ func (srv *server) UpdateTitleMetadata(ctx context.Context, rqst *titlepb.Update
 	rqst.Title.Directors = srv.saveTitleCasting(resolved, rqst.Title.ID, "Directing", rqst.Title.Directors)
 
 	uuid := Utility.GenerateUUID(rqst.Title.ID)
-	if err := index.Index(uuid, rqst.Title); err != nil {
+	rqst.Title.UUID = uuid
+	if err := srv.indexTitleDoc(index, rqst.Title); err != nil {
 		return nil, status.Errorf(codes.Internal, "reindex title: %v", err)
 	}
-	if raw, err := protojson.Marshal(rqst.Title); err == nil {
-		if err := index.SetInternal([]byte(uuid), raw); err != nil {
-			return nil, status.Errorf(codes.Internal, "store raw title: %v", err)
-		}
-	} else {
-		logger.Error("marshal title", "titleID", rqst.Title.ID, "err", err)
+	if err := srv.persistMetadata(rqst.IndexPath, "titles", rqst.Title.ID, rqst.Title); err != nil {
+		logger.Warn("persistMetadata title failed", "titleID", rqst.Title.ID, "err", err)
 	}
-	
+
 	return &titlepb.UpdateTitleMetadataResponse{}, nil
 }
 
@@ -413,6 +405,7 @@ func (srv *server) deleteTitle(token, indexPath, titleId string) error {
 	if err := index.DeleteInternal([]byte(uuid)); err != nil {
 		return err
 	}
+	srv.removeMetadata(indexPath, "titles", titleId)
 
 	rbacClient, err := srv.getRbacClient()
 	if err != nil {
@@ -454,7 +447,7 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 		return errors.New("no video id was given")
 	}
 	video.UUID = Utility.GenerateUUID(video.ID)
-	if err := index.Index(video.UUID, video); err != nil {
+	if err := srv.indexVideoDoc(index, video); err != nil {
 		return err
 	}
 	video.Casting = srv.saveTitleCasting(indexPath, video.ID, "Casting", video.Casting)
@@ -469,12 +462,8 @@ func (srv *server) createVideo(token, indexPath, clientId string, video *titlepb
 		}
 	}
 
-	if raw, err := protojson.Marshal(video); err == nil {
-		if err := index.SetInternal([]byte(video.UUID), raw); err != nil {
-			return err
-		}
-	} else {
-		return err
+	if err := srv.persistMetadata(indexPath, "videos", video.ID, video); err != nil {
+		logger.Warn("persistMetadata video failed", "videoID", video.ID, "err", err)
 	}
 
 	evt, err := srv.getEventClient()
@@ -605,6 +594,7 @@ func (srv *server) deleteVideo(token, indexPath, videoId string) error {
 	if err := index.DeleteInternal([]byte(uuid)); err != nil {
 		return err
 	}
+	srv.removeMetadata(indexPath, "videos", videoId)
 
 	if val, err := index.GetInternal([]byte(uuid)); err != nil {
 		return err
@@ -705,21 +695,14 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			h.Snippets = append(h.Snippets, &titlepb.Snippet{Field: field, Fragments: frags})
 		}
 
-		// Load the full Title from the internal store and attach it via the oneof.
+		// Load the underlying document from the internal store and attach it via the oneof.
 		if raw, err := index.GetInternal([]byte(hit.ID)); err == nil && len(raw) > 0 {
-			t := new(titlepb.Title)
-			if err := protojson.Unmarshal(raw, t); err == nil {
-				// Optionally refresh Actor objects from index (kept from your version)
-				actors := make([]*titlepb.Person, 0, len(t.Actors))
-				for _, a := range t.Actors {
-					if p, err := srv.getPersonById(rqst.IndexPath, a.GetID()); err == nil {
-						actors = append(actors, p)
-					}
-				}
-				t.Actors = actors
-
-				// ✅ Use the oneof
-				h.Result = &titlepb.SearchHit_Title{Title: t}
+			switch {
+			case tryUnmarshalTitleAndPopulate(raw, rqst.IndexPath, srv, h):
+				// handled inside helper
+			case tryUnmarshalVideo(raw, h):
+			case tryUnmarshalAudio(raw, h):
+			case tryUnmarshalPerson(raw, h):
 			}
 		}
 
@@ -730,5 +713,74 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		}
 	}
 
+	// Finally stream facets so clients can render them.
+	facets := &titlepb.SearchFacets{Facets: make([]*titlepb.SearchFacet, 0, len(result.Facets))}
+
+	for _, f := range result.Facets {
+		facet := &titlepb.SearchFacet{
+			Field: f.Field,
+			Total: int32(f.Total),
+			Other: int32(f.Other),
+			Terms: make([]*titlepb.SearchFacetTerm, 0, len(f.Terms.Terms())),
+		}
+		for _, t := range f.Terms.Terms() {
+			facet.Terms = append(facet.Terms, &titlepb.SearchFacetTerm{Term: t.Term, Count: int32(t.Count)})
+		}
+
+		facets.Facets = append(facets.Facets, facet)
+	}
+
+	if err := stream.Send(&titlepb.SearchTitlesResponse{
+		Result: &titlepb.SearchTitlesResponse_Facets{Facets: facets},
+	}); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// Helper to decode a Title document, refresh actor references, and attach to the hit.
+func tryUnmarshalTitleAndPopulate(raw []byte, indexPath string, srv *server, h *titlepb.SearchHit) bool {
+	title := new(titlepb.Title)
+	if err := protojson.Unmarshal(raw, title); err != nil || title.GetID() == "" {
+		return false
+	}
+
+	actors := make([]*titlepb.Person, 0, len(title.Actors))
+	for _, actorRef := range title.Actors {
+		if p, err := srv.getPersonById(indexPath, actorRef.GetID()); err == nil {
+			actors = append(actors, p)
+		}
+	}
+	title.Actors = actors
+
+	h.Result = &titlepb.SearchHit_Title{Title: title}
+	return true
+}
+
+func tryUnmarshalVideo(raw []byte, h *titlepb.SearchHit) bool {
+	video := new(titlepb.Video)
+	if err := protojson.Unmarshal(raw, video); err != nil || video.GetID() == "" {
+		return false
+	}
+	h.Result = &titlepb.SearchHit_Video{Video: video}
+	return true
+}
+
+func tryUnmarshalAudio(raw []byte, h *titlepb.SearchHit) bool {
+	audio := new(titlepb.Audio)
+	if err := protojson.Unmarshal(raw, audio); err != nil || audio.GetID() == "" {
+		return false
+	}
+	h.Result = &titlepb.SearchHit_Audio{Audio: audio}
+	return true
+}
+
+func tryUnmarshalPerson(raw []byte, h *titlepb.SearchHit) bool {
+	person := new(titlepb.Person)
+	if err := protojson.Unmarshal(raw, person); err != nil || person.GetID() == "" {
+		return false
+	}
+	h.Result = &titlepb.SearchHit_Person{Person: person}
+	return true
 }

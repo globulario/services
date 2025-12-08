@@ -9,6 +9,8 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // getStore opens/returns the key-value store used for file/title associations.
@@ -23,7 +25,7 @@ func (srv *server) getStore(name, path string) (storage_store.Store, error) {
 		store = storage_store.NewBadger_store()
 	case "LEVELDB":
 		store = storage_store.NewLevelDB_store()
-	case "SCYLLA":
+	case "SCYLLADB":
 		store = storage_store.NewScylla_store(srv.CacheAddress, name, srv.CacheReplicationFactor)
 	default:
 		store = storage_store.NewBadger_store()
@@ -108,6 +110,45 @@ func (srv *server) getAssociations(id string) storage_store.Store {
 		}
 	}
 	return nil
+}
+
+func (srv *server) getMetadataStore(indexPath, collection string) (storage_store.Store, error) {
+	resolved, err := srv.resolveIndexPath(indexPath)
+	if err != nil {
+		return nil, err
+	}
+	base := filepath.Base(resolved)
+	name := fmt.Sprintf("%s_%s_meta", base, collection)
+
+	root := filepath.Join(config.GetDataDir(), "title_metadata")
+	if srv.Domain != "" {
+		root = filepath.Join(root, srv.Domain)
+	}
+	root = filepath.Join(root, base, collection)
+	if err := Utility.CreateIfNotExists(root, 0o755); err != nil {
+		return nil, fmt.Errorf("ensure metadata dir %s: %w", root, err)
+	}
+	return srv.getStore(name, root)
+}
+
+func (srv *server) persistMetadata(indexPath, collection, key string, msg proto.Message) error {
+	store, err := srv.getMetadataStore(indexPath, collection)
+	if err != nil {
+		return err
+	}
+	raw, err := protojson.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return store.SetItem(key, raw)
+}
+
+func (srv *server) removeMetadata(indexPath, collection, key string) {
+	store, err := srv.getMetadataStore(indexPath, collection)
+	if err != nil {
+		return
+	}
+	_ = store.RemoveItem(key)
 }
 
 func (srv *server) migrateAssociationKey(indexPath, oldKey, newKey, file string) {

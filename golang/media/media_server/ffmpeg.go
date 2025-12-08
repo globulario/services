@@ -931,7 +931,7 @@ func (srv *server) hasEnableCudaNvcc() bool {
 // segment_target_duration: target segment length in seconds (EXT-X-TARGETDURATION)
 // max_bitrate_ratio:       peak bitrate multiplier for -maxrate (e.g., 1.07)
 // rate_monitor_buffer_ratio: buffer size multiplier for -bufsize (e.g., 1.5)
-func (srv *server) createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
+func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitrateRatio, rateMonitorBufferRatio float32) error {
 	// Throttle concurrent ffmpeg.
 	if pids, _ := Utility.GetProcessIdsByName("ffmpeg"); len(pids) > MAX_FFMPEG_INSTANCE {
 		return errors.New("too many ffmpeg instances; please try again later")
@@ -940,19 +940,77 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 	src = filepath.ToSlash(src)
 	dest = filepath.ToSlash(dest)
 
-	// Ensure destination exists.
 	if err := Utility.CreateDirIfNotExist(dest); err != nil {
 		logger.Error("createHlsStream: ensure dest dir failed", "dest", dest, "err", err)
 		return err
 	}
 
-	// Probe stream info.
+	// --- Probe once --------------------------------------------------------
 	streamInfos, err := srv.getStreamInfos(src)
 	if err != nil {
 		logger.Error("createHlsStream: getStreamInfos failed", "src", src, "err", err)
 		return err
 	}
 
+	var vCodec string
+	audioCodecs := make(map[string]struct{})
+
+	if streams, ok := streamInfos["streams"].([]interface{}); ok {
+		for _, s := range streams {
+			sm, _ := s.(map[string]interface{})
+			if sm == nil {
+				continue
+			}
+			ct, _ := sm["codec_type"].(string)
+			switch ct {
+			case "video":
+				if vCodec == "" {
+					vCodec, _ = sm["codec_name"].(string)
+				}
+			case "audio":
+				if cn, _ := sm["codec_name"].(string); cn != "" {
+					audioCodecs[strings.ToLower(cn)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	// --- FAST PATH: already H.264 + AAC => segment only --------------------
+	allAac := len(audioCodecs) == 0 // no audio or only AAC
+	for c := range audioCodecs {
+		if c != "aac" {
+			allAac = false
+			break
+		}
+	}
+
+	if strings.ToLower(vCodec) == "h264" && allAac {
+		logger.Info("createHlsStream: using fast copy HLS path",
+			"src", src, "dest", dest, "vcodec", vCodec, "audioCodecs", audioCodecs)
+
+		args := []string{
+			"-hide_banner", "-y",
+			"-i", src,
+			"-codec:v", "copy",
+			"-codec:a", "copy",
+			"-start_number", "0",
+			"-hls_time", Utility.ToString(segmentTarget),
+			"-hls_playlist_type", "vod",
+			"-hls_segment_filename",
+			filepath.ToSlash(filepath.Join(dest, "segment_%04d.ts")),
+			filepath.ToSlash(filepath.Join(dest, "playlist.m3u8")),
+		}
+
+		wait := make(chan error, 1)
+		go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
+		if runErr := <-wait; runErr != nil {
+			logger.Error("createHlsStream: fast copy HLS failed", "src", src, "dest", dest, "err", runErr)
+			return runErr
+		}
+		return nil
+	}
+
+	// --- SLOW PATH: full re-encode with ladder (your current logic) -------
 	keyint, err := srv.getStreamFrameRateInterval(src)
 	if err != nil || keyint <= 0 {
 		if err != nil {
@@ -961,8 +1019,7 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 		keyint = 25
 	}
 
-	// Resolve source video "encoding" long name for encoder choice.
-	encoding := ""
+	encodingLong := ""
 	if streams, ok := streamInfos["streams"].([]interface{}); ok {
 		for _, s := range streams {
 			sm, _ := s.(map[string]interface{})
@@ -979,49 +1036,46 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 				continue
 			}
 			if cl, _ := sm["codec_long_name"].(string); cl != "" {
-				encoding = cl
+				encodingLong = cl
 				break
 			}
 		}
 	}
-	if encoding == "" {
+	if encodingLong == "" {
 		return errors.New("no usable video stream found")
 	}
 
-	// Choose encoder (GPU if available).
 	args := []string{"-hide_banner", "-y", "-i", src, "-c:v"}
 	switch {
 	case srv.hasEnableCudaNvcc():
-		// NVENC path
-		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
+		if strings.HasPrefix(encodingLong, "H.264") || strings.HasPrefix(encodingLong, "MPEG-4 part 2") {
 			args = append(args, "h264_nvenc")
-		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
+		} else if strings.HasPrefix(encodingLong, "H.265") || strings.HasPrefix(encodingLong, "Motion JPEG") {
 			args = append(args, "h264_nvenc", "-pix_fmt", "yuv420p")
 		} else {
-			return fmt.Errorf("no GPU encoder mapping for source codec %q", encoding)
+			return fmt.Errorf("no GPU encoder mapping for source codec %q", encodingLong)
 		}
 	default:
-		// CPU path
-		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
+		if strings.HasPrefix(encodingLong, "H.264") || strings.HasPrefix(encodingLong, "MPEG-4 part 2") {
 			args = append(args, "libx264")
-		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
+		} else if strings.HasPrefix(encodingLong, "H.265") || strings.HasPrefix(encodingLong, "Motion JPEG") {
 			args = append(args, "libx264", "-pix_fmt", "yuv420p")
 		} else {
-			return fmt.Errorf("no CPU encoder mapping for source codec %q", encoding)
+			return fmt.Errorf("no CPU encoder mapping for source codec %q", encodingLong)
 		}
 	}
 
-	// Decide rendition ladder from input width.
-	w, _ := srv.getVideoResolution(src) // if probe fails, w == -1; ladder will be minimal
+	// Decide ladder from input width (same as you already do).
+	w, _ := srv.getVideoResolution(src)
 	renditions := make([]map[string]string, 0, 6)
 	if w >= 426 {
-		renditions = append(renditions, map[string]string{"res": "426x240", "vbit": "1400k", "abit": "128k"})
+		renditions = append(renditions, map[string]string{"res": "426x240", "vbit": "800k", "abit": "96k"})
 	}
 	if w >= 640 {
 		renditions = append(renditions, map[string]string{"res": "640x360", "vbit": "1400k", "abit": "128k"})
 	}
 	if w >= 842 {
-		renditions = append(renditions, map[string]string{"res": "842x480", "vbit": "1400k", "abit": "128k"})
+		renditions = append(renditions, map[string]string{"res": "842x480", "vbit": "1700k", "abit": "128k"})
 	}
 	if w >= 1280 {
 		renditions = append(renditions, map[string]string{"res": "1280x720", "vbit": "2800k", "abit": "128k"})
@@ -1029,25 +1083,19 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 	if w >= 1920 {
 		renditions = append(renditions, map[string]string{"res": "1920x1080", "vbit": "5000k", "abit": "192k"})
 	}
-	if w >= 3840 {
-		renditions = append(renditions, map[string]string{"res": "3840x2160", "vbit": "5000k", "abit": "192k"})
-	}
 	if len(renditions) == 0 {
-		// Fall back to a single low rung to avoid empty output.
 		renditions = append(renditions, map[string]string{"res": "426x240", "vbit": "800k", "abit": "96k"})
 	}
 
-	// Common params applied per rendition/output.
 	staticParams := []string{
 		"-profile:v", "main",
 		"-sc_threshold", "0",
 		"-g", Utility.ToString(keyint),
 		"-keyint_min", Utility.ToString(keyint),
-		"-hls_time", Utility.ToString(segment_target_duration),
+		"-hls_time", Utility.ToString(segmentTarget),
 		"-hls_playlist_type", "vod",
 	}
 
-	// Build master playlist and output args (one output per rung).
 	var master strings.Builder
 	master.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
 
@@ -1065,41 +1113,18 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 		height := parts[1]
 		name := height + "p"
 
-		// Compute maxrate/bufsize from vbit (strip trailing 'k').
 		numStr := strings.TrimSuffix(vbit, "k")
-		vk := Utility.ToInt(numStr) // kbps
-		maxrate := int(float32(vk) * max_bitrate_ratio)
-		bufsize := int(float32(vk) * rate_monitor_buffer_ratio)
+		vk := Utility.ToInt(numStr)
+		maxrate := int(float32(vk) * maxBitrateRatio)
+		bufsize := int(float32(vk) * rateMonitorBufferRatio)
 
-		// Per-output video filter: even dimensions, maintain AR.
 		scale := fmt.Sprintf("scale=-2:min(%s\\,if(mod(ih\\,2)\\,ih-1\\,ih))", width)
 
-		// Append params for this output.
-		args = append(args,
-			staticParams...,
-		)
+		args = append(args, staticParams...)
 		args = append(args,
 			"-vf", scale,
-			// Map video once and up to 8 audio streams, encode audio to AAC.
 			"-map", "0:v",
 			"-map", "0:a:0?", "-c:a:0", "aac",
-			"-map", "0:a:1?", "-c:a:1", "aac",
-			"-map", "0:a:2?", "-c:a:2", "aac",
-			"-map", "0:a:3?", "-c:a:3", "aac",
-			"-map", "0:a:4?", "-c:a:4", "aac",
-			"-map", "0:a:5?", "-c:a:5", "aac",
-			"-map", "0:a:6?", "-c:a:6", "aac",
-			"-map", "0:a:7?", "-c:a:7", "aac",
-			// Text subtitles to mov_text if present (up to 8).
-			"-map", "0:s:0?", "-c:s:0", "mov_text",
-			"-map", "0:s:1?", "-c:s:1", "mov_text",
-			"-map", "0:s:2?", "-c:s:2", "mov_text",
-			"-map", "0:s:3?", "-c:s:3", "mov_text",
-			"-map", "0:s:4?", "-c:s:4", "mov_text",
-			"-map", "0:s:5?", "-c:s:5", "mov_text",
-			"-map", "0:s:6?", "-c:s:6", "mov_text",
-			"-map", "0:s:7?", "-c:s:7", "mov_text",
-			// Bitrate control and output.
 			"-b:v", vbit,
 			"-maxrate", fmt.Sprintf("%dk", maxrate),
 			"-bufsize", fmt.Sprintf("%dk", bufsize),
@@ -1108,18 +1133,16 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 			filepath.ToSlash(filepath.Join(dest, name+".m3u8")),
 		)
 
-		// Master manifest entry (BANDWIDTH expects bits per second).
 		master.WriteString(fmt.Sprintf("#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%s\n%s\n", vk*1000, res, name+".m3u8"))
 	}
 
 	logger.Info("ffmpeg: create HLS",
 		"src", src, "dest", dest,
 		"keyint", keyint,
-		"segment", segment_target_duration,
+		"segment", segmentTarget,
 		"rungs", len(renditions),
 	)
 
-	// Run ffmpeg once to produce all variant playlists and segments.
 	wait := make(chan error, 1)
 	go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
 	if runErr := <-wait; runErr != nil {
@@ -1127,7 +1150,6 @@ func (srv *server) createHlsStream(src, dest string, segment_target_duration int
 		return runErr
 	}
 
-	// Write the master playlist.
 	if err := os.WriteFile(filepath.Join(dest, "playlist.m3u8"), []byte(master.String()), 0644); err != nil {
 		logger.Error("createHlsStream: write master playlist failed", "dest", dest, "err", err)
 		return err

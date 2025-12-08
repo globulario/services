@@ -2,6 +2,7 @@ syntax = "proto3";
 package title;
 
 option go_package="github.com/globulario/services/golang/title/titlepb";
+import "google/protobuf/empty.proto";
 
 // Represents a person with a role in the entertainment industry.
 message Person {
@@ -491,6 +492,44 @@ message DeleteAlbumResponse {
 }
 
 
+message WatchingEntry {
+  string id        = 1; // same as _id in your docs (titleId or userId:titleId)
+  string title_id  = 2;
+  string user_id   = 3;
+  string domain    = 4;
+
+  int64  position_ms = 5;  // last playback position
+  int64  duration_ms = 6;  // total duration (optional, for progress%)
+  string media_type  = 7;  // "video" | "audio" | etc.
+  string updated_at  = 8;  // ISO8601 or timestamp
+}
+
+message ListWatchingRequest {
+  // optionally filters: media_type, limit, since, etc.
+}
+
+message ListWatchingResponse {
+  repeated WatchingEntry items = 1;
+}
+
+message GetWatchingRequest {
+  string title_id = 1;
+}
+
+message SaveWatchingRequest {
+  WatchingEntry entry = 1;
+}
+
+message RemoveWatchingRequest {
+  string title_id = 1;
+}
+
+message RebuildIndexRequest {
+  repeated string collections = 1;
+  bool incremental = 2;
+}
+
+
 /**
 * Service for managing and accessing title information. It provides
 * functionality to retrieve and manage data about movies, series, episodes,
@@ -578,4 +617,19 @@ message DeleteAlbumResponse {
 
     // Searches for persons (e.g., YouTubers, actors, directors) based on given criteria.
     rpc SearchPersons(SearchPersonsRequest) returns (stream SearchPersonsResponse);
+
+    // Lists all watching entries with optional filters.
+    rpc ListWatching(ListWatchingRequest) returns (ListWatchingResponse);
+
+    // Retrieves a specific watching entry by title ID.
+    rpc GetWatching(GetWatchingRequest) returns (WatchingEntry);
+
+    // Saves or updates a watching entry.
+    rpc SaveWatching(SaveWatchingRequest) returns (.google.protobuf.Empty);
+
+    // Removes a watching entry by title ID.
+    rpc RemoveWatching(RemoveWatchingRequest) returns (.google.protobuf.Empty);
+
+    // Rebuilds Bleve indices from the persisted KV store.
+    rpc RebuildIndexFromStore(RebuildIndexRequest) returns (.google.protobuf.Empty);
 }

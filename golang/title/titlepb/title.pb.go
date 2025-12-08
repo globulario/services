@@ -9,6 +9,7 @@ package titlepb
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -4281,11 +4282,375 @@ func (*DeleteAlbumResponse) Descriptor() ([]byte, []int) {
 	return file_title_proto_rawDescGZIP(), []int{70}
 }
 
+type WatchingEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // same as _id in your docs (titleId or userId:titleId)
+	TitleId       string                 `protobuf:"bytes,2,opt,name=title_id,json=titleId,proto3" json:"title_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Domain        string                 `protobuf:"bytes,4,opt,name=domain,proto3" json:"domain,omitempty"`
+	PositionMs    int64                  `protobuf:"varint,5,opt,name=position_ms,json=positionMs,proto3" json:"position_ms,omitempty"` // last playback position
+	DurationMs    int64                  `protobuf:"varint,6,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"` // total duration (optional, for progress%)
+	MediaType     string                 `protobuf:"bytes,7,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`     // "video" | "audio" | etc.
+	UpdatedAt     string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`     // ISO8601 or timestamp
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchingEntry) Reset() {
+	*x = WatchingEntry{}
+	mi := &file_title_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchingEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchingEntry) ProtoMessage() {}
+
+func (x *WatchingEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchingEntry.ProtoReflect.Descriptor instead.
+func (*WatchingEntry) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *WatchingEntry) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *WatchingEntry) GetTitleId() string {
+	if x != nil {
+		return x.TitleId
+	}
+	return ""
+}
+
+func (x *WatchingEntry) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *WatchingEntry) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *WatchingEntry) GetPositionMs() int64 {
+	if x != nil {
+		return x.PositionMs
+	}
+	return 0
+}
+
+func (x *WatchingEntry) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *WatchingEntry) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
+func (x *WatchingEntry) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+type ListWatchingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWatchingRequest) Reset() {
+	*x = ListWatchingRequest{}
+	mi := &file_title_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWatchingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWatchingRequest) ProtoMessage() {}
+
+func (x *ListWatchingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWatchingRequest.ProtoReflect.Descriptor instead.
+func (*ListWatchingRequest) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{72}
+}
+
+type ListWatchingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*WatchingEntry       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWatchingResponse) Reset() {
+	*x = ListWatchingResponse{}
+	mi := &file_title_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWatchingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWatchingResponse) ProtoMessage() {}
+
+func (x *ListWatchingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWatchingResponse.ProtoReflect.Descriptor instead.
+func (*ListWatchingResponse) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *ListWatchingResponse) GetItems() []*WatchingEntry {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type GetWatchingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TitleId       string                 `protobuf:"bytes,1,opt,name=title_id,json=titleId,proto3" json:"title_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWatchingRequest) Reset() {
+	*x = GetWatchingRequest{}
+	mi := &file_title_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWatchingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWatchingRequest) ProtoMessage() {}
+
+func (x *GetWatchingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWatchingRequest.ProtoReflect.Descriptor instead.
+func (*GetWatchingRequest) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *GetWatchingRequest) GetTitleId() string {
+	if x != nil {
+		return x.TitleId
+	}
+	return ""
+}
+
+type SaveWatchingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entry         *WatchingEntry         `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveWatchingRequest) Reset() {
+	*x = SaveWatchingRequest{}
+	mi := &file_title_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveWatchingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveWatchingRequest) ProtoMessage() {}
+
+func (x *SaveWatchingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveWatchingRequest.ProtoReflect.Descriptor instead.
+func (*SaveWatchingRequest) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *SaveWatchingRequest) GetEntry() *WatchingEntry {
+	if x != nil {
+		return x.Entry
+	}
+	return nil
+}
+
+type RemoveWatchingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TitleId       string                 `protobuf:"bytes,1,opt,name=title_id,json=titleId,proto3" json:"title_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveWatchingRequest) Reset() {
+	*x = RemoveWatchingRequest{}
+	mi := &file_title_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveWatchingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveWatchingRequest) ProtoMessage() {}
+
+func (x *RemoveWatchingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveWatchingRequest.ProtoReflect.Descriptor instead.
+func (*RemoveWatchingRequest) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *RemoveWatchingRequest) GetTitleId() string {
+	if x != nil {
+		return x.TitleId
+	}
+	return ""
+}
+
+type RebuildIndexRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Collections   []string               `protobuf:"bytes,1,rep,name=collections,proto3" json:"collections,omitempty"`
+	Incremental   bool                   `protobuf:"varint,2,opt,name=incremental,proto3" json:"incremental,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RebuildIndexRequest) Reset() {
+	*x = RebuildIndexRequest{}
+	mi := &file_title_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RebuildIndexRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RebuildIndexRequest) ProtoMessage() {}
+
+func (x *RebuildIndexRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_title_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RebuildIndexRequest.ProtoReflect.Descriptor instead.
+func (*RebuildIndexRequest) Descriptor() ([]byte, []int) {
+	return file_title_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *RebuildIndexRequest) GetCollections() []string {
+	if x != nil {
+		return x.Collections
+	}
+	return nil
+}
+
+func (x *RebuildIndexRequest) GetIncremental() bool {
+	if x != nil {
+		return x.Incremental
+	}
+	return false
+}
+
 var File_title_proto protoreflect.FileDescriptor
 
 const file_title_proto_rawDesc = "" +
 	"\n" +
-	"\vtitle.proto\x12\x05title\"\xfc\x02\n" +
+	"\vtitle.proto\x12\x05title\x1a\x1bgoogle/protobuf/empty.proto\"\xfc\x02\n" +
 	"\x06Person\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x10\n" +
 	"\x03URL\x18\x02 \x01(\tR\x03URL\x12\x1a\n" +
@@ -4568,7 +4933,32 @@ const file_title_proto_rawDesc = "" +
 	"\x12DeleteAlbumRequest\x12\x18\n" +
 	"\aalbumId\x18\x01 \x01(\tR\aalbumId\x12\x1c\n" +
 	"\tindexPath\x18\x02 \x01(\tR\tindexPath\"\x15\n" +
-	"\x13DeleteAlbumResponse2\xbd\x10\n" +
+	"\x13DeleteAlbumResponse\"\xeb\x01\n" +
+	"\rWatchingEntry\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\btitle_id\x18\x02 \x01(\tR\atitleId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06domain\x18\x04 \x01(\tR\x06domain\x12\x1f\n" +
+	"\vposition_ms\x18\x05 \x01(\x03R\n" +
+	"positionMs\x12\x1f\n" +
+	"\vduration_ms\x18\x06 \x01(\x03R\n" +
+	"durationMs\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\a \x01(\tR\tmediaType\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\tR\tupdatedAt\"\x15\n" +
+	"\x13ListWatchingRequest\"B\n" +
+	"\x14ListWatchingResponse\x12*\n" +
+	"\x05items\x18\x01 \x03(\v2\x14.title.WatchingEntryR\x05items\"/\n" +
+	"\x12GetWatchingRequest\x12\x19\n" +
+	"\btitle_id\x18\x01 \x01(\tR\atitleId\"A\n" +
+	"\x13SaveWatchingRequest\x12*\n" +
+	"\x05entry\x18\x01 \x01(\v2\x14.title.WatchingEntryR\x05entry\"2\n" +
+	"\x15RemoveWatchingRequest\x12\x19\n" +
+	"\btitle_id\x18\x01 \x01(\tR\atitleId\"Y\n" +
+	"\x13RebuildIndexRequest\x12 \n" +
+	"\vcollections\x18\x01 \x03(\tR\vcollections\x12 \n" +
+	"\vincremental\x18\x02 \x01(\bR\vincremental2\x9f\x13\n" +
 	"\fTitleService\x12P\n" +
 	"\x0fCreatePublisher\x12\x1d.title.CreatePublisherRequest\x1a\x1e.title.CreatePublisherResponse\x12P\n" +
 	"\x0fDeletePublisher\x12\x1d.title.DeletePublisherRequest\x1a\x1e.title.DeletePublisherResponse\x12S\n" +
@@ -4596,7 +4986,12 @@ const file_title_proto_rawDesc = "" +
 	"\rGetFileAudios\x12\x1b.title.GetFileAudiosRequest\x1a\x1c.title.GetFileAudiosResponse\x12J\n" +
 	"\rGetTitleFiles\x12\x1b.title.GetTitleFilesRequest\x1a\x1c.title.GetTitleFilesResponse\x12I\n" +
 	"\fSearchTitles\x12\x1a.title.SearchTitlesRequest\x1a\x1b.title.SearchTitlesResponse0\x01\x12L\n" +
-	"\rSearchPersons\x12\x1b.title.SearchPersonsRequest\x1a\x1c.title.SearchPersonsResponse0\x01B5Z3github.com/globulario/services/golang/title/titlepbb\x06proto3"
+	"\rSearchPersons\x12\x1b.title.SearchPersonsRequest\x1a\x1c.title.SearchPersonsResponse0\x01\x12G\n" +
+	"\fListWatching\x12\x1a.title.ListWatchingRequest\x1a\x1b.title.ListWatchingResponse\x12>\n" +
+	"\vGetWatching\x12\x19.title.GetWatchingRequest\x1a\x14.title.WatchingEntry\x12B\n" +
+	"\fSaveWatching\x12\x1a.title.SaveWatchingRequest\x1a\x16.google.protobuf.Empty\x12F\n" +
+	"\x0eRemoveWatching\x12\x1c.title.RemoveWatchingRequest\x1a\x16.google.protobuf.Empty\x12K\n" +
+	"\x15RebuildIndexFromStore\x12\x1a.title.RebuildIndexRequest\x1a\x16.google.protobuf.EmptyB5Z3github.com/globulario/services/golang/title/titlepbb\x06proto3"
 
 var (
 	file_title_proto_rawDescOnce sync.Once
@@ -4610,7 +5005,7 @@ func file_title_proto_rawDescGZIP() []byte {
 	return file_title_proto_rawDescData
 }
 
-var file_title_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
+var file_title_proto_msgTypes = make([]protoimpl.MessageInfo, 78)
 var file_title_proto_goTypes = []any{
 	(*Person)(nil),                          // 0: title.Person
 	(*Poster)(nil),                          // 1: title.Poster
@@ -4683,6 +5078,14 @@ var file_title_proto_goTypes = []any{
 	(*GetAlbumResponse)(nil),                // 68: title.GetAlbumResponse
 	(*DeleteAlbumRequest)(nil),              // 69: title.DeleteAlbumRequest
 	(*DeleteAlbumResponse)(nil),             // 70: title.DeleteAlbumResponse
+	(*WatchingEntry)(nil),                   // 71: title.WatchingEntry
+	(*ListWatchingRequest)(nil),             // 72: title.ListWatchingRequest
+	(*ListWatchingResponse)(nil),            // 73: title.ListWatchingResponse
+	(*GetWatchingRequest)(nil),              // 74: title.GetWatchingRequest
+	(*SaveWatchingRequest)(nil),             // 75: title.SaveWatchingRequest
+	(*RemoveWatchingRequest)(nil),           // 76: title.RemoveWatchingRequest
+	(*RebuildIndexRequest)(nil),             // 77: title.RebuildIndexRequest
+	(*emptypb.Empty)(nil),                   // 78: google.protobuf.Empty
 }
 var file_title_proto_depIdxs = []int32{
 	3,  // 0: title.Video.PublisherID:type_name -> title.Publisher
@@ -4728,65 +5131,77 @@ var file_title_proto_depIdxs = []int32{
 	56, // 40: title.GetAudioByIdResponse.audio:type_name -> title.Audio
 	58, // 41: title.GetFileAudiosResponse.audios:type_name -> title.Audios
 	57, // 42: title.GetAlbumResponse.album:type_name -> title.Album
-	44, // 43: title.TitleService.CreatePublisher:input_type -> title.CreatePublisherRequest
-	46, // 44: title.TitleService.DeletePublisher:input_type -> title.DeletePublisherRequest
-	48, // 45: title.TitleService.GetPublisherById:input_type -> title.GetPublisherByIdRequest
-	50, // 46: title.TitleService.CreatePerson:input_type -> title.CreatePersonRequest
-	52, // 47: title.TitleService.DeletePerson:input_type -> title.DeletePersonRequest
-	54, // 48: title.TitleService.GetPersonById:input_type -> title.GetPersonByIdRequest
-	16, // 49: title.TitleService.CreateTitle:input_type -> title.CreateTitleRequest
-	18, // 50: title.TitleService.GetTitleById:input_type -> title.GetTitleByIdRequest
-	20, // 51: title.TitleService.DeleteTitle:input_type -> title.DeleteTitleRequest
-	22, // 52: title.TitleService.UpdateTitleMetadata:input_type -> title.UpdateTitleMetadataRequest
-	59, // 53: title.TitleService.CreateAudio:input_type -> title.CreateAudioRequest
-	61, // 54: title.TitleService.GetAudioById:input_type -> title.GetAudioByIdRequest
-	67, // 55: title.TitleService.GetAlbum:input_type -> title.GetAlbumRequest
-	63, // 56: title.TitleService.DeleteAudio:input_type -> title.DeleteAudioRequest
-	69, // 57: title.TitleService.DeleteAlbum:input_type -> title.DeleteAlbumRequest
-	6,  // 58: title.TitleService.CreateVideo:input_type -> title.CreateVideoRequest
-	8,  // 59: title.TitleService.GetVideoById:input_type -> title.GetVideoByIdRequest
-	10, // 60: title.TitleService.DeleteVideo:input_type -> title.DeleteVideoRequest
-	12, // 61: title.TitleService.UpdateVideoMetadata:input_type -> title.UpdateVideoMetadataRequest
-	24, // 62: title.TitleService.AssociateFileWithTitle:input_type -> title.AssociateFileWithTitleRequest
-	26, // 63: title.TitleService.DissociateFileWithTitle:input_type -> title.DissociateFileWithTitleRequest
-	28, // 64: title.TitleService.GetFileTitles:input_type -> title.GetFileTitlesRequest
-	30, // 65: title.TitleService.GetFileVideos:input_type -> title.GetFileVideosRequest
-	65, // 66: title.TitleService.GetFileAudios:input_type -> title.GetFileAudiosRequest
-	32, // 67: title.TitleService.GetTitleFiles:input_type -> title.GetTitleFilesRequest
-	40, // 68: title.TitleService.SearchTitles:input_type -> title.SearchTitlesRequest
-	42, // 69: title.TitleService.SearchPersons:input_type -> title.SearchPersonsRequest
-	45, // 70: title.TitleService.CreatePublisher:output_type -> title.CreatePublisherResponse
-	47, // 71: title.TitleService.DeletePublisher:output_type -> title.DeletePublisherResponse
-	49, // 72: title.TitleService.GetPublisherById:output_type -> title.GetPublisherByIdResponse
-	51, // 73: title.TitleService.CreatePerson:output_type -> title.CreatePersonResponse
-	53, // 74: title.TitleService.DeletePerson:output_type -> title.DeletePersonResponse
-	55, // 75: title.TitleService.GetPersonById:output_type -> title.GetPersonByIdResponse
-	17, // 76: title.TitleService.CreateTitle:output_type -> title.CreateTitleResponse
-	19, // 77: title.TitleService.GetTitleById:output_type -> title.GetTitleByIdResponse
-	21, // 78: title.TitleService.DeleteTitle:output_type -> title.DeleteTitleResponse
-	23, // 79: title.TitleService.UpdateTitleMetadata:output_type -> title.UpdateTitleMetadataResponse
-	60, // 80: title.TitleService.CreateAudio:output_type -> title.CreateAudioResponse
-	62, // 81: title.TitleService.GetAudioById:output_type -> title.GetAudioByIdResponse
-	68, // 82: title.TitleService.GetAlbum:output_type -> title.GetAlbumResponse
-	64, // 83: title.TitleService.DeleteAudio:output_type -> title.DeleteAudioResponse
-	70, // 84: title.TitleService.DeleteAlbum:output_type -> title.DeleteAlbumResponse
-	7,  // 85: title.TitleService.CreateVideo:output_type -> title.CreateVideoResponse
-	9,  // 86: title.TitleService.GetVideoById:output_type -> title.GetVideoByIdResponse
-	11, // 87: title.TitleService.DeleteVideo:output_type -> title.DeleteVideoResponse
-	13, // 88: title.TitleService.UpdateVideoMetadata:output_type -> title.UpdateVideoMetadataResponse
-	25, // 89: title.TitleService.AssociateFileWithTitle:output_type -> title.AssociateFileWithTitleResponse
-	27, // 90: title.TitleService.DissociateFileWithTitle:output_type -> title.DissociateFileWithTitleResponse
-	29, // 91: title.TitleService.GetFileTitles:output_type -> title.GetFileTitlesResponse
-	31, // 92: title.TitleService.GetFileVideos:output_type -> title.GetFileVideosResponse
-	66, // 93: title.TitleService.GetFileAudios:output_type -> title.GetFileAudiosResponse
-	33, // 94: title.TitleService.GetTitleFiles:output_type -> title.GetTitleFilesResponse
-	41, // 95: title.TitleService.SearchTitles:output_type -> title.SearchTitlesResponse
-	43, // 96: title.TitleService.SearchPersons:output_type -> title.SearchPersonsResponse
-	70, // [70:97] is the sub-list for method output_type
-	43, // [43:70] is the sub-list for method input_type
-	43, // [43:43] is the sub-list for extension type_name
-	43, // [43:43] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	71, // 43: title.ListWatchingResponse.items:type_name -> title.WatchingEntry
+	71, // 44: title.SaveWatchingRequest.entry:type_name -> title.WatchingEntry
+	44, // 45: title.TitleService.CreatePublisher:input_type -> title.CreatePublisherRequest
+	46, // 46: title.TitleService.DeletePublisher:input_type -> title.DeletePublisherRequest
+	48, // 47: title.TitleService.GetPublisherById:input_type -> title.GetPublisherByIdRequest
+	50, // 48: title.TitleService.CreatePerson:input_type -> title.CreatePersonRequest
+	52, // 49: title.TitleService.DeletePerson:input_type -> title.DeletePersonRequest
+	54, // 50: title.TitleService.GetPersonById:input_type -> title.GetPersonByIdRequest
+	16, // 51: title.TitleService.CreateTitle:input_type -> title.CreateTitleRequest
+	18, // 52: title.TitleService.GetTitleById:input_type -> title.GetTitleByIdRequest
+	20, // 53: title.TitleService.DeleteTitle:input_type -> title.DeleteTitleRequest
+	22, // 54: title.TitleService.UpdateTitleMetadata:input_type -> title.UpdateTitleMetadataRequest
+	59, // 55: title.TitleService.CreateAudio:input_type -> title.CreateAudioRequest
+	61, // 56: title.TitleService.GetAudioById:input_type -> title.GetAudioByIdRequest
+	67, // 57: title.TitleService.GetAlbum:input_type -> title.GetAlbumRequest
+	63, // 58: title.TitleService.DeleteAudio:input_type -> title.DeleteAudioRequest
+	69, // 59: title.TitleService.DeleteAlbum:input_type -> title.DeleteAlbumRequest
+	6,  // 60: title.TitleService.CreateVideo:input_type -> title.CreateVideoRequest
+	8,  // 61: title.TitleService.GetVideoById:input_type -> title.GetVideoByIdRequest
+	10, // 62: title.TitleService.DeleteVideo:input_type -> title.DeleteVideoRequest
+	12, // 63: title.TitleService.UpdateVideoMetadata:input_type -> title.UpdateVideoMetadataRequest
+	24, // 64: title.TitleService.AssociateFileWithTitle:input_type -> title.AssociateFileWithTitleRequest
+	26, // 65: title.TitleService.DissociateFileWithTitle:input_type -> title.DissociateFileWithTitleRequest
+	28, // 66: title.TitleService.GetFileTitles:input_type -> title.GetFileTitlesRequest
+	30, // 67: title.TitleService.GetFileVideos:input_type -> title.GetFileVideosRequest
+	65, // 68: title.TitleService.GetFileAudios:input_type -> title.GetFileAudiosRequest
+	32, // 69: title.TitleService.GetTitleFiles:input_type -> title.GetTitleFilesRequest
+	40, // 70: title.TitleService.SearchTitles:input_type -> title.SearchTitlesRequest
+	42, // 71: title.TitleService.SearchPersons:input_type -> title.SearchPersonsRequest
+	72, // 72: title.TitleService.ListWatching:input_type -> title.ListWatchingRequest
+	74, // 73: title.TitleService.GetWatching:input_type -> title.GetWatchingRequest
+	75, // 74: title.TitleService.SaveWatching:input_type -> title.SaveWatchingRequest
+	76, // 75: title.TitleService.RemoveWatching:input_type -> title.RemoveWatchingRequest
+	77, // 76: title.TitleService.RebuildIndexFromStore:input_type -> title.RebuildIndexRequest
+	45, // 77: title.TitleService.CreatePublisher:output_type -> title.CreatePublisherResponse
+	47, // 78: title.TitleService.DeletePublisher:output_type -> title.DeletePublisherResponse
+	49, // 79: title.TitleService.GetPublisherById:output_type -> title.GetPublisherByIdResponse
+	51, // 80: title.TitleService.CreatePerson:output_type -> title.CreatePersonResponse
+	53, // 81: title.TitleService.DeletePerson:output_type -> title.DeletePersonResponse
+	55, // 82: title.TitleService.GetPersonById:output_type -> title.GetPersonByIdResponse
+	17, // 83: title.TitleService.CreateTitle:output_type -> title.CreateTitleResponse
+	19, // 84: title.TitleService.GetTitleById:output_type -> title.GetTitleByIdResponse
+	21, // 85: title.TitleService.DeleteTitle:output_type -> title.DeleteTitleResponse
+	23, // 86: title.TitleService.UpdateTitleMetadata:output_type -> title.UpdateTitleMetadataResponse
+	60, // 87: title.TitleService.CreateAudio:output_type -> title.CreateAudioResponse
+	62, // 88: title.TitleService.GetAudioById:output_type -> title.GetAudioByIdResponse
+	68, // 89: title.TitleService.GetAlbum:output_type -> title.GetAlbumResponse
+	64, // 90: title.TitleService.DeleteAudio:output_type -> title.DeleteAudioResponse
+	70, // 91: title.TitleService.DeleteAlbum:output_type -> title.DeleteAlbumResponse
+	7,  // 92: title.TitleService.CreateVideo:output_type -> title.CreateVideoResponse
+	9,  // 93: title.TitleService.GetVideoById:output_type -> title.GetVideoByIdResponse
+	11, // 94: title.TitleService.DeleteVideo:output_type -> title.DeleteVideoResponse
+	13, // 95: title.TitleService.UpdateVideoMetadata:output_type -> title.UpdateVideoMetadataResponse
+	25, // 96: title.TitleService.AssociateFileWithTitle:output_type -> title.AssociateFileWithTitleResponse
+	27, // 97: title.TitleService.DissociateFileWithTitle:output_type -> title.DissociateFileWithTitleResponse
+	29, // 98: title.TitleService.GetFileTitles:output_type -> title.GetFileTitlesResponse
+	31, // 99: title.TitleService.GetFileVideos:output_type -> title.GetFileVideosResponse
+	66, // 100: title.TitleService.GetFileAudios:output_type -> title.GetFileAudiosResponse
+	33, // 101: title.TitleService.GetTitleFiles:output_type -> title.GetTitleFilesResponse
+	41, // 102: title.TitleService.SearchTitles:output_type -> title.SearchTitlesResponse
+	43, // 103: title.TitleService.SearchPersons:output_type -> title.SearchPersonsResponse
+	73, // 104: title.TitleService.ListWatching:output_type -> title.ListWatchingResponse
+	71, // 105: title.TitleService.GetWatching:output_type -> title.WatchingEntry
+	78, // 106: title.TitleService.SaveWatching:output_type -> google.protobuf.Empty
+	78, // 107: title.TitleService.RemoveWatching:output_type -> google.protobuf.Empty
+	78, // 108: title.TitleService.RebuildIndexFromStore:output_type -> google.protobuf.Empty
+	77, // [77:109] is the sub-list for method output_type
+	45, // [45:77] is the sub-list for method input_type
+	45, // [45:45] is the sub-list for extension type_name
+	45, // [45:45] is the sub-list for extension extendee
+	0,  // [0:45] is the sub-list for field type_name
 }
 
 func init() { file_title_proto_init() }
@@ -4816,7 +5231,7 @@ func file_title_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_title_proto_rawDesc), len(file_title_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   71,
+			NumMessages:   78,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

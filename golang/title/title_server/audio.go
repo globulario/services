@@ -40,14 +40,15 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 
 	rqst.Audio.UUID = Utility.GenerateUUID(rqst.Audio.ID)
 
-	if err := index.Index(rqst.Audio.UUID, rqst.Audio); err != nil {
+	if err := srv.indexAudioDoc(index, rqst.Audio); err != nil {
 		return nil, status.Errorf(codes.Internal, "index audio %q: %v", rqst.Audio.ID, err)
 	}
 	jsonStr, err := protojson.Marshal(rqst.Audio)
-	if err == nil {
-		if err := index.SetInternal([]byte(Utility.GenerateUUID(rqst.Audio.ID)), jsonStr); err != nil {
-			return nil, status.Errorf(codes.Internal, "store raw audio %q: %v", rqst.Audio.ID, err)
-		}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal audio: %v", err)
+	}
+	if err := srv.persistMetadata(rqst.IndexPath, "audios", rqst.Audio.ID, rqst.Audio); err != nil {
+		logger.Warn("persistMetadata audio failed", "audioID", rqst.Audio.ID, "err", err)
 	}
 
 	// RBAC: ensure owner
@@ -232,6 +233,7 @@ func (srv *server) deleteAudio(token, indexPath string, audioId string) error {
 	if err := index.DeleteInternal([]byte(uuid)); err != nil {
 		return err
 	}
+	srv.removeMetadata(indexPath, "audios", audioId)
 
 	rbacClient, err := srv.getRbacClient()
 	if err != nil {

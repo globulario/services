@@ -928,7 +928,7 @@ func main() {
 	switch strings.ToUpper(srv.CacheType) {
 	case "BADGER":
 		cache = storage_store.NewBadger_store()
-	case "SCYLLA":
+	case "SCYLLADB":
 		cache = storage_store.NewScylla_store(srv.CacheAddress, "files", srv.CacheReplicationFactor)
 	case "LEVELDB":
 		cache = storage_store.NewLevelDB_store()
