@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/title/titlepb"
+		"google.golang.org/protobuf/encoding/protojson"
 	Utility "github.com/globulario/utility"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func saveVideoMetadataCache(abs string, raw []byte) error {

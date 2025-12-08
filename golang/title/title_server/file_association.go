@@ -14,10 +14,10 @@ import (
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
+		"google.golang.org/protobuf/encoding/protojson"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // fileTileAssociation describes the relationship between a file/dir and titles.
