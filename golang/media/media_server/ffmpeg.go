@@ -76,16 +76,31 @@ func (srv *server) ensureFastStartMP4(path string) error {
 		return nil
 	}
 
+	checkedLocalFastStart := false
+	if !srv.isMinioPath(path) {
+		localPath := filepath.ToSlash(srv.formatPath(path))
+		if srv.localPathExists(localPath) {
+			if hasFastStart, err := hasFastStartMoov(localPath); err == nil {
+				if hasFastStart {
+					return nil
+				}
+				checkedLocalFastStart = true
+			}
+		}
+	}
+
 	return srv.withWorkFile(path, func(wf mediaWorkFile) error {
 		localPath := strings.ReplaceAll(wf.LocalPath, "\\", "/")
 
-		hasFastStart, err := hasFastStartMoov(localPath)
-		if err != nil {
-			logger.Debug("faststart check skipped (probe failed)", "path", localPath, "err", err)
-			return nil
-		}
-		if hasFastStart {
-			return nil
+		if !checkedLocalFastStart || wf.IsMinio {
+			hasFastStart, err := hasFastStartMoov(localPath)
+			if err != nil {
+				logger.Debug("faststart check skipped (probe failed)", "path", localPath, "err", err)
+				return nil
+			}
+			if hasFastStart {
+				return nil
+			}
 		}
 
 		dir := filepath.Dir(localPath)

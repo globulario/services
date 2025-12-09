@@ -542,7 +542,7 @@ func main() {
 		"authentication.AuthenticationService",
 	}
 	s.Public = []string{}
-	s.CacheReplicationFactor = 3
+	s.CacheReplicationFactor = 1
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.KeepAlive = true

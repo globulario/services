@@ -798,7 +798,7 @@ func main() {
 	srv.KeepUpToDate = true
 	srv.associations = new(sync.Map)
 	srv.CacheType = "SCYLLADB"
-	srv.CacheAddress = srv.Address
+	srv.CacheAddress = config.GetLocalIP()
 	srv.CacheReplicationFactor = 1
 
 	// Register Title client factory (used elsewhere in service).
@@ -906,8 +906,8 @@ func main() {
 	titlepb.RegisterTitleServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
 
-	if srv.CacheAddress == "localhost" || srv.CacheAddress == "" {
-		srv.CacheAddress = srv.Address
+	if srv.CacheAddress == "" || strings.HasPrefix(strings.ToLower(srv.CacheAddress), "localhost") {
+		srv.CacheAddress = config.GetLocalIP()
 	}
 
 	logger.Info("service ready",

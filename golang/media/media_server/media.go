@@ -2980,7 +2980,6 @@ func (srv *server) uploadedVideo(
 	}
 	var (
 		outLogical  string
-		outLocal    string
 		infoLogical string
 		hasInfo     bool
 	)
@@ -3106,8 +3105,21 @@ func (srv *server) uploadedVideo(
 	}
 	outLogical = filepath.ToSlash(filepath.Join(logicalDest, mediaName))
 	infoLogical = filepath.ToSlash(filepath.Join(logicalDest, infoName))
-	outLocal = filepath.ToSlash(filepath.Join(localDest, mediaName))
 	hasInfo = infoExists
+
+	if format == "mp4" {
+		tmpMedia := filepath.Join(tempDir, mediaName)
+		_ = stream.Send(&mediapb.UploadVideoResponse{
+			Pid:    pid,
+			Result: "remux to fast-start mp4: " + filepath.Base(tmpMedia),
+		})
+		if err := srv.ensureFastStartMP4(tmpMedia); err != nil {
+			_ = stream.Send(&mediapb.UploadVideoResponse{
+				Pid:    pid,
+				Result: "fast-start remux failed: " + err.Error(),
+			})
+		}
+	}
 
 	if err := srv.moveDirContents(tempDir, logicalDest); err != nil {
 		_ = stream.Send(&mediapb.UploadVideoResponse{
@@ -3122,26 +3134,6 @@ func (srv *server) uploadedVideo(
 	}
 
 	// ---------- Post-processing ----------
-
-	// For MP4 downloads, ensure the file is "fast start" so it streams instantly.
-	if format == "mp4" && !srv.isMinioPath(outLogical) {
-		// Make sure we have a proper path to the output file.
-		_ = stream.Send(&mediapb.UploadVideoResponse{
-			Pid:    pid,
-			Result: "remux to fast-start mp4: " + filepath.Base(outLocal),
-		})
-		if err := srv.ensureFastStartMP4(outLocal); err != nil {
-			_ = stream.Send(&mediapb.UploadVideoResponse{
-				Pid:    pid,
-				Result: "fast-start remux failed: " + err.Error(),
-			})
-		}
-	} else if format == "mp4" {
-		_ = stream.Send(&mediapb.UploadVideoResponse{
-			Pid:    pid,
-			Result: "fast-start remux skipped for remote storage",
-		})
-	}
 
 	switch format {
 	case "mp4":

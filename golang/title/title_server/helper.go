@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"path/filepath"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/globulario/services/golang/config"
@@ -15,28 +19,118 @@ import (
 
 // getStore opens/returns the key-value store used for file/title associations.
 func (srv *server) getStore(name, path string) (storage_store.Store, error) {
-	if store, ok := srv.associations.Load(name); ok {
+	safeName := sanitizeStoreName(name)
+	if srv.associations == nil {
+		srv.associations = new(sync.Map)
+	} else if store, ok := srv.associations.Load(safeName); ok {
 		return store.(storage_store.Store), nil
 	}
+	origName := name
+	name = safeName
 
 	var store storage_store.Store
+	var openOptions string
 	switch srv.CacheType {
 	case "BADGER":
 		store = storage_store.NewBadger_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, name)
 	case "LEVELDB":
 		store = storage_store.NewLevelDB_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, name)
 	case "SCYLLADB":
 		store = storage_store.NewScylla_store(srv.CacheAddress, name, srv.CacheReplicationFactor)
+		opts, err := srv.buildScyllaOptions(name)
+		if err != nil {
+			return nil, fmt.Errorf("build scylla options: %w", err)
+		}
+		openOptions = opts
 	default:
 		store = storage_store.NewBadger_store()
+		openOptions = fmt.Sprintf(`{"path":"%s","name":"%s"}`, path, name)
 	}
 
-	if err := store.Open(`{"path":"` + path + `","name":"` + name + `"}`); err != nil {
+	if err := store.Open(openOptions); err != nil {
 		return nil, err
 	}
 	srv.associations.Store(name, store)
-	logger.Info("associations store opened", "name", name, "path", path, "type", srv.CacheType)
+	logger.Info("associations store opened", "name", origName, "store", name, "path", path, "type", srv.CacheType)
 	return store, nil
+}
+
+func (srv *server) buildScyllaOptions(name string) (string, error) {
+	hosts := srv.scyllaHosts()
+	replication := srv.CacheReplicationFactor
+	if replication <= 0 {
+		replication = 1
+	}
+	safeName := sanitizeStoreName(name)
+	opts := map[string]interface{}{
+		"hosts":              hosts,
+		"keyspace":           safeName,
+		"table":              safeName,
+		"replication_factor": replication,
+	}
+	raw, err := json.Marshal(opts)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func (srv *server) scyllaHosts() []string {
+	var hosts []string
+	if addr := strings.TrimSpace(srv.CacheAddress); addr != "" {
+		for _, part := range strings.Split(addr, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				hosts = append(hosts, trimmed)
+			}
+		}
+	}
+	if len(hosts) == 0 {
+		hosts = append(hosts, config.GetLocalIP())
+	}
+	return hosts
+}
+
+func sanitizeStoreName(s string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(s))
+	if trimmed == "" {
+		return "store"
+	}
+	var b strings.Builder
+	changed := false
+	for i, r := range trimmed {
+		if i == 0 {
+			if unicode.IsLetter(r) {
+				b.WriteRune(r)
+				continue
+			}
+			if unicode.IsDigit(r) {
+				b.WriteRune('a')
+				b.WriteRune(r)
+				changed = true
+				continue
+			}
+			b.WriteRune('a')
+			changed = true
+			continue
+		}
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+			changed = true
+		}
+	}
+	result := b.String()
+	if result == "" {
+		result = "store"
+		changed = true
+	}
+	if changed && result != trimmed {
+		result = fmt.Sprintf("%s_%x", result, crc32.ChecksumIEEE([]byte(trimmed)))
+	}
+	return result
 }
 
 // getIndex opens or creates a Bleve index at path and caches it on the server.
@@ -149,24 +243,4 @@ func (srv *server) removeMetadata(indexPath, collection, key string) {
 		return
 	}
 	_ = store.RemoveItem(key)
-}
-
-func (srv *server) migrateAssociationKey(indexPath, oldKey, newKey, file string) {
-	if indexPath == "" || oldKey == "" || newKey == "" || oldKey == newKey {
-		return
-	}
-	resolved, err := srv.resolveIndexPath(indexPath)
-	if err != nil {
-		return
-	}
-	store, cerr := srv.getStore(filepath.Base(indexPath), resolved)
-	if cerr != nil {
-		return
-	}
-	if data, err := store.GetItem(oldKey); err == nil && len(data) > 0 {
-		_ = store.RemoveItem(oldKey)
-		_ = store.SetItem(newKey, data)
-		logger.Info("associations key migrated after metadata write",
-			"old", oldKey, "new", newKey, "file", file)
-	}
 }

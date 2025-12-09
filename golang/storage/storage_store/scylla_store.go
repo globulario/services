@@ -17,7 +17,11 @@ import (
 )
 
 // SetScyllaLogger allows tests/callers to override the internal logger.
-func SetScyllaLogger(l *slog.Logger) { if l != nil { bcLogger = l } }
+func SetScyllaLogger(l *slog.Logger) {
+	if l != nil {
+		bcLogger = l
+	}
+}
 
 // ScyllaStore is a simple key/value store backed by Scylla/Cassandra.
 type ScyllaStore struct {
@@ -28,8 +32,9 @@ type ScyllaStore struct {
 	actions chan action
 
 	// resolved config
-	keyspace string
-	table    string
+	keyspace    string
+	table       string
+	consistency gocql.Consistency
 }
 
 // action is used by the serialized loop in scylla_store_sync.go.
@@ -42,17 +47,17 @@ type action struct {
 
 // OpenOptions are the JSON-serializable options accepted by Open.
 type OpenOptions struct {
-	Hosts                     []string `json:"hosts"`
-	Port                      int      `json:"port"`
-	Username                  string   `json:"username"`
-	Password                  string   `json:"password"`
-	Keyspace                  string   `json:"keyspace"`
-	Table                     string   `json:"table"`
-	ReplicationFactor         int      `json:"replication_factor"`
-	TimeoutMS                 int      `json:"timeout_ms"`
-	ConnectTimeoutMS          int      `json:"connect_timeout_ms"`
-	Consistency               string   `json:"consistency"`
-	DisableInitialHostLookup  bool     `json:"disable_initial_host_lookup"`
+	Hosts                    []string `json:"hosts"`
+	Port                     int      `json:"port"`
+	Username                 string   `json:"username"`
+	Password                 string   `json:"password"`
+	Keyspace                 string   `json:"keyspace"`
+	Table                    string   `json:"table"`
+	ReplicationFactor        int      `json:"replication_factor"`
+	TimeoutMS                int      `json:"timeout_ms"`
+	ConnectTimeoutMS         int      `json:"connect_timeout_ms"`
+	Consistency              string   `json:"consistency"`
+	DisableInitialHostLookup bool     `json:"disable_initial_host_lookup"`
 	// TLS
 	TLS                bool   `json:"tls"`
 	CAFile             string `json:"ca_file"`   // aliases: "ca"
@@ -61,16 +66,14 @@ type OpenOptions struct {
 	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
 	ServerName         string `json:"server_name"`
 	// Some deployments expose TLS on a different port.
-	SSLPort            int    `json:"ssl_port"`
+	SSLPort int `json:"ssl_port"`
 }
-
-
 
 // parseOpenOptions reads options from r (JSON) and seeds missing values from
 // address/keyspace/table fallback parameters.
 //
 // Supports aliases to match persistence_store/scylla.go:
-//  - "ca" -> CAFile, "cert" -> CertFile, "key" -> KeyFile
+//   - "ca" -> CAFile, "cert" -> CertFile, "key" -> KeyFile
 func parseOpenOptions(r io.Reader, address, keyspaceFallback, tableFallback string) (OpenOptions, error) {
 	opts := OpenOptions{}
 	if r != nil {
@@ -81,9 +84,15 @@ func parseOpenOptions(r io.Reader, address, keyspaceFallback, tableFallback stri
 			return opts, fmt.Errorf("decode options: %w", err)
 		}
 		// normalize keys
-		if v, ok := raw["ca"]; ok && raw["ca_file"] == nil { raw["ca_file"] = v }
-		if v, ok := raw["cert"]; ok && raw["cert_file"] == nil { raw["cert_file"] = v }
-		if v, ok := raw["key"]; ok && raw["key_file"] == nil { raw["key_file"] = v }
+		if v, ok := raw["ca"]; ok && raw["ca_file"] == nil {
+			raw["ca_file"] = v
+		}
+		if v, ok := raw["cert"]; ok && raw["cert_file"] == nil {
+			raw["cert_file"] = v
+		}
+		if v, ok := raw["key"]; ok && raw["key_file"] == nil {
+			raw["key_file"] = v
+		}
 		// marshal back into struct
 		b, _ := json.Marshal(raw)
 		if err := json.Unmarshal(b, &opts); err != nil {
@@ -94,34 +103,63 @@ func parseOpenOptions(r io.Reader, address, keyspaceFallback, tableFallback stri
 	if len(opts.Hosts) == 0 && address != "" {
 		for _, part := range strings.Split(address, ",") {
 			part = strings.TrimSpace(part)
-			if part == "" { continue }
+			if part == "" {
+				continue
+			}
 			opts.Hosts = append(opts.Hosts, part)
 		}
 	}
-	if opts.Port == 0 { opts.Port = 9042 }
-	if opts.SSLPort == 0 { opts.SSLPort = 9142 } // common default for Scylla TLS
+	if opts.Port == 0 {
+		opts.Port = 9042
+	}
+	if opts.SSLPort == 0 {
+		opts.SSLPort = 9142
+	} // common default for Scylla TLS
 	if opts.Keyspace == "" {
-		if keyspaceFallback != "" { opts.Keyspace = keyspaceFallback } else { opts.Keyspace = "cache" }
+		if keyspaceFallback != "" {
+			opts.Keyspace = keyspaceFallback
+		} else {
+			opts.Keyspace = "cache"
+		}
 	}
 	if opts.Table == "" {
-		if tableFallback != "" { opts.Table = tableFallback } else { opts.Table = "kv" }
+		if tableFallback != "" {
+			opts.Table = tableFallback
+		} else {
+			opts.Table = "kv"
+		}
 	}
-	if opts.ReplicationFactor <= 0 { opts.ReplicationFactor = 1 }
-	if opts.TimeoutMS <= 0 { opts.TimeoutMS = 5000 }
-	if opts.ConnectTimeoutMS <= 0 { opts.ConnectTimeoutMS = 5000 }
-	if opts.Consistency == "" { opts.Consistency = "quorum" }
+	if opts.ReplicationFactor <= 0 {
+		opts.ReplicationFactor = 1
+	}
+	if opts.TimeoutMS <= 0 {
+		opts.TimeoutMS = 5000
+	}
+	if opts.ConnectTimeoutMS <= 0 {
+		opts.ConnectTimeoutMS = 5000
+	}
+	if opts.Consistency == "" {
+		opts.Consistency = "one"
+	}
 	return opts, nil
 }
 
 func consistencyFromString(s string) gocql.Consistency {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "any": return gocql.Any
-	case "one": return gocql.One
-	case "two": return gocql.Two
-	case "three": return gocql.Three
-	case "quorum": return gocql.Quorum
-	case "all": return gocql.All
-	case "localquorum", "local_quorum", "local-quorum": return gocql.LocalQuorum
+	case "any":
+		return gocql.Any
+	case "one":
+		return gocql.One
+	case "two":
+		return gocql.Two
+	case "three":
+		return gocql.Three
+	case "quorum":
+		return gocql.Quorum
+	case "all":
+		return gocql.All
+	case "localquorum", "local_quorum", "local-quorum":
+		return gocql.LocalQuorum
 	default:
 		return gocql.Quorum
 	}
@@ -231,6 +269,7 @@ func (s *ScyllaStore) open(r io.Reader, address, keyspace, table string) error {
 	s.cluster = cluster
 	s.keyspace = opts.Keyspace
 	s.table = opts.Table
+	s.consistency = consistencyFromString(opts.Consistency)
 
 	if err := s.ensureKeyspaceAndTable(opts); err != nil {
 		return err
@@ -266,7 +305,7 @@ func (s *ScyllaStore) setItem(key string, val []byte, ttlSeconds ...int) error {
 	} else {
 		q = s.session.Query(cql, key, val)
 	}
-	return q.Consistency(gocql.Quorum).Exec()
+	return q.Consistency(s.queryConsistency()).Exec()
 }
 
 // GetItem loads a value by key. Returns (nil, gocql.ErrNotFound) if missing.
@@ -276,7 +315,7 @@ func (s *ScyllaStore) getItem(key string) ([]byte, error) {
 	}
 	var val []byte
 	cql := fmt.Sprintf(`SELECT v FROM "%s"."%s" WHERE k = ?`, s.keyspace, s.table)
-	if err := s.session.Query(cql, key).Consistency(gocql.Quorum).Scan(&val); err != nil {
+	if err := s.session.Query(cql, key).Consistency(s.queryConsistency()).Scan(&val); err != nil {
 		return nil, err
 	}
 	return val, nil
@@ -288,7 +327,14 @@ func (s *ScyllaStore) removeItem(key string) error {
 		return errors.New("scylla not open")
 	}
 	cql := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE k = ?`, s.keyspace, s.table)
-	return s.session.Query(cql, key).Consistency(gocql.Quorum).Exec()
+	return s.session.Query(cql, key).Consistency(s.queryConsistency()).Exec()
+}
+
+func (s *ScyllaStore) queryConsistency() gocql.Consistency {
+	if s.consistency == 0 {
+		return gocql.Quorum
+	}
+	return s.consistency
 }
 
 // Clear truncates the table.
@@ -311,7 +357,9 @@ func (s *ScyllaStore) drop() error {
 
 // Run starts the serialized action loop if actions channel is initialized.
 func (s *ScyllaStore) Run(ctx context.Context) {
-	if s.actions == nil { return }
+	if s.actions == nil {
+		return
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -327,7 +375,9 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 				if len(act.args) > 0 {
 					switch v := act.args[0].(type) {
 					case string:
-						if v != "" { r = strings.NewReader(v) } // <-- initialize reader from optionsStr
+						if v != "" {
+							r = strings.NewReader(v)
+						} // <-- initialize reader from optionsStr
 					case io.Reader:
 						r = v
 					default:
@@ -335,9 +385,21 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 					}
 				}
 				// Back-compat: allow address, keyspace, table in subsequent args if provided.
-				if len(act.args) > 1 { if v, _ := act.args[1].(string); v != "" { address = v } }
-				if len(act.args) > 2 { if v, _ := act.args[2].(string); v != "" { ks = v } }
-				if len(act.args) > 3 { if v, _ := act.args[3].(string); v != "" { tbl = v } }
+				if len(act.args) > 1 {
+					if v, _ := act.args[1].(string); v != "" {
+						address = v
+					}
+				}
+				if len(act.args) > 2 {
+					if v, _ := act.args[2].(string); v != "" {
+						ks = v
+					}
+				}
+				if len(act.args) > 3 {
+					if v, _ := act.args[3].(string); v != "" {
+						tbl = v
+					}
+				}
 				err = s.open(r, address, ks, tbl)
 			case "close":
 				err = s.close()
@@ -346,7 +408,9 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 				val := act.args[1].([]byte)
 				var ttl int
 				if len(act.args) > 2 {
-					if v, ok := act.args[2].(int); ok { ttl = v }
+					if v, ok := act.args[2].(int); ok {
+						ttl = v
+					}
 				}
 				err = s.setItem(key, val, ttl)
 			case "getitem":
@@ -380,10 +444,16 @@ func (s *ScyllaStore) Run(ctx context.Context) {
 				err = fmt.Errorf("unknown action: %s", act.name)
 			}
 			if err != nil {
-				if act.errCh != nil { act.errCh <- err }
+				if act.errCh != nil {
+					act.errCh <- err
+				}
 			} else {
-				if act.resCh != nil { act.resCh <- res }
-				if act.errCh != nil { act.errCh <- nil }
+				if act.resCh != nil {
+					act.resCh <- res
+				}
+				if act.errCh != nil {
+					act.errCh <- nil
+				}
 			}
 		}
 	}
