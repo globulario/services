@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 	Utility "github.com/globulario/utility"
+	"github.com/minio/minio-go/v7"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -48,19 +49,19 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level:
 
 type server struct {
 	// Core metadata
-	Id          string
-	Mac         string
-	Name        string
-	Domain      string
-	Address     string
-	Path        string
-	Proto       string
-	Port        int
-	Proxy       int
-	Protocol    string
-	Version     string
-	PublisherID string
-	Description string
+	Id           string
+	Mac          string
+	Name         string
+	Domain       string
+	Address      string
+	Path         string
+	Proto        string
+	Port         int
+	Proxy        int
+	Protocol     string
+	Version      string
+	PublisherID  string
+	Description  string
 	Keywords     []string
 	Repositories []string
 	Discoveries  []string
@@ -91,11 +92,22 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// Torrent-specific runtime
-	DownloadDir string       // where files are downloaded before being copied
-	Seed        bool         // keep seeding after completion
+	DownloadDir     string // where files are downloaded before being copied
+	Seed            bool   // keep seeding after completion
 	torrent_client_ *torrent.Client
 	actions         chan map[string]interface{} // internal action bus
 	done            chan bool                   // shutdown signal
+
+	// Optional MinIO storage backend (mirrors media/file services)
+	UseMinio       bool
+	MinioEndpoint  string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioBucket    string
+	MinioPrefix    string
+	MinioUseSSL    bool
+
+	minioClient *minio.Client
 }
 
 // -----------------------------------------------------------------------------
@@ -410,7 +422,6 @@ func (srv *server) addResourceOwner(token, path, subject, resourceType string, s
 	return err
 }
 
-
 // getEventClient returns a connected Event client.
 func (srv *server) getEventClient() (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
@@ -420,7 +431,6 @@ func (srv *server) getEventClient() (*event_client.Event_Client, error) {
 	}
 	return c.(*event_client.Event_Client), nil
 }
-
 
 // -----------------------------------------------------------------------------
 // main — follows the "echo" server layout with --describe and --health
@@ -491,6 +501,9 @@ func main() {
 	srv.KeepUpToDate = true
 	srv.DownloadDir = config.GetDataDir() + "/torrents"
 	srv.Seed = false
+	srv.UseMinio = false
+	srv.MinioPrefix = "/users"
+	srv.MinioUseSSL = false
 
 	// Register public client ctor for other services
 	Utility.RegisterFunction("NewTorrentService_Client", torrent_client.NewTorrentService_Client)
@@ -520,15 +533,24 @@ func main() {
 			srv.State = "starting"
 
 			// Provide defaults that don’t require etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" { srv.Domain = strings.ToLower(v) } else { srv.Domain = "localhost" }
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" { srv.Address = strings.ToLower(v) } else { srv.Address = "localhost:" + Utility.ToString(srv.Port) }
+			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+				srv.Domain = strings.ToLower(v)
+			} else {
+				srv.Domain = "localhost"
+			}
+			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+				srv.Address = strings.ToLower(v)
+			} else {
+				srv.Address = "localhost:" + Utility.ToString(srv.Port)
+			}
 
 			b, err := globular.DescribeJSON(srv)
 			if err != nil {
 				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
 				os.Exit(2)
 			}
-			_, _ = os.Stdout.Write(b); _, _ = os.Stdout.Write([]byte("\n"))
+			_, _ = os.Stdout.Write(b)
+			_, _ = os.Stdout.Write([]byte("\n"))
 			return
 
 		case "--health":
@@ -541,7 +563,8 @@ func main() {
 				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
 				os.Exit(2)
 			}
-			_, _ = os.Stdout.Write(b); _, _ = os.Stdout.Write([]byte("\n"))
+			_, _ = os.Stdout.Write(b)
+			_, _ = os.Stdout.Write([]byte("\n"))
 			return
 		case "--debug":
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -565,8 +588,14 @@ func main() {
 	}
 
 	// Now it’s safe to read local config (may use etcd or file fallback)
-	if d, err := config.GetDomain(); err == nil { srv.Domain = d } else { srv.Domain = "localhost" }
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" { srv.Address = a }
+	if d, err := config.GetDomain(); err == nil {
+		srv.Domain = d
+	} else {
+		srv.Domain = "localhost"
+	}
+	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
+		srv.Address = a
+	}
 
 	start := time.Now()
 	if err := srv.Init(); err != nil {
@@ -582,7 +611,7 @@ func main() {
 	srv.actions = make(chan map[string]interface{})
 	srv.done = make(chan bool)
 	srv.Permissions = append(srv.Permissions, map[string]interface{}{
-		"action": "/torrent.TorrentService/DownloadTorrentRequest",
+		"action":    "/torrent.TorrentService/DownloadTorrentRequest",
 		"resources": []interface{}{map[string]interface{}{"index": 1, "permission": "write"}},
 	})
 

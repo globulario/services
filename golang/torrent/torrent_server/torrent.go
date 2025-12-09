@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/torrent/torrentpb"
@@ -51,25 +50,6 @@ type TorrentLnk struct {
 	Lnk   string // Magnet URL or local/remote path to a .torrent file.
 	Seed  bool   // If true, continue to seed after download completes.
 	Owner string // Account identifier that requested the torrent.
-}
-
-func (srv *server) resolveDestPath(dest string) string {
-	if dest == "" {
-		return dest
-	}
-	cleaned := filepath.Clean(dest)
-	dataRoot := filepath.Clean(filepath.Join(config.GetDataDir(), "files"))
-	slash := filepath.ToSlash(cleaned)
-	dataRootSlash := filepath.ToSlash(dataRoot)
-	if strings.HasPrefix(slash, dataRootSlash) {
-		return cleaned
-	}
-	if strings.HasPrefix(slash, "/users/") || strings.HasPrefix(slash, "/applications/") || strings.HasPrefix(slash, "/templates/") ||
-		slash == "/users" || slash == "/applications" || slash == "/templates" {
-		tail := strings.TrimPrefix(slash, "/")
-		return filepath.Join(dataRoot, tail)
-	}
-	return cleaned
 }
 
 // saveTorrentLnks persists the provided slice into srv.DownloadDir/lnks.gob.
@@ -145,14 +125,82 @@ func (srv *server) processTorrent() {
 	getTorrentsInfoActions := make([]map[string]interface{}, 0)
 	token, _ := security.GetLocalToken(srv.Mac)
 
+	sendSnapshot := func() {
+		if len(pending) == 0 && len(getTorrentsInfoActions) == 0 {
+			return
+		}
+
+		snapshot := make([]*torrentpb.TorrentInfo, 0, len(pending))
+		for _, p := range pending {
+			name := p.tor.Name()
+			infos[name] = getTorrentInfo(p.tor, infos[name])
+			infos[name].Destination = p.dst
+			snapshot = append(snapshot, infos[name])
+
+			for _, fi := range infos[name].Files {
+				if fi.Percent != 100 {
+					continue
+				}
+				src := filepath.Join(srv.DownloadDir, fi.Path)
+				if !Utility.Exists(src) {
+					continue
+				}
+
+				logicalDst := filepath.ToSlash(filepath.Join(p.dst, fi.Path))
+				if srv.pathExists(logicalDst) {
+					continue
+				}
+
+				if err := srv.copyToDestination(src, logicalDst); err != nil {
+					slog.Error("copy torrent file failed", "src", src, "dst", logicalDst, "err", err)
+					continue
+				}
+
+				dirLogical := filepath.ToSlash(filepath.Dir(logicalDst))
+				if dirLogical == "." {
+					dirLogical = "/"
+				}
+
+				srv.addResourceOwner(token, dirLogical, p.owner, "file", rbacpb.SubjectType_ACCOUNT)
+				srv.addResourceOwner(token, logicalDst, p.owner, "file", rbacpb.SubjectType_ACCOUNT)
+				eventDir := filepath.ToSlash(filepath.Dir(dirLogical))
+				if eventDir == "." {
+					eventDir = "/"
+				}
+				if ev, err := srv.getEventClient(); err == nil {
+					_ = ev.Publish("reload_dir_event", []byte(eventDir))
+				}
+				slog.Info("copied torrent file", "src", src, "dst", logicalDst)
+			}
+		}
+
+		if len(getTorrentsInfoActions) == 0 {
+			return
+		}
+
+		for i := 0; i < len(getTorrentsInfoActions); {
+			a := getTorrentsInfoActions[i]
+			stream := a["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
+			if err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: snapshot}); err != nil {
+				slog.Warn("client stream closed; removing", "err", err)
+				a["exit"].(chan bool) <- true
+				getTorrentsInfoActions = append(getTorrentsInfoActions[:i], getTorrentsInfoActions[i+1:]...)
+				continue
+			}
+			i++
+		}
+	}
+
 	go func() {
 		for {
+			needSnapshot := false
 			select {
 			case a := <-srv.actions:
 				switch a["action"] {
 				case "setTorrentTransfer":
 					t := a["torrentTransfer"].(*TorrentTransfer)
 					pending = append(pending, t)
+					needSnapshot = true
 
 					lnks, err := srv.readTorrentLnks()
 					if err != nil {
@@ -181,10 +229,12 @@ func (srv *server) processTorrent() {
 
 				case "getTorrentsInfo":
 					getTorrentsInfoActions = append(getTorrentsInfoActions, a)
+					needSnapshot = true
 
 				case "dropTorrent":
 					name := a["name"].(string)
 					delete(infos, name)
+					needSnapshot = true
 
 					kept := make([]*TorrentTransfer, 0, len(pending))
 					for _, p := range pending {
@@ -228,63 +278,14 @@ func (srv *server) processTorrent() {
 						slog.Error("read torrent links failed", "err", err)
 					}
 					a["lnks"].(chan []*torrentpb.TorrentLnk) <- out
+				case "pokeSnapshot":
+					needSnapshot = true
 				default:
 					slog.Warn("unknown torrent action", "action", a["action"])
 				}
 
 			case <-ticker.C:
-				// Build the latest infos snapshot.
-				snapshot := make([]*torrentpb.TorrentInfo, 0, len(pending))
-				for _, p := range pending {
-					name := p.tor.Name()
-					infos[name] = getTorrentInfo(p.tor, infos[name])
-					infos[name].Destination = p.dst
-					snapshot = append(snapshot, infos[name])
-
-					// Copy fully downloaded files.
-					for _, fi := range infos[name].Files {
-						if fi.Percent == 100 {
-							src := filepath.Join(srv.DownloadDir, fi.Path)
-							dst := filepath.Join(p.dst, fi.Path)
-							if Utility.Exists(src) && !Utility.Exists(dst) {
-								dir := filepath.Dir(dst)
-								if err := Utility.CreateDirIfNotExist(dir); err == nil {
-									rel := dir
-									if strings.Contains(dir, "/files/users/") {
-										rel = dir[strings.Index(dir, "/users/"):]
-									}
-									// Mark ownership on the directory and its parent (used for reload notification).
-									srv.addResourceOwner(token, rel, p.owner, "file", rbacpb.SubjectType_ACCOUNT)
-									rel = filepath.Dir(rel)
-									if err := Utility.CopyFile(src, dst); err != nil {
-										slog.Error("copy torrent file failed", "src", src, "dst", dst, "err", err)
-									} else {
-										srv.addResourceOwner(token, dst, p.owner, "file", rbacpb.SubjectType_ACCOUNT)
-										if ev, err := srv.getEventClient(); err == nil {
-											_ = ev.Publish("reload_dir_event", []byte(rel))
-										}
-										slog.Info("copied torrent file", "src", src, "dst", dst)
-									}
-								} else if err != nil {
-									slog.Error("ensure destination dir failed", "dir", dir, "err", err)
-								}
-							}
-						}
-					}
-				}
-
-				// Fan out snapshot to streaming clients.
-				for i := 0; i < len(getTorrentsInfoActions); {
-					a := getTorrentsInfoActions[i]
-					stream := a["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
-					if err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: snapshot}); err != nil {
-						slog.Warn("client stream closed; removing", "err", err)
-						a["exit"].(chan bool) <- true
-						getTorrentsInfoActions = append(getTorrentsInfoActions[:i], getTorrentsInfoActions[i+1:]...)
-						continue
-					}
-					i++
-				}
+				needSnapshot = true
 
 			case <-srv.done:
 				srv.torrent_client_.Close()
@@ -293,6 +294,10 @@ func (srv *server) processTorrent() {
 				}
 				slog.Info("torrent processor stopped")
 				return
+			}
+
+			if needSnapshot {
+				sendSnapshot()
 			}
 		}
 	}()
@@ -472,7 +477,10 @@ func (srv *server) downloadTorrent(link, dest string, seed bool, owner string) e
 	if dest == "" {
 		return errors.New("downloadTorrent: empty destination directory")
 	}
-	dest = srv.resolveDestPath(dest)
+	dest = srv.normalizeLogicalPath(dest)
+	if dest == "" {
+		return errors.New("downloadTorrent: invalid destination path")
+	}
 
 	var (
 		t   *torrent.Torrent
@@ -487,7 +495,7 @@ func (srv *server) downloadTorrent(link, dest string, seed bool, owner string) e
 	} else {
 		// Remote .torrent support.
 		if IsUrl(link) {
-			link, err = downloadFile(link, dest)
+			link, err = downloadFile(link, srv.DownloadDir)
 			if err != nil {
 				return err
 			}
@@ -501,10 +509,13 @@ func (srv *server) downloadTorrent(link, dest string, seed bool, owner string) e
 		}
 	}
 
+	srv.setTorrentTransfer(t, seed, link, dest, owner)
+
 	go func() {
 		<-t.GotInfo()
 		t.DownloadAll()
-		srv.setTorrentTransfer(t, seed, link, dest, owner)
+		// Trigger a refresh so clients get updated metadata as soon as info is loaded.
+		srv.actions <- map[string]interface{}{"action": "pokeSnapshot"}
 	}()
 
 	slog.Info("torrent started", "name", t.Name(), "dest", dest, "seed", seed, "owner", owner)
