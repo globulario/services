@@ -502,6 +502,7 @@ func (srv *server) Storage() Storage {
 // storageForPath returns the appropriate storage implementation for a specific path.
 // Public directories are always served from the local filesystem; everything else uses the default backend.
 func (srv *server) storageForPath(path string) Storage {
+	path = srv.formatPath(path)
 	if srv.isPublic(path) || !strings.HasPrefix(path, "/users/") {
 		if srv.publicStorage == nil {
 			srv.publicStorage = NewOSStorage("")

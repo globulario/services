@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -1242,13 +1243,7 @@ func (srv *server) cleanHiddenOrphans(dirs []string) {
 						filepath.Join(parent, base+".flac"),
 						filepath.Join(parent, base+".m3u8"),
 					}
-					found := false
-					for _, candidate := range mediaCandidates {
-						if srv.pathExists(candidate) {
-							found = true
-							break
-						}
-					}
+					found := slices.ContainsFunc(mediaCandidates, srv.pathExists)
 					if !found {
 						orphanDir := filepath.Join(path, base)
 						if err := srv.removeAll(orphanDir); err != nil {

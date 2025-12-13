@@ -44,6 +44,7 @@ func (srv *server) storageStat(ctx context.Context, path string) (fs.FileInfo, e
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).Stat(ctx, path)
 }
 
@@ -51,6 +52,7 @@ func (srv *server) storageReadDir(ctx context.Context, path string) ([]fs.DirEnt
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).ReadDir(ctx, path)
 }
 
@@ -58,6 +60,7 @@ func (srv *server) storageOpen(ctx context.Context, path string) (io.ReadSeekClo
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).Open(ctx, path)
 }
 
@@ -65,6 +68,7 @@ func (srv *server) storageCreate(ctx context.Context, path string) (io.WriteClos
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).Create(ctx, path)
 }
 
@@ -72,6 +76,7 @@ func (srv *server) storageReadFile(ctx context.Context, path string) ([]byte, er
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).ReadFile(ctx, path)
 }
 
@@ -79,6 +84,7 @@ func (srv *server) storageRemoveAll(ctx context.Context, path string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).RemoveAll(ctx, path)
 }
 
@@ -86,6 +92,7 @@ func (srv *server) storageRemove(ctx context.Context, path string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).Remove(ctx, path)
 }
 
@@ -93,6 +100,8 @@ func (srv *server) storageRename(ctx context.Context, oldPath, newPath string) e
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	oldPath = srv.formatPath(oldPath)
+	newPath = srv.formatPath(newPath)
 	return srv.storageForPath(oldPath).Rename(ctx, oldPath, newPath)
 }
 
@@ -100,6 +109,7 @@ func (srv *server) storageWriteFile(ctx context.Context, path string, data []byt
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).WriteFile(ctx, path, data, perm)
 }
 
@@ -107,6 +117,7 @@ func (srv *server) storageMkdirAll(ctx context.Context, path string, perm fs.Fil
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	path = srv.formatPath(path)
 	return srv.storageForPath(path).MkdirAll(ctx, path, perm)
 }
 

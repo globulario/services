@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"mime"
+	"net/url"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -39,6 +40,23 @@ func isAbsLike(p string) bool {
 		}
 	}
 	return false
+}
+
+func (srv *server) formatPath(in string) string {
+	if in == "" {
+		return ""
+	}
+	p, _ := url.PathUnescape(in)
+	p = strings.ReplaceAll(p, "\\", "/")
+	p = filepath.ToSlash(p)
+
+	if p == "" || p == "." {
+		return ""
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return p
 }
 
 

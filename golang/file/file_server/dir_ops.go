@@ -214,18 +214,18 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	if len(rqst.Path) == 0 {
 		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
 	}
-	p := rqst.Path
+	p := srv.formatPath(rqst.Path)
 	ctx := stream.Context()
 	storage := srv.storageForPath(p)
 	info, err := storage.Stat(ctx, p)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
+			return status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
 		}
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !info.IsDir() {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s is not a directory", p)))
+		return status.Errorf(codes.FailedPrecondition, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s is not a directory", p)))
 	}
 
 	filesInfoChan := make(chan *filepb.FileInfo)
@@ -376,11 +376,11 @@ func (srv *server) publishReloadDirEvent(path string) {
 
 // AddPublicDir registers a folder as public.
 func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
-	p := rqst.Path
+	p := srv.formatPath(rqst.Path)
 	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
 	}
-	if Utility.Contains(srv.Public, p) {
+	if srv.publicContains(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s already exist in public paths", p)))
 	}
 	srv.Public = append(srv.Public, p)
@@ -393,14 +393,14 @@ func (srv *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRe
 
 // RemovePublicDir unregisters a public folder.
 func (srv *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
-	p := rqst.Path
+	p := srv.formatPath(rqst.Path)
 	if p == "" || !srv.storageForPath(p).Exists(ctx, p) {
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", rqst.Path)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("file with path %s doesn't exist", p)))
 	}
-	if !Utility.Contains(srv.Public, p) {
+	if !srv.publicContains(p) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path %s doesn't exist in public paths", p)))
 	}
-	srv.Public = Utility.RemoveString(srv.Public, p)
+	srv.removePublicPath(p)
 	if err := srv.Save(); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -415,18 +415,48 @@ func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) 
 
 // isPublic returns true if a concrete filesystem path is inside a public root.
 func (srv *server) isPublic(path string) bool {
-	
+	path = srv.formatPath(path)
 	sep := "/"
 	if path == "" {
 		return false
 	}
 	for _, root := range srv.Public {
-
-		if strings.HasPrefix(path+sep, root+sep) || path == root {
+		nRoot := srv.formatPath(root)
+		if nRoot == "" {
+			continue
+		}
+		if strings.HasPrefix(path+sep, nRoot+sep) || path == nRoot {
 			return true
 		}
 	}
 	return false
+}
+
+func (srv *server) publicContains(path string) bool {
+	norm := srv.formatPath(path)
+	if norm == "" {
+		return false
+	}
+	for _, root := range srv.Public {
+		if srv.formatPath(root) == norm {
+			return true
+		}
+	}
+	return false
+}
+
+func (srv *server) removePublicPath(path string) {
+	norm := srv.formatPath(path)
+	if norm == "" {
+		return
+	}
+	var cleaned []string
+	for _, root := range srv.Public {
+		if srv.formatPath(root) != norm {
+			cleaned = append(cleaned, root)
+		}
+	}
+	srv.Public = cleaned
 }
 
 func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
