@@ -527,7 +527,7 @@ func main() {
 	}
 	// Admin-specific dirs
 	srv.WebRoot = config.GetWebRootDir()
-	srv.ApplicationsRoot = config.GetDataDir() + "/files/applications"
+	srv.ApplicationsRoot = filepath.Join(config.GetDataDir(), "applications")
 
 	// Register client ctor (for dynamic routing usage elsewhere)
 	Utility.RegisterFunction("NewAdminService_Client", admin_client.NewAdminService_Client)

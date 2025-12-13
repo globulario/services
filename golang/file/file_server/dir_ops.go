@@ -60,15 +60,15 @@ func (srv *server) printDownloadPercent(done chan int64, path string, total int6
 }
 
 func (srv *server) uploadFile(token, urlStr, dest, name string, stream filepb.FileService_UploadFileServer) error {
-	path := srv.formatPath(dest)
-	if !srv.storageForPath(path).Exists(stream.Context(), path) {
-		return fmt.Errorf("no folder found with path %s", path)
+
+	if !srv.storageForPath(dest).Exists(stream.Context(), dest) {
+		return fmt.Errorf("no folder found with path %s", dest)
 	}
-	if err := srv.storageMkdirAll(stream.Context(), path, 0o755); err != nil {
+	if err := srv.storageMkdirAll(stream.Context(), dest, 0o755); err != nil {
 		return err
 	}
 
-	outPath := filepath.Join(path, name)
+	outPath := filepath.Join(dest, name)
 	out, err := srv.storageCreate(stream.Context(), outPath)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (srv *server) uploadFile(token, urlStr, dest, name string, stream filepb.Fi
 		switch {
 		case strings.HasPrefix(info.Mime, "video/"):
 			_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Process video information..."})
-			processVideos(srv, token, []string{path})
+			processVideos(srv, token, []string{dest})
 		case strings.HasSuffix(info.Name, ".pdf"):
 			_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Index text information..."})
 			if err := srv.indexPdfFile(outPath, info); err != nil {
@@ -163,11 +163,10 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 			slog.Warn("upload dir: cleanup remote archive failed", "remotePath", archivePath, "err", err)
 		}
 
-		path := srv.formatPath(rqst.Dest)
 		_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Unpack archive for " + rqst.Name + " ..."})
-		defer srv.storageRemoveAll(stream.Context(), filepath.Join(path, tmpName+".tar.gz"))
+		defer srv.storageRemoveAll(stream.Context(), filepath.Join(rqst.Dest, tmpName+".tar.gz"))
 
-		f, err := srv.storageOpen(stream.Context(), filepath.Join(path, tmpName+".tar.gz"))
+		f, err := srv.storageOpen(stream.Context(), filepath.Join(rqst.Dest, tmpName+".tar.gz"))
 		if err != nil {
 			return err
 		}
@@ -178,23 +177,23 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 			return err
 		}
 
-		if err := Utility.Move(extracted, path); err != nil {
+		if err := Utility.Move(extracted, rqst.Dest); err != nil {
 			return err
 		}
-		if err := srv.storageRename(stream.Context(), filepath.Join(path, filepath.Base(extracted)), filepath.Join(path, rqst.Name)); err != nil {
+		if err := srv.storageRename(stream.Context(), filepath.Join(rqst.Dest, filepath.Base(extracted)), filepath.Join(rqst.Dest, rqst.Name)); err != nil {
 			return err
 		}
 
-		if srv.storageForPath(filepath.Join(path, rqst.Name, "playlist.m3u8")).Exists(stream.Context(), filepath.Join(path, rqst.Name, "playlist.m3u8")) {
+		if srv.storageForPath(filepath.Join(rqst.Dest, rqst.Name, "playlist.m3u8")).Exists(stream.Context(), filepath.Join(rqst.Dest, rqst.Name, "playlist.m3u8")) {
 			_ = stream.Send(&filepb.UploadFileResponse{Uploaded: 100, Total: 100, Info: "Process video information..."})
-			processVideos(srv, token, []string{filepath.Join(path, rqst.Name)})
+			processVideos(srv, token, []string{filepath.Join(rqst.Dest, rqst.Name)})
 		}
 
 		if err := srv.setOwner(token, rqst.Dest+"/"+rqst.Name); err != nil {
 			slog.Warn("upload dir: set owner failed", "path", rqst.Dest+"/"+rqst.Name, "err", err)
 		}
 
-		srv.publishReloadDirEvent(path)
+		srv.publishReloadDirEvent(rqst.Dest)
 		return nil
 	}
 
@@ -215,7 +214,7 @@ func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServic
 	if len(rqst.Path) == 0 {
 		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
 	}
-	p := srv.formatPath(rqst.Path)
+	p := rqst.Path
 	ctx := stream.Context()
 	storage := srv.storageForPath(p)
 	info, err := storage.Stat(ctx, p)
@@ -343,11 +342,11 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 						fi.Thumbnail, _ = s.getThumbnail(p, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 					} else if strings.Contains(fi.Mime, "/") {
 						if cwd, err := s.Storage().Getwd(); err == nil {
-							icon := s.formatPath(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(fi.Mime, ";")[0], "/", "-")+".png"))
+							icon := filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(fi.Mime, ";")[0], "/", "-")+".png")
 							fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 						}
 					} else if cwd, err := s.Storage().Getwd(); err == nil {
-						icon := s.formatPath(filepath.Join(cwd, "mimetypes", "unknown.png"))
+						icon := filepath.Join(cwd, "mimetypes", "unknown.png")
 						fi.Thumbnail, _ = s.getMimeTypesUrl(icon)
 					}
 				}
@@ -365,13 +364,13 @@ func readDir(ctx context.Context, s *server, path string, recursive bool, thumbn
 // publishReloadDirEvent notifies clients to refresh a directory.
 func (srv *server) publishReloadDirEvent(path string) {
 	client, err := getEventClient()
-	p := srv.formatPath(path)
+
 	if err != nil {
-		slog.Warn("publish reload dir event: no event client", "path", p, "err", err)
+		slog.Warn("publish reload dir event: no event client", "path", path, "err", err)
 		return
 	}
-	if err := client.Publish("reload_dir_event", []byte(p)); err != nil {
-		slog.Warn("publish reload dir event failed", "path", p, "err", err)
+	if err := client.Publish("reload_dir_event", []byte(path)); err != nil {
+		slog.Warn("publish reload dir event failed", "path", path, "err", err)
 	}
 }
 
@@ -416,17 +415,14 @@ func (srv *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) 
 
 // isPublic returns true if a concrete filesystem path is inside a public root.
 func (srv *server) isPublic(path string) bool {
-	p := srv.formatPath(filepath.Clean(path))
+	
 	sep := "/"
-	if p == "" {
+	if path == "" {
 		return false
 	}
 	for _, root := range srv.Public {
-		cleanRoot := srv.formatPath(filepath.Clean(root))
-		if cleanRoot == "" {
-			continue
-		}
-		if strings.HasPrefix(p+sep, cleanRoot+sep) || p == cleanRoot {
+
+		if strings.HasPrefix(path+sep, root+sep) || path == root {
 			return true
 		}
 	}
@@ -434,15 +430,15 @@ func (srv *server) isPublic(path string) bool {
 }
 
 func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
-	path_ := srv.formatPath(path)
-	info, err := srv.storageStat(context.Background(), path_)
+
+	info, err := srv.storageStat(context.Background(), path)
 	if err != nil {
 		return err
 	}
 
 	// If it's a directory and not an HLS stream, recurse into children
-	if info.IsDir() && !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
-		files, err := srv.storageReadDir(context.Background(), path_)
+	if info.IsDir() && !srv.storageForPath(path+"/playlist.m3u8").Exists(context.Background(), path+"/playlist.m3u8") {
+		files, err := srv.storageReadDir(context.Background(), path)
 		if err == nil {
 			for _, f := range files {
 				childPath := path + "/" + f.Name()
@@ -452,7 +448,7 @@ func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, p
 			}
 		}
 	} else {
-		videos_, err := getFileVideos(path_, srv.Domain)
+		videos_, err := getFileVideos(path, srv.Domain)
 		if err == nil {
 			videos[path] = videos_
 		}
@@ -462,14 +458,14 @@ func (srv *server) getFileVideosAssociation(client *title_client.Title_Client, p
 
 // Recursively get all titles for a given path.
 func (srv *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
-	path_ := srv.formatPath(path)
-	info, err := srv.storageStat(context.Background(), path_)
+
+	info, err := srv.storageStat(context.Background(), path)
 	if err != nil {
 		return err
 	}
 
-	if info.IsDir() && !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
-		files, err := srv.storageReadDir(context.Background(), path_)
+	if info.IsDir() && !srv.storageForPath(path+"/playlist.m3u8").Exists(context.Background(), path+"/playlist.m3u8") {
+		files, err := srv.storageReadDir(context.Background(), path)
 		if err == nil {
 			for _, f := range files {
 				child := path + "/" + f.Name()
@@ -501,11 +497,11 @@ func (srv *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.
 	}
 
 	// format the path to make it absolute on the server.
-	destPath := srv.formatPath(rqst.Path)
+	destPath := rqst.Path
 
 	// For each file in the request, copy and update associations/permissions.
 	for i := 0; i < len(rqst.Files); i++ {
-		srcFile := srv.formatPath(rqst.Files[i])
+		srcFile := rqst.Files[i]
 
 		// Retrieve indexation for the file.
 		titleClient, err := getTitleClient()
@@ -639,9 +635,6 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 	// If only one path and it's a directory, we can archive it directly.
 	if len(rqst.Paths) == 1 {
 		p := rqst.Paths[0]
-		if !srv.isPublic(p) {
-			p = srv.formatPath(p)
-		}
 		if !srv.storageForPath(p).Exists(ctx, p) {
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file exist for path %s", p)))
 		}
@@ -658,16 +651,16 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 		defer os.RemoveAll(tmp)
 
 		for _, rp := range rqst.Paths {
-			if srv.storageForPath(srv.Root+rp).Exists(ctx, srv.Root+rp) || srv.isPublic(rp) {
-				p := srv.formatPath(rp)
-				info, _ := srv.storageStat(ctx, p)
-				fileName := p[strings.LastIndex(p, "/"):]
+			if srv.storageForPath(rp).Exists(ctx, rp) || srv.isPublic(rp) {
+
+				info, _ := srv.storageStat(ctx, rp)
+				fileName := rp[strings.LastIndex(rp, "/"):]
 				if info.IsDir() {
-					if err := Utility.CopyDir(p, filepath.Join(tmp, fileName)); err != nil {
+					if err := Utility.CopyDir(rp, filepath.Join(tmp, fileName)); err != nil {
 						return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 					}
 				} else {
-					if err := Utility.CopyFile(p, filepath.Join(tmp, fileName)); err != nil {
+					if err := Utility.CopyFile(rp, filepath.Join(tmp, fileName)); err != nil {
 						return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 					}
 				}
@@ -686,8 +679,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 		slog.Warn("create archive: set owner failed", "path", dest, "err", err)
 	}
 
-	destPath := srv.formatPath(dest)
-	if err := srv.storageWriteFile(ctx, destPath, buf.Bytes(), 0o644); err != nil {
+	if err := srv.storageWriteFile(ctx, dest, buf.Bytes(), 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
@@ -696,7 +688,7 @@ func (srv *server) CreateArchive(ctx context.Context, rqst *filepb.CreateArchive
 }
 
 func (srv *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
-	path := srv.formatPath(rqst.GetPath())
+	path := rqst.GetPath()
 	if err := srv.storageMkdirAll(ctx, filepath.Join(path, rqst.GetName()), 0o755); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -718,7 +710,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	if err != nil {
 		return nil, err
 	}
-	path := srv.formatPath(rqst.GetPath())
+	path := rqst.GetPath()
 	if !srv.storageForPath(path).Exists(ctx, path) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
 	}
@@ -802,8 +794,8 @@ func (srv *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.
 	}
 
 	for i := 0; i < len(rqst.Files); i++ {
-		from := srv.formatPath(rqst.Files[i])
-		dest := srv.formatPath(rqst.Path)
+		from := rqst.Files[i]
+		dest := rqst.Path
 
 		// Test if from has same parent as dest
 		if filepath.Dir(from) == dest || from == dest {
@@ -938,7 +930,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		return nil, err
 	}
 
-	path := srv.formatPath(rqst.GetPath())
+	path := rqst.GetPath()
 	if srv.storageForPath(filepath.Join(path, rqst.NewName)).Exists(ctx, filepath.Join(path, rqst.NewName)) {
 		return nil, fmt.Errorf("file with name %q already exists at path %q", rqst.NewName, path)
 	}
@@ -973,7 +965,7 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 
 	from := rqst.GetPath() + "/" + rqst.OldName
 	dest := rqst.GetPath() + "/" + rqst.NewName
-	info, _ := srv.storageStat(ctx, srv.formatPath(from))
+	info, _ := srv.storageStat(ctx, from)
 
 	rbacClient, err := getRbacClient()
 	if err != nil {

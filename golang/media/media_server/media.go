@@ -1169,10 +1169,8 @@ func (srv *server) logicalPath(path string) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.ToSlash(config.GetDataDir() + "/files"),
-		filepath.ToSlash(config.GetDataDir()),
-		filepath.ToSlash(config.GetWebRootDir()),
-		filepath.ToSlash(srv.Root),
+		"/user",
+		config.GetWebRootDir(),
 	}
 	for _, prefix := range candidates {
 		if prefix == "" {
@@ -1187,19 +1185,7 @@ func (srv *server) logicalPath(path string) string {
 			break
 		}
 	}
-	p = filepath.ToSlash(p)
-	if strings.HasPrefix(p, "/files/") {
-		p = strings.TrimPrefix(p, "/files")
-	} else if p == "/files" {
-		p = "/"
-	}
-	if p == "" {
-		p = "/"
-	}
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-	p = strings.ReplaceAll(p, "//", "/")
+
 	return p
 }
 
@@ -1414,7 +1400,6 @@ func logicalPathForIndex(path string) string {
 		return "/"
 	}
 	candidates := []string{
-		filepath.ToSlash(config.GetDataDir() + "/files"),
 		filepath.ToSlash(config.GetDataDir()),
 		filepath.ToSlash(config.GetWebRootDir()),
 	}
@@ -2852,7 +2837,7 @@ func cancelUploadVideoHandeler(srv *server, titleClient *title_client.Title_Clie
 			return
 		}
 		pid := Utility.ToInt(data["pid"])
-		dir := srv.formatPath(asString(data["path"]))
+		dir := srv.formatPath(data["path"].(string))
 
 		proc, err := os.FindProcess(pid)
 		if err != nil {
@@ -2902,12 +2887,6 @@ func cancelUploadVideoHandeler(srv *server, titleClient *title_client.Title_Clie
 	}
 }
 
-func asString(v interface{}) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
-}
 
 // detectYTDLPOutputs inspects a directory and returns the media + info.json filenames produced by yt-dlp.
 func detectYTDLPOutputs(dir, format, preferred string) (mediaName, infoName string, infoExists bool, err error) {
@@ -3598,8 +3577,8 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 
 		// Download items that are not present yet
 		for _, item := range playlist {
-			id := asString(item["id"])
-			pl := asString(item["playlist"])
+			id := item["id"].(string)
+			pl := item["playlist"].(string)
 			targetMP4 := filepath.ToSlash(filepath.Join(playlistDir, id+"."+rqst.Format))
 
 			if srv.pathExists(targetMP4) || srv.pathExists(filepath.Join(playlistDir, id)) {
@@ -3613,7 +3592,7 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 				}
 			}
 
-			pid, err := srv.uploadedVideo(token, asString(item["url"]), rqst.Dest+"/"+pl, rqst.Format, targetMP4, stream)
+			pid, err := srv.uploadedVideo(token, item["url"].(string), rqst.Dest+"/"+pl, rqst.Format, targetMP4, stream)
 			if err != nil {
 				_ = stream.Send(&mediapb.UploadVideoResponse{
 					Pid:    int32(pid),
@@ -3634,7 +3613,7 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 	videoID := ""
 	target := ""
 	if info != nil {
-		videoID = asString(info["id"])
+		videoID = info["id"].(string)
 		if videoID != "" {
 			target = filepath.ToSlash(filepath.Join(dest, videoID+"."+rqst.Format))
 		}

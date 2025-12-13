@@ -49,7 +49,7 @@ func processVideos(srv *server, token string, dirs []string) {
 	}
 	ctx := context.Background()
 	for _, d := range dirs {
-		path := srv.formatPath(d)
+		path := d
 		storage := srv.storageForPath(path)
 		if !storage.Exists(ctx, path) {
 			continue

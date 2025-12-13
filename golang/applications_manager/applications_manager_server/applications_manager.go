@@ -472,7 +472,7 @@ func (srv *server) installApplication(token, domain, id, name, PublisherID, vers
 	}
 
 	// Set the path of the directory where the application can store files.
-	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/applications/" + name)
 	if len(domain) == 0 {
 		return errors.New("no domain given for application")
 	}

@@ -116,7 +116,7 @@ func (srv *server) CreateAccountDir(ctx context.Context) error {
 		id := a["_id"].(string)
 		domain := a["domain"].(string)
 		path := "/users/" + id + "@" + domain
-		Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+		Utility.CreateDirIfNotExist(config.GetDataDir() + path)
 		srv.addResourceOwner(token, path, id+"@"+domain, "file", rbacpb.SubjectType_ACCOUNT)
 
 	}
@@ -709,7 +709,7 @@ func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAcc
 	srv.deleteResourcePermissions(token, "/users/"+name+"@"+domain)
 	srv.deleteAllAccess(token, name+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
-	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
+	os.RemoveAll(config.GetDataDir() + "/users/" + name + "@" + domain)
 
 	// Publish delete account event.
 	srv.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{}, srv.Address)
@@ -1782,7 +1782,7 @@ func (srv *server) registerAccount(ctx context.Context, domain, id, name, email,
 
 	// Create the user file directory.
 	path := "/users/" + id + "@" + localDomain
-	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+	Utility.CreateDirIfNotExist(config.GetDataDir() + path)
 	err = srv.addResourceOwner(token, path, id+"@"+localDomain, "file", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		fmt.Println("fail to add resource owner with error ", err)

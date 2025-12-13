@@ -411,7 +411,7 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 	}
 
 	// public: read-only
-	if isPublic(path, false) {
+	if srv.isPublic(path) {
 		return name == "read"
 	}
 
@@ -434,7 +434,7 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	}
 	path_ := srv.formatPath(path)
 	if strings.HasSuffix(path_, ".ts") {
-		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
+		if srv.storageExists(filepath.Dir(path_) + "/playlist.m3u8") {
 			return true, false, nil
 		}
 	}

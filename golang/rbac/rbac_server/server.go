@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
+	"github.com/minio/minio-go/v7"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -93,8 +94,14 @@ type server struct {
 	cache       *storage_store.BigCache_store
 	permissions storage_store.Store
 
-	// Data root (for permissions store)
-	Root string
+	UseMinio       bool
+	MinioEndpoint  string
+	MinioAccessKey string
+	MinioSecretKey string
+	MinioBucket    string
+	MinioPrefix    string
+	MinioUseSSL    bool
+	minioClient    *minio.Client
 }
 
 // -----------------------------------------------------------------------------
@@ -307,7 +314,6 @@ func (srv *server) publish(event string, data []byte) error {
 	}
 	return ec.Publish(event, data)
 }
-
 
 func (srv *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
@@ -830,14 +836,10 @@ func main() {
 	if srv.CacheAddress == "localhost" || srv.CacheAddress == "" {
 		srv.CacheAddress = srv.Address
 	}
-	if srv.Root == "" {
-		srv.Root = config.GetDataDir()
-	}
-
 	// Open cache store
 	srv.cache = storage_store.NewBigCache_store()
 	if err := srv.cache.Open(""); err != nil {
-		logger.Error("cache open failed", "path", srv.Root+"/cache", "err", err)
+		logger.Error("cache open failed", "path", config.GetDataDir()+"/cache", "err", err)
 	}
 
 	// Scylla db

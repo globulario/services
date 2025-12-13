@@ -5,11 +5,8 @@ package main
 import (
 	"encoding/base64"
 	"errors"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/proto"
-	"strings"
 )
 
 func (srv *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbacpb.Permission) {
@@ -58,12 +55,7 @@ func (srv *server) cleanupPermissions(permissions *rbacpb.Permissions) (bool, *r
 	// Delete the indexation
 	if permissions.ResourceType == "file" {
 		deleted := false
-		if strings.HasPrefix(permissions.Path, "/users/") || strings.HasPrefix(permissions.Path, "/applications/") {
-			if !Utility.Exists(config.GetDataDir() + "/files" + permissions.Path) {
-				srv.deleteResourcePermissions(permissions.Path, permissions)
-				deleted = true
-			}
-		} else if !Utility.Exists(permissions.Path) {
+		if !srv.storageExists(permissions.Path) {
 			srv.deleteResourcePermissions(permissions.Path, permissions)
 			deleted = true
 		}

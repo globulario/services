@@ -33,7 +33,7 @@ import (
 func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo {
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
-		path_ := srv.formatPath(info.Files[i].Path)
+		path_ := info.Files[i].Path
 		if srv.storageForPath(path_).Exists(context.Background(), path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir {
@@ -48,7 +48,7 @@ func getFileInfos(srv *server, info *filepb.FileInfo, infos []*filepb.FileInfo) 
 	}
 	// empty the arrays...
 	if info.IsDir {
-		path_ := srv.formatPath(info.Path)
+		path_ := info.Path
 		if !srv.storageForPath(path_+"/playlist.m3u8").Exists(context.Background(), path_+"/playlist.m3u8") {
 			info.Files = make([]*filepb.FileInfo, 0)
 		}
@@ -132,7 +132,7 @@ func (srv *server) GetFileClient(address string) (*file_client.File_Client, erro
 
 // GetFileInfo returns a single FileInfo and (internally) flattens children for caching.
 func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
-	p := srv.formatPath(rqst.GetPath())
+	p := rqst.GetPath()
 	fi, err := getFileInfo(srv, p, int(rqst.ThumbnailHeight), int(rqst.ThumbnailWidth))
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (srv *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequ
 
 // ReadFile streams file bytes in chunks.
 func (srv *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
-	p := srv.formatPath(rqst.GetPath())
+	p := rqst.GetPath()
 	f, err := srv.storageOpen(stream.Context(), p)
 	if err != nil {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -202,7 +202,7 @@ func (srv *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
 			// Normalize/anchor to server storage root
-			path = srv.formatPath(msg.Path)
+			path = msg.Path
 		case *filepb.SaveFileRequest_Data:
 			data = append(data, msg.Data...)
 		default:
@@ -217,7 +217,7 @@ func (srv *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReques
 	if err != nil {
 		return nil, err
 	}
-	p := srv.formatPath(rqst.GetPath())
+	p := rqst.GetPath()
 	srv.cacheRemove(p)
 	srv.cacheRemove(filepath.Dir(p))
 	rbac, err := getRbacClient()
@@ -292,7 +292,6 @@ func getThumbnails(info *filepb.FileInfo) []interface{} {
 // GetThumbnails returns a JSON stream of thumbnails for files under a directory.
 func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
 	p := rqst.GetPath()
-	p = srv.formatPath(p)
 
 	info, err := readDir(stream.Context(), srv, p, rqst.GetRecursive(), rqst.ThumbnailHeight, rqst.ThumbnailWidth, true, nil, nil)
 	if err != nil {
@@ -316,7 +315,7 @@ func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filep
 
 // CreateLnk writes a link file into a directory and assigns ownership.
 func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
-	p := srv.formatPath(rqst.Path)
+	p := rqst.Path
 	if !srv.storageForPath(p).Exists(ctx, p) {
 		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory found at path %s", p)))
 	}
@@ -333,7 +332,7 @@ func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest)
 
 // WriteExcelFile writes an .xlsx file from JSON data.
 func (srv *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
-	p := srv.formatPath(rqst.Path)
+	p := rqst.Path
 	if srv.storageForPath(p).Exists(ctx, p) {
 		if err := srv.storageRemove(ctx, p); err != nil {
 			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -388,7 +387,7 @@ func (srv *server) writeExcelFile(path string, sheets map[string]interface{}) er
 
 // GetFileMetadata returns structured file metadata extracted by ExifTool.
 func (srv *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
-	p := srv.formatPath(rqst.Path)
+	p := rqst.Path
 	md, err := srv.ExtractMetada(p)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

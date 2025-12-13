@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
@@ -209,16 +208,6 @@ func (srv *server) setSubjectUsedSpace(subject string, subject_type rbacpb.Subje
 
 		id += "ACCOUNT/" + a
 
-		// So Here I will create the user directory if it not already exist.
-		// Create the user file directory.
-		dataPath := config.GetDataDir()
-		if !Utility.Exists(dataPath + "/files/users/" + a) {
-			Utility.CreateDirIfNotExist(dataPath + "/files/users/" + a)
-
-			// be sure the user is the owner of that directory...
-			srv.addResourceOwner("/users/"+a, a,  "file", rbacpb.SubjectType_ACCOUNT)
-		}
-
 	case rbacpb.SubjectType_APPLICATION:
 		exist, a := srv.applicationExist(subject)
 		if !exist {
@@ -285,16 +274,9 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 	for i := range permissions {
 		path := permissions[i].Path
 
-		// so here I will retreive the local file.
-		if !Utility.Exists(path) {
-			if Utility.Exists(config.GetDataDir() + "/files" + path) {
-				path = config.GetDataDir() + "/files" + path
-			}
-		}
-
-		if Utility.Exists(path) {
-			fi, err := os.Stat(path)
-			if !fi.IsDir() && err == nil {
+		if srv.storageExists(path) {
+			fi, err := srv.storageStat(path)
+			if err == nil && !fi.IsDir() {
 				// get the size
 
 				switch subject_type {
@@ -361,7 +343,7 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 						}
 					}
 				}
-			} else if fi.IsDir() {
+			} else if err == nil && fi.IsDir() {
 				// In that case I will get all files contain in that directory...
 				files, err := srv.getSubjectOwnedFiles(path)
 				if err == nil {
@@ -381,8 +363,8 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 	// Calculate used space.
 	used_space := uint64(0)
 	for i := range owned_files {
-		path := srv.formatPath(owned_files[i])
-		fi, err := os.Stat(srv.formatPath(path))
+		path := owned_files[i]
+		fi, err := srv.storageStat(path)
 		if err == nil {
 			if !fi.IsDir() {
 				used_space += uint64(fi.Size())
@@ -498,16 +480,6 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 			return nil, errors.New("no account exist with id " + subject)
 		}
 		id += "ACCOUNT/" + a
-
-		// Here I will create the account directory...
-		path := config.GetDataDir() + "/files/users/" + a
-		if !Utility.Exists(path) {
-			Utility.CreateDirIfNotExist(path)
-			err := srv.addResourceOwner("/users/"+a, a, "file", rbacpb.SubjectType_ACCOUNT)
-			if err != nil {
-				logPrintln("fail to set resource owner: ", err)
-			}
-		}
 
 	case rbacpb.SubjectType_APPLICATION:
 		exist, a := srv.applicationExist(subject)

@@ -1063,17 +1063,18 @@ func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitra
 	args := []string{"-hide_banner", "-y", "-i", src, "-c:v"}
 	switch {
 	case srv.hasEnableCudaNvcc():
-		if strings.HasPrefix(encodingLong, "H.264") || strings.HasPrefix(encodingLong, "MPEG-4 part 2") {
+		if strings.Contains(encodingLong, "H.264") || strings.Contains(encodingLong, "MPEG-4 part 2") ||
+			strings.Contains(encodingLong, "Alliance for Open Media AV1") {
 			args = append(args, "h264_nvenc")
-		} else if strings.HasPrefix(encodingLong, "H.265") || strings.HasPrefix(encodingLong, "Motion JPEG") {
+		} else if strings.Contains(encodingLong, "H.265") || strings.Contains(encodingLong, "Motion JPEG") {
 			args = append(args, "h264_nvenc", "-pix_fmt", "yuv420p")
 		} else {
 			return fmt.Errorf("no GPU encoder mapping for source codec %q", encodingLong)
 		}
 	default:
-		if strings.HasPrefix(encodingLong, "H.264") || strings.HasPrefix(encodingLong, "MPEG-4 part 2") {
+		if strings.Contains(encodingLong, "H.264") || strings.Contains(encodingLong, "MPEG-4 part 2") {
 			args = append(args, "libx264")
-		} else if strings.HasPrefix(encodingLong, "H.265") || strings.HasPrefix(encodingLong, "Motion JPEG") {
+		} else if strings.Contains(encodingLong, "H.265") || strings.Contains(encodingLong, "Motion JPEG") || strings.Contains(encodingLong, "Alliance for Open Media AV1") {
 			args = append(args, "libx264", "-pix_fmt", "yuv420p")
 		} else {
 			return fmt.Errorf("no CPU encoder mapping for source codec %q", encodingLong)
@@ -1138,13 +1139,13 @@ func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitra
 		args = append(args, staticParams...)
 		args = append(args,
 			"-vf", scale,
-			"-map", "0:v",
+			"-map", "0:v:0",
 			"-map", "0:a:0?", "-c:a:0", "aac",
 			"-b:v", vbit,
 			"-maxrate", fmt.Sprintf("%dk", maxrate),
 			"-bufsize", fmt.Sprintf("%dk", bufsize),
 			"-b:a", abit,
-			"-hls_segment_filename", filepath.ToSlash(filepath.Join(dest, name+"_%%04d.ts")),
+			"-hls_segment_filename", filepath.ToSlash(filepath.Join(dest, name+"_%04d.ts")),
 			filepath.ToSlash(filepath.Join(dest, name+".m3u8")),
 		)
 
@@ -1188,22 +1189,48 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 		return errors.New("too many ffmpeg instances; please try again later")
 	}
 
-	p := filepath.ToSlash(path)
-	if !strings.Contains(p, ".") {
-		return fmt.Errorf("input %q has no extension", p)
+	logical := filepath.ToSlash(path)
+	localSrc, isMinio := srv.resolveIOPath(logical)
+	if localSrc == "" {
+		return fmt.Errorf("createHlsStreamFromMpeg4H264: cannot resolve path %q", logical)
 	}
 
-	ext := p[strings.LastIndex(p, ".")+1:]
-	outputBase := p[:strings.LastIndex(p, ".")] // destination folder path (no extension)
+	src := localSrc
+	if isMinio {
+		ctx := context.Background()
+		tmp, cleanup, err := srv.minioDownloadToTemp(ctx, logical)
+		if err != nil {
+			return fmt.Errorf("createHlsStreamFromMpeg4H264: download failed: %w", err)
+		}
+		defer cleanup()
+		src = tmp
+	}
 
-	// Remove any stale output directory from previous runs.
-	if err := os.RemoveAll(outputBase); err != nil {
-		logger.Warn("createHlsStreamFromMpeg4H264: cleanup stale output failed", "output", outputBase, "err", err)
+	if !strings.Contains(src, ".") {
+		return fmt.Errorf("input %q has no extension", src)
+	}
+
+	ext := filepath.Ext(logical)
+	if ext == "" {
+		return fmt.Errorf("input %q has no extension", logical)
+	}
+
+	logicalBase := logical[:strings.LastIndex(logical, ".")]
+	localBase := src[:strings.LastIndex(src, ".")]
+
+	if isMinio {
+		if err := srv.removeAll(logicalBase); err != nil && !os.IsNotExist(err) {
+			logger.Warn("createHlsStreamFromMpeg4H264: cleanup stale output failed", "output", logicalBase, "err", err)
+		}
+	} else {
+		if err := os.RemoveAll(localBase); err != nil {
+			logger.Warn("createHlsStreamFromMpeg4H264: cleanup stale output failed", "output", localBase, "err", err)
+		}
 	}
 
 	// Prepare temp workspace.
-	tmpID := Utility.GenerateUUID(p[strings.LastIndex(p, "/")+1:])
-	tmpFile := filepath.ToSlash(filepath.Join(os.TempDir(), tmpID+"."+ext))
+	tmpID := Utility.GenerateUUID(filepath.Base(logical))
+	tmpFile := filepath.ToSlash(filepath.Join(os.TempDir(), tmpID+"."+strings.TrimPrefix(ext, ".")))
 	tmpOut := filepath.ToSlash(filepath.Join(os.TempDir(), tmpID))
 
 	// Ensure clean temp targets.
@@ -1224,50 +1251,61 @@ func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 	}()
 
 	// Copy the source into temp.
-	if err := Utility.CopyFile(p, tmpFile); err != nil {
-		logger.Error("createHlsStreamFromMpeg4H264: copy input to temp failed", "src", p, "dst", tmpFile, "err", err)
+	if err := Utility.CopyFile(src, tmpFile); err != nil {
+		logger.Error("createHlsStreamFromMpeg4H264: copy input to temp failed", "src", src, "dst", tmpFile, "err", err)
 		return err
 	}
 
 	// Build the HLS ladder in temp dir.
 	if err := srv.createHlsStream(tmpFile, tmpOut, 4, 1.07, 1.5); err != nil {
-		logger.Error("createHlsStreamFromMpeg4H264: HLS creation failed", "src", p, "tmpOut", tmpOut, "err", err)
+		logger.Error("createHlsStreamFromMpeg4H264: HLS creation failed", "src", logical, "tmpOut", tmpOut, "err", err)
 		return err
 	}
 
-	// Move temp output into final location:
-	//   1) rename tmpOut -> temp sibling named like final folder
-	//   2) move that folder to the final parent dir
-	tmpSibling := filepath.ToSlash(filepath.Join(os.TempDir(), outputBase[strings.LastIndex(outputBase, "/")+1:]))
-	if err := os.Rename(tmpOut, tmpSibling); err != nil {
-		logger.Error("createHlsStreamFromMpeg4H264: rename temp output failed", "from", tmpOut, "to", tmpSibling, "err", err)
-		return err
-	}
-	if err := Utility.Move(tmpSibling, filepath.ToSlash(filepath.Dir(outputBase))); err != nil {
-		logger.Error("createHlsStreamFromMpeg4H264: move output folder into place failed", "from", tmpSibling, "toDir", filepath.Dir(outputBase), "err", err)
-		return err
+	if !isMinio {
+		tmpSibling := filepath.ToSlash(filepath.Join(os.TempDir(), localBase[strings.LastIndex(localBase, "/")+1:]))
+		if err := os.Rename(tmpOut, tmpSibling); err != nil {
+			logger.Error("createHlsStreamFromMpeg4H264: rename temp output failed", "from", tmpOut, "to", tmpSibling, "err", err)
+			return err
+		}
+		if err := Utility.Move(tmpSibling, filepath.ToSlash(filepath.Dir(localBase))); err != nil {
+			logger.Error("createHlsStreamFromMpeg4H264: move output folder into place failed", "from", tmpSibling, "toDir", filepath.Dir(localBase), "err", err)
+			return err
+		}
+	} else {
+		ctx := context.Background()
+		if err := srv.minioUploadDir(ctx, logicalBase, tmpOut); err != nil {
+			logger.Error("createHlsStreamFromMpeg4H264: upload output to minio failed", "logical", logicalBase, "err", err)
+			return err
+		}
 	}
 
 	// Success condition: master playlist exists.
-	master := filepath.ToSlash(filepath.Join(outputBase, "playlist.m3u8"))
+	master := filepath.ToSlash(filepath.Join(logicalBase, "playlist.m3u8"))
 	if srv.pathExists(master) {
 		// Reassociate index entries from file.mp4 -> file (folder).
-		rel := strings.ReplaceAll(p, config.GetDataDir()+"/files", "")
+		rel := strings.ReplaceAll(logical, config.GetDataDir(), "")
 		newRel := rel[:strings.LastIndex(rel, ".")] // drop extension
 		reassociatePath(rel, newRel, srv.Domain)
 
 		// Remove original file to keep only the stream folder.
-		if err := os.Remove(p); err != nil {
-			logger.Warn("createHlsStreamFromMpeg4H264: remove source failed (continuing)", "src", p, "err", err)
+		if !isMinio {
+			if err := os.Remove(src); err != nil {
+				logger.Warn("createHlsStreamFromMpeg4H264: remove source failed (continuing)", "src", src, "err", err)
+			}
+		} else {
+			if err := srv.removePath(logical); err != nil {
+				logger.Warn("createHlsStreamFromMpeg4H264: remove source failed (continuing)", "src", logical, "err", err)
+			}
 		}
 
 		logger.Info("createHlsStreamFromMpeg4H264: HLS created",
-			"src", p, "dest", outputBase, "master", master)
+			"src", logical, "dest", logicalBase, "master", master)
 		return nil
 	}
 
 	err := fmt.Errorf("expected master playlist not found at %q", master)
-	logger.Error("createHlsStreamFromMpeg4H264: missing master playlist", "dest", outputBase, "err", err)
+	logger.Error("createHlsStreamFromMpeg4H264: missing master playlist", "dest", logicalBase, "err", err)
 	return err
 }
 

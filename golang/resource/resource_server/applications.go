@@ -728,7 +728,7 @@ func (srv *server) save_application(ctx context.Context, app *resourcepb.Applica
 
 	// Create the application file directory.
 	path := "/applications/" + app.Name
-	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+	Utility.CreateDirIfNotExist(config.GetDataDir() + path)
 
 	// Add resource owner
 	srv.addResourceOwner(token, path, app.Id+"@"+app.Domain, "file", rbacpb.SubjectType_APPLICATION)

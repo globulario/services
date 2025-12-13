@@ -222,7 +222,7 @@ func (srv *server) deleteAudio(token, indexPath string, audioId string) error {
 	if paths, err := srv.getTitleFiles(indexPath, audioId); err == nil {
 		for _, p := range paths {
 			_ = srv.dissociateFileWithTitle(token, indexPath, audioId, p)
-			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir()+"/files", "")))
+			dirs = append(dirs, filepath.Dir(strings.ReplaceAll(p, config.GetDataDir(), "")))
 		}
 	}
 

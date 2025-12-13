@@ -40,7 +40,7 @@ func (srv *server) prepareLocalFile(path string) (string, func(), error) {
 	ctx := context.Background()
 
 	if _, ok := srv.storageForPath(p).(*OSStorage); ok {
-		return filepath.ToSlash(srv.formatPath(p)), func() {}, nil
+		return filepath.ToSlash(p), func() {}, nil
 	}
 
 	reader, err := srv.storageOpen(ctx, p)

@@ -1980,6 +1980,551 @@ func (*StopResponse) Descriptor() ([]byte, []int) {
 	return file_media_proto_rawDescGZIP(), []int{45}
 }
 
+// A single entry in a channel/playlist (one remote video).
+type ChannelItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VideoId       string                 `protobuf:"bytes,1,opt,name=video_id,json=videoId,proto3" json:"video_id,omitempty"`                    // e.g. YouTube ID, PornHub ID...
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`                                       // Item title
+	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`                                           // Download/stream URL (yt-dlp "url")
+	WebpageUrl    string                 `protobuf:"bytes,4,opt,name=webpage_url,json=webpageUrl,proto3" json:"webpage_url,omitempty"`           // Canonical page URL (yt-dlp "webpage_url")
+	Epoch         int64                  `protobuf:"varint,5,opt,name=epoch,proto3" json:"epoch,omitempty"`                                      // yt-dlp "epoch" (UNIX seconds)
+	PlaylistIndex int32                  `protobuf:"varint,6,opt,name=playlist_index,json=playlistIndex,proto3" json:"playlist_index,omitempty"` // Position in playlist (1-based)
+	Extractor     string                 `protobuf:"bytes,7,opt,name=extractor,proto3" json:"extractor,omitempty"`                               // yt-dlp "extractor"
+	ExtractorKey  string                 `protobuf:"bytes,8,opt,name=extractor_key,json=extractorKey,proto3" json:"extractor_key,omitempty"`     // yt-dlp "extractor_key"
+	OriginalUrl   string                 `protobuf:"bytes,9,opt,name=original_url,json=originalUrl,proto3" json:"original_url,omitempty"`        // yt-dlp "original_url"
+	Filename      string                 `protobuf:"bytes,10,opt,name=filename,proto3" json:"filename,omitempty"`                                // yt-dlp "filename" (template result)
+	LocalPath     string                 `protobuf:"bytes,11,opt,name=local_path,json=localPath,proto3" json:"local_path,omitempty"`             // Optional: resolved local path if downloaded
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelItem) Reset() {
+	*x = ChannelItem{}
+	mi := &file_media_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelItem) ProtoMessage() {}
+
+func (x *ChannelItem) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelItem.ProtoReflect.Descriptor instead.
+func (*ChannelItem) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *ChannelItem) GetVideoId() string {
+	if x != nil {
+		return x.VideoId
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetWebpageUrl() string {
+	if x != nil {
+		return x.WebpageUrl
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetEpoch() int64 {
+	if x != nil {
+		return x.Epoch
+	}
+	return 0
+}
+
+func (x *ChannelItem) GetPlaylistIndex() int32 {
+	if x != nil {
+		return x.PlaylistIndex
+	}
+	return 0
+}
+
+func (x *ChannelItem) GetExtractor() string {
+	if x != nil {
+		return x.Extractor
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetExtractorKey() string {
+	if x != nil {
+		return x.ExtractorKey
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetOriginalUrl() string {
+	if x != nil {
+		return x.OriginalUrl
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *ChannelItem) GetLocalPath() string {
+	if x != nil {
+		return x.LocalPath
+	}
+	return ""
+}
+
+// A channel / playlist definition in the MediaService.
+type Channel struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`         // Typically yt-dlp "playlist_id"
+	Url    string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`       // Channel/playlist URL
+	Path   string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`     // Root media dest path (local/minio)
+	Format string                 `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"` // mp4/mp3/etc (preferred download format)
+	// Playlist metadata (taken from first item in playlist.json).
+	Extractor          string         `protobuf:"bytes,5,opt,name=extractor,proto3" json:"extractor,omitempty"`
+	ExtractorKey       string         `protobuf:"bytes,6,opt,name=extractor_key,json=extractorKey,proto3" json:"extractor_key,omitempty"`
+	PlaylistTitle      string         `protobuf:"bytes,7,opt,name=playlist_title,json=playlistTitle,proto3" json:"playlist_title,omitempty"`
+	PlaylistUploader   string         `protobuf:"bytes,8,opt,name=playlist_uploader,json=playlistUploader,proto3" json:"playlist_uploader,omitempty"`
+	PlaylistUploaderId string         `protobuf:"bytes,9,opt,name=playlist_uploader_id,json=playlistUploaderId,proto3" json:"playlist_uploader_id,omitempty"`
+	PlaylistCount      int32          `protobuf:"varint,10,opt,name=playlist_count,json=playlistCount,proto3" json:"playlist_count,omitempty"`
+	LastSyncEpoch      int64          `protobuf:"varint,11,opt,name=last_sync_epoch,json=lastSyncEpoch,proto3" json:"last_sync_epoch,omitempty"` // When we last synced this channel (server UNIX time)
+	Items              []*ChannelItem `protobuf:"bytes,12,rep,name=items,proto3" json:"items,omitempty"`                                         // All entries returned by yt-dlp
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *Channel) Reset() {
+	*x = Channel{}
+	mi := &file_media_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Channel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Channel) ProtoMessage() {}
+
+func (x *Channel) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Channel.ProtoReflect.Descriptor instead.
+func (*Channel) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *Channel) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Channel) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *Channel) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Channel) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
+func (x *Channel) GetExtractor() string {
+	if x != nil {
+		return x.Extractor
+	}
+	return ""
+}
+
+func (x *Channel) GetExtractorKey() string {
+	if x != nil {
+		return x.ExtractorKey
+	}
+	return ""
+}
+
+func (x *Channel) GetPlaylistTitle() string {
+	if x != nil {
+		return x.PlaylistTitle
+	}
+	return ""
+}
+
+func (x *Channel) GetPlaylistUploader() string {
+	if x != nil {
+		return x.PlaylistUploader
+	}
+	return ""
+}
+
+func (x *Channel) GetPlaylistUploaderId() string {
+	if x != nil {
+		return x.PlaylistUploaderId
+	}
+	return ""
+}
+
+func (x *Channel) GetPlaylistCount() int32 {
+	if x != nil {
+		return x.PlaylistCount
+	}
+	return 0
+}
+
+func (x *Channel) GetLastSyncEpoch() int64 {
+	if x != nil {
+		return x.LastSyncEpoch
+	}
+	return 0
+}
+
+func (x *Channel) GetItems() []*ChannelItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+// RPC to sync/create a channel from a yt-dlp playlist.json blob.
+type SyncChannelFromPlaylistRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw JSON as produced by your helper around yt-dlp
+	// (outer object with: "format", "path", "url", "items": [...]).
+	PlaylistJson  string `protobuf:"bytes,1,opt,name=playlist_json,json=playlistJson,proto3" json:"playlist_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncChannelFromPlaylistRequest) Reset() {
+	*x = SyncChannelFromPlaylistRequest{}
+	mi := &file_media_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncChannelFromPlaylistRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncChannelFromPlaylistRequest) ProtoMessage() {}
+
+func (x *SyncChannelFromPlaylistRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncChannelFromPlaylistRequest.ProtoReflect.Descriptor instead.
+func (*SyncChannelFromPlaylistRequest) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *SyncChannelFromPlaylistRequest) GetPlaylistJson() string {
+	if x != nil {
+		return x.PlaylistJson
+	}
+	return ""
+}
+
+type SyncChannelFromPlaylistResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channel       *Channel               `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncChannelFromPlaylistResponse) Reset() {
+	*x = SyncChannelFromPlaylistResponse{}
+	mi := &file_media_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncChannelFromPlaylistResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncChannelFromPlaylistResponse) ProtoMessage() {}
+
+func (x *SyncChannelFromPlaylistResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncChannelFromPlaylistResponse.ProtoReflect.Descriptor instead.
+func (*SyncChannelFromPlaylistResponse) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *SyncChannelFromPlaylistResponse) GetChannel() *Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return nil
+}
+
+// Read one channel.
+// If 'path' is set, we look only in that root; otherwise we search all roots.
+type GetChannelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`     // playlist_id
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"` // optional root path
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetChannelRequest) Reset() {
+	*x = GetChannelRequest{}
+	mi := &file_media_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetChannelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetChannelRequest) ProtoMessage() {}
+
+func (x *GetChannelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetChannelRequest.ProtoReflect.Descriptor instead.
+func (*GetChannelRequest) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *GetChannelRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GetChannelRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type GetChannelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channel       *Channel               `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetChannelResponse) Reset() {
+	*x = GetChannelResponse{}
+	mi := &file_media_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetChannelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetChannelResponse) ProtoMessage() {}
+
+func (x *GetChannelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetChannelResponse.ProtoReflect.Descriptor instead.
+func (*GetChannelResponse) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetChannelResponse) GetChannel() *Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return nil
+}
+
+// List channels under a given root path (e.g. "/users/sa@globular.io/video").
+type ListChannelsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`           // root path where channels are stored
+	Extractor     string                 `protobuf:"bytes,2,opt,name=extractor,proto3" json:"extractor,omitempty"` // optional filter (e.g. "Youtube", "PornHub")
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListChannelsRequest) Reset() {
+	*x = ListChannelsRequest{}
+	mi := &file_media_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsRequest) ProtoMessage() {}
+
+func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
+func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ListChannelsRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ListChannelsRequest) GetExtractor() string {
+	if x != nil {
+		return x.Extractor
+	}
+	return ""
+}
+
+type ListChannelsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channels      []*Channel             `protobuf:"bytes,1,rep,name=channels,proto3" json:"channels,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListChannelsResponse) Reset() {
+	*x = ListChannelsResponse{}
+	mi := &file_media_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsResponse) ProtoMessage() {}
+
+func (x *ListChannelsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_media_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsResponse.ProtoReflect.Descriptor instead.
+func (*ListChannelsResponse) Descriptor() ([]byte, []int) {
+	return file_media_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ListChannelsResponse) GetChannels() []*Channel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
 var File_media_proto protoreflect.FileDescriptor
 
 const file_media_proto_rawDesc = "" +
@@ -2067,7 +2612,50 @@ const file_media_proto_rawDesc = "" +
 	"\n" +
 	"media_type\x18\x02 \x01(\tR\tmediaType\"\r\n" +
 	"\vStopRequest\"\x0e\n" +
-	"\fStopResponse2\x9c\x10\n" +
+	"\fStopResponse\"\xcf\x02\n" +
+	"\vChannelItem\x12\x19\n" +
+	"\bvideo_id\x18\x01 \x01(\tR\avideoId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x10\n" +
+	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1f\n" +
+	"\vwebpage_url\x18\x04 \x01(\tR\n" +
+	"webpageUrl\x12\x14\n" +
+	"\x05epoch\x18\x05 \x01(\x03R\x05epoch\x12%\n" +
+	"\x0eplaylist_index\x18\x06 \x01(\x05R\rplaylistIndex\x12\x1c\n" +
+	"\textractor\x18\a \x01(\tR\textractor\x12#\n" +
+	"\rextractor_key\x18\b \x01(\tR\fextractorKey\x12!\n" +
+	"\foriginal_url\x18\t \x01(\tR\voriginalUrl\x12\x1a\n" +
+	"\bfilename\x18\n" +
+	" \x01(\tR\bfilename\x12\x1d\n" +
+	"\n" +
+	"local_path\x18\v \x01(\tR\tlocalPath\"\x99\x03\n" +
+	"\aChannel\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
+	"\x06format\x18\x04 \x01(\tR\x06format\x12\x1c\n" +
+	"\textractor\x18\x05 \x01(\tR\textractor\x12#\n" +
+	"\rextractor_key\x18\x06 \x01(\tR\fextractorKey\x12%\n" +
+	"\x0eplaylist_title\x18\a \x01(\tR\rplaylistTitle\x12+\n" +
+	"\x11playlist_uploader\x18\b \x01(\tR\x10playlistUploader\x120\n" +
+	"\x14playlist_uploader_id\x18\t \x01(\tR\x12playlistUploaderId\x12%\n" +
+	"\x0eplaylist_count\x18\n" +
+	" \x01(\x05R\rplaylistCount\x12&\n" +
+	"\x0flast_sync_epoch\x18\v \x01(\x03R\rlastSyncEpoch\x12(\n" +
+	"\x05items\x18\f \x03(\v2\x12.media.ChannelItemR\x05items\"E\n" +
+	"\x1eSyncChannelFromPlaylistRequest\x12#\n" +
+	"\rplaylist_json\x18\x01 \x01(\tR\fplaylistJson\"K\n" +
+	"\x1fSyncChannelFromPlaylistResponse\x12(\n" +
+	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"7\n" +
+	"\x11GetChannelRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\">\n" +
+	"\x12GetChannelResponse\x12(\n" +
+	"\achannel\x18\x01 \x01(\v2\x0e.media.ChannelR\achannel\"G\n" +
+	"\x13ListChannelsRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
+	"\textractor\x18\x02 \x01(\tR\textractor\"B\n" +
+	"\x14ListChannelsResponse\x12*\n" +
+	"\bchannels\x18\x01 \x03(\v2\x0e.media.ChannelR\bchannels2\x92\x12\n" +
 	"\fMediaService\x12/\n" +
 	"\x04Stop\x12\x12.media.StopRequest\x1a\x13.media.StopResponse\x12F\n" +
 	"\vUploadVideo\x12\x19.media.UploadVideoRequest\x1a\x1a.media.UploadVideoResponse0\x01\x12Y\n" +
@@ -2090,7 +2678,11 @@ const file_media_proto_rawDesc = "" +
 	"\x16GetVideoConversionLogs\x12$.media.GetVideoConversionLogsRequest\x1a%.media.GetVideoConversionLogsResponse\x12S\n" +
 	"\x10GeneratePlaylist\x12\x1e.media.GeneratePlaylistRequest\x1a\x1f.media.GeneratePlaylistResponse\x12J\n" +
 	"\rCreateVttFile\x12\x1b.media.CreateVttFileRequest\x1a\x1c.media.CreateVttFileResponse\x12B\n" +
-	"\x0eListMediaFiles\x12\x1c.media.ListMediaFilesRequest\x1a\x10.media.MediaFile0\x01B5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
+	"\x0eListMediaFiles\x12\x1c.media.ListMediaFilesRequest\x1a\x10.media.MediaFile0\x01\x12h\n" +
+	"\x17SyncChannelFromPlaylist\x12%.media.SyncChannelFromPlaylistRequest\x1a&.media.SyncChannelFromPlaylistResponse\x12A\n" +
+	"\n" +
+	"GetChannel\x12\x18.media.GetChannelRequest\x1a\x19.media.GetChannelResponse\x12G\n" +
+	"\fListChannels\x12\x1a.media.ListChannelsRequest\x1a\x1b.media.ListChannelsResponseB5Z3github.com/globulario/services/golang/media/mediapbb\x06proto3"
 
 var (
 	file_media_proto_rawDescOnce sync.Once
@@ -2104,7 +2696,7 @@ func file_media_proto_rawDescGZIP() []byte {
 	return file_media_proto_rawDescData
 }
 
-var file_media_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_media_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_media_proto_goTypes = []any{
 	(*CreateVideoPreviewRequest)(nil),              // 0: media.CreateVideoPreviewRequest
 	(*CreateVideoPreviewResponse)(nil),             // 1: media.CreateVideoPreviewResponse
@@ -2152,59 +2744,77 @@ var file_media_proto_goTypes = []any{
 	(*MediaFile)(nil),                              // 43: media.MediaFile
 	(*StopRequest)(nil),                            // 44: media.StopRequest
 	(*StopResponse)(nil),                           // 45: media.StopResponse
+	(*ChannelItem)(nil),                            // 46: media.ChannelItem
+	(*Channel)(nil),                                // 47: media.Channel
+	(*SyncChannelFromPlaylistRequest)(nil),         // 48: media.SyncChannelFromPlaylistRequest
+	(*SyncChannelFromPlaylistResponse)(nil),        // 49: media.SyncChannelFromPlaylistResponse
+	(*GetChannelRequest)(nil),                      // 50: media.GetChannelRequest
+	(*GetChannelResponse)(nil),                     // 51: media.GetChannelResponse
+	(*ListChannelsRequest)(nil),                    // 52: media.ListChannelsRequest
+	(*ListChannelsResponse)(nil),                   // 53: media.ListChannelsResponse
 }
 var file_media_proto_depIdxs = []int32{
 	26, // 0: media.GetVideoConversionErrorsResponse.errors:type_name -> media.VideoConversionError
 	35, // 1: media.GetVideoConversionLogsResponse.logs:type_name -> media.VideoConversionLog
-	44, // 2: media.MediaService.Stop:input_type -> media.StopRequest
-	14, // 3: media.MediaService.UploadVideo:input_type -> media.UploadVideoRequest
-	0,  // 4: media.MediaService.CreateVideoPreview:input_type -> media.CreateVideoPreviewRequest
-	2,  // 5: media.MediaService.CreateVideoTimeLine:input_type -> media.CreateVideoTimeLineRequest
-	4,  // 6: media.MediaService.ConvertVideoToMpeg4H264:input_type -> media.ConvertVideoToMpeg4H264Request
-	6,  // 7: media.MediaService.ConvertVideoToHls:input_type -> media.ConvertVideoToHlsRequest
-	8,  // 8: media.MediaService.StartProcessVideo:input_type -> media.StartProcessVideoRequest
-	10, // 9: media.MediaService.StartProcessAudio:input_type -> media.StartProcessAudioRequest
-	16, // 10: media.MediaService.StopProcessVideo:input_type -> media.StopProcessVideoRequest
-	12, // 11: media.MediaService.IsProcessVideo:input_type -> media.IsProcessVideoRequest
-	18, // 12: media.MediaService.SetVideoConversion:input_type -> media.SetVideoConversionRequest
-	20, // 13: media.MediaService.SetVideoStreamConversion:input_type -> media.SetVideoStreamConversionRequest
-	22, // 14: media.MediaService.SetStartVideoConversionHour:input_type -> media.SetStartVideoConversionHourRequest
-	24, // 15: media.MediaService.SetMaximumVideoConversionDelay:input_type -> media.SetMaximumVideoConversionDelayRequest
-	27, // 16: media.MediaService.GetVideoConversionErrors:input_type -> media.GetVideoConversionErrorsRequest
-	29, // 17: media.MediaService.ClearVideoConversionErrors:input_type -> media.ClearVideoConversionErrorsRequest
-	31, // 18: media.MediaService.ClearVideoConversionError:input_type -> media.ClearVideoConversionErrorRequest
-	33, // 19: media.MediaService.ClearVideoConversionLogs:input_type -> media.ClearVideoConversionLogsRequest
-	36, // 20: media.MediaService.GetVideoConversionLogs:input_type -> media.GetVideoConversionLogsRequest
-	38, // 21: media.MediaService.GeneratePlaylist:input_type -> media.GeneratePlaylistRequest
-	40, // 22: media.MediaService.CreateVttFile:input_type -> media.CreateVttFileRequest
-	42, // 23: media.MediaService.ListMediaFiles:input_type -> media.ListMediaFilesRequest
-	45, // 24: media.MediaService.Stop:output_type -> media.StopResponse
-	15, // 25: media.MediaService.UploadVideo:output_type -> media.UploadVideoResponse
-	1,  // 26: media.MediaService.CreateVideoPreview:output_type -> media.CreateVideoPreviewResponse
-	3,  // 27: media.MediaService.CreateVideoTimeLine:output_type -> media.CreateVideoTimeLineResponse
-	5,  // 28: media.MediaService.ConvertVideoToMpeg4H264:output_type -> media.ConvertVideoToMpeg4H264Response
-	7,  // 29: media.MediaService.ConvertVideoToHls:output_type -> media.ConvertVideoToHlsResponse
-	9,  // 30: media.MediaService.StartProcessVideo:output_type -> media.StartProcessVideoResponse
-	11, // 31: media.MediaService.StartProcessAudio:output_type -> media.StartProcessAudioResponse
-	17, // 32: media.MediaService.StopProcessVideo:output_type -> media.StopProcessVideoResponse
-	13, // 33: media.MediaService.IsProcessVideo:output_type -> media.IsProcessVideoResponse
-	19, // 34: media.MediaService.SetVideoConversion:output_type -> media.SetVideoConversionResponse
-	21, // 35: media.MediaService.SetVideoStreamConversion:output_type -> media.SetVideoStreamConversionResponse
-	23, // 36: media.MediaService.SetStartVideoConversionHour:output_type -> media.SetStartVideoConversionHourResponse
-	25, // 37: media.MediaService.SetMaximumVideoConversionDelay:output_type -> media.SetMaximumVideoConversionDelayResponse
-	28, // 38: media.MediaService.GetVideoConversionErrors:output_type -> media.GetVideoConversionErrorsResponse
-	30, // 39: media.MediaService.ClearVideoConversionErrors:output_type -> media.ClearVideoConversionErrorsResponse
-	32, // 40: media.MediaService.ClearVideoConversionError:output_type -> media.ClearVideoConversionErrorResponse
-	34, // 41: media.MediaService.ClearVideoConversionLogs:output_type -> media.ClearVideoConversionLogsResponse
-	37, // 42: media.MediaService.GetVideoConversionLogs:output_type -> media.GetVideoConversionLogsResponse
-	39, // 43: media.MediaService.GeneratePlaylist:output_type -> media.GeneratePlaylistResponse
-	41, // 44: media.MediaService.CreateVttFile:output_type -> media.CreateVttFileResponse
-	43, // 45: media.MediaService.ListMediaFiles:output_type -> media.MediaFile
-	24, // [24:46] is the sub-list for method output_type
-	2,  // [2:24] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	46, // 2: media.Channel.items:type_name -> media.ChannelItem
+	47, // 3: media.SyncChannelFromPlaylistResponse.channel:type_name -> media.Channel
+	47, // 4: media.GetChannelResponse.channel:type_name -> media.Channel
+	47, // 5: media.ListChannelsResponse.channels:type_name -> media.Channel
+	44, // 6: media.MediaService.Stop:input_type -> media.StopRequest
+	14, // 7: media.MediaService.UploadVideo:input_type -> media.UploadVideoRequest
+	0,  // 8: media.MediaService.CreateVideoPreview:input_type -> media.CreateVideoPreviewRequest
+	2,  // 9: media.MediaService.CreateVideoTimeLine:input_type -> media.CreateVideoTimeLineRequest
+	4,  // 10: media.MediaService.ConvertVideoToMpeg4H264:input_type -> media.ConvertVideoToMpeg4H264Request
+	6,  // 11: media.MediaService.ConvertVideoToHls:input_type -> media.ConvertVideoToHlsRequest
+	8,  // 12: media.MediaService.StartProcessVideo:input_type -> media.StartProcessVideoRequest
+	10, // 13: media.MediaService.StartProcessAudio:input_type -> media.StartProcessAudioRequest
+	16, // 14: media.MediaService.StopProcessVideo:input_type -> media.StopProcessVideoRequest
+	12, // 15: media.MediaService.IsProcessVideo:input_type -> media.IsProcessVideoRequest
+	18, // 16: media.MediaService.SetVideoConversion:input_type -> media.SetVideoConversionRequest
+	20, // 17: media.MediaService.SetVideoStreamConversion:input_type -> media.SetVideoStreamConversionRequest
+	22, // 18: media.MediaService.SetStartVideoConversionHour:input_type -> media.SetStartVideoConversionHourRequest
+	24, // 19: media.MediaService.SetMaximumVideoConversionDelay:input_type -> media.SetMaximumVideoConversionDelayRequest
+	27, // 20: media.MediaService.GetVideoConversionErrors:input_type -> media.GetVideoConversionErrorsRequest
+	29, // 21: media.MediaService.ClearVideoConversionErrors:input_type -> media.ClearVideoConversionErrorsRequest
+	31, // 22: media.MediaService.ClearVideoConversionError:input_type -> media.ClearVideoConversionErrorRequest
+	33, // 23: media.MediaService.ClearVideoConversionLogs:input_type -> media.ClearVideoConversionLogsRequest
+	36, // 24: media.MediaService.GetVideoConversionLogs:input_type -> media.GetVideoConversionLogsRequest
+	38, // 25: media.MediaService.GeneratePlaylist:input_type -> media.GeneratePlaylistRequest
+	40, // 26: media.MediaService.CreateVttFile:input_type -> media.CreateVttFileRequest
+	42, // 27: media.MediaService.ListMediaFiles:input_type -> media.ListMediaFilesRequest
+	48, // 28: media.MediaService.SyncChannelFromPlaylist:input_type -> media.SyncChannelFromPlaylistRequest
+	50, // 29: media.MediaService.GetChannel:input_type -> media.GetChannelRequest
+	52, // 30: media.MediaService.ListChannels:input_type -> media.ListChannelsRequest
+	45, // 31: media.MediaService.Stop:output_type -> media.StopResponse
+	15, // 32: media.MediaService.UploadVideo:output_type -> media.UploadVideoResponse
+	1,  // 33: media.MediaService.CreateVideoPreview:output_type -> media.CreateVideoPreviewResponse
+	3,  // 34: media.MediaService.CreateVideoTimeLine:output_type -> media.CreateVideoTimeLineResponse
+	5,  // 35: media.MediaService.ConvertVideoToMpeg4H264:output_type -> media.ConvertVideoToMpeg4H264Response
+	7,  // 36: media.MediaService.ConvertVideoToHls:output_type -> media.ConvertVideoToHlsResponse
+	9,  // 37: media.MediaService.StartProcessVideo:output_type -> media.StartProcessVideoResponse
+	11, // 38: media.MediaService.StartProcessAudio:output_type -> media.StartProcessAudioResponse
+	17, // 39: media.MediaService.StopProcessVideo:output_type -> media.StopProcessVideoResponse
+	13, // 40: media.MediaService.IsProcessVideo:output_type -> media.IsProcessVideoResponse
+	19, // 41: media.MediaService.SetVideoConversion:output_type -> media.SetVideoConversionResponse
+	21, // 42: media.MediaService.SetVideoStreamConversion:output_type -> media.SetVideoStreamConversionResponse
+	23, // 43: media.MediaService.SetStartVideoConversionHour:output_type -> media.SetStartVideoConversionHourResponse
+	25, // 44: media.MediaService.SetMaximumVideoConversionDelay:output_type -> media.SetMaximumVideoConversionDelayResponse
+	28, // 45: media.MediaService.GetVideoConversionErrors:output_type -> media.GetVideoConversionErrorsResponse
+	30, // 46: media.MediaService.ClearVideoConversionErrors:output_type -> media.ClearVideoConversionErrorsResponse
+	32, // 47: media.MediaService.ClearVideoConversionError:output_type -> media.ClearVideoConversionErrorResponse
+	34, // 48: media.MediaService.ClearVideoConversionLogs:output_type -> media.ClearVideoConversionLogsResponse
+	37, // 49: media.MediaService.GetVideoConversionLogs:output_type -> media.GetVideoConversionLogsResponse
+	39, // 50: media.MediaService.GeneratePlaylist:output_type -> media.GeneratePlaylistResponse
+	41, // 51: media.MediaService.CreateVttFile:output_type -> media.CreateVttFileResponse
+	43, // 52: media.MediaService.ListMediaFiles:output_type -> media.MediaFile
+	49, // 53: media.MediaService.SyncChannelFromPlaylist:output_type -> media.SyncChannelFromPlaylistResponse
+	51, // 54: media.MediaService.GetChannel:output_type -> media.GetChannelResponse
+	53, // 55: media.MediaService.ListChannels:output_type -> media.ListChannelsResponse
+	31, // [31:56] is the sub-list for method output_type
+	6,  // [6:31] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_media_proto_init() }
@@ -2218,7 +2828,7 @@ func file_media_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_media_proto_rawDesc), len(file_media_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   46,
+			NumMessages:   54,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

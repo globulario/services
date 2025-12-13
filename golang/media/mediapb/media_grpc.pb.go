@@ -41,6 +41,9 @@ const (
 	MediaService_GeneratePlaylist_FullMethodName               = "/media.MediaService/GeneratePlaylist"
 	MediaService_CreateVttFile_FullMethodName                  = "/media.MediaService/CreateVttFile"
 	MediaService_ListMediaFiles_FullMethodName                 = "/media.MediaService/ListMediaFiles"
+	MediaService_SyncChannelFromPlaylist_FullMethodName        = "/media.MediaService/SyncChannelFromPlaylist"
+	MediaService_GetChannel_FullMethodName                     = "/media.MediaService/GetChannel"
+	MediaService_ListChannels_FullMethodName                   = "/media.MediaService/ListChannels"
 )
 
 // MediaServiceClient is the client API for MediaService service.
@@ -95,6 +98,12 @@ type MediaServiceClient interface {
 	// Stream back all media files (audio + video) visible under the
 	// public, users and applications trees.
 	ListMediaFiles(ctx context.Context, in *ListMediaFilesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[MediaFile], error)
+	// Normalize and persist a channel definition from yt-dlp playlist.json.
+	SyncChannelFromPlaylist(ctx context.Context, in *SyncChannelFromPlaylistRequest, opts ...grpc.CallOption) (*SyncChannelFromPlaylistResponse, error)
+	// Fetch a single channel.
+	GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*GetChannelResponse, error)
+	// List channels stored under a given root path.
+	ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ListChannelsResponse, error)
 }
 
 type mediaServiceClient struct {
@@ -343,6 +352,36 @@ func (c *mediaServiceClient) ListMediaFiles(ctx context.Context, in *ListMediaFi
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type MediaService_ListMediaFilesClient = grpc.ServerStreamingClient[MediaFile]
 
+func (c *mediaServiceClient) SyncChannelFromPlaylist(ctx context.Context, in *SyncChannelFromPlaylistRequest, opts ...grpc.CallOption) (*SyncChannelFromPlaylistResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SyncChannelFromPlaylistResponse)
+	err := c.cc.Invoke(ctx, MediaService_SyncChannelFromPlaylist_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mediaServiceClient) GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*GetChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetChannelResponse)
+	err := c.cc.Invoke(ctx, MediaService_GetChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mediaServiceClient) ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ListChannelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListChannelsResponse)
+	err := c.cc.Invoke(ctx, MediaService_ListChannels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MediaServiceServer is the server API for MediaService service.
 // All implementations should embed UnimplementedMediaServiceServer
 // for forward compatibility.
@@ -395,6 +434,12 @@ type MediaServiceServer interface {
 	// Stream back all media files (audio + video) visible under the
 	// public, users and applications trees.
 	ListMediaFiles(*ListMediaFilesRequest, grpc.ServerStreamingServer[MediaFile]) error
+	// Normalize and persist a channel definition from yt-dlp playlist.json.
+	SyncChannelFromPlaylist(context.Context, *SyncChannelFromPlaylistRequest) (*SyncChannelFromPlaylistResponse, error)
+	// Fetch a single channel.
+	GetChannel(context.Context, *GetChannelRequest) (*GetChannelResponse, error)
+	// List channels stored under a given root path.
+	ListChannels(context.Context, *ListChannelsRequest) (*ListChannelsResponse, error)
 }
 
 // UnimplementedMediaServiceServer should be embedded to have
@@ -469,6 +514,15 @@ func (UnimplementedMediaServiceServer) CreateVttFile(context.Context, *CreateVtt
 }
 func (UnimplementedMediaServiceServer) ListMediaFiles(*ListMediaFilesRequest, grpc.ServerStreamingServer[MediaFile]) error {
 	return status.Errorf(codes.Unimplemented, "method ListMediaFiles not implemented")
+}
+func (UnimplementedMediaServiceServer) SyncChannelFromPlaylist(context.Context, *SyncChannelFromPlaylistRequest) (*SyncChannelFromPlaylistResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SyncChannelFromPlaylist not implemented")
+}
+func (UnimplementedMediaServiceServer) GetChannel(context.Context, *GetChannelRequest) (*GetChannelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetChannel not implemented")
+}
+func (UnimplementedMediaServiceServer) ListChannels(context.Context, *ListChannelsRequest) (*ListChannelsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListChannels not implemented")
 }
 func (UnimplementedMediaServiceServer) testEmbeddedByValue() {}
 
@@ -872,6 +926,60 @@ func _MediaService_ListMediaFiles_Handler(srv interface{}, stream grpc.ServerStr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type MediaService_ListMediaFilesServer = grpc.ServerStreamingServer[MediaFile]
 
+func _MediaService_SyncChannelFromPlaylist_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncChannelFromPlaylistRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaServiceServer).SyncChannelFromPlaylist(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MediaService_SyncChannelFromPlaylist_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaServiceServer).SyncChannelFromPlaylist(ctx, req.(*SyncChannelFromPlaylistRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MediaService_GetChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChannelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaServiceServer).GetChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MediaService_GetChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaServiceServer).GetChannel(ctx, req.(*GetChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MediaService_ListChannels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MediaServiceServer).ListChannels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MediaService_ListChannels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MediaServiceServer).ListChannels(ctx, req.(*ListChannelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MediaService_ServiceDesc is the grpc.ServiceDesc for MediaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -958,6 +1066,18 @@ var MediaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateVttFile",
 			Handler:    _MediaService_CreateVttFile_Handler,
+		},
+		{
+			MethodName: "SyncChannelFromPlaylist",
+			Handler:    _MediaService_SyncChannelFromPlaylist_Handler,
+		},
+		{
+			MethodName: "GetChannel",
+			Handler:    _MediaService_GetChannel_Handler,
+		},
+		{
+			MethodName: "ListChannels",
+			Handler:    _MediaService_ListChannels_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

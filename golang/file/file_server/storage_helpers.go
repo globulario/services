@@ -220,7 +220,7 @@ func (srv *server) computeChecksum(ctx context.Context, path string) (string, er
 
 	storage := srv.storageForPath(path)
 	if _, ok := storage.(*OSStorage); ok {
-		localPath := srv.formatPath(path)
+		localPath := path
 		sum := Utility.CreateFileChecksum(localPath)
 		srv.checksumCache.Store(key, checksumEntry{
 			size:    info.Size(),

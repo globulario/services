@@ -417,7 +417,7 @@ func removeTempFiles(rootDir string) error {
 func (srv *server) startRemoveTempFiles() {
 	go func() {
 		dirs := append([]string{}, config.GetPublicDirs()...)
-		dirs = append(dirs, config.GetDataDir()+"/files/users", config.GetDataDir()+"/files/applications")
+		dirs = append(dirs, config.GetDataDir()+"/users", config.GetDataDir()+"/applications")
 		for _, d := range dirs {
 			if err := removeTempFiles(d); err != nil {
 				logger.Error("temp file cleanup failed", "dir", d, "err", err)
@@ -549,7 +549,7 @@ func main() {
 	s.KeepUpToDate = true
 	s.AllowAllOrigins = allowAllOrigins
 	s.AllowedOrigins = allowedOriginsStr
-	s.Root = config.GetDataDir() + "/files"
+	s.Root = config.GetDataDir()
 	s.CacheAddress, _ = config.GetAddress()
 
 	s.Permissions = []interface{}{
@@ -892,7 +892,7 @@ func main() {
 		// Stage 2: indexer
 		go func() {
 			for path := range channel1 {
-				pp := s.formatPath(path)
+				pp := path
 				if err := s.indexFile(pp); err != nil {
 					logger.Error("index file failed", "path", pp, "err", err)
 				} else {

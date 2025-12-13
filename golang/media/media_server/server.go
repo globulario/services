@@ -521,11 +521,11 @@ func (srv *server) formatPath(path string) string {
 	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
 	normalized := filepath.ToSlash(path)
-	
 
 	return normalized
 
 }
+
 
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
@@ -594,7 +594,7 @@ func getEventClient() (*event_client.Event_Client, error) {
 func (srv *server) publishReloadDirEvent(path string) {
 	client, err := getEventClient()
 	path = strings.ReplaceAll(path, "\\", "/")
-	path = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
+	path = strings.ReplaceAll(path, config.GetDataDir(), "")
 	if err == nil {
 		client.Publish("reload_dir_event", []byte(path))
 	}
@@ -811,7 +811,7 @@ func main() {
 	srv.KeepUpToDate = true
 
 	// Media defaults
-	srv.Root = config.GetDataDir() + "/files"
+	srv.Root = config.GetDataDir()
 	srv.HasEnableGPU = false
 	srv.scheduler = gocron.NewScheduler()
 	srv.videoConversionErrors = new(sync.Map)

@@ -221,9 +221,12 @@ func (srv *server) resolveIOPath(path string) (string, bool) {
 		return p, true
 	}
 	if filepath.IsAbs(p) {
-		return p, false
+		if srv.localPathExists(p) {
+			return p, false
+		}
+		return  p, false
 	}
-	return filepath.ToSlash(srv.formatPath(p)), false
+	return p, false
 }
 
 func (srv *server) ensureDirExists(path string) error {

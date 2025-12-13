@@ -72,18 +72,18 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 // getFileInfo returns metadata & thumbnail info for a given path.
 func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*filepb.FileInfo, error) {
-	p := s.formatPath(path)
-	info := new(filepb.FileInfo)
-	info.Path = p
 
-	st, err := s.storageStat(context.Background(), p)
+	info := new(filepb.FileInfo)
+	info.Path = path
+
+	st, err := s.storageStat(context.Background(), path)
 	if err != nil {
 		return nil, err
 	}
 
 	// Short-circuit hidden special dirs
-	if strings.Contains(p, "/.hidden") {
-		if strings.HasSuffix(p, "__preview__") || strings.HasSuffix(p, "__timeline__") || strings.HasSuffix(p, "__thumbnail__") {
+	if strings.Contains(path, "/.hidden") {
+		if strings.HasSuffix(path, "__preview__") || strings.HasSuffix(path, "__timeline__") || strings.HasSuffix(path, "__thumbnail__") {
 			info.Mime = "inode/directory"
 			info.IsDir = true
 			return info, nil
@@ -91,33 +91,33 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	}
 
 	// Try cache first
-	if data, err := s.cacheGet(p); err == nil && data != nil {
+	if data, err := s.cacheGet(path); err == nil && data != nil {
 		if err := protojson.Unmarshal(data, info); err == nil {
-			if info.IsDir && s.storageForPath(filepath.Join(p, "playlist.m3u8")).Exists(context.Background(), filepath.Join(p, "playlist.m3u8")) {
+			if info.IsDir && s.storageForPath(filepath.Join(path, "playlist.m3u8")).Exists(context.Background(), filepath.Join(path, "playlist.m3u8")) {
 				info.Mime = "video/hls-stream"
 			}
 			if !info.IsDir && info.Checksum == "" {
-				if sum, err := s.computeChecksum(context.Background(), p); err == nil {
+				if sum, err := s.computeChecksum(context.Background(), path); err == nil {
 					info.Checksum = sum
 					if b, marshalErr := protojson.Marshal(info); marshalErr == nil {
-						s.cacheSet(p, b)
+						s.cacheSet(path, b)
 					}
 				}
 			}
 			return info, nil
 		}
-		s.cacheRemove(p)
+		s.cacheRemove(path)
 	}
 
 	info.IsDir = st.IsDir()
 	if info.IsDir {
 		info.Mime = "inode/directory"
 		if cwd, err := s.Storage().Getwd(); err == nil {
-			icon := s.formatPath(filepath.Join(cwd, "mimetypes", "inode-directory.png"))
+			icon := filepath.Join(cwd, "mimetypes", "inode-directory.png")
 			info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 		}
 	} else {
-		if sum, err := s.computeChecksum(context.Background(), p); err == nil {
+		if sum, err := s.computeChecksum(context.Background(), path); err == nil {
 			info.Checksum = sum
 		}
 	}
@@ -129,7 +129,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		// mime sniffing
 		if dot := strings.LastIndex(st.Name(), "."); dot != -1 {
 			info.Mime = mime.TypeByExtension(st.Name()[dot:])
-		} else if f, err := s.storageOpen(context.Background(), p); err == nil {
+		} else if f, err := s.storageOpen(context.Background(), path); err == nil {
 			if mime, err := detectContentTypeFromReader(f); err == nil {
 				info.Mime = mime
 			}
@@ -137,16 +137,16 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		}
 
 		// Default thumbnail placeholder
-		if cwd, err := s.Storage().Getwd(); err == nil && !strings.Contains(p, "/.hidden/") {
-			icon := s.formatPath(filepath.Join(cwd, "mimetypes", "unknown.png"))
+		if cwd, err := s.Storage().Getwd(); err == nil && !strings.Contains(path, "/.hidden/") {
+			icon := filepath.Join(cwd, "mimetypes", "unknown.png")
 			info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 		}
 
 		// per-type thumbnail logic
-		dir := filepath.Dir(p)
-		base := filepath.Base(p)
+		dir := filepath.Dir(path)
+		base := filepath.Base(path)
 		nameNoExt := strings.TrimSuffix(base, filepath.Ext(base))
-		hidden := s.formatPath(filepath.Join(dir, ".hidden", nameNoExt))
+		hidden := filepath.Join(dir, ".hidden", nameNoExt)
 
 		switch {
 		case strings.HasPrefix(info.Mime, "image/"):
@@ -154,8 +154,8 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 				mh, mw = thumbnailMaxHeight, thumbnailMaxWidth
 			}
-			info.Thumbnail, _ = s.getThumbnail(p, mh, mw)
-			annotateImageMetadata(s, info, p, info.Thumbnail, mw, mh)
+			info.Thumbnail, _ = s.getThumbnail(path, mh, mw)
+			annotateImageMetadata(s, info, path, info.Thumbnail, mw, mh)
 
 		case strings.HasPrefix(info.Mime, "video/"):
 			if s.storageForPath(hidden).Exists(context.Background(), hidden) {
@@ -169,7 +169,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				if s.storageForPath(prev).Exists(context.Background(), prev) {
 					thumb, err := s.getThumbnail(prev, -1, -1)
 					if err != nil {
-						slog.Error("video preview thumb failed", "path", p, "err", err)
+						slog.Error("video preview thumb failed", "path", path, "err", err)
 					}
 					info.Thumbnail = thumb
 				} else if s.storageForPath(filepath.Join(hidden, "__thumbnail__", "data_url.txt")).Exists(context.Background(), filepath.Join(hidden, "__thumbnail__", "data_url.txt")) {
@@ -188,12 +188,12 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					}
 				}
 			} else if cwd, err := s.Storage().Getwd(); err == nil {
-				icon := s.formatPath(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
+				icon := filepath.Join(cwd, "mimetypes", "video-x-generic.png")
 				info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 			}
 
-		case strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(p, ".flac") || strings.HasSuffix(p, ".mp3"):
-			if meta, err := s.readAudioMetadata(p, thumbnailMaxHeight, thumbnailMaxWidth); err == nil {
+		case strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(path, ".flac") || strings.HasSuffix(path, ".mp3"):
+			if meta, err := s.readAudioMetadata(path, thumbnailMaxHeight, thumbnailMaxWidth); err == nil {
 				if v, ok := meta["ImageUrl"].(string); ok {
 					info.Thumbnail = v
 				}
@@ -206,32 +206,32 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				}
 			} else if strings.Contains(info.Mime, "/") {
 				if cwd, err := s.Storage().Getwd(); err == nil {
-					icon := s.formatPath(filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-")+".png"))
+					icon := filepath.Join(cwd, "mimetypes", strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-")+".png")
 					info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 				}
 			}
 		}
 	} else {
 		// Dir with HLS playlist thumbnail
-		if s.storageForPath(filepath.Join(p, "playlist.m3u8")).Exists(context.Background(), filepath.Join(p, "playlist.m3u8")) {
-			d := filepath.Dir(p)
-			bn := filepath.Base(p)
-			h := s.formatPath(filepath.Join(d, ".hidden", bn, "__preview__", "preview_00001.jpg"))
+		if s.storageForPath(filepath.Join(path, "playlist.m3u8")).Exists(context.Background(), filepath.Join(path, "playlist.m3u8")) {
+			d := filepath.Dir(path)
+			bn := filepath.Base(path)
+			h := filepath.Join(d, ".hidden", bn, "__preview__", "preview_00001.jpg")
 			if s.storageForPath(h).Exists(context.Background(), h) {
 				if thumb, err := s.getThumbnail(h, -1, -1); err == nil {
 					info.Thumbnail = thumb
 				} else {
-					slog.Error("hls preview thumb failed", "path", p, "err", err)
+					slog.Error("hls preview thumb failed", "path", path, "err", err)
 				}
 			} else if cwd, err := s.Storage().Getwd(); err == nil {
-				icon := s.formatPath(filepath.Join(cwd, "mimetypes", "video-x-generic.png"))
+				icon := filepath.Join(cwd, "mimetypes", "video-x-generic.png")
 				info.Thumbnail, _ = s.getMimeTypesUrl(icon)
 			}
 		}
 	}
 
 	if b, err := protojson.Marshal(info); err == nil {
-		s.cacheSet(p, b)
+		s.cacheSet(path, b)
 	}
 	return info, nil
 }

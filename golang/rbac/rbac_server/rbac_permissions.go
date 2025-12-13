@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -222,12 +221,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space += uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space += uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
 						}
 					}
 
@@ -259,12 +256,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space += uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Applications[j], rbacpb.SubjectType_APPLICATION, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space += uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Applications[j], rbacpb.SubjectType_APPLICATION, used_space)
 						}
 					}
 				}
@@ -292,12 +287,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space += uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space += uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
 						}
 					}
 				}
@@ -325,12 +318,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space += uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Groups[j], rbacpb.SubjectType_GROUP, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space += uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Groups[j], rbacpb.SubjectType_GROUP, used_space)
 						}
 					}
 				} else {
@@ -360,12 +351,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space += uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Organizations[j], rbacpb.SubjectType_ORGANIZATION, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space += uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Organizations[j], rbacpb.SubjectType_ORGANIZATION, used_space)
 						}
 					}
 				} else {
@@ -558,13 +547,11 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space -= uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
-							}
-						} else {
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space -= uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
+						} else if err != nil {
 							logPrintln("no path found ", path, err)
 						}
 					}
@@ -590,12 +577,10 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space -= uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Applications[j], rbacpb.SubjectType_APPLICATION, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space -= uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Applications[j], rbacpb.SubjectType_APPLICATION, used_space)
 						}
 					}
 				}
@@ -618,12 +603,10 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 						}
 					}
 
-					fi, err := os.Stat(srv.formatPath(path))
-					if err == nil {
-						if !fi.IsDir() {
-							used_space -= uint64(fi.Size())
-							srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
-						}
+					fi, err := srv.storageStat(path)
+					if err == nil && !fi.IsDir() {
+						used_space -= uint64(fi.Size())
+						srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
 					}
 				}
 			}
@@ -648,12 +631,10 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space -= uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Groups[j], rbacpb.SubjectType_GROUP, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space -= uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Groups[j], rbacpb.SubjectType_GROUP, used_space)
 						}
 					}
 
@@ -679,12 +660,10 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 							}
 						}
 
-						fi, err := os.Stat(srv.formatPath(path))
-						if err == nil {
-							if !fi.IsDir() {
-								used_space -= uint64(fi.Size())
-								srv.setSubjectUsedSpace(owners.Organizations[j], rbacpb.SubjectType_ORGANIZATION, used_space)
-							}
+						fi, err := srv.storageStat(path)
+						if err == nil && !fi.IsDir() {
+							used_space -= uint64(fi.Size())
+							srv.setSubjectUsedSpace(owners.Organizations[j], rbacpb.SubjectType_ORGANIZATION, used_space)
 						}
 					}
 				}

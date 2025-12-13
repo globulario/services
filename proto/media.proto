@@ -219,6 +219,73 @@ message StopResponse {
     // This message is empty as the response does not require specific data.
 }
 
+// A single entry in a channel/playlist (one remote video).
+message ChannelItem {
+    string video_id        = 1;  // e.g. YouTube ID, PornHub ID...
+    string title           = 2;  // Item title
+    string url             = 3;  // Download/stream URL (yt-dlp "url")
+    string webpage_url     = 4;  // Canonical page URL (yt-dlp "webpage_url")
+    int64  epoch           = 5;  // yt-dlp "epoch" (UNIX seconds)
+    int32  playlist_index  = 6;  // Position in playlist (1-based)
+    string extractor       = 7;  // yt-dlp "extractor"
+    string extractor_key   = 8;  // yt-dlp "extractor_key"
+    string original_url    = 9;  // yt-dlp "original_url"
+    string filename        = 10; // yt-dlp "filename" (template result)
+    string local_path      = 11; // Optional: resolved local path if downloaded
+}
+
+// A channel / playlist definition in the MediaService.
+message Channel {
+    string id                    = 1;  // Typically yt-dlp "playlist_id"
+    string url                   = 2;  // Channel/playlist URL
+    string path                  = 3;  // Root media dest path (local/minio)
+    string format                = 4;  // mp4/mp3/etc (preferred download format)
+
+    // Playlist metadata (taken from first item in playlist.json).
+    string extractor             = 5;
+    string extractor_key         = 6;
+    string playlist_title        = 7;
+    string playlist_uploader     = 8;
+    string playlist_uploader_id  = 9;
+    int32  playlist_count        = 10;
+
+    int64  last_sync_epoch       = 11; // When we last synced this channel (server UNIX time)
+
+    repeated ChannelItem items   = 12; // All entries returned by yt-dlp
+}
+
+// RPC to sync/create a channel from a yt-dlp playlist.json blob.
+message SyncChannelFromPlaylistRequest {
+    // Raw JSON as produced by your helper around yt-dlp
+    // (outer object with: "format", "path", "url", "items": [...]).
+    string playlist_json = 1;
+}
+
+message SyncChannelFromPlaylistResponse {
+    Channel channel = 1;
+}
+
+// Read one channel.
+// If 'path' is set, we look only in that root; otherwise we search all roots.
+message GetChannelRequest {
+    string id   = 1; // playlist_id
+    string path = 2; // optional root path
+}
+
+message GetChannelResponse {
+    Channel channel = 1;
+}
+
+// List channels under a given root path (e.g. "/users/sa@globular.io/video").
+message ListChannelsRequest {
+    string path      = 1; // root path where channels are stored
+    string extractor = 2; // optional filter (e.g. "Youtube", "PornHub")
+}
+
+message ListChannelsResponse {
+    repeated Channel channels = 1;
+}
+
 // Media service definition.
 service MediaService {
 	
@@ -289,4 +356,16 @@ service MediaService {
     // Stream back all media files (audio + video) visible under the
     // public, users and applications trees.
     rpc ListMediaFiles(ListMediaFilesRequest) returns (stream MediaFile);
+
+    // --- Channel / playlist sync ---------------------------------------
+
+    // Normalize and persist a channel definition from yt-dlp playlist.json.
+    rpc SyncChannelFromPlaylist(SyncChannelFromPlaylistRequest)
+        returns (SyncChannelFromPlaylistResponse);
+
+    // Fetch a single channel.
+    rpc GetChannel(GetChannelRequest) returns (GetChannelResponse);
+
+    // List channels stored under a given root path.
+    rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
 }
