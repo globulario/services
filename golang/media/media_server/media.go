@@ -1,7 +1,6 @@
 package main
 
 import (
-	"slices"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -16,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1170,6 +1170,7 @@ func (srv *server) logicalPath(path string) string {
 		return ""
 	}
 	candidates := []string{
+		"/users",
 		"/user",
 		config.GetWebRootDir(),
 	}
@@ -1600,12 +1601,14 @@ func (srv *server) assetBaseURL() string {
 }
 
 func (srv *server) timelineAssetURL(logicalDir, fileName string) string {
-	dir := srv.logicalPath(logicalDir)
+	dir := filepath.ToSlash(strings.TrimSpace(logicalDir))
 	if dir == "" {
 		dir = "/"
 	}
-	dir = filepath.ToSlash(dir)
 	dir = strings.TrimRight(dir, "/")
+	if !strings.HasPrefix(dir, "/") {
+		dir = "/" + dir
+	}
 	if dir == "" {
 		dir = "/"
 	}
@@ -2881,7 +2884,6 @@ func cancelUploadVideoHandeler(srv *server, titleClient *title_client.Title_Clie
 		}
 	}
 }
-
 
 // detectYTDLPOutputs inspects a directory and returns the media + info.json filenames produced by yt-dlp.
 func detectYTDLPOutputs(dir, format, preferred string) (mediaName, infoName string, infoExists bool, err error) {

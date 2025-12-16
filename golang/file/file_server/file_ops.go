@@ -387,7 +387,13 @@ func (srv *server) writeExcelFile(path string, sheets map[string]interface{}) er
 
 // GetFileMetadata returns structured file metadata extracted by ExifTool.
 func (srv *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
-	p := rqst.Path
+	p := srv.formatPath(rqst.GetPath())
+	if p == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
+	}
+	if !srv.storageForPath(p).Exists(ctx, p) {
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no file found with path %s", p)))
+	}
 	md, err := srv.ExtractMetada(p)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

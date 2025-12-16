@@ -192,24 +192,36 @@ func detectContentTypeFromReader(r io.ReadSeeker) (string, error) {
 }
 
 func (srv *server) storageMove(ctx context.Context, src, dst string) error {
-	if err := srv.storageRename(context.Background(), src, dst); err == nil {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	src = srv.formatPath(src)
+	dst = srv.formatPath(dst)
+
+	if err := srv.storageMkdirAll(ctx, filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	storage := srv.storageForPath(src)
+	if err := storage.Rename(ctx, src, dst); err == nil {
 		return nil
 	}
-	// Fallback copy+remove
-	info, err := srv.storageStat(context.Background(), src)
+
+	info, err := storage.Stat(ctx, src)
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
-		if err := srv.storageCopyDir(context.Background(), src, dst); err != nil {
+		if err := srv.storageCopyDir(ctx, src, dst); err != nil {
 			return err
 		}
 	} else {
-		if err := srv.storageCopyFile(context.Background(), src, dst); err != nil {
+		if err := srv.storageCopyFile(ctx, src, dst); err != nil {
 			return err
 		}
 	}
-	return srv.storageRemoveAll(context.Background(), src)
+	return storage.RemoveAll(ctx, src)
 }
 
 func (srv *server) computeChecksum(ctx context.Context, path string) (string, error) {

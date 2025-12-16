@@ -180,7 +180,7 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 		if err := Utility.Move(extracted, rqst.Dest); err != nil {
 			return err
 		}
-		if err := srv.storageRename(stream.Context(), filepath.Join(rqst.Dest, filepath.Base(extracted)), filepath.Join(rqst.Dest, rqst.Name)); err != nil {
+		if err := srv.storageMove(stream.Context(), filepath.Join(rqst.Dest, filepath.Base(extracted)), filepath.Join(rqst.Dest, rqst.Name)); err != nil {
 			return err
 		}
 
@@ -740,7 +740,7 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	if err != nil {
 		return nil, err
 	}
-	path := rqst.GetPath()
+	path := srv.formatPath(rqst.GetPath())
 	if !srv.storageForPath(path).Exists(ctx, path) {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory with path %s was found", path)))
 	}
@@ -754,10 +754,10 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	}
 
 	titles := make(map[string][]*titlepb.Title)
-	_ = srv.getFileTitlesAssociation(client, rqst.GetPath(), titles)
+	_ = srv.getFileTitlesAssociation(client, path, titles)
 
 	videos := make(map[string][]*titlepb.Video)
-	_ = srv.getFileVideosAssociation(client, rqst.GetPath(), videos)
+	_ = srv.getFileVideosAssociation(client, path, videos)
 
 	// Dissociate titles
 	for f, list := range titles {
@@ -794,8 +794,8 @@ func (srv *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest)
 	}
 
 	// Remove the directory permission entry itself
-	if err := rbacClient.DeleteResourcePermissions(token, rqst.GetPath()); err != nil {
-		slog.Warn("delete dir permission failed", "path", rqst.GetPath(), "err", err)
+	if err := rbacClient.DeleteResourcePermissions(token, path); err != nil {
+		slog.Warn("delete dir permission failed", "path", path, "err", err)
 	}
 
 	// Remove the directory itself
@@ -960,8 +960,15 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		return nil, err
 	}
 
-	path := rqst.GetPath()
-	if srv.storageForPath(filepath.Join(path, rqst.NewName)).Exists(ctx, filepath.Join(path, rqst.NewName)) {
+	path := srv.formatPath(rqst.GetPath())
+	if path == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("path is empty")))
+	}
+	newFull := srv.formatPath(filepath.Join(path, rqst.NewName))
+	if newFull == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid new name %q", rqst.NewName)))
+	}
+	if srv.storageForPath(newFull).Exists(ctx, newFull) {
 		return nil, fmt.Errorf("file with name %q already exists at path %q", rqst.NewName, path)
 	}
 
@@ -970,11 +977,17 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		return nil, err
 	}
 
+	oldFull := srv.formatPath(filepath.Join(path, rqst.OldName))
+	if oldFull == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("invalid old name %q", rqst.OldName)))
+	}
+	// `newFull` already normalized above.
+
 	titles := make(map[string][]*titlepb.Title)
-	_ = srv.getFileTitlesAssociation(client, rqst.GetPath()+"/"+rqst.OldName, titles)
+	_ = srv.getFileTitlesAssociation(client, oldFull, titles)
 
 	videos := make(map[string][]*titlepb.Video)
-	_ = srv.getFileVideosAssociation(client, rqst.GetPath()+"/"+rqst.OldName, videos)
+	_ = srv.getFileVideosAssociation(client, oldFull, videos)
 
 	// Dissociate titles
 	for f, list := range titles {
@@ -993,8 +1006,8 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 		}
 	}
 
-	from := rqst.GetPath() + "/" + rqst.OldName
-	dest := rqst.GetPath() + "/" + rqst.NewName
+	from := oldFull
+	dest := newFull
 	info, _ := srv.storageStat(ctx, from)
 
 	rbacClient, err := getRbacClient()
@@ -1004,10 +1017,10 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	filePerms, _ := rbacClient.GetResourcePermissionsByResourceType("file")
 	perm, _ := rbacClient.GetResourcePermissions(from)
 
-	srv.cacheRemove(filepath.Join(path, rqst.OldName))
+	srv.cacheRemove(from)
 	srv.cacheRemove(path)
 
-	if err := srv.storageRename(ctx, filepath.Join(path, rqst.OldName), filepath.Join(path, rqst.NewName)); err != nil {
+	if err := srv.storageMove(ctx, from, dest); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 

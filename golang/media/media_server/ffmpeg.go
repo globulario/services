@@ -21,6 +21,20 @@ import (
 	Utility "github.com/globulario/utility"
 )
 
+func (srv *server) runFfmpeg(workdir string, args []string) error {
+	acquired := false
+	if srv != nil && srv.ffmpegTokens != nil {
+		srv.ffmpegTokens <- struct{}{}
+		acquired = true
+	}
+	if acquired {
+		defer func() { <-srv.ffmpegTokens }()
+	}
+	wait := make(chan error, 1)
+	go Utility.RunCmd("ffmpeg", workdir, args, wait)
+	return <-wait
+}
+
 func probeVideoDuration(local string) (int, error) {
 	local = strings.ReplaceAll(local, "\\", "/")
 	cmd := exec.Command(
@@ -116,9 +130,7 @@ func (srv *server) ensureFastStartMP4(path string) error {
 			filepath.Base(tmpPath),
 		}
 
-		wait := make(chan error, 1)
-		go Utility.RunCmd("ffmpeg", dir, args, wait)
-		if err := <-wait; err != nil {
+		if err := srv.runFfmpeg(dir, args); err != nil {
 			return err
 		}
 
@@ -309,10 +321,6 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 		return nil
 	}
 
-	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
-		return errors.New("generateVideoPreview: maximum ffmpeg instances reached; try again later")
-	}
-
 	return srv.withWorkFile(logicalPath, func(wf mediaWorkFile) error {
 		localInput := filepath.ToSlash(wf.LocalPath)
 		if !srv.pathExists(localInput) {
@@ -386,12 +394,6 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 			scale = 320
 		}
 
-		runCmd := func(args []string, workdir string) error {
-			wait := make(chan error, 1)
-			go Utility.RunCmd("ffmpeg", workdir, args, wait)
-			return <-wait
-		}
-
 		if !gifExists || force {
 			if !wf.IsMinio && force && srv.pathExists(gifOut) {
 				_ = os.Remove(gifOut)
@@ -406,7 +408,7 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 				"preview.gif",
 			}
 			logger.Info("ffmpeg: generate GIF preview", "src", inputLogical, "out", gifLogical, "fps", fps, "scale", scale, "t", duration)
-			if err := runCmd(gifArgs, localOutDir); err != nil {
+			if err := srv.runFfmpeg(localOutDir, gifArgs); err != nil {
 				_ = os.Remove(gifOut)
 				return fmt.Errorf("generateVideoPreview: GIF generation failed for %q: %w", inputLogical, err)
 			}
@@ -434,7 +436,7 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 			}
 
 			logger.Info("ffmpeg: generate MP4 preview", "src", inputLogical, "out", mp4Logical, "venc", venc, "scale", scale, "t", duration)
-			if err := runCmd(mp4Args, localOutDir); err != nil {
+			if err := srv.runFfmpeg(localOutDir, mp4Args); err != nil {
 				logger.Warn("ffmpeg: MP4 preview failed; retrying with libx264 if applicable", "src", inputLogical, "err", err)
 				if srv.hasEnableCudaNvcc() {
 					mp4ArgsRetry := append([]string(nil), mp4Args...)
@@ -444,7 +446,7 @@ func (srv *server) generateVideoPreview(path string, fps, scale, duration int, f
 							break
 						}
 					}
-					if err2 := runCmd(mp4ArgsRetry, localOutDir); err2 != nil {
+					if err2 := srv.runFfmpeg(localOutDir, mp4ArgsRetry); err2 != nil {
 						return fmt.Errorf("generateVideoPreview: MP4 generation failed for %q: %w", inputLogical, err2)
 					}
 				} else {
@@ -477,9 +479,6 @@ func (srv *server) createVideoTimeLine(path string, width int, fps float32, forc
 	logicalOrig := filepath.ToSlash(path)
 
 	fmt.Println("------------------------> create time line ", logicalOrig)
-	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
-		return errors.New("createVideoTimeLine: maximum concurrent ffmpeg instances reached; try again later")
-	}
 
 	if fps <= 0 {
 		fps = 0.2
@@ -593,9 +592,7 @@ func (srv *server) createVideoTimeLine(path string, width int, fps float32, forc
 			"duration_sec", durationSec)
 
 		runFFmpeg := func() error {
-			wait := make(chan error, 1)
-			go Utility.RunCmd("ffmpeg", outDir, args, wait)
-			return <-wait
+			return srv.runFfmpeg(outDir, args)
 		}
 
 		if err := runFFmpeg(); err != nil {
@@ -692,10 +689,6 @@ func (srv *server) createVideoPreview(path string, nb, height int, force bool) e
 		return nil
 	}
 
-	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
-		return errors.New("number of ffmpeg instances has been reached; try later")
-	}
-
 	return srv.withWorkFile(logicalPath, func(wf mediaWorkFile) error {
 		inputLogical := filepath.ToSlash(wf.LogicalPath)
 		localPath := filepath.ToSlash(wf.LocalPath)
@@ -765,7 +758,6 @@ func (srv *server) createVideoPreview(path string, nb, height int, force bool) e
 		for tries := 0; tries < maxWaitSec; tries++ {
 			Utility.CreateDirIfNotExist(outDir)
 
-			wait := make(chan error, 1)
 			args := []string{
 				"-i", localPath,
 				"-ss", Utility.ToString(start),
@@ -773,9 +765,7 @@ func (srv *server) createVideoPreview(path string, nb, height int, force bool) e
 				"-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250",
 				"preview_%05d.jpg",
 			}
-			go Utility.RunCmd("ffmpeg", outDir, args, wait)
-
-			if err := <-wait; err == nil {
+			if err := srv.runFfmpeg(outDir, args); err == nil {
 				runErr = nil
 				break
 			} else {
@@ -810,9 +800,6 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	cache.RemoveItem(path)
 	_ = srv.extractSubtitleTracks(path)
 
-	if procs, _ := Utility.GetProcessIdsByName("ffmpeg"); len(procs) > MAX_FFMPEG_INSTANCE {
-		return "", errors.New("maximum concurrent ffmpeg processes reached; try again later")
-	}
 	if !strings.Contains(path, ".") {
 		return "", fmt.Errorf("%s: missing file extension", path)
 	}
@@ -897,9 +884,7 @@ func (srv *server) createVideoMpeg4H264(path string) (string, error) {
 	}
 	args = append(args, "-movflags", "+faststart", out)
 
-	wait := make(chan error, 1)
-	go Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
-	if err := <-wait; err != nil {
+	if err := srv.runFfmpeg(filepath.Dir(path), args); err != nil {
 		return "", err
 	}
 	_ = os.Remove(path)
@@ -947,11 +932,6 @@ func (srv *server) hasEnableCudaNvcc() bool {
 // max_bitrate_ratio:       peak bitrate multiplier for -maxrate (e.g., 1.07)
 // rate_monitor_buffer_ratio: buffer size multiplier for -bufsize (e.g., 1.5)
 func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitrateRatio, rateMonitorBufferRatio float32) error {
-	// Throttle concurrent ffmpeg.
-	if pids, _ := Utility.GetProcessIdsByName("ffmpeg"); len(pids) > MAX_FFMPEG_INSTANCE {
-		return errors.New("too many ffmpeg instances; please try again later")
-	}
-
 	src = filepath.ToSlash(src)
 	dest = filepath.ToSlash(dest)
 
@@ -1016,9 +996,7 @@ func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitra
 			filepath.ToSlash(filepath.Join(dest, "playlist.m3u8")),
 		}
 
-		wait := make(chan error, 1)
-		go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
-		if runErr := <-wait; runErr != nil {
+		if runErr := srv.runFfmpeg(filepath.Dir(src), args); runErr != nil {
 			logger.Error("createHlsStream: fast copy HLS failed", "src", src, "dest", dest, "err", runErr)
 			return runErr
 		}
@@ -1159,9 +1137,7 @@ func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitra
 		"rungs", len(renditions),
 	)
 
-	wait := make(chan error, 1)
-	go Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
-	if runErr := <-wait; runErr != nil {
+	if runErr := srv.runFfmpeg(filepath.Dir(src), args); runErr != nil {
 		logger.Error("createHlsStream: ffmpeg failed", "src", src, "dest", dest, "err", runErr)
 		return runErr
 	}
@@ -1183,11 +1159,6 @@ func (srv *server) createHlsStream(src, dest string, segmentTarget int, maxBitra
 func (srv *server) createHlsStreamFromMpeg4H264(path string) error {
 	// Evict any cached entry for the input file.
 	cache.RemoveItem(path)
-
-	// Throttle concurrent ffmpeg.
-	if pids, _ := Utility.GetProcessIdsByName("ffmpeg"); len(pids) > MAX_FFMPEG_INSTANCE {
-		return errors.New("too many ffmpeg instances; please try again later")
-	}
 
 	logical := filepath.ToSlash(path)
 	localSrc, isMinio := srv.resolveIOPath(logical)
@@ -1400,9 +1371,7 @@ func (srv *server) extractSubtitleTracks(videoPath string) error {
 	logger.Info("ffmpeg: extract subtitles", "src", videoPath, "dest", dest, "streams", mapped)
 
 	// Run ffmpeg in destination directory so output files land there.
-	wait := make(chan error, 1)
-	go Utility.RunCmd("ffmpeg", dest, args, wait)
-	if err := <-wait; err != nil {
+	if err := srv.runFfmpeg(dest, args); err != nil {
 		logger.Error("ffmpeg: subtitle extraction failed", "src", videoPath, "dest", dest, "err", err)
 		return fmt.Errorf("subtitle extraction failed for %q: %w", videoPath, err)
 	}

@@ -122,6 +122,7 @@ type server struct {
 	videoConversionErrors *sync.Map
 	videoConversionLogs   *sync.Map
 	scheduler             *gocron.Scheduler
+	ffmpegTokens          chan struct{}
 
 	isProcessing                bool
 	isProcessingAudio           bool
@@ -526,7 +527,6 @@ func (srv *server) formatPath(path string) string {
 
 }
 
-
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
 	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
@@ -816,6 +816,7 @@ func main() {
 	srv.scheduler = gocron.NewScheduler()
 	srv.videoConversionErrors = new(sync.Map)
 	srv.videoConversionLogs = new(sync.Map)
+	srv.ffmpegTokens = make(chan struct{}, MAX_FFMPEG_INSTANCE)
 	srv.AutomaticStreamConversion = false
 	srv.AutomaticVideoConversion = false
 	srv.MaximumVideoConversionDelay = "00:00"
