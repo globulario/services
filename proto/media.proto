@@ -252,6 +252,8 @@ message Channel {
     int64  last_sync_epoch       = 11; // When we last synced this channel (server UNIX time)
 
     repeated ChannelItem items   = 12; // All entries returned by yt-dlp
+
+    string thumbnail             = 13; // Playlist thumbnail URL
 }
 
 // RPC to sync/create a channel from a yt-dlp playlist.json blob.

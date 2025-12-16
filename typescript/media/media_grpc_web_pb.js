@@ -1406,5 +1406,188 @@ proto.media.MediaServicePromiseClient.prototype.listMediaFiles =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.media.SyncChannelFromPlaylistRequest,
+ *   !proto.media.SyncChannelFromPlaylistResponse>}
+ */
+const methodDescriptor_MediaService_SyncChannelFromPlaylist = new grpc.web.MethodDescriptor(
+  '/media.MediaService/SyncChannelFromPlaylist',
+  grpc.web.MethodType.UNARY,
+  proto.media.SyncChannelFromPlaylistRequest,
+  proto.media.SyncChannelFromPlaylistResponse,
+  /**
+   * @param {!proto.media.SyncChannelFromPlaylistRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.media.SyncChannelFromPlaylistResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.media.SyncChannelFromPlaylistRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.media.SyncChannelFromPlaylistResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.media.SyncChannelFromPlaylistResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.media.MediaServiceClient.prototype.syncChannelFromPlaylist =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/media.MediaService/SyncChannelFromPlaylist',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_SyncChannelFromPlaylist,
+      callback);
+};
+
+
+/**
+ * @param {!proto.media.SyncChannelFromPlaylistRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.media.SyncChannelFromPlaylistResponse>}
+ *     Promise that resolves to the response
+ */
+proto.media.MediaServicePromiseClient.prototype.syncChannelFromPlaylist =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/media.MediaService/SyncChannelFromPlaylist',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_SyncChannelFromPlaylist);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.media.GetChannelRequest,
+ *   !proto.media.GetChannelResponse>}
+ */
+const methodDescriptor_MediaService_GetChannel = new grpc.web.MethodDescriptor(
+  '/media.MediaService/GetChannel',
+  grpc.web.MethodType.UNARY,
+  proto.media.GetChannelRequest,
+  proto.media.GetChannelResponse,
+  /**
+   * @param {!proto.media.GetChannelRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.media.GetChannelResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.media.GetChannelRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.media.GetChannelResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.media.GetChannelResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.media.MediaServiceClient.prototype.getChannel =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/media.MediaService/GetChannel',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_GetChannel,
+      callback);
+};
+
+
+/**
+ * @param {!proto.media.GetChannelRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.media.GetChannelResponse>}
+ *     Promise that resolves to the response
+ */
+proto.media.MediaServicePromiseClient.prototype.getChannel =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/media.MediaService/GetChannel',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_GetChannel);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.media.ListChannelsRequest,
+ *   !proto.media.ListChannelsResponse>}
+ */
+const methodDescriptor_MediaService_ListChannels = new grpc.web.MethodDescriptor(
+  '/media.MediaService/ListChannels',
+  grpc.web.MethodType.UNARY,
+  proto.media.ListChannelsRequest,
+  proto.media.ListChannelsResponse,
+  /**
+   * @param {!proto.media.ListChannelsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.media.ListChannelsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.media.ListChannelsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.media.ListChannelsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.media.ListChannelsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.media.MediaServiceClient.prototype.listChannels =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/media.MediaService/ListChannels',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_ListChannels,
+      callback);
+};
+
+
+/**
+ * @param {!proto.media.ListChannelsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.media.ListChannelsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.media.MediaServicePromiseClient.prototype.listChannels =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/media.MediaService/ListChannels',
+      request,
+      metadata || {},
+      methodDescriptor_MediaService_ListChannels);
+};
+
+
 module.exports = proto.media;
 

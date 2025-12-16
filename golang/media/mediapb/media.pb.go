@@ -2121,6 +2121,7 @@ type Channel struct {
 	PlaylistCount      int32          `protobuf:"varint,10,opt,name=playlist_count,json=playlistCount,proto3" json:"playlist_count,omitempty"`
 	LastSyncEpoch      int64          `protobuf:"varint,11,opt,name=last_sync_epoch,json=lastSyncEpoch,proto3" json:"last_sync_epoch,omitempty"` // When we last synced this channel (server UNIX time)
 	Items              []*ChannelItem `protobuf:"bytes,12,rep,name=items,proto3" json:"items,omitempty"`                                         // All entries returned by yt-dlp
+	Thumbnail          string         `protobuf:"bytes,13,opt,name=thumbnail,proto3" json:"thumbnail,omitempty"`                                 // Playlist thumbnail URL
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2237,6 +2238,13 @@ func (x *Channel) GetItems() []*ChannelItem {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *Channel) GetThumbnail() string {
+	if x != nil {
+		return x.Thumbnail
+	}
+	return ""
 }
 
 // RPC to sync/create a channel from a yt-dlp playlist.json blob.
@@ -2627,7 +2635,7 @@ const file_media_proto_rawDesc = "" +
 	"\bfilename\x18\n" +
 	" \x01(\tR\bfilename\x12\x1d\n" +
 	"\n" +
-	"local_path\x18\v \x01(\tR\tlocalPath\"\x99\x03\n" +
+	"local_path\x18\v \x01(\tR\tlocalPath\"\xb7\x03\n" +
 	"\aChannel\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
@@ -2641,7 +2649,8 @@ const file_media_proto_rawDesc = "" +
 	"\x0eplaylist_count\x18\n" +
 	" \x01(\x05R\rplaylistCount\x12&\n" +
 	"\x0flast_sync_epoch\x18\v \x01(\x03R\rlastSyncEpoch\x12(\n" +
-	"\x05items\x18\f \x03(\v2\x12.media.ChannelItemR\x05items\"E\n" +
+	"\x05items\x18\f \x03(\v2\x12.media.ChannelItemR\x05items\x12\x1c\n" +
+	"\tthumbnail\x18\r \x01(\tR\tthumbnail\"E\n" +
 	"\x1eSyncChannelFromPlaylistRequest\x12#\n" +
 	"\rplaylist_json\x18\x01 \x01(\tR\fplaylistJson\"K\n" +
 	"\x1fSyncChannelFromPlaylistResponse\x12(\n" +
