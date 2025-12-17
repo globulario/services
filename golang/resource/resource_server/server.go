@@ -48,6 +48,11 @@ var (
 	allowedOriginsStr = ""
 )
 
+const (
+	// nodeIdentityCollection stores node identities; the table name is kept for compatibility with the legacy Peers collection.
+	nodeIdentityCollection = "Peers"
+)
+
 // -----------------------------------------------------------------------------
 // Server type (unchanged fields preserved, ordering cleaned)
 // -----------------------------------------------------------------------------
@@ -229,7 +234,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			Id:          "role:resource.viewer",
 			Name:        "Resource Viewer",
 			Domain:      domain,
-			Description: "Read-only access to accounts, roles, groups, orgs, apps, peers, packages, sessions, calls, and notifications.",
+			Description: "Read-only access to accounts, roles, groups, orgs, apps, node identities, packages, sessions, calls, and notifications.",
 			Actions: []string{
 				// Orgs / Groups / Roles / Apps (read)
 				"/resource.ResourceService/GetOrganizations",
@@ -239,10 +244,9 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				// Accounts (read)
 				"/resource.ResourceService/GetAccount",
 				"/resource.ResourceService/GetAccounts",
-				// Peers (read)
-				"/resource.ResourceService/GetPeers",
-				"/resource.ResourceService/GetPeerApprovalState",
-				"/resource.ResourceService/GetPeerPublicKey",
+				// Node identities (read)
+				"/resource.ResourceService/GetNodeIdentity",
+				"/resource.ResourceService/ListNodeIdentities",
 				// Packages (read)
 				"/resource.ResourceService/FindPackages",
 				"/resource.ResourceService/GetPackageDescriptor",
@@ -334,9 +338,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/resource.ResourceService/GetApplications",
 				"/resource.ResourceService/GetAccount",
 				"/resource.ResourceService/GetAccounts",
-				"/resource.ResourceService/GetPeers",
-				"/resource.ResourceService/GetPeerApprovalState",
-				"/resource.ResourceService/GetPeerPublicKey",
+				"/resource.ResourceService/GetNodeIdentity",
+				"/resource.ResourceService/ListNodeIdentities",
 				"/resource.ResourceService/FindPackages",
 				"/resource.ResourceService/GetPackageDescriptor",
 				"/resource.ResourceService/GetPackagesDescriptor",
@@ -402,14 +405,8 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 				"/resource.ResourceService/ClearCalls",
 				"/resource.ResourceService/RemoveRolesAction",
 				"/resource.ResourceService/RemoveApplicationsAction",
-				"/resource.ResourceService/RegisterPeer",
-				"/resource.ResourceService/UpdatePeer",
-				"/resource.ResourceService/DeletePeer",
-				"/resource.ResourceService/AddPeerActions",
-				"/resource.ResourceService/RemovePeerAction",
-				"/resource.ResourceService/RemovePeersAction",
-				"/resource.ResourceService/AcceptPeer",
-				"/resource.ResourceService/RejectPeer",
+				"/resource.ResourceService/UpsertNodeIdentity",
+				"/resource.ResourceService/SetNodeIdentityEnabled",
 			},
 			TypeName: "resource.Role",
 		},
@@ -641,7 +638,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 			// Create peers table.
 			err = srv.store.(*persistence_store.SqlStore).CreateTable(
-				context.Background(), "local_resource", "local_resource", "Peers",
+				context.Background(), "local_resource", "local_resource", nodeIdentityCollection,
 				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
@@ -649,7 +646,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 			// (Duplicate Peers creation kept as in your original)
 			err = srv.store.(*persistence_store.SqlStore).CreateTable(
-				context.Background(), "local_resource", "local_resource", "Peers",
+				context.Background(), "local_resource", "local_resource", nodeIdentityCollection,
 				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INTEGER", "PortHTTP INTEGER", "PortHTTPS INTEGER"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
@@ -726,7 +723,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 			// Create peers table.
 			err = srv.store.(*persistence_store.ScyllaStore).CreateTable(
-				context.Background(), "local_resource", "local_resource", "Peers",
+				context.Background(), "local_resource", "local_resource", nodeIdentityCollection,
 				[]string{"domain TEXT", "hostname TEXT", "external_ip_address TEXT", "local_ip_address TEXT", "mac TEXT", "protocol TEXT", "state INT", "PortHTTP INT", "PortHTTPS INT"})
 			if err != nil {
 				logger.Error("fail to create table Peers", "error", err)
@@ -746,22 +743,6 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 				[]string{"date DOUBLE", "domain TEXT", "message TEXT", "recipient TEXT", "sender TEXT", "mac TEXT", "notification_type INT"})
 			if err != nil {
 				logger.Error("fail to create table Notifications", "error", err)
-			}
-
-			// I will get the number of peers...
-			peers, err := srv.getPeers(`{"state":1}`)
-			if err == nil {
-				if len(peers) > 0 {
-					// Now the replication factor should be nb of peers - 1 and at max 3.
-					rf := int64(len(peers))
-					if rf > 3 {
-						rf = 3
-					}
-					if rf != srv.Backend_replication_factor {
-						srv.Backend_replication_factor = rf
-						logger.Info("adjusting scylla replication factor to " + Utility.ToString(srv.Backend_replication_factor) + " (based on number of peers)")
-					}
-				}
 			}
 
 			// run admin script.
@@ -1104,56 +1085,26 @@ func main() {
 			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Id", "permission": "read"}},
 		},
 
-		// --- Peers ---------------------------------------------------------------
+		// --- Node Identities ---------------------------------------------------
 		map[string]interface{}{
-			"action":     "/resource.ResourceService/RegisterPeer",
-			"permission": "admin",
-			"resources":  []interface{}{}, // new peer; gate action only
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/UpdatePeer",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Peer.Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/DeletePeer",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Peer.Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AddPeerActions",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemovePeerAction",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RemovePeersAction",
-			"permission": "admin",
-			"resources":  []interface{}{}, // global action cleanup
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/AcceptPeer",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Peer.Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/RejectPeer",
-			"permission": "admin",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Peer.Mac", "permission": "admin"}},
-		},
-		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetPeerApprovalState",
+			"action":     "/resource.ResourceService/ListNodeIdentities",
 			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Mac", "permission": "read"}},
+			"resources":  []interface{}{},
 		},
 		map[string]interface{}{
-			"action":     "/resource.ResourceService/GetPeerPublicKey",
+			"action":     "/resource.ResourceService/GetNodeIdentity",
 			"permission": "read",
-			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Mac", "permission": "read"}},
+			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "NodeId", "permission": "read"}},
+		},
+		map[string]interface{}{
+			"action":     "/resource.ResourceService/UpsertNodeIdentity",
+			"permission": "admin",
+			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "Node.NodeId", "permission": "admin"}},
+		},
+		map[string]interface{}{
+			"action":     "/resource.ResourceService/SetNodeIdentityEnabled",
+			"permission": "admin",
+			"resources":  []interface{}{map[string]interface{}{"index": 0, "field": "NodeId", "permission": "admin"}},
 		},
 
 		// --- Packages (descriptors & bundles) -----------------------------------

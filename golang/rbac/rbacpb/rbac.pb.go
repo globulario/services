@@ -75,31 +75,31 @@ func (PermissionType) EnumDescriptor() ([]byte, []int) {
 type SubjectType int32
 
 const (
-	SubjectType_ACCOUNT      SubjectType = 0
-	SubjectType_PEER         SubjectType = 1
-	SubjectType_GROUP        SubjectType = 2
-	SubjectType_ORGANIZATION SubjectType = 3
-	SubjectType_APPLICATION  SubjectType = 4
-	SubjectType_ROLE         SubjectType = 5
+	SubjectType_ACCOUNT       SubjectType = 0
+	SubjectType_NODE_IDENTITY SubjectType = 1
+	SubjectType_GROUP         SubjectType = 2
+	SubjectType_ORGANIZATION  SubjectType = 3
+	SubjectType_APPLICATION   SubjectType = 4
+	SubjectType_ROLE          SubjectType = 5
 )
 
 // Enum value maps for SubjectType.
 var (
 	SubjectType_name = map[int32]string{
 		0: "ACCOUNT",
-		1: "PEER",
+		1: "NODE_IDENTITY",
 		2: "GROUP",
 		3: "ORGANIZATION",
 		4: "APPLICATION",
 		5: "ROLE",
 	}
 	SubjectType_value = map[string]int32{
-		"ACCOUNT":      0,
-		"PEER":         1,
-		"GROUP":        2,
-		"ORGANIZATION": 3,
-		"APPLICATION":  4,
-		"ROLE":         5,
+		"ACCOUNT":       0,
+		"NODE_IDENTITY": 1,
+		"GROUP":         2,
+		"ORGANIZATION":  3,
+		"APPLICATION":   4,
+		"ROLE":          5,
 	}
 )
 
@@ -132,15 +132,15 @@ func (SubjectType) EnumDescriptor() ([]byte, []int) {
 
 // Permission defines the access level and scope for a resource.
 type Permission struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                   // Specific permission type (e.g., read, write, delete).
-	Applications  []string               `protobuf:"bytes,2,rep,name=applications,proto3" json:"applications,omitempty"`   // Applications associated with this permission.
-	Peers         []string               `protobuf:"bytes,3,rep,name=peers,proto3" json:"peers,omitempty"`                 // Peers associated with this permission.
-	Accounts      []string               `protobuf:"bytes,4,rep,name=accounts,proto3" json:"accounts,omitempty"`           // Accounts associated with this permission.
-	Groups        []string               `protobuf:"bytes,5,rep,name=groups,proto3" json:"groups,omitempty"`               // Groups associated with this permission.
-	Organizations []string               `protobuf:"bytes,6,rep,name=organizations,proto3" json:"organizations,omitempty"` // Organizations associated with this permission.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                           // Specific permission type (e.g., read, write, delete).
+	Applications   []string               `protobuf:"bytes,2,rep,name=applications,proto3" json:"applications,omitempty"`                           // Applications associated with this permission.
+	NodeIdentities []string               `protobuf:"bytes,3,rep,name=node_identities,json=nodeIdentities,proto3" json:"node_identities,omitempty"` // Node identities associated with this permission.
+	Accounts       []string               `protobuf:"bytes,4,rep,name=accounts,proto3" json:"accounts,omitempty"`                                   // Accounts associated with this permission.
+	Groups         []string               `protobuf:"bytes,5,rep,name=groups,proto3" json:"groups,omitempty"`                                       // Groups associated with this permission.
+	Organizations  []string               `protobuf:"bytes,6,rep,name=organizations,proto3" json:"organizations,omitempty"`                         // Organizations associated with this permission.
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Permission) Reset() {
@@ -187,9 +187,9 @@ func (x *Permission) GetApplications() []string {
 	return nil
 }
 
-func (x *Permission) GetPeers() []string {
+func (x *Permission) GetNodeIdentities() []string {
 	if x != nil {
-		return x.Peers
+		return x.NodeIdentities
 	}
 	return nil
 }
@@ -1885,16 +1885,16 @@ func (*SetActionResourcesPermissionsRsp) Descriptor() ([]byte, []int) {
 // *
 // Share represents a shared resource within the system.
 type Share struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`                   // The unique resource path within the domain.
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`               // The domain from where the share is located.
-	Applications  []string               `protobuf:"bytes,3,rep,name=applications,proto3" json:"applications,omitempty"`   // Specific applications with which the resource is shared.
-	Peers         []string               `protobuf:"bytes,4,rep,name=peers,proto3" json:"peers,omitempty"`                 // Specific peers with whom the resource is shared.
-	Accounts      []string               `protobuf:"bytes,5,rep,name=accounts,proto3" json:"accounts,omitempty"`           // Specific accounts with whom the resource is shared.
-	Groups        []string               `protobuf:"bytes,6,rep,name=groups,proto3" json:"groups,omitempty"`               // Specific groups with whom the resource is shared.
-	Organizations []string               `protobuf:"bytes,7,rep,name=organizations,proto3" json:"organizations,omitempty"` // Specific organizations with whom the resource is shared.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Path           string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`                                           // The unique resource path within the domain.
+	Domain         string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`                                       // The domain from where the share is located.
+	Applications   []string               `protobuf:"bytes,3,rep,name=applications,proto3" json:"applications,omitempty"`                           // Specific applications with which the resource is shared.
+	NodeIdentities []string               `protobuf:"bytes,4,rep,name=node_identities,json=nodeIdentities,proto3" json:"node_identities,omitempty"` // Specific node identities with whom the resource is shared.
+	Accounts       []string               `protobuf:"bytes,5,rep,name=accounts,proto3" json:"accounts,omitempty"`                                   // Specific accounts with whom the resource is shared.
+	Groups         []string               `protobuf:"bytes,6,rep,name=groups,proto3" json:"groups,omitempty"`                                       // Specific groups with whom the resource is shared.
+	Organizations  []string               `protobuf:"bytes,7,rep,name=organizations,proto3" json:"organizations,omitempty"`                         // Specific organizations with whom the resource is shared.
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Share) Reset() {
@@ -1948,9 +1948,9 @@ func (x *Share) GetApplications() []string {
 	return nil
 }
 
-func (x *Share) GetPeers() []string {
+func (x *Share) GetNodeIdentities() []string {
 	if x != nil {
-		return x.Peers
+		return x.NodeIdentities
 	}
 	return nil
 }
@@ -2701,12 +2701,12 @@ var File_rbac_proto protoreflect.FileDescriptor
 const file_rbac_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"rbac.proto\x12\x04rbac\x1a\x1cgoogle/protobuf/struct.proto\"\xb4\x01\n" +
+	"rbac.proto\x12\x04rbac\x1a\x1cgoogle/protobuf/struct.proto\"\xc7\x01\n" +
 	"\n" +
 	"Permission\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
-	"\fapplications\x18\x02 \x03(\tR\fapplications\x12\x14\n" +
-	"\x05peers\x18\x03 \x03(\tR\x05peers\x12\x1a\n" +
+	"\fapplications\x18\x02 \x03(\tR\fapplications\x12'\n" +
+	"\x0fnode_identities\x18\x03 \x03(\tR\x0enodeIdentities\x12\x1a\n" +
 	"\baccounts\x18\x04 \x03(\tR\baccounts\x12\x16\n" +
 	"\x06groups\x18\x05 \x03(\tR\x06groups\x12$\n" +
 	"\rorganizations\x18\x06 \x03(\tR\rorganizations\"\xc6\x01\n" +
@@ -2806,12 +2806,12 @@ const file_rbac_proto_rawDesc = "" +
 	"\faccessDenied\x18\x02 \x01(\bR\faccessDenied\"^\n" +
 	"!SetActionResourcesPermissionsRqst\x129\n" +
 	"\vpermissions\x18\x01 \x01(\v2\x17.google.protobuf.StructR\vpermissions\"\"\n" +
-	" SetActionResourcesPermissionsRsp\"\xc7\x01\n" +
+	" SetActionResourcesPermissionsRsp\"\xda\x01\n" +
 	"\x05Share\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\"\n" +
-	"\fapplications\x18\x03 \x03(\tR\fapplications\x12\x14\n" +
-	"\x05peers\x18\x04 \x03(\tR\x05peers\x12\x1a\n" +
+	"\fapplications\x18\x03 \x03(\tR\fapplications\x12'\n" +
+	"\x0fnode_identities\x18\x04 \x03(\tR\x0enodeIdentities\x12\x1a\n" +
 	"\baccounts\x18\x05 \x03(\tR\baccounts\x12\x16\n" +
 	"\x06groups\x18\x06 \x03(\tR\x06groups\x12$\n" +
 	"\rorganizations\x18\a \x03(\tR\rorganizations\"n\n" +
@@ -2855,10 +2855,10 @@ const file_rbac_proto_rawDesc = "" +
 	"\x0ePermissionType\x12\n" +
 	"\n" +
 	"\x06DENIED\x10\x00\x12\v\n" +
-	"\aALLOWED\x10\x01*\\\n" +
+	"\aALLOWED\x10\x01*e\n" +
 	"\vSubjectType\x12\v\n" +
-	"\aACCOUNT\x10\x00\x12\b\n" +
-	"\x04PEER\x10\x01\x12\t\n" +
+	"\aACCOUNT\x10\x00\x12\x11\n" +
+	"\rNODE_IDENTITY\x10\x01\x12\t\n" +
 	"\x05GROUP\x10\x02\x12\x10\n" +
 	"\fORGANIZATION\x10\x03\x12\x0f\n" +
 	"\vAPPLICATION\x10\x04\x12\b\n" +

@@ -324,7 +324,7 @@ func (srv *server) getResourceClient(address string) (*resource_client.Resource_
 	return c.(*resource_client.Resource_Client), nil
 }
 
-// account/group/app/peer/org lookup helpers (cache first)
+// account/group/app/node identity/org lookup helpers (cache first)
 
 func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	if data, err := srv.cache.GetItem(accountId); err == nil {
@@ -439,24 +439,24 @@ func (srv *server) applicationExist(id string) (bool, string) {
 	return true, app.Id + "@" + app.Domain
 }
 
-func (srv *server) getPeer(peerId string) (*resourcepb.Peer, error) {
+func (srv *server) getNodeIdentityByMac(mac string) (*resourcepb.NodeIdentity, error) {
 	addr, _ := config.GetAddress()
 	rc, err := srv.getResourceClient(addr)
 	if err != nil {
 		return nil, err
 	}
-	ps, err := rc.GetPeers(`{"mac":"` + peerId + `"}`)
+	nodes, err := rc.ListNodeIdentities(fmt.Sprintf(`{"mac":"%s"}`, mac), "")
 	if err != nil {
 		return nil, err
 	}
-	if len(ps) == 0 {
-		return nil, errors.New("peer not found: " + peerId)
+	if len(nodes) == 0 {
+		return nil, errors.New("node identity not found: " + mac)
 	}
-	return ps[0], nil
+	return nodes[0], nil
 }
 
-func (srv *server) peerExist(id string) bool {
-	p, err := srv.getPeer(id)
+func (srv *server) nodeIdentityExists(mac string) bool {
+	p, err := srv.getNodeIdentityByMac(mac)
 	return err == nil && p != nil
 }
 

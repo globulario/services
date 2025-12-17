@@ -144,11 +144,11 @@ func Test_RBAC_Suite(t *testing.T) {
 		perms := &rbacpb.Permissions{
 			Allowed: []*rbacpb.Permission{
 				{
-					Name:          "read",
-					Accounts:      []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")},
-					Groups:        []string{"group_0", "group_1"},
-					Peers:         []string{"p0.test.com", "p1.test.com"},
-					Organizations: []string{"organization_0", "organization_1"},
+					Name:           "read",
+					Accounts:       []string{fqAccount(c, "account_0"), fqAccount(c, "account_1")},
+					Groups:         []string{"group_0", "group_1"},
+					NodeIdentities: []string{"p0.test.com", "p1.test.com"},
+					Organizations:  []string{"organization_0", "organization_1"},
 				},
 				{Name: "write", Accounts: []string{fqAccount(c, "account_0")}},
 				{Name: "execute", Accounts: []string{fqAccount(c, "account_1")}},

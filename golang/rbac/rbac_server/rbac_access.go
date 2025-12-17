@@ -73,9 +73,9 @@ func (srv *server) validateSubject(subject string, subjectType rbacpb.SubjectTyp
 			return "", errors.New("no role exist with id " + r)
 		}
 		return r, nil
-	case rbacpb.SubjectType_PEER:
-		if !srv.peerExist(subject) {
-			return "", errors.New("no peer exist with id " + subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !srv.nodeIdentityExists(subject) {
+			return "", errors.New("no node identity exists with id " + subject)
 		}
 		return subject, nil
 	}
@@ -106,7 +106,7 @@ func (srv *server) isOwner(subject string, subjectType rbacpb.SubjectType, path 
 				if len(owners.Organizations) > 0 {
 					hasOwner = true
 				}
-				if len(owners.Peers) > 0 {
+				if len(owners.NodeIdentities) > 0 {
 					hasOwner = true
 				}
 
@@ -157,8 +157,8 @@ func (srv *server) isOwner(subject string, subjectType rbacpb.SubjectType, path 
 								return true
 							}
 						}
-					case rbacpb.SubjectType_PEER:
-						if owners.Peers != nil && matchID(owners.Peers, subject) {
+					case rbacpb.SubjectType_NODE_IDENTITY:
+						if owners.NodeIdentities != nil && matchID(owners.NodeIdentities, subject) {
 							return true
 						}
 					}
@@ -273,9 +273,9 @@ func (srv *server) validateAccessDenied(subject string, subjectType rbacpb.Subje
 						}
 					}
 
-				case rbacpb.SubjectType_PEER:
-					if denied.Peers != nil {
-						if matchID(denied.Peers, subject) {
+				case rbacpb.SubjectType_NODE_IDENTITY:
+					if denied.NodeIdentities != nil {
+						if matchID(denied.NodeIdentities, subject) {
 							return true
 						}
 					}
@@ -391,9 +391,9 @@ func (srv *server) validateAccessAllowed(subject string, subjectType rbacpb.Subj
 						}
 					}
 
-				case rbacpb.SubjectType_PEER:
-					if allowed.Peers != nil {
-						if matchID(allowed.Peers, subject) {
+				case rbacpb.SubjectType_NODE_IDENTITY:
+					if allowed.NodeIdentities != nil {
+						if matchID(allowed.NodeIdentities, subject) {
 							return true
 						}
 					}
@@ -456,7 +456,7 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 				len(permissions.Owners.Applications) > 0 ||
 				len(permissions.Owners.Organizations) > 0 ||
 				len(permissions.Owners.Groups) > 0 ||
-				len(permissions.Owners.Peers) > 0 {
+				len(permissions.Owners.NodeIdentities) > 0 {
 				hasOwner = true
 			}
 			if !hasOwner {

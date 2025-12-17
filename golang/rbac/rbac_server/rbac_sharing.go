@@ -139,11 +139,11 @@ func (srv *server) shareResource(share *rbacpb.Share) error {
 		}
 	}
 
-	for i := range share.Peers {
-		if !srv.peerExist(share.Peers[i]) {
-			return errors.New("no peer exist with id " + share.Peers[i])
+	for i := range share.NodeIdentities {
+		if !srv.nodeIdentityExists(share.NodeIdentities[i]) {
+			return errors.New("no node identity exists with id " + share.NodeIdentities[i])
 		}
-		p := "SHARED/PEERS/" + share.Peers[i]
+		p := "SHARED/NODE_IDENTITIES/" + share.NodeIdentities[i]
 		err := srv.setSubjectSharedResource(p, uuid)
 		if err != nil {
 			return err
@@ -205,8 +205,8 @@ func (srv *server) unshareResource(domain, path string) error {
 		}
 	}
 
-	for i := range share.Peers {
-		p := "SHARED/PEERS/" + share.Peers[i]
+	for i := range share.NodeIdentities {
+		p := "SHARED/NODE_IDENTITIES/" + share.NodeIdentities[i]
 		err := srv.unsetSubjectSharedResource(p, uuid)
 		if err != nil {
 			return err
@@ -242,8 +242,8 @@ func (srv *server) getSharedResource(subject string, subjectType rbacpb.SubjectT
 			return nil, errors.New("no group exist with id " + subject)
 		}
 		id += "/" + g
-	case rbacpb.SubjectType_PEER:
-		id += "PEERS/" + subject
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		id += "NODE_IDENTITIES/" + subject
 	case rbacpb.SubjectType_ORGANIZATION:
 		id += "ORGANIZATIONS"
 		exist, o := srv.organizationExist(subject)
@@ -381,7 +381,7 @@ func sanitizeShareLists(share *rbacpb.Share) {
 	}
 
 	share.Applications = dedupe(share.Applications)
-	share.Peers = dedupe(share.Peers)
+	share.NodeIdentities = dedupe(share.NodeIdentities)
 	share.Accounts = dedupe(share.Accounts)
 	share.Groups = dedupe(share.Groups)
 	share.Organizations = dedupe(share.Organizations)
@@ -510,14 +510,14 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 			permissions.Denied[i].Groups = Utility.RemoveString(permissions.Denied[i].Groups, subject)
 		}
 
-	case rbacpb.SubjectType_PEER:
-		share.Peers = Utility.RemoveString(share.Peers, subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		share.NodeIdentities = Utility.RemoveString(share.NodeIdentities, subject)
 		for i := range permissions.Allowed {
-			permissions.Allowed[i].Peers = Utility.RemoveString(permissions.Allowed[i].Peers, subject)
+			permissions.Allowed[i].NodeIdentities = Utility.RemoveString(permissions.Allowed[i].NodeIdentities, subject)
 		}
 
 		for i := range permissions.Denied {
-			permissions.Denied[i].Peers = Utility.RemoveString(permissions.Denied[i].Peers, subject)
+			permissions.Denied[i].NodeIdentities = Utility.RemoveString(permissions.Denied[i].NodeIdentities, subject)
 		}
 
 	case rbacpb.SubjectType_ORGANIZATION:
@@ -563,12 +563,14 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 // a RemoveSubjectFromShareRsp on success or an error if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the subject, type, domain, and path information.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the subject, type, domain, and path information.
 //
 // Returns:
-//   *rbacpb.RemoveSubjectFromShareRsp - The response indicating successful removal.
-//   error - An error if the removal fails.
+//
+//	*rbacpb.RemoveSubjectFromShareRsp - The response indicating successful removal.
+//	error - An error if the removal fails.
 func (srv *server) RemoveSubjectFromShare(ctx context.Context, rqst *rbacpb.RemoveSubjectFromShareRqst) (*rbacpb.RemoveSubjectFromShareRsp, error) {
 
 	// Here I will get the share and remove the subject from it.
@@ -612,8 +614,8 @@ func (srv *server) deleteSubjectShare(subject string, subjectType rbacpb.Subject
 			return errors.New("no group exist with id " + g)
 		}
 		id += "/" + g
-	case rbacpb.SubjectType_PEER:
-		id += "PEERS/" + subject
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		id += "NODE_IDENTITIES/" + subject
 	case rbacpb.SubjectType_ORGANIZATION:
 		id += "ORGANIZATIONS"
 		exist, o := srv.organizationExist(subject)
@@ -657,12 +659,14 @@ func (srv *server) deleteSubjectShare(subject string, subjectType rbacpb.Subject
 // Returns a response indicating success or an error if the deletion fails.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the subject and type to be deleted.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the subject and type to be deleted.
 //
 // Returns:
-//   *rbacpb.DeleteSubjectShareRsp - The response object for the deletion operation.
-//   error - An error if the deletion fails, otherwise nil.
+//
+//	*rbacpb.DeleteSubjectShareRsp - The response object for the deletion operation.
+//	error - An error if the deletion fails, otherwise nil.
 func (srv *server) DeleteSubjectShare(ctx context.Context, rqst *rbacpb.DeleteSubjectShareRqst) (*rbacpb.DeleteSubjectShareRsp, error) {
 
 	err := srv.deleteSubjectShare(rqst.Subject, rqst.Type)

@@ -75,9 +75,9 @@ func (srv *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.
 			return 0, errors.New("no organization exist with id " + o)
 		}
 		id += "ORGANIZATION/" + o
-	case rbacpb.SubjectType_PEER:
-		if !srv.peerExist(subject) {
-			return 0, errors.New("no peer exist with id " + subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !srv.nodeIdentityExists(subject) {
+			return 0, errors.New("no node identity exists with id " + subject)
 		}
 		id += "PEER/" + subject
 	}
@@ -147,9 +147,9 @@ func (srv *server) getSubjectUsedSpace(subject string, subject_type rbacpb.Subje
 			return 0, errors.New("no organization exist with id " + o)
 		}
 		id += "ORGANIZATION/" + o
-	case rbacpb.SubjectType_PEER:
-		if !srv.peerExist(subject) {
-			return 0, errors.New("no peer exist with id " + subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !srv.nodeIdentityExists(subject) {
+			return 0, errors.New("no node identity exists with id " + subject)
 		}
 		id += "PEER/" + subject
 	}
@@ -227,9 +227,9 @@ func (srv *server) setSubjectUsedSpace(subject string, subject_type rbacpb.Subje
 		}
 
 		id += "ORGANIZATION/" + o
-	case rbacpb.SubjectType_PEER:
-		if !srv.peerExist(subject) {
-			return errors.New("no peer exist with id " + subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !srv.nodeIdentityExists(subject) {
+			return errors.New("no node identity exists with id " + subject)
 		}
 		id += "PEER/" + subject
 	}
@@ -332,10 +332,10 @@ func (srv *server) initSubjectUsedSpace(subject string, subject_type rbacpb.Subj
 							}
 						}
 					}
-				case rbacpb.SubjectType_PEER:
+				case rbacpb.SubjectType_NODE_IDENTITY:
 					if permissions[i].Owners != nil {
-						if permissions[i].Owners.Peers != nil {
-							if Utility.Contains(permissions[i].Owners.Peers, subject) {
+						if permissions[i].Owners.NodeIdentities != nil {
+							if Utility.Contains(permissions[i].Owners.NodeIdentities, subject) {
 								if !Utility.Contains(owned_files, path) {
 									owned_files = append(owned_files, path)
 								}
@@ -429,7 +429,7 @@ func (srv *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Ge
 	return rsp, nil
 }
 
-// SetSubjectAllocatedSpace sets the allocated space for a specified subject (account, application, group, organization, or peer).
+// SetSubjectAllocatedSpace sets the allocated space for a specified subject (account, application, group, organization, or node identity).
 // Only users with admin privileges or members of the admin role are authorized to perform this operation.
 // The function validates the subject type and existence, creates necessary directories for accounts,
 // and updates the allocated space in the storage. Returns an error if the operation fails or if the user is unauthorized.
@@ -500,9 +500,9 @@ func (srv *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.Se
 		}
 
 		id += "ORGANIZATION/" + o
-	case rbacpb.SubjectType_PEER:
-		if !srv.peerExist(subject) {
-			return nil, errors.New("no peer exist with id " + subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !srv.nodeIdentityExists(subject) {
+			return nil, errors.New("no node identity exists with id " + subject)
 		}
 		id += "PEER/" + subject
 	}

@@ -37,7 +37,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 	share.Applications = make([]string, 0)
 	share.Groups = make([]string, 0)
 	share.Organizations = make([]string, 0)
-	share.Peers = make([]string, 0)
+	share.NodeIdentities = make([]string, 0)
 
 	// Allowed resources
 	allowed := permissions.Allowed
@@ -109,17 +109,17 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 			}
 		}
 
-		// Peers
-		if allowed[i].Peers != nil {
-			for j := range allowed[i].Peers {
-				if srv.peerExist(allowed[i].Peers[j]) {
+		// Node identities
+		if allowed[i].NodeIdentities != nil {
+			for j := range allowed[i].NodeIdentities {
+				if srv.nodeIdentityExists(allowed[i].NodeIdentities[j]) {
 
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+allowed[i].Peers[j], path)
+					err := srv.setSubjectResourcePermissions("PERMISSIONS/NODE_IDENTITIES/"+allowed[i].NodeIdentities[j], path)
 					if err != nil {
 						return err
 					}
 					has_allowed = true
-					share.Peers = append(share.Peers, allowed[i].Peers[j])
+					share.NodeIdentities = append(share.NodeIdentities, allowed[i].NodeIdentities[j])
 				}
 			}
 		}
@@ -157,10 +157,10 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 			}
 		}
 
-		// Peers
-		if denied[i].Peers != nil {
-			for j := range denied[i].Peers {
-				if srv.peerExist(denied[i].Peers[j]) {
+		// Node identities
+		if denied[i].NodeIdentities != nil {
+			for j := range denied[i].NodeIdentities {
+				if srv.nodeIdentityExists(denied[i].NodeIdentities[j]) {
 					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
@@ -267,21 +267,21 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 
 		}
 
-		// Peers
-		if owners.Peers != nil {
-			for j := range owners.Peers {
-				if srv.peerExist(owners.Peers[j]) {
+		// Node identities
+		if owners.NodeIdentities != nil {
+			for j := range owners.NodeIdentities {
+				if srv.nodeIdentityExists(owners.NodeIdentities[j]) {
 
-					err := srv.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+owners.Peers[j], path)
+					err := srv.setSubjectResourcePermissions("PERMISSIONS/NODE_IDENTITIES/"+owners.NodeIdentities[j], path)
 					if err != nil {
 						return err
 					}
-					share.Peers = append(share.Peers, owners.Peers[j])
+					share.NodeIdentities = append(share.NodeIdentities, owners.NodeIdentities[j])
 					has_owners = true
 					if permissions.ResourceType == "file" {
-						used_space, err := srv.getSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER)
+						used_space, err := srv.getSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY)
 						if err != nil {
-							used_space, err = srv.initSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER)
+							used_space, err = srv.initSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY)
 							if err != nil {
 								return err
 							}
@@ -290,7 +290,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 						fi, err := srv.storageStat(path)
 						if err == nil && !fi.IsDir() {
 							used_space += uint64(fi.Size())
-							srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
+							srv.setSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY, used_space)
 						}
 					}
 				}
@@ -510,9 +510,9 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 			}
 		}
 
-		// Peers
-		for j := 0; j < len(allowed[i].Peers); j++ {
-			err := srv.deleteSubjectResourcePermissions("PERMISSIONS/PEERS/"+allowed[i].Peers[j], path)
+		// Node identities
+		for j := 0; j < len(allowed[i].NodeIdentities); j++ {
+			err := srv.deleteSubjectResourcePermissions("PERMISSIONS/NODE_IDENTITIES/"+allowed[i].NodeIdentities[j], path)
 			if err != nil {
 				logPrintln(err)
 			}
@@ -587,17 +587,17 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 			}
 		}
 
-		// Peers
-		if owners.Peers != nil {
-			for j := 0; j < len(owners.Peers); j++ {
-				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/PEERS/"+owners.Peers[j], path)
+		// Node identities
+		if owners.NodeIdentities != nil {
+			for j := 0; j < len(owners.NodeIdentities); j++ {
+				err := srv.deleteSubjectResourcePermissions("PERMISSIONS/NODE_IDENTITIES/"+owners.NodeIdentities[j], path)
 				if err != nil {
 					logPrintln(err)
 				}
 				if permissions.ResourceType == "file" {
-					used_space, err := srv.getSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER)
+					used_space, err := srv.getSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY)
 					if err != nil {
-						used_space, err = srv.initSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER)
+						used_space, err = srv.initSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY)
 						if err != nil {
 							return err
 						}
@@ -606,7 +606,7 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 					fi, err := srv.storageStat(path)
 					if err == nil && !fi.IsDir() {
 						used_space -= uint64(fi.Size())
-						srv.setSubjectUsedSpace(owners.Peers[j], rbacpb.SubjectType_PEER, used_space)
+						srv.setSubjectUsedSpace(owners.NodeIdentities[j], rbacpb.SubjectType_NODE_IDENTITY, used_space)
 					}
 				}
 			}
@@ -823,7 +823,7 @@ func hasOwners(perms *rbacpb.Permissions) bool {
 		len(o.Groups) > 0 ||
 		len(o.Organizations) > 0 ||
 		len(o.Applications) > 0 ||
-		len(o.Peers) > 0
+		len(o.NodeIdentities) > 0
 }
 
 func clonePermission(in *rbacpb.Permission) *rbacpb.Permission {

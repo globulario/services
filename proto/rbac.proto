@@ -9,7 +9,7 @@ import "google/protobuf/struct.proto";
 message Permission {
     string name = 1; // Specific permission type (e.g., read, write, delete).
     repeated string applications = 2; // Applications associated with this permission.
-    repeated string peers = 3; // Peers associated with this permission.
+    repeated string node_identities = 3; // Node identities associated with this permission.
     repeated string accounts = 4; // Accounts associated with this permission.
     repeated string groups = 5; // Groups associated with this permission.
     repeated string organizations = 6; // Organizations associated with this permission.
@@ -175,14 +175,14 @@ message RemoveResourceOwnerRsp {
 /**
  * SubjectType defines the types of subjects (e.g., user, group, organization).
  */
-enum SubjectType {
-    ACCOUNT = 0;
-    PEER = 1;
-    GROUP = 2;
-    ORGANIZATION = 3;
-    APPLICATION = 4;
-    ROLE = 5;
-}
+    enum SubjectType {
+        ACCOUNT = 0;
+        NODE_IDENTITY = 1;
+        GROUP = 2;
+        ORGANIZATION = 3;
+        APPLICATION = 4;
+        ROLE = 5;
+    }
 
 /**
  * DeleteAllAccessRqst is a request to delete all access permissions for a given subject.
@@ -282,7 +282,7 @@ message Share {
     string path = 1; // The unique resource path within the domain.
     string domain = 2; // The domain from where the share is located.
     repeated string applications = 3; // Specific applications with which the resource is shared.
-    repeated string peers = 4; // Specific peers with whom the resource is shared.
+    repeated string node_identities = 4; // Specific node identities with whom the resource is shared.
     repeated string accounts = 5; // Specific accounts with whom the resource is shared.
     repeated string groups = 6; // Specific groups with whom the resource is shared.
     repeated string organizations = 7; // Specific organizations with whom the resource is shared.

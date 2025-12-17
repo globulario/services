@@ -36,12 +36,14 @@ func (srv *server) setActionResourcesPermissions(permissions map[string]interfac
 // setActionResourcesPermissions method. Returns an empty response on success or an error if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the permissions to set.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the permissions to set.
 //
 // Returns:
-//   *rbacpb.SetActionResourcesPermissionsRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*rbacpb.SetActionResourcesPermissionsRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) SetActionResourcesPermissions(ctx context.Context, rqst *rbacpb.SetActionResourcesPermissionsRqst) (*rbacpb.SetActionResourcesPermissionsRsp, error) {
 
 	err := srv.setActionResourcesPermissions(rqst.Permissions.AsMap())
@@ -136,12 +138,11 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		}
 		actions = app.Actions
 
-	case rbacpb.SubjectType_PEER:
-		peer, err := srv.getPeer(subject)
-		if err != nil {
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if _, err := srv.getNodeIdentityByMac(subject); err != nil {
 			return false, false, err
 		}
-		actions = peer.Actions
+		actions = nil
 
 	case rbacpb.SubjectType_ROLE:
 		role, err := srv.getRole(subject)

@@ -41,10 +41,10 @@ func (srv *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbac
 		permission.Organizations = organizations
 	}
 
-	peers_change, peers := srv.cleanupSubjectPermissions(rbacpb.SubjectType_PEER, permission.Peers)
+	peers_change, peers := srv.cleanupSubjectPermissions(rbacpb.SubjectType_NODE_IDENTITY, permission.NodeIdentities)
 	if peers_change {
 		hasChange = true
-		permission.Peers = peers
+		permission.NodeIdentities = peers
 	}
 
 	return hasChange, permission
@@ -142,9 +142,9 @@ func (srv *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectType, sub
 				needSave = true
 			}
 		}
-	case rbacpb.SubjectType_PEER:
+	case rbacpb.SubjectType_NODE_IDENTITY:
 		for i := range subjects {
-			if srv.peerExist(subjects[i]) {
+			if srv.nodeIdentityExists(subjects[i]) {
 				subjects_ = append(subjects_, subjects[i])
 			} else {
 				needSave = true

@@ -506,7 +506,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if !hasAccess && issuer != "" && !accessDenied {
 		mac, _ := config.GetMacAddress()
 		if issuer != mac {
-			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
+			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_NODE_IDENTITY, address)
 		}
 	}
 
@@ -609,7 +609,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.address)
 	}
 	if !allowed && issuer != "" && !denied {
-		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, issuer, rbacpb.SubjectType_PEER, l.address)
+		allowed, denied, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, issuer, rbacpb.SubjectType_NODE_IDENTITY, l.address)
 	}
 
 	if !allowed || denied {

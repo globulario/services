@@ -145,8 +145,8 @@ func (srv *server) getSubjectResourcePermissions(subject, resource_type string, 
 		} else {
 			return nil, errors.New("no organization found with id " + subject)
 		}
-	case rbacpb.SubjectType_PEER:
-		id += "PEERS/"
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		id += "NODE_IDENTITIES/"
 		id += subject
 	}
 

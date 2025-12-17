@@ -570,8 +570,8 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 	}
 
 	if err != nil {
-		peers, _ := srv.getPeers()
-		if len(peers) == 0 {
+		nodes, _ := srv.getNodeIdentities()
+		if len(nodes) == 0 {
 			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
 			defer Utility.RemoveString(srv.authentications_, uuid)
 			if Utility.Contains(srv.authentications_, uuid) {
@@ -579,13 +579,13 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 			}
 			srv.authentications_ = append(srv.authentications_, uuid)
 
-			for i := range peers {
-				peer := peers[i]
-				address := peer.Domain
-				if peer.Protocol == "https" {
-					address += ":" + Utility.ToString(peer.PortHttps)
+			for i := range nodes {
+				node := nodes[i]
+				address := node.Domain
+				if node.Protocol == "https" {
+					address += ":" + Utility.ToString(node.PortHttps)
 				} else {
-					address += ":" + Utility.ToString(peer.PortHttp)
+					address += ":" + Utility.ToString(node.PortHttp)
 				}
 
 				resourceClient, err := getResourceClient(address)

@@ -15,12 +15,14 @@ import (
 )
 
 func isNotFoundErr(err error) bool {
-    if err == nil { return false }
-    s := strings.ToLower(err.Error())
-    // accept all common variants across stores (etcd, mongo, scylla, in-mem)
-    return strings.Contains(s, "not found") ||       // "not found", "no entity found"
-           strings.Contains(s, "key not found") ||   // etcd errors
-           strings.Contains(s, "item not found")
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	// accept all common variants across stores (etcd, mongo, scylla, in-mem)
+	return strings.Contains(s, "not found") || // "not found", "no entity found"
+		strings.Contains(s, "key not found") || // etcd errors
+		strings.Contains(s, "item not found")
 }
 
 func (srv *server) addResourceOwner(path, subject, resourceType_ string, subjectType rbacpb.SubjectType) error {
@@ -37,35 +39,35 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 	}
 
 	slog.Info("addResourceOwner call",
-    "path", path,
-    "resourceType", resourceType_,
-    "subject", subject,
-    "subjectType", subjectType.String())
+		"path", path,
+		"resourceType", resourceType_,
+		"subject", subject,
+		"subjectType", subjectType.String())
 
 	permissions, err := srv.getResourcePermissions(path)
 
 	needSave := false
-    if err != nil {
-        if isNotFoundErr(err) {
-            permissions = &rbacpb.Permissions{
-                Allowed: []*rbacpb.Permission{},
-                Denied:  []*rbacpb.Permission{},
-                Owners: &rbacpb.Permission{
-                    Name:          "owner",
-                    Accounts:      []string{},
-                    Applications:  []string{},
-                    Groups:        []string{},
-                    Peers:         []string{},
-                    Organizations: []string{},
-                },
-                ResourceType: resourceType_,
-                Path:         path,
-            }
-            needSave = true
-        } else {
-            return err
-        }
-    }
+	if err != nil {
+		if isNotFoundErr(err) {
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{},
+					Applications:  []string{},
+					Groups:        []string{},
+					NodeIdentities: []string{},
+					Organizations: []string{},
+				},
+				ResourceType: resourceType_,
+				Path:         path,
+			}
+			needSave = true
+		} else {
+			return err
+		}
+	}
 
 	// Owned resources
 	owners := permissions.Owners
@@ -75,7 +77,7 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 			Accounts:      []string{},
 			Applications:  []string{},
 			Groups:        []string{},
-			Peers:         []string{},
+			NodeIdentities: []string{},
 			Organizations: []string{},
 		}
 	}
@@ -121,9 +123,9 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 		} else {
 			return errors.New("organisation with id " + subject + " does not exist")
 		}
-	case rbacpb.SubjectType_PEER:
-		if !Utility.Contains(owners.Peers, subject) {
-			owners.Peers = append(owners.Peers, subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		if !Utility.Contains(owners.NodeIdentities, subject) {
+			owners.NodeIdentities = append(owners.NodeIdentities, subject)
 			needSave = true
 		}
 	}
@@ -181,8 +183,8 @@ func (srv *server) removeResourceOwner(path string, subject string, subjectType 
 		owners.Groups = removeString(owners.Groups, subject)
 	case rbacpb.SubjectType_ORGANIZATION:
 		owners.Organizations = removeString(owners.Organizations, subject)
-	case rbacpb.SubjectType_PEER:
-		owners.Peers = removeString(owners.Peers, subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		owners.NodeIdentities = removeString(owners.NodeIdentities, subject)
 	}
 
 	// Persist back (resource type comes from the stored record)
@@ -264,8 +266,8 @@ func scrubPermissionSubjects(p *rbacpb.Permission, subject string, stype rbacpb.
 		p.Groups = removeString(p.Groups, subject)
 	case rbacpb.SubjectType_ORGANIZATION:
 		p.Organizations = removeString(p.Organizations, subject)
-	case rbacpb.SubjectType_PEER:
-		p.Peers = removeString(p.Peers, subject)
+	case rbacpb.SubjectType_NODE_IDENTITY:
+		p.NodeIdentities = removeString(p.NodeIdentities, subject)
 	}
 }
 
@@ -324,15 +326,15 @@ func (srv *server) removeResourceSubject(subject string, subjectType rbacpb.Subj
 			allowed[i].Applications = applications
 		}
 
-		// Peers
-		if subjectType == rbacpb.SubjectType_PEER {
+		// Node identities
+		if subjectType == rbacpb.SubjectType_NODE_IDENTITY {
 			peers := make([]string, 0)
-			for j := 0; j < len(allowed[i].Peers); j++ {
-				if subject != allowed[i].Peers[j] {
-					peers = append(peers, allowed[i].Peers[j])
+			for j := 0; j < len(allowed[i].NodeIdentities); j++ {
+				if subject != allowed[i].NodeIdentities[j] {
+					peers = append(peers, allowed[i].NodeIdentities[j])
 				}
 			}
-			allowed[i].Peers = peers
+			allowed[i].NodeIdentities = peers
 		}
 	}
 
@@ -384,15 +386,15 @@ func (srv *server) removeResourceSubject(subject string, subjectType rbacpb.Subj
 			denied[i].Applications = applications
 		}
 
-		// Peers
-		if subjectType == rbacpb.SubjectType_PEER {
+		// Node identities
+		if subjectType == rbacpb.SubjectType_NODE_IDENTITY {
 			peers := make([]string, 0)
-			for j := 0; j < len(denied[i].Peers); j++ {
-				if subject != denied[i].Peers[j] {
-					peers = append(peers, denied[i].Peers[j])
+			for j := 0; j < len(denied[i].NodeIdentities); j++ {
+				if subject != denied[i].NodeIdentities[j] {
+					peers = append(peers, denied[i].NodeIdentities[j])
 				}
 			}
-			denied[i].Peers = peers
+			denied[i].NodeIdentities = peers
 		}
 	}
 

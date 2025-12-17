@@ -353,19 +353,19 @@ func (srv *server) changeAccountPassword(accountId, token, oldPassword, newPassw
 	}
 	return resourceClient.SetAccountPassword(accountId, token, oldPassword, newPassword)
 }
-func (srv *server) getPeers() ([]*resourcepb.Peer, error) {
+func (srv *server) getNodeIdentities() ([]*resourcepb.NodeIdentity, error) {
 	resourceClient, err := srv.getResourceClient(srv.GetAddress())
 	if err != nil {
 		return nil, err
 	}
-	peers, err := resourceClient.GetPeers(`{}`)
+	nodes, err := resourceClient.ListNodeIdentities(`{}`, "")
 	if err != nil {
 		return nil, err
 	}
-	if len(peers) == 0 {
-		return nil, errors.New("no peers found")
+	if len(nodes) == 0 {
+		return nil, errors.New("no node identities found")
 	}
-	return peers, nil
+	return nodes, nil
 }
 
 // ////////////////////// Auth helpers //////////////////////

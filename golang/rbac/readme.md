@@ -1,7 +1,7 @@
 # RBAC Service
 
 The **RBAC Service** is a core Globular microservice that provides **Role-Based Access Control**.  
-It defines and enforces permissions for resources, actions, and subjects (accounts, groups, organizations, peers, roles, applications).
+It defines and enforces permissions for resources, actions, and subjects (accounts, groups, organizations, node identities, roles, applications).
 
 ---
 
@@ -12,7 +12,7 @@ It defines and enforces permissions for resources, actions, and subjects (accoun
 - Action-level permissions tied to gRPC service methods
 - Support for **Allow**, **Deny**, and **Owner** rules
 - Inheritance of permissions from parent resources
-- Share/unshare resources with accounts, groups, organizations, peers, or applications
+ - Share/unshare resources with accounts, groups, organizations, node identities, or applications
 - Validation of both **actions** and **resource access**
 - Public resource handling
 - Full integration with Resource and Authentication services
@@ -23,7 +23,7 @@ It defines and enforces permissions for resources, actions, and subjects (accoun
 
 - **Resource**: Any entity (file, object, service) that can have permissions.
 - **Permission**: Action allowed, denied, or ownership defined for a subject.
-- **Subject**: An **Account**, **Group**, **Organization**, **Peer**, **Role**, or **Application**.
+- **Subject**: An **Account**, **Group**, **Organization**, **Node Identity**, **Role**, or **Application**.
 - **Owner**: Owners of a resource have implicit full rights.
 - **Inheritance**: Permissions cascade from parent paths.
 - **Shares**: Resources can be shared and listed by subject.
