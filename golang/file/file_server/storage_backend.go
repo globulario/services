@@ -450,23 +450,68 @@ func (s *MinioStorage) Remove(ctx context.Context, path string) error {
 
 // Rename copies an object to the new path and removes the original key.
 func (s *MinioStorage) Rename(ctx context.Context, oldPath, newPath string) error {
-	// S3/MinIO doesn't have rename; we copy then delete.
+	// S3/MinIO doesn't have an atomic rename. We copy then delete.
+	info, err := s.Stat(ctx, oldPath)
+	if err != nil {
+		return err
+	}
+
 	srcKey := s.pathToKey(oldPath)
 	dstKey := s.pathToKey(newPath)
 
-	// Copy
-	_, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+	if info.IsDir() {
+		srcPrefix := srcKey
+		if !strings.HasSuffix(srcPrefix, "/") {
+			srcPrefix += "/"
+		}
+		dstPrefix := dstKey
+		if !strings.HasSuffix(dstPrefix, "/") {
+			dstPrefix += "/"
+		}
+
+		var moved int
+		objs := s.client.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{
+			Prefix:    srcPrefix,
+			Recursive: true,
+		})
+		for obj := range objs {
+			if obj.Err != nil {
+				return obj.Err
+			}
+			rel := strings.TrimPrefix(obj.Key, srcPrefix)
+			targetKey := dstPrefix + rel
+
+			if _, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
+				Bucket: s.bucket,
+				Object: targetKey,
+			}, minio.CopySrcOptions{
+				Bucket: s.bucket,
+				Object: obj.Key,
+			}); err != nil {
+				return err
+			}
+			if err := s.client.RemoveObject(ctx, s.bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+				return err
+			}
+			moved++
+		}
+
+		if moved == 0 {
+			return os.ErrNotExist
+		}
+		return nil
+	}
+
+	if _, err := s.client.CopyObject(ctx, minio.CopyDestOptions{
 		Bucket: s.bucket,
 		Object: dstKey,
 	}, minio.CopySrcOptions{
 		Bucket: s.bucket,
 		Object: srcKey,
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	// Remove original
 	return s.client.RemoveObject(ctx, s.bucket, srcKey, minio.RemoveObjectOptions{})
 }
 

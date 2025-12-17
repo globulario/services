@@ -1078,27 +1078,20 @@ func (srv *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fil
 	}
 
 	// Rename .hidden folder if exists
-	oldBase := rqst.GetOldName()
-	if idx := strings.LastIndex(oldBase, "/"); idx != -1 {
-		oldBase = oldBase[idx+1:]
-	}
-	if dot := strings.LastIndex(oldBase, "."); dot != -1 {
-		oldBase = oldBase[:dot]
-	}
-
-	newBase := rqst.GetNewName()
-	if idx := strings.LastIndex(newBase, "/"); idx != -1 {
-		newBase = newBase[idx+1:]
-	}
-	if dot := strings.LastIndex(newBase, "."); dot != -1 {
-		newBase = newBase[:dot]
-	}
-
-	hiddenFrom := filepath.Join(path, ".hidden", oldBase)
-	hiddenTo := filepath.Join(path, ".hidden", newBase)
-	if srv.storageForPath(hiddenFrom).Exists(ctx, hiddenFrom) {
-		if err := srv.storageRename(ctx, hiddenFrom, hiddenTo); err != nil {
-			slog.Warn("rename: rename hidden folder failed", "from", hiddenFrom, "to", hiddenTo, "err", err)
+	oldBase := strings.TrimSuffix(filepath.Base(from), filepath.Ext(from))
+	newBase := strings.TrimSuffix(filepath.Base(dest), filepath.Ext(dest))
+	if oldBase != "" && newBase != "" {
+		fromParent := filepath.Dir(from)
+		toParent := filepath.Dir(dest)
+		hiddenFrom := filepath.Join(fromParent, ".hidden", oldBase)
+		hiddenTo := filepath.Join(toParent, ".hidden", newBase)
+		if srv.storageForPath(hiddenFrom).Exists(ctx, hiddenFrom) {
+			if err := srv.storageMkdirAll(ctx, filepath.Dir(hiddenTo), 0o755); err != nil {
+				slog.Warn("rename: ensure hidden parent failed", "dir", filepath.Dir(hiddenTo), "err", err)
+			}
+			if err := srv.storageRename(ctx, hiddenFrom, hiddenTo); err != nil {
+				slog.Warn("rename: rename hidden folder failed", "from", hiddenFrom, "to", hiddenTo, "err", err)
+			}
 		}
 	}
 

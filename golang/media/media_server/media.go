@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"math"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -96,12 +98,23 @@ var (
 	errNoVideoMetadata = errors.New("no video metadata available")
 	errRestoreCooldown = errors.New("restore in cooldown")
 	imdbMetadataCache  sync.Map
+	imdbEpisodeCache   sync.Map
 )
 
-const imdbCacheTTL = 12 * time.Hour
+const (
+	imdbCacheTTL        = 12 * time.Hour
+	imdbEpisodeCacheTTL = 24 * time.Hour
+)
 
 type imdbCacheEntry struct {
 	title    *titlepb.Title
+	storedAt time.Time
+}
+
+type imdbEpisodeCacheEntry struct {
+	season   int
+	episode  int
+	serie    string
 	storedAt time.Time
 }
 
@@ -155,10 +168,13 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 		return srv.reportRestoreFailure(videoPath, errNoVideoMetadata)
 	}
 
+	rawTitle, _ := tags["title"].(string)
+	titleHint := strings.TrimSpace(rawTitle)
+
 	rawComment, _ := tags["comment"].(string)
 	comment := strings.TrimSpace(rawComment)
 	if comment == "" {
-		if handled, err := srv.tryRestoreFromFilename(client, token, videoPath); handled {
+		if handled, err := srv.tryRestoreFromFilename(client, token, videoPath, titleHint); handled {
 			return err
 		}
 		logger.Debug("restoreVideoInfos: no comment found", "path", p)
@@ -184,6 +200,7 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 			return restoreErr
 		}
 		if title := parseTitleMetadata(jsonBlob); title != nil && title.ID != "" {
+			srv.ensureIMDBTitleName(title, videoPath)
 			restoreErr := srv.wrapRestoreResult(videoPath, srv.restoreAsTitle(client, title, p))
 			if restoreErr == nil {
 				srv.publishRestoreLog(videoPath, fmt.Sprintf("Restored title %s from embedded metadata", formatTitleLabel(title)))
@@ -195,6 +212,10 @@ func (srv *server) restoreVideoInfos(client *title_client.Title_Client, token, v
 	}
 
 	if handled, err := srv.restoreFromCommentHint(client, token, videoPath, comment); handled {
+		return err
+	}
+
+	if handled, err := srv.tryRestoreFromFilename(client, token, videoPath, titleHint); handled {
 		return err
 	}
 
@@ -342,7 +363,7 @@ var (
 	urlSchemeRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*://`)
 )
 
-func (srv *server) tryRestoreFromFilename(client *title_client.Title_Client, token, videoPath string) (bool, error) {
+func (srv *server) tryRestoreFromFilename(client *title_client.Title_Client, token, videoPath, titleHint string) (bool, error) {
 
 	if imdbID, ok := findIMDBID(videoPath); ok {
 		title := &titlepb.Title{ID: imdbID}
@@ -401,6 +422,20 @@ func (srv *server) tryRestoreFromFilename(client *title_client.Title_Client, tok
 		}
 		return true, restoreErr
 	}
+	if imdbID, ok := srv.resolveIMDBFromFilenameOrTitleHint(videoPath, titleHint); ok {
+		title := &titlepb.Title{ID: imdbID}
+		if err := srv.enrichTitleFromIMDB(title, videoPath); err != nil {
+			logger.Warn("tryRestoreFromFilename: enrich from IMDB failed", "id", imdbID, "err", err)
+		}
+		restoreErr := srv.wrapRestoreResult(videoPath, srv.restoreAsTitle(client, title, videoPath))
+		if restoreErr == nil {
+			srv.publishRestoreLog(videoPath, fmt.Sprintf("Restored title %s from parsed filename/title", formatTitleLabel(title)))
+			if err := srv.writeTitleMetadataCache(videoPath, title); err != nil {
+				logger.Warn("tryRestoreFromFilename: metadata cache write failed", "path", videoPath, "err", err)
+			}
+		}
+		return true, restoreErr
+	}
 	return false, nil
 }
 
@@ -433,6 +468,180 @@ func findYouTubeID(path string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (srv *server) resolveIMDBFromFilenameOrTitleHint(videoPath, titleHint string) (string, bool) {
+	apiKey := strings.TrimSpace(os.Getenv("TMDB_API_KEY"))
+	if apiKey == "" {
+		return "", false
+	}
+
+	candidate := strings.TrimSpace(titleHint)
+	if candidate == "" {
+		candidate = filepath.Base(videoPath)
+	}
+
+	if i := strings.LastIndex(candidate, "."); i > 0 {
+		ext := strings.ToLower(candidate[i:])
+		if len(ext) <= 6 && strings.Contains(ext, ".") {
+			candidate = candidate[:i]
+		}
+	}
+
+	normalized := candidate
+	normalized = strings.ReplaceAll(normalized, ".", " ")
+	normalized = strings.ReplaceAll(normalized, "_", " ")
+	normalized = strings.TrimSpace(normalized)
+	normalized = regexp.MustCompile(`\[[^\]]+\]`).ReplaceAllString(normalized, " ")
+	normalized = regexp.MustCompile(`\([^\)]*\)`).ReplaceAllString(normalized, " ")
+	normalized = collapseSpaces(normalized)
+
+	if ep := regexp.MustCompile(`(?i)\bS(\d{1,2})E(\d{1,2})\b`).FindStringSubmatchIndex(normalized); ep != nil {
+		sStr := normalized[ep[2]:ep[3]]
+		eStr := normalized[ep[4]:ep[5]]
+		season, _ := strconv.Atoi(sStr)
+		episode, _ := strconv.Atoi(eStr)
+
+		seriesRaw := strings.TrimSpace(normalized[:ep[0]])
+		seriesRaw = strings.Trim(seriesRaw, "-–—| ")
+		seriesRaw = collapseSpaces(seriesRaw)
+		if seriesRaw != "" && season > 0 && episode > 0 {
+			if imdbID, ok := tmdbResolveEpisodeIMDB(apiKey, seriesRaw, season, episode); ok {
+				return imdbID, true
+			}
+		}
+	}
+
+	title, year := parseReleaseTitleAndYear(normalized)
+	if title == "" {
+		return "", false
+	}
+	if imdbID, ok := tmdbResolveMovieIMDB(apiKey, title, year); ok {
+		return imdbID, true
+	}
+	return "", false
+}
+
+func collapseSpaces(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func parseReleaseTitleAndYear(s string) (string, int) {
+	noise := []string{
+		"1080p", "720p", "2160p", "4k",
+		"webrip", "web-dl", "webdl", "bluray", "bdrip", "hdtv", "dvdrip",
+		"x264", "x265", "h264", "h265", "hevc", "av1",
+		"aac", "ddp", "ddp5", "ddp5 1", "dts", "truehd",
+		"hdr", "hdr10", "dolby", "vision", "dv",
+		"proper", "repack", "remux",
+	}
+	lower := strings.ToLower(s)
+	for _, n := range noise {
+		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(n) + `\b`)
+		lower = re.ReplaceAllString(lower, " ")
+	}
+	lower = collapseSpaces(lower)
+
+	year := 0
+	yearRe := regexp.MustCompile(`\b(19\d{2}|20\d{2})\b`)
+	if m := yearRe.FindStringSubmatchIndex(lower); m != nil {
+		y, _ := strconv.Atoi(lower[m[2]:m[3]])
+		year = y
+		t := strings.TrimSpace(lower[:m[0]])
+		t = strings.Trim(t, "-–—| ")
+		t = collapseSpaces(t)
+		return titleCaseHint(t), year
+	}
+
+	t := strings.TrimSpace(lower)
+	t = strings.Trim(t, "-–—| ")
+	t = collapseSpaces(t)
+	return titleCaseHint(t), year
+}
+
+func titleCaseHint(s string) string {
+	return collapseSpaces(s)
+}
+
+type tmdbSearchMovieResp struct {
+	Results []struct {
+		ID int `json:"id"`
+	} `json:"results"`
+}
+
+type tmdbSearchTVResp struct {
+	Results []struct {
+		ID int `json:"id"`
+	} `json:"results"`
+}
+
+type tmdbExternalIDsResp struct {
+	IMDBID string `json:"imdb_id"`
+}
+
+func tmdbResolveMovieIMDB(apiKey, title string, year int) (string, bool) {
+	q := url.Values{}
+	q.Set("api_key", apiKey)
+	q.Set("query", title)
+	if year != 0 {
+		q.Set("year", strconv.Itoa(year))
+	}
+	u := "https://api.themoviedb.org/3/search/movie?" + q.Encode()
+	var sr tmdbSearchMovieResp
+	if err := tmdbGETJSON(u, &sr); err != nil || len(sr.Results) == 0 {
+		return "", false
+	}
+	movieID := sr.Results[0].ID
+	extURL := fmt.Sprintf("https://api.themoviedb.org/3/movie/%d/external_ids?api_key=%s", movieID, url.QueryEscape(apiKey))
+	var ext tmdbExternalIDsResp
+	if err := tmdbGETJSON(extURL, &ext); err != nil {
+		return "", false
+	}
+	if imdbIDRegex.MatchString(strings.ToLower(ext.IMDBID)) {
+		return ext.IMDBID, true
+	}
+	return "", false
+}
+
+func tmdbResolveEpisodeIMDB(apiKey, series string, season, episode int) (string, bool) {
+	q := url.Values{}
+	q.Set("api_key", apiKey)
+	q.Set("query", series)
+	u := "https://api.themoviedb.org/3/search/tv?" + q.Encode()
+	var sr tmdbSearchTVResp
+	if err := tmdbGETJSON(u, &sr); err != nil || len(sr.Results) == 0 {
+		return "", false
+	}
+	tvID := sr.Results[0].ID
+
+	extURL := fmt.Sprintf("https://api.themoviedb.org/3/tv/%d/season/%d/episode/%d/external_ids?api_key=%s", tvID, season, episode, url.QueryEscape(apiKey))
+	var ext tmdbExternalIDsResp
+	if err := tmdbGETJSON(extURL, &ext); err != nil {
+		return "", false
+	}
+	if imdbIDRegex.MatchString(strings.ToLower(ext.IMDBID)) {
+		return ext.IMDBID, true
+	}
+	return "", false
+}
+
+func tmdbGETJSON(u string, out interface{}) error {
+	c := &http.Client{Timeout: 8 * time.Second}
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("tmdb http %d", resp.StatusCode)
+	}
+	dec := json.NewDecoder(resp.Body)
+	return dec.Decode(out)
 }
 
 func findPornhubID(path string) (string, bool) {
@@ -525,6 +734,24 @@ func (srv *server) writeVideoMetadataCache(videoPath string, video *titlepb.Vide
 	return srv.writeFile(dest, data, 0o664)
 }
 
+func (srv *server) writeTitleMetadataCache(videoPath string, title *titlepb.Title) error {
+	if title == nil {
+		return errors.New("missing title metadata")
+	}
+	data, err := protojson.Marshal(title)
+	if err != nil {
+		return err
+	}
+	dest := metadataCachePath(videoPath)
+	if dest == "" {
+		return fmt.Errorf("metadata path not available for %s", videoPath)
+	}
+	if err := srv.createDirIfNotExist(filepath.Dir(dest)); err != nil {
+		return err
+	}
+	return srv.writeFile(dest, data, 0o664)
+}
+
 func looksLikeHTTPURL(value string) bool {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -545,6 +772,7 @@ func (srv *server) restoreFromCommentHint(client *title_client.Title_Client, tok
 	lower := strings.ToLower(hint)
 	if imdbIDRegex.MatchString(lower) && len(lower) >= 4 {
 		title := &titlepb.Title{ID: lower}
+		srv.ensureIMDBTitleName(title, videoPath)
 		restoreErr := srv.wrapRestoreResult(videoPath, srv.restoreAsTitle(client, title, videoPath))
 		if restoreErr == nil {
 			srv.publishRestoreLog(videoPath, fmt.Sprintf("Linked title %s from metadata comment", formatTitleLabel(title)))
@@ -745,6 +973,10 @@ func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error
 		return err
 	}
 
+	if t.Type == "" {
+		t.Type = strings.TrimSpace(it.Type)
+	}
+
 	// Ratings.
 	t.Rating = float32(Utility.ToNumeric(it.Rating))
 	t.RatingCount = int32(it.RatingCount)
@@ -763,9 +995,123 @@ func (srv *server) enrichTitleFromIMDB(t *titlepb.Title, videoPath string) error
 		t.Writers = append(t.Writers, &titlepb.Person{ID: w.ID, FullName: w.FullName, URL: w.URL})
 	}
 
+	if strings.EqualFold(it.Type, "TVEpisode") {
+		if season, episode, serie, err := getIMDBEpisodeDetails(httpCli, it.ID); err == nil {
+			if season > 0 {
+				t.Season = int32(season)
+			}
+			if episode > 0 {
+				t.Episode = int32(episode)
+			}
+			if serie != "" && t.Serie == "" {
+				t.Serie = serie
+			}
+		} else {
+			logger.Warn("enrichTitleFromIMDB: episode metadata lookup failed", "id", it.ID, "err", err)
+		}
+	}
+
 	srv.ensurePosterArtifacts(t, videoPath, true)
 	cacheIMDBMetadata(t)
 	return nil
+}
+
+func (srv *server) ensureIMDBTitleName(t *titlepb.Title, videoPath string) {
+	if t == nil || t.ID == "" || strings.TrimSpace(t.Name) != "" {
+		return
+	}
+	var label string
+	if videoPath != "" {
+		label = videoPath
+	} else {
+		label = t.ID
+	}
+	if err := srv.enrichTitleFromIMDB(t, label); err != nil {
+		logger.Warn("ensureIMDBTitleName: enrich failed", "id", t.ID, "path", label, "err", err)
+	}
+}
+
+var (
+	imdbEpisodeSERex        = regexp.MustCompile(`>S\d{1,2}<!-- -->\.<!-- -->E\d{1,2}<`)
+	imdbEpisodeSeasonRegex  = regexp.MustCompile(`S(\d{1,2})`)
+	imdbEpisodeEpisodeRegex = regexp.MustCompile(`E(\d{1,2})`)
+	imdbSeriesLinkRegex     = regexp.MustCompile(`data-testid="hero-title-block__series-link".*?href="/title/(tt\d{7,8})/`)
+)
+
+func getIMDBEpisodeDetails(client *http.Client, titleID string) (int, int, string, error) {
+	if entry, ok := loadCachedIMDBEpisodeInfo(titleID); ok {
+		return entry.season, entry.episode, entry.serie, nil
+	}
+
+	html, err := fetchIMDBTitleHTML(client, titleID)
+	if err != nil {
+		return 0, 0, "", err
+	}
+
+	season := 0
+	episode := 0
+	serie := ""
+	if match := imdbEpisodeSERex.FindString(html); match != "" {
+		if m := imdbEpisodeSeasonRegex.FindStringSubmatch(match); len(m) > 1 {
+			season = Utility.ToInt(m[1])
+		}
+		if m := imdbEpisodeEpisodeRegex.FindStringSubmatch(match); len(m) > 1 {
+			episode = Utility.ToInt(m[1])
+		}
+	}
+	if m := imdbSeriesLinkRegex.FindStringSubmatch(html); len(m) > 1 {
+		serie = strings.TrimSpace(m[1])
+	}
+
+	entry := imdbEpisodeCacheEntry{
+		season:  season,
+		episode: episode,
+		serie:   serie,
+	}
+	cacheIMDBEpisodeInfo(titleID, entry)
+
+	return season, episode, serie, nil
+}
+
+func loadCachedIMDBEpisodeInfo(id string) (imdbEpisodeCacheEntry, bool) {
+	if id == "" {
+		return imdbEpisodeCacheEntry{}, false
+	}
+	if raw, ok := imdbEpisodeCache.Load(id); ok {
+		entry, _ := raw.(imdbEpisodeCacheEntry)
+		if time.Since(entry.storedAt) <= imdbEpisodeCacheTTL {
+			return entry, true
+		}
+		imdbEpisodeCache.Delete(id)
+	}
+	return imdbEpisodeCacheEntry{}, false
+}
+
+func cacheIMDBEpisodeInfo(id string, entry imdbEpisodeCacheEntry) {
+	if id == "" {
+		return
+	}
+	entry.storedAt = time.Now()
+	imdbEpisodeCache.Store(id, entry)
+}
+
+func fetchIMDBTitleHTML(client *http.Client, titleID string) (string, error) {
+	if client == nil {
+		client = getHTTPClient()
+	}
+	resp, err := client.Get("https://www.imdb.com/title/" + titleID)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("imdb html fetch: http %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func loadCachedIMDBMetadata(id string) *titlepb.Title {
