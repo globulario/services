@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package clustercontroller;
+
+option go_package = "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb;clustercontrollerpb";
+
+import "google/protobuf/timestamp.proto";
+
+message NodeInfo {
+  string hostname = 1;
+  string domain = 2;
+  repeated string ips = 3;
+  string os = 4;
+  string arch = 5;
+  string agent_version = 6;
+  google.protobuf.Timestamp last_seen = 7;
+}
+
+message EnrollRequest {
+  string join_token = 1;
+  NodeInfo node = 2;
+}
+
+message EnrollResponse {
+  string node_id = 1;
+  string status = 2;
+  string message = 3;
+  string operation_id = 4;
+}
+
+message JoinRequest {
+  string node_id = 1;
+  NodeInfo node = 2;
+  string requested_at = 3;
+  string status = 4;
+}
+
+message ListJoinRequestsRequest {}
+message ListJoinRequestsResponse { repeated JoinRequest joins = 1; }
+
+message ApproveNodeRequest {
+  string node_id = 1;
+  repeated string roles = 2;
+  map<string,string> metadata = 3;
+}
+
+message ApproveNodeResponse {
+  string node_id = 1;
+  string message = 2;
+}
+
+message RejectNodeRequest {
+  string node_id = 1;
+  string reason = 2;
+}
+
+message RejectNodeResponse {
+  string node_id = 1;
+  string message = 2;
+}
+
+message NodeSubject {
+  string node_id = 1;
+  string hostname = 2;
+  string domain = 3;
+  string status = 4;
+  repeated string profiles = 5;
+}
+
+message ListNodesRequest {}
+message ListNodesResponse { repeated NodeSubject nodes = 1; }
+
+message SetNodeProfilesRequest {
+  string node_id = 1;
+  repeated string profiles = 2;
+}
+
+message SetNodeProfilesResponse {
+  string operation_id = 1;
+}
+
+message OperationPhase {
+  enum Phase {
+    UNKNOWN = 0;
+    QUEUED = 1;
+    RUNNING = 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
+  }
+}
+
+message WatchNodeOperationsRequest {
+  string node_id = 1;
+  string operation_id = 2;
+}
+
+message OperationEvent {
+  string operation_id = 1;
+  OperationPhase.Phase phase = 2;
+  string message = 3;
+  int32 percent = 4;
+  bool done = 5;
+  string node_id = 6;
+}
+
+service ClusterControllerService {
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  rpc ListJoinRequests(ListJoinRequestsRequest) returns (stream ListJoinRequestsResponse);
+  rpc ApproveNode(ApproveNodeRequest) returns (ApproveNodeResponse);
+  rpc RejectNode(RejectNodeRequest) returns (RejectNodeResponse);
+  rpc ListNodes(ListNodesRequest) returns (stream ListNodesResponse);
+  rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
+  rpc WatchNodeOperations(WatchNodeOperationsRequest) returns (stream OperationEvent);
+}

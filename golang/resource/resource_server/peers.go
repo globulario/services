@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -62,6 +64,110 @@ func (srv *server) getPeerPublicKey(address, mac string) (string, error) {
 	return client.GetPeerPublicKey(mac)
 }
 
+func nodeIdentityFromValues(values interface{}) *resourcepb.NodeIdentity {
+	peer := initPeer(values)
+	valuesMap, _ := values.(map[string]interface{})
+	if valuesMap == nil {
+		valuesMap = map[string]interface{}{}
+	}
+	node := &resourcepb.NodeIdentity{
+		NodeId:      Utility.ToString(valuesMap["_id"]),
+		Peer:        peer,
+		Fingerprint: Utility.ToString(valuesMap["fingerprint"]),
+		LastSeen:    int64(Utility.ToNumeric(valuesMap["last_seen"])),
+		Enabled:     Utility.ToBool(valuesMap["enabled"]),
+		Labels:      labelsFromInterface(valuesMap["labels"]),
+	}
+	if node.Peer != nil {
+		node.Peer.NodeId = node.NodeId
+		node.Peer.Fingerprint = node.Fingerprint
+		node.Peer.LastSeen = node.LastSeen
+		node.Peer.Enabled = node.Enabled
+		for key, value := range node.Labels {
+			if node.Peer.Labels == nil {
+				node.Peer.Labels = make(map[string]string)
+			}
+			node.Peer.Labels[key] = value
+		}
+	}
+	return node
+}
+
+func nodeIdentityToDocument(node *resourcepb.NodeIdentity) map[string]interface{} {
+	if node == nil {
+		return map[string]interface{}{}
+	}
+	if node.Peer == nil {
+		node.Peer = &resourcepb.Peer{TypeName: "Peer"}
+	}
+	node.Peer.TypeName = "Peer"
+	node.Peer.NodeId = node.NodeId
+	node.Peer.Fingerprint = node.Fingerprint
+	node.Peer.LastSeen = node.LastSeen
+	node.Peer.Enabled = node.Enabled
+
+	doc := map[string]interface{}{
+		"_id":                 node.NodeId,
+		"node_id":             node.NodeId,
+		"fingerprint":         node.Fingerprint,
+		"last_seen":           node.LastSeen,
+		"enabled":             node.Enabled,
+		"hostname":            node.Peer.Hostname,
+		"domain":              node.Peer.Domain,
+		"external_ip_address": node.Peer.ExternalIpAddress,
+		"local_ip_address":    node.Peer.LocalIpAddress,
+		"mac":                 node.Peer.Mac,
+		"protocol":            node.Peer.Protocol,
+		"PortHttp":            node.Peer.PortHttp,
+		"PortHttps":           node.Peer.PortHttps,
+		"state":               node.Peer.State,
+		"typeName":            node.Peer.TypeName,
+	}
+
+	actions := make([]interface{}, 0, len(node.Peer.Actions))
+	for _, action := range node.Peer.Actions {
+		actions = append(actions, action)
+	}
+	doc["actions"] = actions
+
+	if len(node.Labels) > 0 {
+		labels := make(map[string]interface{}, len(node.Labels))
+		for key, value := range node.Labels {
+			labels[key] = value
+		}
+		doc["labels"] = labels
+	}
+
+	return doc
+}
+
+func labelsFromInterface(values interface{}) map[string]string {
+	result := make(map[string]string)
+	if values == nil {
+		return result
+	}
+	switch typed := values.(type) {
+	case map[string]interface{}:
+		for key, value := range typed {
+			result[key] = Utility.ToString(value)
+		}
+	case map[string]string:
+		for key, value := range typed {
+			result[key] = value
+		}
+	case map[interface{}]interface{}:
+		for key, value := range typed {
+			result[Utility.ToString(key)] = Utility.ToString(value)
+		}
+	case string:
+		m := make(map[string]string)
+		if err := json.Unmarshal([]byte(typed), &m); err == nil {
+			return m
+		}
+	}
+	return result
+}
+
 func initPeer(values interface{}) *resourcepb.Peer {
 	values_ := values.(map[string]interface{})
 	state := resourcepb.PeerApprovalState(int32(Utility.ToInt(values_["state"])))
@@ -101,16 +207,29 @@ func initPeer(values interface{}) *resourcepb.Peer {
 	p := &resourcepb.Peer{Protocol: values_["protocol"].(string), PortHttp: PortHttp, PortHttps: PortHttps, Hostname: hostname, Domain: domain, ExternalIpAddress: ExternalIpAddress, LocalIpAddress: LocalIpAddress, Mac: mac, Actions: make([]string, 0), State: state}
 
 	var actions_ []interface{}
-	switch values_["actions"].(type) {
-	case primitive.A:
-		actions_ = []interface{}(values_["actions"].(primitive.A))
-	case []interface{}:
-		actions_ = values_["actions"].([]interface{})
+	if rawActions, ok := values_["actions"]; ok && rawActions != nil {
+		switch v := rawActions.(type) {
+		case primitive.A:
+			actions_ = []interface{}(v)
+		case []interface{}:
+			actions_ = v
+		}
 	}
 
 	for j := 0; j < len(actions_); j++ {
-		p.Actions = append(p.Actions, actions_[j].(string))
+		if action, ok := actions_[j].(string); ok {
+			p.Actions = append(p.Actions, action)
+		}
 	}
+
+	p.NodeId = Utility.ToString(values_["_id"])
+	if values_["node_id"] != nil {
+		p.NodeId = Utility.ToString(values_["node_id"])
+	}
+	p.Fingerprint = Utility.ToString(values_["fingerprint"])
+	p.LastSeen = int64(Utility.ToNumeric(values_["last_seen"]))
+	p.Enabled = Utility.ToBool(values_["enabled"])
+	p.Labels = labelsFromInterface(values_["labels"])
 
 	return p
 }
@@ -143,12 +262,14 @@ func getLocalPeer() *resourcepb.Peer {
 // Returns an AcceptPeerRsp indicating the result of the operation or an error if any step fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The AcceptPeerRqst containing peer information.
+//
+//	ctx - The context for the request.
+//	rqst - The AcceptPeerRqst containing peer information.
 //
 // Returns:
-//   *resourcepb.AcceptPeerRsp - The response indicating success.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.AcceptPeerRsp - The response indicating success.
+//	error - An error if the operation fails.
 func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
 
 	_, token, err := security.GetClientId(ctx)
@@ -198,7 +319,7 @@ func (srv *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRq
 
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
-	srv.addResourceOwner(token, domain,rqst.Peer.Mac, "domain",  rbacpb.SubjectType_PEER)
+	srv.addResourceOwner(token, domain, rqst.Peer.Mac, "domain", rbacpb.SubjectType_PEER)
 	jsonStr, err := protojson.Marshal(rqst.Peer)
 	if err != nil {
 		return nil, err
@@ -299,12 +420,14 @@ func (srv *server) addPeerActions(mac string, actions_ []string) error {
 // if the operation fails.
 //
 // Parameters:
-//   ctx - The context for the request, used for cancellation and deadlines.
-//   rqst - The request containing the peer's MAC address and the actions to add.
+//
+//	ctx - The context for the request, used for cancellation and deadlines.
+//	rqst - The request containing the peer's MAC address and the actions to add.
 //
 // Returns:
-//   *resourcepb.AddPeerActionsRsp - The response indicating the result of the operation.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.AddPeerActionsRsp - The response indicating the result of the operation.
+//	error - An error if the operation fails.
 func (srv *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
 
 	err := srv.addPeerActions(rqst.Mac, rqst.Actions)
@@ -339,6 +462,7 @@ func (srv *server) deletePeer(token, address string) error {
 //   - Removes the peer's public key and entry from /etc/hosts.
 //   - Publishes events to signal peer deletion to other components.
 //   - Attempts to remove the peer from the remote end using a security token.
+//
 // Returns a DeletePeerRsp indicating success or an error if any step fails.
 func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
 
@@ -374,7 +498,7 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 	peer := initPeer(data)
 
 	// Delete all peer access.
-	srv.deleteAllAccess(token,peer.Mac, rbacpb.SubjectType_PEER)
+	srv.deleteAllAccess(token, peer.Mac, rbacpb.SubjectType_PEER)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
 	if err != nil {
@@ -424,7 +548,6 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 		address_ += ":" + Utility.ToString(peer.PortHttp)
 	}
 
-
 	srv.deletePeer(token, address_)
 
 	return &resourcepb.DeletePeerRsp{
@@ -437,12 +560,14 @@ func (srv *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRq
 // Returns a response containing the peer's approval state or an error if the peer information cannot be retrieved.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the MAC address and remote peer address.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the MAC address and remote peer address.
 //
 // Returns:
-//   *resourcepb.GetPeerApprovalStateRsp - The response containing the peer's approval state.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.GetPeerApprovalStateRsp - The response containing the peer's approval state.
+//	error - An error if the operation fails.
 func (srv *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error) {
 	mac := rqst.Mac
 	if len(mac) == 0 {
@@ -577,6 +702,150 @@ func (srv *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.Res
 	}
 
 	return nil
+}
+
+func (srv *server) UpsertNodeIdentity(ctx context.Context, rqst *resourcepb.UpsertNodeIdentityRqst) (*resourcepb.UpsertNodeIdentityRsp, error) {
+	if rqst == nil || rqst.Node == nil {
+		return nil, status.Error(codes.InvalidArgument, "node identity is required")
+	}
+
+	node := rqst.Node
+	if node.NodeId == "" {
+		if node.Peer != nil && node.Peer.Mac != "" {
+			node.NodeId = Utility.GenerateUUID(node.Peer.Mac)
+		} else {
+			node.NodeId = Utility.GenerateUUID(srv.Mac)
+		}
+	}
+
+	if node.LastSeen == 0 {
+		node.LastSeen = time.Now().Unix()
+	}
+
+	doc := nodeIdentityToDocument(node)
+
+	jsonStr, err := Utility.ToJson(doc)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	q := fmt.Sprintf(`{"_id":"%s"}`, node.NodeId)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", q, jsonStr, `[{"upsert":true}]`)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.UpsertNodeIdentityRsp{Node: node}, nil
+}
+
+func (srv *server) GetNodeIdentity(ctx context.Context, rqst *resourcepb.GetNodeIdentityRqst) (*resourcepb.GetNodeIdentityRsp, error) {
+	if rqst == nil || rqst.NodeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	q := fmt.Sprintf(`{"_id":"%s"}`, rqst.NodeId)
+	data, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", q, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if data == nil {
+		return nil, status.Errorf(
+			codes.NotFound,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("node identity not found")))
+	}
+
+	return &resourcepb.GetNodeIdentityRsp{
+		Node: nodeIdentityFromValues(data),
+	}, nil
+}
+
+func (srv *server) ListNodeIdentities(rqst *resourcepb.ListNodeIdentitiesRqst, stream resourcepb.ResourceService_ListNodeIdentitiesServer) error {
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	query := rqst.Query
+	if len(query) == 0 {
+		query = "{}"
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	maxSize := 100
+	streamBatch := make([]*resourcepb.NodeIdentity, 0)
+	for _, entry := range values {
+		node := nodeIdentityFromValues(entry)
+		streamBatch = append(streamBatch, node)
+		if len(streamBatch) >= maxSize {
+			if err := stream.Send(&resourcepb.ListNodeIdentitiesRsp{Nodes: streamBatch}); err != nil {
+				return status.Errorf(
+					codes.Internal,
+					"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			streamBatch = make([]*resourcepb.NodeIdentity, 0)
+		}
+	}
+
+	if len(streamBatch) > 0 {
+		if err := stream.Send(&resourcepb.ListNodeIdentitiesRsp{Nodes: streamBatch}); err != nil {
+			return status.Errorf(
+				codes.Internal,
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return nil
+}
+
+func (srv *server) SetNodeIdentityEnabled(ctx context.Context, rqst *resourcepb.SetNodeIdentityEnabledRqst) (*resourcepb.SetNodeIdentityEnabledRsp, error) {
+	if rqst == nil || rqst.NodeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+
+	p, err := srv.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	q := fmt.Sprintf(`{"_id":"%s"}`, rqst.NodeId)
+	update := fmt.Sprintf(`{"$set":{"enabled":%t}}`, rqst.Enabled)
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", q, update, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.SetNodeIdentityEnabledRsp{Result: true}, nil
 }
 
 func (srv *server) registerPeer(address string) (*resourcepb.Peer, string, error) {
@@ -903,12 +1172,14 @@ func (srv *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPe
 // Returns a RejectPeerRsp with the result of the operation or an error if any step fails.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The RejectPeerRqst containing peer information to be rejected.
+//
+//	ctx - The context for the request.
+//	rqst - The RejectPeerRqst containing peer information to be rejected.
 //
 // Returns:
-//   *resourcepb.RejectPeerRsp - The response indicating success or failure.
-//   error - An error if the operation fails.
+//
+//	*resourcepb.RejectPeerRsp - The response indicating success or failure.
+//	error - An error if the operation fails.
 func (srv *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
 
 	p, err := srv.getPersistenceStore()
@@ -1099,12 +1370,14 @@ func (srv *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.Remov
 // After updating, it publishes events to notify about the peer update and returns a response indicating success.
 //
 // Parameters:
-//   ctx - The context for the request.
-//   rqst - The request containing the updated peer information.
+//
+//	ctx - The context for the request.
+//	rqst - The request containing the updated peer information.
 //
 // Returns:
-//   *resourcepb.UpdatePeerRsp - The response indicating the result of the update operation.
-//   error - An error if the update fails.
+//
+//	*resourcepb.UpdatePeerRsp - The response indicating the result of the update operation.
+//	error - An error if the update fails.
 func (srv *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRqst) (*resourcepb.UpdatePeerRsp, error) {
 	// Get the persistence connection
 	p, err := srv.getPersistenceStore()

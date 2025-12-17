@@ -67,19 +67,10 @@ const (
 	ResourceService_RemoveApplicationAction_FullMethodName       = "/resource.ResourceService/RemoveApplicationAction"
 	ResourceService_RemoveApplicationsAction_FullMethodName      = "/resource.ResourceService/RemoveApplicationsAction"
 	ResourceService_GetApplicationVersion_FullMethodName         = "/resource.ResourceService/GetApplicationVersion"
-	ResourceService_GetApplicationAlias_FullMethodName           = "/resource.ResourceService/GetApplicationAlias"
-	ResourceService_GetApplicationIcon_FullMethodName            = "/resource.ResourceService/GetApplicationIcon"
-	ResourceService_RegisterPeer_FullMethodName                  = "/resource.ResourceService/RegisterPeer"
-	ResourceService_GetPeers_FullMethodName                      = "/resource.ResourceService/GetPeers"
-	ResourceService_GetPeerApprovalState_FullMethodName          = "/resource.ResourceService/GetPeerApprovalState"
-	ResourceService_DeletePeer_FullMethodName                    = "/resource.ResourceService/DeletePeer"
-	ResourceService_UpdatePeer_FullMethodName                    = "/resource.ResourceService/UpdatePeer"
-	ResourceService_AddPeerActions_FullMethodName                = "/resource.ResourceService/AddPeerActions"
-	ResourceService_RemovePeerAction_FullMethodName              = "/resource.ResourceService/RemovePeerAction"
-	ResourceService_RemovePeersAction_FullMethodName             = "/resource.ResourceService/RemovePeersAction"
-	ResourceService_AcceptPeer_FullMethodName                    = "/resource.ResourceService/AcceptPeer"
-	ResourceService_RejectPeer_FullMethodName                    = "/resource.ResourceService/RejectPeer"
-	ResourceService_GetPeerPublicKey_FullMethodName              = "/resource.ResourceService/GetPeerPublicKey"
+	ResourceService_UpsertNodeIdentity_FullMethodName            = "/resource.ResourceService/UpsertNodeIdentity"
+	ResourceService_GetNodeIdentity_FullMethodName               = "/resource.ResourceService/GetNodeIdentity"
+	ResourceService_ListNodeIdentities_FullMethodName            = "/resource.ResourceService/ListNodeIdentities"
+	ResourceService_SetNodeIdentityEnabled_FullMethodName        = "/resource.ResourceService/SetNodeIdentityEnabled"
 	ResourceService_CreateNotification_FullMethodName            = "/resource.ResourceService/CreateNotification"
 	ResourceService_GetNotifications_FullMethodName              = "/resource.ResourceService/GetNotifications"
 	ResourceService_DeleteNotification_FullMethodName            = "/resource.ResourceService/DeleteNotification"
@@ -205,32 +196,14 @@ type ResourceServiceClient interface {
 	RemoveApplicationsAction(ctx context.Context, in *RemoveApplicationsActionRqst, opts ...grpc.CallOption) (*RemoveApplicationsActionRsp, error)
 	// Retrieves the version of a specified application.
 	GetApplicationVersion(ctx context.Context, in *GetApplicationVersionRqst, opts ...grpc.CallOption) (*GetApplicationVersionRsp, error)
-	// Obtains the alias (a user-friendly name) for a specific application.
-	GetApplicationAlias(ctx context.Context, in *GetApplicationAliasRqst, opts ...grpc.CallOption) (*GetApplicationAliasRsp, error)
-	// Fetches the icon associated with a particular application.
-	GetApplicationIcon(ctx context.Context, in *GetApplicationIconRqst, opts ...grpc.CallOption) (*GetApplicationIconRsp, error)
-	// Registers a new peer in the network.
-	RegisterPeer(ctx context.Context, in *RegisterPeerRqst, opts ...grpc.CallOption) (*RegisterPeerRsp, error)
-	// Retrieves a list of all peers in the network.
-	GetPeers(ctx context.Context, in *GetPeersRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetPeersRsp], error)
-	// Gets the approval state of a peer from another peer's perspective.
-	GetPeerApprovalState(ctx context.Context, in *GetPeerApprovalStateRqst, opts ...grpc.CallOption) (*GetPeerApprovalStateRsp, error)
-	// Removes a peer from the network.
-	DeletePeer(ctx context.Context, in *DeletePeerRqst, opts ...grpc.CallOption) (*DeletePeerRsp, error)
-	// Updates the information of an existing peer.
-	UpdatePeer(ctx context.Context, in *UpdatePeerRqst, opts ...grpc.CallOption) (*UpdatePeerRsp, error)
-	// Adds actions to a peer.
-	AddPeerActions(ctx context.Context, in *AddPeerActionsRqst, opts ...grpc.CallOption) (*AddPeerActionsRsp, error)
-	// Removes a specific action permission from a peer.
-	RemovePeerAction(ctx context.Context, in *RemovePeerActionRqst, opts ...grpc.CallOption) (*RemovePeerActionRsp, error)
-	// Removes a specific action permission from multiple peers.
-	RemovePeersAction(ctx context.Context, in *RemovePeersActionRqst, opts ...grpc.CallOption) (*RemovePeersActionRsp, error)
-	// Accepts a peer into the network.
-	AcceptPeer(ctx context.Context, in *AcceptPeerRqst, opts ...grpc.CallOption) (*AcceptPeerRsp, error)
-	// Rejects a peer and prevents further connection attempts.
-	RejectPeer(ctx context.Context, in *RejectPeerRqst, opts ...grpc.CallOption) (*RejectPeerRsp, error)
-	// Retrieves the public key of a specified peer.
-	GetPeerPublicKey(ctx context.Context, in *GetPeerPublicKeyRqst, opts ...grpc.CallOption) (*GetPeerPublicKeyRsp, error)
+	// Upserts node identity metadata created by the node agent.
+	UpsertNodeIdentity(ctx context.Context, in *UpsertNodeIdentityRqst, opts ...grpc.CallOption) (*UpsertNodeIdentityRsp, error)
+	// Reads node identity by its stable node_id.
+	GetNodeIdentity(ctx context.Context, in *GetNodeIdentityRqst, opts ...grpc.CallOption) (*GetNodeIdentityRsp, error)
+	// Streams every known node identity (used by Cluster Controller and UI).
+	ListNodeIdentities(ctx context.Context, in *ListNodeIdentitiesRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListNodeIdentitiesRsp], error)
+	// Toggles whether a node identity remains allowed to participate.
+	SetNodeIdentityEnabled(ctx context.Context, in *SetNodeIdentityEnabledRqst, opts ...grpc.CallOption) (*SetNodeIdentityEnabledRsp, error)
 	// Creates a new notification.
 	CreateNotification(ctx context.Context, in *CreateNotificationRqst, opts ...grpc.CallOption) (*CreateNotificationRsp, error)
 	// Retrieves a stream of notifications.
@@ -804,43 +777,33 @@ func (c *resourceServiceClient) GetApplicationVersion(ctx context.Context, in *G
 	return out, nil
 }
 
-func (c *resourceServiceClient) GetApplicationAlias(ctx context.Context, in *GetApplicationAliasRqst, opts ...grpc.CallOption) (*GetApplicationAliasRsp, error) {
+func (c *resourceServiceClient) UpsertNodeIdentity(ctx context.Context, in *UpsertNodeIdentityRqst, opts ...grpc.CallOption) (*UpsertNodeIdentityRsp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetApplicationAliasRsp)
-	err := c.cc.Invoke(ctx, ResourceService_GetApplicationAlias_FullMethodName, in, out, cOpts...)
+	out := new(UpsertNodeIdentityRsp)
+	err := c.cc.Invoke(ctx, ResourceService_UpsertNodeIdentity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *resourceServiceClient) GetApplicationIcon(ctx context.Context, in *GetApplicationIconRqst, opts ...grpc.CallOption) (*GetApplicationIconRsp, error) {
+func (c *resourceServiceClient) GetNodeIdentity(ctx context.Context, in *GetNodeIdentityRqst, opts ...grpc.CallOption) (*GetNodeIdentityRsp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetApplicationIconRsp)
-	err := c.cc.Invoke(ctx, ResourceService_GetApplicationIcon_FullMethodName, in, out, cOpts...)
+	out := new(GetNodeIdentityRsp)
+	err := c.cc.Invoke(ctx, ResourceService_GetNodeIdentity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *resourceServiceClient) RegisterPeer(ctx context.Context, in *RegisterPeerRqst, opts ...grpc.CallOption) (*RegisterPeerRsp, error) {
+func (c *resourceServiceClient) ListNodeIdentities(ctx context.Context, in *ListNodeIdentitiesRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListNodeIdentitiesRsp], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RegisterPeerRsp)
-	err := c.cc.Invoke(ctx, ResourceService_RegisterPeer_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &ResourceService_ServiceDesc.Streams[5], ResourceService_ListNodeIdentities_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) GetPeers(ctx context.Context, in *GetPeersRqst, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetPeersRsp], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ResourceService_ServiceDesc.Streams[5], ResourceService_GetPeers_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[GetPeersRqst, GetPeersRsp]{ClientStream: stream}
+	x := &grpc.GenericClientStream[ListNodeIdentitiesRqst, ListNodeIdentitiesRsp]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -851,92 +814,12 @@ func (c *resourceServiceClient) GetPeers(ctx context.Context, in *GetPeersRqst, 
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ResourceService_GetPeersClient = grpc.ServerStreamingClient[GetPeersRsp]
+type ResourceService_ListNodeIdentitiesClient = grpc.ServerStreamingClient[ListNodeIdentitiesRsp]
 
-func (c *resourceServiceClient) GetPeerApprovalState(ctx context.Context, in *GetPeerApprovalStateRqst, opts ...grpc.CallOption) (*GetPeerApprovalStateRsp, error) {
+func (c *resourceServiceClient) SetNodeIdentityEnabled(ctx context.Context, in *SetNodeIdentityEnabledRqst, opts ...grpc.CallOption) (*SetNodeIdentityEnabledRsp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetPeerApprovalStateRsp)
-	err := c.cc.Invoke(ctx, ResourceService_GetPeerApprovalState_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) DeletePeer(ctx context.Context, in *DeletePeerRqst, opts ...grpc.CallOption) (*DeletePeerRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeletePeerRsp)
-	err := c.cc.Invoke(ctx, ResourceService_DeletePeer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) UpdatePeer(ctx context.Context, in *UpdatePeerRqst, opts ...grpc.CallOption) (*UpdatePeerRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdatePeerRsp)
-	err := c.cc.Invoke(ctx, ResourceService_UpdatePeer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) AddPeerActions(ctx context.Context, in *AddPeerActionsRqst, opts ...grpc.CallOption) (*AddPeerActionsRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AddPeerActionsRsp)
-	err := c.cc.Invoke(ctx, ResourceService_AddPeerActions_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) RemovePeerAction(ctx context.Context, in *RemovePeerActionRqst, opts ...grpc.CallOption) (*RemovePeerActionRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemovePeerActionRsp)
-	err := c.cc.Invoke(ctx, ResourceService_RemovePeerAction_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) RemovePeersAction(ctx context.Context, in *RemovePeersActionRqst, opts ...grpc.CallOption) (*RemovePeersActionRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemovePeersActionRsp)
-	err := c.cc.Invoke(ctx, ResourceService_RemovePeersAction_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) AcceptPeer(ctx context.Context, in *AcceptPeerRqst, opts ...grpc.CallOption) (*AcceptPeerRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AcceptPeerRsp)
-	err := c.cc.Invoke(ctx, ResourceService_AcceptPeer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) RejectPeer(ctx context.Context, in *RejectPeerRqst, opts ...grpc.CallOption) (*RejectPeerRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RejectPeerRsp)
-	err := c.cc.Invoke(ctx, ResourceService_RejectPeer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *resourceServiceClient) GetPeerPublicKey(ctx context.Context, in *GetPeerPublicKeyRqst, opts ...grpc.CallOption) (*GetPeerPublicKeyRsp, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetPeerPublicKeyRsp)
-	err := c.cc.Invoke(ctx, ResourceService_GetPeerPublicKey_FullMethodName, in, out, cOpts...)
+	out := new(SetNodeIdentityEnabledRsp)
+	err := c.cc.Invoke(ctx, ResourceService_SetNodeIdentityEnabled_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1152,7 +1035,7 @@ func (c *resourceServiceClient) ClearCalls(ctx context.Context, in *ClearCallsRq
 }
 
 // ResourceServiceServer is the server API for ResourceService service.
-// All implementations should embed UnimplementedResourceServiceServer
+// All implementations must embed UnimplementedResourceServiceServer
 // for forward compatibility.
 //
 // *
@@ -1255,32 +1138,14 @@ type ResourceServiceServer interface {
 	RemoveApplicationsAction(context.Context, *RemoveApplicationsActionRqst) (*RemoveApplicationsActionRsp, error)
 	// Retrieves the version of a specified application.
 	GetApplicationVersion(context.Context, *GetApplicationVersionRqst) (*GetApplicationVersionRsp, error)
-	// Obtains the alias (a user-friendly name) for a specific application.
-	GetApplicationAlias(context.Context, *GetApplicationAliasRqst) (*GetApplicationAliasRsp, error)
-	// Fetches the icon associated with a particular application.
-	GetApplicationIcon(context.Context, *GetApplicationIconRqst) (*GetApplicationIconRsp, error)
-	// Registers a new peer in the network.
-	RegisterPeer(context.Context, *RegisterPeerRqst) (*RegisterPeerRsp, error)
-	// Retrieves a list of all peers in the network.
-	GetPeers(*GetPeersRqst, grpc.ServerStreamingServer[GetPeersRsp]) error
-	// Gets the approval state of a peer from another peer's perspective.
-	GetPeerApprovalState(context.Context, *GetPeerApprovalStateRqst) (*GetPeerApprovalStateRsp, error)
-	// Removes a peer from the network.
-	DeletePeer(context.Context, *DeletePeerRqst) (*DeletePeerRsp, error)
-	// Updates the information of an existing peer.
-	UpdatePeer(context.Context, *UpdatePeerRqst) (*UpdatePeerRsp, error)
-	// Adds actions to a peer.
-	AddPeerActions(context.Context, *AddPeerActionsRqst) (*AddPeerActionsRsp, error)
-	// Removes a specific action permission from a peer.
-	RemovePeerAction(context.Context, *RemovePeerActionRqst) (*RemovePeerActionRsp, error)
-	// Removes a specific action permission from multiple peers.
-	RemovePeersAction(context.Context, *RemovePeersActionRqst) (*RemovePeersActionRsp, error)
-	// Accepts a peer into the network.
-	AcceptPeer(context.Context, *AcceptPeerRqst) (*AcceptPeerRsp, error)
-	// Rejects a peer and prevents further connection attempts.
-	RejectPeer(context.Context, *RejectPeerRqst) (*RejectPeerRsp, error)
-	// Retrieves the public key of a specified peer.
-	GetPeerPublicKey(context.Context, *GetPeerPublicKeyRqst) (*GetPeerPublicKeyRsp, error)
+	// Upserts node identity metadata created by the node agent.
+	UpsertNodeIdentity(context.Context, *UpsertNodeIdentityRqst) (*UpsertNodeIdentityRsp, error)
+	// Reads node identity by its stable node_id.
+	GetNodeIdentity(context.Context, *GetNodeIdentityRqst) (*GetNodeIdentityRsp, error)
+	// Streams every known node identity (used by Cluster Controller and UI).
+	ListNodeIdentities(*ListNodeIdentitiesRqst, grpc.ServerStreamingServer[ListNodeIdentitiesRsp]) error
+	// Toggles whether a node identity remains allowed to participate.
+	SetNodeIdentityEnabled(context.Context, *SetNodeIdentityEnabledRqst) (*SetNodeIdentityEnabledRsp, error)
 	// Creates a new notification.
 	CreateNotification(context.Context, *CreateNotificationRqst) (*CreateNotificationRsp, error)
 	// Retrieves a stream of notifications.
@@ -1319,9 +1184,10 @@ type ResourceServiceServer interface {
 	DeleteCall(context.Context, *DeleteCallRqst) (*DeleteCallRsp, error)
 	// Clears all call records.
 	ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error)
+	mustEmbedUnimplementedResourceServiceServer()
 }
 
-// UnimplementedResourceServiceServer should be embedded to have
+// UnimplementedResourceServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -1472,44 +1338,17 @@ func (UnimplementedResourceServiceServer) RemoveApplicationsAction(context.Conte
 func (UnimplementedResourceServiceServer) GetApplicationVersion(context.Context, *GetApplicationVersionRqst) (*GetApplicationVersionRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApplicationVersion not implemented")
 }
-func (UnimplementedResourceServiceServer) GetApplicationAlias(context.Context, *GetApplicationAliasRqst) (*GetApplicationAliasRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetApplicationAlias not implemented")
+func (UnimplementedResourceServiceServer) UpsertNodeIdentity(context.Context, *UpsertNodeIdentityRqst) (*UpsertNodeIdentityRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertNodeIdentity not implemented")
 }
-func (UnimplementedResourceServiceServer) GetApplicationIcon(context.Context, *GetApplicationIconRqst) (*GetApplicationIconRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetApplicationIcon not implemented")
+func (UnimplementedResourceServiceServer) GetNodeIdentity(context.Context, *GetNodeIdentityRqst) (*GetNodeIdentityRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodeIdentity not implemented")
 }
-func (UnimplementedResourceServiceServer) RegisterPeer(context.Context, *RegisterPeerRqst) (*RegisterPeerRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegisterPeer not implemented")
+func (UnimplementedResourceServiceServer) ListNodeIdentities(*ListNodeIdentitiesRqst, grpc.ServerStreamingServer[ListNodeIdentitiesRsp]) error {
+	return status.Errorf(codes.Unimplemented, "method ListNodeIdentities not implemented")
 }
-func (UnimplementedResourceServiceServer) GetPeers(*GetPeersRqst, grpc.ServerStreamingServer[GetPeersRsp]) error {
-	return status.Errorf(codes.Unimplemented, "method GetPeers not implemented")
-}
-func (UnimplementedResourceServiceServer) GetPeerApprovalState(context.Context, *GetPeerApprovalStateRqst) (*GetPeerApprovalStateRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetPeerApprovalState not implemented")
-}
-func (UnimplementedResourceServiceServer) DeletePeer(context.Context, *DeletePeerRqst) (*DeletePeerRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeletePeer not implemented")
-}
-func (UnimplementedResourceServiceServer) UpdatePeer(context.Context, *UpdatePeerRqst) (*UpdatePeerRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdatePeer not implemented")
-}
-func (UnimplementedResourceServiceServer) AddPeerActions(context.Context, *AddPeerActionsRqst) (*AddPeerActionsRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddPeerActions not implemented")
-}
-func (UnimplementedResourceServiceServer) RemovePeerAction(context.Context, *RemovePeerActionRqst) (*RemovePeerActionRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemovePeerAction not implemented")
-}
-func (UnimplementedResourceServiceServer) RemovePeersAction(context.Context, *RemovePeersActionRqst) (*RemovePeersActionRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemovePeersAction not implemented")
-}
-func (UnimplementedResourceServiceServer) AcceptPeer(context.Context, *AcceptPeerRqst) (*AcceptPeerRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AcceptPeer not implemented")
-}
-func (UnimplementedResourceServiceServer) RejectPeer(context.Context, *RejectPeerRqst) (*RejectPeerRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RejectPeer not implemented")
-}
-func (UnimplementedResourceServiceServer) GetPeerPublicKey(context.Context, *GetPeerPublicKeyRqst) (*GetPeerPublicKeyRsp, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetPeerPublicKey not implemented")
+func (UnimplementedResourceServiceServer) SetNodeIdentityEnabled(context.Context, *SetNodeIdentityEnabledRqst) (*SetNodeIdentityEnabledRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetNodeIdentityEnabled not implemented")
 }
 func (UnimplementedResourceServiceServer) CreateNotification(context.Context, *CreateNotificationRqst) (*CreateNotificationRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateNotification not implemented")
@@ -1568,7 +1407,8 @@ func (UnimplementedResourceServiceServer) DeleteCall(context.Context, *DeleteCal
 func (UnimplementedResourceServiceServer) ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClearCalls not implemented")
 }
-func (UnimplementedResourceServiceServer) testEmbeddedByValue() {}
+func (UnimplementedResourceServiceServer) mustEmbedUnimplementedResourceServiceServer() {}
+func (UnimplementedResourceServiceServer) testEmbeddedByValue()                         {}
 
 // UnsafeResourceServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ResourceServiceServer will
@@ -2417,229 +2257,67 @@ func _ResourceService_GetApplicationVersion_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ResourceService_GetApplicationAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetApplicationAliasRqst)
+func _ResourceService_UpsertNodeIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertNodeIdentityRqst)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ResourceServiceServer).GetApplicationAlias(ctx, in)
+		return srv.(ResourceServiceServer).UpsertNodeIdentity(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ResourceService_GetApplicationAlias_FullMethodName,
+		FullMethod: ResourceService_UpsertNodeIdentity_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).GetApplicationAlias(ctx, req.(*GetApplicationAliasRqst))
+		return srv.(ResourceServiceServer).UpsertNodeIdentity(ctx, req.(*UpsertNodeIdentityRqst))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ResourceService_GetApplicationIcon_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetApplicationIconRqst)
+func _ResourceService_GetNodeIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeIdentityRqst)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ResourceServiceServer).GetApplicationIcon(ctx, in)
+		return srv.(ResourceServiceServer).GetNodeIdentity(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ResourceService_GetApplicationIcon_FullMethodName,
+		FullMethod: ResourceService_GetNodeIdentity_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).GetApplicationIcon(ctx, req.(*GetApplicationIconRqst))
+		return srv.(ResourceServiceServer).GetNodeIdentity(ctx, req.(*GetNodeIdentityRqst))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ResourceService_RegisterPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterPeerRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).RegisterPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_RegisterPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).RegisterPeer(ctx, req.(*RegisterPeerRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_GetPeers_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetPeersRqst)
+func _ResourceService_ListNodeIdentities_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListNodeIdentitiesRqst)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ResourceServiceServer).GetPeers(m, &grpc.GenericServerStream[GetPeersRqst, GetPeersRsp]{ServerStream: stream})
+	return srv.(ResourceServiceServer).ListNodeIdentities(m, &grpc.GenericServerStream[ListNodeIdentitiesRqst, ListNodeIdentitiesRsp]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ResourceService_GetPeersServer = grpc.ServerStreamingServer[GetPeersRsp]
+type ResourceService_ListNodeIdentitiesServer = grpc.ServerStreamingServer[ListNodeIdentitiesRsp]
 
-func _ResourceService_GetPeerApprovalState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetPeerApprovalStateRqst)
+func _ResourceService_SetNodeIdentityEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetNodeIdentityEnabledRqst)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ResourceServiceServer).GetPeerApprovalState(ctx, in)
+		return srv.(ResourceServiceServer).SetNodeIdentityEnabled(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ResourceService_GetPeerApprovalState_FullMethodName,
+		FullMethod: ResourceService_SetNodeIdentityEnabled_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).GetPeerApprovalState(ctx, req.(*GetPeerApprovalStateRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_DeletePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeletePeerRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).DeletePeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_DeletePeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).DeletePeer(ctx, req.(*DeletePeerRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_UpdatePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdatePeerRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).UpdatePeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_UpdatePeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).UpdatePeer(ctx, req.(*UpdatePeerRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_AddPeerActions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddPeerActionsRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).AddPeerActions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_AddPeerActions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).AddPeerActions(ctx, req.(*AddPeerActionsRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_RemovePeerAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemovePeerActionRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).RemovePeerAction(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_RemovePeerAction_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).RemovePeerAction(ctx, req.(*RemovePeerActionRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_RemovePeersAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemovePeersActionRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).RemovePeersAction(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_RemovePeersAction_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).RemovePeersAction(ctx, req.(*RemovePeersActionRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_AcceptPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AcceptPeerRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).AcceptPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_AcceptPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).AcceptPeer(ctx, req.(*AcceptPeerRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_RejectPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RejectPeerRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).RejectPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_RejectPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).RejectPeer(ctx, req.(*RejectPeerRqst))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ResourceService_GetPeerPublicKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetPeerPublicKeyRqst)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ResourceServiceServer).GetPeerPublicKey(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ResourceService_GetPeerPublicKey_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceServiceServer).GetPeerPublicKey(ctx, req.(*GetPeerPublicKeyRqst))
+		return srv.(ResourceServiceServer).SetNodeIdentityEnabled(ctx, req.(*SetNodeIdentityEnabledRqst))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3152,52 +2830,16 @@ var ResourceService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ResourceService_GetApplicationVersion_Handler,
 		},
 		{
-			MethodName: "GetApplicationAlias",
-			Handler:    _ResourceService_GetApplicationAlias_Handler,
+			MethodName: "UpsertNodeIdentity",
+			Handler:    _ResourceService_UpsertNodeIdentity_Handler,
 		},
 		{
-			MethodName: "GetApplicationIcon",
-			Handler:    _ResourceService_GetApplicationIcon_Handler,
+			MethodName: "GetNodeIdentity",
+			Handler:    _ResourceService_GetNodeIdentity_Handler,
 		},
 		{
-			MethodName: "RegisterPeer",
-			Handler:    _ResourceService_RegisterPeer_Handler,
-		},
-		{
-			MethodName: "GetPeerApprovalState",
-			Handler:    _ResourceService_GetPeerApprovalState_Handler,
-		},
-		{
-			MethodName: "DeletePeer",
-			Handler:    _ResourceService_DeletePeer_Handler,
-		},
-		{
-			MethodName: "UpdatePeer",
-			Handler:    _ResourceService_UpdatePeer_Handler,
-		},
-		{
-			MethodName: "AddPeerActions",
-			Handler:    _ResourceService_AddPeerActions_Handler,
-		},
-		{
-			MethodName: "RemovePeerAction",
-			Handler:    _ResourceService_RemovePeerAction_Handler,
-		},
-		{
-			MethodName: "RemovePeersAction",
-			Handler:    _ResourceService_RemovePeersAction_Handler,
-		},
-		{
-			MethodName: "AcceptPeer",
-			Handler:    _ResourceService_AcceptPeer_Handler,
-		},
-		{
-			MethodName: "RejectPeer",
-			Handler:    _ResourceService_RejectPeer_Handler,
-		},
-		{
-			MethodName: "GetPeerPublicKey",
-			Handler:    _ResourceService_GetPeerPublicKey_Handler,
+			MethodName: "SetNodeIdentityEnabled",
+			Handler:    _ResourceService_SetNodeIdentityEnabled_Handler,
 		},
 		{
 			MethodName: "CreateNotification",
@@ -3295,8 +2937,8 @@ var ResourceService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "GetPeers",
-			Handler:       _ResourceService_GetPeers_Handler,
+			StreamName:    "ListNodeIdentities",
+			Handler:       _ResourceService_ListNodeIdentities_Handler,
 			ServerStreams: true,
 		},
 		{

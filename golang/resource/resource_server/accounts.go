@@ -1862,7 +1862,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 

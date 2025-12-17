@@ -1265,6 +1265,57 @@ func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error
 	return peers, nil
 }
 
+func (client *Resource_Client) UpsertNodeIdentity(node *resourcepb.NodeIdentity) (*resourcepb.NodeIdentity, error) {
+	rqst := &resourcepb.UpsertNodeIdentityRqst{Node: node}
+	rsp, err := client.c.UpsertNodeIdentity(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Node, nil
+}
+
+func (client *Resource_Client) GetNodeIdentity(nodeID string) (*resourcepb.NodeIdentity, error) {
+	rqst := &resourcepb.GetNodeIdentityRqst{NodeId: nodeID}
+	rsp, err := client.c.GetNodeIdentity(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Node, nil
+}
+
+func (client *Resource_Client) ListNodeIdentities(query, options string) ([]*resourcepb.NodeIdentity, error) {
+	rqst := &resourcepb.ListNodeIdentitiesRqst{
+		Query:   query,
+		Options: options,
+	}
+	stream, err := client.c.ListNodeIdentities(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]*resourcepb.NodeIdentity, 0)
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, msg.Nodes...)
+	}
+	return nodes, nil
+}
+
+func (client *Resource_Client) SetNodeIdentityEnabled(nodeID string, enabled bool) error {
+	rqst := &resourcepb.SetNodeIdentityEnabledRqst{
+		NodeId:  nodeID,
+		Enabled: enabled,
+	}
+	_, err := client.c.SetNodeIdentityEnabled(client.GetCtx(), rqst)
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Application
 ////////////////////////////////////////////////////////////////////////////////

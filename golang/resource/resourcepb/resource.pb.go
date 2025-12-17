@@ -71,56 +71,6 @@ func (PackageType) EnumDescriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{0}
 }
 
-// Enum to represent the approval state of a peer.
-type PeerApprovalState int32
-
-const (
-	PeerApprovalState_PEER_PENDING  PeerApprovalState = 0 // Approval is pending.
-	PeerApprovalState_PEER_ACCETEP  PeerApprovalState = 1 // Peer has been accepted.
-	PeerApprovalState_PEER_REJECTED PeerApprovalState = 2 // Peer has been rejected.
-)
-
-// Enum value maps for PeerApprovalState.
-var (
-	PeerApprovalState_name = map[int32]string{
-		0: "PEER_PENDING",
-		1: "PEER_ACCETEP",
-		2: "PEER_REJECTED",
-	}
-	PeerApprovalState_value = map[string]int32{
-		"PEER_PENDING":  0,
-		"PEER_ACCETEP":  1,
-		"PEER_REJECTED": 2,
-	}
-)
-
-func (x PeerApprovalState) Enum() *PeerApprovalState {
-	p := new(PeerApprovalState)
-	*p = x
-	return p
-}
-
-func (x PeerApprovalState) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (PeerApprovalState) Descriptor() protoreflect.EnumDescriptor {
-	return file_resource_proto_enumTypes[1].Descriptor()
-}
-
-func (PeerApprovalState) Type() protoreflect.EnumType {
-	return &file_resource_proto_enumTypes[1]
-}
-
-func (x PeerApprovalState) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PeerApprovalState.Descriptor instead.
-func (PeerApprovalState) EnumDescriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{1}
-}
-
 // Enumeration for different types of notifications.
 type NotificationType int32
 
@@ -155,11 +105,11 @@ func (x NotificationType) String() string {
 }
 
 func (NotificationType) Descriptor() protoreflect.EnumDescriptor {
-	return file_resource_proto_enumTypes[2].Descriptor()
+	return file_resource_proto_enumTypes[1].Descriptor()
 }
 
 func (NotificationType) Type() protoreflect.EnumType {
-	return &file_resource_proto_enumTypes[2]
+	return &file_resource_proto_enumTypes[1]
 }
 
 func (x NotificationType) Number() protoreflect.EnumNumber {
@@ -168,7 +118,7 @@ func (x NotificationType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NotificationType.Descriptor instead.
 func (NotificationType) EnumDescriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{2}
+	return file_resource_proto_rawDescGZIP(), []int{1}
 }
 
 // Enumeration for session states.
@@ -205,11 +155,11 @@ func (x SessionState) String() string {
 }
 
 func (SessionState) Descriptor() protoreflect.EnumDescriptor {
-	return file_resource_proto_enumTypes[3].Descriptor()
+	return file_resource_proto_enumTypes[2].Descriptor()
 }
 
 func (SessionState) Type() protoreflect.EnumType {
-	return &file_resource_proto_enumTypes[3]
+	return &file_resource_proto_enumTypes[2]
 }
 
 func (x SessionState) Number() protoreflect.EnumNumber {
@@ -218,7 +168,7 @@ func (x SessionState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SessionState.Descriptor instead.
 func (SessionState) EnumDescriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{3}
+	return file_resource_proto_rawDescGZIP(), []int{2}
 }
 
 // *
@@ -6348,39 +6298,42 @@ func (x *DeleteOrganizationRsp) GetResult() bool {
 	return false
 }
 
-// *
-// Definition of a peer in the network.
-type Peer struct {
+// * Represents a lasting node identity for RBAC and enrollment tracking.
+type NodeIdentity struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Hostname          string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`                                              // Hostname of the peer.
-	Domain            string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`                                                  // Domain associated with the peer, must be unique.
-	ExternalIpAddress string                 `protobuf:"bytes,3,opt,name=external_ip_address,json=ExternalIPAddress,proto3" json:"external_ip_address,omitempty"` // External IP address of the peer.
-	LocalIpAddress    string                 `protobuf:"bytes,4,opt,name=local_ip_address,json=localIPAddress,proto3" json:"local_ip_address,omitempty"`          // Local IP address of the peer.
-	Mac               string                 `protobuf:"bytes,5,opt,name=mac,proto3" json:"mac,omitempty"`                                                        // MAC address of the peer.
-	PortHttp          int32                  `protobuf:"varint,6,opt,name=port_http,json=PortHTTP,proto3" json:"port_http,omitempty"`                             // HTTP port used by the peer.
-	PortHttps         int32                  `protobuf:"varint,7,opt,name=port_https,json=PortHTTPS,proto3" json:"port_https,omitempty"`                          // HTTPS port used by the peer.
-	Protocol          string                 `protobuf:"bytes,8,opt,name=protocol,proto3" json:"protocol,omitempty"`                                              // Protocol used (http or https).
-	State             PeerApprovalState      `protobuf:"varint,9,opt,name=state,proto3,enum=resource.PeerApprovalState" json:"state,omitempty"`                   // Current approval state of the peer.
-	Actions           []string               `protobuf:"bytes,10,rep,name=actions,proto3" json:"actions,omitempty"`                                               // Actions that the peer can perform.
-	TypeName          string                 `protobuf:"bytes,11,opt,name=typeName,proto3" json:"typeName,omitempty"`                                             // Type information of the object.
+	NodeId            string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                                                              // Unique UUID persisted by the node agent.
+	Hostname          string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`                                                                        // Hostname of the node agent.
+	Domain            string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                                                                            // Domain associated with the node.
+	ExternalIpAddress string                 `protobuf:"bytes,4,opt,name=external_ip_address,json=externalIpAddress,proto3" json:"external_ip_address,omitempty"`                           // External IP address of the node agent.
+	LocalIpAddress    string                 `protobuf:"bytes,5,opt,name=local_ip_address,json=localIpAddress,proto3" json:"local_ip_address,omitempty"`                                    // Local IP address of the node agent.
+	Mac               string                 `protobuf:"bytes,6,opt,name=mac,proto3" json:"mac,omitempty"`                                                                                  // MAC address of the node agent.
+	PortHttp          int32                  `protobuf:"varint,7,opt,name=port_http,json=portHttp,proto3" json:"port_http,omitempty"`                                                       // HTTP port used by the node agent.
+	PortHttps         int32                  `protobuf:"varint,8,opt,name=port_https,json=portHttps,proto3" json:"port_https,omitempty"`                                                    // HTTPS port used by the node agent.
+	Protocol          string                 `protobuf:"bytes,9,opt,name=protocol,proto3" json:"protocol,omitempty"`                                                                        // Protocol used by the node agent.
+	Fingerprint       string                 `protobuf:"bytes,10,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`                                                                 // Optional TLS fingerprint established after enrollment.
+	LastSeen          int64                  `protobuf:"varint,11,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`                                                      // Unix time when the identity was last observed.
+	Enabled           bool                   `protobuf:"varint,12,opt,name=enabled,proto3" json:"enabled,omitempty"`                                                                        // Whether the node is currently allowed to participate.
+	Labels            map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Free-form metadata supplied by Cluster Controller.
+	TypeName          string                 `protobuf:"bytes,14,opt,name=typeName,proto3" json:"typeName,omitempty"`                                                                       // Type information for internal use.
+	Status            string                 `protobuf:"bytes,15,opt,name=status,proto3" json:"status,omitempty"`                                                                           // Current desired/observed status (pending/approved/etc.).
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
-func (x *Peer) Reset() {
-	*x = Peer{}
+func (x *NodeIdentity) Reset() {
+	*x = NodeIdentity{}
 	mi := &file_resource_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Peer) String() string {
+func (x *NodeIdentity) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Peer) ProtoMessage() {}
+func (*NodeIdentity) ProtoMessage() {}
 
-func (x *Peer) ProtoReflect() protoreflect.Message {
+func (x *NodeIdentity) ProtoReflect() protoreflect.Message {
 	mi := &file_resource_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6392,112 +6345,138 @@ func (x *Peer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Peer.ProtoReflect.Descriptor instead.
-func (*Peer) Descriptor() ([]byte, []int) {
+// Deprecated: Use NodeIdentity.ProtoReflect.Descriptor instead.
+func (*NodeIdentity) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{118}
 }
 
-func (x *Peer) GetHostname() string {
+func (x *NodeIdentity) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NodeIdentity) GetHostname() string {
 	if x != nil {
 		return x.Hostname
 	}
 	return ""
 }
 
-func (x *Peer) GetDomain() string {
+func (x *NodeIdentity) GetDomain() string {
 	if x != nil {
 		return x.Domain
 	}
 	return ""
 }
 
-func (x *Peer) GetExternalIpAddress() string {
+func (x *NodeIdentity) GetExternalIpAddress() string {
 	if x != nil {
 		return x.ExternalIpAddress
 	}
 	return ""
 }
 
-func (x *Peer) GetLocalIpAddress() string {
+func (x *NodeIdentity) GetLocalIpAddress() string {
 	if x != nil {
 		return x.LocalIpAddress
 	}
 	return ""
 }
 
-func (x *Peer) GetMac() string {
+func (x *NodeIdentity) GetMac() string {
 	if x != nil {
 		return x.Mac
 	}
 	return ""
 }
 
-func (x *Peer) GetPortHttp() int32 {
+func (x *NodeIdentity) GetPortHttp() int32 {
 	if x != nil {
 		return x.PortHttp
 	}
 	return 0
 }
 
-func (x *Peer) GetPortHttps() int32 {
+func (x *NodeIdentity) GetPortHttps() int32 {
 	if x != nil {
 		return x.PortHttps
 	}
 	return 0
 }
 
-func (x *Peer) GetProtocol() string {
+func (x *NodeIdentity) GetProtocol() string {
 	if x != nil {
 		return x.Protocol
 	}
 	return ""
 }
 
-func (x *Peer) GetState() PeerApprovalState {
+func (x *NodeIdentity) GetFingerprint() string {
 	if x != nil {
-		return x.State
+		return x.Fingerprint
 	}
-	return PeerApprovalState_PEER_PENDING
+	return ""
 }
 
-func (x *Peer) GetActions() []string {
+func (x *NodeIdentity) GetLastSeen() int64 {
 	if x != nil {
-		return x.Actions
+		return x.LastSeen
+	}
+	return 0
+}
+
+func (x *NodeIdentity) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *NodeIdentity) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
 	}
 	return nil
 }
 
-func (x *Peer) GetTypeName() string {
+func (x *NodeIdentity) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
 	}
 	return ""
 }
 
-// *
-// Request to get the approval state of a peer.
-type GetPeerApprovalStateRqst struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Mac               string                 `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`                                                        // MAC address of the peer.
-	RemotePeerAddress string                 `protobuf:"bytes,2,opt,name=remote_peer_address,json=remotePeerAddress,proto3" json:"remote_peer_address,omitempty"` // Address of the remote peer.
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+func (x *NodeIdentity) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
 }
 
-func (x *GetPeerApprovalStateRqst) Reset() {
-	*x = GetPeerApprovalStateRqst{}
+// * Request to upsert (create/update) a node identity.
+type UpsertNodeIdentityRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Node          *NodeIdentity          `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertNodeIdentityRqst) Reset() {
+	*x = UpsertNodeIdentityRqst{}
 	mi := &file_resource_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeerApprovalStateRqst) String() string {
+func (x *UpsertNodeIdentityRqst) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeerApprovalStateRqst) ProtoMessage() {}
+func (*UpsertNodeIdentityRqst) ProtoMessage() {}
 
-func (x *GetPeerApprovalStateRqst) ProtoReflect() protoreflect.Message {
+func (x *UpsertNodeIdentityRqst) ProtoReflect() protoreflect.Message {
 	mi := &file_resource_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6509,46 +6488,39 @@ func (x *GetPeerApprovalStateRqst) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeerApprovalStateRqst.ProtoReflect.Descriptor instead.
-func (*GetPeerApprovalStateRqst) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertNodeIdentityRqst.ProtoReflect.Descriptor instead.
+func (*UpsertNodeIdentityRqst) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{119}
 }
 
-func (x *GetPeerApprovalStateRqst) GetMac() string {
+func (x *UpsertNodeIdentityRqst) GetNode() *NodeIdentity {
 	if x != nil {
-		return x.Mac
+		return x.Node
 	}
-	return ""
+	return nil
 }
 
-func (x *GetPeerApprovalStateRqst) GetRemotePeerAddress() string {
-	if x != nil {
-		return x.RemotePeerAddress
-	}
-	return ""
-}
-
-type GetPeerApprovalStateRsp struct {
+type UpsertNodeIdentityRsp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	State         PeerApprovalState      `protobuf:"varint,1,opt,name=state,proto3,enum=resource.PeerApprovalState" json:"state,omitempty"` // Approval state of the peer.
+	Node          *NodeIdentity          `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetPeerApprovalStateRsp) Reset() {
-	*x = GetPeerApprovalStateRsp{}
+func (x *UpsertNodeIdentityRsp) Reset() {
+	*x = UpsertNodeIdentityRsp{}
 	mi := &file_resource_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeerApprovalStateRsp) String() string {
+func (x *UpsertNodeIdentityRsp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeerApprovalStateRsp) ProtoMessage() {}
+func (*UpsertNodeIdentityRsp) ProtoMessage() {}
 
-func (x *GetPeerApprovalStateRsp) ProtoReflect() protoreflect.Message {
+func (x *UpsertNodeIdentityRsp) ProtoReflect() protoreflect.Message {
 	mi := &file_resource_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6560,42 +6532,40 @@ func (x *GetPeerApprovalStateRsp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeerApprovalStateRsp.ProtoReflect.Descriptor instead.
-func (*GetPeerApprovalStateRsp) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertNodeIdentityRsp.ProtoReflect.Descriptor instead.
+func (*UpsertNodeIdentityRsp) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{120}
 }
 
-func (x *GetPeerApprovalStateRsp) GetState() PeerApprovalState {
+func (x *UpsertNodeIdentityRsp) GetNode() *NodeIdentity {
 	if x != nil {
-		return x.State
+		return x.Node
 	}
-	return PeerApprovalState_PEER_PENDING
+	return nil
 }
 
-// *
-// Request to get the public key of a peer.
-type GetPeerPublicKeyRqst struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Mac               string                 `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`                                                        // MAC address of the peer.
-	RemotePeerAddress string                 `protobuf:"bytes,2,opt,name=remote_peer_address,json=remotePeerAddress,proto3" json:"remote_peer_address,omitempty"` // Address of the remote peer.
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+// * Request to fetch a node identity by its stable ID.
+type GetNodeIdentityRqst struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetPeerPublicKeyRqst) Reset() {
-	*x = GetPeerPublicKeyRqst{}
+func (x *GetNodeIdentityRqst) Reset() {
+	*x = GetNodeIdentityRqst{}
 	mi := &file_resource_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeerPublicKeyRqst) String() string {
+func (x *GetNodeIdentityRqst) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeerPublicKeyRqst) ProtoMessage() {}
+func (*GetNodeIdentityRqst) ProtoMessage() {}
 
-func (x *GetPeerPublicKeyRqst) ProtoReflect() protoreflect.Message {
+func (x *GetNodeIdentityRqst) ProtoReflect() protoreflect.Message {
 	mi := &file_resource_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6607,46 +6577,39 @@ func (x *GetPeerPublicKeyRqst) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeerPublicKeyRqst.ProtoReflect.Descriptor instead.
-func (*GetPeerPublicKeyRqst) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetNodeIdentityRqst.ProtoReflect.Descriptor instead.
+func (*GetNodeIdentityRqst) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{121}
 }
 
-func (x *GetPeerPublicKeyRqst) GetMac() string {
+func (x *GetNodeIdentityRqst) GetNodeId() string {
 	if x != nil {
-		return x.Mac
+		return x.NodeId
 	}
 	return ""
 }
 
-func (x *GetPeerPublicKeyRqst) GetRemotePeerAddress() string {
-	if x != nil {
-		return x.RemotePeerAddress
-	}
-	return ""
-}
-
-type GetPeerPublicKeyRsp struct {
+type GetNodeIdentityRsp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	PublicKey     string                 `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // Public key of the peer.
+	Node          *NodeIdentity          `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetPeerPublicKeyRsp) Reset() {
-	*x = GetPeerPublicKeyRsp{}
+func (x *GetNodeIdentityRsp) Reset() {
+	*x = GetNodeIdentityRsp{}
 	mi := &file_resource_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeerPublicKeyRsp) String() string {
+func (x *GetNodeIdentityRsp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeerPublicKeyRsp) ProtoMessage() {}
+func (*GetNodeIdentityRsp) ProtoMessage() {}
 
-func (x *GetPeerPublicKeyRsp) ProtoReflect() protoreflect.Message {
+func (x *GetNodeIdentityRsp) ProtoReflect() protoreflect.Message {
 	mi := &file_resource_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -6658,217 +6621,20 @@ func (x *GetPeerPublicKeyRsp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeerPublicKeyRsp.ProtoReflect.Descriptor instead.
-func (*GetPeerPublicKeyRsp) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetNodeIdentityRsp.ProtoReflect.Descriptor instead.
+func (*GetNodeIdentityRsp) Descriptor() ([]byte, []int) {
 	return file_resource_proto_rawDescGZIP(), []int{122}
 }
 
-func (x *GetPeerPublicKeyRsp) GetPublicKey() string {
+func (x *GetNodeIdentityRsp) GetNode() *NodeIdentity {
 	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-// *
-// Request to register a peer in the network.
-type RegisterPeerRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`                            // Peer information.
-	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // Public key of the peer.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegisterPeerRqst) Reset() {
-	*x = RegisterPeerRqst{}
-	mi := &file_resource_proto_msgTypes[123]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterPeerRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterPeerRqst) ProtoMessage() {}
-
-func (x *RegisterPeerRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[123]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterPeerRqst.ProtoReflect.Descriptor instead.
-func (*RegisterPeerRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{123}
-}
-
-func (x *RegisterPeerRqst) GetPeer() *Peer {
-	if x != nil {
-		return x.Peer
+		return x.Node
 	}
 	return nil
 }
 
-func (x *RegisterPeerRqst) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-type RegisterPeerRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`                            // Registered peer information.
-	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // Public key of the registered peer.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RegisterPeerRsp) Reset() {
-	*x = RegisterPeerRsp{}
-	mi := &file_resource_proto_msgTypes[124]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RegisterPeerRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RegisterPeerRsp) ProtoMessage() {}
-
-func (x *RegisterPeerRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[124]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RegisterPeerRsp.ProtoReflect.Descriptor instead.
-func (*RegisterPeerRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{124}
-}
-
-func (x *RegisterPeerRsp) GetPeer() *Peer {
-	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-func (x *RegisterPeerRsp) GetPublicKey() string {
-	if x != nil {
-		return x.PublicKey
-	}
-	return ""
-}
-
-// *
-// Request to update the information of a peer.
-type UpdatePeerRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"` // Updated peer information.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UpdatePeerRqst) Reset() {
-	*x = UpdatePeerRqst{}
-	mi := &file_resource_proto_msgTypes[125]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UpdatePeerRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UpdatePeerRqst) ProtoMessage() {}
-
-func (x *UpdatePeerRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[125]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdatePeerRqst.ProtoReflect.Descriptor instead.
-func (*UpdatePeerRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{125}
-}
-
-func (x *UpdatePeerRqst) GetPeer() *Peer {
-	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-type UpdatePeerRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Result of the update operation (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UpdatePeerRsp) Reset() {
-	*x = UpdatePeerRsp{}
-	mi := &file_resource_proto_msgTypes[126]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UpdatePeerRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UpdatePeerRsp) ProtoMessage() {}
-
-func (x *UpdatePeerRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[126]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdatePeerRsp.ProtoReflect.Descriptor instead.
-func (*UpdatePeerRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{126}
-}
-
-func (x *UpdatePeerRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
-	}
-	return false
-}
-
-// *
-// Return the list of peer (query is use to get specific peer's).
-type GetPeersRqst struct {
+// * Request to stream all stored node identities.
+type ListNodeIdentitiesRqst struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	Options       string                 `protobuf:"bytes,2,opt,name=options,proto3" json:"options,omitempty"`
@@ -6876,21 +6642,21 @@ type GetPeersRqst struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetPeersRqst) Reset() {
-	*x = GetPeersRqst{}
-	mi := &file_resource_proto_msgTypes[127]
+func (x *ListNodeIdentitiesRqst) Reset() {
+	*x = ListNodeIdentitiesRqst{}
+	mi := &file_resource_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeersRqst) String() string {
+func (x *ListNodeIdentitiesRqst) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeersRqst) ProtoMessage() {}
+func (*ListNodeIdentitiesRqst) ProtoMessage() {}
 
-func (x *GetPeersRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[127]
+func (x *ListNodeIdentitiesRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6901,47 +6667,47 @@ func (x *GetPeersRqst) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeersRqst.ProtoReflect.Descriptor instead.
-func (*GetPeersRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{127}
+// Deprecated: Use ListNodeIdentitiesRqst.ProtoReflect.Descriptor instead.
+func (*ListNodeIdentitiesRqst) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{123}
 }
 
-func (x *GetPeersRqst) GetQuery() string {
+func (x *ListNodeIdentitiesRqst) GetQuery() string {
 	if x != nil {
 		return x.Query
 	}
 	return ""
 }
 
-func (x *GetPeersRqst) GetOptions() string {
+func (x *ListNodeIdentitiesRqst) GetOptions() string {
 	if x != nil {
 		return x.Options
 	}
 	return ""
 }
 
-type GetPeersRsp struct {
+type ListNodeIdentitiesRsp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peers         []*Peer                `protobuf:"bytes,1,rep,name=peers,proto3" json:"peers,omitempty"`
+	Nodes         []*NodeIdentity        `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetPeersRsp) Reset() {
-	*x = GetPeersRsp{}
-	mi := &file_resource_proto_msgTypes[128]
+func (x *ListNodeIdentitiesRsp) Reset() {
+	*x = ListNodeIdentitiesRsp{}
+	mi := &file_resource_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetPeersRsp) String() string {
+func (x *ListNodeIdentitiesRsp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetPeersRsp) ProtoMessage() {}
+func (*ListNodeIdentitiesRsp) ProtoMessage() {}
 
-func (x *GetPeersRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[128]
+func (x *ListNodeIdentitiesRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6952,42 +6718,42 @@ func (x *GetPeersRsp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPeersRsp.ProtoReflect.Descriptor instead.
-func (*GetPeersRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{128}
+// Deprecated: Use ListNodeIdentitiesRsp.ProtoReflect.Descriptor instead.
+func (*ListNodeIdentitiesRsp) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{124}
 }
 
-func (x *GetPeersRsp) GetPeers() []*Peer {
+func (x *ListNodeIdentitiesRsp) GetNodes() []*NodeIdentity {
 	if x != nil {
-		return x.Peers
+		return x.Nodes
 	}
 	return nil
 }
 
-// *
-// Remove a peer from the network.
-type DeletePeerRqst struct {
+// * Request to toggle the enabled flag for a node identity.
+type SetNodeIdentityEnabledRqst struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Enabled       bool                   `protobuf:"varint,2,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeletePeerRqst) Reset() {
-	*x = DeletePeerRqst{}
-	mi := &file_resource_proto_msgTypes[129]
+func (x *SetNodeIdentityEnabledRqst) Reset() {
+	*x = SetNodeIdentityEnabledRqst{}
+	mi := &file_resource_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeletePeerRqst) String() string {
+func (x *SetNodeIdentityEnabledRqst) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeletePeerRqst) ProtoMessage() {}
+func (*SetNodeIdentityEnabledRqst) ProtoMessage() {}
 
-func (x *DeletePeerRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[129]
+func (x *SetNodeIdentityEnabledRqst) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6998,185 +6764,47 @@ func (x *DeletePeerRqst) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeletePeerRqst.ProtoReflect.Descriptor instead.
-func (*DeletePeerRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{129}
+// Deprecated: Use SetNodeIdentityEnabledRqst.ProtoReflect.Descriptor instead.
+func (*SetNodeIdentityEnabledRqst) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{125}
 }
 
-func (x *DeletePeerRqst) GetPeer() *Peer {
+func (x *SetNodeIdentityEnabledRqst) GetNodeId() string {
 	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-// Response to a delete peer request
-type DeletePeerRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the peer was successfully deleted (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeletePeerRsp) Reset() {
-	*x = DeletePeerRsp{}
-	mi := &file_resource_proto_msgTypes[130]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeletePeerRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeletePeerRsp) ProtoMessage() {}
-
-func (x *DeletePeerRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[130]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeletePeerRsp.ProtoReflect.Descriptor instead.
-func (*DeletePeerRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{130}
-}
-
-func (x *DeletePeerRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
-	}
-	return false
-}
-
-// Request to add actions to a peer
-type AddPeerActionsRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mac           string                 `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`         // MAC address of the peer.
-	Actions       []string               `protobuf:"bytes,2,rep,name=actions,proto3" json:"actions,omitempty"` // List of actions to be added to the peer.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AddPeerActionsRqst) Reset() {
-	*x = AddPeerActionsRqst{}
-	mi := &file_resource_proto_msgTypes[131]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AddPeerActionsRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AddPeerActionsRqst) ProtoMessage() {}
-
-func (x *AddPeerActionsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[131]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AddPeerActionsRqst.ProtoReflect.Descriptor instead.
-func (*AddPeerActionsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{131}
-}
-
-func (x *AddPeerActionsRqst) GetMac() string {
-	if x != nil {
-		return x.Mac
+		return x.NodeId
 	}
 	return ""
 }
 
-func (x *AddPeerActionsRqst) GetActions() []string {
+func (x *SetNodeIdentityEnabledRqst) GetEnabled() bool {
 	if x != nil {
-		return x.Actions
-	}
-	return nil
-}
-
-// Response to the add actions to peer request
-type AddPeerActionsRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the actions were successfully added (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AddPeerActionsRsp) Reset() {
-	*x = AddPeerActionsRsp{}
-	mi := &file_resource_proto_msgTypes[132]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AddPeerActionsRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AddPeerActionsRsp) ProtoMessage() {}
-
-func (x *AddPeerActionsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[132]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AddPeerActionsRsp.ProtoReflect.Descriptor instead.
-func (*AddPeerActionsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{132}
-}
-
-func (x *AddPeerActionsRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
+		return x.Enabled
 	}
 	return false
 }
 
-// Request to remove a specific action from a peer
-type RemovePeerActionRqst struct {
+type SetNodeIdentityEnabledRsp struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mac           string                 `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`       // MAC address of the peer.
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"` // The action to be removed.
+	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RemovePeerActionRqst) Reset() {
-	*x = RemovePeerActionRqst{}
-	mi := &file_resource_proto_msgTypes[133]
+func (x *SetNodeIdentityEnabledRsp) Reset() {
+	*x = SetNodeIdentityEnabledRsp{}
+	mi := &file_resource_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RemovePeerActionRqst) String() string {
+func (x *SetNodeIdentityEnabledRsp) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RemovePeerActionRqst) ProtoMessage() {}
+func (*SetNodeIdentityEnabledRsp) ProtoMessage() {}
 
-func (x *RemovePeerActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[133]
+func (x *SetNodeIdentityEnabledRsp) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7187,334 +6815,12 @@ func (x *RemovePeerActionRqst) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RemovePeerActionRqst.ProtoReflect.Descriptor instead.
-func (*RemovePeerActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{133}
+// Deprecated: Use SetNodeIdentityEnabledRsp.ProtoReflect.Descriptor instead.
+func (*SetNodeIdentityEnabledRsp) Descriptor() ([]byte, []int) {
+	return file_resource_proto_rawDescGZIP(), []int{126}
 }
 
-func (x *RemovePeerActionRqst) GetMac() string {
-	if x != nil {
-		return x.Mac
-	}
-	return ""
-}
-
-func (x *RemovePeerActionRqst) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-// Response to the remove action from peer request
-type RemovePeerActionRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the action was successfully removed (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemovePeerActionRsp) Reset() {
-	*x = RemovePeerActionRsp{}
-	mi := &file_resource_proto_msgTypes[134]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemovePeerActionRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemovePeerActionRsp) ProtoMessage() {}
-
-func (x *RemovePeerActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[134]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemovePeerActionRsp.ProtoReflect.Descriptor instead.
-func (*RemovePeerActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{134}
-}
-
-func (x *RemovePeerActionRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
-	}
-	return false
-}
-
-// Request to remove a specific action from all peers
-type RemovePeersActionRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"` // The action to be removed from all peers.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemovePeersActionRqst) Reset() {
-	*x = RemovePeersActionRqst{}
-	mi := &file_resource_proto_msgTypes[135]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemovePeersActionRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemovePeersActionRqst) ProtoMessage() {}
-
-func (x *RemovePeersActionRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[135]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemovePeersActionRqst.ProtoReflect.Descriptor instead.
-func (*RemovePeersActionRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{135}
-}
-
-func (x *RemovePeersActionRqst) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-// Response to the remove action from all peers request
-type RemovePeersActionRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the action was successfully removed from all peers (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemovePeersActionRsp) Reset() {
-	*x = RemovePeersActionRsp{}
-	mi := &file_resource_proto_msgTypes[136]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemovePeersActionRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemovePeersActionRsp) ProtoMessage() {}
-
-func (x *RemovePeersActionRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[136]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemovePeersActionRsp.ProtoReflect.Descriptor instead.
-func (*RemovePeersActionRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{136}
-}
-
-func (x *RemovePeersActionRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
-	}
-	return false
-}
-
-// Request to accept a peer
-type AcceptPeerRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"` // The peer to be accepted.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AcceptPeerRqst) Reset() {
-	*x = AcceptPeerRqst{}
-	mi := &file_resource_proto_msgTypes[137]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AcceptPeerRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AcceptPeerRqst) ProtoMessage() {}
-
-func (x *AcceptPeerRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[137]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AcceptPeerRqst.ProtoReflect.Descriptor instead.
-func (*AcceptPeerRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{137}
-}
-
-func (x *AcceptPeerRqst) GetPeer() *Peer {
-	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-// Response to the accept peer request
-type AcceptPeerRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the peer was successfully accepted (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AcceptPeerRsp) Reset() {
-	*x = AcceptPeerRsp{}
-	mi := &file_resource_proto_msgTypes[138]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AcceptPeerRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AcceptPeerRsp) ProtoMessage() {}
-
-func (x *AcceptPeerRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[138]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AcceptPeerRsp.ProtoReflect.Descriptor instead.
-func (*AcceptPeerRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{138}
-}
-
-func (x *AcceptPeerRsp) GetResult() bool {
-	if x != nil {
-		return x.Result
-	}
-	return false
-}
-
-// Request to reject a peer
-type RejectPeerRqst struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"` // The peer to be rejected.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RejectPeerRqst) Reset() {
-	*x = RejectPeerRqst{}
-	mi := &file_resource_proto_msgTypes[139]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RejectPeerRqst) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RejectPeerRqst) ProtoMessage() {}
-
-func (x *RejectPeerRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[139]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RejectPeerRqst.ProtoReflect.Descriptor instead.
-func (*RejectPeerRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{139}
-}
-
-func (x *RejectPeerRqst) GetPeer() *Peer {
-	if x != nil {
-		return x.Peer
-	}
-	return nil
-}
-
-// Response to the reject peer request
-type RejectPeerRsp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // Indicates whether the peer was successfully rejected (true if successful).
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RejectPeerRsp) Reset() {
-	*x = RejectPeerRsp{}
-	mi := &file_resource_proto_msgTypes[140]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RejectPeerRsp) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RejectPeerRsp) ProtoMessage() {}
-
-func (x *RejectPeerRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[140]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RejectPeerRsp.ProtoReflect.Descriptor instead.
-func (*RejectPeerRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{140}
-}
-
-func (x *RejectPeerRsp) GetResult() bool {
+func (x *SetNodeIdentityEnabledRsp) GetResult() bool {
 	if x != nil {
 		return x.Result
 	}
@@ -7536,7 +6842,7 @@ type Call struct {
 
 func (x *Call) Reset() {
 	*x = Call{}
-	mi := &file_resource_proto_msgTypes[141]
+	mi := &file_resource_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7548,7 +6854,7 @@ func (x *Call) String() string {
 func (*Call) ProtoMessage() {}
 
 func (x *Call) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[141]
+	mi := &file_resource_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7561,7 +6867,7 @@ func (x *Call) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Call.ProtoReflect.Descriptor instead.
 func (*Call) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{141}
+	return file_resource_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *Call) GetUuid() string {
@@ -7616,7 +6922,7 @@ type GetCallHistoryRqst struct {
 
 func (x *GetCallHistoryRqst) Reset() {
 	*x = GetCallHistoryRqst{}
-	mi := &file_resource_proto_msgTypes[142]
+	mi := &file_resource_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7628,7 +6934,7 @@ func (x *GetCallHistoryRqst) String() string {
 func (*GetCallHistoryRqst) ProtoMessage() {}
 
 func (x *GetCallHistoryRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[142]
+	mi := &file_resource_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7641,7 +6947,7 @@ func (x *GetCallHistoryRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCallHistoryRqst.ProtoReflect.Descriptor instead.
 func (*GetCallHistoryRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{142}
+	return file_resource_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *GetCallHistoryRqst) GetAccountId() string {
@@ -7661,7 +6967,7 @@ type GetCallHistoryRsp struct {
 
 func (x *GetCallHistoryRsp) Reset() {
 	*x = GetCallHistoryRsp{}
-	mi := &file_resource_proto_msgTypes[143]
+	mi := &file_resource_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7673,7 +6979,7 @@ func (x *GetCallHistoryRsp) String() string {
 func (*GetCallHistoryRsp) ProtoMessage() {}
 
 func (x *GetCallHistoryRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[143]
+	mi := &file_resource_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7686,7 +6992,7 @@ func (x *GetCallHistoryRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCallHistoryRsp.ProtoReflect.Descriptor instead.
 func (*GetCallHistoryRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{143}
+	return file_resource_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *GetCallHistoryRsp) GetCalls() []*Call {
@@ -7706,7 +7012,7 @@ type SetCallRqst struct {
 
 func (x *SetCallRqst) Reset() {
 	*x = SetCallRqst{}
-	mi := &file_resource_proto_msgTypes[144]
+	mi := &file_resource_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7718,7 +7024,7 @@ func (x *SetCallRqst) String() string {
 func (*SetCallRqst) ProtoMessage() {}
 
 func (x *SetCallRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[144]
+	mi := &file_resource_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7731,7 +7037,7 @@ func (x *SetCallRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCallRqst.ProtoReflect.Descriptor instead.
 func (*SetCallRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{144}
+	return file_resource_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *SetCallRqst) GetCall() *Call {
@@ -7750,7 +7056,7 @@ type SetCallRsp struct {
 
 func (x *SetCallRsp) Reset() {
 	*x = SetCallRsp{}
-	mi := &file_resource_proto_msgTypes[145]
+	mi := &file_resource_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7762,7 +7068,7 @@ func (x *SetCallRsp) String() string {
 func (*SetCallRsp) ProtoMessage() {}
 
 func (x *SetCallRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[145]
+	mi := &file_resource_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7775,7 +7081,7 @@ func (x *SetCallRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCallRsp.ProtoReflect.Descriptor instead.
 func (*SetCallRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{145}
+	return file_resource_proto_rawDescGZIP(), []int{131}
 }
 
 // Request to delete a specific call from an account's call history.
@@ -7789,7 +7095,7 @@ type DeleteCallRqst struct {
 
 func (x *DeleteCallRqst) Reset() {
 	*x = DeleteCallRqst{}
-	mi := &file_resource_proto_msgTypes[146]
+	mi := &file_resource_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7801,7 +7107,7 @@ func (x *DeleteCallRqst) String() string {
 func (*DeleteCallRqst) ProtoMessage() {}
 
 func (x *DeleteCallRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[146]
+	mi := &file_resource_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7814,7 +7120,7 @@ func (x *DeleteCallRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCallRqst.ProtoReflect.Descriptor instead.
 func (*DeleteCallRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{146}
+	return file_resource_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *DeleteCallRqst) GetAccountId() string {
@@ -7841,7 +7147,7 @@ type DeleteCallRsp struct {
 
 func (x *DeleteCallRsp) Reset() {
 	*x = DeleteCallRsp{}
-	mi := &file_resource_proto_msgTypes[147]
+	mi := &file_resource_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7853,7 +7159,7 @@ func (x *DeleteCallRsp) String() string {
 func (*DeleteCallRsp) ProtoMessage() {}
 
 func (x *DeleteCallRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[147]
+	mi := &file_resource_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7866,7 +7172,7 @@ func (x *DeleteCallRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCallRsp.ProtoReflect.Descriptor instead.
 func (*DeleteCallRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{147}
+	return file_resource_proto_rawDescGZIP(), []int{133}
 }
 
 // Request to clear call history based on a filter.
@@ -7880,7 +7186,7 @@ type ClearCallsRqst struct {
 
 func (x *ClearCallsRqst) Reset() {
 	*x = ClearCallsRqst{}
-	mi := &file_resource_proto_msgTypes[148]
+	mi := &file_resource_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7892,7 +7198,7 @@ func (x *ClearCallsRqst) String() string {
 func (*ClearCallsRqst) ProtoMessage() {}
 
 func (x *ClearCallsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[148]
+	mi := &file_resource_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7905,7 +7211,7 @@ func (x *ClearCallsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCallsRqst.ProtoReflect.Descriptor instead.
 func (*ClearCallsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{148}
+	return file_resource_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *ClearCallsRqst) GetAccountId() string {
@@ -7932,7 +7238,7 @@ type ClearCallsRsp struct {
 
 func (x *ClearCallsRsp) Reset() {
 	*x = ClearCallsRsp{}
-	mi := &file_resource_proto_msgTypes[149]
+	mi := &file_resource_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7944,7 +7250,7 @@ func (x *ClearCallsRsp) String() string {
 func (*ClearCallsRsp) ProtoMessage() {}
 
 func (x *ClearCallsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[149]
+	mi := &file_resource_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7957,7 +7263,7 @@ func (x *ClearCallsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearCallsRsp.ProtoReflect.Descriptor instead.
 func (*ClearCallsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{149}
+	return file_resource_proto_rawDescGZIP(), []int{135}
 }
 
 // Structure representing a notification.
@@ -7977,7 +7283,7 @@ type Notification struct {
 
 func (x *Notification) Reset() {
 	*x = Notification{}
-	mi := &file_resource_proto_msgTypes[150]
+	mi := &file_resource_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7989,7 +7295,7 @@ func (x *Notification) String() string {
 func (*Notification) ProtoMessage() {}
 
 func (x *Notification) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[150]
+	mi := &file_resource_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8002,7 +7308,7 @@ func (x *Notification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Notification.ProtoReflect.Descriptor instead.
 func (*Notification) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{150}
+	return file_resource_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *Notification) GetId() string {
@@ -8071,7 +7377,7 @@ type CreateNotificationRqst struct {
 
 func (x *CreateNotificationRqst) Reset() {
 	*x = CreateNotificationRqst{}
-	mi := &file_resource_proto_msgTypes[151]
+	mi := &file_resource_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8083,7 +7389,7 @@ func (x *CreateNotificationRqst) String() string {
 func (*CreateNotificationRqst) ProtoMessage() {}
 
 func (x *CreateNotificationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[151]
+	mi := &file_resource_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8096,7 +7402,7 @@ func (x *CreateNotificationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotificationRqst.ProtoReflect.Descriptor instead.
 func (*CreateNotificationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{151}
+	return file_resource_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *CreateNotificationRqst) GetNotification() *Notification {
@@ -8115,7 +7421,7 @@ type CreateNotificationRsp struct {
 
 func (x *CreateNotificationRsp) Reset() {
 	*x = CreateNotificationRsp{}
-	mi := &file_resource_proto_msgTypes[152]
+	mi := &file_resource_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8127,7 +7433,7 @@ func (x *CreateNotificationRsp) String() string {
 func (*CreateNotificationRsp) ProtoMessage() {}
 
 func (x *CreateNotificationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[152]
+	mi := &file_resource_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8140,7 +7446,7 @@ func (x *CreateNotificationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNotificationRsp.ProtoReflect.Descriptor instead.
 func (*CreateNotificationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{152}
+	return file_resource_proto_rawDescGZIP(), []int{138}
 }
 
 // Request to retrieve notifications for a recipient.
@@ -8153,7 +7459,7 @@ type GetNotificationsRqst struct {
 
 func (x *GetNotificationsRqst) Reset() {
 	*x = GetNotificationsRqst{}
-	mi := &file_resource_proto_msgTypes[153]
+	mi := &file_resource_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8165,7 +7471,7 @@ func (x *GetNotificationsRqst) String() string {
 func (*GetNotificationsRqst) ProtoMessage() {}
 
 func (x *GetNotificationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[153]
+	mi := &file_resource_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8178,7 +7484,7 @@ func (x *GetNotificationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationsRqst.ProtoReflect.Descriptor instead.
 func (*GetNotificationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{153}
+	return file_resource_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *GetNotificationsRqst) GetRecipient() string {
@@ -8198,7 +7504,7 @@ type GetNotificationsRsp struct {
 
 func (x *GetNotificationsRsp) Reset() {
 	*x = GetNotificationsRsp{}
-	mi := &file_resource_proto_msgTypes[154]
+	mi := &file_resource_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8210,7 +7516,7 @@ func (x *GetNotificationsRsp) String() string {
 func (*GetNotificationsRsp) ProtoMessage() {}
 
 func (x *GetNotificationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[154]
+	mi := &file_resource_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8223,7 +7529,7 @@ func (x *GetNotificationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNotificationsRsp.ProtoReflect.Descriptor instead.
 func (*GetNotificationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{154}
+	return file_resource_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *GetNotificationsRsp) GetNotifications() []*Notification {
@@ -8244,7 +7550,7 @@ type DeleteNotificationRqst struct {
 
 func (x *DeleteNotificationRqst) Reset() {
 	*x = DeleteNotificationRqst{}
-	mi := &file_resource_proto_msgTypes[155]
+	mi := &file_resource_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8256,7 +7562,7 @@ func (x *DeleteNotificationRqst) String() string {
 func (*DeleteNotificationRqst) ProtoMessage() {}
 
 func (x *DeleteNotificationRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[155]
+	mi := &file_resource_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8269,7 +7575,7 @@ func (x *DeleteNotificationRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotificationRqst.ProtoReflect.Descriptor instead.
 func (*DeleteNotificationRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{155}
+	return file_resource_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *DeleteNotificationRqst) GetId() string {
@@ -8295,7 +7601,7 @@ type DeleteNotificationRsp struct {
 
 func (x *DeleteNotificationRsp) Reset() {
 	*x = DeleteNotificationRsp{}
-	mi := &file_resource_proto_msgTypes[156]
+	mi := &file_resource_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8307,7 +7613,7 @@ func (x *DeleteNotificationRsp) String() string {
 func (*DeleteNotificationRsp) ProtoMessage() {}
 
 func (x *DeleteNotificationRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[156]
+	mi := &file_resource_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8320,7 +7626,7 @@ func (x *DeleteNotificationRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteNotificationRsp.ProtoReflect.Descriptor instead.
 func (*DeleteNotificationRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{156}
+	return file_resource_proto_rawDescGZIP(), []int{142}
 }
 
 // Request to clear all notifications for a recipient.
@@ -8333,7 +7639,7 @@ type ClearAllNotificationsRqst struct {
 
 func (x *ClearAllNotificationsRqst) Reset() {
 	*x = ClearAllNotificationsRqst{}
-	mi := &file_resource_proto_msgTypes[157]
+	mi := &file_resource_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8345,7 +7651,7 @@ func (x *ClearAllNotificationsRqst) String() string {
 func (*ClearAllNotificationsRqst) ProtoMessage() {}
 
 func (x *ClearAllNotificationsRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[157]
+	mi := &file_resource_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8358,7 +7664,7 @@ func (x *ClearAllNotificationsRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearAllNotificationsRqst.ProtoReflect.Descriptor instead.
 func (*ClearAllNotificationsRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{157}
+	return file_resource_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *ClearAllNotificationsRqst) GetRecipient() string {
@@ -8377,7 +7683,7 @@ type ClearAllNotificationsRsp struct {
 
 func (x *ClearAllNotificationsRsp) Reset() {
 	*x = ClearAllNotificationsRsp{}
-	mi := &file_resource_proto_msgTypes[158]
+	mi := &file_resource_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8389,7 +7695,7 @@ func (x *ClearAllNotificationsRsp) String() string {
 func (*ClearAllNotificationsRsp) ProtoMessage() {}
 
 func (x *ClearAllNotificationsRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[158]
+	mi := &file_resource_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8402,7 +7708,7 @@ func (x *ClearAllNotificationsRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearAllNotificationsRsp.ProtoReflect.Descriptor instead.
 func (*ClearAllNotificationsRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{158}
+	return file_resource_proto_rawDescGZIP(), []int{144}
 }
 
 // Request to clear notifications of a specific type for a recipient.
@@ -8416,7 +7722,7 @@ type ClearNotificationsByTypeRqst struct {
 
 func (x *ClearNotificationsByTypeRqst) Reset() {
 	*x = ClearNotificationsByTypeRqst{}
-	mi := &file_resource_proto_msgTypes[159]
+	mi := &file_resource_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8428,7 +7734,7 @@ func (x *ClearNotificationsByTypeRqst) String() string {
 func (*ClearNotificationsByTypeRqst) ProtoMessage() {}
 
 func (x *ClearNotificationsByTypeRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[159]
+	mi := &file_resource_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8441,7 +7747,7 @@ func (x *ClearNotificationsByTypeRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearNotificationsByTypeRqst.ProtoReflect.Descriptor instead.
 func (*ClearNotificationsByTypeRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{159}
+	return file_resource_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *ClearNotificationsByTypeRqst) GetRecipient() string {
@@ -8467,7 +7773,7 @@ type ClearNotificationsByTypeRsp struct {
 
 func (x *ClearNotificationsByTypeRsp) Reset() {
 	*x = ClearNotificationsByTypeRsp{}
-	mi := &file_resource_proto_msgTypes[160]
+	mi := &file_resource_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8479,7 +7785,7 @@ func (x *ClearNotificationsByTypeRsp) String() string {
 func (*ClearNotificationsByTypeRsp) ProtoMessage() {}
 
 func (x *ClearNotificationsByTypeRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[160]
+	mi := &file_resource_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8492,7 +7798,7 @@ func (x *ClearNotificationsByTypeRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearNotificationsByTypeRsp.ProtoReflect.Descriptor instead.
 func (*ClearNotificationsByTypeRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{160}
+	return file_resource_proto_rawDescGZIP(), []int{146}
 }
 
 // Message representing information about a user's session.
@@ -8509,7 +7815,7 @@ type Session struct {
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_resource_proto_msgTypes[161]
+	mi := &file_resource_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8521,7 +7827,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[161]
+	mi := &file_resource_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8534,7 +7840,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{161}
+	return file_resource_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *Session) GetAccountId() string {
@@ -8582,7 +7888,7 @@ type UpdateSessionRequest struct {
 
 func (x *UpdateSessionRequest) Reset() {
 	*x = UpdateSessionRequest{}
-	mi := &file_resource_proto_msgTypes[162]
+	mi := &file_resource_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8594,7 +7900,7 @@ func (x *UpdateSessionRequest) String() string {
 func (*UpdateSessionRequest) ProtoMessage() {}
 
 func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[162]
+	mi := &file_resource_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8607,7 +7913,7 @@ func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{162}
+	return file_resource_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *UpdateSessionRequest) GetSession() *Session {
@@ -8627,7 +7933,7 @@ type UpdateSessionResponse struct {
 
 func (x *UpdateSessionResponse) Reset() {
 	*x = UpdateSessionResponse{}
-	mi := &file_resource_proto_msgTypes[163]
+	mi := &file_resource_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8639,7 +7945,7 @@ func (x *UpdateSessionResponse) String() string {
 func (*UpdateSessionResponse) ProtoMessage() {}
 
 func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[163]
+	mi := &file_resource_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8652,7 +7958,7 @@ func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionResponse.ProtoReflect.Descriptor instead.
 func (*UpdateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{163}
+	return file_resource_proto_rawDescGZIP(), []int{149}
 }
 
 // Request to remove a session.
@@ -8665,7 +7971,7 @@ type RemoveSessionRequest struct {
 
 func (x *RemoveSessionRequest) Reset() {
 	*x = RemoveSessionRequest{}
-	mi := &file_resource_proto_msgTypes[164]
+	mi := &file_resource_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8677,7 +7983,7 @@ func (x *RemoveSessionRequest) String() string {
 func (*RemoveSessionRequest) ProtoMessage() {}
 
 func (x *RemoveSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[164]
+	mi := &file_resource_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8690,7 +7996,7 @@ func (x *RemoveSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSessionRequest.ProtoReflect.Descriptor instead.
 func (*RemoveSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{164}
+	return file_resource_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *RemoveSessionRequest) GetAccountId() string {
@@ -8710,7 +8016,7 @@ type RemoveSessionResponse struct {
 
 func (x *RemoveSessionResponse) Reset() {
 	*x = RemoveSessionResponse{}
-	mi := &file_resource_proto_msgTypes[165]
+	mi := &file_resource_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8722,7 +8028,7 @@ func (x *RemoveSessionResponse) String() string {
 func (*RemoveSessionResponse) ProtoMessage() {}
 
 func (x *RemoveSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[165]
+	mi := &file_resource_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8735,7 +8041,7 @@ func (x *RemoveSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSessionResponse.ProtoReflect.Descriptor instead.
 func (*RemoveSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{165}
+	return file_resource_proto_rawDescGZIP(), []int{151}
 }
 
 // Request to retrieve sessions based on a query and options.
@@ -8749,7 +8055,7 @@ type GetSessionsRequest struct {
 
 func (x *GetSessionsRequest) Reset() {
 	*x = GetSessionsRequest{}
-	mi := &file_resource_proto_msgTypes[166]
+	mi := &file_resource_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8761,7 +8067,7 @@ func (x *GetSessionsRequest) String() string {
 func (*GetSessionsRequest) ProtoMessage() {}
 
 func (x *GetSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[166]
+	mi := &file_resource_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8774,7 +8080,7 @@ func (x *GetSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionsRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{166}
+	return file_resource_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *GetSessionsRequest) GetQuery() string {
@@ -8801,7 +8107,7 @@ type GetSessionsResponse struct {
 
 func (x *GetSessionsResponse) Reset() {
 	*x = GetSessionsResponse{}
-	mi := &file_resource_proto_msgTypes[167]
+	mi := &file_resource_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8813,7 +8119,7 @@ func (x *GetSessionsResponse) String() string {
 func (*GetSessionsResponse) ProtoMessage() {}
 
 func (x *GetSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[167]
+	mi := &file_resource_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8826,7 +8132,7 @@ func (x *GetSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionsResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{167}
+	return file_resource_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *GetSessionsResponse) GetSessions() []*Session {
@@ -8846,7 +8152,7 @@ type GetSessionRequest struct {
 
 func (x *GetSessionRequest) Reset() {
 	*x = GetSessionRequest{}
-	mi := &file_resource_proto_msgTypes[168]
+	mi := &file_resource_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8858,7 +8164,7 @@ func (x *GetSessionRequest) String() string {
 func (*GetSessionRequest) ProtoMessage() {}
 
 func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[168]
+	mi := &file_resource_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8871,7 +8177,7 @@ func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionRequest) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{168}
+	return file_resource_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *GetSessionRequest) GetAccountId() string {
@@ -8891,7 +8197,7 @@ type GetSessionResponse struct {
 
 func (x *GetSessionResponse) Reset() {
 	*x = GetSessionResponse{}
-	mi := &file_resource_proto_msgTypes[169]
+	mi := &file_resource_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8903,7 +8209,7 @@ func (x *GetSessionResponse) String() string {
 func (*GetSessionResponse) ProtoMessage() {}
 
 func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[169]
+	mi := &file_resource_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8916,7 +8222,7 @@ func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{169}
+	return file_resource_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *GetSessionResponse) GetSession() *Session {
@@ -8940,7 +8246,7 @@ type CreateReferenceRqst struct {
 
 func (x *CreateReferenceRqst) Reset() {
 	*x = CreateReferenceRqst{}
-	mi := &file_resource_proto_msgTypes[170]
+	mi := &file_resource_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8952,7 +8258,7 @@ func (x *CreateReferenceRqst) String() string {
 func (*CreateReferenceRqst) ProtoMessage() {}
 
 func (x *CreateReferenceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[170]
+	mi := &file_resource_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8965,7 +8271,7 @@ func (x *CreateReferenceRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferenceRqst.ProtoReflect.Descriptor instead.
 func (*CreateReferenceRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{170}
+	return file_resource_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *CreateReferenceRqst) GetSourceId() string {
@@ -9013,7 +8319,7 @@ type CreateReferenceRsp struct {
 
 func (x *CreateReferenceRsp) Reset() {
 	*x = CreateReferenceRsp{}
-	mi := &file_resource_proto_msgTypes[171]
+	mi := &file_resource_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9025,7 +8331,7 @@ func (x *CreateReferenceRsp) String() string {
 func (*CreateReferenceRsp) ProtoMessage() {}
 
 func (x *CreateReferenceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[171]
+	mi := &file_resource_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9038,7 +8344,7 @@ func (x *CreateReferenceRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateReferenceRsp.ProtoReflect.Descriptor instead.
 func (*CreateReferenceRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{171}
+	return file_resource_proto_rawDescGZIP(), []int{157}
 }
 
 // Request to delete a reference between entities.
@@ -9054,7 +8360,7 @@ type DeleteReferenceRqst struct {
 
 func (x *DeleteReferenceRqst) Reset() {
 	*x = DeleteReferenceRqst{}
-	mi := &file_resource_proto_msgTypes[172]
+	mi := &file_resource_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9066,7 +8372,7 @@ func (x *DeleteReferenceRqst) String() string {
 func (*DeleteReferenceRqst) ProtoMessage() {}
 
 func (x *DeleteReferenceRqst) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[172]
+	mi := &file_resource_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9079,7 +8385,7 @@ func (x *DeleteReferenceRqst) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReferenceRqst.ProtoReflect.Descriptor instead.
 func (*DeleteReferenceRqst) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{172}
+	return file_resource_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *DeleteReferenceRqst) GetRefId() string {
@@ -9120,7 +8426,7 @@ type DeleteReferenceRsp struct {
 
 func (x *DeleteReferenceRsp) Reset() {
 	*x = DeleteReferenceRsp{}
-	mi := &file_resource_proto_msgTypes[173]
+	mi := &file_resource_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9132,7 +8438,7 @@ func (x *DeleteReferenceRsp) String() string {
 func (*DeleteReferenceRsp) ProtoMessage() {}
 
 func (x *DeleteReferenceRsp) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_proto_msgTypes[173]
+	mi := &file_resource_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9145,7 +8451,7 @@ func (x *DeleteReferenceRsp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReferenceRsp.ProtoReflect.Descriptor instead.
 func (*DeleteReferenceRsp) Descriptor() ([]byte, []int) {
-	return file_resource_proto_rawDescGZIP(), []int{173}
+	return file_resource_proto_rawDescGZIP(), []int{159}
 }
 
 var File_resource_proto protoreflect.FileDescriptor
@@ -9502,74 +8808,45 @@ const file_resource_proto_rawDesc = "" +
 	"\x16DeleteOrganizationRqst\x12\"\n" +
 	"\forganization\x18\x01 \x01(\tR\forganization\"/\n" +
 	"\x15DeleteOrganizationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xe7\x02\n" +
-	"\x04Peer\x12\x1a\n" +
-	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
-	"\x06domain\x18\x02 \x01(\tR\x06domain\x12.\n" +
-	"\x13external_ip_address\x18\x03 \x01(\tR\x11ExternalIPAddress\x12(\n" +
-	"\x10local_ip_address\x18\x04 \x01(\tR\x0elocalIPAddress\x12\x10\n" +
-	"\x03mac\x18\x05 \x01(\tR\x03mac\x12\x1b\n" +
-	"\tport_http\x18\x06 \x01(\x05R\bPortHTTP\x12\x1d\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xa3\x04\n" +
+	"\fNodeIdentity\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x16\n" +
+	"\x06domain\x18\x03 \x01(\tR\x06domain\x12.\n" +
+	"\x13external_ip_address\x18\x04 \x01(\tR\x11externalIpAddress\x12(\n" +
+	"\x10local_ip_address\x18\x05 \x01(\tR\x0elocalIpAddress\x12\x10\n" +
+	"\x03mac\x18\x06 \x01(\tR\x03mac\x12\x1b\n" +
+	"\tport_http\x18\a \x01(\x05R\bportHttp\x12\x1d\n" +
 	"\n" +
-	"port_https\x18\a \x01(\x05R\tPortHTTPS\x12\x1a\n" +
-	"\bprotocol\x18\b \x01(\tR\bprotocol\x121\n" +
-	"\x05state\x18\t \x01(\x0e2\x1b.resource.PeerApprovalStateR\x05state\x12\x18\n" +
-	"\aactions\x18\n" +
-	" \x03(\tR\aactions\x12\x1a\n" +
-	"\btypeName\x18\v \x01(\tR\btypeName\"\\\n" +
-	"\x18GetPeerApprovalStateRqst\x12\x10\n" +
-	"\x03mac\x18\x01 \x01(\tR\x03mac\x12.\n" +
-	"\x13remote_peer_address\x18\x02 \x01(\tR\x11remotePeerAddress\"L\n" +
-	"\x17GetPeerApprovalStateRsp\x121\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x1b.resource.PeerApprovalStateR\x05state\"X\n" +
-	"\x14GetPeerPublicKeyRqst\x12\x10\n" +
-	"\x03mac\x18\x01 \x01(\tR\x03mac\x12.\n" +
-	"\x13remote_peer_address\x18\x02 \x01(\tR\x11remotePeerAddress\"4\n" +
-	"\x13GetPeerPublicKeyRsp\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x01 \x01(\tR\tpublicKey\"U\n" +
-	"\x10RegisterPeerRqst\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\"T\n" +
-	"\x0fRegisterPeerRsp\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\"4\n" +
-	"\x0eUpdatePeerRqst\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\"'\n" +
-	"\rUpdatePeerRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\">\n" +
-	"\fGetPeersRqst\x12\x14\n" +
+	"port_https\x18\b \x01(\x05R\tportHttps\x12\x1a\n" +
+	"\bprotocol\x18\t \x01(\tR\bprotocol\x12 \n" +
+	"\vfingerprint\x18\n" +
+	" \x01(\tR\vfingerprint\x12\x1b\n" +
+	"\tlast_seen\x18\v \x01(\x03R\blastSeen\x12\x18\n" +
+	"\aenabled\x18\f \x01(\bR\aenabled\x12:\n" +
+	"\x06labels\x18\r \x03(\v2\".resource.NodeIdentity.LabelsEntryR\x06labels\x12\x1a\n" +
+	"\btypeName\x18\x0e \x01(\tR\btypeName\x12\x16\n" +
+	"\x06status\x18\x0f \x01(\tR\x06status\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +
+	"\x16UpsertNodeIdentityRqst\x12*\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\"C\n" +
+	"\x15UpsertNodeIdentityRsp\x12*\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\".\n" +
+	"\x13GetNodeIdentityRqst\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\"@\n" +
+	"\x12GetNodeIdentityRsp\x12*\n" +
+	"\x04node\x18\x01 \x01(\v2\x16.resource.NodeIdentityR\x04node\"H\n" +
+	"\x16ListNodeIdentitiesRqst\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
-	"\aoptions\x18\x02 \x01(\tR\aoptions\"3\n" +
-	"\vGetPeersRsp\x12$\n" +
-	"\x05peers\x18\x01 \x03(\v2\x0e.resource.PeerR\x05peers\"4\n" +
-	"\x0eDeletePeerRqst\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\"'\n" +
-	"\rDeletePeerRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\x12AddPeerActionsRqst\x12\x10\n" +
-	"\x03mac\x18\x01 \x01(\tR\x03mac\x12\x18\n" +
-	"\aactions\x18\x02 \x03(\tR\aactions\"+\n" +
-	"\x11AddPeerActionsRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
-	"\x14RemovePeerActionRqst\x12\x10\n" +
-	"\x03mac\x18\x01 \x01(\tR\x03mac\x12\x16\n" +
-	"\x06action\x18\x02 \x01(\tR\x06action\"-\n" +
-	"\x13RemovePeerActionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"/\n" +
-	"\x15RemovePeersActionRqst\x12\x16\n" +
-	"\x06action\x18\x02 \x01(\tR\x06action\".\n" +
-	"\x14RemovePeersActionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
-	"\x0eAcceptPeerRqst\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\"'\n" +
-	"\rAcceptPeerRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"4\n" +
-	"\x0eRejectPeerRqst\x12\"\n" +
-	"\x04peer\x18\x01 \x01(\v2\x0e.resource.PeerR\x04peer\"'\n" +
-	"\rRejectPeerRsp\x12\x16\n" +
+	"\aoptions\x18\x02 \x01(\tR\aoptions\"E\n" +
+	"\x15ListNodeIdentitiesRsp\x12,\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x16.resource.NodeIdentityR\x05nodes\"O\n" +
+	"\x1aSetNodeIdentityEnabledRqst\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
+	"\aenabled\x18\x02 \x01(\bR\aenabled\"3\n" +
+	"\x19SetNodeIdentityEnabledRsp\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x9e\x01\n" +
 	"\x04Call\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x16\n" +
@@ -9661,11 +8938,7 @@ const file_resource_proto_rawDesc = "" +
 	"\vPackageType\x12\x0f\n" +
 	"\vUNKNOW_TYPE\x10\x00\x12\x10\n" +
 	"\fSERVICE_TYPE\x10\x01\x12\x14\n" +
-	"\x10APPLICATION_TYPE\x10\x02*J\n" +
-	"\x11PeerApprovalState\x12\x10\n" +
-	"\fPEER_PENDING\x10\x00\x12\x10\n" +
-	"\fPEER_ACCETEP\x10\x01\x12\x11\n" +
-	"\rPEER_REJECTED\x10\x02*`\n" +
+	"\x10APPLICATION_TYPE\x10\x02*`\n" +
 	"\x10NotificationType\x12\x15\n" +
 	"\x11USER_NOTIFICATION\x10\x00\x12\x1c\n" +
 	"\x18APPLICATION_NOTIFICATION\x10\x01\x12\x17\n" +
@@ -9674,7 +8947,7 @@ const file_resource_proto_rawDesc = "" +
 	"\n" +
 	"\x06ONLINE\x10\x00\x12\v\n" +
 	"\aOFFLINE\x10\x01\x12\b\n" +
-	"\x04AWAY\x10\x022\xe54\n" +
+	"\x04AWAY\x10\x022\xe9/\n" +
 	"\x0fResourceService\x12N\n" +
 	"\x0fCreateReference\x12\x1d.resource.CreateReferenceRqst\x1a\x1c.resource.CreateReferenceRsp\x12N\n" +
 	"\x0fDeleteReference\x12\x1d.resource.DeleteReferenceRqst\x1a\x1c.resource.DeleteReferenceRsp\x12W\n" +
@@ -9728,24 +9001,11 @@ const file_resource_proto_rawDesc = "" +
 	"\x15AddApplicationActions\x12#.resource.AddApplicationActionsRqst\x1a\".resource.AddApplicationActionsRsp\x12f\n" +
 	"\x17RemoveApplicationAction\x12%.resource.RemoveApplicationActionRqst\x1a$.resource.RemoveApplicationActionRsp\x12i\n" +
 	"\x18RemoveApplicationsAction\x12&.resource.RemoveApplicationsActionRqst\x1a%.resource.RemoveApplicationsActionRsp\x12`\n" +
-	"\x15GetApplicationVersion\x12#.resource.GetApplicationVersionRqst\x1a\".resource.GetApplicationVersionRsp\x12Z\n" +
-	"\x13GetApplicationAlias\x12!.resource.GetApplicationAliasRqst\x1a .resource.GetApplicationAliasRsp\x12W\n" +
-	"\x12GetApplicationIcon\x12 .resource.GetApplicationIconRqst\x1a\x1f.resource.GetApplicationIconRsp\x12E\n" +
-	"\fRegisterPeer\x12\x1a.resource.RegisterPeerRqst\x1a\x19.resource.RegisterPeerRsp\x12;\n" +
-	"\bGetPeers\x12\x16.resource.GetPeersRqst\x1a\x15.resource.GetPeersRsp0\x01\x12]\n" +
-	"\x14GetPeerApprovalState\x12\".resource.GetPeerApprovalStateRqst\x1a!.resource.GetPeerApprovalStateRsp\x12?\n" +
-	"\n" +
-	"DeletePeer\x12\x18.resource.DeletePeerRqst\x1a\x17.resource.DeletePeerRsp\x12?\n" +
-	"\n" +
-	"UpdatePeer\x12\x18.resource.UpdatePeerRqst\x1a\x17.resource.UpdatePeerRsp\x12K\n" +
-	"\x0eAddPeerActions\x12\x1c.resource.AddPeerActionsRqst\x1a\x1b.resource.AddPeerActionsRsp\x12Q\n" +
-	"\x10RemovePeerAction\x12\x1e.resource.RemovePeerActionRqst\x1a\x1d.resource.RemovePeerActionRsp\x12T\n" +
-	"\x11RemovePeersAction\x12\x1f.resource.RemovePeersActionRqst\x1a\x1e.resource.RemovePeersActionRsp\x12?\n" +
-	"\n" +
-	"AcceptPeer\x12\x18.resource.AcceptPeerRqst\x1a\x17.resource.AcceptPeerRsp\x12?\n" +
-	"\n" +
-	"RejectPeer\x12\x18.resource.RejectPeerRqst\x1a\x17.resource.RejectPeerRsp\x12Q\n" +
-	"\x10GetPeerPublicKey\x12\x1e.resource.GetPeerPublicKeyRqst\x1a\x1d.resource.GetPeerPublicKeyRsp\x12W\n" +
+	"\x15GetApplicationVersion\x12#.resource.GetApplicationVersionRqst\x1a\".resource.GetApplicationVersionRsp\x12W\n" +
+	"\x12UpsertNodeIdentity\x12 .resource.UpsertNodeIdentityRqst\x1a\x1f.resource.UpsertNodeIdentityRsp\x12N\n" +
+	"\x0fGetNodeIdentity\x12\x1d.resource.GetNodeIdentityRqst\x1a\x1c.resource.GetNodeIdentityRsp\x12Y\n" +
+	"\x12ListNodeIdentities\x12 .resource.ListNodeIdentitiesRqst\x1a\x1f.resource.ListNodeIdentitiesRsp0\x01\x12c\n" +
+	"\x16SetNodeIdentityEnabled\x12$.resource.SetNodeIdentityEnabledRqst\x1a#.resource.SetNodeIdentityEnabledRsp\x12W\n" +
 	"\x12CreateNotification\x12 .resource.CreateNotificationRqst\x1a\x1f.resource.CreateNotificationRsp\x12S\n" +
 	"\x10GetNotifications\x12\x1e.resource.GetNotificationsRqst\x1a\x1d.resource.GetNotificationsRsp0\x01\x12W\n" +
 	"\x12DeleteNotification\x12 .resource.DeleteNotificationRqst\x1a\x1f.resource.DeleteNotificationRsp\x12`\n" +
@@ -9781,395 +9041,359 @@ func file_resource_proto_rawDescGZIP() []byte {
 	return file_resource_proto_rawDescData
 }
 
-var file_resource_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 174)
+var file_resource_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 161)
 var file_resource_proto_goTypes = []any{
 	(PackageType)(0),                          // 0: resource.PackageType
-	(PeerApprovalState)(0),                    // 1: resource.PeerApprovalState
-	(NotificationType)(0),                     // 2: resource.NotificationType
-	(SessionState)(0),                         // 3: resource.SessionState
-	(*PackageBundle)(nil),                     // 4: resource.PackageBundle
-	(*SetPackageBundleRequest)(nil),           // 5: resource.SetPackageBundleRequest
-	(*SetPackageBundleResponse)(nil),          // 6: resource.SetPackageBundleResponse
-	(*GetPackageBundleChecksumRequest)(nil),   // 7: resource.GetPackageBundleChecksumRequest
-	(*GetPackageBundleChecksumResponse)(nil),  // 8: resource.GetPackageBundleChecksumResponse
-	(*PackageDescriptor)(nil),                 // 9: resource.PackageDescriptor
-	(*GetPackageDescriptorRequest)(nil),       // 10: resource.GetPackageDescriptorRequest
-	(*GetPackageDescriptorResponse)(nil),      // 11: resource.GetPackageDescriptorResponse
-	(*GetPackagesDescriptorRequest)(nil),      // 12: resource.GetPackagesDescriptorRequest
-	(*GetPackagesDescriptorResponse)(nil),     // 13: resource.GetPackagesDescriptorResponse
-	(*SetPackageDescriptorRequest)(nil),       // 14: resource.SetPackageDescriptorRequest
-	(*SetPackageDescriptorResponse)(nil),      // 15: resource.SetPackageDescriptorResponse
-	(*FindPackagesDescriptorRequest)(nil),     // 16: resource.FindPackagesDescriptorRequest
-	(*FindPackagesDescriptorResponse)(nil),    // 17: resource.FindPackagesDescriptorResponse
-	(*Role)(nil),                              // 18: resource.Role
-	(*AddRoleActionsRqst)(nil),                // 19: resource.AddRoleActionsRqst
-	(*AddRoleActionsRsp)(nil),                 // 20: resource.AddRoleActionsRsp
-	(*RemoveRoleActionRqst)(nil),              // 21: resource.RemoveRoleActionRqst
-	(*RemoveRoleActionRsp)(nil),               // 22: resource.RemoveRoleActionRsp
-	(*RemoveRolesActionRqst)(nil),             // 23: resource.RemoveRolesActionRqst
-	(*RemoveRolesActionRsp)(nil),              // 24: resource.RemoveRolesActionRsp
-	(*Account)(nil),                           // 25: resource.Account
-	(*RegisterAccountRqst)(nil),               // 26: resource.RegisterAccountRqst
-	(*RegisterAccountRsp)(nil),                // 27: resource.RegisterAccountRsp
-	(*AccountExistRqst)(nil),                  // 28: resource.AccountExistRqst
-	(*AccountExistRsp)(nil),                   // 29: resource.AccountExistRsp
-	(*GetAccountsRqst)(nil),                   // 30: resource.GetAccountsRqst
-	(*GetAccountsRsp)(nil),                    // 31: resource.GetAccountsRsp
-	(*GetAccountRqst)(nil),                    // 32: resource.GetAccountRqst
-	(*GetAccountRsp)(nil),                     // 33: resource.GetAccountRsp
-	(*SetAccountRqst)(nil),                    // 34: resource.SetAccountRqst
-	(*SetAccountRsp)(nil),                     // 35: resource.SetAccountRsp
-	(*SetAccountPasswordRqst)(nil),            // 36: resource.SetAccountPasswordRqst
-	(*SetAccountPasswordRsp)(nil),             // 37: resource.SetAccountPasswordRsp
-	(*SetEmailRequest)(nil),                   // 38: resource.SetEmailRequest
-	(*SetEmailResponse)(nil),                  // 39: resource.SetEmailResponse
-	(*DeleteAccountRqst)(nil),                 // 40: resource.DeleteAccountRqst
-	(*DeleteAccountRsp)(nil),                  // 41: resource.DeleteAccountRsp
-	(*AddAccountRoleRqst)(nil),                // 42: resource.AddAccountRoleRqst
-	(*AddAccountRoleRsp)(nil),                 // 43: resource.AddAccountRoleRsp
-	(*RemoveAccountRoleRqst)(nil),             // 44: resource.RemoveAccountRoleRqst
-	(*RemoveAccountRoleRsp)(nil),              // 45: resource.RemoveAccountRoleRsp
-	(*Contact)(nil),                           // 46: resource.Contact
-	(*SetAccountContactRqst)(nil),             // 47: resource.SetAccountContactRqst
-	(*SetAccountContactRsp)(nil),              // 48: resource.SetAccountContactRsp
-	(*CreateRoleRqst)(nil),                    // 49: resource.CreateRoleRqst
-	(*CreateRoleRsp)(nil),                     // 50: resource.CreateRoleRsp
-	(*UpdateRoleRqst)(nil),                    // 51: resource.UpdateRoleRqst
-	(*UpdateRoleRsp)(nil),                     // 52: resource.UpdateRoleRsp
-	(*GetRolesRqst)(nil),                      // 53: resource.GetRolesRqst
-	(*GetRolesRsp)(nil),                       // 54: resource.GetRolesRsp
-	(*DeleteRoleRqst)(nil),                    // 55: resource.DeleteRoleRqst
-	(*DeleteRoleRsp)(nil),                     // 56: resource.DeleteRoleRsp
-	(*Application)(nil),                       // 57: resource.Application
-	(*CreateApplicationRqst)(nil),             // 58: resource.CreateApplicationRqst
-	(*CreateApplicationRsp)(nil),              // 59: resource.CreateApplicationRsp
-	(*UpdateApplicationRqst)(nil),             // 60: resource.UpdateApplicationRqst
-	(*UpdateApplicationRsp)(nil),              // 61: resource.UpdateApplicationRsp
-	(*DeleteApplicationRqst)(nil),             // 62: resource.DeleteApplicationRqst
-	(*DeleteApplicationRsp)(nil),              // 63: resource.DeleteApplicationRsp
-	(*AddApplicationActionsRqst)(nil),         // 64: resource.AddApplicationActionsRqst
-	(*AddApplicationActionsRsp)(nil),          // 65: resource.AddApplicationActionsRsp
-	(*RemoveApplicationActionRqst)(nil),       // 66: resource.RemoveApplicationActionRqst
-	(*RemoveApplicationActionRsp)(nil),        // 67: resource.RemoveApplicationActionRsp
-	(*RemoveApplicationsActionRqst)(nil),      // 68: resource.RemoveApplicationsActionRqst
-	(*RemoveApplicationsActionRsp)(nil),       // 69: resource.RemoveApplicationsActionRsp
-	(*GetApplicationsRqst)(nil),               // 70: resource.GetApplicationsRqst
-	(*GetApplicationsRsp)(nil),                // 71: resource.GetApplicationsRsp
-	(*GetApplicationVersionRqst)(nil),         // 72: resource.GetApplicationVersionRqst
-	(*GetApplicationVersionRsp)(nil),          // 73: resource.GetApplicationVersionRsp
-	(*GetApplicationIconRqst)(nil),            // 74: resource.GetApplicationIconRqst
-	(*GetApplicationIconRsp)(nil),             // 75: resource.GetApplicationIconRsp
-	(*GetApplicationAliasRqst)(nil),           // 76: resource.GetApplicationAliasRqst
-	(*GetApplicationAliasRsp)(nil),            // 77: resource.GetApplicationAliasRsp
-	(*Group)(nil),                             // 78: resource.Group
-	(*CreateGroupRqst)(nil),                   // 79: resource.CreateGroupRqst
-	(*CreateGroupRsp)(nil),                    // 80: resource.CreateGroupRsp
-	(*UpdateGroupRqst)(nil),                   // 81: resource.UpdateGroupRqst
-	(*UpdateGroupRsp)(nil),                    // 82: resource.UpdateGroupRsp
-	(*GetGroupsRqst)(nil),                     // 83: resource.GetGroupsRqst
-	(*GetGroupsRsp)(nil),                      // 84: resource.GetGroupsRsp
-	(*DeleteGroupRqst)(nil),                   // 85: resource.DeleteGroupRqst
-	(*DeleteGroupRsp)(nil),                    // 86: resource.DeleteGroupRsp
-	(*AddGroupMemberAccountRqst)(nil),         // 87: resource.AddGroupMemberAccountRqst
-	(*AddGroupMemberAccountRsp)(nil),          // 88: resource.AddGroupMemberAccountRsp
-	(*RemoveGroupMemberAccountRqst)(nil),      // 89: resource.RemoveGroupMemberAccountRqst
-	(*RemoveGroupMemberAccountRsp)(nil),       // 90: resource.RemoveGroupMemberAccountRsp
-	(*AddGroupRoleRqst)(nil),                  // 91: resource.AddGroupRoleRqst
-	(*AddGroupRoleRsp)(nil),                   // 92: resource.AddGroupRoleRsp
-	(*RemoveGroupRoleRqst)(nil),               // 93: resource.RemoveGroupRoleRqst
-	(*RemoveGroupRoleRsp)(nil),                // 94: resource.RemoveGroupRoleRsp
-	(*Organization)(nil),                      // 95: resource.Organization
-	(*CreateOrganizationRqst)(nil),            // 96: resource.CreateOrganizationRqst
-	(*CreateOrganizationRsp)(nil),             // 97: resource.CreateOrganizationRsp
-	(*UpdateOrganizationRqst)(nil),            // 98: resource.UpdateOrganizationRqst
-	(*UpdateOrganizationRsp)(nil),             // 99: resource.UpdateOrganizationRsp
-	(*GetOrganizationsRqst)(nil),              // 100: resource.GetOrganizationsRqst
-	(*GetOrganizationsRsp)(nil),               // 101: resource.GetOrganizationsRsp
-	(*AddOrganizationAccountRqst)(nil),        // 102: resource.AddOrganizationAccountRqst
-	(*AddOrganizationAccountRsp)(nil),         // 103: resource.AddOrganizationAccountRsp
-	(*AddOrganizationGroupRqst)(nil),          // 104: resource.AddOrganizationGroupRqst
-	(*AddOrganizationGroupRsp)(nil),           // 105: resource.AddOrganizationGroupRsp
-	(*AddOrganizationRoleRqst)(nil),           // 106: resource.AddOrganizationRoleRqst
-	(*AddOrganizationRoleRsp)(nil),            // 107: resource.AddOrganizationRoleRsp
-	(*AddOrganizationApplicationRqst)(nil),    // 108: resource.AddOrganizationApplicationRqst
-	(*AddOrganizationApplicationRsp)(nil),     // 109: resource.AddOrganizationApplicationRsp
-	(*RemoveOrganizationGroupRqst)(nil),       // 110: resource.RemoveOrganizationGroupRqst
-	(*RemoveOrganizationGroupRsp)(nil),        // 111: resource.RemoveOrganizationGroupRsp
-	(*RemoveOrganizationRoleRqst)(nil),        // 112: resource.RemoveOrganizationRoleRqst
-	(*RemoveOrganizationRoleRsp)(nil),         // 113: resource.RemoveOrganizationRoleRsp
-	(*RemoveOrganizationApplicationRqst)(nil), // 114: resource.RemoveOrganizationApplicationRqst
-	(*RemoveOrganizationApplicationRsp)(nil),  // 115: resource.RemoveOrganizationApplicationRsp
-	(*RemoveOrganizationAccountRqst)(nil),     // 116: resource.RemoveOrganizationAccountRqst
-	(*RemoveOrganizationAccountRsp)(nil),      // 117: resource.RemoveOrganizationAccountRsp
-	(*IsOrgnanizationMemberRqst)(nil),         // 118: resource.IsOrgnanizationMemberRqst
-	(*IsOrgnanizationMemberRsp)(nil),          // 119: resource.IsOrgnanizationMemberRsp
-	(*DeleteOrganizationRqst)(nil),            // 120: resource.DeleteOrganizationRqst
-	(*DeleteOrganizationRsp)(nil),             // 121: resource.DeleteOrganizationRsp
-	(*Peer)(nil),                              // 122: resource.Peer
-	(*GetPeerApprovalStateRqst)(nil),          // 123: resource.GetPeerApprovalStateRqst
-	(*GetPeerApprovalStateRsp)(nil),           // 124: resource.GetPeerApprovalStateRsp
-	(*GetPeerPublicKeyRqst)(nil),              // 125: resource.GetPeerPublicKeyRqst
-	(*GetPeerPublicKeyRsp)(nil),               // 126: resource.GetPeerPublicKeyRsp
-	(*RegisterPeerRqst)(nil),                  // 127: resource.RegisterPeerRqst
-	(*RegisterPeerRsp)(nil),                   // 128: resource.RegisterPeerRsp
-	(*UpdatePeerRqst)(nil),                    // 129: resource.UpdatePeerRqst
-	(*UpdatePeerRsp)(nil),                     // 130: resource.UpdatePeerRsp
-	(*GetPeersRqst)(nil),                      // 131: resource.GetPeersRqst
-	(*GetPeersRsp)(nil),                       // 132: resource.GetPeersRsp
-	(*DeletePeerRqst)(nil),                    // 133: resource.DeletePeerRqst
-	(*DeletePeerRsp)(nil),                     // 134: resource.DeletePeerRsp
-	(*AddPeerActionsRqst)(nil),                // 135: resource.AddPeerActionsRqst
-	(*AddPeerActionsRsp)(nil),                 // 136: resource.AddPeerActionsRsp
-	(*RemovePeerActionRqst)(nil),              // 137: resource.RemovePeerActionRqst
-	(*RemovePeerActionRsp)(nil),               // 138: resource.RemovePeerActionRsp
-	(*RemovePeersActionRqst)(nil),             // 139: resource.RemovePeersActionRqst
-	(*RemovePeersActionRsp)(nil),              // 140: resource.RemovePeersActionRsp
-	(*AcceptPeerRqst)(nil),                    // 141: resource.AcceptPeerRqst
-	(*AcceptPeerRsp)(nil),                     // 142: resource.AcceptPeerRsp
-	(*RejectPeerRqst)(nil),                    // 143: resource.RejectPeerRqst
-	(*RejectPeerRsp)(nil),                     // 144: resource.RejectPeerRsp
-	(*Call)(nil),                              // 145: resource.Call
-	(*GetCallHistoryRqst)(nil),                // 146: resource.GetCallHistoryRqst
-	(*GetCallHistoryRsp)(nil),                 // 147: resource.GetCallHistoryRsp
-	(*SetCallRqst)(nil),                       // 148: resource.SetCallRqst
-	(*SetCallRsp)(nil),                        // 149: resource.SetCallRsp
-	(*DeleteCallRqst)(nil),                    // 150: resource.DeleteCallRqst
-	(*DeleteCallRsp)(nil),                     // 151: resource.DeleteCallRsp
-	(*ClearCallsRqst)(nil),                    // 152: resource.ClearCallsRqst
-	(*ClearCallsRsp)(nil),                     // 153: resource.ClearCallsRsp
-	(*Notification)(nil),                      // 154: resource.Notification
-	(*CreateNotificationRqst)(nil),            // 155: resource.CreateNotificationRqst
-	(*CreateNotificationRsp)(nil),             // 156: resource.CreateNotificationRsp
-	(*GetNotificationsRqst)(nil),              // 157: resource.GetNotificationsRqst
-	(*GetNotificationsRsp)(nil),               // 158: resource.GetNotificationsRsp
-	(*DeleteNotificationRqst)(nil),            // 159: resource.DeleteNotificationRqst
-	(*DeleteNotificationRsp)(nil),             // 160: resource.DeleteNotificationRsp
-	(*ClearAllNotificationsRqst)(nil),         // 161: resource.ClearAllNotificationsRqst
-	(*ClearAllNotificationsRsp)(nil),          // 162: resource.ClearAllNotificationsRsp
-	(*ClearNotificationsByTypeRqst)(nil),      // 163: resource.ClearNotificationsByTypeRqst
-	(*ClearNotificationsByTypeRsp)(nil),       // 164: resource.ClearNotificationsByTypeRsp
-	(*Session)(nil),                           // 165: resource.Session
-	(*UpdateSessionRequest)(nil),              // 166: resource.UpdateSessionRequest
-	(*UpdateSessionResponse)(nil),             // 167: resource.UpdateSessionResponse
-	(*RemoveSessionRequest)(nil),              // 168: resource.RemoveSessionRequest
-	(*RemoveSessionResponse)(nil),             // 169: resource.RemoveSessionResponse
-	(*GetSessionsRequest)(nil),                // 170: resource.GetSessionsRequest
-	(*GetSessionsResponse)(nil),               // 171: resource.GetSessionsResponse
-	(*GetSessionRequest)(nil),                 // 172: resource.GetSessionRequest
-	(*GetSessionResponse)(nil),                // 173: resource.GetSessionResponse
-	(*CreateReferenceRqst)(nil),               // 174: resource.CreateReferenceRqst
-	(*CreateReferenceRsp)(nil),                // 175: resource.CreateReferenceRsp
-	(*DeleteReferenceRqst)(nil),               // 176: resource.DeleteReferenceRqst
-	(*DeleteReferenceRsp)(nil),                // 177: resource.DeleteReferenceRsp
+	(NotificationType)(0),                     // 1: resource.NotificationType
+	(SessionState)(0),                         // 2: resource.SessionState
+	(*PackageBundle)(nil),                     // 3: resource.PackageBundle
+	(*SetPackageBundleRequest)(nil),           // 4: resource.SetPackageBundleRequest
+	(*SetPackageBundleResponse)(nil),          // 5: resource.SetPackageBundleResponse
+	(*GetPackageBundleChecksumRequest)(nil),   // 6: resource.GetPackageBundleChecksumRequest
+	(*GetPackageBundleChecksumResponse)(nil),  // 7: resource.GetPackageBundleChecksumResponse
+	(*PackageDescriptor)(nil),                 // 8: resource.PackageDescriptor
+	(*GetPackageDescriptorRequest)(nil),       // 9: resource.GetPackageDescriptorRequest
+	(*GetPackageDescriptorResponse)(nil),      // 10: resource.GetPackageDescriptorResponse
+	(*GetPackagesDescriptorRequest)(nil),      // 11: resource.GetPackagesDescriptorRequest
+	(*GetPackagesDescriptorResponse)(nil),     // 12: resource.GetPackagesDescriptorResponse
+	(*SetPackageDescriptorRequest)(nil),       // 13: resource.SetPackageDescriptorRequest
+	(*SetPackageDescriptorResponse)(nil),      // 14: resource.SetPackageDescriptorResponse
+	(*FindPackagesDescriptorRequest)(nil),     // 15: resource.FindPackagesDescriptorRequest
+	(*FindPackagesDescriptorResponse)(nil),    // 16: resource.FindPackagesDescriptorResponse
+	(*Role)(nil),                              // 17: resource.Role
+	(*AddRoleActionsRqst)(nil),                // 18: resource.AddRoleActionsRqst
+	(*AddRoleActionsRsp)(nil),                 // 19: resource.AddRoleActionsRsp
+	(*RemoveRoleActionRqst)(nil),              // 20: resource.RemoveRoleActionRqst
+	(*RemoveRoleActionRsp)(nil),               // 21: resource.RemoveRoleActionRsp
+	(*RemoveRolesActionRqst)(nil),             // 22: resource.RemoveRolesActionRqst
+	(*RemoveRolesActionRsp)(nil),              // 23: resource.RemoveRolesActionRsp
+	(*Account)(nil),                           // 24: resource.Account
+	(*RegisterAccountRqst)(nil),               // 25: resource.RegisterAccountRqst
+	(*RegisterAccountRsp)(nil),                // 26: resource.RegisterAccountRsp
+	(*AccountExistRqst)(nil),                  // 27: resource.AccountExistRqst
+	(*AccountExistRsp)(nil),                   // 28: resource.AccountExistRsp
+	(*GetAccountsRqst)(nil),                   // 29: resource.GetAccountsRqst
+	(*GetAccountsRsp)(nil),                    // 30: resource.GetAccountsRsp
+	(*GetAccountRqst)(nil),                    // 31: resource.GetAccountRqst
+	(*GetAccountRsp)(nil),                     // 32: resource.GetAccountRsp
+	(*SetAccountRqst)(nil),                    // 33: resource.SetAccountRqst
+	(*SetAccountRsp)(nil),                     // 34: resource.SetAccountRsp
+	(*SetAccountPasswordRqst)(nil),            // 35: resource.SetAccountPasswordRqst
+	(*SetAccountPasswordRsp)(nil),             // 36: resource.SetAccountPasswordRsp
+	(*SetEmailRequest)(nil),                   // 37: resource.SetEmailRequest
+	(*SetEmailResponse)(nil),                  // 38: resource.SetEmailResponse
+	(*DeleteAccountRqst)(nil),                 // 39: resource.DeleteAccountRqst
+	(*DeleteAccountRsp)(nil),                  // 40: resource.DeleteAccountRsp
+	(*AddAccountRoleRqst)(nil),                // 41: resource.AddAccountRoleRqst
+	(*AddAccountRoleRsp)(nil),                 // 42: resource.AddAccountRoleRsp
+	(*RemoveAccountRoleRqst)(nil),             // 43: resource.RemoveAccountRoleRqst
+	(*RemoveAccountRoleRsp)(nil),              // 44: resource.RemoveAccountRoleRsp
+	(*Contact)(nil),                           // 45: resource.Contact
+	(*SetAccountContactRqst)(nil),             // 46: resource.SetAccountContactRqst
+	(*SetAccountContactRsp)(nil),              // 47: resource.SetAccountContactRsp
+	(*CreateRoleRqst)(nil),                    // 48: resource.CreateRoleRqst
+	(*CreateRoleRsp)(nil),                     // 49: resource.CreateRoleRsp
+	(*UpdateRoleRqst)(nil),                    // 50: resource.UpdateRoleRqst
+	(*UpdateRoleRsp)(nil),                     // 51: resource.UpdateRoleRsp
+	(*GetRolesRqst)(nil),                      // 52: resource.GetRolesRqst
+	(*GetRolesRsp)(nil),                       // 53: resource.GetRolesRsp
+	(*DeleteRoleRqst)(nil),                    // 54: resource.DeleteRoleRqst
+	(*DeleteRoleRsp)(nil),                     // 55: resource.DeleteRoleRsp
+	(*Application)(nil),                       // 56: resource.Application
+	(*CreateApplicationRqst)(nil),             // 57: resource.CreateApplicationRqst
+	(*CreateApplicationRsp)(nil),              // 58: resource.CreateApplicationRsp
+	(*UpdateApplicationRqst)(nil),             // 59: resource.UpdateApplicationRqst
+	(*UpdateApplicationRsp)(nil),              // 60: resource.UpdateApplicationRsp
+	(*DeleteApplicationRqst)(nil),             // 61: resource.DeleteApplicationRqst
+	(*DeleteApplicationRsp)(nil),              // 62: resource.DeleteApplicationRsp
+	(*AddApplicationActionsRqst)(nil),         // 63: resource.AddApplicationActionsRqst
+	(*AddApplicationActionsRsp)(nil),          // 64: resource.AddApplicationActionsRsp
+	(*RemoveApplicationActionRqst)(nil),       // 65: resource.RemoveApplicationActionRqst
+	(*RemoveApplicationActionRsp)(nil),        // 66: resource.RemoveApplicationActionRsp
+	(*RemoveApplicationsActionRqst)(nil),      // 67: resource.RemoveApplicationsActionRqst
+	(*RemoveApplicationsActionRsp)(nil),       // 68: resource.RemoveApplicationsActionRsp
+	(*GetApplicationsRqst)(nil),               // 69: resource.GetApplicationsRqst
+	(*GetApplicationsRsp)(nil),                // 70: resource.GetApplicationsRsp
+	(*GetApplicationVersionRqst)(nil),         // 71: resource.GetApplicationVersionRqst
+	(*GetApplicationVersionRsp)(nil),          // 72: resource.GetApplicationVersionRsp
+	(*GetApplicationIconRqst)(nil),            // 73: resource.GetApplicationIconRqst
+	(*GetApplicationIconRsp)(nil),             // 74: resource.GetApplicationIconRsp
+	(*GetApplicationAliasRqst)(nil),           // 75: resource.GetApplicationAliasRqst
+	(*GetApplicationAliasRsp)(nil),            // 76: resource.GetApplicationAliasRsp
+	(*Group)(nil),                             // 77: resource.Group
+	(*CreateGroupRqst)(nil),                   // 78: resource.CreateGroupRqst
+	(*CreateGroupRsp)(nil),                    // 79: resource.CreateGroupRsp
+	(*UpdateGroupRqst)(nil),                   // 80: resource.UpdateGroupRqst
+	(*UpdateGroupRsp)(nil),                    // 81: resource.UpdateGroupRsp
+	(*GetGroupsRqst)(nil),                     // 82: resource.GetGroupsRqst
+	(*GetGroupsRsp)(nil),                      // 83: resource.GetGroupsRsp
+	(*DeleteGroupRqst)(nil),                   // 84: resource.DeleteGroupRqst
+	(*DeleteGroupRsp)(nil),                    // 85: resource.DeleteGroupRsp
+	(*AddGroupMemberAccountRqst)(nil),         // 86: resource.AddGroupMemberAccountRqst
+	(*AddGroupMemberAccountRsp)(nil),          // 87: resource.AddGroupMemberAccountRsp
+	(*RemoveGroupMemberAccountRqst)(nil),      // 88: resource.RemoveGroupMemberAccountRqst
+	(*RemoveGroupMemberAccountRsp)(nil),       // 89: resource.RemoveGroupMemberAccountRsp
+	(*AddGroupRoleRqst)(nil),                  // 90: resource.AddGroupRoleRqst
+	(*AddGroupRoleRsp)(nil),                   // 91: resource.AddGroupRoleRsp
+	(*RemoveGroupRoleRqst)(nil),               // 92: resource.RemoveGroupRoleRqst
+	(*RemoveGroupRoleRsp)(nil),                // 93: resource.RemoveGroupRoleRsp
+	(*Organization)(nil),                      // 94: resource.Organization
+	(*CreateOrganizationRqst)(nil),            // 95: resource.CreateOrganizationRqst
+	(*CreateOrganizationRsp)(nil),             // 96: resource.CreateOrganizationRsp
+	(*UpdateOrganizationRqst)(nil),            // 97: resource.UpdateOrganizationRqst
+	(*UpdateOrganizationRsp)(nil),             // 98: resource.UpdateOrganizationRsp
+	(*GetOrganizationsRqst)(nil),              // 99: resource.GetOrganizationsRqst
+	(*GetOrganizationsRsp)(nil),               // 100: resource.GetOrganizationsRsp
+	(*AddOrganizationAccountRqst)(nil),        // 101: resource.AddOrganizationAccountRqst
+	(*AddOrganizationAccountRsp)(nil),         // 102: resource.AddOrganizationAccountRsp
+	(*AddOrganizationGroupRqst)(nil),          // 103: resource.AddOrganizationGroupRqst
+	(*AddOrganizationGroupRsp)(nil),           // 104: resource.AddOrganizationGroupRsp
+	(*AddOrganizationRoleRqst)(nil),           // 105: resource.AddOrganizationRoleRqst
+	(*AddOrganizationRoleRsp)(nil),            // 106: resource.AddOrganizationRoleRsp
+	(*AddOrganizationApplicationRqst)(nil),    // 107: resource.AddOrganizationApplicationRqst
+	(*AddOrganizationApplicationRsp)(nil),     // 108: resource.AddOrganizationApplicationRsp
+	(*RemoveOrganizationGroupRqst)(nil),       // 109: resource.RemoveOrganizationGroupRqst
+	(*RemoveOrganizationGroupRsp)(nil),        // 110: resource.RemoveOrganizationGroupRsp
+	(*RemoveOrganizationRoleRqst)(nil),        // 111: resource.RemoveOrganizationRoleRqst
+	(*RemoveOrganizationRoleRsp)(nil),         // 112: resource.RemoveOrganizationRoleRsp
+	(*RemoveOrganizationApplicationRqst)(nil), // 113: resource.RemoveOrganizationApplicationRqst
+	(*RemoveOrganizationApplicationRsp)(nil),  // 114: resource.RemoveOrganizationApplicationRsp
+	(*RemoveOrganizationAccountRqst)(nil),     // 115: resource.RemoveOrganizationAccountRqst
+	(*RemoveOrganizationAccountRsp)(nil),      // 116: resource.RemoveOrganizationAccountRsp
+	(*IsOrgnanizationMemberRqst)(nil),         // 117: resource.IsOrgnanizationMemberRqst
+	(*IsOrgnanizationMemberRsp)(nil),          // 118: resource.IsOrgnanizationMemberRsp
+	(*DeleteOrganizationRqst)(nil),            // 119: resource.DeleteOrganizationRqst
+	(*DeleteOrganizationRsp)(nil),             // 120: resource.DeleteOrganizationRsp
+	(*NodeIdentity)(nil),                      // 121: resource.NodeIdentity
+	(*UpsertNodeIdentityRqst)(nil),            // 122: resource.UpsertNodeIdentityRqst
+	(*UpsertNodeIdentityRsp)(nil),             // 123: resource.UpsertNodeIdentityRsp
+	(*GetNodeIdentityRqst)(nil),               // 124: resource.GetNodeIdentityRqst
+	(*GetNodeIdentityRsp)(nil),                // 125: resource.GetNodeIdentityRsp
+	(*ListNodeIdentitiesRqst)(nil),            // 126: resource.ListNodeIdentitiesRqst
+	(*ListNodeIdentitiesRsp)(nil),             // 127: resource.ListNodeIdentitiesRsp
+	(*SetNodeIdentityEnabledRqst)(nil),        // 128: resource.SetNodeIdentityEnabledRqst
+	(*SetNodeIdentityEnabledRsp)(nil),         // 129: resource.SetNodeIdentityEnabledRsp
+	(*Call)(nil),                              // 130: resource.Call
+	(*GetCallHistoryRqst)(nil),                // 131: resource.GetCallHistoryRqst
+	(*GetCallHistoryRsp)(nil),                 // 132: resource.GetCallHistoryRsp
+	(*SetCallRqst)(nil),                       // 133: resource.SetCallRqst
+	(*SetCallRsp)(nil),                        // 134: resource.SetCallRsp
+	(*DeleteCallRqst)(nil),                    // 135: resource.DeleteCallRqst
+	(*DeleteCallRsp)(nil),                     // 136: resource.DeleteCallRsp
+	(*ClearCallsRqst)(nil),                    // 137: resource.ClearCallsRqst
+	(*ClearCallsRsp)(nil),                     // 138: resource.ClearCallsRsp
+	(*Notification)(nil),                      // 139: resource.Notification
+	(*CreateNotificationRqst)(nil),            // 140: resource.CreateNotificationRqst
+	(*CreateNotificationRsp)(nil),             // 141: resource.CreateNotificationRsp
+	(*GetNotificationsRqst)(nil),              // 142: resource.GetNotificationsRqst
+	(*GetNotificationsRsp)(nil),               // 143: resource.GetNotificationsRsp
+	(*DeleteNotificationRqst)(nil),            // 144: resource.DeleteNotificationRqst
+	(*DeleteNotificationRsp)(nil),             // 145: resource.DeleteNotificationRsp
+	(*ClearAllNotificationsRqst)(nil),         // 146: resource.ClearAllNotificationsRqst
+	(*ClearAllNotificationsRsp)(nil),          // 147: resource.ClearAllNotificationsRsp
+	(*ClearNotificationsByTypeRqst)(nil),      // 148: resource.ClearNotificationsByTypeRqst
+	(*ClearNotificationsByTypeRsp)(nil),       // 149: resource.ClearNotificationsByTypeRsp
+	(*Session)(nil),                           // 150: resource.Session
+	(*UpdateSessionRequest)(nil),              // 151: resource.UpdateSessionRequest
+	(*UpdateSessionResponse)(nil),             // 152: resource.UpdateSessionResponse
+	(*RemoveSessionRequest)(nil),              // 153: resource.RemoveSessionRequest
+	(*RemoveSessionResponse)(nil),             // 154: resource.RemoveSessionResponse
+	(*GetSessionsRequest)(nil),                // 155: resource.GetSessionsRequest
+	(*GetSessionsResponse)(nil),               // 156: resource.GetSessionsResponse
+	(*GetSessionRequest)(nil),                 // 157: resource.GetSessionRequest
+	(*GetSessionResponse)(nil),                // 158: resource.GetSessionResponse
+	(*CreateReferenceRqst)(nil),               // 159: resource.CreateReferenceRqst
+	(*CreateReferenceRsp)(nil),                // 160: resource.CreateReferenceRsp
+	(*DeleteReferenceRqst)(nil),               // 161: resource.DeleteReferenceRqst
+	(*DeleteReferenceRsp)(nil),                // 162: resource.DeleteReferenceRsp
+	nil,                                       // 163: resource.NodeIdentity.LabelsEntry
 }
 var file_resource_proto_depIdxs = []int32{
-	9,   // 0: resource.PackageBundle.packageDescriptor:type_name -> resource.PackageDescriptor
-	4,   // 1: resource.SetPackageBundleRequest.bundle:type_name -> resource.PackageBundle
+	8,   // 0: resource.PackageBundle.packageDescriptor:type_name -> resource.PackageDescriptor
+	3,   // 1: resource.SetPackageBundleRequest.bundle:type_name -> resource.PackageBundle
 	0,   // 2: resource.PackageDescriptor.type:type_name -> resource.PackageType
-	18,  // 3: resource.PackageDescriptor.roles:type_name -> resource.Role
-	78,  // 4: resource.PackageDescriptor.groups:type_name -> resource.Group
-	9,   // 5: resource.GetPackageDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	9,   // 6: resource.GetPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	9,   // 7: resource.SetPackageDescriptorRequest.packageDescriptor:type_name -> resource.PackageDescriptor
-	9,   // 8: resource.FindPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
-	25,  // 9: resource.RegisterAccountRqst.account:type_name -> resource.Account
-	25,  // 10: resource.GetAccountsRsp.accounts:type_name -> resource.Account
-	25,  // 11: resource.GetAccountRsp.account:type_name -> resource.Account
-	25,  // 12: resource.SetAccountRqst.account:type_name -> resource.Account
-	46,  // 13: resource.SetAccountContactRqst.contact:type_name -> resource.Contact
-	18,  // 14: resource.CreateRoleRqst.role:type_name -> resource.Role
-	18,  // 15: resource.GetRolesRsp.roles:type_name -> resource.Role
-	57,  // 16: resource.CreateApplicationRqst.application:type_name -> resource.Application
-	57,  // 17: resource.GetApplicationsRsp.applications:type_name -> resource.Application
-	78,  // 18: resource.CreateGroupRqst.group:type_name -> resource.Group
-	78,  // 19: resource.GetGroupsRsp.groups:type_name -> resource.Group
-	95,  // 20: resource.CreateOrganizationRqst.organization:type_name -> resource.Organization
-	95,  // 21: resource.GetOrganizationsRsp.organizations:type_name -> resource.Organization
-	1,   // 22: resource.Peer.state:type_name -> resource.PeerApprovalState
-	1,   // 23: resource.GetPeerApprovalStateRsp.state:type_name -> resource.PeerApprovalState
-	122, // 24: resource.RegisterPeerRqst.peer:type_name -> resource.Peer
-	122, // 25: resource.RegisterPeerRsp.peer:type_name -> resource.Peer
-	122, // 26: resource.UpdatePeerRqst.peer:type_name -> resource.Peer
-	122, // 27: resource.GetPeersRsp.peers:type_name -> resource.Peer
-	122, // 28: resource.DeletePeerRqst.peer:type_name -> resource.Peer
-	122, // 29: resource.AcceptPeerRqst.peer:type_name -> resource.Peer
-	122, // 30: resource.RejectPeerRqst.peer:type_name -> resource.Peer
-	145, // 31: resource.GetCallHistoryRsp.calls:type_name -> resource.Call
-	145, // 32: resource.SetCallRqst.call:type_name -> resource.Call
-	2,   // 33: resource.Notification.notification_type:type_name -> resource.NotificationType
-	154, // 34: resource.CreateNotificationRqst.notification:type_name -> resource.Notification
-	154, // 35: resource.GetNotificationsRsp.notifications:type_name -> resource.Notification
-	2,   // 36: resource.ClearNotificationsByTypeRqst.notification_type:type_name -> resource.NotificationType
-	3,   // 37: resource.Session.state:type_name -> resource.SessionState
-	165, // 38: resource.UpdateSessionRequest.session:type_name -> resource.Session
-	165, // 39: resource.GetSessionsResponse.sessions:type_name -> resource.Session
-	165, // 40: resource.GetSessionResponse.session:type_name -> resource.Session
-	174, // 41: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
-	176, // 42: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
-	96,  // 43: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
-	98,  // 44: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
-	100, // 45: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
-	120, // 46: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
-	102, // 47: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
-	104, // 48: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
-	106, // 49: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
-	108, // 50: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
-	91,  // 51: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
-	93,  // 52: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
-	116, // 53: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
-	110, // 54: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
-	112, // 55: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
-	114, // 56: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
-	79,  // 57: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
-	81,  // 58: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
-	83,  // 59: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
-	85,  // 60: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
-	87,  // 61: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
-	89,  // 62: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
-	26,  // 63: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
-	40,  // 64: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
-	32,  // 65: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
-	34,  // 66: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
-	36,  // 67: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
-	30,  // 68: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
-	42,  // 69: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
-	44,  // 70: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
-	47,  // 71: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
-	38,  // 72: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
-	118, // 73: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
-	49,  // 74: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
-	51,  // 75: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
-	53,  // 76: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
-	55,  // 77: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
-	19,  // 78: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
-	21,  // 79: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
-	23,  // 80: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
-	58,  // 81: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
-	60,  // 82: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
-	70,  // 83: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
-	62,  // 84: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
-	64,  // 85: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
-	66,  // 86: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
-	68,  // 87: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
-	72,  // 88: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
-	76,  // 89: resource.ResourceService.GetApplicationAlias:input_type -> resource.GetApplicationAliasRqst
-	74,  // 90: resource.ResourceService.GetApplicationIcon:input_type -> resource.GetApplicationIconRqst
-	127, // 91: resource.ResourceService.RegisterPeer:input_type -> resource.RegisterPeerRqst
-	131, // 92: resource.ResourceService.GetPeers:input_type -> resource.GetPeersRqst
-	123, // 93: resource.ResourceService.GetPeerApprovalState:input_type -> resource.GetPeerApprovalStateRqst
-	133, // 94: resource.ResourceService.DeletePeer:input_type -> resource.DeletePeerRqst
-	129, // 95: resource.ResourceService.UpdatePeer:input_type -> resource.UpdatePeerRqst
-	135, // 96: resource.ResourceService.AddPeerActions:input_type -> resource.AddPeerActionsRqst
-	137, // 97: resource.ResourceService.RemovePeerAction:input_type -> resource.RemovePeerActionRqst
-	139, // 98: resource.ResourceService.RemovePeersAction:input_type -> resource.RemovePeersActionRqst
-	141, // 99: resource.ResourceService.AcceptPeer:input_type -> resource.AcceptPeerRqst
-	143, // 100: resource.ResourceService.RejectPeer:input_type -> resource.RejectPeerRqst
-	125, // 101: resource.ResourceService.GetPeerPublicKey:input_type -> resource.GetPeerPublicKeyRqst
-	155, // 102: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
-	157, // 103: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
-	159, // 104: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
-	161, // 105: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
-	163, // 106: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
-	16,  // 107: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
-	10,  // 108: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
-	12,  // 109: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
-	14,  // 110: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
-	5,   // 111: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
-	7,   // 112: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
-	166, // 113: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
-	170, // 114: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
-	168, // 115: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
-	172, // 116: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
-	146, // 117: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
-	148, // 118: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
-	150, // 119: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
-	152, // 120: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
-	175, // 121: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
-	177, // 122: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
-	97,  // 123: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
-	99,  // 124: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
-	101, // 125: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
-	121, // 126: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
-	103, // 127: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
-	105, // 128: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
-	107, // 129: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
-	109, // 130: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
-	92,  // 131: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
-	94,  // 132: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
-	117, // 133: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
-	111, // 134: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
-	113, // 135: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
-	115, // 136: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
-	80,  // 137: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
-	82,  // 138: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
-	84,  // 139: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
-	86,  // 140: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
-	88,  // 141: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
-	90,  // 142: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
-	27,  // 143: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
-	41,  // 144: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
-	33,  // 145: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
-	35,  // 146: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
-	37,  // 147: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
-	31,  // 148: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
-	43,  // 149: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
-	45,  // 150: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
-	48,  // 151: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
-	39,  // 152: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
-	119, // 153: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
-	50,  // 154: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
-	52,  // 155: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
-	54,  // 156: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
-	56,  // 157: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
-	20,  // 158: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
-	22,  // 159: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
-	24,  // 160: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
-	59,  // 161: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
-	61,  // 162: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
-	71,  // 163: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
-	63,  // 164: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
-	65,  // 165: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
-	67,  // 166: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
-	69,  // 167: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
-	73,  // 168: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
-	77,  // 169: resource.ResourceService.GetApplicationAlias:output_type -> resource.GetApplicationAliasRsp
-	75,  // 170: resource.ResourceService.GetApplicationIcon:output_type -> resource.GetApplicationIconRsp
-	128, // 171: resource.ResourceService.RegisterPeer:output_type -> resource.RegisterPeerRsp
-	132, // 172: resource.ResourceService.GetPeers:output_type -> resource.GetPeersRsp
-	124, // 173: resource.ResourceService.GetPeerApprovalState:output_type -> resource.GetPeerApprovalStateRsp
-	134, // 174: resource.ResourceService.DeletePeer:output_type -> resource.DeletePeerRsp
-	130, // 175: resource.ResourceService.UpdatePeer:output_type -> resource.UpdatePeerRsp
-	136, // 176: resource.ResourceService.AddPeerActions:output_type -> resource.AddPeerActionsRsp
-	138, // 177: resource.ResourceService.RemovePeerAction:output_type -> resource.RemovePeerActionRsp
-	140, // 178: resource.ResourceService.RemovePeersAction:output_type -> resource.RemovePeersActionRsp
-	142, // 179: resource.ResourceService.AcceptPeer:output_type -> resource.AcceptPeerRsp
-	144, // 180: resource.ResourceService.RejectPeer:output_type -> resource.RejectPeerRsp
-	126, // 181: resource.ResourceService.GetPeerPublicKey:output_type -> resource.GetPeerPublicKeyRsp
-	156, // 182: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
-	158, // 183: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
-	160, // 184: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
-	162, // 185: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
-	164, // 186: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
-	17,  // 187: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
-	11,  // 188: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
-	13,  // 189: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
-	15,  // 190: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
-	6,   // 191: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
-	8,   // 192: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
-	167, // 193: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
-	171, // 194: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
-	169, // 195: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
-	173, // 196: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
-	147, // 197: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
-	149, // 198: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
-	151, // 199: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
-	153, // 200: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
-	121, // [121:201] is the sub-list for method output_type
-	41,  // [41:121] is the sub-list for method input_type
-	41,  // [41:41] is the sub-list for extension type_name
-	41,  // [41:41] is the sub-list for extension extendee
-	0,   // [0:41] is the sub-list for field type_name
+	17,  // 3: resource.PackageDescriptor.roles:type_name -> resource.Role
+	77,  // 4: resource.PackageDescriptor.groups:type_name -> resource.Group
+	8,   // 5: resource.GetPackageDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	8,   // 6: resource.GetPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	8,   // 7: resource.SetPackageDescriptorRequest.packageDescriptor:type_name -> resource.PackageDescriptor
+	8,   // 8: resource.FindPackagesDescriptorResponse.results:type_name -> resource.PackageDescriptor
+	24,  // 9: resource.RegisterAccountRqst.account:type_name -> resource.Account
+	24,  // 10: resource.GetAccountsRsp.accounts:type_name -> resource.Account
+	24,  // 11: resource.GetAccountRsp.account:type_name -> resource.Account
+	24,  // 12: resource.SetAccountRqst.account:type_name -> resource.Account
+	45,  // 13: resource.SetAccountContactRqst.contact:type_name -> resource.Contact
+	17,  // 14: resource.CreateRoleRqst.role:type_name -> resource.Role
+	17,  // 15: resource.GetRolesRsp.roles:type_name -> resource.Role
+	56,  // 16: resource.CreateApplicationRqst.application:type_name -> resource.Application
+	56,  // 17: resource.GetApplicationsRsp.applications:type_name -> resource.Application
+	77,  // 18: resource.CreateGroupRqst.group:type_name -> resource.Group
+	77,  // 19: resource.GetGroupsRsp.groups:type_name -> resource.Group
+	94,  // 20: resource.CreateOrganizationRqst.organization:type_name -> resource.Organization
+	94,  // 21: resource.GetOrganizationsRsp.organizations:type_name -> resource.Organization
+	163, // 22: resource.NodeIdentity.labels:type_name -> resource.NodeIdentity.LabelsEntry
+	121, // 23: resource.UpsertNodeIdentityRqst.node:type_name -> resource.NodeIdentity
+	121, // 24: resource.UpsertNodeIdentityRsp.node:type_name -> resource.NodeIdentity
+	121, // 25: resource.GetNodeIdentityRsp.node:type_name -> resource.NodeIdentity
+	121, // 26: resource.ListNodeIdentitiesRsp.nodes:type_name -> resource.NodeIdentity
+	130, // 27: resource.GetCallHistoryRsp.calls:type_name -> resource.Call
+	130, // 28: resource.SetCallRqst.call:type_name -> resource.Call
+	1,   // 29: resource.Notification.notification_type:type_name -> resource.NotificationType
+	139, // 30: resource.CreateNotificationRqst.notification:type_name -> resource.Notification
+	139, // 31: resource.GetNotificationsRsp.notifications:type_name -> resource.Notification
+	1,   // 32: resource.ClearNotificationsByTypeRqst.notification_type:type_name -> resource.NotificationType
+	2,   // 33: resource.Session.state:type_name -> resource.SessionState
+	150, // 34: resource.UpdateSessionRequest.session:type_name -> resource.Session
+	150, // 35: resource.GetSessionsResponse.sessions:type_name -> resource.Session
+	150, // 36: resource.GetSessionResponse.session:type_name -> resource.Session
+	159, // 37: resource.ResourceService.CreateReference:input_type -> resource.CreateReferenceRqst
+	161, // 38: resource.ResourceService.DeleteReference:input_type -> resource.DeleteReferenceRqst
+	95,  // 39: resource.ResourceService.CreateOrganization:input_type -> resource.CreateOrganizationRqst
+	97,  // 40: resource.ResourceService.UpdateOrganization:input_type -> resource.UpdateOrganizationRqst
+	99,  // 41: resource.ResourceService.GetOrganizations:input_type -> resource.GetOrganizationsRqst
+	119, // 42: resource.ResourceService.DeleteOrganization:input_type -> resource.DeleteOrganizationRqst
+	101, // 43: resource.ResourceService.AddOrganizationAccount:input_type -> resource.AddOrganizationAccountRqst
+	103, // 44: resource.ResourceService.AddOrganizationGroup:input_type -> resource.AddOrganizationGroupRqst
+	105, // 45: resource.ResourceService.AddOrganizationRole:input_type -> resource.AddOrganizationRoleRqst
+	107, // 46: resource.ResourceService.AddOrganizationApplication:input_type -> resource.AddOrganizationApplicationRqst
+	90,  // 47: resource.ResourceService.AddGroupRole:input_type -> resource.AddGroupRoleRqst
+	92,  // 48: resource.ResourceService.RemoveGroupRole:input_type -> resource.RemoveGroupRoleRqst
+	115, // 49: resource.ResourceService.RemoveOrganizationAccount:input_type -> resource.RemoveOrganizationAccountRqst
+	109, // 50: resource.ResourceService.RemoveOrganizationGroup:input_type -> resource.RemoveOrganizationGroupRqst
+	111, // 51: resource.ResourceService.RemoveOrganizationRole:input_type -> resource.RemoveOrganizationRoleRqst
+	113, // 52: resource.ResourceService.RemoveOrganizationApplication:input_type -> resource.RemoveOrganizationApplicationRqst
+	78,  // 53: resource.ResourceService.CreateGroup:input_type -> resource.CreateGroupRqst
+	80,  // 54: resource.ResourceService.UpdateGroup:input_type -> resource.UpdateGroupRqst
+	82,  // 55: resource.ResourceService.GetGroups:input_type -> resource.GetGroupsRqst
+	84,  // 56: resource.ResourceService.DeleteGroup:input_type -> resource.DeleteGroupRqst
+	86,  // 57: resource.ResourceService.AddGroupMemberAccount:input_type -> resource.AddGroupMemberAccountRqst
+	88,  // 58: resource.ResourceService.RemoveGroupMemberAccount:input_type -> resource.RemoveGroupMemberAccountRqst
+	25,  // 59: resource.ResourceService.RegisterAccount:input_type -> resource.RegisterAccountRqst
+	39,  // 60: resource.ResourceService.DeleteAccount:input_type -> resource.DeleteAccountRqst
+	31,  // 61: resource.ResourceService.GetAccount:input_type -> resource.GetAccountRqst
+	33,  // 62: resource.ResourceService.SetAccount:input_type -> resource.SetAccountRqst
+	35,  // 63: resource.ResourceService.SetAccountPassword:input_type -> resource.SetAccountPasswordRqst
+	29,  // 64: resource.ResourceService.GetAccounts:input_type -> resource.GetAccountsRqst
+	41,  // 65: resource.ResourceService.AddAccountRole:input_type -> resource.AddAccountRoleRqst
+	43,  // 66: resource.ResourceService.RemoveAccountRole:input_type -> resource.RemoveAccountRoleRqst
+	46,  // 67: resource.ResourceService.SetAccountContact:input_type -> resource.SetAccountContactRqst
+	37,  // 68: resource.ResourceService.SetEmail:input_type -> resource.SetEmailRequest
+	117, // 69: resource.ResourceService.IsOrgnanizationMember:input_type -> resource.IsOrgnanizationMemberRqst
+	48,  // 70: resource.ResourceService.CreateRole:input_type -> resource.CreateRoleRqst
+	50,  // 71: resource.ResourceService.UpdateRole:input_type -> resource.UpdateRoleRqst
+	52,  // 72: resource.ResourceService.GetRoles:input_type -> resource.GetRolesRqst
+	54,  // 73: resource.ResourceService.DeleteRole:input_type -> resource.DeleteRoleRqst
+	18,  // 74: resource.ResourceService.AddRoleActions:input_type -> resource.AddRoleActionsRqst
+	20,  // 75: resource.ResourceService.RemoveRoleAction:input_type -> resource.RemoveRoleActionRqst
+	22,  // 76: resource.ResourceService.RemoveRolesAction:input_type -> resource.RemoveRolesActionRqst
+	57,  // 77: resource.ResourceService.CreateApplication:input_type -> resource.CreateApplicationRqst
+	59,  // 78: resource.ResourceService.UpdateApplication:input_type -> resource.UpdateApplicationRqst
+	69,  // 79: resource.ResourceService.GetApplications:input_type -> resource.GetApplicationsRqst
+	61,  // 80: resource.ResourceService.DeleteApplication:input_type -> resource.DeleteApplicationRqst
+	63,  // 81: resource.ResourceService.AddApplicationActions:input_type -> resource.AddApplicationActionsRqst
+	65,  // 82: resource.ResourceService.RemoveApplicationAction:input_type -> resource.RemoveApplicationActionRqst
+	67,  // 83: resource.ResourceService.RemoveApplicationsAction:input_type -> resource.RemoveApplicationsActionRqst
+	71,  // 84: resource.ResourceService.GetApplicationVersion:input_type -> resource.GetApplicationVersionRqst
+	122, // 85: resource.ResourceService.UpsertNodeIdentity:input_type -> resource.UpsertNodeIdentityRqst
+	124, // 86: resource.ResourceService.GetNodeIdentity:input_type -> resource.GetNodeIdentityRqst
+	126, // 87: resource.ResourceService.ListNodeIdentities:input_type -> resource.ListNodeIdentitiesRqst
+	128, // 88: resource.ResourceService.SetNodeIdentityEnabled:input_type -> resource.SetNodeIdentityEnabledRqst
+	140, // 89: resource.ResourceService.CreateNotification:input_type -> resource.CreateNotificationRqst
+	142, // 90: resource.ResourceService.GetNotifications:input_type -> resource.GetNotificationsRqst
+	144, // 91: resource.ResourceService.DeleteNotification:input_type -> resource.DeleteNotificationRqst
+	146, // 92: resource.ResourceService.ClearAllNotifications:input_type -> resource.ClearAllNotificationsRqst
+	148, // 93: resource.ResourceService.ClearNotificationsByType:input_type -> resource.ClearNotificationsByTypeRqst
+	15,  // 94: resource.ResourceService.FindPackages:input_type -> resource.FindPackagesDescriptorRequest
+	9,   // 95: resource.ResourceService.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
+	11,  // 96: resource.ResourceService.GetPackagesDescriptor:input_type -> resource.GetPackagesDescriptorRequest
+	13,  // 97: resource.ResourceService.SetPackageDescriptor:input_type -> resource.SetPackageDescriptorRequest
+	4,   // 98: resource.ResourceService.SetPackageBundle:input_type -> resource.SetPackageBundleRequest
+	6,   // 99: resource.ResourceService.GetPackageBundleChecksum:input_type -> resource.GetPackageBundleChecksumRequest
+	151, // 100: resource.ResourceService.UpdateSession:input_type -> resource.UpdateSessionRequest
+	155, // 101: resource.ResourceService.GetSessions:input_type -> resource.GetSessionsRequest
+	153, // 102: resource.ResourceService.RemoveSession:input_type -> resource.RemoveSessionRequest
+	157, // 103: resource.ResourceService.GetSession:input_type -> resource.GetSessionRequest
+	131, // 104: resource.ResourceService.GetCallHistory:input_type -> resource.GetCallHistoryRqst
+	133, // 105: resource.ResourceService.SetCall:input_type -> resource.SetCallRqst
+	135, // 106: resource.ResourceService.DeleteCall:input_type -> resource.DeleteCallRqst
+	137, // 107: resource.ResourceService.ClearCalls:input_type -> resource.ClearCallsRqst
+	160, // 108: resource.ResourceService.CreateReference:output_type -> resource.CreateReferenceRsp
+	162, // 109: resource.ResourceService.DeleteReference:output_type -> resource.DeleteReferenceRsp
+	96,  // 110: resource.ResourceService.CreateOrganization:output_type -> resource.CreateOrganizationRsp
+	98,  // 111: resource.ResourceService.UpdateOrganization:output_type -> resource.UpdateOrganizationRsp
+	100, // 112: resource.ResourceService.GetOrganizations:output_type -> resource.GetOrganizationsRsp
+	120, // 113: resource.ResourceService.DeleteOrganization:output_type -> resource.DeleteOrganizationRsp
+	102, // 114: resource.ResourceService.AddOrganizationAccount:output_type -> resource.AddOrganizationAccountRsp
+	104, // 115: resource.ResourceService.AddOrganizationGroup:output_type -> resource.AddOrganizationGroupRsp
+	106, // 116: resource.ResourceService.AddOrganizationRole:output_type -> resource.AddOrganizationRoleRsp
+	108, // 117: resource.ResourceService.AddOrganizationApplication:output_type -> resource.AddOrganizationApplicationRsp
+	91,  // 118: resource.ResourceService.AddGroupRole:output_type -> resource.AddGroupRoleRsp
+	93,  // 119: resource.ResourceService.RemoveGroupRole:output_type -> resource.RemoveGroupRoleRsp
+	116, // 120: resource.ResourceService.RemoveOrganizationAccount:output_type -> resource.RemoveOrganizationAccountRsp
+	110, // 121: resource.ResourceService.RemoveOrganizationGroup:output_type -> resource.RemoveOrganizationGroupRsp
+	112, // 122: resource.ResourceService.RemoveOrganizationRole:output_type -> resource.RemoveOrganizationRoleRsp
+	114, // 123: resource.ResourceService.RemoveOrganizationApplication:output_type -> resource.RemoveOrganizationApplicationRsp
+	79,  // 124: resource.ResourceService.CreateGroup:output_type -> resource.CreateGroupRsp
+	81,  // 125: resource.ResourceService.UpdateGroup:output_type -> resource.UpdateGroupRsp
+	83,  // 126: resource.ResourceService.GetGroups:output_type -> resource.GetGroupsRsp
+	85,  // 127: resource.ResourceService.DeleteGroup:output_type -> resource.DeleteGroupRsp
+	87,  // 128: resource.ResourceService.AddGroupMemberAccount:output_type -> resource.AddGroupMemberAccountRsp
+	89,  // 129: resource.ResourceService.RemoveGroupMemberAccount:output_type -> resource.RemoveGroupMemberAccountRsp
+	26,  // 130: resource.ResourceService.RegisterAccount:output_type -> resource.RegisterAccountRsp
+	40,  // 131: resource.ResourceService.DeleteAccount:output_type -> resource.DeleteAccountRsp
+	32,  // 132: resource.ResourceService.GetAccount:output_type -> resource.GetAccountRsp
+	34,  // 133: resource.ResourceService.SetAccount:output_type -> resource.SetAccountRsp
+	36,  // 134: resource.ResourceService.SetAccountPassword:output_type -> resource.SetAccountPasswordRsp
+	30,  // 135: resource.ResourceService.GetAccounts:output_type -> resource.GetAccountsRsp
+	42,  // 136: resource.ResourceService.AddAccountRole:output_type -> resource.AddAccountRoleRsp
+	44,  // 137: resource.ResourceService.RemoveAccountRole:output_type -> resource.RemoveAccountRoleRsp
+	47,  // 138: resource.ResourceService.SetAccountContact:output_type -> resource.SetAccountContactRsp
+	38,  // 139: resource.ResourceService.SetEmail:output_type -> resource.SetEmailResponse
+	118, // 140: resource.ResourceService.IsOrgnanizationMember:output_type -> resource.IsOrgnanizationMemberRsp
+	49,  // 141: resource.ResourceService.CreateRole:output_type -> resource.CreateRoleRsp
+	51,  // 142: resource.ResourceService.UpdateRole:output_type -> resource.UpdateRoleRsp
+	53,  // 143: resource.ResourceService.GetRoles:output_type -> resource.GetRolesRsp
+	55,  // 144: resource.ResourceService.DeleteRole:output_type -> resource.DeleteRoleRsp
+	19,  // 145: resource.ResourceService.AddRoleActions:output_type -> resource.AddRoleActionsRsp
+	21,  // 146: resource.ResourceService.RemoveRoleAction:output_type -> resource.RemoveRoleActionRsp
+	23,  // 147: resource.ResourceService.RemoveRolesAction:output_type -> resource.RemoveRolesActionRsp
+	58,  // 148: resource.ResourceService.CreateApplication:output_type -> resource.CreateApplicationRsp
+	60,  // 149: resource.ResourceService.UpdateApplication:output_type -> resource.UpdateApplicationRsp
+	70,  // 150: resource.ResourceService.GetApplications:output_type -> resource.GetApplicationsRsp
+	62,  // 151: resource.ResourceService.DeleteApplication:output_type -> resource.DeleteApplicationRsp
+	64,  // 152: resource.ResourceService.AddApplicationActions:output_type -> resource.AddApplicationActionsRsp
+	66,  // 153: resource.ResourceService.RemoveApplicationAction:output_type -> resource.RemoveApplicationActionRsp
+	68,  // 154: resource.ResourceService.RemoveApplicationsAction:output_type -> resource.RemoveApplicationsActionRsp
+	72,  // 155: resource.ResourceService.GetApplicationVersion:output_type -> resource.GetApplicationVersionRsp
+	123, // 156: resource.ResourceService.UpsertNodeIdentity:output_type -> resource.UpsertNodeIdentityRsp
+	125, // 157: resource.ResourceService.GetNodeIdentity:output_type -> resource.GetNodeIdentityRsp
+	127, // 158: resource.ResourceService.ListNodeIdentities:output_type -> resource.ListNodeIdentitiesRsp
+	129, // 159: resource.ResourceService.SetNodeIdentityEnabled:output_type -> resource.SetNodeIdentityEnabledRsp
+	141, // 160: resource.ResourceService.CreateNotification:output_type -> resource.CreateNotificationRsp
+	143, // 161: resource.ResourceService.GetNotifications:output_type -> resource.GetNotificationsRsp
+	145, // 162: resource.ResourceService.DeleteNotification:output_type -> resource.DeleteNotificationRsp
+	147, // 163: resource.ResourceService.ClearAllNotifications:output_type -> resource.ClearAllNotificationsRsp
+	149, // 164: resource.ResourceService.ClearNotificationsByType:output_type -> resource.ClearNotificationsByTypeRsp
+	16,  // 165: resource.ResourceService.FindPackages:output_type -> resource.FindPackagesDescriptorResponse
+	10,  // 166: resource.ResourceService.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
+	12,  // 167: resource.ResourceService.GetPackagesDescriptor:output_type -> resource.GetPackagesDescriptorResponse
+	14,  // 168: resource.ResourceService.SetPackageDescriptor:output_type -> resource.SetPackageDescriptorResponse
+	5,   // 169: resource.ResourceService.SetPackageBundle:output_type -> resource.SetPackageBundleResponse
+	7,   // 170: resource.ResourceService.GetPackageBundleChecksum:output_type -> resource.GetPackageBundleChecksumResponse
+	152, // 171: resource.ResourceService.UpdateSession:output_type -> resource.UpdateSessionResponse
+	156, // 172: resource.ResourceService.GetSessions:output_type -> resource.GetSessionsResponse
+	154, // 173: resource.ResourceService.RemoveSession:output_type -> resource.RemoveSessionResponse
+	158, // 174: resource.ResourceService.GetSession:output_type -> resource.GetSessionResponse
+	132, // 175: resource.ResourceService.GetCallHistory:output_type -> resource.GetCallHistoryRsp
+	134, // 176: resource.ResourceService.SetCall:output_type -> resource.SetCallRsp
+	136, // 177: resource.ResourceService.DeleteCall:output_type -> resource.DeleteCallRsp
+	138, // 178: resource.ResourceService.ClearCalls:output_type -> resource.ClearCallsRsp
+	108, // [108:179] is the sub-list for method output_type
+	37,  // [37:108] is the sub-list for method input_type
+	37,  // [37:37] is the sub-list for extension type_name
+	37,  // [37:37] is the sub-list for extension extendee
+	0,   // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_resource_proto_init() }
@@ -10182,8 +9406,8 @@ func file_resource_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_proto_rawDesc), len(file_resource_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   174,
+			NumEnums:      3,
+			NumMessages:   161,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

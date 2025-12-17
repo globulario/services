@@ -53,6 +53,7 @@ var (
 // -----------------------------------------------------------------------------
 
 type server struct {
+	resourcepb.UnimplementedResourceServiceServer
 	// Core metadata
 	Id           string
 	Mac          string
@@ -768,7 +769,7 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			err = srv.store.(*persistence_store.ScyllaStore).RunAdminCmd(
 				context.Background(), "local_resource", srv.Backend_user, srv.Backend_password, script)
 			if err != nil {
-				logger.Error("fail to run admin script '%s'", script, "error", err)
+				logger.Error("fail to run admin script", "script", script, "error", err)
 			}
 		}
 

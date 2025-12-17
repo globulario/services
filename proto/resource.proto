@@ -665,150 +665,61 @@ message DeleteOrganizationRsp {
   bool result = 1; // Result of the deletion operation (true if successful).
 }
 
-// Enum to represent the approval state of a peer.
-enum PeerApprovalState {
-  PEER_PENDING = 0;  // Approval is pending.
-  PEER_ACCETEP = 1;  // Peer has been accepted.
-  PEER_REJECTED = 2; // Peer has been rejected.
+/** Represents a lasting node identity for RBAC and enrollment tracking. */
+message NodeIdentity {
+  string node_id = 1;               // Unique UUID persisted by the node agent.
+  string hostname = 2;               // Hostname of the node agent.
+  string domain = 3;                 // Domain associated with the node.
+  string external_ip_address = 4;    // External IP address of the node agent.
+  string local_ip_address = 5;       // Local IP address of the node agent.
+  string mac = 6;                    // MAC address of the node agent.
+  int32 port_http = 7;               // HTTP port used by the node agent.
+  int32 port_https = 8;              // HTTPS port used by the node agent.
+  string protocol = 9;               // Protocol used by the node agent.
+  string fingerprint = 10;           // Optional TLS fingerprint established after enrollment.
+  int64 last_seen = 11;              // Unix time when the identity was last observed.
+  bool enabled = 12;                 // Whether the node is currently allowed to participate.
+  map<string,string> labels = 13;    // Free-form metadata supplied by Cluster Controller.
+  string typeName = 14;              // Type information for internal use.
+  string status = 15;                // Current desired/observed status (pending/approved/etc.).
 }
 
-/** 
- * Definition of a peer in the network.
- */
-message Peer {
-  string hostname = 1; // Hostname of the peer.
-  string domain = 2;  // Domain associated with the peer, must be unique.
-  string external_ip_address = 3 [json_name = "ExternalIPAddress"]; // External IP address of the peer.
-  string local_ip_address = 4 [json_name = "localIPAddress"]; // Local IP address of the peer.
-  string mac = 5; // MAC address of the peer.
-  int32 port_http = 6 [json_name = "PortHTTP"]; // HTTP port used by the peer.
-  int32 port_https = 7 [json_name = "PortHTTPS"]; // HTTPS port used by the peer.
-  string protocol = 8; // Protocol used (http or https).
-  PeerApprovalState state = 9; // Current approval state of the peer.
-
-  repeated string actions = 10; // Actions that the peer can perform.
-
-  string typeName = 11; // Type information of the object.
+/** Request to upsert (create/update) a node identity. */
+message UpsertNodeIdentityRqst {
+  NodeIdentity node = 1;
 }
 
-/**
- * Request to get the approval state of a peer.
- */
-message GetPeerApprovalStateRqst {
-  string mac = 1; // MAC address of the peer.
-  string remote_peer_address = 2; // Address of the remote peer.
+message UpsertNodeIdentityRsp {
+  NodeIdentity node = 1;
 }
 
-message GetPeerApprovalStateRsp {
-  PeerApprovalState state = 1; // Approval state of the peer.
+/** Request to fetch a node identity by its stable ID. */
+message GetNodeIdentityRqst {
+  string node_id = 1;
 }
 
-/**
- * Request to get the public key of a peer.
- */
-message GetPeerPublicKeyRqst {
-  string mac = 1; // MAC address of the peer.
-  string remote_peer_address = 2; // Address of the remote peer.
+message GetNodeIdentityRsp {
+  NodeIdentity node = 1;
 }
 
-message GetPeerPublicKeyRsp {
-  string public_key = 1; // Public key of the peer.
-}
-
-/**
- * Request to register a peer in the network.
- */
-message RegisterPeerRqst {
-  Peer peer = 1; // Peer information.
-  string public_key = 2; // Public key of the peer.
-}
-
-message RegisterPeerRsp {
-  Peer peer = 1; // Registered peer information.
-  string public_key = 2; // Public key of the registered peer.
-}
-
-/**
- * Request to update the information of a peer.
- */
-message UpdatePeerRqst { 
-  Peer peer = 1; // Updated peer information.
-}
-
-message UpdatePeerRsp { 
-  bool result = 1; // Result of the update operation (true if successful).
-}
-
-/**
- * Return the list of peer (query is use to get specific peer's).
- */
-message GetPeersRqst {
+/** Request to stream all stored node identities. */
+message ListNodeIdentitiesRqst {
   string query = 1;
   string options = 2;
 }
 
-message GetPeersRsp { repeated Peer peers = 1; }
-
-/**
- * Remove a peer from the network.
- */
-message DeletePeerRqst { Peer peer = 1; }
-
-// Response to a delete peer request
-message DeletePeerRsp { 
-  bool result = 1; // Indicates whether the peer was successfully deleted (true if successful).
+message ListNodeIdentitiesRsp {
+  repeated NodeIdentity nodes = 1;
 }
 
-// Request to add actions to a peer
-message AddPeerActionsRqst {
-  string mac = 1; // MAC address of the peer.
-  repeated string actions = 2; // List of actions to be added to the peer.
+/** Request to toggle the enabled flag for a node identity. */
+message SetNodeIdentityEnabledRqst {
+  string node_id = 1;
+  bool enabled = 2;
 }
 
-// Response to the add actions to peer request
-message AddPeerActionsRsp { 
-  bool result = 1; // Indicates whether the actions were successfully added (true if successful).
-}
-
-// Request to remove a specific action from a peer
-message RemovePeerActionRqst {
-  string mac = 1; // MAC address of the peer.
-  string action = 2; // The action to be removed.
-}
-
-// Response to the remove action from peer request
-message RemovePeerActionRsp { 
-  bool result = 1; // Indicates whether the action was successfully removed (true if successful).
-}
-
-// Request to remove a specific action from all peers
-message RemovePeersActionRqst { 
-  string action = 2; // The action to be removed from all peers.
-}
-
-// Response to the remove action from all peers request
-message RemovePeersActionRsp { 
-  bool result = 1; // Indicates whether the action was successfully removed from all peers (true if successful).
-}
-
-// Request to accept a peer
-message AcceptPeerRqst {
-  Peer peer = 1; // The peer to be accepted.
-}
-
-// Response to the accept peer request
-message AcceptPeerRsp { 
-  bool result = 1; // Indicates whether the peer was successfully accepted (true if successful).
-}
-
-// Request to reject a peer
-message RejectPeerRqst {
-  Peer peer = 1; // The peer to be rejected.
-}
-
-// Response to the reject peer request
-message RejectPeerRsp { 
-  bool result = 1; // Indicates whether the peer was successfully rejected (true if successful).
+message SetNodeIdentityEnabledRsp {
+  bool result = 1;
 }
 
 // Structure representing a call
@@ -1179,44 +1090,17 @@ service ResourceService {
     // Retrieves the version of a specified application.
     rpc GetApplicationVersion(GetApplicationVersionRqst) returns (GetApplicationVersionRsp);
   
-    // Obtains the alias (a user-friendly name) for a specific application.
-    rpc GetApplicationAlias(GetApplicationAliasRqst) returns (GetApplicationAliasRsp);
-  
-    // Fetches the icon associated with a particular application.
-    rpc GetApplicationIcon(GetApplicationIconRqst) returns (GetApplicationIconRsp);
-  
-    // Registers a new peer in the network.
-    rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
-  
-    // Retrieves a list of all peers in the network.
-    rpc GetPeers(GetPeersRqst) returns (stream GetPeersRsp);
-  
-    // Gets the approval state of a peer from another peer's perspective.
-    rpc GetPeerApprovalState(GetPeerApprovalStateRqst) returns (GetPeerApprovalStateRsp);
-  
-    // Removes a peer from the network.
-    rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
-  
-    // Updates the information of an existing peer.
-    rpc UpdatePeer(UpdatePeerRqst) returns (UpdatePeerRsp);
-  
-    // Adds actions to a peer.
-    rpc AddPeerActions(AddPeerActionsRqst) returns (AddPeerActionsRsp);
-  
-    // Removes a specific action permission from a peer.
-    rpc RemovePeerAction(RemovePeerActionRqst) returns (RemovePeerActionRsp);
-  
-    // Removes a specific action permission from multiple peers.
-    rpc RemovePeersAction(RemovePeersActionRqst) returns (RemovePeersActionRsp);
-  
-    // Accepts a peer into the network.
-    rpc AcceptPeer(AcceptPeerRqst) returns (AcceptPeerRsp);
-  
-    // Rejects a peer and prevents further connection attempts.
-    rpc RejectPeer(RejectPeerRqst) returns (RejectPeerRsp);
-  
-    // Retrieves the public key of a specified peer.
-    rpc GetPeerPublicKey(GetPeerPublicKeyRqst) returns (GetPeerPublicKeyRsp);
+  // Upserts node identity metadata created by the node agent.
+  rpc UpsertNodeIdentity(UpsertNodeIdentityRqst) returns (UpsertNodeIdentityRsp);
+
+  // Reads node identity by its stable node_id.
+  rpc GetNodeIdentity(GetNodeIdentityRqst) returns (GetNodeIdentityRsp);
+
+  // Streams every known node identity (used by Cluster Controller and UI).
+  rpc ListNodeIdentities(ListNodeIdentitiesRqst) returns (stream ListNodeIdentitiesRsp);
+
+  // Toggles whether a node identity remains allowed to participate.
+  rpc SetNodeIdentityEnabled(SetNodeIdentityEnabledRqst) returns (SetNodeIdentityEnabledRsp);
   
     // Creates a new notification.
     rpc CreateNotification(CreateNotificationRqst) returns (CreateNotificationRsp);
