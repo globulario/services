@@ -1,0 +1,26 @@
+# Service manifest (module_path output_binary)
+# Lines are interpreted by build-services.sh; comments or blank lines are ignored.
+./admin/admin_server ./admin/admin_server
+./applications_manager/applications_manager_server ./applications_manager/applications_manager_server
+./services_manager/services_manager_server ./services_manager/services_manager_server
+./authentication/authentication_server ./authentication/authentication_server
+./catalog/catalog_server ./catalog/catalog_server
+./blog/blog_server ./blog/blog_server
+./conversation/conversation_server ./conversation/conversation_server
+./discovery/discovery_server ./discovery/discovery_server
+./dns/dns_server ./dns/dns_server
+./echo/echo_server ./echo/echo_server
+./event/event_server ./event/event_server
+./file/file_server ./file/file_server
+./log/log_server ./log/log_server
+./media/media_server ./media/media_server
+./monitoring/monitoring_server ./monitoring/monitoring_server
+./persistence/persistence_server ./persistence/persistence_server
+./rbac/rbac_server ./rbac/rbac_server
+./repository/repository_server ./repository/repository_server
+./resource/resource_server ./resource/resource_server
+./search/search_server ./search/search_server
+./sql/sql_server ./sql/sql_server
+./storage/storage_server ./storage/storage_server
+./title/title_server ./title/title_server
+./torrent/torrent_server ./torrent/torrent_server
