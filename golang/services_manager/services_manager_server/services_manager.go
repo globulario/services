@@ -63,7 +63,6 @@ func (srv *server) uninstallService(token, PublisherID, serviceId, version strin
 				for _, act := range toDelete {
 					_ = srv.removeRolesAction(act)
 					_ = srv.removeApplicationsAction(token, act)
-					_ = srv.removePeersAction(act)
 				}
 			}
 
@@ -624,7 +623,6 @@ func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.G
 		}
 		logger.Info("reflection targets", "service", Utility.ToString(svc["Name"]), "targets", targets)
 
-
 		dialOpts, err := buildGRPCDialOptions(svc) // pass svc only, function expects one argument
 		if err != nil {
 			logger.Warn("build dial options failed", "service", Utility.ToString(svc["Name"]), "err", err)
@@ -664,42 +662,40 @@ func (srv *server) GetAllActions(ctx context.Context, rqst *services_managerpb.G
 
 // Prefer exact Address:Port (or Proxy) from your config.
 func buildCandidateTargets(svc map[string]interface{}) []string {
-    // Explicit target first
-    if t := getStr(svc, "Target", "Endpoint", "Url", "URL", "Addr", "AddressWithPort"); looksLikeNetworkTarget(t) {
-        return []string{t}
-    }
+	// Explicit target first
+	if t := getStr(svc, "Target", "Endpoint", "Url", "URL", "Addr", "AddressWithPort"); looksLikeNetworkTarget(t) {
+		return []string{t}
+	}
 
-    addr := getStr(svc, "Address", "IP")
-    port := getStr(svc, "Port")            // service’s gRPC port in your configs
-    domain := getStr(svc, "Domain", "Host","Hostname")
+	addr := getStr(svc, "Address", "IP")
+	port := getStr(svc, "Port") // service’s gRPC port in your configs
+	domain := getStr(svc, "Domain", "Host", "Hostname")
 
-    var cands []string
-    push := func(h, p string) {
-        if strings.TrimSpace(h) != "" && strings.TrimSpace(p) != "" {
-            cands = append(cands, fmt.Sprintf("%s:%s", h, p))
-        }
-    }
+	var cands []string
+	push := func(h, p string) {
+		if strings.TrimSpace(h) != "" && strings.TrimSpace(p) != "" {
+			cands = append(cands, fmt.Sprintf("%s:%s", h, p))
+		}
+	}
 
-    // 1) Exact internal address+port first
-    push(addr, port)
+	// 1) Exact internal address+port first
+	push(addr, port)
 
-    // 2) Domain:port (what you were trying before)
-    push(domain, port)
+	// 2) Domain:port (what you were trying before)
+	push(domain, port)
 
-
-    // dedup
-    seen := map[string]struct{}{}
-    out := make([]string, 0, len(cands))
-    for _, t := range cands {
-        if _, ok := seen[t]; ok || !looksLikeNetworkTarget(t) {
-            continue
-        }
-        seen[t] = struct{}{}
-        out = append(out, t)
-    }
-    return out
+	// dedup
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(cands))
+	for _, t := range cands {
+		if _, ok := seen[t]; ok || !looksLikeNetworkTarget(t) {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	return out
 }
-
 
 func looksLikeNetworkTarget(s string) bool {
 	s = strings.TrimSpace(s)
@@ -708,7 +704,6 @@ func looksLikeNetworkTarget(s string) bool {
 	}
 	return strings.Contains(s, ":") && !strings.Contains(s, "/") && !strings.Contains(s, "\\")
 }
-
 
 /* ----------------------- TLS dial options builder ----------------------- */
 
@@ -762,7 +757,6 @@ func buildGRPCDialOptions(svc map[string]interface{}) ([]grpc.DialOption, error)
 		grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
 	}, nil
 }
-
 
 /* ----------------------- reflection logic ----------------------- */
 

@@ -462,7 +462,7 @@ proto.search.GetEngineVersionResponse.prototype.toObject = function(opt_includeI
  */
 proto.search.GetEngineVersionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, "")
+message: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -599,12 +599,12 @@ proto.search.IndexJsonObjectRequest.prototype.toObject = function(opt_includeIns
  */
 proto.search.IndexJsonObjectRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    jsonstr: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    id: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    indexsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    data: jspb.Message.getFieldWithDefault(msg, 6, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+jsonstr: jspb.Message.getFieldWithDefault(msg, 2, ""),
+language: jspb.Message.getFieldWithDefault(msg, 3, ""),
+id: jspb.Message.getFieldWithDefault(msg, 4, ""),
+indexsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+data: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -999,8 +999,8 @@ proto.search.DeleteDocumentRequest.prototype.toObject = function(opt_includeInst
  */
 proto.search.DeleteDocumentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    id: jspb.Message.getFieldWithDefault(msg, 2, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+id: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1260,7 +1260,7 @@ proto.search.CountRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.search.CountRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1390,7 +1390,7 @@ proto.search.CountResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.search.CountResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, 0)
+result: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -1520,10 +1520,10 @@ proto.search.SearchResult.prototype.toObject = function(opt_includeInstance) {
  */
 proto.search.SearchResult.toObject = function(includeInstance, msg) {
   var f, obj = {
-    rank: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    docid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    data: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    snippet: jspb.Message.getFieldWithDefault(msg, 4, "")
+rank: jspb.Message.getFieldWithDefault(msg, 1, 0),
+docid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+data: jspb.Message.getFieldWithDefault(msg, 3, ""),
+snippet: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -1747,7 +1747,7 @@ proto.search.SearchResults.prototype.toObject = function(opt_includeInstance) {
  */
 proto.search.SearchResults.toObject = function(includeInstance, msg) {
   var f, obj = {
-    resultsList: jspb.Message.toObjectList(msg.getResultsList(),
+resultsList: jspb.Message.toObjectList(msg.getResultsList(),
     proto.search.SearchResult.toObject, includeInstance)
   };
 
@@ -1907,13 +1907,13 @@ proto.search.SearchDocumentsRequest.prototype.toObject = function(opt_includeIns
  */
 proto.search.SearchDocumentsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pathsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    fieldsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    offset: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    pagesize: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    snippetlength: jspb.Message.getFieldWithDefault(msg, 7, 0)
+pathsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+language: jspb.Message.getFieldWithDefault(msg, 3, ""),
+fieldsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+offset: jspb.Message.getFieldWithDefault(msg, 5, 0),
+pagesize: jspb.Message.getFieldWithDefault(msg, 6, 0),
+snippetlength: jspb.Message.getFieldWithDefault(msg, 7, 0)
   };
 
   if (includeInstance) {
@@ -2255,7 +2255,7 @@ proto.search.SearchDocumentsResponse.prototype.toObject = function(opt_includeIn
  */
 proto.search.SearchDocumentsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    results: (f = msg.getResults()) && proto.search.SearchResults.toObject(includeInstance, f)
+results: (f = msg.getResults()) && proto.search.SearchResults.toObject(includeInstance, f)
   };
 
   if (includeInstance) {

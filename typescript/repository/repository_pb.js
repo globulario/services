@@ -21,7 +21,7 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
-var resource_pb = require('../resource/resource_pb.js');
+var resource_pb = require('./resource_pb.js');
 goog.object.extend(proto, resource_pb);
 goog.exportSymbol('proto.repository.DownloadBundleRequest', null, global);
 goog.exportSymbol('proto.repository.DownloadBundleResponse', null, global);
@@ -143,9 +143,9 @@ proto.repository.UploadBundleRequest.prototype.toObject = function(opt_includeIn
  */
 proto.repository.UploadBundleRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    user: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    organization: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    data: msg.getData_asB64()
+user: jspb.Message.getFieldWithDefault(msg, 1, ""),
+organization: jspb.Message.getFieldWithDefault(msg, 2, ""),
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -357,7 +357,7 @@ proto.repository.UploadBundleResponse.prototype.toObject = function(opt_includeI
  */
 proto.repository.UploadBundleResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -487,8 +487,8 @@ proto.repository.DownloadBundleRequest.prototype.toObject = function(opt_include
  */
 proto.repository.DownloadBundleRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    descriptor: (f = msg.getDescriptor()) && resource_pb.PackageDescriptor.toObject(includeInstance, f),
-    platform: jspb.Message.getFieldWithDefault(msg, 2, "")
+descriptor: (f = msg.getDescriptor()) && resource_pb.PackageDescriptor.toObject(includeInstance, f),
+platform: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -668,7 +668,7 @@ proto.repository.DownloadBundleResponse.prototype.toObject = function(opt_includ
  */
 proto.repository.DownloadBundleResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {

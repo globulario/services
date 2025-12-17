@@ -362,15 +362,15 @@ proto.sql.Connection.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.Connection.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    host: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    charset: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    driver: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    user: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 8, 0),
-    path: jspb.Message.getFieldWithDefault(msg, 9, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+host: jspb.Message.getFieldWithDefault(msg, 3, ""),
+charset: jspb.Message.getFieldWithDefault(msg, 4, ""),
+driver: jspb.Message.getFieldWithDefault(msg, 5, ""),
+user: jspb.Message.getFieldWithDefault(msg, 6, ""),
+password: jspb.Message.getFieldWithDefault(msg, 7, ""),
+port: jspb.Message.getFieldWithDefault(msg, 8, 0),
+path: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -732,7 +732,7 @@ proto.sql.CreateConnectionRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.sql.CreateConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connection: (f = msg.getConnection()) && proto.sql.Connection.toObject(includeInstance, f)
+connection: (f = msg.getConnection()) && proto.sql.Connection.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -883,7 +883,7 @@ proto.sql.CreateConnectionRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.sql.CreateConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1013,7 +1013,7 @@ proto.sql.DeleteConnectionRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.sql.DeleteConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1143,7 +1143,7 @@ proto.sql.DeleteConnectionRsp.prototype.toObject = function(opt_includeInstance)
  */
 proto.sql.DeleteConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1273,7 +1273,7 @@ proto.sql.PingConnectionRqst.prototype.toObject = function(opt_includeInstance) 
  */
 proto.sql.PingConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1403,7 +1403,7 @@ proto.sql.PingConnectionRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.PingConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1533,10 +1533,10 @@ proto.sql.Query.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.Query.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    parameters: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    charset: jspb.Message.getFieldWithDefault(msg, 4, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+parameters: jspb.Message.getFieldWithDefault(msg, 3, ""),
+charset: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -1753,7 +1753,7 @@ proto.sql.QueryContextRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.QueryContextRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: (f = msg.getQuery()) && proto.sql.Query.toObject(includeInstance, f)
+query: (f = msg.getQuery()) && proto.sql.Query.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1930,8 +1930,8 @@ proto.sql.QueryContextRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.QueryContextRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    header: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    rows: jspb.Message.getFieldWithDefault(msg, 2, "")
+header: (f = jspb.Message.getField(msg, 1)) == null ? undefined : f,
+rows: (f = jspb.Message.getField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -2126,8 +2126,8 @@ proto.sql.ExecContextRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.ExecContextRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: (f = msg.getQuery()) && proto.sql.Query.toObject(includeInstance, f),
-    tx: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
+query: (f = msg.getQuery()) && proto.sql.Query.toObject(includeInstance, f),
+tx: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -2307,8 +2307,8 @@ proto.sql.ExecContextRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.sql.ExecContextRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    affectedrows: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    lastid: jspb.Message.getFieldWithDefault(msg, 2, 0)
+affectedrows: jspb.Message.getFieldWithDefault(msg, 1, 0),
+lastid: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {

@@ -21,7 +21,7 @@ var global =
     (function () { return this; }).call(null) ||
     Function('return this')();
 
-var resource_pb = require('../resource/resource_pb.js');
+var resource_pb = require('./resource_pb.js');
 goog.object.extend(proto, resource_pb);
 goog.exportSymbol('proto.discovery.PublishApplicationRequest', null, global);
 goog.exportSymbol('proto.discovery.PublishApplicationResponse', null, global);
@@ -150,17 +150,17 @@ proto.discovery.PublishServiceRequest.prototype.toObject = function(opt_includeI
  */
 proto.discovery.PublishServiceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    servicename: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    user: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    discoveryid: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    repositoryid: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    version: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    platform: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 11, "")
+serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+servicename: jspb.Message.getFieldWithDefault(msg, 2, ""),
+user: jspb.Message.getFieldWithDefault(msg, 3, ""),
+organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
+discoveryid: jspb.Message.getFieldWithDefault(msg, 5, ""),
+repositoryid: jspb.Message.getFieldWithDefault(msg, 6, ""),
+description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+version: jspb.Message.getFieldWithDefault(msg, 9, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 10, ""),
+path: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -599,7 +599,7 @@ proto.discovery.PublishServiceResponse.prototype.toObject = function(opt_include
  */
 proto.discovery.PublishServiceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -736,25 +736,25 @@ proto.discovery.PublishApplicationRequest.prototype.toObject = function(opt_incl
  */
 proto.discovery.PublishApplicationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    data: msg.getData_asB64(),
-    user: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    organization: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    description: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    repository: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    discovery: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    icon: jspb.Message.getFieldWithDefault(msg, 12, ""),
-    alias: jspb.Message.getFieldWithDefault(msg, 13, ""),
-    rolesList: jspb.Message.toObjectList(msg.getRolesList(),
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+data: msg.getData_asB64(),
+user: jspb.Message.getFieldWithDefault(msg, 4, ""),
+organization: jspb.Message.getFieldWithDefault(msg, 5, ""),
+version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+description: jspb.Message.getFieldWithDefault(msg, 8, ""),
+actionsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+repository: jspb.Message.getFieldWithDefault(msg, 10, ""),
+discovery: jspb.Message.getFieldWithDefault(msg, 11, ""),
+icon: jspb.Message.getFieldWithDefault(msg, 12, ""),
+alias: jspb.Message.getFieldWithDefault(msg, 13, ""),
+rolesList: jspb.Message.toObjectList(msg.getRolesList(),
     resource_pb.Role.toObject, includeInstance),
-    groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
+groupsList: jspb.Message.toObjectList(msg.getGroupsList(),
     resource_pb.Group.toObject, includeInstance),
-    setAsDefault: jspb.Message.getBooleanFieldWithDefault(msg, 16, false),
-    path: jspb.Message.getFieldWithDefault(msg, 17, "")
+setAsDefault: jspb.Message.getBooleanFieldWithDefault(msg, 16, false),
+path: jspb.Message.getFieldWithDefault(msg, 17, "")
   };
 
   if (includeInstance) {
@@ -1454,7 +1454,7 @@ proto.discovery.PublishApplicationResponse.prototype.toObject = function(opt_inc
  */
 proto.discovery.PublishApplicationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

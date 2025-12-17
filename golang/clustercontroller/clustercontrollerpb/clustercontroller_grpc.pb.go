@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v3.21.12
-// source: proto/clustercontroller.proto
+// source: clustercontroller.proto
 
 package clustercontrollerpb
 
@@ -147,7 +147,7 @@ func (c *clusterControllerServiceClient) WatchNodeOperations(ctx context.Context
 type ClusterControllerService_WatchNodeOperationsClient = grpc.ServerStreamingClient[OperationEvent]
 
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
-// All implementations must embed UnimplementedClusterControllerServiceServer
+// All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
 type ClusterControllerServiceServer interface {
 	Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error)
@@ -157,10 +157,9 @@ type ClusterControllerServiceServer interface {
 	ListNodes(*ListNodesRequest, grpc.ServerStreamingServer[ListNodesResponse]) error
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
 	WatchNodeOperations(*WatchNodeOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
-	mustEmbedUnimplementedClusterControllerServiceServer()
 }
 
-// UnimplementedClusterControllerServiceServer must be embedded to have
+// UnimplementedClusterControllerServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -187,8 +186,6 @@ func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Conte
 }
 func (UnimplementedClusterControllerServiceServer) WatchNodeOperations(*WatchNodeOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchNodeOperations not implemented")
-}
-func (UnimplementedClusterControllerServiceServer) mustEmbedUnimplementedClusterControllerServiceServer() {
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -356,5 +353,5 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/clustercontroller.proto",
+	Metadata: "clustercontroller.proto",
 }

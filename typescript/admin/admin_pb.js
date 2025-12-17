@@ -779,10 +779,10 @@ proto.admin.HostInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.HostInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    ip: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    mac: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    infos: jspb.Message.getFieldWithDefault(msg, 4, "")
+ip: jspb.Message.getFieldWithDefault(msg, 1, ""),
+mac: jspb.Message.getFieldWithDefault(msg, 2, ""),
+name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+infos: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -1107,7 +1107,7 @@ proto.admin.getAvailableHostsResponse.prototype.toObject = function(opt_includeI
  */
 proto.admin.getAvailableHostsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hostsList: jspb.Message.toObjectList(msg.getHostsList(),
+hostsList: jspb.Message.toObjectList(msg.getHostsList(),
     proto.admin.HostInfo.toObject, includeInstance)
   };
 
@@ -1267,12 +1267,12 @@ proto.admin.FileInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.FileInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    size: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    isdir: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    modtime: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    filesList: jspb.Message.toObjectList(msg.getFilesList(),
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+path: jspb.Message.getFieldWithDefault(msg, 2, ""),
+size: jspb.Message.getFieldWithDefault(msg, 3, 0),
+isdir: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+modtime: jspb.Message.getFieldWithDefault(msg, 5, 0),
+filesList: jspb.Message.toObjectList(msg.getFilesList(),
     proto.admin.FileInfo.toObject, includeInstance)
   };
 
@@ -1570,7 +1570,7 @@ proto.admin.HasRunningProcessRequest.prototype.toObject = function(opt_includeIn
  */
 proto.admin.HasRunningProcessRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1700,7 +1700,7 @@ proto.admin.HasRunningProcessResponse.prototype.toObject = function(opt_includeI
  */
 proto.admin.HasRunningProcessResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1837,10 +1837,10 @@ proto.admin.RunCmdRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.RunCmdRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    cmd: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    argsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
-    blocking: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
-    path: jspb.Message.getFieldWithDefault(msg, 4, "")
+cmd: jspb.Message.getFieldWithDefault(msg, 1, ""),
+argsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+blocking: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+path: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -2076,8 +2076,8 @@ proto.admin.RunCmdResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.RunCmdResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    pid: jspb.Message.getFieldWithDefault(msg, 4, 0)
+result: jspb.Message.getFieldWithDefault(msg, 1, ""),
+pid: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -2236,8 +2236,8 @@ proto.admin.SetEnvironmentVariableRequest.prototype.toObject = function(opt_incl
  */
 proto.admin.SetEnvironmentVariableRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    value: jspb.Message.getFieldWithDefault(msg, 2, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+value: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2497,7 +2497,7 @@ proto.admin.GetEnvironmentVariableRequest.prototype.toObject = function(opt_incl
  */
 proto.admin.GetEnvironmentVariableRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2627,7 +2627,7 @@ proto.admin.GetEnvironmentVariableResponse.prototype.toObject = function(opt_inc
  */
 proto.admin.GetEnvironmentVariableResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFieldWithDefault(msg, 2, "")
+value: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2757,7 +2757,7 @@ proto.admin.UnsetEnvironmentVariableRequest.prototype.toObject = function(opt_in
  */
 proto.admin.UnsetEnvironmentVariableRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2995,14 +2995,14 @@ proto.admin.GetCertificatesRequest.prototype.toObject = function(opt_includeInst
  */
 proto.admin.GetCertificatesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    domain: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    path: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    country: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    state: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    city: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    organization: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    alternatedomainsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f
+domain: jspb.Message.getFieldWithDefault(msg, 1, ""),
+port: jspb.Message.getFieldWithDefault(msg, 2, 0),
+path: jspb.Message.getFieldWithDefault(msg, 3, ""),
+country: jspb.Message.getFieldWithDefault(msg, 4, ""),
+state: jspb.Message.getFieldWithDefault(msg, 5, ""),
+city: jspb.Message.getFieldWithDefault(msg, 6, ""),
+organization: jspb.Message.getFieldWithDefault(msg, 7, ""),
+alternatedomainsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -3354,9 +3354,9 @@ proto.admin.GetCertificatesResponse.prototype.toObject = function(opt_includeIns
  */
 proto.admin.GetCertificatesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    cacert: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    cert: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    certkey: jspb.Message.getFieldWithDefault(msg, 3, "")
+cacert: jspb.Message.getFieldWithDefault(msg, 1, ""),
+cert: jspb.Message.getFieldWithDefault(msg, 2, ""),
+certkey: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -3544,7 +3544,7 @@ proto.admin.KillProcessRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.admin.KillProcessRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pid: jspb.Message.getFieldWithDefault(msg, 1, 0)
+pid: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -3775,7 +3775,7 @@ proto.admin.KillProcessesRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.admin.KillProcessesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4006,15 +4006,15 @@ proto.admin.ProcessInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.ProcessInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    exec: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    pid: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    ppid: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    user: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    priority: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    cpuUsagePercent: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
-    memoryUsagePercent: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
-    memoryUsage: jspb.Message.getFieldWithDefault(msg, 9, 0)
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+exec: jspb.Message.getFieldWithDefault(msg, 2, ""),
+pid: jspb.Message.getFieldWithDefault(msg, 3, 0),
+ppid: jspb.Message.getFieldWithDefault(msg, 4, 0),
+user: jspb.Message.getFieldWithDefault(msg, 5, ""),
+priority: jspb.Message.getFieldWithDefault(msg, 6, ""),
+cpuUsagePercent: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
+memoryUsagePercent: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
+memoryUsage: jspb.Message.getFieldWithDefault(msg, 9, 0)
   };
 
   if (includeInstance) {
@@ -4376,8 +4376,8 @@ proto.admin.GetProcessInfosRequest.prototype.toObject = function(opt_includeInst
  */
 proto.admin.GetProcessInfosRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    pid: jspb.Message.getFieldWithDefault(msg, 2, 0)
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+pid: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -4543,7 +4543,7 @@ proto.admin.GetProcessInfosResponse.prototype.toObject = function(opt_includeIns
  */
 proto.admin.GetProcessInfosResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    infosList: jspb.Message.toObjectList(msg.getInfosList(),
+infosList: jspb.Message.toObjectList(msg.getInfosList(),
     proto.admin.ProcessInfo.toObject, includeInstance)
   };
 
@@ -4696,7 +4696,7 @@ proto.admin.GetPidsRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.GetPidsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4833,7 +4833,7 @@ proto.admin.GetPidsResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.GetPidsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pidsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+pidsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -4984,8 +4984,8 @@ proto.admin.UpdateRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.admin.UpdateRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    platform: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    data: msg.getData_asB64()
+platform: jspb.Message.getFieldWithDefault(msg, 1, ""),
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -5269,8 +5269,8 @@ proto.admin.DownloadGlobularRequest.prototype.toObject = function(opt_includeIns
  */
 proto.admin.DownloadGlobularRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    platform: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    source: jspb.Message.getFieldWithDefault(msg, 2, "")
+platform: jspb.Message.getFieldWithDefault(msg, 1, ""),
+source: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -5429,7 +5429,7 @@ proto.admin.DownloadGlobularResponse.prototype.toObject = function(opt_includeIn
  */
 proto.admin.DownloadGlobularResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -5583,7 +5583,7 @@ proto.admin.SaveConfigRequest.prototype.toObject = function(opt_includeInstance)
  */
 proto.admin.SaveConfigRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    config: jspb.Message.getFieldWithDefault(msg, 1, "")
+config: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5814,7 +5814,7 @@ proto.admin.GetFileInfoRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.admin.GetFileInfoRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5944,7 +5944,7 @@ proto.admin.GetFileInfoResponse.prototype.toObject = function(opt_includeInstanc
  */
 proto.admin.GetFileInfoResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    info: (f = msg.getInfo()) && proto.admin.FileInfo.toObject(includeInstance, f)
+info: (f = msg.getInfo()) && proto.admin.FileInfo.toObject(includeInstance, f)
   };
 
   if (includeInstance) {

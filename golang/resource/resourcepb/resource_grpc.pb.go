@@ -1035,7 +1035,7 @@ func (c *resourceServiceClient) ClearCalls(ctx context.Context, in *ClearCallsRq
 }
 
 // ResourceServiceServer is the server API for ResourceService service.
-// All implementations must embed UnimplementedResourceServiceServer
+// All implementations should embed UnimplementedResourceServiceServer
 // for forward compatibility.
 //
 // *
@@ -1184,10 +1184,9 @@ type ResourceServiceServer interface {
 	DeleteCall(context.Context, *DeleteCallRqst) (*DeleteCallRsp, error)
 	// Clears all call records.
 	ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error)
-	mustEmbedUnimplementedResourceServiceServer()
 }
 
-// UnimplementedResourceServiceServer must be embedded to have
+// UnimplementedResourceServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -1407,8 +1406,7 @@ func (UnimplementedResourceServiceServer) DeleteCall(context.Context, *DeleteCal
 func (UnimplementedResourceServiceServer) ClearCalls(context.Context, *ClearCallsRqst) (*ClearCallsRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClearCalls not implemented")
 }
-func (UnimplementedResourceServiceServer) mustEmbedUnimplementedResourceServiceServer() {}
-func (UnimplementedResourceServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedResourceServiceServer) testEmbeddedByValue() {}
 
 // UnsafeResourceServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ResourceServiceServer will

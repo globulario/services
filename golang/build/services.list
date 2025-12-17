@@ -24,3 +24,5 @@
 ./storage/storage_server ./storage/storage_server
 ./title/title_server ./title/title_server
 ./torrent/torrent_server ./torrent/torrent_server
+./clustercontroller/clustercontroller_server ./clustercontroller/clustercontroller_server
+./nodeagent/nodeagent_server ./nodeagent/nodeagent_server

@@ -141,12 +141,12 @@ proto.applications_manager.InstallApplicationRequest.prototype.toObject = functi
  */
 proto.applications_manager.InstallApplicationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    discoveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    applicationid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    setAsDefault: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
+discoveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+applicationid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 3, ""),
+version: jspb.Message.getFieldWithDefault(msg, 4, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 5, ""),
+setAsDefault: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
   };
 
   if (includeInstance) {
@@ -193,7 +193,7 @@ proto.applications_manager.InstallApplicationRequest.deserializeBinaryFromReader
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -250,7 +250,7 @@ proto.applications_manager.InstallApplicationRequest.serializeBinaryToWriter = f
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       3,
@@ -321,7 +321,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.setApplicationid 
  * optional string PublisherID = 3;
  * @return {string}
  */
-proto.applications_manager.InstallApplicationRequest.prototype.getPublisherID = function() {
+proto.applications_manager.InstallApplicationRequest.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -330,7 +330,7 @@ proto.applications_manager.InstallApplicationRequest.prototype.getPublisherID = 
  * @param {string} value
  * @return {!proto.applications_manager.InstallApplicationRequest} returns this
  */
-proto.applications_manager.InstallApplicationRequest.prototype.setPublisherID = function(value) {
+proto.applications_manager.InstallApplicationRequest.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -421,7 +421,7 @@ proto.applications_manager.InstallApplicationResponse.prototype.toObject = funct
  */
 proto.applications_manager.InstallApplicationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -551,11 +551,11 @@ proto.applications_manager.UninstallApplicationRequest.prototype.toObject = func
  */
 proto.applications_manager.UninstallApplicationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    deletepermissions: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    domain: jspb.Message.getFieldWithDefault(msg, 5, "")
+applicationid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+version: jspb.Message.getFieldWithDefault(msg, 3, ""),
+deletepermissions: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+domain: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -598,7 +598,7 @@ proto.applications_manager.UninstallApplicationRequest.deserializeBinaryFromRead
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -648,7 +648,7 @@ proto.applications_manager.UninstallApplicationRequest.serializeBinaryToWriter =
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -701,7 +701,7 @@ proto.applications_manager.UninstallApplicationRequest.prototype.setApplicationi
  * optional string PublisherID = 2;
  * @return {string}
  */
-proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherID = function() {
+proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -710,7 +710,7 @@ proto.applications_manager.UninstallApplicationRequest.prototype.getPublisherID 
  * @param {string} value
  * @return {!proto.applications_manager.UninstallApplicationRequest} returns this
  */
-proto.applications_manager.UninstallApplicationRequest.prototype.setPublisherID = function(value) {
+proto.applications_manager.UninstallApplicationRequest.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -801,7 +801,7 @@ proto.applications_manager.UninstallApplicationResponse.prototype.toObject = fun
  */
 proto.applications_manager.UninstallApplicationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

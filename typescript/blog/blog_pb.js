@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 goog.exportSymbol('proto.blog.AddCommentRequest', null, global);
 goog.exportSymbol('proto.blog.AddCommentResponse', null, global);
@@ -684,10 +693,10 @@ proto.blog.Emoji.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.Emoji.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    creationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    parent: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    emoji: jspb.Message.getFieldWithDefault(msg, 4, "")
+accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+creationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
+parent: jspb.Message.getFieldWithDefault(msg, 3, ""),
+emoji: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -911,15 +920,15 @@ proto.blog.Comment.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.Comment.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    parent: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    accountId: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    creationtime: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    language: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+parent: jspb.Message.getFieldWithDefault(msg, 2, ""),
+accountId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+creationtime: jspb.Message.getFieldWithDefault(msg, 4, 0),
+language: jspb.Message.getFieldWithDefault(msg, 5, ""),
+text: jspb.Message.getFieldWithDefault(msg, 6, ""),
+commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
-    emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
+emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
     proto.blog.Emoji.toObject, includeInstance)
   };
 
@@ -1304,22 +1313,22 @@ proto.blog.BlogPost.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.BlogPost.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    author: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    title: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    subtitle: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    creationtime: jspb.Message.getFieldWithDefault(msg, 8, 0),
-    emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+author: jspb.Message.getFieldWithDefault(msg, 2, ""),
+text: jspb.Message.getFieldWithDefault(msg, 3, ""),
+title: jspb.Message.getFieldWithDefault(msg, 4, ""),
+subtitle: jspb.Message.getFieldWithDefault(msg, 5, ""),
+language: jspb.Message.getFieldWithDefault(msg, 6, ""),
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+creationtime: jspb.Message.getFieldWithDefault(msg, 8, 0),
+emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
     proto.blog.Emoji.toObject, includeInstance),
-    commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
+commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    status: jspb.Message.getFieldWithDefault(msg, 12, 0),
-    mac: jspb.Message.getFieldWithDefault(msg, 13, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 14, "")
+thumbnail: jspb.Message.getFieldWithDefault(msg, 11, ""),
+status: jspb.Message.getFieldWithDefault(msg, 12, 0),
+mac: jspb.Message.getFieldWithDefault(msg, 13, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 14, "")
   };
 
   if (includeInstance) {
@@ -1896,14 +1905,14 @@ proto.blog.CreateBlogPostRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.blog.CreateBlogPostRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    indexpath: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    accountId: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    title: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    subtitle: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 8, "")
+indexpath: jspb.Message.getFieldWithDefault(msg, 1, ""),
+accountId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+language: jspb.Message.getFieldWithDefault(msg, 3, ""),
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+title: jspb.Message.getFieldWithDefault(msg, 5, ""),
+subtitle: jspb.Message.getFieldWithDefault(msg, 6, ""),
+thumbnail: jspb.Message.getFieldWithDefault(msg, 7, ""),
+text: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -2255,7 +2264,7 @@ proto.blog.CreateBlogPostResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.blog.CreateBlogPostResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
+blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2406,9 +2415,9 @@ proto.blog.SaveBlogPostRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.blog.SaveBlogPostRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f),
-    indexpath: jspb.Message.getFieldWithDefault(msg, 3, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f),
+indexpath: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -2725,8 +2734,8 @@ proto.blog.GetBlogPostsByAuthorsRequest.prototype.toObject = function(opt_includ
  */
 proto.blog.GetBlogPostsByAuthorsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    authorsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
-    max: jspb.Message.getFieldWithDefault(msg, 2, 0)
+authorsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
+max: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -2904,7 +2913,7 @@ proto.blog.GetBlogPostsByAuthorsResponse.prototype.toObject = function(opt_inclu
  */
 proto.blog.GetBlogPostsByAuthorsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
+blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3062,7 +3071,7 @@ proto.blog.GetBlogPostsRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.blog.GetBlogPostsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuidsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+uuidsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -3211,7 +3220,7 @@ proto.blog.GetBlogPostsResponse.prototype.toObject = function(opt_includeInstanc
  */
 proto.blog.GetBlogPostsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
+blogPost: (f = msg.getBlogPost()) && proto.blog.BlogPost.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3362,8 +3371,8 @@ proto.blog.DeleteBlogPostRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.blog.DeleteBlogPostRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -3623,8 +3632,8 @@ proto.blog.AddEmojiRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.AddEmojiRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3804,7 +3813,7 @@ proto.blog.AddEmojiResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.AddEmojiResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
+emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3955,8 +3964,8 @@ proto.blog.RemoveEmojiRequest.prototype.toObject = function(opt_includeInstance)
  */
 proto.blog.RemoveEmojiRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4136,7 +4145,7 @@ proto.blog.RemoveEmojiResponse.prototype.toObject = function(opt_includeInstance
  */
 proto.blog.RemoveEmojiResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
+emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4287,8 +4296,8 @@ proto.blog.AddCommentRequest.prototype.toObject = function(opt_includeInstance) 
  */
 proto.blog.AddCommentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4468,7 +4477,7 @@ proto.blog.AddCommentResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.blog.AddCommentResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
+comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4619,8 +4628,8 @@ proto.blog.RemoveCommentRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.blog.RemoveCommentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4908,8 +4917,8 @@ proto.blog.Snippet.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.Snippet.toObject = function(includeInstance, msg) {
   var f, obj = {
-    field: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    fragmentsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+field: jspb.Message.getFieldWithDefault(msg, 1, ""),
+fragmentsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -5094,11 +5103,11 @@ proto.blog.SearchHit.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.SearchHit.toObject = function(includeInstance, msg) {
   var f, obj = {
-    index: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    score: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
-    snippetsList: jspb.Message.toObjectList(msg.getSnippetsList(),
+index: jspb.Message.getFieldWithDefault(msg, 1, 0),
+score: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+snippetsList: jspb.Message.toObjectList(msg.getSnippetsList(),
     proto.blog.Snippet.toObject, includeInstance),
-    blog: (f = msg.getBlog()) && proto.blog.BlogPost.toObject(includeInstance, f)
+blog: (f = msg.getBlog()) && proto.blog.BlogPost.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5358,9 +5367,9 @@ proto.blog.SearchSummary.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.SearchSummary.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    took: jspb.Message.getFieldWithDefault(msg, 3, 0)
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+took: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -5548,8 +5557,8 @@ proto.blog.SearchFacetTerm.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.SearchFacetTerm.toObject = function(includeInstance, msg) {
   var f, obj = {
-    term: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    count: jspb.Message.getFieldWithDefault(msg, 2, 0)
+term: jspb.Message.getFieldWithDefault(msg, 1, ""),
+count: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -5715,11 +5724,11 @@ proto.blog.SearchFacet.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.SearchFacet.toObject = function(includeInstance, msg) {
   var f, obj = {
-    field: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    termsList: jspb.Message.toObjectList(msg.getTermsList(),
+field: jspb.Message.getFieldWithDefault(msg, 1, ""),
+total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+termsList: jspb.Message.toObjectList(msg.getTermsList(),
     proto.blog.SearchFacetTerm.toObject, includeInstance),
-    other: jspb.Message.getFieldWithDefault(msg, 4, 0)
+other: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -5965,7 +5974,7 @@ proto.blog.SearchFacets.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.SearchFacets.toObject = function(includeInstance, msg) {
   var f, obj = {
-    facetsList: jspb.Message.toObjectList(msg.getFacetsList(),
+facetsList: jspb.Message.toObjectList(msg.getFacetsList(),
     proto.blog.SearchFacet.toObject, includeInstance)
   };
 
@@ -6125,11 +6134,11 @@ proto.blog.SearchBlogPostsRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.blog.SearchBlogPostsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    fieldsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
-    indexpath: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    size: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    offset: jspb.Message.getFieldWithDefault(msg, 5, 0)
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+fieldsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+indexpath: jspb.Message.getFieldWithDefault(msg, 3, ""),
+size: jspb.Message.getFieldWithDefault(msg, 4, 0),
+offset: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -6421,9 +6430,9 @@ proto.blog.SearchBlogPostsResponse.prototype.toObject = function(opt_includeInst
  */
 proto.blog.SearchBlogPostsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    summary: (f = msg.getSummary()) && proto.blog.SearchSummary.toObject(includeInstance, f),
-    hit: (f = msg.getHit()) && proto.blog.SearchHit.toObject(includeInstance, f),
-    facets: (f = msg.getFacets()) && proto.blog.SearchFacets.toObject(includeInstance, f)
+summary: (f = msg.getSummary()) && proto.blog.SearchSummary.toObject(includeInstance, f),
+hit: (f = msg.getHit()) && proto.blog.SearchHit.toObject(includeInstance, f),
+facets: (f = msg.getFacets()) && proto.blog.SearchFacets.toObject(includeInstance, f)
   };
 
   if (includeInstance) {

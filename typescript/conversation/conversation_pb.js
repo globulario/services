@@ -1176,12 +1176,12 @@ proto.conversation.Invitation.prototype.toObject = function(opt_includeInstance)
  */
 proto.conversation.Invitation.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    from: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    to: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    invitationDate: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    name: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    mac: jspb.Message.getFieldWithDefault(msg, 6, "")
+conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+from: jspb.Message.getFieldWithDefault(msg, 2, ""),
+to: jspb.Message.getFieldWithDefault(msg, 3, ""),
+invitationDate: jspb.Message.getFieldWithDefault(msg, 4, 0),
+name: jspb.Message.getFieldWithDefault(msg, 5, ""),
+mac: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -1463,7 +1463,7 @@ proto.conversation.Invitations.prototype.toObject = function(opt_includeInstance
  */
 proto.conversation.Invitations.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitationsList: jspb.Message.toObjectList(msg.getInvitationsList(),
+invitationsList: jspb.Message.toObjectList(msg.getInvitationsList(),
     proto.conversation.Invitation.toObject, includeInstance)
   };
 
@@ -1623,16 +1623,16 @@ proto.conversation.Message.prototype.toObject = function(opt_includeInstance) {
  */
 proto.conversation.Message.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    conversation: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    creationTime: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    author: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    inReplyTo: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    likesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    dislikesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
-    readersList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+conversation: jspb.Message.getFieldWithDefault(msg, 2, ""),
+creationTime: jspb.Message.getFieldWithDefault(msg, 3, 0),
+author: jspb.Message.getFieldWithDefault(msg, 4, ""),
+text: jspb.Message.getFieldWithDefault(msg, 5, ""),
+inReplyTo: jspb.Message.getFieldWithDefault(msg, 6, ""),
+language: jspb.Message.getFieldWithDefault(msg, 7, ""),
+likesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+dislikesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+readersList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -2087,16 +2087,16 @@ proto.conversation.Conversation.prototype.toObject = function(opt_includeInstanc
  */
 proto.conversation.Conversation.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    messagesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    creationTime: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    lastMessageTime: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    language: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    participantsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f),
-    mac: jspb.Message.getFieldWithDefault(msg, 10, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+messagesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+creationTime: jspb.Message.getFieldWithDefault(msg, 5, 0),
+lastMessageTime: jspb.Message.getFieldWithDefault(msg, 6, 0),
+language: jspb.Message.getFieldWithDefault(msg, 7, ""),
+participantsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f),
+mac: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -2572,7 +2572,7 @@ proto.conversation.Conversations.prototype.toObject = function(opt_includeInstan
  */
 proto.conversation.Conversations.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationsList: jspb.Message.toObjectList(msg.getConversationsList(),
+conversationsList: jspb.Message.toObjectList(msg.getConversationsList(),
     proto.conversation.Conversation.toObject, includeInstance)
   };
 
@@ -2725,7 +2725,7 @@ proto.conversation.ConnectRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.conversation.ConnectRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2855,7 +2855,7 @@ proto.conversation.ConnectResponse.prototype.toObject = function(opt_includeInst
  */
 proto.conversation.ConnectResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f)
+msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3006,7 +3006,7 @@ proto.conversation.DisconnectRequest.prototype.toObject = function(opt_includeIn
  */
 proto.conversation.DisconnectRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -3136,7 +3136,7 @@ proto.conversation.DisconnectResponse.prototype.toObject = function(opt_includeI
  */
 proto.conversation.DisconnectResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -3273,9 +3273,9 @@ proto.conversation.CreateConversationRequest.prototype.toObject = function(opt_i
  */
 proto.conversation.CreateConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
-    language: jspb.Message.getFieldWithDefault(msg, 3, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+language: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -3482,7 +3482,7 @@ proto.conversation.CreateConversationResponse.prototype.toObject = function(opt_
  */
 proto.conversation.CreateConversationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
+conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3633,7 +3633,7 @@ proto.conversation.DeleteConversationRequest.prototype.toObject = function(opt_i
  */
 proto.conversation.DeleteConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -3864,7 +3864,7 @@ proto.conversation.SendInvitationRequest.prototype.toObject = function(opt_inclu
  */
 proto.conversation.SendInvitationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
+invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4116,7 +4116,7 @@ proto.conversation.AcceptInvitationRequest.prototype.toObject = function(opt_inc
  */
 proto.conversation.AcceptInvitationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
+invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4368,7 +4368,7 @@ proto.conversation.DeclineInvitationRequest.prototype.toObject = function(opt_in
  */
 proto.conversation.DeclineInvitationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
+invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4620,7 +4620,7 @@ proto.conversation.RevokeInvitationRequest.prototype.toObject = function(opt_inc
  */
 proto.conversation.RevokeInvitationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
+invitation: (f = msg.getInvitation()) && proto.conversation.Invitation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4872,7 +4872,7 @@ proto.conversation.GetReceivedInvitationsRequest.prototype.toObject = function(o
  */
 proto.conversation.GetReceivedInvitationsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    account: jspb.Message.getFieldWithDefault(msg, 1, "")
+account: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5002,7 +5002,7 @@ proto.conversation.GetReceivedInvitationsResponse.prototype.toObject = function(
  */
 proto.conversation.GetReceivedInvitationsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f)
+invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5153,7 +5153,7 @@ proto.conversation.GetSentInvitationsRequest.prototype.toObject = function(opt_i
  */
 proto.conversation.GetSentInvitationsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    account: jspb.Message.getFieldWithDefault(msg, 1, "")
+account: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5283,7 +5283,7 @@ proto.conversation.GetSentInvitationsResponse.prototype.toObject = function(opt_
  */
 proto.conversation.GetSentInvitationsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f)
+invitations: (f = msg.getInvitations()) && proto.conversation.Invitations.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5434,11 +5434,11 @@ proto.conversation.FindConversationsRequest.prototype.toObject = function(opt_in
  */
 proto.conversation.FindConversationsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    offset: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    pagesize: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    snippetsize: jspb.Message.getFieldWithDefault(msg, 5, 0)
+query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+language: jspb.Message.getFieldWithDefault(msg, 2, ""),
+offset: jspb.Message.getFieldWithDefault(msg, 3, 0),
+pagesize: jspb.Message.getFieldWithDefault(msg, 4, 0),
+snippetsize: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -5691,7 +5691,7 @@ proto.conversation.FindConversationsResponse.prototype.toObject = function(opt_i
  */
 proto.conversation.FindConversationsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationsList: jspb.Message.toObjectList(msg.getConversationsList(),
+conversationsList: jspb.Message.toObjectList(msg.getConversationsList(),
     proto.conversation.Conversation.toObject, includeInstance)
   };
 
@@ -5844,8 +5844,8 @@ proto.conversation.JoinConversationRequest.prototype.toObject = function(opt_inc
  */
 proto.conversation.JoinConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    connectionUuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+connectionUuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6004,8 +6004,8 @@ proto.conversation.JoinConversationResponse.prototype.toObject = function(opt_in
  */
 proto.conversation.JoinConversationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f),
-    conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
+msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f),
+conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6206,8 +6206,8 @@ proto.conversation.KickoutFromConversationRequest.prototype.toObject = function(
  */
 proto.conversation.KickoutFromConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 2, "")
+conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+account: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6467,7 +6467,7 @@ proto.conversation.GetConversationRequest.prototype.toObject = function(opt_incl
  */
 proto.conversation.GetConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6597,7 +6597,7 @@ proto.conversation.GetConversationResponse.prototype.toObject = function(opt_inc
  */
 proto.conversation.GetConversationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
+conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6748,7 +6748,7 @@ proto.conversation.GetConversationsRequest.prototype.toObject = function(opt_inc
  */
 proto.conversation.GetConversationsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    creator: jspb.Message.getFieldWithDefault(msg, 1, "")
+creator: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6878,7 +6878,7 @@ proto.conversation.GetConversationsResponse.prototype.toObject = function(opt_in
  */
 proto.conversation.GetConversationsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversations: (f = msg.getConversations()) && proto.conversation.Conversations.toObject(includeInstance, f)
+conversations: (f = msg.getConversations()) && proto.conversation.Conversations.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -7029,8 +7029,8 @@ proto.conversation.LeaveConversationRequest.prototype.toObject = function(opt_in
  */
 proto.conversation.LeaveConversationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    connectionUuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+conversationUuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+connectionUuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7189,7 +7189,7 @@ proto.conversation.LeaveConversationResponse.prototype.toObject = function(opt_i
  */
 proto.conversation.LeaveConversationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
+conversation: (f = msg.getConversation()) && proto.conversation.Conversation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -7340,7 +7340,7 @@ proto.conversation.SendMessageRequest.prototype.toObject = function(opt_includeI
  */
 proto.conversation.SendMessageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f)
+msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -7592,8 +7592,8 @@ proto.conversation.DeleteMessageRequest.prototype.toObject = function(opt_includ
  */
 proto.conversation.DeleteMessageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7860,7 +7860,7 @@ proto.conversation.FindMessagesRequest.prototype.toObject = function(opt_include
  */
 proto.conversation.FindMessagesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -8009,7 +8009,7 @@ proto.conversation.FindMessagesResponse.prototype.toObject = function(opt_includ
  */
 proto.conversation.FindMessagesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: (f = msg.getMessage()) && proto.conversation.Message.toObject(includeInstance, f)
+message: (f = msg.getMessage()) && proto.conversation.Message.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -8160,9 +8160,9 @@ proto.conversation.LikeMessageRqst.prototype.toObject = function(opt_includeInst
  */
 proto.conversation.LikeMessageRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 3, "")
+conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -8451,9 +8451,9 @@ proto.conversation.DislikeMessageRqst.prototype.toObject = function(opt_includeI
  */
 proto.conversation.DislikeMessageRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 3, "")
+conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -8742,9 +8742,9 @@ proto.conversation.SetMessageReadRqst.prototype.toObject = function(opt_includeI
  */
 proto.conversation.SetMessageReadRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 3, "")
+conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {

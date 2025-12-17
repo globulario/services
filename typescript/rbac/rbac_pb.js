@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
 goog.object.extend(proto, google_protobuf_struct_pb);
@@ -1111,12 +1120,12 @@ proto.rbac.Permission.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.Permission.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
-    peersList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+applicationsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+nodeIdentitiesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+accountsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+groupsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -1163,7 +1172,7 @@ proto.rbac.Permission.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.addPeers(value);
+      msg.addNodeIdentities(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -1220,7 +1229,7 @@ proto.rbac.Permission.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPeersList();
+  f = message.getNodeIdentitiesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       3,
@@ -1307,10 +1316,10 @@ proto.rbac.Permission.prototype.clearApplicationsList = function() {
 
 
 /**
- * repeated string peers = 3;
+ * repeated string node_identities = 3;
  * @return {!Array<string>}
  */
-proto.rbac.Permission.prototype.getPeersList = function() {
+proto.rbac.Permission.prototype.getNodeIdentitiesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
 };
 
@@ -1319,7 +1328,7 @@ proto.rbac.Permission.prototype.getPeersList = function() {
  * @param {!Array<string>} value
  * @return {!proto.rbac.Permission} returns this
  */
-proto.rbac.Permission.prototype.setPeersList = function(value) {
+proto.rbac.Permission.prototype.setNodeIdentitiesList = function(value) {
   return jspb.Message.setField(this, 3, value || []);
 };
 
@@ -1329,7 +1338,7 @@ proto.rbac.Permission.prototype.setPeersList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.rbac.Permission} returns this
  */
-proto.rbac.Permission.prototype.addPeers = function(value, opt_index) {
+proto.rbac.Permission.prototype.addNodeIdentities = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
 };
 
@@ -1338,8 +1347,8 @@ proto.rbac.Permission.prototype.addPeers = function(value, opt_index) {
  * Clears the list making it empty but non-null.
  * @return {!proto.rbac.Permission} returns this
  */
-proto.rbac.Permission.prototype.clearPeersList = function() {
-  return this.setPeersList([]);
+proto.rbac.Permission.prototype.clearNodeIdentitiesList = function() {
+  return this.setNodeIdentitiesList([]);
 };
 
 
@@ -1493,12 +1502,12 @@ proto.rbac.Permissions.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.Permissions.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    resourceType: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    owners: (f = msg.getOwners()) && proto.rbac.Permission.toObject(includeInstance, f),
-    allowedList: jspb.Message.toObjectList(msg.getAllowedList(),
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+resourceType: jspb.Message.getFieldWithDefault(msg, 2, ""),
+owners: (f = msg.getOwners()) && proto.rbac.Permission.toObject(includeInstance, f),
+allowedList: jspb.Message.toObjectList(msg.getAllowedList(),
     proto.rbac.Permission.toObject, includeInstance),
-    deniedList: jspb.Message.toObjectList(msg.getDeniedList(),
+deniedList: jspb.Message.toObjectList(msg.getDeniedList(),
     proto.rbac.Permission.toObject, includeInstance)
   };
 
@@ -1810,7 +1819,7 @@ proto.rbac.GetResourcePermissionsRqst.prototype.toObject = function(opt_includeI
  */
 proto.rbac.GetResourcePermissionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1940,7 +1949,7 @@ proto.rbac.GetResourcePermissionsRsp.prototype.toObject = function(opt_includeIn
  */
 proto.rbac.GetResourcePermissionsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
+permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2091,7 +2100,7 @@ proto.rbac.GetResourcePermissionsByResourceTypeRqst.prototype.toObject = functio
  */
 proto.rbac.GetResourcePermissionsByResourceTypeRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    resourcetype: jspb.Message.getFieldWithDefault(msg, 1, "")
+resourcetype: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2228,7 +2237,7 @@ proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.toObject = function
  */
 proto.rbac.GetResourcePermissionsByResourceTypeRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permissionsList: jspb.Message.toObjectList(msg.getPermissionsList(),
+permissionsList: jspb.Message.toObjectList(msg.getPermissionsList(),
     proto.rbac.Permissions.toObject, includeInstance)
   };
 
@@ -2381,9 +2390,9 @@ proto.rbac.GetResourcePermissionsBySubjectRqst.prototype.toObject = function(opt
  */
 proto.rbac.GetResourcePermissionsBySubjectRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    subjectType: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    resourceType: jspb.Message.getFieldWithDefault(msg, 3, "")
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+subjectType: jspb.Message.getFieldWithDefault(msg, 2, 0),
+resourceType: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -2578,7 +2587,7 @@ proto.rbac.GetResourcePermissionsBySubjectRsp.prototype.toObject = function(opt_
  */
 proto.rbac.GetResourcePermissionsBySubjectRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permissionsList: jspb.Message.toObjectList(msg.getPermissionsList(),
+permissionsList: jspb.Message.toObjectList(msg.getPermissionsList(),
     proto.rbac.Permissions.toObject, includeInstance)
   };
 
@@ -2731,7 +2740,7 @@ proto.rbac.DeleteResourcePermissionsRqst.prototype.toObject = function(opt_inclu
  */
 proto.rbac.DeleteResourcePermissionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2861,7 +2870,7 @@ proto.rbac.DeleteResourcePermissionsRsp.prototype.toObject = function(opt_includ
  */
 proto.rbac.DeleteResourcePermissionsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
+permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3012,9 +3021,9 @@ proto.rbac.DeleteResourcePermissionRqst.prototype.toObject = function(opt_includ
  */
 proto.rbac.DeleteResourcePermissionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+type: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -3303,9 +3312,9 @@ proto.rbac.SetResourcePermissionsRqst.prototype.toObject = function(opt_includeI
  */
 proto.rbac.SetResourcePermissionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
+permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3615,9 +3624,9 @@ proto.rbac.GetResourcePermissionRqst.prototype.toObject = function(opt_includeIn
  */
 proto.rbac.GetResourcePermissionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+type: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -3805,7 +3814,7 @@ proto.rbac.GetResourcePermissionRsp.prototype.toObject = function(opt_includeIns
  */
 proto.rbac.GetResourcePermissionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permission: (f = msg.getPermission()) && proto.rbac.Permission.toObject(includeInstance, f)
+permission: (f = msg.getPermission()) && proto.rbac.Permission.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3956,9 +3965,10 @@ proto.rbac.SetResourcePermissionRqst.prototype.toObject = function(opt_includeIn
  */
 proto.rbac.SetResourcePermissionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    permission: (f = msg.getPermission()) && proto.rbac.Permission.toObject(includeInstance, f),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
+permission: (f = msg.getPermission()) && proto.rbac.Permission.toObject(includeInstance, f),
+type: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -4000,11 +4010,15 @@ proto.rbac.SetResourcePermissionRqst.deserializeBinaryFromReader = function(msg,
       msg.setPath(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setResourcetype(value);
+      break;
+    case 3:
       var value = new proto.rbac.Permission;
       reader.readMessage(value,proto.rbac.Permission.deserializeBinaryFromReader);
       msg.setPermission(value);
       break;
-    case 3:
+    case 4:
       var value = /** @type {!proto.rbac.PermissionType} */ (reader.readEnum());
       msg.setType(value);
       break;
@@ -4044,10 +4058,17 @@ proto.rbac.SetResourcePermissionRqst.serializeBinaryToWriter = function(message,
       f
     );
   }
+  f = message.getResourcetype();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
   f = message.getPermission();
   if (f != null) {
     writer.writeMessage(
-      2,
+      3,
       f,
       proto.rbac.Permission.serializeBinaryToWriter
     );
@@ -4055,7 +4076,7 @@ proto.rbac.SetResourcePermissionRqst.serializeBinaryToWriter = function(message,
   f = message.getType();
   if (f !== 0.0) {
     writer.writeEnum(
-      3,
+      4,
       f
     );
   }
@@ -4081,12 +4102,30 @@ proto.rbac.SetResourcePermissionRqst.prototype.setPath = function(value) {
 
 
 /**
- * optional Permission permission = 2;
+ * optional string resourceType = 2;
+ * @return {string}
+ */
+proto.rbac.SetResourcePermissionRqst.prototype.getResourcetype = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.rbac.SetResourcePermissionRqst} returns this
+ */
+proto.rbac.SetResourcePermissionRqst.prototype.setResourcetype = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional Permission permission = 3;
  * @return {?proto.rbac.Permission}
  */
 proto.rbac.SetResourcePermissionRqst.prototype.getPermission = function() {
   return /** @type{?proto.rbac.Permission} */ (
-    jspb.Message.getWrapperField(this, proto.rbac.Permission, 2));
+    jspb.Message.getWrapperField(this, proto.rbac.Permission, 3));
 };
 
 
@@ -4095,7 +4134,7 @@ proto.rbac.SetResourcePermissionRqst.prototype.getPermission = function() {
  * @return {!proto.rbac.SetResourcePermissionRqst} returns this
 */
 proto.rbac.SetResourcePermissionRqst.prototype.setPermission = function(value) {
-  return jspb.Message.setWrapperField(this, 2, value);
+  return jspb.Message.setWrapperField(this, 3, value);
 };
 
 
@@ -4113,16 +4152,16 @@ proto.rbac.SetResourcePermissionRqst.prototype.clearPermission = function() {
  * @return {boolean}
  */
 proto.rbac.SetResourcePermissionRqst.prototype.hasPermission = function() {
-  return jspb.Message.getField(this, 2) != null;
+  return jspb.Message.getField(this, 3) != null;
 };
 
 
 /**
- * optional PermissionType type = 3;
+ * optional PermissionType type = 4;
  * @return {!proto.rbac.PermissionType}
  */
 proto.rbac.SetResourcePermissionRqst.prototype.getType = function() {
-  return /** @type {!proto.rbac.PermissionType} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+  return /** @type {!proto.rbac.PermissionType} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
 };
 
 
@@ -4131,7 +4170,7 @@ proto.rbac.SetResourcePermissionRqst.prototype.getType = function() {
  * @return {!proto.rbac.SetResourcePermissionRqst} returns this
  */
 proto.rbac.SetResourcePermissionRqst.prototype.setType = function(value) {
-  return jspb.Message.setProto3EnumField(this, 3, value);
+  return jspb.Message.setProto3EnumField(this, 4, value);
 };
 
 
@@ -4268,10 +4307,10 @@ proto.rbac.AddResourceOwnerRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.rbac.AddResourceOwnerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    subject: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 4, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
+subject: jspb.Message.getFieldWithDefault(msg, 3, ""),
+type: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -4589,9 +4628,9 @@ proto.rbac.RemoveResourceOwnerRqst.prototype.toObject = function(opt_includeInst
  */
 proto.rbac.RemoveResourceOwnerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    subject: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+subject: jspb.Message.getFieldWithDefault(msg, 2, ""),
+type: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -4880,8 +4919,8 @@ proto.rbac.DeleteAllAccessRqst.prototype.toObject = function(opt_includeInstance
  */
 proto.rbac.DeleteAllAccessRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -5141,10 +5180,10 @@ proto.rbac.ValidateAccessRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.rbac.ValidateAccessRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    path: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    permission: jspb.Message.getFieldWithDefault(msg, 4, "")
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+path: jspb.Message.getFieldWithDefault(msg, 3, ""),
+permission: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -5361,8 +5400,8 @@ proto.rbac.ValidateAccessRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.rbac.ValidateAccessRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hasaccess: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
-    accessdenied: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
+hasaccess: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+accessdenied: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -5521,7 +5560,7 @@ proto.rbac.GetActionResourceInfosRqst.prototype.toObject = function(opt_includeI
  */
 proto.rbac.GetActionResourceInfosRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    action: jspb.Message.getFieldWithDefault(msg, 1, "")
+action: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5651,10 +5690,10 @@ proto.rbac.ResourceInfos.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.ResourceInfos.toObject = function(includeInstance, msg) {
   var f, obj = {
-    index: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    permission: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    field: jspb.Message.getFieldWithDefault(msg, 4, "")
+index: jspb.Message.getFieldWithDefault(msg, 1, 0),
+permission: jspb.Message.getFieldWithDefault(msg, 2, ""),
+path: jspb.Message.getFieldWithDefault(msg, 3, ""),
+field: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -5878,7 +5917,7 @@ proto.rbac.GetActionResourceInfosRsp.prototype.toObject = function(opt_includeIn
  */
 proto.rbac.GetActionResourceInfosRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    infosList: jspb.Message.toObjectList(msg.getInfosList(),
+infosList: jspb.Message.toObjectList(msg.getInfosList(),
     proto.rbac.ResourceInfos.toObject, includeInstance)
   };
 
@@ -6038,10 +6077,10 @@ proto.rbac.ValidateActionRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.rbac.ValidateActionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    action: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    infosList: jspb.Message.toObjectList(msg.getInfosList(),
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+action: jspb.Message.getFieldWithDefault(msg, 3, ""),
+infosList: jspb.Message.toObjectList(msg.getInfosList(),
     proto.rbac.ResourceInfos.toObject, includeInstance)
   };
 
@@ -6281,8 +6320,8 @@ proto.rbac.ValidateActionRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.rbac.ValidateActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hasaccess: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
-    accessdenied: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
+hasaccess: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+accessdenied: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -6441,7 +6480,7 @@ proto.rbac.SetActionResourcesPermissionsRqst.prototype.toObject = function(opt_i
  */
 proto.rbac.SetActionResourcesPermissionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    permissions: (f = msg.getPermissions()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
+permissions: (f = msg.getPermissions()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6700,13 +6739,13 @@ proto.rbac.Share.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.Share.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    peersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+applicationsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+nodeIdentitiesList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+accountsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+groupsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6757,7 +6796,7 @@ proto.rbac.Share.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addPeers(value);
+      msg.addNodeIdentities(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
@@ -6821,7 +6860,7 @@ proto.rbac.Share.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPeersList();
+  f = message.getNodeIdentitiesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       4,
@@ -6926,10 +6965,10 @@ proto.rbac.Share.prototype.clearApplicationsList = function() {
 
 
 /**
- * repeated string peers = 4;
+ * repeated string node_identities = 4;
  * @return {!Array<string>}
  */
-proto.rbac.Share.prototype.getPeersList = function() {
+proto.rbac.Share.prototype.getNodeIdentitiesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
@@ -6938,7 +6977,7 @@ proto.rbac.Share.prototype.getPeersList = function() {
  * @param {!Array<string>} value
  * @return {!proto.rbac.Share} returns this
  */
-proto.rbac.Share.prototype.setPeersList = function(value) {
+proto.rbac.Share.prototype.setNodeIdentitiesList = function(value) {
   return jspb.Message.setField(this, 4, value || []);
 };
 
@@ -6948,7 +6987,7 @@ proto.rbac.Share.prototype.setPeersList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.rbac.Share} returns this
  */
-proto.rbac.Share.prototype.addPeers = function(value, opt_index) {
+proto.rbac.Share.prototype.addNodeIdentities = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
@@ -6957,8 +6996,8 @@ proto.rbac.Share.prototype.addPeers = function(value, opt_index) {
  * Clears the list making it empty but non-null.
  * @return {!proto.rbac.Share} returns this
  */
-proto.rbac.Share.prototype.clearPeersList = function() {
-  return this.setPeersList([]);
+proto.rbac.Share.prototype.clearNodeIdentitiesList = function() {
+  return this.setNodeIdentitiesList([]);
 };
 
 
@@ -7105,9 +7144,9 @@ proto.rbac.GetSharedResourceRqst.prototype.toObject = function(opt_includeInstan
  */
 proto.rbac.GetSharedResourceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    owner: jspb.Message.getFieldWithDefault(msg, 3, "")
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+owner: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -7302,7 +7341,7 @@ proto.rbac.GetSharedResourceRsp.prototype.toObject = function(opt_includeInstanc
  */
 proto.rbac.GetSharedResourceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    sharedresourceList: jspb.Message.toObjectList(msg.getSharedresourceList(),
+sharedresourceList: jspb.Message.toObjectList(msg.getSharedresourceList(),
     proto.rbac.Share.toObject, includeInstance)
   };
 
@@ -7455,10 +7494,10 @@ proto.rbac.RemoveSubjectFromShareRqst.prototype.toObject = function(opt_includeI
  */
 proto.rbac.RemoveSubjectFromShareRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 4, "")
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+path: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -7776,8 +7815,8 @@ proto.rbac.DeleteSubjectShareRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.rbac.DeleteSubjectShareRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -8037,9 +8076,9 @@ proto.rbac.SetSubjectAllocatedSpaceRqst.prototype.toObject = function(opt_includ
  */
 proto.rbac.SetSubjectAllocatedSpaceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    allocatedSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+allocatedSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -8328,8 +8367,8 @@ proto.rbac.GetSubjectAllocatedSpaceRqst.prototype.toObject = function(opt_includ
  */
 proto.rbac.GetSubjectAllocatedSpaceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -8488,7 +8527,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.toObject = function(opt_include
  */
 proto.rbac.GetSubjectAllocatedSpaceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    allocatedSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
+allocatedSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -8618,8 +8657,8 @@ proto.rbac.GetSubjectAvailableSpaceRqst.prototype.toObject = function(opt_includ
  */
 proto.rbac.GetSubjectAvailableSpaceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -8778,7 +8817,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.prototype.toObject = function(opt_include
  */
 proto.rbac.GetSubjectAvailableSpaceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    availableSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
+availableSpace: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -8908,9 +8947,9 @@ proto.rbac.ValidateSubjectSpaceRqst.prototype.toObject = function(opt_includeIns
  */
 proto.rbac.ValidateSubjectSpaceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    requiredSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+requiredSpace: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -9098,7 +9137,7 @@ proto.rbac.ValidateSubjectSpaceRsp.prototype.toObject = function(opt_includeInst
  */
 proto.rbac.ValidateSubjectSpaceRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    hasspace: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+hasspace: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -9209,7 +9248,7 @@ proto.rbac.PermissionType = {
  */
 proto.rbac.SubjectType = {
   ACCOUNT: 0,
-  PEER: 1,
+  NODE_IDENTITY: 1,
   GROUP: 2,
   ORGANIZATION: 3,
   APPLICATION: 4,

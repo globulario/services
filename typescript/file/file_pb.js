@@ -2,15 +2,24 @@
 /**
  * @fileoverview
  * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
  * @suppress {messageConventions} JS Compiler reports an error if a variable or
  *     field starts with 'MSG_' and isn't a translatable message.
  * @public
  */
 // GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = Function('return this')();
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
 goog.object.extend(proto, google_protobuf_struct_pb);
@@ -1123,17 +1132,17 @@ proto.file.FileInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.FileInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    size: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    mode: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    modeTime: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    isDir: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
-    path: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    mime: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 8, ""),
-    checksum: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    metadata: (f = msg.getMetadata()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
-    filesList: jspb.Message.toObjectList(msg.getFilesList(),
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+size: jspb.Message.getFieldWithDefault(msg, 2, 0),
+mode: jspb.Message.getFieldWithDefault(msg, 3, 0),
+modeTime: jspb.Message.getFieldWithDefault(msg, 4, 0),
+isDir: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+path: jspb.Message.getFieldWithDefault(msg, 6, ""),
+mime: jspb.Message.getFieldWithDefault(msg, 7, ""),
+thumbnail: jspb.Message.getFieldWithDefault(msg, 8, ""),
+checksum: jspb.Message.getFieldWithDefault(msg, 9, ""),
+metadata: (f = msg.getMetadata()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
+filesList: jspb.Message.toObjectList(msg.getFilesList(),
     proto.file.FileInfo.toObject, includeInstance)
   };
 
@@ -1597,10 +1606,10 @@ proto.file.ReadDirRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.ReadDirRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    recursive: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
-    thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    thumbnailheight: jspb.Message.getFieldWithDefault(msg, 4, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+recursive: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 3, 0),
+thumbnailheight: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -1817,7 +1826,7 @@ proto.file.ReadDirResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.ReadDirResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    info: (f = msg.getInfo()) && proto.file.FileInfo.toObject(includeInstance, f)
+info: (f = msg.getInfo()) && proto.file.FileInfo.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1968,8 +1977,8 @@ proto.file.CreateDirRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.CreateDirRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2128,7 +2137,7 @@ proto.file.CreateDirResponse.prototype.toObject = function(opt_includeInstance) 
  */
 proto.file.CreateDirResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -2258,7 +2267,7 @@ proto.file.DeleteDirRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.DeleteDirRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2388,7 +2397,7 @@ proto.file.DeleteDirResponse.prototype.toObject = function(opt_includeInstance) 
  */
 proto.file.DeleteDirResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -2518,9 +2527,9 @@ proto.file.RenameRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.RenameRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    newName: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    oldName: jspb.Message.getFieldWithDefault(msg, 3, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+newName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+oldName: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -2708,7 +2717,7 @@ proto.file.RenameResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.RenameResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -2845,8 +2854,8 @@ proto.file.CopyRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.CopyRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    filesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+filesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -3024,7 +3033,7 @@ proto.file.CopyResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.CopyResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -3161,8 +3170,8 @@ proto.file.MoveRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.MoveRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    filesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+filesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -3340,7 +3349,7 @@ proto.file.MoveResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.MoveResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -3470,9 +3479,9 @@ proto.file.GetFileInfoRequest.prototype.toObject = function(opt_includeInstance)
  */
 proto.file.GetFileInfoRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    thumbnailheight: jspb.Message.getFieldWithDefault(msg, 3, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 2, 0),
+thumbnailheight: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -3660,7 +3669,7 @@ proto.file.GetFileInfoResponse.prototype.toObject = function(opt_includeInstance
  */
 proto.file.GetFileInfoResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    info: (f = msg.getInfo()) && proto.file.FileInfo.toObject(includeInstance, f)
+info: (f = msg.getInfo()) && proto.file.FileInfo.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3811,7 +3820,7 @@ proto.file.GetFileMetadataRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.file.GetFileMetadataRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -3941,7 +3950,7 @@ proto.file.GetFileMetadataResponse.prototype.toObject = function(opt_includeInst
  */
 proto.file.GetFileMetadataResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: (f = msg.getResult()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
+result: (f = msg.getResult()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4092,7 +4101,7 @@ proto.file.ReadFileRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.ReadFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4222,7 +4231,7 @@ proto.file.ReadFileResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.ReadFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -4402,8 +4411,8 @@ proto.file.SaveFileRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.SaveFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    data: msg.getData_asB64()
+path: (f = jspb.Message.getField(msg, 1)) == null ? undefined : f,
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -4622,7 +4631,7 @@ proto.file.SaveFileResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.SaveFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -4752,7 +4761,7 @@ proto.file.DeleteFileRequest.prototype.toObject = function(opt_includeInstance) 
  */
 proto.file.DeleteFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -4882,7 +4891,7 @@ proto.file.DeleteFileResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.file.DeleteFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5012,10 +5021,10 @@ proto.file.GetThumbnailsRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.file.GetThumbnailsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    recursive: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
-    thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    thumbnailheight: jspb.Message.getFieldWithDefault(msg, 4, 0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+recursive: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+thumbnailwidth: jspb.Message.getFieldWithDefault(msg, 3, 0),
+thumbnailheight: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -5232,7 +5241,7 @@ proto.file.GetThumbnailsResponse.prototype.toObject = function(opt_includeInstan
  */
 proto.file.GetThumbnailsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -5393,8 +5402,8 @@ proto.file.CreateArchiveRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.file.CreateArchiveRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pathsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
-    name: jspb.Message.getFieldWithDefault(msg, 2, "")
+pathsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
+name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -5572,7 +5581,7 @@ proto.file.CreateArchiveResponse.prototype.toObject = function(opt_includeInstan
  */
 proto.file.CreateArchiveResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -5702,9 +5711,9 @@ proto.file.CreateLnkRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.CreateLnkRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    lnk: jspb.Message.getFieldWithDefault(msg, 3, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+lnk: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -5993,7 +6002,7 @@ proto.file.AddPublicDirRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.file.AddPublicDirRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6224,7 +6233,7 @@ proto.file.RemovePublicDirRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.file.RemovePublicDirRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6563,7 +6572,7 @@ proto.file.GetPublicDirsResponse.prototype.toObject = function(opt_includeInstan
  */
 proto.file.GetPublicDirsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    dirsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+dirsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6712,8 +6721,8 @@ proto.file.WriteExcelFileRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.file.WriteExcelFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    data: jspb.Message.getFieldWithDefault(msg, 2, "")
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+data: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6872,7 +6881,7 @@ proto.file.WriteExcelFileResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.file.WriteExcelFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7002,7 +7011,7 @@ proto.file.HtmlToPdfRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.file.HtmlToPdfRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    html: jspb.Message.getFieldWithDefault(msg, 1, "")
+html: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -7132,7 +7141,7 @@ proto.file.HtmlToPdfResponse.prototype.toObject = function(opt_includeInstance) 
  */
 proto.file.HtmlToPdfResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pdf: msg.getPdf_asB64()
+pdf: msg.getPdf_asB64()
   };
 
   if (includeInstance) {
@@ -7286,11 +7295,11 @@ proto.file.UploadFileRequest.prototype.toObject = function(opt_includeInstance) 
  */
 proto.file.UploadFileRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    url: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    dest: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    isdir: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+url: jspb.Message.getFieldWithDefault(msg, 1, ""),
+dest: jspb.Message.getFieldWithDefault(msg, 2, ""),
+name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+domain: jspb.Message.getFieldWithDefault(msg, 4, ""),
+isdir: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
   };
 
   if (includeInstance) {
@@ -7536,9 +7545,9 @@ proto.file.UploadFileResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.file.UploadFileResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uploaded: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    info: jspb.Message.getFieldWithDefault(msg, 3, "")
+uploaded: jspb.Message.getFieldWithDefault(msg, 1, 0),
+total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+info: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {

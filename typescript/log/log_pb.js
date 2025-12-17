@@ -252,13 +252,16 @@ proto.log.LogInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.LogInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    level: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    application: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    method: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    message: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    line: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    occurences: jspb.Message.getFieldWithDefault(msg, 7, 0)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+level: jspb.Message.getFieldWithDefault(msg, 2, 0),
+application: jspb.Message.getFieldWithDefault(msg, 3, ""),
+method: jspb.Message.getFieldWithDefault(msg, 4, ""),
+message: jspb.Message.getFieldWithDefault(msg, 5, ""),
+line: jspb.Message.getFieldWithDefault(msg, 6, ""),
+occurences: jspb.Message.getFieldWithDefault(msg, 7, 0),
+timestampMs: jspb.Message.getFieldWithDefault(msg, 8, 0),
+component: jspb.Message.getFieldWithDefault(msg, 9, ""),
+fieldsMap: (f = msg.getFieldsMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -322,6 +325,20 @@ proto.log.LogInfo.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setOccurences(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setTimestampMs(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setComponent(value);
+      break;
+    case 10:
+      var value = msg.getFieldsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
       break;
     default:
       reader.skipField();
@@ -400,6 +417,24 @@ proto.log.LogInfo.serializeBinaryToWriter = function(message, writer) {
       7,
       f
     );
+  }
+  f = message.getTimestampMs();
+  if (f !== 0) {
+    writer.writeInt64(
+      8,
+      f
+    );
+  }
+  f = message.getComponent();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getFieldsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(10, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -530,6 +565,65 @@ proto.log.LogInfo.prototype.setOccurences = function(value) {
 };
 
 
+/**
+ * optional int64 timestamp_ms = 8;
+ * @return {number}
+ */
+proto.log.LogInfo.prototype.getTimestampMs = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.setTimestampMs = function(value) {
+  return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional string component = 9;
+ * @return {string}
+ */
+proto.log.LogInfo.prototype.getComponent = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.setComponent = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * map<string, string> fields = 10;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.log.LogInfo.prototype.getFieldsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 10, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.clearFieldsMap = function() {
+  this.getFieldsMap().clear();
+  return this;
+};
+
+
 
 
 
@@ -562,7 +656,7 @@ proto.log.LogRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.LogRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    info: (f = msg.getInfo()) && proto.log.LogInfo.toObject(includeInstance, f)
+info: (f = msg.getInfo()) && proto.log.LogInfo.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -713,7 +807,7 @@ proto.log.LogRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.LogRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -843,7 +937,7 @@ proto.log.DeleteLogRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.DeleteLogRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    log: (f = msg.getLog()) && proto.log.LogInfo.toObject(includeInstance, f)
+log: (f = msg.getLog()) && proto.log.LogInfo.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -994,7 +1088,7 @@ proto.log.DeleteLogRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.DeleteLogRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1124,7 +1218,7 @@ proto.log.GetLogRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.GetLogRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1261,7 +1355,7 @@ proto.log.GetLogRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.GetLogRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    infosList: jspb.Message.toObjectList(msg.getInfosList(),
+infosList: jspb.Message.toObjectList(msg.getInfosList(),
     proto.log.LogInfo.toObject, includeInstance)
   };
 
@@ -1414,7 +1508,7 @@ proto.log.ClearAllLogRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.ClearAllLogRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    query: jspb.Message.getFieldWithDefault(msg, 1, "")
+query: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1544,7 +1638,7 @@ proto.log.ClearAllLogRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.log.ClearAllLogRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

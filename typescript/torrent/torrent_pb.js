@@ -295,11 +295,11 @@ proto.torrent.TorrentLnk.prototype.toObject = function(opt_includeInstance) {
  */
 proto.torrent.TorrentLnk.toObject = function(includeInstance, msg) {
   var f, obj = {
-    lnk: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    dest: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    seed: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    owner: jspb.Message.getFieldWithDefault(msg, 5, "")
+lnk: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+dest: jspb.Message.getFieldWithDefault(msg, 3, ""),
+seed: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+owner: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -653,7 +653,7 @@ proto.torrent.GetTorrentLnksResponse.prototype.toObject = function(opt_includeIn
  */
 proto.torrent.GetTorrentLnksResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    lnksList: jspb.Message.toObjectList(msg.getLnksList(),
+lnksList: jspb.Message.toObjectList(msg.getLnksList(),
     proto.torrent.TorrentLnk.toObject, includeInstance)
   };
 
@@ -806,11 +806,11 @@ proto.torrent.TorrentFileInfo.prototype.toObject = function(opt_includeInstance)
  */
 proto.torrent.TorrentFileInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    size: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    chunks: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    completed: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    percent: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0)
+path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+size: jspb.Message.getFieldWithDefault(msg, 2, 0),
+chunks: jspb.Message.getFieldWithDefault(msg, 3, 0),
+completed: jspb.Message.getFieldWithDefault(msg, 4, 0),
+percent: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0)
   };
 
   if (includeInstance) {
@@ -1063,18 +1063,18 @@ proto.torrent.TorrentInfo.prototype.toObject = function(opt_includeInstance) {
  */
 proto.torrent.TorrentInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    loaded: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
-    size: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    totalchunks: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    totalcompleted: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    downloaded: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    downloadrate: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
-    percent: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
-    updatedat: jspb.Message.getFieldWithDefault(msg, 9, 0),
-    filesList: jspb.Message.toObjectList(msg.getFilesList(),
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+loaded: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+size: jspb.Message.getFieldWithDefault(msg, 3, 0),
+totalchunks: jspb.Message.getFieldWithDefault(msg, 4, 0),
+totalcompleted: jspb.Message.getFieldWithDefault(msg, 5, 0),
+downloaded: jspb.Message.getFieldWithDefault(msg, 6, 0),
+downloadrate: jspb.Message.getFloatingPointFieldWithDefault(msg, 7, 0.0),
+percent: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
+updatedat: jspb.Message.getFieldWithDefault(msg, 9, 0),
+filesList: jspb.Message.toObjectList(msg.getFilesList(),
     proto.torrent.TorrentFileInfo.toObject, includeInstance),
-    destination: jspb.Message.getFieldWithDefault(msg, 11, "")
+destination: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -1624,7 +1624,7 @@ proto.torrent.GetTorrentInfosResponse.prototype.toObject = function(opt_includeI
  */
 proto.torrent.GetTorrentInfosResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    infosList: jspb.Message.toObjectList(msg.getInfosList(),
+infosList: jspb.Message.toObjectList(msg.getInfosList(),
     proto.torrent.TorrentInfo.toObject, includeInstance)
   };
 
@@ -1777,9 +1777,9 @@ proto.torrent.DownloadTorrentRequest.prototype.toObject = function(opt_includeIn
  */
 proto.torrent.DownloadTorrentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    link: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    dest: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    seed: jspb.Message.getBooleanFieldWithDefault(msg, 3, false)
+link: jspb.Message.getFieldWithDefault(msg, 1, ""),
+dest: jspb.Message.getFieldWithDefault(msg, 2, ""),
+seed: jspb.Message.getBooleanFieldWithDefault(msg, 3, false)
   };
 
   if (includeInstance) {
@@ -2068,7 +2068,7 @@ proto.torrent.DropTorrentRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.torrent.DropTorrentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {

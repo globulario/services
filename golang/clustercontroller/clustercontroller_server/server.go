@@ -11,6 +11,16 @@ import (
 // server implements ClusterControllerService with placeholder logic until the control plane is wired.
 type server struct {
 	clustercontrollerpb.UnimplementedClusterControllerServiceServer
+
+	cfg     *clusterControllerConfig
+	cfgPath string
+}
+
+func newServer(cfg *clusterControllerConfig, cfgPath string) *server {
+	return &server{
+		cfg:     cfg,
+		cfgPath: cfgPath,
+	}
 }
 
 func (srv *server) Enroll(ctx context.Context, req *clustercontrollerpb.EnrollRequest) (*clustercontrollerpb.EnrollResponse, error) {

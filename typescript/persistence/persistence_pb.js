@@ -1046,15 +1046,15 @@ proto.persistence.Connection.prototype.toObject = function(opt_includeInstance) 
  */
 proto.persistence.Connection.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    host: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    store: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    user: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 8, 0),
-    timeout: jspb.Message.getFieldWithDefault(msg, 9, 0),
-    options: jspb.Message.getFieldWithDefault(msg, 10, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+host: jspb.Message.getFieldWithDefault(msg, 3, ""),
+store: jspb.Message.getFieldWithDefault(msg, 5, 0),
+user: jspb.Message.getFieldWithDefault(msg, 6, ""),
+password: jspb.Message.getFieldWithDefault(msg, 7, ""),
+port: jspb.Message.getFieldWithDefault(msg, 8, 0),
+timeout: jspb.Message.getFieldWithDefault(msg, 9, 0),
+options: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -1416,8 +1416,8 @@ proto.persistence.CreateConnectionRqst.prototype.toObject = function(opt_include
  */
 proto.persistence.CreateConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connection: (f = msg.getConnection()) && proto.persistence.Connection.toObject(includeInstance, f),
-    save: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
+connection: (f = msg.getConnection()) && proto.persistence.Connection.toObject(includeInstance, f),
+save: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -1597,7 +1597,7 @@ proto.persistence.CreateConnectionRsp.prototype.toObject = function(opt_includeI
  */
 proto.persistence.CreateConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1727,7 +1727,7 @@ proto.persistence.DeleteConnectionRqst.prototype.toObject = function(opt_include
  */
 proto.persistence.DeleteConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1857,7 +1857,7 @@ proto.persistence.DeleteConnectionRsp.prototype.toObject = function(opt_includeI
  */
 proto.persistence.DeleteConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1987,7 +1987,7 @@ proto.persistence.PingConnectionRqst.prototype.toObject = function(opt_includeIn
  */
 proto.persistence.PingConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2117,7 +2117,7 @@ proto.persistence.PingConnectionRsp.prototype.toObject = function(opt_includeIns
  */
 proto.persistence.PingConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2247,11 +2247,11 @@ proto.persistence.InsertManyRqst.prototype.toObject = function(opt_includeInstan
  */
 proto.persistence.InsertManyRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    data: msg.getData_asB64(),
-    options: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+data: msg.getData_asB64(),
+options: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -2622,11 +2622,11 @@ proto.persistence.InsertOneRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.InsertOneRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    data: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+data: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -2872,7 +2872,7 @@ proto.persistence.InsertOneRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.persistence.InsertOneRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -3002,11 +3002,11 @@ proto.persistence.FindRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.FindRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -3252,7 +3252,7 @@ proto.persistence.FindResp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.FindResp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -3406,11 +3406,11 @@ proto.persistence.FindOneRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.persistence.FindOneRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -3656,7 +3656,7 @@ proto.persistence.FindOneResp.prototype.toObject = function(opt_includeInstance)
  */
 proto.persistence.FindOneResp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: (f = msg.getResult()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
+result: (f = msg.getResult()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3807,11 +3807,11 @@ proto.persistence.AggregateRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.AggregateRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    pipeline: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+pipeline: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -4057,7 +4057,7 @@ proto.persistence.AggregateResp.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.AggregateResp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: msg.getData_asB64()
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -4211,12 +4211,12 @@ proto.persistence.UpdateRqst.prototype.toObject = function(opt_includeInstance) 
  */
 proto.persistence.UpdateRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    value: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+value: jspb.Message.getFieldWithDefault(msg, 5, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -4491,7 +4491,7 @@ proto.persistence.UpdateRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.UpdateRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -4621,12 +4621,12 @@ proto.persistence.UpdateOneRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.UpdateOneRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    value: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+value: jspb.Message.getFieldWithDefault(msg, 5, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -4901,7 +4901,7 @@ proto.persistence.UpdateOneRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.persistence.UpdateOneRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5031,12 +5031,12 @@ proto.persistence.ReplaceOneRqst.prototype.toObject = function(opt_includeInstan
  */
 proto.persistence.ReplaceOneRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    value: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 6, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+value: jspb.Message.getFieldWithDefault(msg, 5, ""),
+options: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -5311,7 +5311,7 @@ proto.persistence.ReplaceOneRsp.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.ReplaceOneRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5441,11 +5441,11 @@ proto.persistence.DeleteRqst.prototype.toObject = function(opt_includeInstance) 
  */
 proto.persistence.DeleteRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -5691,7 +5691,7 @@ proto.persistence.DeleteRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.DeleteRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5821,11 +5821,11 @@ proto.persistence.DeleteOneRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.DeleteOneRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -6071,7 +6071,7 @@ proto.persistence.DeleteOneRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.persistence.DeleteOneRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -6201,8 +6201,8 @@ proto.persistence.CreateDatabaseRqst.prototype.toObject = function(opt_includeIn
  */
 proto.persistence.CreateDatabaseRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6361,7 +6361,7 @@ proto.persistence.CreateDatabaseRsp.prototype.toObject = function(opt_includeIns
  */
 proto.persistence.CreateDatabaseRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -6491,8 +6491,8 @@ proto.persistence.DeleteDatabaseRqst.prototype.toObject = function(opt_includeIn
  */
 proto.persistence.DeleteDatabaseRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6651,7 +6651,7 @@ proto.persistence.DeleteDatabaseRsp.prototype.toObject = function(opt_includeIns
  */
 proto.persistence.DeleteDatabaseRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -6781,10 +6781,10 @@ proto.persistence.CreateCollectionRqst.prototype.toObject = function(opt_include
  */
 proto.persistence.CreateCollectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    optionsstr: jspb.Message.getFieldWithDefault(msg, 4, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+optionsstr: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -7001,7 +7001,7 @@ proto.persistence.CreateCollectionRsp.prototype.toObject = function(opt_includeI
  */
 proto.persistence.CreateCollectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7131,9 +7131,9 @@ proto.persistence.DeleteCollectionRqst.prototype.toObject = function(opt_include
  */
 proto.persistence.DeleteCollectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -7321,7 +7321,7 @@ proto.persistence.DeleteCollectionRsp.prototype.toObject = function(opt_includeI
  */
 proto.persistence.DeleteCollectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -7451,11 +7451,11 @@ proto.persistence.CountRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.CountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    database: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+database: jspb.Message.getFieldWithDefault(msg, 2, ""),
+collection: jspb.Message.getFieldWithDefault(msg, 3, ""),
+query: jspb.Message.getFieldWithDefault(msg, 4, ""),
+options: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -7701,7 +7701,7 @@ proto.persistence.CountRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.persistence.CountRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, 0)
+result: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -7831,10 +7831,10 @@ proto.persistence.RunAdminCmdRqst.prototype.toObject = function(opt_includeInsta
  */
 proto.persistence.RunAdminCmdRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    user: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    script: jspb.Message.getFieldWithDefault(msg, 4, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+user: jspb.Message.getFieldWithDefault(msg, 2, ""),
+password: jspb.Message.getFieldWithDefault(msg, 3, ""),
+script: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -8051,7 +8051,7 @@ proto.persistence.RunAdminCmdRsp.prototype.toObject = function(opt_includeInstan
  */
 proto.persistence.RunAdminCmdRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -8181,8 +8181,8 @@ proto.persistence.ConnectRqst.prototype.toObject = function(opt_includeInstance)
  */
 proto.persistence.ConnectRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+password: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -8341,7 +8341,7 @@ proto.persistence.ConnectRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.persistence.ConnectRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -8471,7 +8471,7 @@ proto.persistence.DisconnectRqst.prototype.toObject = function(opt_includeInstan
  */
 proto.persistence.DisconnectRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -8601,7 +8601,7 @@ proto.persistence.DisconnectRsp.prototype.toObject = function(opt_includeInstanc
  */
 proto.persistence.DisconnectRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

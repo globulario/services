@@ -463,8 +463,8 @@ proto.event.Event.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.Event.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    data: msg.getData_asB64()
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+data: msg.getData_asB64()
   };
 
   if (includeInstance) {
@@ -647,7 +647,7 @@ proto.event.QuitRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.QuitRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -777,7 +777,7 @@ proto.event.QuitResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.QuitResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -907,7 +907,7 @@ proto.event.OnEventRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.OnEventRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1063,8 +1063,8 @@ proto.event.OnEventResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.OnEventResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    evt: (f = msg.getEvt()) && proto.event.Event.toObject(includeInstance, f),
-    ka: (f = msg.getKa()) && proto.event.KeepAlive.toObject(includeInstance, f)
+evt: (f = msg.getEvt()) && proto.event.Event.toObject(includeInstance, f),
+ka: (f = msg.getKa()) && proto.event.KeepAlive.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1265,8 +1265,8 @@ proto.event.SubscribeRequest.prototype.toObject = function(opt_includeInstance) 
  */
 proto.event.SubscribeRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1425,7 +1425,7 @@ proto.event.SubscribeResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.event.SubscribeResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1555,8 +1555,8 @@ proto.event.UnSubscribeRequest.prototype.toObject = function(opt_includeInstance
  */
 proto.event.UnSubscribeRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1715,7 +1715,7 @@ proto.event.UnSubscribeResponse.prototype.toObject = function(opt_includeInstanc
  */
 proto.event.UnSubscribeResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1845,7 +1845,7 @@ proto.event.PublishRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.PublishRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    evt: (f = msg.getEvt()) && proto.event.Event.toObject(includeInstance, f)
+evt: (f = msg.getEvt()) && proto.event.Event.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1996,7 +1996,7 @@ proto.event.PublishResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.event.PublishResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

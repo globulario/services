@@ -141,7 +141,7 @@ proto.echo.EchoRequest.prototype.toObject = function(opt_includeInstance) {
  */
 proto.echo.EchoRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, "")
+message: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -271,8 +271,8 @@ proto.echo.EchoResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.echo.EchoResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    messageCount: jspb.Message.getFieldWithDefault(msg, 2, 0)
+message: jspb.Message.getFieldWithDefault(msg, 1, ""),
+messageCount: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {

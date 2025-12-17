@@ -35,6 +35,8 @@ GO_TARGETS=(
   "torrent:golang/torrent/torrentpb"
   "discovery:golang/discovery/discoverypb"
   "repository:golang/repository/repositorypb"
+  "clustercontroller:golang/clustercontroller/clustercontrollerpb"
+  "node_agent:golang/nodeagent/nodeagentpb"
 )
 
 TS_TARGETS=(
@@ -65,6 +67,8 @@ TS_TARGETS=(
   "title"
   "torrent"
   "dns"
+  "clustercontroller"
+  "node_agent"
 )
 
 protoc_generate_go() {

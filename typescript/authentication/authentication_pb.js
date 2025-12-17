@@ -361,9 +361,9 @@ proto.authentication.AuthenticateRqst.prototype.toObject = function(opt_includeI
  */
 proto.authentication.AuthenticateRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    issuer: jspb.Message.getFieldWithDefault(msg, 3, "")
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+password: jspb.Message.getFieldWithDefault(msg, 2, ""),
+issuer: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -551,7 +551,7 @@ proto.authentication.AuthenticateRsp.prototype.toObject = function(opt_includeIn
  */
 proto.authentication.AuthenticateRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -681,7 +681,7 @@ proto.authentication.ValidateTokenRqst.prototype.toObject = function(opt_include
  */
 proto.authentication.ValidateTokenRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -811,8 +811,8 @@ proto.authentication.ValidateTokenRsp.prototype.toObject = function(opt_includeI
  */
 proto.authentication.ValidateTokenRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    clientid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    expired: jspb.Message.getFieldWithDefault(msg, 2, 0)
+clientid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+expired: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -971,7 +971,7 @@ proto.authentication.RefreshTokenRqst.prototype.toObject = function(opt_includeI
  */
 proto.authentication.RefreshTokenRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1101,7 +1101,7 @@ proto.authentication.RefreshTokenRsp.prototype.toObject = function(opt_includeIn
  */
 proto.authentication.RefreshTokenRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1231,9 +1231,9 @@ proto.authentication.SetPasswordRequest.prototype.toObject = function(opt_includ
  */
 proto.authentication.SetPasswordRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    oldpassword: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    newpassword: jspb.Message.getFieldWithDefault(msg, 3, "")
+accountid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+oldpassword: jspb.Message.getFieldWithDefault(msg, 2, ""),
+newpassword: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -1421,7 +1421,7 @@ proto.authentication.SetPasswordResponse.prototype.toObject = function(opt_inclu
  */
 proto.authentication.SetPasswordResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1551,8 +1551,8 @@ proto.authentication.SetRootPasswordRequest.prototype.toObject = function(opt_in
  */
 proto.authentication.SetRootPasswordRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    oldpassword: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    newpassword: jspb.Message.getFieldWithDefault(msg, 2, "")
+oldpassword: jspb.Message.getFieldWithDefault(msg, 1, ""),
+newpassword: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1711,7 +1711,7 @@ proto.authentication.SetRootPasswordResponse.prototype.toObject = function(opt_i
  */
 proto.authentication.SetRootPasswordResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1841,8 +1841,8 @@ proto.authentication.SetRootEmailRequest.prototype.toObject = function(opt_inclu
  */
 proto.authentication.SetRootEmailRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    oldemail: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    newemail: jspb.Message.getFieldWithDefault(msg, 2, "")
+oldemail: jspb.Message.getFieldWithDefault(msg, 1, ""),
+newemail: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2001,7 +2001,7 @@ proto.authentication.SetRootEmailResponse.prototype.toObject = function(opt_incl
  */
 proto.authentication.SetRootEmailResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -2131,7 +2131,7 @@ proto.authentication.GeneratePeerTokenRequest.prototype.toObject = function(opt_
  */
 proto.authentication.GeneratePeerTokenRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    mac: jspb.Message.getFieldWithDefault(msg, 2, "")
+mac: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2261,7 +2261,7 @@ proto.authentication.GeneratePeerTokenResponse.prototype.toObject = function(opt
  */
 proto.authentication.GeneratePeerTokenResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+token: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {

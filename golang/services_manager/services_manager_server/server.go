@@ -360,13 +360,6 @@ func (srv *server) removeApplicationsAction(token, action string) error {
 	}
 	return rc.RemoveApplicationsAction(token, action)
 }
-func (srv *server) removePeersAction(action string) error {
-	rc, err := srv.getResourceClient()
-	if err != nil {
-		return err
-	}
-	return rc.RemovePeersAction("", action)
-}
 func (srv *server) setRoleActions(roleId string, actions []string) error {
 	rc, err := srv.getResourceClient()
 	if err != nil {

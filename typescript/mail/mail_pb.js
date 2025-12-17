@@ -363,11 +363,11 @@ proto.mail.Connection.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.Connection.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    host: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    user: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 8, 0)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+host: jspb.Message.getFieldWithDefault(msg, 3, ""),
+user: jspb.Message.getFieldWithDefault(msg, 6, ""),
+password: jspb.Message.getFieldWithDefault(msg, 7, ""),
+port: jspb.Message.getFieldWithDefault(msg, 8, 0)
   };
 
   if (includeInstance) {
@@ -613,7 +613,7 @@ proto.mail.CreateConnectionRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.mail.CreateConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connection: (f = msg.getConnection()) && proto.mail.Connection.toObject(includeInstance, f)
+connection: (f = msg.getConnection()) && proto.mail.Connection.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -764,7 +764,7 @@ proto.mail.CreateConnectionRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.mail.CreateConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -894,7 +894,7 @@ proto.mail.DeleteConnectionRqst.prototype.toObject = function(opt_includeInstanc
  */
 proto.mail.DeleteConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1024,7 +1024,7 @@ proto.mail.DeleteConnectionRsp.prototype.toObject = function(opt_includeInstance
  */
 proto.mail.DeleteConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1154,8 +1154,8 @@ proto.mail.CarbonCopy.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.CarbonCopy.toObject = function(includeInstance, msg) {
   var f, obj = {
-    address: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, "")
+address: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1314,8 +1314,8 @@ proto.mail.Attachement.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.Attachement.toObject = function(includeInstance, msg) {
   var f, obj = {
-    filename: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    filedata: msg.getFiledata_asB64()
+filename: jspb.Message.getFieldWithDefault(msg, 1, ""),
+filedata: msg.getFiledata_asB64()
   };
 
   if (includeInstance) {
@@ -1505,13 +1505,13 @@ proto.mail.Email.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.Email.toObject = function(includeInstance, msg) {
   var f, obj = {
-    from: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    toList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    ccList: jspb.Message.toObjectList(msg.getCcList(),
+from: jspb.Message.getFieldWithDefault(msg, 2, ""),
+toList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+ccList: jspb.Message.toObjectList(msg.getCcList(),
     proto.mail.CarbonCopy.toObject, includeInstance),
-    subject: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    body: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    bodytype: jspb.Message.getFieldWithDefault(msg, 7, 0)
+subject: jspb.Message.getFieldWithDefault(msg, 5, ""),
+body: jspb.Message.getFieldWithDefault(msg, 6, ""),
+bodytype: jspb.Message.getFieldWithDefault(msg, 7, 0)
   };
 
   if (includeInstance) {
@@ -1827,8 +1827,8 @@ proto.mail.SendEmailRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.SendEmailRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    email: (f = msg.getEmail()) && proto.mail.Email.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+email: (f = msg.getEmail()) && proto.mail.Email.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2008,7 +2008,7 @@ proto.mail.SendEmailRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.mail.SendEmailRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -2164,9 +2164,9 @@ proto.mail.SendEmailWithAttachementsRqst.prototype.toObject = function(opt_inclu
  */
 proto.mail.SendEmailWithAttachementsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    email: (f = msg.getEmail()) && proto.mail.Email.toObject(includeInstance, f),
-    attachements: (f = msg.getAttachements()) && proto.mail.Attachement.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+email: (f = msg.getEmail()) && proto.mail.Email.toObject(includeInstance, f),
+attachements: (f = msg.getAttachements()) && proto.mail.Attachement.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2396,7 +2396,7 @@ proto.mail.SendEmailWithAttachementsRsp.prototype.toObject = function(opt_includ
  */
 proto.mail.SendEmailWithAttachementsRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

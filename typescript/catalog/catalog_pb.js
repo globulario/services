@@ -2829,9 +2829,9 @@ proto.catalog.Reference.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Reference.toObject = function(includeInstance, msg) {
   var f, obj = {
-    refcolid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    refobjid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    refdbname: jspb.Message.getFieldWithDefault(msg, 3, "")
+refcolid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+refobjid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+refdbname: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -3026,7 +3026,7 @@ proto.catalog.References.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.References.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: jspb.Message.toObjectList(msg.getValuesList(),
+valuesList: jspb.Message.toObjectList(msg.getValuesList(),
     proto.catalog.Reference.toObject, includeInstance)
   };
 
@@ -3179,15 +3179,15 @@ proto.catalog.Connection.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Connection.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    host: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    store: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    user: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    port: jspb.Message.getFieldWithDefault(msg, 8, 0),
-    timeout: jspb.Message.getFieldWithDefault(msg, 9, 0),
-    options: jspb.Message.getFieldWithDefault(msg, 10, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+host: jspb.Message.getFieldWithDefault(msg, 3, ""),
+store: jspb.Message.getFieldWithDefault(msg, 5, 0),
+user: jspb.Message.getFieldWithDefault(msg, 6, ""),
+password: jspb.Message.getFieldWithDefault(msg, 7, ""),
+port: jspb.Message.getFieldWithDefault(msg, 8, 0),
+timeout: jspb.Message.getFieldWithDefault(msg, 9, 0),
+options: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -3549,7 +3549,7 @@ proto.catalog.CreateConnectionRqst.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.CreateConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connection: (f = msg.getConnection()) && proto.catalog.Connection.toObject(includeInstance, f)
+connection: (f = msg.getConnection()) && proto.catalog.Connection.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3700,7 +3700,7 @@ proto.catalog.CreateConnectionRsp.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.CreateConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -3830,7 +3830,7 @@ proto.catalog.DeleteConnectionRqst.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.DeleteConnectionRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -3960,7 +3960,7 @@ proto.catalog.DeleteConnectionRsp.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.DeleteConnectionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -4097,14 +4097,14 @@ proto.catalog.PropertyDefinition.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.PropertyDefinition.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 6, 0),
-    properties: (f = msg.getProperties()) && proto.catalog.References.toObject(includeInstance, f),
-    choicesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
+description: jspb.Message.getFieldWithDefault(msg, 5, ""),
+type: jspb.Message.getFieldWithDefault(msg, 6, 0),
+properties: (f = msg.getProperties()) && proto.catalog.References.toObject(includeInstance, f),
+choicesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -4496,7 +4496,7 @@ proto.catalog.PropertyDefinitions.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.PropertyDefinitions.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: jspb.Message.toObjectList(msg.getValuesList(),
+valuesList: jspb.Message.toObjectList(msg.getValuesList(),
     proto.catalog.PropertyDefinition.toObject, includeInstance)
   };
 
@@ -4656,17 +4656,17 @@ proto.catalog.ItemDefinition.prototype.toObject = function(opt_includeInstance) 
  */
 proto.catalog.ItemDefinition.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    aliasList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    properties: (f = msg.getProperties()) && proto.catalog.References.toObject(includeInstance, f),
-    releadeditemdefintions: (f = msg.getReleadeditemdefintions()) && proto.catalog.References.toObject(includeInstance, f),
-    equivalentsitemdefintions: (f = msg.getEquivalentsitemdefintions()) && proto.catalog.References.toObject(includeInstance, f),
-    categories: (f = msg.getCategories()) && proto.catalog.References.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
+description: jspb.Message.getFieldWithDefault(msg, 5, ""),
+aliasList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+properties: (f = msg.getProperties()) && proto.catalog.References.toObject(includeInstance, f),
+releadeditemdefintions: (f = msg.getReleadeditemdefintions()) && proto.catalog.References.toObject(includeInstance, f),
+equivalentsitemdefintions: (f = msg.getEquivalentsitemdefintions()) && proto.catalog.References.toObject(includeInstance, f),
+categories: (f = msg.getCategories()) && proto.catalog.References.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5208,9 +5208,9 @@ proto.catalog.AppendItemDefinitionCategoryRequest.prototype.toObject = function(
  */
 proto.catalog.AppendItemDefinitionCategoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    category: (f = msg.getCategory()) && proto.catalog.Reference.toObject(includeInstance, f),
-    itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.Reference.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+category: (f = msg.getCategory()) && proto.catalog.Reference.toObject(includeInstance, f),
+itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.Reference.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5440,7 +5440,7 @@ proto.catalog.AppendItemDefinitionCategoryResponse.prototype.toObject = function
  */
 proto.catalog.AppendItemDefinitionCategoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5570,9 +5570,9 @@ proto.catalog.RemoveItemDefinitionCategoryRequest.prototype.toObject = function(
  */
 proto.catalog.RemoveItemDefinitionCategoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    category: (f = msg.getCategory()) && proto.catalog.Reference.toObject(includeInstance, f),
-    itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.Reference.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+category: (f = msg.getCategory()) && proto.catalog.Reference.toObject(includeInstance, f),
+itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.Reference.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5802,7 +5802,7 @@ proto.catalog.RemoveItemDefinitionCategoryResponse.prototype.toObject = function
  */
 proto.catalog.RemoveItemDefinitionCategoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -5932,11 +5932,11 @@ proto.catalog.UnitOfMeasure.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.UnitOfMeasure.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 5, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+abreviation: jspb.Message.getFieldWithDefault(msg, 4, ""),
+description: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -6182,10 +6182,10 @@ proto.catalog.Category.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Category.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    categories: (f = msg.getCategories()) && proto.catalog.References.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+categories: (f = msg.getCategories()) && proto.catalog.References.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6423,10 +6423,10 @@ proto.catalog.Localisation.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Localisation.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    sublocalisations: (f = msg.getSublocalisations()) && proto.catalog.References.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+sublocalisations: (f = msg.getSublocalisations()) && proto.catalog.References.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6664,12 +6664,12 @@ proto.catalog.Inventory.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Inventory.toObject = function(includeInstance, msg) {
   var f, obj = {
-    safetystock: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    reorderquantity: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    quantity: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    factor: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
-    localisationid: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    pacakgeid: jspb.Message.getFieldWithDefault(msg, 7, "")
+safetystock: jspb.Message.getFieldWithDefault(msg, 1, 0),
+reorderquantity: jspb.Message.getFieldWithDefault(msg, 2, 0),
+quantity: jspb.Message.getFieldWithDefault(msg, 3, 0),
+factor: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
+localisationid: jspb.Message.getFieldWithDefault(msg, 6, ""),
+pacakgeid: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -6944,8 +6944,8 @@ proto.catalog.Price.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Price.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
-    currency: jspb.Message.getFieldWithDefault(msg, 2, 0)
+value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+currency: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -7104,9 +7104,9 @@ proto.catalog.SubPackage.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.SubPackage.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.Reference.toObject(includeInstance, f),
-    pb_package: (f = msg.getPackage()) && proto.catalog.Reference.toObject(includeInstance, f),
-    quantity: jspb.Message.getFieldWithDefault(msg, 3, 0)
+unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.Reference.toObject(includeInstance, f),
+pb_package: (f = msg.getPackage()) && proto.catalog.Reference.toObject(includeInstance, f),
+quantity: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -7336,9 +7336,9 @@ proto.catalog.ItemInstancePackage.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.ItemInstancePackage.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.Reference.toObject(includeInstance, f),
-    iteminstance: (f = msg.getIteminstance()) && proto.catalog.Reference.toObject(includeInstance, f),
-    quantity: jspb.Message.getFieldWithDefault(msg, 3, 0)
+unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.Reference.toObject(includeInstance, f),
+iteminstance: (f = msg.getIteminstance()) && proto.catalog.Reference.toObject(includeInstance, f),
+quantity: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -7575,13 +7575,13 @@ proto.catalog.Package.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Package.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    subpackagesList: jspb.Message.toObjectList(msg.getSubpackagesList(),
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+description: jspb.Message.getFieldWithDefault(msg, 4, ""),
+subpackagesList: jspb.Message.toObjectList(msg.getSubpackagesList(),
     proto.catalog.SubPackage.toObject, includeInstance),
-    iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
+iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
     proto.catalog.ItemInstancePackage.toObject, includeInstance)
   };
 
@@ -7901,8 +7901,8 @@ proto.catalog.Supplier.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Supplier.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8061,12 +8061,12 @@ proto.catalog.PackageSupplier.prototype.toObject = function(opt_includeInstance)
  */
 proto.catalog.PackageSupplier.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    supplier: (f = msg.getSupplier()) && proto.catalog.Reference.toObject(includeInstance, f),
-    pb_package: (f = msg.getPackage()) && proto.catalog.Reference.toObject(includeInstance, f),
-    price: (f = msg.getPrice()) && proto.catalog.Price.toObject(includeInstance, f),
-    date: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    quantity: jspb.Message.getFieldWithDefault(msg, 6, 0)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+supplier: (f = msg.getSupplier()) && proto.catalog.Reference.toObject(includeInstance, f),
+pb_package: (f = msg.getPackage()) && proto.catalog.Reference.toObject(includeInstance, f),
+price: (f = msg.getPrice()) && proto.catalog.Price.toObject(includeInstance, f),
+date: jspb.Message.getFieldWithDefault(msg, 5, 0),
+quantity: jspb.Message.getFieldWithDefault(msg, 6, 0)
   };
 
   if (includeInstance) {
@@ -8404,8 +8404,8 @@ proto.catalog.Manufacturer.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Manufacturer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8564,9 +8564,9 @@ proto.catalog.ItemManufacturer.prototype.toObject = function(opt_includeInstance
  */
 proto.catalog.ItemManufacturer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    manufacturer: (f = msg.getManufacturer()) && proto.catalog.Reference.toObject(includeInstance, f),
-    item: (f = msg.getItem()) && proto.catalog.Reference.toObject(includeInstance, f)
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+manufacturer: (f = msg.getManufacturer()) && proto.catalog.Reference.toObject(includeInstance, f),
+item: (f = msg.getItem()) && proto.catalog.Reference.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -8796,8 +8796,8 @@ proto.catalog.Dimension.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Dimension.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0)
+unitid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+value: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0)
   };
 
   if (includeInstance) {
@@ -8988,16 +8988,16 @@ proto.catalog.PropertyValue.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.PropertyValue.toObject = function(includeInstance, msg) {
   var f, obj = {
-    propertydefinitionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    languagecode: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    dimensionVal: (f = msg.getDimensionVal()) && proto.catalog.Dimension.toObject(includeInstance, f),
-    textVal: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    numberVal: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
-    booleanVal: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
-    dimensionArr: (f = msg.getDimensionArr()) && proto.catalog.PropertyValue.Dimensions.toObject(includeInstance, f),
-    textArr: (f = msg.getTextArr()) && proto.catalog.PropertyValue.Strings.toObject(includeInstance, f),
-    numberArr: (f = msg.getNumberArr()) && proto.catalog.PropertyValue.Numerics.toObject(includeInstance, f),
-    booleanArr: (f = msg.getBooleanArr()) && proto.catalog.PropertyValue.Booleans.toObject(includeInstance, f)
+propertydefinitionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+languagecode: jspb.Message.getFieldWithDefault(msg, 2, ""),
+dimensionVal: (f = msg.getDimensionVal()) && proto.catalog.Dimension.toObject(includeInstance, f),
+textVal: (f = jspb.Message.getField(msg, 4)) == null ? undefined : f,
+numberVal: (f = jspb.Message.getOptionalFloatingPointField(msg, 5)) == null ? undefined : f,
+booleanVal: (f = jspb.Message.getBooleanField(msg, 6)) == null ? undefined : f,
+dimensionArr: (f = msg.getDimensionArr()) && proto.catalog.PropertyValue.Dimensions.toObject(includeInstance, f),
+textArr: (f = msg.getTextArr()) && proto.catalog.PropertyValue.Strings.toObject(includeInstance, f),
+numberArr: (f = msg.getNumberArr()) && proto.catalog.PropertyValue.Numerics.toObject(includeInstance, f),
+booleanArr: (f = msg.getBooleanArr()) && proto.catalog.PropertyValue.Booleans.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -9225,7 +9225,7 @@ proto.catalog.PropertyValue.Booleans.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.PropertyValue.Booleans.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: (f = jspb.Message.getRepeatedBooleanField(msg, 1)) == null ? undefined : f
+valuesList: (f = jspb.Message.getRepeatedBooleanField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -9383,7 +9383,7 @@ proto.catalog.PropertyValue.Numerics.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.PropertyValue.Numerics.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 1)) == null ? undefined : f
+valuesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -9541,7 +9541,7 @@ proto.catalog.PropertyValue.Strings.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.PropertyValue.Strings.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+valuesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -9697,7 +9697,7 @@ proto.catalog.PropertyValue.Dimensions.prototype.toObject = function(opt_include
  */
 proto.catalog.PropertyValue.Dimensions.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: jspb.Message.toObjectList(msg.getValuesList(),
+valuesList: jspb.Message.toObjectList(msg.getValuesList(),
     proto.catalog.PropertyValue.Dimensions.toObject, includeInstance)
   };
 
@@ -10186,9 +10186,9 @@ proto.catalog.ItemInstance.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.ItemInstance.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    itemdefinitionid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    valuesList: jspb.Message.toObjectList(msg.getValuesList(),
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+itemdefinitionid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+valuesList: jspb.Message.toObjectList(msg.getValuesList(),
     proto.catalog.PropertyValue.toObject, includeInstance)
   };
 
@@ -10399,8 +10399,8 @@ proto.catalog.SaveUnitOfMeasureRequest.prototype.toObject = function(opt_include
  */
 proto.catalog.SaveUnitOfMeasureRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -10580,7 +10580,7 @@ proto.catalog.SaveUnitOfMeasureResponse.prototype.toObject = function(opt_includ
  */
 proto.catalog.SaveUnitOfMeasureResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -10710,8 +10710,8 @@ proto.catalog.SaveInventoryRequest.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.SaveInventoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    inventory: (f = msg.getInventory()) && proto.catalog.Inventory.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+inventory: (f = msg.getInventory()) && proto.catalog.Inventory.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -10891,7 +10891,7 @@ proto.catalog.SaveInventoryResponse.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.SaveInventoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -11021,8 +11021,8 @@ proto.catalog.SavePropertyDefinitionRequest.prototype.toObject = function(opt_in
  */
 proto.catalog.SavePropertyDefinitionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    propertydefinition: (f = msg.getPropertydefinition()) && proto.catalog.PropertyDefinition.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+propertydefinition: (f = msg.getPropertydefinition()) && proto.catalog.PropertyDefinition.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11202,7 +11202,7 @@ proto.catalog.SavePropertyDefinitionResponse.prototype.toObject = function(opt_i
  */
 proto.catalog.SavePropertyDefinitionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -11332,8 +11332,8 @@ proto.catalog.SaveItemDefinitionRequest.prototype.toObject = function(opt_includ
  */
 proto.catalog.SaveItemDefinitionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.ItemDefinition.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.ItemDefinition.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11513,7 +11513,7 @@ proto.catalog.SaveItemDefinitionResponse.prototype.toObject = function(opt_inclu
  */
 proto.catalog.SaveItemDefinitionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -11643,8 +11643,8 @@ proto.catalog.SaveItemInstanceRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.SaveItemInstanceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    iteminstance: (f = msg.getIteminstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+iteminstance: (f = msg.getIteminstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11824,7 +11824,7 @@ proto.catalog.SaveItemInstanceResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.SaveItemInstanceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -11954,8 +11954,8 @@ proto.catalog.SaveManufacturerRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.SaveManufacturerRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -12135,7 +12135,7 @@ proto.catalog.SaveManufacturerResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.SaveManufacturerResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -12265,8 +12265,8 @@ proto.catalog.SaveSupplierRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.SaveSupplierRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -12446,7 +12446,7 @@ proto.catalog.SaveSupplierResponse.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.SaveSupplierResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -12576,8 +12576,8 @@ proto.catalog.SaveLocalisationRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.SaveLocalisationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -12757,7 +12757,7 @@ proto.catalog.SaveLocalisationResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.SaveLocalisationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -12887,8 +12887,8 @@ proto.catalog.SaveCategoryRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.SaveCategoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13068,7 +13068,7 @@ proto.catalog.SaveCategoryResponse.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.SaveCategoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -13198,8 +13198,8 @@ proto.catalog.SavePackageRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.SavePackageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    pb_package: (f = msg.getPackage()) && proto.catalog.Package.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+pb_package: (f = msg.getPackage()) && proto.catalog.Package.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13379,7 +13379,7 @@ proto.catalog.SavePackageResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.SavePackageResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -13509,8 +13509,8 @@ proto.catalog.SavePackageSupplierRequest.prototype.toObject = function(opt_inclu
  */
 proto.catalog.SavePackageSupplierRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    packagesupplier: (f = msg.getPackagesupplier()) && proto.catalog.PackageSupplier.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+packagesupplier: (f = msg.getPackagesupplier()) && proto.catalog.PackageSupplier.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13690,7 +13690,7 @@ proto.catalog.SavePackageSupplierResponse.prototype.toObject = function(opt_incl
  */
 proto.catalog.SavePackageSupplierResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -13820,8 +13820,8 @@ proto.catalog.SaveItemManufacturerRequest.prototype.toObject = function(opt_incl
  */
 proto.catalog.SaveItemManufacturerRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    itemmanafacturer: (f = msg.getItemmanafacturer()) && proto.catalog.ItemManufacturer.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+itemmanafacturer: (f = msg.getItemmanafacturer()) && proto.catalog.ItemManufacturer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -14001,7 +14001,7 @@ proto.catalog.SaveItemManufacturerResponse.prototype.toObject = function(opt_inc
  */
 proto.catalog.SaveItemManufacturerResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    id: jspb.Message.getFieldWithDefault(msg, 1, "")
+id: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -14131,8 +14131,8 @@ proto.catalog.GetSupplierRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.GetSupplierRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    supplierid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+supplierid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -14291,7 +14291,7 @@ proto.catalog.GetSupplierResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.GetSupplierResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
+supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -14449,7 +14449,7 @@ proto.catalog.Suppliers.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Suppliers.toObject = function(includeInstance, msg) {
   var f, obj = {
-    suppliersList: jspb.Message.toObjectList(msg.getSuppliersList(),
+suppliersList: jspb.Message.toObjectList(msg.getSuppliersList(),
     proto.catalog.Supplier.toObject, includeInstance)
   };
 
@@ -14602,8 +14602,8 @@ proto.catalog.GetSupplierPackagesRequest.prototype.toObject = function(opt_inclu
  */
 proto.catalog.GetSupplierPackagesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    supplierid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+supplierid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -14769,7 +14769,7 @@ proto.catalog.GetSupplierPackagesResponse.prototype.toObject = function(opt_incl
  */
 proto.catalog.GetSupplierPackagesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    packagessupplierList: jspb.Message.toObjectList(msg.getPackagessupplierList(),
+packagessupplierList: jspb.Message.toObjectList(msg.getPackagessupplierList(),
     proto.catalog.PackageSupplier.toObject, includeInstance)
   };
 
@@ -14922,9 +14922,9 @@ proto.catalog.GetSuppliersRequest.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.GetSuppliersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -15119,7 +15119,7 @@ proto.catalog.GetSuppliersResponse.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.GetSuppliersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    suppliersList: jspb.Message.toObjectList(msg.getSuppliersList(),
+suppliersList: jspb.Message.toObjectList(msg.getSuppliersList(),
     proto.catalog.Supplier.toObject, includeInstance)
   };
 
@@ -15279,7 +15279,7 @@ proto.catalog.Manufacturers.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Manufacturers.toObject = function(includeInstance, msg) {
   var f, obj = {
-    manufacturersList: jspb.Message.toObjectList(msg.getManufacturersList(),
+manufacturersList: jspb.Message.toObjectList(msg.getManufacturersList(),
     proto.catalog.Manufacturer.toObject, includeInstance)
   };
 
@@ -15432,8 +15432,8 @@ proto.catalog.GetManufacturerRequest.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.GetManufacturerRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    manufacturerid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+manufacturerid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -15592,7 +15592,7 @@ proto.catalog.GetManufacturerResponse.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetManufacturerResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
+manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -15743,9 +15743,9 @@ proto.catalog.GetManufacturersRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetManufacturersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -15940,7 +15940,7 @@ proto.catalog.GetManufacturersResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.GetManufacturersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    manufacturersList: jspb.Message.toObjectList(msg.getManufacturersList(),
+manufacturersList: jspb.Message.toObjectList(msg.getManufacturersList(),
     proto.catalog.Manufacturer.toObject, includeInstance)
   };
 
@@ -16100,7 +16100,7 @@ proto.catalog.Packages.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Packages.toObject = function(includeInstance, msg) {
   var f, obj = {
-    packagesList: jspb.Message.toObjectList(msg.getPackagesList(),
+packagesList: jspb.Message.toObjectList(msg.getPackagesList(),
     proto.catalog.Package.toObject, includeInstance)
   };
 
@@ -16253,8 +16253,8 @@ proto.catalog.GetPackageRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.catalog.GetPackageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    packageid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+packageid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -16413,7 +16413,7 @@ proto.catalog.GetPackageResponse.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.GetPackageResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    pacakge: (f = msg.getPacakge()) && proto.catalog.Package.toObject(includeInstance, f)
+pacakge: (f = msg.getPacakge()) && proto.catalog.Package.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -16564,9 +16564,9 @@ proto.catalog.GetPackagesRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.GetPackagesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -16761,7 +16761,7 @@ proto.catalog.GetPackagesResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.GetPackagesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    packagesList: jspb.Message.toObjectList(msg.getPackagesList(),
+packagesList: jspb.Message.toObjectList(msg.getPackagesList(),
     proto.catalog.Package.toObject, includeInstance)
   };
 
@@ -16921,7 +16921,7 @@ proto.catalog.Localisations.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Localisations.toObject = function(includeInstance, msg) {
   var f, obj = {
-    localisationsList: jspb.Message.toObjectList(msg.getLocalisationsList(),
+localisationsList: jspb.Message.toObjectList(msg.getLocalisationsList(),
     proto.catalog.Localisation.toObject, includeInstance)
   };
 
@@ -17074,8 +17074,8 @@ proto.catalog.GetLocalisationRequest.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.GetLocalisationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    localisationid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+localisationid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -17234,7 +17234,7 @@ proto.catalog.GetLocalisationResponse.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetLocalisationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
+localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -17385,9 +17385,9 @@ proto.catalog.GetLocalisationsRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetLocalisationsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -17582,7 +17582,7 @@ proto.catalog.GetLocalisationsResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.GetLocalisationsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    localisationsList: jspb.Message.toObjectList(msg.getLocalisationsList(),
+localisationsList: jspb.Message.toObjectList(msg.getLocalisationsList(),
     proto.catalog.Localisation.toObject, includeInstance)
   };
 
@@ -17742,7 +17742,7 @@ proto.catalog.UnitOfMeasures.prototype.toObject = function(opt_includeInstance) 
  */
 proto.catalog.UnitOfMeasures.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitofmeasuresList: jspb.Message.toObjectList(msg.getUnitofmeasuresList(),
+unitofmeasuresList: jspb.Message.toObjectList(msg.getUnitofmeasuresList(),
     proto.catalog.UnitOfMeasure.toObject, includeInstance)
   };
 
@@ -17895,8 +17895,8 @@ proto.catalog.GetUnitOfMeasureRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetUnitOfMeasureRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    unitofmeasureid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+unitofmeasureid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -18055,7 +18055,7 @@ proto.catalog.GetUnitOfMeasureResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.GetUnitOfMeasureResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
+unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -18206,9 +18206,9 @@ proto.catalog.GetUnitOfMeasuresRequest.prototype.toObject = function(opt_include
  */
 proto.catalog.GetUnitOfMeasuresRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -18403,7 +18403,7 @@ proto.catalog.GetUnitOfMeasuresResponse.prototype.toObject = function(opt_includ
  */
 proto.catalog.GetUnitOfMeasuresResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    unitofmeasuresList: jspb.Message.toObjectList(msg.getUnitofmeasuresList(),
+unitofmeasuresList: jspb.Message.toObjectList(msg.getUnitofmeasuresList(),
     proto.catalog.UnitOfMeasure.toObject, includeInstance)
   };
 
@@ -18563,7 +18563,7 @@ proto.catalog.Inventories.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Inventories.toObject = function(includeInstance, msg) {
   var f, obj = {
-    inventoriesList: jspb.Message.toObjectList(msg.getInventoriesList(),
+inventoriesList: jspb.Message.toObjectList(msg.getInventoriesList(),
     proto.catalog.Inventory.toObject, includeInstance)
   };
 
@@ -18716,9 +18716,9 @@ proto.catalog.GetInventoriesRequest.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.GetInventoriesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -18913,7 +18913,7 @@ proto.catalog.GetInventoriesResponse.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.GetInventoriesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    inventoriesList: jspb.Message.toObjectList(msg.getInventoriesList(),
+inventoriesList: jspb.Message.toObjectList(msg.getInventoriesList(),
     proto.catalog.Inventory.toObject, includeInstance)
   };
 
@@ -19073,7 +19073,7 @@ proto.catalog.Categories.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.Categories.toObject = function(includeInstance, msg) {
   var f, obj = {
-    categoriesList: jspb.Message.toObjectList(msg.getCategoriesList(),
+categoriesList: jspb.Message.toObjectList(msg.getCategoriesList(),
     proto.catalog.Category.toObject, includeInstance)
   };
 
@@ -19226,8 +19226,8 @@ proto.catalog.GetCategoryRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.catalog.GetCategoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    categoryid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+categoryid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -19386,7 +19386,7 @@ proto.catalog.GetCategoryResponse.prototype.toObject = function(opt_includeInsta
  */
 proto.catalog.GetCategoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
+category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -19537,9 +19537,9 @@ proto.catalog.GetCategoriesRequest.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.GetCategoriesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -19734,7 +19734,7 @@ proto.catalog.GetCategoriesResponse.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.GetCategoriesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    categoriesList: jspb.Message.toObjectList(msg.getCategoriesList(),
+categoriesList: jspb.Message.toObjectList(msg.getCategoriesList(),
     proto.catalog.Category.toObject, includeInstance)
   };
 
@@ -19894,7 +19894,7 @@ proto.catalog.ItemInstances.prototype.toObject = function(opt_includeInstance) {
  */
 proto.catalog.ItemInstances.toObject = function(includeInstance, msg) {
   var f, obj = {
-    iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
+iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
     proto.catalog.ItemInstance.toObject, includeInstance)
   };
 
@@ -20047,8 +20047,8 @@ proto.catalog.GetItemInstanceRequest.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.GetItemInstanceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    iteminstanceid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+iteminstanceid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -20207,7 +20207,7 @@ proto.catalog.GetItemInstanceResponse.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetItemInstanceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    iteminstance: (f = msg.getIteminstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
+iteminstance: (f = msg.getIteminstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -20358,9 +20358,9 @@ proto.catalog.GetItemInstancesRequest.prototype.toObject = function(opt_includeI
  */
 proto.catalog.GetItemInstancesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -20555,7 +20555,7 @@ proto.catalog.GetItemInstancesResponse.prototype.toObject = function(opt_include
  */
 proto.catalog.GetItemInstancesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
+iteminstancesList: jspb.Message.toObjectList(msg.getIteminstancesList(),
     proto.catalog.ItemInstance.toObject, includeInstance)
   };
 
@@ -20715,7 +20715,7 @@ proto.catalog.ItemDefinitions.prototype.toObject = function(opt_includeInstance)
  */
 proto.catalog.ItemDefinitions.toObject = function(includeInstance, msg) {
   var f, obj = {
-    itemdefinitionsList: jspb.Message.toObjectList(msg.getItemdefinitionsList(),
+itemdefinitionsList: jspb.Message.toObjectList(msg.getItemdefinitionsList(),
     proto.catalog.ItemDefinition.toObject, includeInstance)
   };
 
@@ -20868,8 +20868,8 @@ proto.catalog.GetItemDefinitionRequest.prototype.toObject = function(opt_include
  */
 proto.catalog.GetItemDefinitionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    itemdefinitionid: jspb.Message.getFieldWithDefault(msg, 2, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+itemdefinitionid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -21028,7 +21028,7 @@ proto.catalog.GetItemDefinitionResponse.prototype.toObject = function(opt_includ
  */
 proto.catalog.GetItemDefinitionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.ItemDefinition.toObject(includeInstance, f)
+itemdefinition: (f = msg.getItemdefinition()) && proto.catalog.ItemDefinition.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -21179,9 +21179,9 @@ proto.catalog.GetItemDefinitionsRequest.prototype.toObject = function(opt_includ
  */
 proto.catalog.GetItemDefinitionsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    query: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    options: jspb.Message.getFieldWithDefault(msg, 3, "")
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+query: jspb.Message.getFieldWithDefault(msg, 2, ""),
+options: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -21376,7 +21376,7 @@ proto.catalog.GetItemDefinitionsResponse.prototype.toObject = function(opt_inclu
  */
 proto.catalog.GetItemDefinitionsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    itemdefinitionsList: jspb.Message.toObjectList(msg.getItemdefinitionsList(),
+itemdefinitionsList: jspb.Message.toObjectList(msg.getItemdefinitionsList(),
     proto.catalog.ItemDefinition.toObject, includeInstance)
   };
 
@@ -21529,8 +21529,8 @@ proto.catalog.DeletePackageSupplierRequest.prototype.toObject = function(opt_inc
  */
 proto.catalog.DeletePackageSupplierRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    packagesupplier: (f = msg.getPackagesupplier()) && proto.catalog.PackageSupplier.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+packagesupplier: (f = msg.getPackagesupplier()) && proto.catalog.PackageSupplier.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -21710,7 +21710,7 @@ proto.catalog.DeletePackageSupplierResponse.prototype.toObject = function(opt_in
  */
 proto.catalog.DeletePackageSupplierResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -21840,8 +21840,8 @@ proto.catalog.DeletePackageRequest.prototype.toObject = function(opt_includeInst
  */
 proto.catalog.DeletePackageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    pb_package: (f = msg.getPackage()) && proto.catalog.Package.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+pb_package: (f = msg.getPackage()) && proto.catalog.Package.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -22021,7 +22021,7 @@ proto.catalog.DeletePackageResponse.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.DeletePackageResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22151,8 +22151,8 @@ proto.catalog.DeleteSupplierRequest.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.DeleteSupplierRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+supplier: (f = msg.getSupplier()) && proto.catalog.Supplier.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -22332,7 +22332,7 @@ proto.catalog.DeleteSupplierResponse.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.DeleteSupplierResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22462,8 +22462,8 @@ proto.catalog.DeletePropertyDefinitionRequest.prototype.toObject = function(opt_
  */
 proto.catalog.DeletePropertyDefinitionRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    propertydefinition: (f = msg.getPropertydefinition()) && proto.catalog.PropertyDefinition.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+propertydefinition: (f = msg.getPropertydefinition()) && proto.catalog.PropertyDefinition.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -22643,7 +22643,7 @@ proto.catalog.DeletePropertyDefinitionResponse.prototype.toObject = function(opt
  */
 proto.catalog.DeletePropertyDefinitionResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -22773,8 +22773,8 @@ proto.catalog.DeleteUnitOfMeasureRequest.prototype.toObject = function(opt_inclu
  */
 proto.catalog.DeleteUnitOfMeasureRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+unitofmeasure: (f = msg.getUnitofmeasure()) && proto.catalog.UnitOfMeasure.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -22954,7 +22954,7 @@ proto.catalog.DeleteUnitOfMeasureResponse.prototype.toObject = function(opt_incl
  */
 proto.catalog.DeleteUnitOfMeasureResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -23084,8 +23084,8 @@ proto.catalog.DeleteItemInstanceRequest.prototype.toObject = function(opt_includ
  */
 proto.catalog.DeleteItemInstanceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    instance: (f = msg.getInstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+instance: (f = msg.getInstance()) && proto.catalog.ItemInstance.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -23265,7 +23265,7 @@ proto.catalog.DeleteItemInstanceResponse.prototype.toObject = function(opt_inclu
  */
 proto.catalog.DeleteItemInstanceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -23395,8 +23395,8 @@ proto.catalog.DeleteManufacturerRequest.prototype.toObject = function(opt_includ
  */
 proto.catalog.DeleteManufacturerRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+manufacturer: (f = msg.getManufacturer()) && proto.catalog.Manufacturer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -23576,7 +23576,7 @@ proto.catalog.DeleteManufacturerResponse.prototype.toObject = function(opt_inclu
  */
 proto.catalog.DeleteManufacturerResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -23706,8 +23706,8 @@ proto.catalog.DeleteItemManufacturerRequest.prototype.toObject = function(opt_in
  */
 proto.catalog.DeleteItemManufacturerRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    itemmanufacturer: (f = msg.getItemmanufacturer()) && proto.catalog.ItemManufacturer.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+itemmanufacturer: (f = msg.getItemmanufacturer()) && proto.catalog.ItemManufacturer.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -23887,7 +23887,7 @@ proto.catalog.DeleteItemManufacturerResponse.prototype.toObject = function(opt_i
  */
 proto.catalog.DeleteItemManufacturerResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -24017,8 +24017,8 @@ proto.catalog.DeleteCategoryRequest.prototype.toObject = function(opt_includeIns
  */
 proto.catalog.DeleteCategoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+category: (f = msg.getCategory()) && proto.catalog.Category.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -24198,7 +24198,7 @@ proto.catalog.DeleteCategoryResponse.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.DeleteCategoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -24328,8 +24328,8 @@ proto.catalog.DeleteLocalisationRequest.prototype.toObject = function(opt_includ
  */
 proto.catalog.DeleteLocalisationRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+localisation: (f = msg.getLocalisation()) && proto.catalog.Localisation.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -24509,7 +24509,7 @@ proto.catalog.DeleteLocalisationResponse.prototype.toObject = function(opt_inclu
  */
 proto.catalog.DeleteLocalisationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -24639,8 +24639,8 @@ proto.catalog.DeleteInventoryRequest.prototype.toObject = function(opt_includeIn
  */
 proto.catalog.DeleteInventoryRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    inventory: (f = msg.getInventory()) && proto.catalog.Inventory.toObject(includeInstance, f)
+connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+inventory: (f = msg.getInventory()) && proto.catalog.Inventory.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -24820,7 +24820,7 @@ proto.catalog.DeleteInventoryResponse.prototype.toObject = function(opt_includeI
  */
 proto.catalog.DeleteInventoryResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {

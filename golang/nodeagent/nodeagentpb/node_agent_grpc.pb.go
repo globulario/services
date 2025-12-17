@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v3.21.12
-// source: proto/node_agent.proto
+// source: node_agent.proto
 
 package nodeagentpb
 
@@ -110,7 +110,7 @@ func (c *nodeAgentServiceClient) BootstrapCluster(ctx context.Context, in *Boots
 }
 
 // NodeAgentServiceServer is the server API for NodeAgentService service.
-// All implementations must embed UnimplementedNodeAgentServiceServer
+// All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
 type NodeAgentServiceServer interface {
 	// Enrollment into an existing cluster.
@@ -123,10 +123,9 @@ type NodeAgentServiceServer interface {
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	// Bootstrap a new cluster on this node (Day-0 “create cluster” entry point).
 	BootstrapCluster(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error)
-	mustEmbedUnimplementedNodeAgentServiceServer()
 }
 
-// UnimplementedNodeAgentServiceServer must be embedded to have
+// UnimplementedNodeAgentServiceServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -148,8 +147,7 @@ func (UnimplementedNodeAgentServiceServer) WatchOperation(*WatchOperationRequest
 func (UnimplementedNodeAgentServiceServer) BootstrapCluster(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BootstrapCluster not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) mustEmbedUnimplementedNodeAgentServiceServer() {}
-func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue()                          {}
+func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
 // UnsafeNodeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to NodeAgentServiceServer will
@@ -283,5 +281,5 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/node_agent.proto",
+	Metadata: "node_agent.proto",
 }

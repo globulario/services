@@ -407,10 +407,10 @@ proto.services_manager.InstallServiceRequest.prototype.toObject = function(opt_i
  */
 proto.services_manager.InstallServiceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    dicorveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    serviceid: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 4, "")
+dicorveryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+serviceid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 3, ""),
+version: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -457,7 +457,7 @@ proto.services_manager.InstallServiceRequest.deserializeBinaryFromReader = funct
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -506,7 +506,7 @@ proto.services_manager.InstallServiceRequest.serializeBinaryToWriter = function(
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       3,
@@ -563,7 +563,7 @@ proto.services_manager.InstallServiceRequest.prototype.setServiceid = function(v
  * optional string PublisherID = 3;
  * @return {string}
  */
-proto.services_manager.InstallServiceRequest.prototype.getPublisherID = function() {
+proto.services_manager.InstallServiceRequest.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -572,7 +572,7 @@ proto.services_manager.InstallServiceRequest.prototype.getPublisherID = function
  * @param {string} value
  * @return {!proto.services_manager.InstallServiceRequest} returns this
  */
-proto.services_manager.InstallServiceRequest.prototype.setPublisherID = function(value) {
+proto.services_manager.InstallServiceRequest.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -627,7 +627,7 @@ proto.services_manager.InstallServiceResponse.prototype.toObject = function(opt_
  */
 proto.services_manager.InstallServiceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -757,10 +757,10 @@ proto.services_manager.UninstallServiceRequest.prototype.toObject = function(opt
  */
 proto.services_manager.UninstallServiceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    PublisherID: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    deletepermissions: jspb.Message.getBooleanFieldWithDefault(msg, 4, false)
+serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+publisherid: jspb.Message.getFieldWithDefault(msg, 2, ""),
+version: jspb.Message.getFieldWithDefault(msg, 3, ""),
+deletepermissions: jspb.Message.getBooleanFieldWithDefault(msg, 4, false)
   };
 
   if (includeInstance) {
@@ -803,7 +803,7 @@ proto.services_manager.UninstallServiceRequest.deserializeBinaryFromReader = fun
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherID(value);
+      msg.setPublisherid(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -849,7 +849,7 @@ proto.services_manager.UninstallServiceRequest.serializeBinaryToWriter = functio
       f
     );
   }
-  f = message.getPublisherID();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -895,7 +895,7 @@ proto.services_manager.UninstallServiceRequest.prototype.setServiceid = function
  * optional string PublisherID = 2;
  * @return {string}
  */
-proto.services_manager.UninstallServiceRequest.prototype.getPublisherID = function() {
+proto.services_manager.UninstallServiceRequest.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -904,7 +904,7 @@ proto.services_manager.UninstallServiceRequest.prototype.getPublisherID = functi
  * @param {string} value
  * @return {!proto.services_manager.UninstallServiceRequest} returns this
  */
-proto.services_manager.UninstallServiceRequest.prototype.setPublisherID = function(value) {
+proto.services_manager.UninstallServiceRequest.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -977,7 +977,7 @@ proto.services_manager.UninstallServiceResponse.prototype.toObject = function(op
  */
 proto.services_manager.UninstallServiceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1107,7 +1107,7 @@ proto.services_manager.StopServiceInstanceRequest.prototype.toObject = function(
  */
 proto.services_manager.StopServiceInstanceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    serviceId: jspb.Message.getFieldWithDefault(msg, 1, "")
+serviceId: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1237,7 +1237,7 @@ proto.services_manager.StopServiceInstanceResponse.prototype.toObject = function
  */
 proto.services_manager.StopServiceInstanceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
   };
 
   if (includeInstance) {
@@ -1367,7 +1367,7 @@ proto.services_manager.StartServiceInstanceRequest.prototype.toObject = function
  */
 proto.services_manager.StartServiceInstanceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    serviceId: jspb.Message.getFieldWithDefault(msg, 1, "")
+serviceId: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -1497,8 +1497,8 @@ proto.services_manager.StartServiceInstanceResponse.prototype.toObject = functio
  */
 proto.services_manager.StartServiceInstanceResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    servicePid: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    proxyPid: jspb.Message.getFieldWithDefault(msg, 2, 0)
+servicePid: jspb.Message.getFieldWithDefault(msg, 1, 0),
+proxyPid: jspb.Message.getFieldWithDefault(msg, 2, 0)
   };
 
   if (includeInstance) {
@@ -1967,7 +1967,7 @@ proto.services_manager.GetServicesConfigurationResponse.prototype.toObject = fun
  */
 proto.services_manager.GetServicesConfigurationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    servicesList: jspb.Message.toObjectList(msg.getServicesList(),
+servicesList: jspb.Message.toObjectList(msg.getServicesList(),
     google_protobuf_struct_pb.Struct.toObject, includeInstance)
   };
 
@@ -2228,7 +2228,7 @@ proto.services_manager.GetAllActionsResponse.prototype.toObject = function(opt_i
  */
 proto.services_manager.GetAllActionsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+actionsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -2377,7 +2377,7 @@ proto.services_manager.SaveServiceConfigRequest.prototype.toObject = function(op
  */
 proto.services_manager.SaveServiceConfigRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    config: jspb.Message.getFieldWithDefault(msg, 1, "")
+config: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {

@@ -141,13 +141,13 @@ proto.spc.CreateAnalyseRqst.prototype.toObject = function(opt_includeInstance) {
  */
 proto.spc.CreateAnalyseRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    data: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    tolzon: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
-    lotol: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
-    uptol: jspb.Message.getFloatingPointFieldWithDefault(msg, 4, 0.0),
-    toltype: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    ispopulation: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
-    tests: jspb.Message.getFieldWithDefault(msg, 7, "")
+data: jspb.Message.getFieldWithDefault(msg, 1, ""),
+tolzon: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+lotol: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
+uptol: jspb.Message.getFloatingPointFieldWithDefault(msg, 4, 0.0),
+toltype: jspb.Message.getFieldWithDefault(msg, 5, ""),
+ispopulation: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+tests: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -451,7 +451,7 @@ proto.spc.CreateAnalyseRsp.prototype.toObject = function(opt_includeInstance) {
  */
 proto.spc.CreateAnalyseRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+result: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
