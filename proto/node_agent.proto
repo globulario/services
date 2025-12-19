@@ -4,129 +4,75 @@ package nodeagent;
 
 option go_package = "github.com/globulario/services/golang/nodeagent/nodeagentpb;nodeagentpb";
 
-service NodeAgentService {
-  // Enrollment into an existing cluster.
-  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+import "google/protobuf/timestamp.proto";
+import "clustercontroller.proto";
 
-  // Node inventory for Cluster->Nodes UI.
-  rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
-
-  // Apply desired state (roles/profiles) and return an operation id.
-  rpc ApplyDesiredState(ApplyDesiredStateRequest) returns (ApplyDesiredStateResponse);
-
-  // Stream operation progress (install/start/stop/config steps).
-  rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent);
-
-  // Bootstrap a new cluster on this node (Day-0 “create cluster” entry point).
-  rpc BootstrapCluster(BootstrapClusterRequest) returns (BootstrapClusterResponse);
+message JoinClusterRequest {
+  string controller_endpoint = 1;
+  string join_token = 2;
 }
-
-// ---------------- Enrollment ----------------
-
-message EnrollRequest {
-  string join_token = 1;
-  NodeInfo node = 2;
-}
-
-message EnrollResponse {
+message JoinClusterResponse {
   string node_id = 1;
-  EnrollStatus status = 2;
+  string status = 2;
   string message = 3;
-
-  // Optional: where the node should connect next (future v2 outbound stream).
-  string controller_endpoint = 4;
-}
-
-enum EnrollStatus {
-  ENROLL_STATUS_UNSPECIFIED = 0;
-  ENROLL_PENDING = 1;
-  ENROLL_APPROVED = 2;
-  ENROLL_REJECTED = 3;
-}
-
-// ---------------- Inventory ----------------
-
-message GetInventoryRequest {}
-
-message GetInventoryResponse {
-  NodeInfo node = 1;
-  repeated InstalledComponent components = 2;
-  repeated RunningService services = 3;
-}
-
-message NodeInfo {
-  string hostname = 1;
-  string domain = 2;
-  repeated string ips = 3;
-  string os = 4;
-  string arch = 5;
-  string agent_version = 6;
-  int64 unix_time = 7;
-  string node_id = 8;
-  string agent_endpoint = 9;
-  string platform = 10;
 }
 
 message InstalledComponent {
-  string name = 1;      // e.g. "envoy", "etcd", "minio", "scylla", "globular"
+  string name = 1;
   string version = 2;
   bool installed = 3;
 }
 
-message RunningService {
-  string name = 1;      // systemd unit or globular service name
-  string state = 2;     // "running", "stopped", "failed"
+message UnitStatus {
+  string name = 1;
+  string state = 2;
   string details = 3;
 }
 
-// ---------------- Desired State / Operations ----------------
-
-message ApplyDesiredStateRequest {
-  string node_id = 1;
-  repeated string profiles = 2; // e.g. ["control-plane","gateway","storage-object"]
-  map<string,string> config = 3; // optional key-values for bootstrap config
+message Inventory {
+  clustercontroller.NodeIdentity identity = 1;
+  google.protobuf.Timestamp unix_time = 2;
+  repeated InstalledComponent components = 3;
+  repeated UnitStatus units = 4;
 }
 
-message ApplyDesiredStateResponse {
+message GetInventoryRequest {}
+message GetInventoryResponse { Inventory inventory = 1; }
+
+message ApplyPlanRequest {
+  clustercontroller.NodePlan plan = 1;
+}
+message ApplyPlanResponse {
   string operation_id = 1;
 }
 
-message WatchOperationRequest {
-  string operation_id = 1;
-}
+message WatchOperationRequest { string operation_id = 1; }
 
 message OperationEvent {
   string operation_id = 1;
-  OperationPhase phase = 2;
+  clustercontroller.OperationPhase phase = 2;
   string message = 3;
   int32 percent = 4;
   bool done = 5;
   string error = 6;
+  google.protobuf.Timestamp ts = 7;
 }
 
-enum OperationPhase {
-  OP_PHASE_UNSPECIFIED = 0;
-  OP_QUEUED = 1;
-  OP_RUNNING = 2;
-  OP_SUCCEEDED = 3;
-  OP_FAILED = 4;
+message BootstrapFirstNodeRequest {
+  string cluster_domain = 1;
+  string controller_bind = 2;
+  repeated string profiles = 3;
 }
-
-// ---------------- Cluster Bootstrap ----------------
-
-message BootstrapClusterRequest {
-  // Cluster identity
-  string cluster_domain = 1;     // e.g. "globule-ryzen.globular.io"
-  string admin_email = 2;
-
-  // What to provision on this node initially
-  repeated string profiles = 3;  // typically ["control-plane","gateway"] for single-node start
-
-  // Secrets/bootstrap tokens
-  string bootstrap_token = 4;    // used to authorize this call if node is already installed
-}
-
-message BootstrapClusterResponse {
+message BootstrapFirstNodeResponse {
   string operation_id = 1;
-  string message = 2;
+  string join_token = 2;
+  string message = 3;
+}
+
+service NodeAgentService {
+  rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
+  rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
+  rpc ApplyPlan(ApplyPlanRequest) returns (ApplyPlanResponse);
+  rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent);
+  rpc BootstrapFirstNode(BootstrapFirstNodeRequest) returns (BootstrapFirstNodeResponse);
 }

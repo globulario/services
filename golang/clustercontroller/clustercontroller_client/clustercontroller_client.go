@@ -7,6 +7,7 @@ import (
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type ClusterControllerClient struct {
@@ -151,25 +152,53 @@ func (client *ClusterControllerClient) Invoke(method string, rqst interface{}, c
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
-func (client *ClusterControllerClient) Enroll(ctx context.Context, req *clustercontrollerpb.EnrollRequest) (*clustercontrollerpb.EnrollResponse, error) {
+func (client *ClusterControllerClient) GetClusterInfo(ctx context.Context, req *timestamppb.Timestamp) (*clustercontrollerpb.ClusterInfo, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	return client.c.Enroll(ctx, req)
+	return client.c.GetClusterInfo(ctx, req)
 }
 
-func (client *ClusterControllerClient) ApproveNode(ctx context.Context, req *clustercontrollerpb.ApproveNodeRequest) (*clustercontrollerpb.ApproveNodeResponse, error) {
+func (client *ClusterControllerClient) CreateJoinToken(ctx context.Context, req *clustercontrollerpb.CreateJoinTokenRequest) (*clustercontrollerpb.CreateJoinTokenResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	return client.c.ApproveNode(ctx, req)
+	return client.c.CreateJoinToken(ctx, req)
 }
 
-func (client *ClusterControllerClient) RejectNode(ctx context.Context, req *clustercontrollerpb.RejectNodeRequest) (*clustercontrollerpb.RejectNodeResponse, error) {
+func (client *ClusterControllerClient) RequestJoin(ctx context.Context, req *clustercontrollerpb.RequestJoinRequest) (*clustercontrollerpb.RequestJoinResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	return client.c.RejectNode(ctx, req)
+	return client.c.RequestJoin(ctx, req)
+}
+
+func (client *ClusterControllerClient) ListJoinRequests(ctx context.Context, req *clustercontrollerpb.ListJoinRequestsRequest) (*clustercontrollerpb.ListJoinRequestsResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.ListJoinRequests(ctx, req)
+}
+
+func (client *ClusterControllerClient) ApproveJoin(ctx context.Context, req *clustercontrollerpb.ApproveJoinRequest) (*clustercontrollerpb.ApproveJoinResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.ApproveJoin(ctx, req)
+}
+
+func (client *ClusterControllerClient) RejectJoin(ctx context.Context, req *clustercontrollerpb.RejectJoinRequest) (*clustercontrollerpb.RejectJoinResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.RejectJoin(ctx, req)
+}
+
+func (client *ClusterControllerClient) ListNodes(ctx context.Context, req *clustercontrollerpb.ListNodesRequest) (*clustercontrollerpb.ListNodesResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.ListNodes(ctx, req)
 }
 
 func (client *ClusterControllerClient) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb.SetNodeProfilesRequest) (*clustercontrollerpb.SetNodeProfilesResponse, error) {
@@ -177,4 +206,18 @@ func (client *ClusterControllerClient) SetNodeProfiles(ctx context.Context, req 
 		ctx = client.GetCtx()
 	}
 	return client.c.SetNodeProfiles(ctx, req)
+}
+
+func (client *ClusterControllerClient) GetNodePlan(ctx context.Context, req *clustercontrollerpb.GetNodePlanRequest) (*clustercontrollerpb.GetNodePlanResponse, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.GetNodePlan(ctx, req)
+}
+
+func (client *ClusterControllerClient) WatchOperations(ctx context.Context, req *clustercontrollerpb.WatchOperationsRequest, opts ...grpc.CallOption) (clustercontrollerpb.ClusterControllerService_WatchOperationsClient, error) {
+	if ctx == nil {
+		ctx = client.GetCtx()
+	}
+	return client.c.WatchOperations(ctx, req, opts...)
 }

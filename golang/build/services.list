@@ -1,8 +1,5 @@
 # Service manifest (module_path output_binary)
 # Lines are interpreted by build-services.sh; comments or blank lines are ignored.
-./admin/admin_server ./admin/admin_server
-./applications_manager/applications_manager_server ./applications_manager/applications_manager_server
-./services_manager/services_manager_server ./services_manager/services_manager_server
 ./authentication/authentication_server ./authentication/authentication_server
 ./catalog/catalog_server ./catalog/catalog_server
 ./blog/blog_server ./blog/blog_server
@@ -26,3 +23,4 @@
 ./torrent/torrent_server ./torrent/torrent_server
 ./clustercontroller/clustercontroller_server ./clustercontroller/clustercontroller_server
 ./nodeagent/nodeagent_server ./nodeagent/nodeagent_server
+./globularcli ./globularcli

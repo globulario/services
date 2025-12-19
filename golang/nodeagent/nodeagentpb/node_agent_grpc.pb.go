@@ -19,27 +19,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NodeAgentService_Enroll_FullMethodName            = "/nodeagent.NodeAgentService/Enroll"
-	NodeAgentService_GetInventory_FullMethodName      = "/nodeagent.NodeAgentService/GetInventory"
-	NodeAgentService_ApplyDesiredState_FullMethodName = "/nodeagent.NodeAgentService/ApplyDesiredState"
-	NodeAgentService_WatchOperation_FullMethodName    = "/nodeagent.NodeAgentService/WatchOperation"
-	NodeAgentService_BootstrapCluster_FullMethodName  = "/nodeagent.NodeAgentService/BootstrapCluster"
+	NodeAgentService_JoinCluster_FullMethodName        = "/nodeagent.NodeAgentService/JoinCluster"
+	NodeAgentService_GetInventory_FullMethodName       = "/nodeagent.NodeAgentService/GetInventory"
+	NodeAgentService_ApplyPlan_FullMethodName          = "/nodeagent.NodeAgentService/ApplyPlan"
+	NodeAgentService_WatchOperation_FullMethodName     = "/nodeagent.NodeAgentService/WatchOperation"
+	NodeAgentService_BootstrapFirstNode_FullMethodName = "/nodeagent.NodeAgentService/BootstrapFirstNode"
 )
 
 // NodeAgentServiceClient is the client API for NodeAgentService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeAgentServiceClient interface {
-	// Enrollment into an existing cluster.
-	Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error)
-	// Node inventory for Cluster->Nodes UI.
+	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*JoinClusterResponse, error)
 	GetInventory(ctx context.Context, in *GetInventoryRequest, opts ...grpc.CallOption) (*GetInventoryResponse, error)
-	// Apply desired state (roles/profiles) and return an operation id.
-	ApplyDesiredState(ctx context.Context, in *ApplyDesiredStateRequest, opts ...grpc.CallOption) (*ApplyDesiredStateResponse, error)
-	// Stream operation progress (install/start/stop/config steps).
+	ApplyPlan(ctx context.Context, in *ApplyPlanRequest, opts ...grpc.CallOption) (*ApplyPlanResponse, error)
 	WatchOperation(ctx context.Context, in *WatchOperationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
-	// Bootstrap a new cluster on this node (Day-0 “create cluster” entry point).
-	BootstrapCluster(ctx context.Context, in *BootstrapClusterRequest, opts ...grpc.CallOption) (*BootstrapClusterResponse, error)
+	BootstrapFirstNode(ctx context.Context, in *BootstrapFirstNodeRequest, opts ...grpc.CallOption) (*BootstrapFirstNodeResponse, error)
 }
 
 type nodeAgentServiceClient struct {
@@ -50,10 +45,10 @@ func NewNodeAgentServiceClient(cc grpc.ClientConnInterface) NodeAgentServiceClie
 	return &nodeAgentServiceClient{cc}
 }
 
-func (c *nodeAgentServiceClient) Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error) {
+func (c *nodeAgentServiceClient) JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*JoinClusterResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EnrollResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_Enroll_FullMethodName, in, out, cOpts...)
+	out := new(JoinClusterResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_JoinCluster_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,10 +65,10 @@ func (c *nodeAgentServiceClient) GetInventory(ctx context.Context, in *GetInvent
 	return out, nil
 }
 
-func (c *nodeAgentServiceClient) ApplyDesiredState(ctx context.Context, in *ApplyDesiredStateRequest, opts ...grpc.CallOption) (*ApplyDesiredStateResponse, error) {
+func (c *nodeAgentServiceClient) ApplyPlan(ctx context.Context, in *ApplyPlanRequest, opts ...grpc.CallOption) (*ApplyPlanResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ApplyDesiredStateResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_ApplyDesiredState_FullMethodName, in, out, cOpts...)
+	out := new(ApplyPlanResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_ApplyPlan_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,10 +94,10 @@ func (c *nodeAgentServiceClient) WatchOperation(ctx context.Context, in *WatchOp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type NodeAgentService_WatchOperationClient = grpc.ServerStreamingClient[OperationEvent]
 
-func (c *nodeAgentServiceClient) BootstrapCluster(ctx context.Context, in *BootstrapClusterRequest, opts ...grpc.CallOption) (*BootstrapClusterResponse, error) {
+func (c *nodeAgentServiceClient) BootstrapFirstNode(ctx context.Context, in *BootstrapFirstNodeRequest, opts ...grpc.CallOption) (*BootstrapFirstNodeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BootstrapClusterResponse)
-	err := c.cc.Invoke(ctx, NodeAgentService_BootstrapCluster_FullMethodName, in, out, cOpts...)
+	out := new(BootstrapFirstNodeResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_BootstrapFirstNode_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +108,11 @@ func (c *nodeAgentServiceClient) BootstrapCluster(ctx context.Context, in *Boots
 // All implementations should embed UnimplementedNodeAgentServiceServer
 // for forward compatibility.
 type NodeAgentServiceServer interface {
-	// Enrollment into an existing cluster.
-	Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error)
-	// Node inventory for Cluster->Nodes UI.
+	JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error)
 	GetInventory(context.Context, *GetInventoryRequest) (*GetInventoryResponse, error)
-	// Apply desired state (roles/profiles) and return an operation id.
-	ApplyDesiredState(context.Context, *ApplyDesiredStateRequest) (*ApplyDesiredStateResponse, error)
-	// Stream operation progress (install/start/stop/config steps).
+	ApplyPlan(context.Context, *ApplyPlanRequest) (*ApplyPlanResponse, error)
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error
-	// Bootstrap a new cluster on this node (Day-0 “create cluster” entry point).
-	BootstrapCluster(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error)
+	BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error)
 }
 
 // UnimplementedNodeAgentServiceServer should be embedded to have
@@ -132,20 +122,20 @@ type NodeAgentServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedNodeAgentServiceServer struct{}
 
-func (UnimplementedNodeAgentServiceServer) Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Enroll not implemented")
+func (UnimplementedNodeAgentServiceServer) JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method JoinCluster not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) GetInventory(context.Context, *GetInventoryRequest) (*GetInventoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInventory not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) ApplyDesiredState(context.Context, *ApplyDesiredStateRequest) (*ApplyDesiredStateResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ApplyDesiredState not implemented")
+func (UnimplementedNodeAgentServiceServer) ApplyPlan(context.Context, *ApplyPlanRequest) (*ApplyPlanResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApplyPlan not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchOperation not implemented")
 }
-func (UnimplementedNodeAgentServiceServer) BootstrapCluster(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BootstrapCluster not implemented")
+func (UnimplementedNodeAgentServiceServer) BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BootstrapFirstNode not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) testEmbeddedByValue() {}
 
@@ -167,20 +157,20 @@ func RegisterNodeAgentServiceServer(s grpc.ServiceRegistrar, srv NodeAgentServic
 	s.RegisterService(&NodeAgentService_ServiceDesc, srv)
 }
 
-func _NodeAgentService_Enroll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EnrollRequest)
+func _NodeAgentService_JoinCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinClusterRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).Enroll(ctx, in)
+		return srv.(NodeAgentServiceServer).JoinCluster(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_Enroll_FullMethodName,
+		FullMethod: NodeAgentService_JoinCluster_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).Enroll(ctx, req.(*EnrollRequest))
+		return srv.(NodeAgentServiceServer).JoinCluster(ctx, req.(*JoinClusterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -203,20 +193,20 @@ func _NodeAgentService_GetInventory_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeAgentService_ApplyDesiredState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ApplyDesiredStateRequest)
+func _NodeAgentService_ApplyPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyPlanRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).ApplyDesiredState(ctx, in)
+		return srv.(NodeAgentServiceServer).ApplyPlan(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_ApplyDesiredState_FullMethodName,
+		FullMethod: NodeAgentService_ApplyPlan_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).ApplyDesiredState(ctx, req.(*ApplyDesiredStateRequest))
+		return srv.(NodeAgentServiceServer).ApplyPlan(ctx, req.(*ApplyPlanRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -232,20 +222,20 @@ func _NodeAgentService_WatchOperation_Handler(srv interface{}, stream grpc.Serve
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type NodeAgentService_WatchOperationServer = grpc.ServerStreamingServer[OperationEvent]
 
-func _NodeAgentService_BootstrapCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BootstrapClusterRequest)
+func _NodeAgentService_BootstrapFirstNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BootstrapFirstNodeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeAgentServiceServer).BootstrapCluster(ctx, in)
+		return srv.(NodeAgentServiceServer).BootstrapFirstNode(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeAgentService_BootstrapCluster_FullMethodName,
+		FullMethod: NodeAgentService_BootstrapFirstNode_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAgentServiceServer).BootstrapCluster(ctx, req.(*BootstrapClusterRequest))
+		return srv.(NodeAgentServiceServer).BootstrapFirstNode(ctx, req.(*BootstrapFirstNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -258,20 +248,20 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeAgentServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Enroll",
-			Handler:    _NodeAgentService_Enroll_Handler,
+			MethodName: "JoinCluster",
+			Handler:    _NodeAgentService_JoinCluster_Handler,
 		},
 		{
 			MethodName: "GetInventory",
 			Handler:    _NodeAgentService_GetInventory_Handler,
 		},
 		{
-			MethodName: "ApplyDesiredState",
-			Handler:    _NodeAgentService_ApplyDesiredState_Handler,
+			MethodName: "ApplyPlan",
+			Handler:    _NodeAgentService_ApplyPlan_Handler,
 		},
 		{
-			MethodName: "BootstrapCluster",
-			Handler:    _NodeAgentService_BootstrapCluster_Handler,
+			MethodName: "BootstrapFirstNode",
+			Handler:    _NodeAgentService_BootstrapFirstNode_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

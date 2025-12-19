@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
 	"github.com/globulario/services/golang/security"
@@ -178,15 +179,15 @@ func (client *NodeAgentClient) SetCaFile(path string) {
 	client.caFile = path
 }
 
-func (client *NodeAgentClient) Enroll(ctx context.Context, token string, nodeInfo *nodeagentpb.NodeInfo) (*nodeagentpb.EnrollResponse, error) {
+func (client *NodeAgentClient) JoinCluster(ctx context.Context, controllerEndpoint, joinToken string) (*nodeagentpb.JoinClusterResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	req := &nodeagentpb.EnrollRequest{
-		JoinToken: token,
-		Node:      nodeInfo,
+	req := &nodeagentpb.JoinClusterRequest{
+		ControllerEndpoint: controllerEndpoint,
+		JoinToken:          joinToken,
 	}
-	return client.c.Enroll(ctx, req)
+	return client.c.JoinCluster(ctx, req)
 }
 
 func (client *NodeAgentClient) GetInventory(ctx context.Context) (*nodeagentpb.GetInventoryResponse, error) {
@@ -196,16 +197,11 @@ func (client *NodeAgentClient) GetInventory(ctx context.Context) (*nodeagentpb.G
 	return client.c.GetInventory(ctx, &nodeagentpb.GetInventoryRequest{})
 }
 
-func (client *NodeAgentClient) ApplyDesiredState(ctx context.Context, nodeID string, profiles []string, config map[string]string) (*nodeagentpb.ApplyDesiredStateResponse, error) {
+func (client *NodeAgentClient) ApplyPlan(ctx context.Context, plan *clustercontrollerpb.NodePlan) (*nodeagentpb.ApplyPlanResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	req := &nodeagentpb.ApplyDesiredStateRequest{
-		NodeId:   nodeID,
-		Profiles: profiles,
-		Config:   config,
-	}
-	return client.c.ApplyDesiredState(ctx, req)
+	return client.c.ApplyPlan(ctx, &nodeagentpb.ApplyPlanRequest{Plan: plan})
 }
 
 func (client *NodeAgentClient) WatchOperation(ctx context.Context, operationID string) (nodeagentpb.NodeAgentService_WatchOperationClient, error) {
@@ -216,15 +212,14 @@ func (client *NodeAgentClient) WatchOperation(ctx context.Context, operationID s
 	return client.c.WatchOperation(ctx, req)
 }
 
-func (client *NodeAgentClient) BootstrapCluster(ctx context.Context, domain, email string, profiles []string, bootstrapToken string) (*nodeagentpb.BootstrapClusterResponse, error) {
+func (client *NodeAgentClient) BootstrapFirstNode(ctx context.Context, clusterDomain, controllerBind string, profiles []string) (*nodeagentpb.BootstrapFirstNodeResponse, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
-	req := &nodeagentpb.BootstrapClusterRequest{
-		ClusterDomain:  domain,
-		AdminEmail:     email,
+	req := &nodeagentpb.BootstrapFirstNodeRequest{
+		ClusterDomain:  clusterDomain,
+		ControllerBind: controllerBind,
 		Profiles:       profiles,
-		BootstrapToken: bootstrapToken,
 	}
-	return client.c.BootstrapCluster(ctx, req)
+	return client.c.BootstrapFirstNode(ctx, req)
 }

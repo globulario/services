@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"google.golang.org/grpc"
@@ -12,11 +13,21 @@ import (
 
 func main() {
 	cfgPath := flag.String("config", "/etc/globular/clustercontroller/config.json", "cluster controller configuration file")
+	statePath := flag.String("state", defaultClusterStatePath, "cluster controller state file")
 	flag.Parse()
+
+	if env := os.Getenv("CLUSTER_STATE_PATH"); env != "" {
+		*statePath = env
+	}
 
 	cfg, err := loadClusterControllerConfig(*cfgPath)
 	if err != nil {
 		log.Fatalf("failed to load config %s: %v", *cfgPath, err)
+	}
+
+	state, err := loadControllerState(*statePath)
+	if err != nil {
+		log.Fatalf("failed to load state %s: %v", *statePath, err)
 	}
 
 	address := fmt.Sprintf(":%d", cfg.Port)
@@ -26,7 +37,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	srv := newServer(cfg, *cfgPath)
+	srv := newServer(cfg, *cfgPath, *statePath, state)
 	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
 
 	log.Printf("cluster controller listening on %s (config=%s)", address, *cfgPath)

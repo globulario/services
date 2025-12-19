@@ -11,16 +11,18 @@ import (
 	"sync"
 	"time"
 
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/supervisor"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var defaultPort = "11000"
 
-// NodeAgentServer implements the node agent RPCs. It stays intentionally small
-// and keeps in-memory operation tracking plus simple inventory data.
+// NodeAgentServer implements the simplified node executor API.
 type NodeAgentServer struct {
 	nodeagentpb.UnimplementedNodeAgentServiceServer
 
@@ -42,11 +44,10 @@ func NewNodeAgentServer() *NodeAgentServer {
 	}
 }
 
-func (srv *NodeAgentServer) Enroll(ctx context.Context, req *nodeagentpb.EnrollRequest) (*nodeagentpb.EnrollResponse, error) {
+func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *nodeagentpb.JoinClusterRequest) (*nodeagentpb.JoinClusterResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
-
 	token := strings.TrimSpace(req.GetJoinToken())
 	if token == "" {
 		return nil, status.Error(codes.InvalidArgument, "join_token is required")
@@ -55,44 +56,63 @@ func (srv *NodeAgentServer) Enroll(ctx context.Context, req *nodeagentpb.EnrollR
 		return nil, status.Error(codes.PermissionDenied, "join token mismatch")
 	}
 
-	nodeID := uuid.NewString()
-	return &nodeagentpb.EnrollResponse{
-		NodeId:             nodeID,
-		Status:             nodeagentpb.EnrollStatus_ENROLL_PENDING,
-		Message:            "pending approval",
-		ControllerEndpoint: srv.controllerEndpoint,
+	return &nodeagentpb.JoinClusterResponse{
+		NodeId:  uuid.NewString(),
+		Status:  "pending",
+		Message: "pending approval",
 	}, nil
 }
 
 func (srv *NodeAgentServer) GetInventory(ctx context.Context, _ *nodeagentpb.GetInventoryRequest) (*nodeagentpb.GetInventoryResponse, error) {
 	hostname, _ := os.Hostname()
 	resp := &nodeagentpb.GetInventoryResponse{
-		Node: &nodeagentpb.NodeInfo{
-			Hostname:     hostname,
-			Domain:       os.Getenv("NODE_AGENT_DOMAIN"),
-			Ips:          gatherIPs(),
-			Os:           runtime.GOOS,
-			Arch:         runtime.GOARCH,
-			AgentVersion: srv.agentVersion,
-			UnixTime:     time.Now().Unix(),
+		Inventory: &nodeagentpb.Inventory{
+			Identity: &clustercontrollerpb.NodeIdentity{
+				Hostname:     hostname,
+				Domain:       os.Getenv("NODE_AGENT_DOMAIN"),
+				Ips:          gatherIPs(),
+				Os:           runtime.GOOS,
+				Arch:         runtime.GOARCH,
+				AgentVersion: srv.agentVersion,
+			},
+			UnixTime:   timestamppb.Now(),
+			Components: detectComponents([]string{"envoy", "etcd", "minio", "scylla", "globular"}),
+			Units:      detectUnits(),
 		},
-		Components: detectComponents([]string{"envoy", "etcd", "minio", "scylla", "globular"}),
 	}
 	return resp, nil
 }
 
-func (srv *NodeAgentServer) ApplyDesiredState(ctx context.Context, req *nodeagentpb.ApplyDesiredStateRequest) (*nodeagentpb.ApplyDesiredStateResponse, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is required")
-	}
-	if strings.TrimSpace(req.GetNodeId()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+func (srv *NodeAgentServer) ApplyPlan(ctx context.Context, req *nodeagentpb.ApplyPlanRequest) (*nodeagentpb.ApplyPlanResponse, error) {
+	if req == nil || req.GetPlan() == nil {
+		return nil, status.Error(codes.InvalidArgument, "plan is required")
 	}
 
-	profiles := append([]string(nil), req.GetProfiles()...)
-	op := srv.registerOperation("apply desired state", profiles)
-	srv.startOperation(op, "applying desired state")
-	return &nodeagentpb.ApplyDesiredStateResponse{OperationId: op.id}, nil
+	op := srv.registerOperation("apply plan", req.GetPlan().GetProfiles())
+	go srv.runPlan(context.Background(), op, req.GetPlan())
+	return &nodeagentpb.ApplyPlanResponse{OperationId: op.id}, nil
+}
+
+func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *clustercontrollerpb.NodePlan) {
+	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
+	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
+
+	total := len(plan.GetUnitActions())
+	for idx, action := range plan.GetUnitActions() {
+		percent := percentForStep(idx, total)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("executing %s %s", action.GetAction(), action.GetUnitName()), percent, false, ""))
+		output, err := supervisor.ApplyUnitAction(ctx, action.GetUnitName(), action.GetAction())
+		if err != nil {
+			msg := fmt.Sprintf("%s failed: %v", action.GetUnitName(), err)
+			if len(output) > 0 {
+				msg = fmt.Sprintf("%s - %s", msg, strings.TrimSpace(output))
+			}
+			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, percent, true, err.Error()))
+			return
+		}
+	}
+
+	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
 }
 
 func (srv *NodeAgentServer) WatchOperation(req *nodeagentpb.WatchOperationRequest, stream nodeagentpb.NodeAgentService_WatchOperationServer) error {
@@ -107,7 +127,7 @@ func (srv *NodeAgentServer) WatchOperation(req *nodeagentpb.WatchOperationReques
 	ch, last := op.subscribe()
 	defer op.unsubscribe(ch)
 
-	if last != nil && last.GetDone() {
+	if last != nil && last.Done {
 		if err := stream.Send(last); err != nil {
 			return err
 		}
@@ -125,20 +145,16 @@ func (srv *NodeAgentServer) WatchOperation(req *nodeagentpb.WatchOperationReques
 			if err := stream.Send(evt); err != nil {
 				return err
 			}
-			if evt.GetDone() {
+			if evt.Done {
 				return nil
 			}
 		}
 	}
 }
 
-func (srv *NodeAgentServer) BootstrapCluster(ctx context.Context, req *nodeagentpb.BootstrapClusterRequest) (*nodeagentpb.BootstrapClusterResponse, error) {
+func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *nodeagentpb.BootstrapFirstNodeRequest) (*nodeagentpb.BootstrapFirstNodeResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
-	}
-
-	if srv.bootstrapToken != "" && strings.TrimSpace(req.GetBootstrapToken()) != srv.bootstrapToken {
-		return nil, status.Error(codes.PermissionDenied, "bootstrap token mismatch")
 	}
 
 	profiles := append([]string(nil), req.GetProfiles()...)
@@ -146,11 +162,12 @@ func (srv *NodeAgentServer) BootstrapCluster(ctx context.Context, req *nodeagent
 		profiles = []string{"control-plane", "gateway"}
 	}
 
-	op := srv.registerOperation("bootstrap cluster", profiles)
-	srv.startOperation(op, "bootstrapping cluster")
+	op := srv.registerOperation("bootstrap node", profiles)
+	srv.startOperation(op, "bootstrapping first node")
 
-	return &nodeagentpb.BootstrapClusterResponse{
+	return &nodeagentpb.BootstrapFirstNodeResponse{
 		OperationId: op.id,
+		JoinToken:   srv.joinToken,
 		Message:     "bootstrap initiated",
 	}, nil
 }
@@ -176,24 +193,25 @@ func (srv *NodeAgentServer) getOperation(id string) *operation {
 
 func (srv *NodeAgentServer) startOperation(op *operation, message string) {
 	go func() {
-		op.broadcast(op.newEvent(nodeagentpb.OperationPhase_OP_QUEUED, fmt.Sprintf("%s queued", message), 0, false, ""))
-		op.broadcast(op.newEvent(nodeagentpb.OperationPhase_OP_RUNNING, fmt.Sprintf("%s started", message), 5, false, ""))
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, fmt.Sprintf("%s queued", message), 0, false, ""))
+		time.Sleep(100 * time.Millisecond)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("%s started", message), 5, false, ""))
 
 		total := len(op.profiles)
 		for idx, profile := range op.profiles {
 			time.Sleep(250 * time.Millisecond)
 			percent := percentForStep(idx, total)
-			op.broadcast(op.newEvent(nodeagentpb.OperationPhase_OP_RUNNING, fmt.Sprintf("profile %s applied", profile), percent, false, ""))
+			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("profile %s applied", profile), percent, false, ""))
 		}
 
-		time.Sleep(150 * time.Millisecond)
-		op.broadcast(op.newEvent(nodeagentpb.OperationPhase_OP_SUCCEEDED, fmt.Sprintf("%s complete", message), 100, true, ""))
+		time.Sleep(200 * time.Millisecond)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, fmt.Sprintf("%s complete", message), 100, true, ""))
 	}()
 }
 
 func percentForStep(idx, total int) int32 {
 	if total <= 0 {
-		return int32(50)
+		return 50
 	}
 	base := int32(20)
 	step := int32(60 / total)
@@ -266,7 +284,10 @@ func detectComponents(names []string) []*nodeagentpb.InstalledComponent {
 	return components
 }
 
-// operation tracks progress for a single request and fans out events.
+func detectUnits() []*nodeagentpb.UnitStatus {
+	return []*nodeagentpb.UnitStatus{}
+}
+
 type operation struct {
 	id       string
 	kind     string
@@ -309,7 +330,7 @@ func (op *operation) broadcast(evt *nodeagentpb.OperationEvent) {
 	}
 }
 
-func (op *operation) newEvent(phase nodeagentpb.OperationPhase, message string, percent int32, done bool, errStr string) *nodeagentpb.OperationEvent {
+func (op *operation) newEvent(phase clustercontrollerpb.OperationPhase, message string, percent int32, done bool, errStr string) *nodeagentpb.OperationEvent {
 	return &nodeagentpb.OperationEvent{
 		OperationId: op.id,
 		Phase:       phase,

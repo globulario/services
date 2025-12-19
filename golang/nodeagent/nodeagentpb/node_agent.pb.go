@@ -7,8 +7,10 @@
 package nodeagentpb
 
 import (
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -21,191 +23,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type EnrollStatus int32
-
-const (
-	EnrollStatus_ENROLL_STATUS_UNSPECIFIED EnrollStatus = 0
-	EnrollStatus_ENROLL_PENDING            EnrollStatus = 1
-	EnrollStatus_ENROLL_APPROVED           EnrollStatus = 2
-	EnrollStatus_ENROLL_REJECTED           EnrollStatus = 3
-)
-
-// Enum value maps for EnrollStatus.
-var (
-	EnrollStatus_name = map[int32]string{
-		0: "ENROLL_STATUS_UNSPECIFIED",
-		1: "ENROLL_PENDING",
-		2: "ENROLL_APPROVED",
-		3: "ENROLL_REJECTED",
-	}
-	EnrollStatus_value = map[string]int32{
-		"ENROLL_STATUS_UNSPECIFIED": 0,
-		"ENROLL_PENDING":            1,
-		"ENROLL_APPROVED":           2,
-		"ENROLL_REJECTED":           3,
-	}
-)
-
-func (x EnrollStatus) Enum() *EnrollStatus {
-	p := new(EnrollStatus)
-	*p = x
-	return p
-}
-
-func (x EnrollStatus) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (EnrollStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_node_agent_proto_enumTypes[0].Descriptor()
-}
-
-func (EnrollStatus) Type() protoreflect.EnumType {
-	return &file_node_agent_proto_enumTypes[0]
-}
-
-func (x EnrollStatus) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use EnrollStatus.Descriptor instead.
-func (EnrollStatus) EnumDescriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{0}
-}
-
-type OperationPhase int32
-
-const (
-	OperationPhase_OP_PHASE_UNSPECIFIED OperationPhase = 0
-	OperationPhase_OP_QUEUED            OperationPhase = 1
-	OperationPhase_OP_RUNNING           OperationPhase = 2
-	OperationPhase_OP_SUCCEEDED         OperationPhase = 3
-	OperationPhase_OP_FAILED            OperationPhase = 4
-)
-
-// Enum value maps for OperationPhase.
-var (
-	OperationPhase_name = map[int32]string{
-		0: "OP_PHASE_UNSPECIFIED",
-		1: "OP_QUEUED",
-		2: "OP_RUNNING",
-		3: "OP_SUCCEEDED",
-		4: "OP_FAILED",
-	}
-	OperationPhase_value = map[string]int32{
-		"OP_PHASE_UNSPECIFIED": 0,
-		"OP_QUEUED":            1,
-		"OP_RUNNING":           2,
-		"OP_SUCCEEDED":         3,
-		"OP_FAILED":            4,
-	}
-)
-
-func (x OperationPhase) Enum() *OperationPhase {
-	p := new(OperationPhase)
-	*p = x
-	return p
-}
-
-func (x OperationPhase) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (OperationPhase) Descriptor() protoreflect.EnumDescriptor {
-	return file_node_agent_proto_enumTypes[1].Descriptor()
-}
-
-func (OperationPhase) Type() protoreflect.EnumType {
-	return &file_node_agent_proto_enumTypes[1]
-}
-
-func (x OperationPhase) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use OperationPhase.Descriptor instead.
-func (OperationPhase) EnumDescriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{1}
-}
-
-type EnrollRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JoinToken     string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
-	Node          *NodeInfo              `protobuf:"bytes,2,opt,name=node,proto3" json:"node,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EnrollRequest) Reset() {
-	*x = EnrollRequest{}
-	mi := &file_node_agent_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EnrollRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EnrollRequest) ProtoMessage() {}
-
-func (x *EnrollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnrollRequest.ProtoReflect.Descriptor instead.
-func (*EnrollRequest) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *EnrollRequest) GetJoinToken() string {
-	if x != nil {
-		return x.JoinToken
-	}
-	return ""
-}
-
-func (x *EnrollRequest) GetNode() *NodeInfo {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
-type EnrollResponse struct {
-	state   protoimpl.MessageState `protogen:"open.v1"`
-	NodeId  string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Status  EnrollStatus           `protobuf:"varint,2,opt,name=status,proto3,enum=nodeagent.EnrollStatus" json:"status,omitempty"`
-	Message string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	// Optional: where the node should connect next (future v2 outbound stream).
-	ControllerEndpoint string `protobuf:"bytes,4,opt,name=controller_endpoint,json=controllerEndpoint,proto3" json:"controller_endpoint,omitempty"`
+type JoinClusterRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ControllerEndpoint string                 `protobuf:"bytes,1,opt,name=controller_endpoint,json=controllerEndpoint,proto3" json:"controller_endpoint,omitempty"`
+	JoinToken          string                 `protobuf:"bytes,2,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
-func (x *EnrollResponse) Reset() {
-	*x = EnrollResponse{}
-	mi := &file_node_agent_proto_msgTypes[1]
+func (x *JoinClusterRequest) Reset() {
+	*x = JoinClusterRequest{}
+	mi := &file_node_agent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *EnrollResponse) String() string {
+func (x *JoinClusterRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*EnrollResponse) ProtoMessage() {}
+func (*JoinClusterRequest) ProtoMessage() {}
 
-func (x *EnrollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[1]
+func (x *JoinClusterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -216,60 +56,49 @@ func (x *EnrollResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollResponse.ProtoReflect.Descriptor instead.
-func (*EnrollResponse) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use JoinClusterRequest.ProtoReflect.Descriptor instead.
+func (*JoinClusterRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *EnrollResponse) GetNodeId() string {
-	if x != nil {
-		return x.NodeId
-	}
-	return ""
-}
-
-func (x *EnrollResponse) GetStatus() EnrollStatus {
-	if x != nil {
-		return x.Status
-	}
-	return EnrollStatus_ENROLL_STATUS_UNSPECIFIED
-}
-
-func (x *EnrollResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-func (x *EnrollResponse) GetControllerEndpoint() string {
+func (x *JoinClusterRequest) GetControllerEndpoint() string {
 	if x != nil {
 		return x.ControllerEndpoint
 	}
 	return ""
 }
 
-type GetInventoryRequest struct {
+func (x *JoinClusterRequest) GetJoinToken() string {
+	if x != nil {
+		return x.JoinToken
+	}
+	return ""
+}
+
+type JoinClusterResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetInventoryRequest) Reset() {
-	*x = GetInventoryRequest{}
-	mi := &file_node_agent_proto_msgTypes[2]
+func (x *JoinClusterResponse) Reset() {
+	*x = JoinClusterResponse{}
+	mi := &file_node_agent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetInventoryRequest) String() string {
+func (x *JoinClusterResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetInventoryRequest) ProtoMessage() {}
+func (*JoinClusterResponse) ProtoMessage() {}
 
-func (x *GetInventoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[2]
+func (x *JoinClusterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,190 +109,35 @@ func (x *GetInventoryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInventoryRequest.ProtoReflect.Descriptor instead.
-func (*GetInventoryRequest) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{2}
+// Deprecated: Use JoinClusterResponse.ProtoReflect.Descriptor instead.
+func (*JoinClusterResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{1}
 }
 
-type GetInventoryResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Node          *NodeInfo              `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
-	Components    []*InstalledComponent  `protobuf:"bytes,2,rep,name=components,proto3" json:"components,omitempty"`
-	Services      []*RunningService      `protobuf:"bytes,3,rep,name=services,proto3" json:"services,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetInventoryResponse) Reset() {
-	*x = GetInventoryResponse{}
-	mi := &file_node_agent_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetInventoryResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetInventoryResponse) ProtoMessage() {}
-
-func (x *GetInventoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetInventoryResponse.ProtoReflect.Descriptor instead.
-func (*GetInventoryResponse) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GetInventoryResponse) GetNode() *NodeInfo {
-	if x != nil {
-		return x.Node
-	}
-	return nil
-}
-
-func (x *GetInventoryResponse) GetComponents() []*InstalledComponent {
-	if x != nil {
-		return x.Components
-	}
-	return nil
-}
-
-func (x *GetInventoryResponse) GetServices() []*RunningService {
-	if x != nil {
-		return x.Services
-	}
-	return nil
-}
-
-type NodeInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
-	Ips           []string               `protobuf:"bytes,3,rep,name=ips,proto3" json:"ips,omitempty"`
-	Os            string                 `protobuf:"bytes,4,opt,name=os,proto3" json:"os,omitempty"`
-	Arch          string                 `protobuf:"bytes,5,opt,name=arch,proto3" json:"arch,omitempty"`
-	AgentVersion  string                 `protobuf:"bytes,6,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
-	UnixTime      int64                  `protobuf:"varint,7,opt,name=unix_time,json=unixTime,proto3" json:"unix_time,omitempty"`
-	NodeId        string                 `protobuf:"bytes,8,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	AgentEndpoint string                 `protobuf:"bytes,9,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
-	Platform      string                 `protobuf:"bytes,10,opt,name=platform,proto3" json:"platform,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NodeInfo) Reset() {
-	*x = NodeInfo{}
-	mi := &file_node_agent_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NodeInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NodeInfo) ProtoMessage() {}
-
-func (x *NodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NodeInfo.ProtoReflect.Descriptor instead.
-func (*NodeInfo) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *NodeInfo) GetHostname() string {
-	if x != nil {
-		return x.Hostname
-	}
-	return ""
-}
-
-func (x *NodeInfo) GetDomain() string {
-	if x != nil {
-		return x.Domain
-	}
-	return ""
-}
-
-func (x *NodeInfo) GetIps() []string {
-	if x != nil {
-		return x.Ips
-	}
-	return nil
-}
-
-func (x *NodeInfo) GetOs() string {
-	if x != nil {
-		return x.Os
-	}
-	return ""
-}
-
-func (x *NodeInfo) GetArch() string {
-	if x != nil {
-		return x.Arch
-	}
-	return ""
-}
-
-func (x *NodeInfo) GetAgentVersion() string {
-	if x != nil {
-		return x.AgentVersion
-	}
-	return ""
-}
-
-func (x *NodeInfo) GetUnixTime() int64 {
-	if x != nil {
-		return x.UnixTime
-	}
-	return 0
-}
-
-func (x *NodeInfo) GetNodeId() string {
+func (x *JoinClusterResponse) GetNodeId() string {
 	if x != nil {
 		return x.NodeId
 	}
 	return ""
 }
 
-func (x *NodeInfo) GetAgentEndpoint() string {
+func (x *JoinClusterResponse) GetStatus() string {
 	if x != nil {
-		return x.AgentEndpoint
+		return x.Status
 	}
 	return ""
 }
 
-func (x *NodeInfo) GetPlatform() string {
+func (x *JoinClusterResponse) GetMessage() string {
 	if x != nil {
-		return x.Platform
+		return x.Message
 	}
 	return ""
 }
 
 type InstalledComponent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // e.g. "envoy", "etcd", "minio", "scylla", "globular"
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	Installed     bool                   `protobuf:"varint,3,opt,name=installed,proto3" json:"installed,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -472,7 +146,7 @@ type InstalledComponent struct {
 
 func (x *InstalledComponent) Reset() {
 	*x = InstalledComponent{}
-	mi := &file_node_agent_proto_msgTypes[5]
+	mi := &file_node_agent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +158,7 @@ func (x *InstalledComponent) String() string {
 func (*InstalledComponent) ProtoMessage() {}
 
 func (x *InstalledComponent) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[5]
+	mi := &file_node_agent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +171,7 @@ func (x *InstalledComponent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstalledComponent.ProtoReflect.Descriptor instead.
 func (*InstalledComponent) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{5}
+	return file_node_agent_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *InstalledComponent) GetName() string {
@@ -521,30 +195,30 @@ func (x *InstalledComponent) GetInstalled() bool {
 	return false
 }
 
-type RunningService struct {
+type UnitStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`   // systemd unit or globular service name
-	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"` // "running", "stopped", "failed"
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
 	Details       string                 `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RunningService) Reset() {
-	*x = RunningService{}
-	mi := &file_node_agent_proto_msgTypes[6]
+func (x *UnitStatus) Reset() {
+	*x = UnitStatus{}
+	mi := &file_node_agent_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RunningService) String() string {
+func (x *UnitStatus) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RunningService) ProtoMessage() {}
+func (*UnitStatus) ProtoMessage() {}
 
-func (x *RunningService) ProtoReflect() protoreflect.Message {
-	mi := &file_node_agent_proto_msgTypes[6]
+func (x *UnitStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -555,55 +229,201 @@ func (x *RunningService) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunningService.ProtoReflect.Descriptor instead.
-func (*RunningService) Descriptor() ([]byte, []int) {
-	return file_node_agent_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use UnitStatus.ProtoReflect.Descriptor instead.
+func (*UnitStatus) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RunningService) GetName() string {
+func (x *UnitStatus) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *RunningService) GetState() string {
+func (x *UnitStatus) GetState() string {
 	if x != nil {
 		return x.State
 	}
 	return ""
 }
 
-func (x *RunningService) GetDetails() string {
+func (x *UnitStatus) GetDetails() string {
 	if x != nil {
 		return x.Details
 	}
 	return ""
 }
 
-type ApplyDesiredStateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Profiles      []string               `protobuf:"bytes,2,rep,name=profiles,proto3" json:"profiles,omitempty"`                                                                       // e.g. ["control-plane","gateway","storage-object"]
-	Config        map[string]string      `protobuf:"bytes,3,rep,name=config,proto3" json:"config,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // optional key-values for bootstrap config
+type Inventory struct {
+	state         protoimpl.MessageState            `protogen:"open.v1"`
+	Identity      *clustercontrollerpb.NodeIdentity `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	UnixTime      *timestamppb.Timestamp            `protobuf:"bytes,2,opt,name=unix_time,json=unixTime,proto3" json:"unix_time,omitempty"`
+	Components    []*InstalledComponent             `protobuf:"bytes,3,rep,name=components,proto3" json:"components,omitempty"`
+	Units         []*UnitStatus                     `protobuf:"bytes,4,rep,name=units,proto3" json:"units,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ApplyDesiredStateRequest) Reset() {
-	*x = ApplyDesiredStateRequest{}
+func (x *Inventory) Reset() {
+	*x = Inventory{}
+	mi := &file_node_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Inventory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Inventory) ProtoMessage() {}
+
+func (x *Inventory) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
+func (*Inventory) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Inventory) GetIdentity() *clustercontrollerpb.NodeIdentity {
+	if x != nil {
+		return x.Identity
+	}
+	return nil
+}
+
+func (x *Inventory) GetUnixTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UnixTime
+	}
+	return nil
+}
+
+func (x *Inventory) GetComponents() []*InstalledComponent {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *Inventory) GetUnits() []*UnitStatus {
+	if x != nil {
+		return x.Units
+	}
+	return nil
+}
+
+type GetInventoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInventoryRequest) Reset() {
+	*x = GetInventoryRequest{}
+	mi := &file_node_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInventoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInventoryRequest) ProtoMessage() {}
+
+func (x *GetInventoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInventoryRequest.ProtoReflect.Descriptor instead.
+func (*GetInventoryRequest) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{5}
+}
+
+type GetInventoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Inventory     *Inventory             `protobuf:"bytes,1,opt,name=inventory,proto3" json:"inventory,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetInventoryResponse) Reset() {
+	*x = GetInventoryResponse{}
+	mi := &file_node_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetInventoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetInventoryResponse) ProtoMessage() {}
+
+func (x *GetInventoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_node_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetInventoryResponse.ProtoReflect.Descriptor instead.
+func (*GetInventoryResponse) Descriptor() ([]byte, []int) {
+	return file_node_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetInventoryResponse) GetInventory() *Inventory {
+	if x != nil {
+		return x.Inventory
+	}
+	return nil
+}
+
+type ApplyPlanRequest struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Plan          *clustercontrollerpb.NodePlan `protobuf:"bytes,1,opt,name=plan,proto3" json:"plan,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApplyPlanRequest) Reset() {
+	*x = ApplyPlanRequest{}
 	mi := &file_node_agent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ApplyDesiredStateRequest) String() string {
+func (x *ApplyPlanRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ApplyDesiredStateRequest) ProtoMessage() {}
+func (*ApplyPlanRequest) ProtoMessage() {}
 
-func (x *ApplyDesiredStateRequest) ProtoReflect() protoreflect.Message {
+func (x *ApplyPlanRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_node_agent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -615,53 +435,39 @@ func (x *ApplyDesiredStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ApplyDesiredStateRequest.ProtoReflect.Descriptor instead.
-func (*ApplyDesiredStateRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ApplyPlanRequest.ProtoReflect.Descriptor instead.
+func (*ApplyPlanRequest) Descriptor() ([]byte, []int) {
 	return file_node_agent_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *ApplyDesiredStateRequest) GetNodeId() string {
+func (x *ApplyPlanRequest) GetPlan() *clustercontrollerpb.NodePlan {
 	if x != nil {
-		return x.NodeId
-	}
-	return ""
-}
-
-func (x *ApplyDesiredStateRequest) GetProfiles() []string {
-	if x != nil {
-		return x.Profiles
+		return x.Plan
 	}
 	return nil
 }
 
-func (x *ApplyDesiredStateRequest) GetConfig() map[string]string {
-	if x != nil {
-		return x.Config
-	}
-	return nil
-}
-
-type ApplyDesiredStateResponse struct {
+type ApplyPlanResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ApplyDesiredStateResponse) Reset() {
-	*x = ApplyDesiredStateResponse{}
+func (x *ApplyPlanResponse) Reset() {
+	*x = ApplyPlanResponse{}
 	mi := &file_node_agent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ApplyDesiredStateResponse) String() string {
+func (x *ApplyPlanResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ApplyDesiredStateResponse) ProtoMessage() {}
+func (*ApplyPlanResponse) ProtoMessage() {}
 
-func (x *ApplyDesiredStateResponse) ProtoReflect() protoreflect.Message {
+func (x *ApplyPlanResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_node_agent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -673,12 +479,12 @@ func (x *ApplyDesiredStateResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ApplyDesiredStateResponse.ProtoReflect.Descriptor instead.
-func (*ApplyDesiredStateResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ApplyPlanResponse.ProtoReflect.Descriptor instead.
+func (*ApplyPlanResponse) Descriptor() ([]byte, []int) {
 	return file_node_agent_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ApplyDesiredStateResponse) GetOperationId() string {
+func (x *ApplyPlanResponse) GetOperationId() string {
 	if x != nil {
 		return x.OperationId
 	}
@@ -730,13 +536,14 @@ func (x *WatchOperationRequest) GetOperationId() string {
 }
 
 type OperationEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
-	Phase         OperationPhase         `protobuf:"varint,2,opt,name=phase,proto3,enum=nodeagent.OperationPhase" json:"phase,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
-	Percent       int32                  `protobuf:"varint,4,opt,name=percent,proto3" json:"percent,omitempty"`
-	Done          bool                   `protobuf:"varint,5,opt,name=done,proto3" json:"done,omitempty"`
-	Error         string                 `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	state         protoimpl.MessageState             `protogen:"open.v1"`
+	OperationId   string                             `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Phase         clustercontrollerpb.OperationPhase `protobuf:"varint,2,opt,name=phase,proto3,enum=clustercontroller.OperationPhase" json:"phase,omitempty"`
+	Message       string                             `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Percent       int32                              `protobuf:"varint,4,opt,name=percent,proto3" json:"percent,omitempty"`
+	Done          bool                               `protobuf:"varint,5,opt,name=done,proto3" json:"done,omitempty"`
+	Error         string                             `protobuf:"bytes,6,opt,name=error,proto3" json:"error,omitempty"`
+	Ts            *timestamppb.Timestamp             `protobuf:"bytes,7,opt,name=ts,proto3" json:"ts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -778,11 +585,11 @@ func (x *OperationEvent) GetOperationId() string {
 	return ""
 }
 
-func (x *OperationEvent) GetPhase() OperationPhase {
+func (x *OperationEvent) GetPhase() clustercontrollerpb.OperationPhase {
 	if x != nil {
 		return x.Phase
 	}
-	return OperationPhase_OP_PHASE_UNSPECIFIED
+	return clustercontrollerpb.OperationPhase(0)
 }
 
 func (x *OperationEvent) GetMessage() string {
@@ -813,33 +620,36 @@ func (x *OperationEvent) GetError() string {
 	return ""
 }
 
-type BootstrapClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Cluster identity
-	ClusterDomain string `protobuf:"bytes,1,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"` // e.g. "globule-ryzen.globular.io"
-	AdminEmail    string `protobuf:"bytes,2,opt,name=admin_email,json=adminEmail,proto3" json:"admin_email,omitempty"`
-	// What to provision on this node initially
-	Profiles []string `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"` // typically ["control-plane","gateway"] for single-node start
-	// Secrets/bootstrap tokens
-	BootstrapToken string `protobuf:"bytes,4,opt,name=bootstrap_token,json=bootstrapToken,proto3" json:"bootstrap_token,omitempty"` // used to authorize this call if node is already installed
+func (x *OperationEvent) GetTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Ts
+	}
+	return nil
+}
+
+type BootstrapFirstNodeRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ClusterDomain  string                 `protobuf:"bytes,1,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"`
+	ControllerBind string                 `protobuf:"bytes,2,opt,name=controller_bind,json=controllerBind,proto3" json:"controller_bind,omitempty"`
+	Profiles       []string               `protobuf:"bytes,3,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *BootstrapClusterRequest) Reset() {
-	*x = BootstrapClusterRequest{}
+func (x *BootstrapFirstNodeRequest) Reset() {
+	*x = BootstrapFirstNodeRequest{}
 	mi := &file_node_agent_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BootstrapClusterRequest) String() string {
+func (x *BootstrapFirstNodeRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BootstrapClusterRequest) ProtoMessage() {}
+func (*BootstrapFirstNodeRequest) ProtoMessage() {}
 
-func (x *BootstrapClusterRequest) ProtoReflect() protoreflect.Message {
+func (x *BootstrapFirstNodeRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_node_agent_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -851,61 +661,55 @@ func (x *BootstrapClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BootstrapClusterRequest.ProtoReflect.Descriptor instead.
-func (*BootstrapClusterRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use BootstrapFirstNodeRequest.ProtoReflect.Descriptor instead.
+func (*BootstrapFirstNodeRequest) Descriptor() ([]byte, []int) {
 	return file_node_agent_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *BootstrapClusterRequest) GetClusterDomain() string {
+func (x *BootstrapFirstNodeRequest) GetClusterDomain() string {
 	if x != nil {
 		return x.ClusterDomain
 	}
 	return ""
 }
 
-func (x *BootstrapClusterRequest) GetAdminEmail() string {
+func (x *BootstrapFirstNodeRequest) GetControllerBind() string {
 	if x != nil {
-		return x.AdminEmail
+		return x.ControllerBind
 	}
 	return ""
 }
 
-func (x *BootstrapClusterRequest) GetProfiles() []string {
+func (x *BootstrapFirstNodeRequest) GetProfiles() []string {
 	if x != nil {
 		return x.Profiles
 	}
 	return nil
 }
 
-func (x *BootstrapClusterRequest) GetBootstrapToken() string {
-	if x != nil {
-		return x.BootstrapToken
-	}
-	return ""
-}
-
-type BootstrapClusterResponse struct {
+type BootstrapFirstNodeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OperationId   string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	JoinToken     string                 `protobuf:"bytes,2,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *BootstrapClusterResponse) Reset() {
-	*x = BootstrapClusterResponse{}
+func (x *BootstrapFirstNodeResponse) Reset() {
+	*x = BootstrapFirstNodeResponse{}
 	mi := &file_node_agent_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BootstrapClusterResponse) String() string {
+func (x *BootstrapFirstNodeResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BootstrapClusterResponse) ProtoMessage() {}
+func (*BootstrapFirstNodeResponse) ProtoMessage() {}
 
-func (x *BootstrapClusterResponse) ProtoReflect() protoreflect.Message {
+func (x *BootstrapFirstNodeResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_node_agent_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -917,19 +721,26 @@ func (x *BootstrapClusterResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BootstrapClusterResponse.ProtoReflect.Descriptor instead.
-func (*BootstrapClusterResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use BootstrapFirstNodeResponse.ProtoReflect.Descriptor instead.
+func (*BootstrapFirstNodeResponse) Descriptor() ([]byte, []int) {
 	return file_node_agent_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *BootstrapClusterResponse) GetOperationId() string {
+func (x *BootstrapFirstNodeResponse) GetOperationId() string {
 	if x != nil {
 		return x.OperationId
 	}
 	return ""
 }
 
-func (x *BootstrapClusterResponse) GetMessage() string {
+func (x *BootstrapFirstNodeResponse) GetJoinToken() string {
+	if x != nil {
+		return x.JoinToken
+	}
+	return ""
+}
+
+func (x *BootstrapFirstNodeResponse) GetMessage() string {
 	if x != nil {
 		return x.Message
 	}
@@ -940,88 +751,63 @@ var File_node_agent_proto protoreflect.FileDescriptor
 
 const file_node_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x10node_agent.proto\x12\tnodeagent\"W\n" +
-	"\rEnrollRequest\x12\x1d\n" +
+	"\x10node_agent.proto\x12\tnodeagent\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17clustercontroller.proto\"d\n" +
+	"\x12JoinClusterRequest\x12/\n" +
+	"\x13controller_endpoint\x18\x01 \x01(\tR\x12controllerEndpoint\x12\x1d\n" +
 	"\n" +
-	"join_token\x18\x01 \x01(\tR\tjoinToken\x12'\n" +
-	"\x04node\x18\x02 \x01(\v2\x13.nodeagent.NodeInfoR\x04node\"\xa5\x01\n" +
-	"\x0eEnrollResponse\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12/\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x17.nodeagent.EnrollStatusR\x06status\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\x12/\n" +
-	"\x13controller_endpoint\x18\x04 \x01(\tR\x12controllerEndpoint\"\x15\n" +
-	"\x13GetInventoryRequest\"\xb5\x01\n" +
-	"\x14GetInventoryResponse\x12'\n" +
-	"\x04node\x18\x01 \x01(\v2\x13.nodeagent.NodeInfoR\x04node\x12=\n" +
-	"\n" +
-	"components\x18\x02 \x03(\v2\x1d.nodeagent.InstalledComponentR\n" +
-	"components\x125\n" +
-	"\bservices\x18\x03 \x03(\v2\x19.nodeagent.RunningServiceR\bservices\"\x92\x02\n" +
-	"\bNodeInfo\x12\x1a\n" +
-	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
-	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x10\n" +
-	"\x03ips\x18\x03 \x03(\tR\x03ips\x12\x0e\n" +
-	"\x02os\x18\x04 \x01(\tR\x02os\x12\x12\n" +
-	"\x04arch\x18\x05 \x01(\tR\x04arch\x12#\n" +
-	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
-	"\tunix_time\x18\a \x01(\x03R\bunixTime\x12\x17\n" +
-	"\anode_id\x18\b \x01(\tR\x06nodeId\x12%\n" +
-	"\x0eagent_endpoint\x18\t \x01(\tR\ragentEndpoint\x12\x1a\n" +
-	"\bplatform\x18\n" +
-	" \x01(\tR\bplatform\"`\n" +
+	"join_token\x18\x02 \x01(\tR\tjoinToken\"`\n" +
+	"\x13JoinClusterResponse\x12\x17\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"`\n" +
 	"\x12InstalledComponent\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +
-	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"T\n" +
-	"\x0eRunningService\x12\x12\n" +
+	"\tinstalled\x18\x03 \x01(\bR\tinstalled\"P\n" +
+	"\n" +
+	"UnitStatus\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12\x18\n" +
-	"\adetails\x18\x03 \x01(\tR\adetails\"\xd3\x01\n" +
-	"\x18ApplyDesiredStateRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
-	"\bprofiles\x18\x02 \x03(\tR\bprofiles\x12G\n" +
-	"\x06config\x18\x03 \x03(\v2/.nodeagent.ApplyDesiredStateRequest.ConfigEntryR\x06config\x1a9\n" +
-	"\vConfigEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\">\n" +
-	"\x19ApplyDesiredStateResponse\x12!\n" +
+	"\adetails\x18\x03 \x01(\tR\adetails\"\xed\x01\n" +
+	"\tInventory\x12;\n" +
+	"\bidentity\x18\x01 \x01(\v2\x1f.clustercontroller.NodeIdentityR\bidentity\x127\n" +
+	"\tunix_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bunixTime\x12=\n" +
+	"\n" +
+	"components\x18\x03 \x03(\v2\x1d.nodeagent.InstalledComponentR\n" +
+	"components\x12+\n" +
+	"\x05units\x18\x04 \x03(\v2\x15.nodeagent.UnitStatusR\x05units\"\x15\n" +
+	"\x13GetInventoryRequest\"J\n" +
+	"\x14GetInventoryResponse\x122\n" +
+	"\tinventory\x18\x01 \x01(\v2\x14.nodeagent.InventoryR\tinventory\"C\n" +
+	"\x10ApplyPlanRequest\x12/\n" +
+	"\x04plan\x18\x01 \x01(\v2\x1b.clustercontroller.NodePlanR\x04plan\"6\n" +
+	"\x11ApplyPlanResponse\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\":\n" +
 	"\x15WatchOperationRequest\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\"\xc2\x01\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\"\xf6\x01\n" +
 	"\x0eOperationEvent\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12/\n" +
-	"\x05phase\x18\x02 \x01(\x0e2\x19.nodeagent.OperationPhaseR\x05phase\x12\x18\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\x127\n" +
+	"\x05phase\x18\x02 \x01(\x0e2!.clustercontroller.OperationPhaseR\x05phase\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12\x18\n" +
 	"\apercent\x18\x04 \x01(\x05R\apercent\x12\x12\n" +
 	"\x04done\x18\x05 \x01(\bR\x04done\x12\x14\n" +
-	"\x05error\x18\x06 \x01(\tR\x05error\"\xa6\x01\n" +
-	"\x17BootstrapClusterRequest\x12%\n" +
-	"\x0ecluster_domain\x18\x01 \x01(\tR\rclusterDomain\x12\x1f\n" +
-	"\vadmin_email\x18\x02 \x01(\tR\n" +
-	"adminEmail\x12\x1a\n" +
-	"\bprofiles\x18\x03 \x03(\tR\bprofiles\x12'\n" +
-	"\x0fbootstrap_token\x18\x04 \x01(\tR\x0ebootstrapToken\"W\n" +
-	"\x18BootstrapClusterResponse\x12!\n" +
-	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*k\n" +
-	"\fEnrollStatus\x12\x1d\n" +
-	"\x19ENROLL_STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eENROLL_PENDING\x10\x01\x12\x13\n" +
-	"\x0fENROLL_APPROVED\x10\x02\x12\x13\n" +
-	"\x0fENROLL_REJECTED\x10\x03*j\n" +
-	"\x0eOperationPhase\x12\x18\n" +
-	"\x14OP_PHASE_UNSPECIFIED\x10\x00\x12\r\n" +
-	"\tOP_QUEUED\x10\x01\x12\x0e\n" +
+	"\x05error\x18\x06 \x01(\tR\x05error\x12*\n" +
+	"\x02ts\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\"\x87\x01\n" +
+	"\x19BootstrapFirstNodeRequest\x12%\n" +
+	"\x0ecluster_domain\x18\x01 \x01(\tR\rclusterDomain\x12'\n" +
+	"\x0fcontroller_bind\x18\x02 \x01(\tR\x0econtrollerBind\x12\x1a\n" +
+	"\bprofiles\x18\x03 \x03(\tR\bprofiles\"x\n" +
+	"\x1aBootstrapFirstNodeResponse\x12!\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12\x1d\n" +
 	"\n" +
-	"OP_RUNNING\x10\x02\x12\x10\n" +
-	"\fOP_SUCCEEDED\x10\x03\x12\r\n" +
-	"\tOP_FAILED\x10\x042\xb0\x03\n" +
-	"\x10NodeAgentService\x12=\n" +
-	"\x06Enroll\x12\x18.nodeagent.EnrollRequest\x1a\x19.nodeagent.EnrollResponse\x12O\n" +
-	"\fGetInventory\x12\x1e.nodeagent.GetInventoryRequest\x1a\x1f.nodeagent.GetInventoryResponse\x12^\n" +
-	"\x11ApplyDesiredState\x12#.nodeagent.ApplyDesiredStateRequest\x1a$.nodeagent.ApplyDesiredStateResponse\x12O\n" +
-	"\x0eWatchOperation\x12 .nodeagent.WatchOperationRequest\x1a\x19.nodeagent.OperationEvent0\x01\x12[\n" +
-	"\x10BootstrapCluster\x12\".nodeagent.BootstrapClusterRequest\x1a#.nodeagent.BootstrapClusterResponseBIZGgithub.com/globulario/services/golang/nodeagent/nodeagentpb;nodeagentpbb\x06proto3"
+	"join_token\x18\x02 \x01(\tR\tjoinToken\x12\x18\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage2\xad\x03\n" +
+	"\x10NodeAgentService\x12L\n" +
+	"\vJoinCluster\x12\x1d.nodeagent.JoinClusterRequest\x1a\x1e.nodeagent.JoinClusterResponse\x12O\n" +
+	"\fGetInventory\x12\x1e.nodeagent.GetInventoryRequest\x1a\x1f.nodeagent.GetInventoryResponse\x12F\n" +
+	"\tApplyPlan\x12\x1b.nodeagent.ApplyPlanRequest\x1a\x1c.nodeagent.ApplyPlanResponse\x12O\n" +
+	"\x0eWatchOperation\x12 .nodeagent.WatchOperationRequest\x1a\x19.nodeagent.OperationEvent0\x01\x12a\n" +
+	"\x12BootstrapFirstNode\x12$.nodeagent.BootstrapFirstNodeRequest\x1a%.nodeagent.BootstrapFirstNodeResponseBIZGgithub.com/globulario/services/golang/nodeagent/nodeagentpb;nodeagentpbb\x06proto3"
 
 var (
 	file_node_agent_proto_rawDescOnce sync.Once
@@ -1035,49 +821,50 @@ func file_node_agent_proto_rawDescGZIP() []byte {
 	return file_node_agent_proto_rawDescData
 }
 
-var file_node_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_node_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_node_agent_proto_goTypes = []any{
-	(EnrollStatus)(0),                 // 0: nodeagent.EnrollStatus
-	(OperationPhase)(0),               // 1: nodeagent.OperationPhase
-	(*EnrollRequest)(nil),             // 2: nodeagent.EnrollRequest
-	(*EnrollResponse)(nil),            // 3: nodeagent.EnrollResponse
-	(*GetInventoryRequest)(nil),       // 4: nodeagent.GetInventoryRequest
-	(*GetInventoryResponse)(nil),      // 5: nodeagent.GetInventoryResponse
-	(*NodeInfo)(nil),                  // 6: nodeagent.NodeInfo
-	(*InstalledComponent)(nil),        // 7: nodeagent.InstalledComponent
-	(*RunningService)(nil),            // 8: nodeagent.RunningService
-	(*ApplyDesiredStateRequest)(nil),  // 9: nodeagent.ApplyDesiredStateRequest
-	(*ApplyDesiredStateResponse)(nil), // 10: nodeagent.ApplyDesiredStateResponse
-	(*WatchOperationRequest)(nil),     // 11: nodeagent.WatchOperationRequest
-	(*OperationEvent)(nil),            // 12: nodeagent.OperationEvent
-	(*BootstrapClusterRequest)(nil),   // 13: nodeagent.BootstrapClusterRequest
-	(*BootstrapClusterResponse)(nil),  // 14: nodeagent.BootstrapClusterResponse
-	nil,                               // 15: nodeagent.ApplyDesiredStateRequest.ConfigEntry
+	(*JoinClusterRequest)(nil),               // 0: nodeagent.JoinClusterRequest
+	(*JoinClusterResponse)(nil),              // 1: nodeagent.JoinClusterResponse
+	(*InstalledComponent)(nil),               // 2: nodeagent.InstalledComponent
+	(*UnitStatus)(nil),                       // 3: nodeagent.UnitStatus
+	(*Inventory)(nil),                        // 4: nodeagent.Inventory
+	(*GetInventoryRequest)(nil),              // 5: nodeagent.GetInventoryRequest
+	(*GetInventoryResponse)(nil),             // 6: nodeagent.GetInventoryResponse
+	(*ApplyPlanRequest)(nil),                 // 7: nodeagent.ApplyPlanRequest
+	(*ApplyPlanResponse)(nil),                // 8: nodeagent.ApplyPlanResponse
+	(*WatchOperationRequest)(nil),            // 9: nodeagent.WatchOperationRequest
+	(*OperationEvent)(nil),                   // 10: nodeagent.OperationEvent
+	(*BootstrapFirstNodeRequest)(nil),        // 11: nodeagent.BootstrapFirstNodeRequest
+	(*BootstrapFirstNodeResponse)(nil),       // 12: nodeagent.BootstrapFirstNodeResponse
+	(*clustercontrollerpb.NodeIdentity)(nil), // 13: clustercontroller.NodeIdentity
+	(*timestamppb.Timestamp)(nil),            // 14: google.protobuf.Timestamp
+	(*clustercontrollerpb.NodePlan)(nil),     // 15: clustercontroller.NodePlan
+	(clustercontrollerpb.OperationPhase)(0),  // 16: clustercontroller.OperationPhase
 }
 var file_node_agent_proto_depIdxs = []int32{
-	6,  // 0: nodeagent.EnrollRequest.node:type_name -> nodeagent.NodeInfo
-	0,  // 1: nodeagent.EnrollResponse.status:type_name -> nodeagent.EnrollStatus
-	6,  // 2: nodeagent.GetInventoryResponse.node:type_name -> nodeagent.NodeInfo
-	7,  // 3: nodeagent.GetInventoryResponse.components:type_name -> nodeagent.InstalledComponent
-	8,  // 4: nodeagent.GetInventoryResponse.services:type_name -> nodeagent.RunningService
-	15, // 5: nodeagent.ApplyDesiredStateRequest.config:type_name -> nodeagent.ApplyDesiredStateRequest.ConfigEntry
-	1,  // 6: nodeagent.OperationEvent.phase:type_name -> nodeagent.OperationPhase
-	2,  // 7: nodeagent.NodeAgentService.Enroll:input_type -> nodeagent.EnrollRequest
-	4,  // 8: nodeagent.NodeAgentService.GetInventory:input_type -> nodeagent.GetInventoryRequest
-	9,  // 9: nodeagent.NodeAgentService.ApplyDesiredState:input_type -> nodeagent.ApplyDesiredStateRequest
-	11, // 10: nodeagent.NodeAgentService.WatchOperation:input_type -> nodeagent.WatchOperationRequest
-	13, // 11: nodeagent.NodeAgentService.BootstrapCluster:input_type -> nodeagent.BootstrapClusterRequest
-	3,  // 12: nodeagent.NodeAgentService.Enroll:output_type -> nodeagent.EnrollResponse
-	5,  // 13: nodeagent.NodeAgentService.GetInventory:output_type -> nodeagent.GetInventoryResponse
-	10, // 14: nodeagent.NodeAgentService.ApplyDesiredState:output_type -> nodeagent.ApplyDesiredStateResponse
-	12, // 15: nodeagent.NodeAgentService.WatchOperation:output_type -> nodeagent.OperationEvent
-	14, // 16: nodeagent.NodeAgentService.BootstrapCluster:output_type -> nodeagent.BootstrapClusterResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	13, // 0: nodeagent.Inventory.identity:type_name -> clustercontroller.NodeIdentity
+	14, // 1: nodeagent.Inventory.unix_time:type_name -> google.protobuf.Timestamp
+	2,  // 2: nodeagent.Inventory.components:type_name -> nodeagent.InstalledComponent
+	3,  // 3: nodeagent.Inventory.units:type_name -> nodeagent.UnitStatus
+	4,  // 4: nodeagent.GetInventoryResponse.inventory:type_name -> nodeagent.Inventory
+	15, // 5: nodeagent.ApplyPlanRequest.plan:type_name -> clustercontroller.NodePlan
+	16, // 6: nodeagent.OperationEvent.phase:type_name -> clustercontroller.OperationPhase
+	14, // 7: nodeagent.OperationEvent.ts:type_name -> google.protobuf.Timestamp
+	0,  // 8: nodeagent.NodeAgentService.JoinCluster:input_type -> nodeagent.JoinClusterRequest
+	5,  // 9: nodeagent.NodeAgentService.GetInventory:input_type -> nodeagent.GetInventoryRequest
+	7,  // 10: nodeagent.NodeAgentService.ApplyPlan:input_type -> nodeagent.ApplyPlanRequest
+	9,  // 11: nodeagent.NodeAgentService.WatchOperation:input_type -> nodeagent.WatchOperationRequest
+	11, // 12: nodeagent.NodeAgentService.BootstrapFirstNode:input_type -> nodeagent.BootstrapFirstNodeRequest
+	1,  // 13: nodeagent.NodeAgentService.JoinCluster:output_type -> nodeagent.JoinClusterResponse
+	6,  // 14: nodeagent.NodeAgentService.GetInventory:output_type -> nodeagent.GetInventoryResponse
+	8,  // 15: nodeagent.NodeAgentService.ApplyPlan:output_type -> nodeagent.ApplyPlanResponse
+	10, // 16: nodeagent.NodeAgentService.WatchOperation:output_type -> nodeagent.OperationEvent
+	12, // 17: nodeagent.NodeAgentService.BootstrapFirstNode:output_type -> nodeagent.BootstrapFirstNodeResponse
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_node_agent_proto_init() }
@@ -1090,14 +877,13 @@ func file_node_agent_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_node_agent_proto_rawDesc), len(file_node_agent_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   14,
+			NumEnums:      0,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_node_agent_proto_goTypes,
 		DependencyIndexes: file_node_agent_proto_depIdxs,
-		EnumInfos:         file_node_agent_proto_enumTypes,
 		MessageInfos:      file_node_agent_proto_msgTypes,
 	}.Build()
 	File_node_agent_proto = out.File

@@ -298,7 +298,7 @@ func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.Ge
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "failed to connect to resource service: %v", err)
 	}
-	descriptor, err := resourceClient.GetPackageDescriptor(rqst.GetServiceId(), rqst.GetPublisherID(), rqst.GetVersion())
+	descriptor, err := resourceClient.GetPackageDescriptor(rqst.GetServiceId(), rqst.GetPublisherID(), "")
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resource GetPackageDescriptor failed: %v", err)
 	}

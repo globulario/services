@@ -8,7 +8,6 @@ GO_ROOT="$REPO_ROOT/golang"
 TS_ROOT="$REPO_ROOT/typescript"
 
 GO_TARGETS=(
-  "admin:golang/admin/adminpb"
   "resource:golang/resource/resourcepb"
   "rbac:golang/rbac/rbacpb"
   "log:golang/log/logpb"
@@ -28,9 +27,7 @@ GO_TARGETS=(
   "catalog:golang/catalog/catalogpb"
   "conversation:golang/conversation/conversationpb"
   "blog:golang/blog/blogpb"
-  "applications_manager:golang/applications_manager/applications_managerpb"
   "authentication:golang/authentication/authenticationpb"
-  "services_manager:golang/services_manager/services_managerpb"
   "title:golang/title/titlepb"
   "torrent:golang/torrent/torrentpb"
   "discovery:golang/discovery/discoverypb"
@@ -40,10 +37,7 @@ GO_TARGETS=(
 )
 
 TS_TARGETS=(
-  "applications_manager"
-  "services_manager"
   "authentication"
-  "admin"
   "resource"
   "repository"
   "discovery"

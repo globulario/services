@@ -6,117 +6,164 @@ option go_package = "github.com/globulario/services/golang/clustercontroller/clu
 
 import "google/protobuf/timestamp.proto";
 
-message NodeInfo {
+message ClusterInfo {
+  string cluster_id = 1;
+  string cluster_domain = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message NodeIdentity {
   string hostname = 1;
   string domain = 2;
   repeated string ips = 3;
   string os = 4;
   string arch = 5;
   string agent_version = 6;
-  google.protobuf.Timestamp last_seen = 7;
-  string node_id = 8;
-  string agent_endpoint = 9;
-  string platform = 10;
 }
 
-message EnrollRequest {
+message NodeRecord {
+  string node_id = 1;
+  NodeIdentity identity = 2;
+  google.protobuf.Timestamp last_seen = 3;
+  string status = 4;
+  repeated string profiles = 5;
+  map<string,string> metadata = 6;
+}
+
+message CreateJoinTokenRequest {
+  google.protobuf.Timestamp expires_at = 1;
+}
+message CreateJoinTokenResponse {
   string join_token = 1;
-  NodeInfo node = 2;
+  google.protobuf.Timestamp expires_at = 2;
 }
 
-message EnrollResponse {
+message RequestJoinRequest {
+  string join_token = 1;
+  NodeIdentity identity = 2;
+  map<string,string> labels = 3;
+}
+message RequestJoinResponse {
   string node_id = 1;
   string status = 2;
   string message = 3;
-  string operation_id = 4;
-}
-
-message JoinRequest {
-  string node_id = 1;
-  NodeInfo node = 2;
-  string requested_at = 3;
-  string status = 4;
 }
 
 message ListJoinRequestsRequest {}
-message ListJoinRequestsResponse { repeated JoinRequest joins = 1; }
+message ListJoinRequestsResponse {
+  repeated NodeRecord pending = 1;
+}
 
-message ApproveNodeRequest {
+message ApproveJoinRequest {
   string node_id = 1;
   repeated string profiles = 2;
   map<string,string> metadata = 3;
 }
-
-message ApproveNodeResponse {
+message ApproveJoinResponse {
   string node_id = 1;
   string message = 2;
 }
 
-message RejectNodeRequest {
+message RejectJoinRequest {
   string node_id = 1;
   string reason = 2;
 }
-
-message RejectNodeResponse {
+message RejectJoinResponse {
   string node_id = 1;
   string message = 2;
 }
 
-message NodeSubject {
-  string node_id = 1;
-  string hostname = 2;
-  string domain = 3;
-  string status = 4;
-  repeated string profiles = 5;
-  string agent_endpoint = 6;
-  string platform = 7;
-}
-
 message ListNodesRequest {}
-message ListNodesResponse { repeated NodeSubject nodes = 1; }
+message ListNodesResponse {
+  repeated NodeRecord nodes = 1;
+}
 
 message SetNodeProfilesRequest {
   string node_id = 1;
   repeated string profiles = 2;
 }
-
 message SetNodeProfilesResponse {
   string operation_id = 1;
 }
 
-message OperationPhase {
-  enum Phase {
-    UNKNOWN = 0;
-    QUEUED = 1;
-    RUNNING = 2;
-    SUCCEEDED = 3;
-    FAILED = 4;
-  }
+enum ArtifactKind {
+  ARTIFACT_KIND_UNSPECIFIED = 0;
+  ARTIFACT_SERVICE = 1;
+  ARTIFACT_APPLICATION = 2;
+  ARTIFACT_SUBSYSTEM = 3;
 }
 
-message WatchNodeOperationsRequest {
+message ArtifactRef {
+  ArtifactKind kind = 1;
+  string name = 2;
+  string publisher = 3;
+  string version = 4;
+  string discovery_id = 5;
+}
+
+message UnitAction {
+  string unit_name = 1;
+  string action = 2;
+}
+
+message NodePlan {
   string node_id = 1;
-  string operation_id = 2;
+  repeated string profiles = 2;
+  repeated ArtifactRef ensure_installed = 3;
+  repeated UnitAction unit_actions = 4;
+  map<string,string> rendered_config = 5;
+}
+
+message GetNodePlanRequest {
+  string node_id = 1;
+}
+message GetNodePlanResponse {
+  NodePlan plan = 1;
+}
+
+message StartApplyRequest {
+  string node_id = 1;
+}
+message StartApplyResponse {
+  string operation_id = 1;
+}
+
+enum OperationPhase {
+  OP_PHASE_UNSPECIFIED = 0;
+  OP_QUEUED = 1;
+  OP_RUNNING = 2;
+  OP_SUCCEEDED = 3;
+  OP_FAILED = 4;
 }
 
 message OperationEvent {
   string operation_id = 1;
-  OperationPhase.Phase phase = 2;
-  string message = 3;
-  int32 percent = 4;
-  bool done = 5;
-  string node_id = 6;
+  string node_id = 2;
+  OperationPhase phase = 3;
+  string message = 4;
+  int32 percent = 5;
+  bool done = 6;
   string error = 7;
+  google.protobuf.Timestamp ts = 8;
+}
+
+message WatchOperationsRequest {
+  string node_id = 1;
+  string operation_id = 2;
 }
 
 service ClusterControllerService {
-  rpc Enroll(EnrollRequest) returns (EnrollResponse);
-  rpc ListJoinRequests(ListJoinRequestsRequest) returns (stream JoinRequest);
-  rpc GetJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
-  rpc ApproveNode(ApproveNodeRequest) returns (ApproveNodeResponse);
-  rpc RejectNode(RejectNodeRequest) returns (RejectNodeResponse);
-  rpc ListNodes(ListNodesRequest) returns (stream NodeSubject);
-  rpc GetNodes(ListNodesRequest) returns (ListNodesResponse);
+  rpc GetClusterInfo(google.protobuf.Timestamp) returns (ClusterInfo);
+
+  rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);
+  rpc RequestJoin(RequestJoinRequest) returns (RequestJoinResponse);
+  rpc ListJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
+  rpc ApproveJoin(ApproveJoinRequest) returns (ApproveJoinResponse);
+  rpc RejectJoin(RejectJoinRequest) returns (RejectJoinResponse);
+
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
-  rpc WatchNodeOperations(WatchNodeOperationsRequest) returns (stream OperationEvent);
+  rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
+
+  rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
 }

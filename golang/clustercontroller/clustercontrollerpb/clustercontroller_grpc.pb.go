@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,30 +20,32 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClusterControllerService_Enroll_FullMethodName              = "/clustercontroller.ClusterControllerService/Enroll"
-	ClusterControllerService_ListJoinRequests_FullMethodName    = "/clustercontroller.ClusterControllerService/ListJoinRequests"
-	ClusterControllerService_GetJoinRequests_FullMethodName     = "/clustercontroller.ClusterControllerService/GetJoinRequests"
-	ClusterControllerService_ApproveNode_FullMethodName         = "/clustercontroller.ClusterControllerService/ApproveNode"
-	ClusterControllerService_RejectNode_FullMethodName          = "/clustercontroller.ClusterControllerService/RejectNode"
-	ClusterControllerService_ListNodes_FullMethodName           = "/clustercontroller.ClusterControllerService/ListNodes"
-	ClusterControllerService_GetNodes_FullMethodName            = "/clustercontroller.ClusterControllerService/GetNodes"
-	ClusterControllerService_SetNodeProfiles_FullMethodName     = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
-	ClusterControllerService_WatchNodeOperations_FullMethodName = "/clustercontroller.ClusterControllerService/WatchNodeOperations"
+	ClusterControllerService_GetClusterInfo_FullMethodName   = "/clustercontroller.ClusterControllerService/GetClusterInfo"
+	ClusterControllerService_CreateJoinToken_FullMethodName  = "/clustercontroller.ClusterControllerService/CreateJoinToken"
+	ClusterControllerService_RequestJoin_FullMethodName      = "/clustercontroller.ClusterControllerService/RequestJoin"
+	ClusterControllerService_ListJoinRequests_FullMethodName = "/clustercontroller.ClusterControllerService/ListJoinRequests"
+	ClusterControllerService_ApproveJoin_FullMethodName      = "/clustercontroller.ClusterControllerService/ApproveJoin"
+	ClusterControllerService_RejectJoin_FullMethodName       = "/clustercontroller.ClusterControllerService/RejectJoin"
+	ClusterControllerService_ListNodes_FullMethodName        = "/clustercontroller.ClusterControllerService/ListNodes"
+	ClusterControllerService_SetNodeProfiles_FullMethodName  = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_GetNodePlan_FullMethodName      = "/clustercontroller.ClusterControllerService/GetNodePlan"
+	ClusterControllerService_WatchOperations_FullMethodName  = "/clustercontroller.ClusterControllerService/WatchOperations"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ClusterControllerServiceClient interface {
-	Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error)
-	ListJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JoinRequest], error)
-	GetJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (*ListJoinRequestsResponse, error)
-	ApproveNode(ctx context.Context, in *ApproveNodeRequest, opts ...grpc.CallOption) (*ApproveNodeResponse, error)
-	RejectNode(ctx context.Context, in *RejectNodeRequest, opts ...grpc.CallOption) (*RejectNodeResponse, error)
-	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NodeSubject], error)
-	GetNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
+	GetClusterInfo(ctx context.Context, in *timestamppb.Timestamp, opts ...grpc.CallOption) (*ClusterInfo, error)
+	CreateJoinToken(ctx context.Context, in *CreateJoinTokenRequest, opts ...grpc.CallOption) (*CreateJoinTokenResponse, error)
+	RequestJoin(ctx context.Context, in *RequestJoinRequest, opts ...grpc.CallOption) (*RequestJoinResponse, error)
+	ListJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (*ListJoinRequestsResponse, error)
+	ApproveJoin(ctx context.Context, in *ApproveJoinRequest, opts ...grpc.CallOption) (*ApproveJoinResponse, error)
+	RejectJoin(ctx context.Context, in *RejectJoinRequest, opts ...grpc.CallOption) (*RejectJoinResponse, error)
+	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
-	WatchNodeOperations(ctx context.Context, in *WatchNodeOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
+	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
+	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 }
 
 type clusterControllerServiceClient struct {
@@ -53,88 +56,70 @@ func NewClusterControllerServiceClient(cc grpc.ClientConnInterface) ClusterContr
 	return &clusterControllerServiceClient{cc}
 }
 
-func (c *clusterControllerServiceClient) Enroll(ctx context.Context, in *EnrollRequest, opts ...grpc.CallOption) (*EnrollResponse, error) {
+func (c *clusterControllerServiceClient) GetClusterInfo(ctx context.Context, in *timestamppb.Timestamp, opts ...grpc.CallOption) (*ClusterInfo, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EnrollResponse)
-	err := c.cc.Invoke(ctx, ClusterControllerService_Enroll_FullMethodName, in, out, cOpts...)
+	out := new(ClusterInfo)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetClusterInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *clusterControllerServiceClient) ListJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[JoinRequest], error) {
+func (c *clusterControllerServiceClient) CreateJoinToken(ctx context.Context, in *CreateJoinTokenRequest, opts ...grpc.CallOption) (*CreateJoinTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_ListJoinRequests_FullMethodName, cOpts...)
+	out := new(CreateJoinTokenResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_CreateJoinToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ListJoinRequestsRequest, JoinRequest]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
 
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_ListJoinRequestsClient = grpc.ServerStreamingClient[JoinRequest]
+func (c *clusterControllerServiceClient) RequestJoin(ctx context.Context, in *RequestJoinRequest, opts ...grpc.CallOption) (*RequestJoinResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestJoinResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RequestJoin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
-func (c *clusterControllerServiceClient) GetJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (*ListJoinRequestsResponse, error) {
+func (c *clusterControllerServiceClient) ListJoinRequests(ctx context.Context, in *ListJoinRequestsRequest, opts ...grpc.CallOption) (*ListJoinRequestsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListJoinRequestsResponse)
-	err := c.cc.Invoke(ctx, ClusterControllerService_GetJoinRequests_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListJoinRequests_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *clusterControllerServiceClient) ApproveNode(ctx context.Context, in *ApproveNodeRequest, opts ...grpc.CallOption) (*ApproveNodeResponse, error) {
+func (c *clusterControllerServiceClient) ApproveJoin(ctx context.Context, in *ApproveJoinRequest, opts ...grpc.CallOption) (*ApproveJoinResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ApproveNodeResponse)
-	err := c.cc.Invoke(ctx, ClusterControllerService_ApproveNode_FullMethodName, in, out, cOpts...)
+	out := new(ApproveJoinResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApproveJoin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *clusterControllerServiceClient) RejectNode(ctx context.Context, in *RejectNodeRequest, opts ...grpc.CallOption) (*RejectNodeResponse, error) {
+func (c *clusterControllerServiceClient) RejectJoin(ctx context.Context, in *RejectJoinRequest, opts ...grpc.CallOption) (*RejectJoinResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RejectNodeResponse)
-	err := c.cc.Invoke(ctx, ClusterControllerService_RejectNode_FullMethodName, in, out, cOpts...)
+	out := new(RejectJoinResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RejectJoin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *clusterControllerServiceClient) ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[NodeSubject], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[1], ClusterControllerService_ListNodes_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[ListNodesRequest, NodeSubject]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_ListNodesClient = grpc.ServerStreamingClient[NodeSubject]
-
-func (c *clusterControllerServiceClient) GetNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error) {
+func (c *clusterControllerServiceClient) ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListNodesResponse)
-	err := c.cc.Invoke(ctx, ClusterControllerService_GetNodes_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ListNodes_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +136,23 @@ func (c *clusterControllerServiceClient) SetNodeProfiles(ctx context.Context, in
 	return out, nil
 }
 
-func (c *clusterControllerServiceClient) WatchNodeOperations(ctx context.Context, in *WatchNodeOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
+func (c *clusterControllerServiceClient) GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[2], ClusterControllerService_WatchNodeOperations_FullMethodName, cOpts...)
+	out := new(GetNodePlanResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetNodePlan_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[WatchNodeOperationsRequest, OperationEvent]{ClientStream: stream}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_WatchOperations_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchOperationsRequest, OperationEvent]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -168,21 +163,22 @@ func (c *clusterControllerServiceClient) WatchNodeOperations(ctx context.Context
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_WatchNodeOperationsClient = grpc.ServerStreamingClient[OperationEvent]
+type ClusterControllerService_WatchOperationsClient = grpc.ServerStreamingClient[OperationEvent]
 
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
 type ClusterControllerServiceServer interface {
-	Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error)
-	ListJoinRequests(*ListJoinRequestsRequest, grpc.ServerStreamingServer[JoinRequest]) error
-	GetJoinRequests(context.Context, *ListJoinRequestsRequest) (*ListJoinRequestsResponse, error)
-	ApproveNode(context.Context, *ApproveNodeRequest) (*ApproveNodeResponse, error)
-	RejectNode(context.Context, *RejectNodeRequest) (*RejectNodeResponse, error)
-	ListNodes(*ListNodesRequest, grpc.ServerStreamingServer[NodeSubject]) error
-	GetNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
+	GetClusterInfo(context.Context, *timestamppb.Timestamp) (*ClusterInfo, error)
+	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
+	RequestJoin(context.Context, *RequestJoinRequest) (*RequestJoinResponse, error)
+	ListJoinRequests(context.Context, *ListJoinRequestsRequest) (*ListJoinRequestsResponse, error)
+	ApproveJoin(context.Context, *ApproveJoinRequest) (*ApproveJoinResponse, error)
+	RejectJoin(context.Context, *RejectJoinRequest) (*RejectJoinResponse, error)
+	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
-	WatchNodeOperations(*WatchNodeOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
+	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
+	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -192,32 +188,35 @@ type ClusterControllerServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedClusterControllerServiceServer struct{}
 
-func (UnimplementedClusterControllerServiceServer) Enroll(context.Context, *EnrollRequest) (*EnrollResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Enroll not implemented")
+func (UnimplementedClusterControllerServiceServer) GetClusterInfo(context.Context, *timestamppb.Timestamp) (*ClusterInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterInfo not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) ListJoinRequests(*ListJoinRequestsRequest, grpc.ServerStreamingServer[JoinRequest]) error {
-	return status.Errorf(codes.Unimplemented, "method ListJoinRequests not implemented")
+func (UnimplementedClusterControllerServiceServer) CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateJoinToken not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) GetJoinRequests(context.Context, *ListJoinRequestsRequest) (*ListJoinRequestsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetJoinRequests not implemented")
+func (UnimplementedClusterControllerServiceServer) RequestJoin(context.Context, *RequestJoinRequest) (*RequestJoinResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestJoin not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) ApproveNode(context.Context, *ApproveNodeRequest) (*ApproveNodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ApproveNode not implemented")
+func (UnimplementedClusterControllerServiceServer) ListJoinRequests(context.Context, *ListJoinRequestsRequest) (*ListJoinRequestsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListJoinRequests not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) RejectNode(context.Context, *RejectNodeRequest) (*RejectNodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RejectNode not implemented")
+func (UnimplementedClusterControllerServiceServer) ApproveJoin(context.Context, *ApproveJoinRequest) (*ApproveJoinResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApproveJoin not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) ListNodes(*ListNodesRequest, grpc.ServerStreamingServer[NodeSubject]) error {
-	return status.Errorf(codes.Unimplemented, "method ListNodes not implemented")
+func (UnimplementedClusterControllerServiceServer) RejectJoin(context.Context, *RejectJoinRequest) (*RejectJoinResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RejectJoin not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) GetNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
+func (UnimplementedClusterControllerServiceServer) ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListNodes not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetNodeProfiles not implemented")
 }
-func (UnimplementedClusterControllerServiceServer) WatchNodeOperations(*WatchNodeOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
-	return status.Errorf(codes.Unimplemented, "method WatchNodeOperations not implemented")
+func (UnimplementedClusterControllerServiceServer) GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodePlan not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
+	return status.Errorf(codes.Unimplemented, "method WatchOperations not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -239,114 +238,128 @@ func RegisterClusterControllerServiceServer(s grpc.ServiceRegistrar, srv Cluster
 	s.RegisterService(&ClusterControllerService_ServiceDesc, srv)
 }
 
-func _ClusterControllerService_Enroll_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EnrollRequest)
+func _ClusterControllerService_GetClusterInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(timestamppb.Timestamp)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).Enroll(ctx, in)
+		return srv.(ClusterControllerServiceServer).GetClusterInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterControllerService_Enroll_FullMethodName,
+		FullMethod: ClusterControllerService_GetClusterInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).Enroll(ctx, req.(*EnrollRequest))
+		return srv.(ClusterControllerServiceServer).GetClusterInfo(ctx, req.(*timestamppb.Timestamp))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterControllerService_ListJoinRequests_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ListJoinRequestsRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _ClusterControllerService_CreateJoinToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateJoinTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(ClusterControllerServiceServer).ListJoinRequests(m, &grpc.GenericServerStream[ListJoinRequestsRequest, JoinRequest]{ServerStream: stream})
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).CreateJoinToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_CreateJoinToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).CreateJoinToken(ctx, req.(*CreateJoinTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_ListJoinRequestsServer = grpc.ServerStreamingServer[JoinRequest]
+func _ClusterControllerService_RequestJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestJoinRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RequestJoin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RequestJoin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RequestJoin(ctx, req.(*RequestJoinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
-func _ClusterControllerService_GetJoinRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ClusterControllerService_ListJoinRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListJoinRequestsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).GetJoinRequests(ctx, in)
+		return srv.(ClusterControllerServiceServer).ListJoinRequests(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterControllerService_GetJoinRequests_FullMethodName,
+		FullMethod: ClusterControllerService_ListJoinRequests_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).GetJoinRequests(ctx, req.(*ListJoinRequestsRequest))
+		return srv.(ClusterControllerServiceServer).ListJoinRequests(ctx, req.(*ListJoinRequestsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterControllerService_ApproveNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ApproveNodeRequest)
+func _ClusterControllerService_ApproveJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveJoinRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).ApproveNode(ctx, in)
+		return srv.(ClusterControllerServiceServer).ApproveJoin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterControllerService_ApproveNode_FullMethodName,
+		FullMethod: ClusterControllerService_ApproveJoin_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).ApproveNode(ctx, req.(*ApproveNodeRequest))
+		return srv.(ClusterControllerServiceServer).ApproveJoin(ctx, req.(*ApproveJoinRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterControllerService_RejectNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RejectNodeRequest)
+func _ClusterControllerService_RejectJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectJoinRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).RejectNode(ctx, in)
+		return srv.(ClusterControllerServiceServer).RejectJoin(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterControllerService_RejectNode_FullMethodName,
+		FullMethod: ClusterControllerService_RejectJoin_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).RejectNode(ctx, req.(*RejectNodeRequest))
+		return srv.(ClusterControllerServiceServer).RejectJoin(ctx, req.(*RejectJoinRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterControllerService_ListNodes_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ListNodesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ClusterControllerServiceServer).ListNodes(m, &grpc.GenericServerStream[ListNodesRequest, NodeSubject]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_ListNodesServer = grpc.ServerStreamingServer[NodeSubject]
-
-func _ClusterControllerService_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ClusterControllerService_ListNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListNodesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).GetNodes(ctx, in)
+		return srv.(ClusterControllerServiceServer).ListNodes(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterControllerService_GetNodes_FullMethodName,
+		FullMethod: ClusterControllerService_ListNodes_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).GetNodes(ctx, req.(*ListNodesRequest))
+		return srv.(ClusterControllerServiceServer).ListNodes(ctx, req.(*ListNodesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -369,16 +382,34 @@ func _ClusterControllerService_SetNodeProfiles_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterControllerService_WatchNodeOperations_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WatchNodeOperationsRequest)
+func _ClusterControllerService_GetNodePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodePlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetNodePlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetNodePlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetNodePlan(ctx, req.(*GetNodePlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_WatchOperations_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchOperationsRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ClusterControllerServiceServer).WatchNodeOperations(m, &grpc.GenericServerStream[WatchNodeOperationsRequest, OperationEvent]{ServerStream: stream})
+	return srv.(ClusterControllerServiceServer).WatchOperations(m, &grpc.GenericServerStream[WatchOperationsRequest, OperationEvent]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterControllerService_WatchNodeOperationsServer = grpc.ServerStreamingServer[OperationEvent]
+type ClusterControllerService_WatchOperationsServer = grpc.ServerStreamingServer[OperationEvent]
 
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -388,44 +419,46 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ClusterControllerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Enroll",
-			Handler:    _ClusterControllerService_Enroll_Handler,
+			MethodName: "GetClusterInfo",
+			Handler:    _ClusterControllerService_GetClusterInfo_Handler,
 		},
 		{
-			MethodName: "GetJoinRequests",
-			Handler:    _ClusterControllerService_GetJoinRequests_Handler,
+			MethodName: "CreateJoinToken",
+			Handler:    _ClusterControllerService_CreateJoinToken_Handler,
 		},
 		{
-			MethodName: "ApproveNode",
-			Handler:    _ClusterControllerService_ApproveNode_Handler,
+			MethodName: "RequestJoin",
+			Handler:    _ClusterControllerService_RequestJoin_Handler,
 		},
 		{
-			MethodName: "RejectNode",
-			Handler:    _ClusterControllerService_RejectNode_Handler,
+			MethodName: "ListJoinRequests",
+			Handler:    _ClusterControllerService_ListJoinRequests_Handler,
 		},
 		{
-			MethodName: "GetNodes",
-			Handler:    _ClusterControllerService_GetNodes_Handler,
+			MethodName: "ApproveJoin",
+			Handler:    _ClusterControllerService_ApproveJoin_Handler,
+		},
+		{
+			MethodName: "RejectJoin",
+			Handler:    _ClusterControllerService_RejectJoin_Handler,
+		},
+		{
+			MethodName: "ListNodes",
+			Handler:    _ClusterControllerService_ListNodes_Handler,
 		},
 		{
 			MethodName: "SetNodeProfiles",
 			Handler:    _ClusterControllerService_SetNodeProfiles_Handler,
 		},
+		{
+			MethodName: "GetNodePlan",
+			Handler:    _ClusterControllerService_GetNodePlan_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "ListJoinRequests",
-			Handler:       _ClusterControllerService_ListJoinRequests_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "ListNodes",
-			Handler:       _ClusterControllerService_ListNodes_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "WatchNodeOperations",
-			Handler:       _ClusterControllerService_WatchNodeOperations_Handler,
+			StreamName:    "WatchOperations",
+			Handler:       _ClusterControllerService_WatchOperations_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -19,6 +19,10 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
+
+var clustercontroller_pb = require('./clustercontroller_pb.js')
 const proto = {};
 proto.nodeagent = require('./node_agent_pb.js');
 
@@ -77,61 +81,61 @@ proto.nodeagent.NodeAgentServicePromiseClient =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.nodeagent.EnrollRequest,
- *   !proto.nodeagent.EnrollResponse>}
+ *   !proto.nodeagent.JoinClusterRequest,
+ *   !proto.nodeagent.JoinClusterResponse>}
  */
-const methodDescriptor_NodeAgentService_Enroll = new grpc.web.MethodDescriptor(
-  '/nodeagent.NodeAgentService/Enroll',
+const methodDescriptor_NodeAgentService_JoinCluster = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/JoinCluster',
   grpc.web.MethodType.UNARY,
-  proto.nodeagent.EnrollRequest,
-  proto.nodeagent.EnrollResponse,
+  proto.nodeagent.JoinClusterRequest,
+  proto.nodeagent.JoinClusterResponse,
   /**
-   * @param {!proto.nodeagent.EnrollRequest} request
+   * @param {!proto.nodeagent.JoinClusterRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.nodeagent.EnrollResponse.deserializeBinary
+  proto.nodeagent.JoinClusterResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.nodeagent.EnrollRequest} request The
+ * @param {!proto.nodeagent.JoinClusterRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.nodeagent.EnrollResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.nodeagent.JoinClusterResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.EnrollResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.JoinClusterResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.nodeagent.NodeAgentServiceClient.prototype.enroll =
+proto.nodeagent.NodeAgentServiceClient.prototype.joinCluster =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/Enroll',
+      '/nodeagent.NodeAgentService/JoinCluster',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_Enroll,
+      methodDescriptor_NodeAgentService_JoinCluster,
       callback);
 };
 
 
 /**
- * @param {!proto.nodeagent.EnrollRequest} request The
+ * @param {!proto.nodeagent.JoinClusterRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.nodeagent.EnrollResponse>}
+ * @return {!Promise<!proto.nodeagent.JoinClusterResponse>}
  *     Promise that resolves to the response
  */
-proto.nodeagent.NodeAgentServicePromiseClient.prototype.enroll =
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.joinCluster =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/Enroll',
+      '/nodeagent.NodeAgentService/JoinCluster',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_Enroll);
+      methodDescriptor_NodeAgentService_JoinCluster);
 };
 
 
@@ -199,61 +203,61 @@ proto.nodeagent.NodeAgentServicePromiseClient.prototype.getInventory =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.nodeagent.ApplyDesiredStateRequest,
- *   !proto.nodeagent.ApplyDesiredStateResponse>}
+ *   !proto.nodeagent.ApplyPlanRequest,
+ *   !proto.nodeagent.ApplyPlanResponse>}
  */
-const methodDescriptor_NodeAgentService_ApplyDesiredState = new grpc.web.MethodDescriptor(
-  '/nodeagent.NodeAgentService/ApplyDesiredState',
+const methodDescriptor_NodeAgentService_ApplyPlan = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/ApplyPlan',
   grpc.web.MethodType.UNARY,
-  proto.nodeagent.ApplyDesiredStateRequest,
-  proto.nodeagent.ApplyDesiredStateResponse,
+  proto.nodeagent.ApplyPlanRequest,
+  proto.nodeagent.ApplyPlanResponse,
   /**
-   * @param {!proto.nodeagent.ApplyDesiredStateRequest} request
+   * @param {!proto.nodeagent.ApplyPlanRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.nodeagent.ApplyDesiredStateResponse.deserializeBinary
+  proto.nodeagent.ApplyPlanResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.nodeagent.ApplyDesiredStateRequest} request The
+ * @param {!proto.nodeagent.ApplyPlanRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.nodeagent.ApplyDesiredStateResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.nodeagent.ApplyPlanResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.ApplyDesiredStateResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.ApplyPlanResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.nodeagent.NodeAgentServiceClient.prototype.applyDesiredState =
+proto.nodeagent.NodeAgentServiceClient.prototype.applyPlan =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/ApplyDesiredState',
+      '/nodeagent.NodeAgentService/ApplyPlan',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_ApplyDesiredState,
+      methodDescriptor_NodeAgentService_ApplyPlan,
       callback);
 };
 
 
 /**
- * @param {!proto.nodeagent.ApplyDesiredStateRequest} request The
+ * @param {!proto.nodeagent.ApplyPlanRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.nodeagent.ApplyDesiredStateResponse>}
+ * @return {!Promise<!proto.nodeagent.ApplyPlanResponse>}
  *     Promise that resolves to the response
  */
-proto.nodeagent.NodeAgentServicePromiseClient.prototype.applyDesiredState =
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.applyPlan =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/ApplyDesiredState',
+      '/nodeagent.NodeAgentService/ApplyPlan',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_ApplyDesiredState);
+      methodDescriptor_NodeAgentService_ApplyPlan);
 };
 
 
@@ -316,61 +320,61 @@ proto.nodeagent.NodeAgentServicePromiseClient.prototype.watchOperation =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.nodeagent.BootstrapClusterRequest,
- *   !proto.nodeagent.BootstrapClusterResponse>}
+ *   !proto.nodeagent.BootstrapFirstNodeRequest,
+ *   !proto.nodeagent.BootstrapFirstNodeResponse>}
  */
-const methodDescriptor_NodeAgentService_BootstrapCluster = new grpc.web.MethodDescriptor(
-  '/nodeagent.NodeAgentService/BootstrapCluster',
+const methodDescriptor_NodeAgentService_BootstrapFirstNode = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/BootstrapFirstNode',
   grpc.web.MethodType.UNARY,
-  proto.nodeagent.BootstrapClusterRequest,
-  proto.nodeagent.BootstrapClusterResponse,
+  proto.nodeagent.BootstrapFirstNodeRequest,
+  proto.nodeagent.BootstrapFirstNodeResponse,
   /**
-   * @param {!proto.nodeagent.BootstrapClusterRequest} request
+   * @param {!proto.nodeagent.BootstrapFirstNodeRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.nodeagent.BootstrapClusterResponse.deserializeBinary
+  proto.nodeagent.BootstrapFirstNodeResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.nodeagent.BootstrapClusterRequest} request The
+ * @param {!proto.nodeagent.BootstrapFirstNodeRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.nodeagent.BootstrapClusterResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.nodeagent.BootstrapFirstNodeResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.BootstrapClusterResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.BootstrapFirstNodeResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.nodeagent.NodeAgentServiceClient.prototype.bootstrapCluster =
+proto.nodeagent.NodeAgentServiceClient.prototype.bootstrapFirstNode =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/BootstrapCluster',
+      '/nodeagent.NodeAgentService/BootstrapFirstNode',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_BootstrapCluster,
+      methodDescriptor_NodeAgentService_BootstrapFirstNode,
       callback);
 };
 
 
 /**
- * @param {!proto.nodeagent.BootstrapClusterRequest} request The
+ * @param {!proto.nodeagent.BootstrapFirstNodeRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.nodeagent.BootstrapClusterResponse>}
+ * @return {!Promise<!proto.nodeagent.BootstrapFirstNodeResponse>}
  *     Promise that resolves to the response
  */
-proto.nodeagent.NodeAgentServicePromiseClient.prototype.bootstrapCluster =
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.bootstrapFirstNode =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/nodeagent.NodeAgentService/BootstrapCluster',
+      '/nodeagent.NodeAgentService/BootstrapFirstNode',
       request,
       metadata || {},
-      methodDescriptor_NodeAgentService_BootstrapCluster);
+      methodDescriptor_NodeAgentService_BootstrapFirstNode);
 };
 
 
