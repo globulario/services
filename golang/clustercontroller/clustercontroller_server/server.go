@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,16 +19,34 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const (
+	agentIdleTimeoutDefault = 5 * time.Minute
+	agentCleanupInterval    = 1 * time.Minute
+	joinRequestRetention    = 72 * time.Hour
+	pendingJoinRetention    = 7 * 24 * time.Hour
+	statePersistInterval    = 5 * time.Second
+	statusGracePeriod       = 2 * time.Minute
+)
+
 type server struct {
 	clustercontrollerpb.UnimplementedClusterControllerServiceServer
 
-	cfg          *clusterControllerConfig
-	cfgPath      string
-	statePath    string
-	state        *controllerState
-	mu           sync.Mutex
-	agentMu      sync.Mutex
-	agentClients map[string]*agentClient
+	cfg              *clusterControllerConfig
+	cfgPath          string
+	statePath        string
+	state            *controllerState
+	mu               sync.Mutex
+	agentMu          sync.Mutex
+	agentClients     map[string]*agentClient
+	agentInsecure    bool
+	agentIdleTimeout time.Duration
+	agentCAPath      string
+	lastStateSave    time.Time
+	agentServerName  string
+	opMu             sync.Mutex
+	operations       map[string]*operationState
+	watchMu          sync.Mutex
+	watchers         map[*operationWatcher]struct{}
 }
 
 func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState) *server {
@@ -34,20 +56,36 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	if statePath == "" {
 		statePath = defaultClusterStatePath
 	}
+	agentCAPath := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_CA"))
+	serverName := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_SERVER_NAME"))
 	return &server{
-		cfg:          cfg,
-		cfgPath:      cfgPath,
-		statePath:    statePath,
-		state:        state,
-		agentClients: make(map[string]*agentClient),
+		cfg:              cfg,
+		cfgPath:          cfgPath,
+		statePath:        statePath,
+		state:            state,
+		agentClients:     make(map[string]*agentClient),
+		agentInsecure:    strings.EqualFold(os.Getenv("CLUSTER_INSECURE_AGENT_GRPC"), "true"),
+		agentIdleTimeout: agentIdleTimeoutDefault,
+		agentCAPath:      agentCAPath,
+		agentServerName:  serverName,
+		operations:       make(map[string]*operationState),
+		watchers:         make(map[*operationWatcher]struct{}),
 	}
 }
 
 func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestamp) (*clustercontrollerpb.ClusterInfo, error) {
+	created := srv.state.CreatedAt
+	if created.IsZero() {
+		created = time.Now()
+	}
+	clusterID := srv.state.ClusterId
+	if clusterID == "" {
+		clusterID = srv.cfg.ClusterDomain
+	}
 	info := &clustercontrollerpb.ClusterInfo{
 		ClusterDomain: srv.cfg.ClusterDomain,
-		ClusterId:     srv.cfg.ClusterDomain,
-		CreatedAt:     timestamppb.Now(),
+		ClusterId:     clusterID,
+		CreatedAt:     timestamppb.New(created),
 	}
 	return info, nil
 }
@@ -65,7 +103,7 @@ func (srv *server) CreateJoinToken(ctx context.Context, req *clustercontrollerpb
 		ExpiresAt: expiresAt,
 		MaxUses:   1,
 	}
-	if err := srv.state.save(srv.statePath); err != nil {
+	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist token: %v", err)
 	}
 	return &clustercontrollerpb.CreateJoinTokenResponse{
@@ -101,7 +139,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *clustercontrollerpb.Req
 		RequestedAt: time.Now(),
 		Status:      "pending",
 	}
-	if err := srv.state.save(srv.statePath); err != nil {
+	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
 	}
 	return &clustercontrollerpb.RequestJoinResponse{
@@ -115,27 +153,42 @@ func (srv *server) ListJoinRequests(ctx context.Context, req *clustercontrollerp
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	resp := &clustercontrollerpb.ListJoinRequestsResponse{}
+	pending := make([]*joinRequestRecord, 0, len(srv.state.JoinRequests))
 	for _, jr := range srv.state.JoinRequests {
 		if jr.Status != "pending" {
 			continue
 		}
-		resp.Pending = append(resp.Pending, &clustercontrollerpb.NodeRecord{
-			NodeId:   jr.RequestID,
-			Identity: storedIdentityToProto(jr.Identity),
-			Status:   jr.Status,
-			Metadata: jr.Labels,
+		pending = append(pending, jr)
+	}
+	sort.Slice(pending, func(i, j int) bool {
+		return pending[i].RequestedAt.Before(pending[j].RequestedAt)
+	})
+	for _, jr := range pending {
+		resp.Pending = append(resp.Pending, &clustercontrollerpb.JoinRequestRecord{
+			RequestId: jr.RequestID,
+			Identity:  storedIdentityToProto(jr.Identity),
+			Status:    jr.Status,
+			Profiles:  append([]string(nil), jr.Profiles...),
+			Metadata:  copyLabels(jr.Labels),
 		})
 	}
 	return resp, nil
 }
 
 func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.ApproveJoinRequest) (*clustercontrollerpb.ApproveJoinResponse, error) {
-	if req == nil || req.GetNodeId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "node_id (request id) is required")
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	reqID := strings.TrimSpace(req.GetRequestId())
+	if reqID == "" {
+		reqID = strings.TrimSpace(req.GetNodeId())
+	}
+	if reqID == "" {
+		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	jr := srv.state.JoinRequests[req.GetNodeId()]
+	jr := srv.state.JoinRequests[reqID]
 	if jr == nil {
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
@@ -155,10 +208,10 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 		Identity: jr.Identity,
 		Profiles: append([]string(nil), profiles...),
 		LastSeen: time.Now(),
-		Status:   "ready",
+		Status:   "converging",
 		Metadata: copyLabels(jr.Labels),
 	}
-	if err := srv.state.save(srv.statePath); err != nil {
+	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node state: %v", err)
 	}
 	return &clustercontrollerpb.ApproveJoinResponse{
@@ -168,12 +221,19 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 }
 
 func (srv *server) RejectJoin(ctx context.Context, req *clustercontrollerpb.RejectJoinRequest) (*clustercontrollerpb.RejectJoinResponse, error) {
-	if req == nil || req.GetNodeId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "node_id (request id) is required")
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	reqID := strings.TrimSpace(req.GetRequestId())
+	if reqID == "" {
+		reqID = strings.TrimSpace(req.GetNodeId())
+	}
+	if reqID == "" {
+		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	jr := srv.state.JoinRequests[req.GetNodeId()]
+	jr := srv.state.JoinRequests[reqID]
 	if jr == nil {
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
@@ -182,11 +242,11 @@ func (srv *server) RejectJoin(ctx context.Context, req *clustercontrollerpb.Reje
 	}
 	jr.Status = "rejected"
 	jr.Reason = req.GetReason()
-	if err := srv.state.save(srv.statePath); err != nil {
+	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist join request: %v", err)
 	}
 	return &clustercontrollerpb.RejectJoinResponse{
-		NodeId:  req.GetNodeId(),
+		NodeId:  jr.AssignedNodeID,
 		Message: "rejected",
 	}, nil
 }
@@ -195,7 +255,14 @@ func (srv *server) ListNodes(ctx context.Context, req *clustercontrollerpb.ListN
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	resp := &clustercontrollerpb.ListNodesResponse{}
+	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
+		nodes = append(nodes, node)
+	}
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].NodeID < nodes[j].NodeID
+	})
+	for _, node := range nodes {
 		meta := copyLabels(node.Metadata)
 		if node.LastError != "" {
 			if meta == nil {
@@ -228,7 +295,7 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb
 	}
 	node.Profiles = append([]string(nil), req.GetProfiles()...)
 	node.LastSeen = time.Now()
-	if err := srv.state.save(srv.statePath); err != nil {
+	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node profiles: %v", err)
 	}
 	return &clustercontrollerpb.SetNodeProfilesResponse{
@@ -246,11 +313,9 @@ func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.Get
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
+	plan := srv.computeNodePlan(node)
 	return &clustercontrollerpb.GetNodePlanResponse{
-		Plan: &clustercontrollerpb.NodePlan{
-			NodeId:   node.NodeID,
-			Profiles: append([]string(nil), node.Profiles...),
-		},
+		Plan: plan,
 	}, nil
 }
 
@@ -260,25 +325,64 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 	}
 	nodeStatus := req.GetStatus()
 	srv.mu.Lock()
-	defer srv.mu.Unlock()
 	node := srv.state.Nodes[nodeStatus.GetNodeId()]
 	if node == nil {
+		srv.mu.Unlock()
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
+	changed := false
 	if identity := nodeStatus.GetIdentity(); identity != nil {
-		node.Identity = protoToStoredIdentity(identity)
+		newIdentity := protoToStoredIdentity(identity)
+		if !identitiesEqual(node.Identity, newIdentity) {
+			changed = true
+		}
+		node.Identity = newIdentity
 	}
-	node.Units = protoUnitsToStored(nodeStatus.GetUnits())
-	node.LastError = nodeStatus.GetLastError()
-	node.AgentEndpoint = nodeStatus.GetAgentEndpoint()
+	oldEndpoint := node.AgentEndpoint
+	newEndpoint := nodeStatus.GetAgentEndpoint()
+	node.AgentEndpoint = newEndpoint
 	if reported := nodeStatus.GetReportedAt(); reported != nil {
 		node.ReportedAt = reported.AsTime()
 		node.LastSeen = node.ReportedAt
 	} else {
-		node.LastSeen = time.Now()
+		node.ReportedAt = time.Now()
+		node.LastSeen = node.ReportedAt
 	}
-	if err := srv.state.save(srv.statePath); err != nil {
-		return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
+	rawUnits := protoUnitsToStored(nodeStatus.GetUnits())
+	units := normalizedUnits(rawUnits)
+	healthStatus, reason := srv.evaluateNodeStatus(node, units)
+	lastError := nodeStatus.GetLastError()
+	if lastError == "" && reason != "" && healthStatus != "ready" {
+		lastError = reason
+	}
+	if !unitsEqual(node.Units, units) {
+		node.Units = units
+		changed = true
+	}
+	if node.Status != healthStatus {
+		node.Status = healthStatus
+		changed = true
+	}
+	if node.LastError != lastError {
+		node.LastError = lastError
+		changed = true
+	}
+	if oldEndpoint != newEndpoint {
+		changed = true
+	}
+	endpointToClose := ""
+	if oldEndpoint != "" && oldEndpoint != newEndpoint {
+		endpointToClose = oldEndpoint
+	}
+	if changed {
+		if err := srv.persistStateLocked(false); err != nil {
+			srv.mu.Unlock()
+			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
+		}
+	}
+	srv.mu.Unlock()
+	if endpointToClose != "" {
+		srv.closeAgentClient(endpointToClose)
 	}
 	return &clustercontrollerpb.ReportNodeStatusResponse{
 		Message: "status recorded",
@@ -318,12 +422,29 @@ func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duratio
 	}()
 }
 
+func (srv *server) startAgentCleanupLoop(ctx context.Context) {
+	ticker := time.NewTicker(agentCleanupInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				srv.cleanupAgentClients()
+			}
+		}
+	}()
+}
+
 func (srv *server) reconcileNodes(ctx context.Context) {
+	now := time.Now()
 	srv.mu.Lock()
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
 	}
+	stateDirty := srv.cleanupJoinStateLocked(now)
 	srv.mu.Unlock()
 
 	for _, node := range nodes {
@@ -334,21 +455,33 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if plan == nil || len(plan.GetUnitActions()) == 0 {
 			continue
 		}
-		if err := srv.dispatchPlan(ctx, node, plan); err != nil {
-			log.Printf("plan dispatch for node %s failed: %v", node.NodeID, err)
-			srv.mu.Lock()
-			node.Status = "degraded"
-			node.LastError = err.Error()
-			if err := srv.state.save(srv.statePath); err != nil {
-				log.Printf("persist state: %v", err)
-			}
-			srv.mu.Unlock()
+		planHash := planHash(plan)
+		if !srv.shouldDispatch(node, planHash) {
 			continue
 		}
+		opID := uuid.NewString()
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
+		if err := srv.dispatchPlan(ctx, node, plan); err != nil {
+			log.Printf("plan dispatch for node %s failed: %v", node.NodeID, err)
+			srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
+			if srv.recordPlanError(node.NodeID, err.Error()) {
+				stateDirty = true
+			}
+			if srv.updateNodeState(node.NodeID, "degraded", err.Error()) {
+				stateDirty = true
+			}
+			continue
+		}
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+		if srv.recordPlanSent(node.NodeID, planHash) {
+			stateDirty = true
+		}
+	}
+
+	if stateDirty {
 		srv.mu.Lock()
-		node.Status = "ready"
-		node.LastError = ""
-		if err := srv.state.save(srv.statePath); err != nil {
+		if err := srv.persistStateLocked(true); err != nil {
 			log.Printf("persist state: %v", err)
 		}
 		srv.mu.Unlock()
@@ -368,6 +501,45 @@ func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePla
 		plan.UnitActions = actionList
 	}
 	return plan
+}
+
+func planHash(plan *clustercontrollerpb.NodePlan) string {
+	if plan == nil {
+		return ""
+	}
+	h := sha256.New()
+	for _, action := range plan.GetUnitActions() {
+		if action == nil {
+			continue
+		}
+		h.Write([]byte(action.GetUnitName()))
+		h.Write([]byte{0})
+		h.Write([]byte(action.GetAction()))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (srv *server) shouldDispatch(node *nodeState, hash string) bool {
+	if node == nil {
+		return false
+	}
+	if node.AgentEndpoint == "" {
+		return false
+	}
+	if hash == "" {
+		return false
+	}
+	if node.LastPlanHash != hash {
+		return true
+	}
+	if node.Status != "ready" {
+		return true
+	}
+	if node.LastPlanError != "" {
+		return true
+	}
+	return false
 }
 
 func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *clustercontrollerpb.NodePlan) error {
@@ -391,7 +563,7 @@ func (srv *server) getAgentClient(ctx context.Context, endpoint string) (*agentC
 	if client != nil {
 		return client, nil
 	}
-	newClient, err := newAgentClient(ctx, endpoint)
+	newClient, err := newAgentClient(ctx, endpoint, srv.agentInsecure, srv.agentCAPath, srv.agentServerName)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +574,155 @@ func (srv *server) getAgentClient(ctx context.Context, endpoint string) (*agentC
 }
 
 func (srv *server) WatchOperations(req *clustercontrollerpb.WatchOperationsRequest, stream clustercontrollerpb.ClusterControllerService_WatchOperationsServer) error {
-	return status.Errorf(codes.Unimplemented, "ClusterController.WatchOperations is not implemented yet")
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request is required")
+	}
+	ctx := stream.Context()
+	w := &operationWatcher{
+		nodeID: req.GetNodeId(),
+		opID:   req.GetOperationId(),
+		ch:     make(chan *clustercontrollerpb.OperationEvent, 8),
+	}
+	srv.addWatcher(w)
+	defer func() {
+		srv.removeWatcher(w)
+		close(w.ch)
+	}()
+	srv.opMu.Lock()
+	for _, op := range srv.operations {
+		op.mu.Lock()
+		last := op.last
+		op.mu.Unlock()
+		if last != nil && w.matches(last) {
+			select {
+			case w.ch <- last:
+			default:
+			}
+		}
+	}
+	srv.opMu.Unlock()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case evt := <-w.ch:
+			if evt == nil {
+				continue
+			}
+			if err := stream.Send(evt); err != nil {
+				return err
+			}
+			if evt.GetDone() {
+				return nil
+			}
+		}
+	}
+}
+
+func (srv *server) cleanupJoinStateLocked(now time.Time) bool {
+	dirty := false
+	for token, jt := range srv.state.JoinTokens {
+		if jt.MaxUses > 0 && jt.Uses >= jt.MaxUses {
+			delete(srv.state.JoinTokens, token)
+			dirty = true
+			continue
+		}
+		if !jt.ExpiresAt.IsZero() && now.After(jt.ExpiresAt) {
+			delete(srv.state.JoinTokens, token)
+			dirty = true
+		}
+	}
+	for reqID, jr := range srv.state.JoinRequests {
+		if jr.Status == "pending" {
+			if now.Sub(jr.RequestedAt) > pendingJoinRetention {
+				delete(srv.state.JoinRequests, reqID)
+				dirty = true
+			}
+			continue
+		}
+		if now.Sub(jr.RequestedAt) > joinRequestRetention {
+			delete(srv.state.JoinRequests, reqID)
+			dirty = true
+		}
+	}
+	return dirty
+}
+
+func (srv *server) updateNodeState(nodeID, status, lastError string) bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		return false
+	}
+	changed := false
+	if node.Status != status {
+		node.Status = status
+		changed = true
+	}
+	if node.LastError != lastError {
+		node.LastError = lastError
+		changed = true
+	}
+	if changed {
+		node.LastSeen = time.Now()
+	}
+	return changed
+}
+
+func (srv *server) recordPlanSent(nodeID, planHash string) bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		return false
+	}
+	node.LastPlanSentAt = time.Now()
+	if node.LastPlanError != "" {
+		node.LastPlanError = ""
+	}
+	if planHash != "" {
+		node.LastPlanHash = planHash
+	}
+	return true
+}
+
+func (srv *server) recordPlanError(nodeID, errMsg string) bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		return false
+	}
+	if node.LastPlanError == errMsg {
+		return false
+	}
+	node.LastPlanError = errMsg
+	return true
+}
+
+func (srv *server) closeAgentClient(endpoint string) {
+	if endpoint == "" {
+		return
+	}
+	srv.agentMu.Lock()
+	defer srv.agentMu.Unlock()
+	if client, ok := srv.agentClients[endpoint]; ok {
+		client.Close()
+		delete(srv.agentClients, endpoint)
+	}
+}
+
+func (srv *server) cleanupAgentClients() {
+	srv.agentMu.Lock()
+	defer srv.agentMu.Unlock()
+	for endpoint, client := range srv.agentClients {
+		if client.idleDuration() > srv.agentIdleTimeout {
+			client.Close()
+			delete(srv.agentClients, endpoint)
+			log.Printf("closed idle agent client %s", endpoint)
+		}
+	}
 }
 
 func protoToStoredIdentity(pi *clustercontrollerpb.NodeIdentity) storedIdentity {
@@ -428,6 +748,21 @@ func storedIdentityToProto(si storedIdentity) *clustercontrollerpb.NodeIdentity 
 		Arch:         si.Arch,
 		AgentVersion: si.AgentVersion,
 	}
+}
+
+func identitiesEqual(a, b storedIdentity) bool {
+	if a.Hostname != b.Hostname || a.Domain != b.Domain || a.Os != b.Os || a.Arch != b.Arch || a.AgentVersion != b.AgentVersion {
+		return false
+	}
+	if len(a.Ips) != len(b.Ips) {
+		return false
+	}
+	for i := range a.Ips {
+		if a.Ips[i] != b.Ips[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func copyLabels(in map[string]string) map[string]string {
@@ -472,4 +807,189 @@ func storedUnitsToProto(in []unitStatusRecord) []*clustercontrollerpb.NodeUnitSt
 		})
 	}
 	return out
+}
+
+func normalizedUnits(units []unitStatusRecord) []unitStatusRecord {
+	if len(units) == 0 {
+		return nil
+	}
+	out := append([]unitStatusRecord(nil), units...)
+	sort.Slice(out, func(i, j int) bool {
+		ni := strings.ToLower(out[i].Name)
+		nj := strings.ToLower(out[j].Name)
+		if ni != nj {
+			return ni < nj
+		}
+		si := strings.ToLower(out[i].State)
+		sj := strings.ToLower(out[j].State)
+		if si != sj {
+			return si < sj
+		}
+		return strings.ToLower(out[i].Details) < strings.ToLower(out[j].Details)
+	})
+	return out
+}
+
+type operationState struct {
+	mu   sync.Mutex
+	last *clustercontrollerpb.OperationEvent
+}
+
+type operationWatcher struct {
+	nodeID string
+	opID   string
+	ch     chan *clustercontrollerpb.OperationEvent
+}
+
+func (w *operationWatcher) matches(evt *clustercontrollerpb.OperationEvent) bool {
+	if w == nil || evt == nil {
+		return false
+	}
+	if w.nodeID != "" && w.nodeID != evt.GetNodeId() {
+		return false
+	}
+	if w.opID != "" && w.opID != evt.GetOperationId() {
+		return false
+	}
+	return true
+}
+
+func (srv *server) getOperationState(id string) *operationState {
+	srv.opMu.Lock()
+	defer srv.opMu.Unlock()
+	op, ok := srv.operations[id]
+	if !ok {
+		op = &operationState{}
+		srv.operations[id] = op
+	}
+	return op
+}
+
+func (srv *server) broadcastOperationEvent(evt *clustercontrollerpb.OperationEvent) {
+	if evt == nil {
+		return
+	}
+	op := srv.getOperationState(evt.GetOperationId())
+	op.mu.Lock()
+	op.last = evt
+	op.mu.Unlock()
+	srv.watchMu.Lock()
+	for w := range srv.watchers {
+		if w.matches(evt) {
+			select {
+			case w.ch <- evt:
+			default:
+			}
+		}
+	}
+	srv.watchMu.Unlock()
+}
+
+func (srv *server) newOperationEvent(opID, nodeID string, phase clustercontrollerpb.OperationPhase, message string, percent int32, done bool, errMsg string) *clustercontrollerpb.OperationEvent {
+	return &clustercontrollerpb.OperationEvent{
+		OperationId: opID,
+		NodeId:      nodeID,
+		Phase:       phase,
+		Message:     message,
+		Percent:     percent,
+		Done:        done,
+		Error:       errMsg,
+		Ts:          timestamppb.Now(),
+	}
+}
+
+func (srv *server) addWatcher(w *operationWatcher) {
+	srv.watchMu.Lock()
+	srv.watchers[w] = struct{}{}
+	srv.watchMu.Unlock()
+}
+
+func (srv *server) removeWatcher(w *operationWatcher) {
+	srv.watchMu.Lock()
+	if _, ok := srv.watchers[w]; ok {
+		delete(srv.watchers, w)
+	}
+	srv.watchMu.Unlock()
+}
+func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord) (string, string) {
+	if node == nil {
+		return "degraded", "missing node record"
+	}
+	plan := srv.computeNodePlan(node)
+	required := requiredUnitsFromPlan(plan)
+	if len(required) == 0 {
+		return "ready", ""
+	}
+	unitStates := make(map[string]string, len(units))
+	for _, u := range units {
+		if u.Name == "" {
+			continue
+		}
+		unitStates[strings.ToLower(u.Name)] = strings.ToLower(u.State)
+	}
+	var missing []string
+	var notActive []string
+	for unit := range required {
+		state, ok := unitStates[strings.ToLower(unit)]
+		if !ok {
+			missing = append(missing, fmt.Sprintf("%s missing", unit))
+			continue
+		}
+		if state != "active" {
+			if state == "" {
+				state = "unknown"
+			}
+			notActive = append(notActive, fmt.Sprintf("%s is %s", unit, state))
+		}
+	}
+	if len(missing) > 0 || len(notActive) > 0 {
+		reason := strings.Join(append(missing, notActive...), "; ")
+		if node.ReportedAt.IsZero() || time.Since(node.ReportedAt) < statusGracePeriod {
+			return "converging", reason
+		}
+		return "degraded", reason
+	}
+	return "ready", ""
+}
+
+func requiredUnitsFromPlan(plan *clustercontrollerpb.NodePlan) map[string]struct{} {
+	req := make(map[string]struct{})
+	if plan == nil {
+		return req
+	}
+	for _, action := range plan.GetUnitActions() {
+		if action == nil {
+			continue
+		}
+		switch strings.ToLower(action.GetAction()) {
+		case "start", "restart":
+			req[action.GetUnitName()] = struct{}{}
+		}
+	}
+	return req
+}
+
+func unitsEqual(a, b []unitStatusRecord) bool {
+	an := normalizedUnits(a)
+	bn := normalizedUnits(b)
+	if len(an) != len(bn) {
+		return false
+	}
+	for i := range an {
+		if an[i].Name != bn[i].Name || an[i].State != bn[i].State || an[i].Details != bn[i].Details {
+			return false
+		}
+	}
+	return true
+}
+
+func (srv *server) persistStateLocked(force bool) error {
+	if !force && time.Since(srv.lastStateSave) < statePersistInterval {
+		return nil
+	}
+	if err := srv.state.save(srv.statePath); err != nil {
+		return err
+	}
+	srv.lastStateSave = time.Now()
+	return nil
 }

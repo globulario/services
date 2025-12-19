@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
 	"google.golang.org/grpc"
@@ -20,6 +21,7 @@ func main() {
 	address := fmt.Sprintf(":%s", port)
 
 	bootstrapPlanFlag := flag.String("bootstrap-plan", os.Getenv("NODE_AGENT_BOOTSTRAP_PLAN"), "path to bootstrap plan JSON")
+	etcdModeFlag := flag.String("etcd-mode", getEnv("NODE_AGENT_ETCD_MODE", "managed"), "etcd mode: managed|external")
 	flag.Parse()
 
 	statePath := getEnv("NODE_AGENT_STATE_PATH", "/var/lib/globular/nodeagent/state.json")
@@ -28,6 +30,7 @@ func main() {
 		log.Printf("unable to load node agent state %s: %v", statePath, err)
 	}
 	srv := NewNodeAgentServer(statePath, state)
+	srv.SetEtcdMode(*etcdModeFlag)
 	if planPath := strings.TrimSpace(*bootstrapPlanFlag); planPath != "" {
 		if plan, err := loadBootstrapPlan(planPath); err != nil {
 			log.Printf("unable to load bootstrap plan %s: %v", planPath, err)
@@ -42,6 +45,11 @@ func main() {
 	}
 
 	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		defer cancel()
+		if err := srv.EnsureEtcd(ctx); err != nil {
+			log.Printf("etcd bootstrap failed: %v", err)
+		}
 		if err := srv.BootstrapIfNeeded(context.Background()); err != nil {
 			log.Printf("bootstrap plan failed: %v", err)
 		}

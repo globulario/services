@@ -60,15 +60,25 @@ message GetJoinRequestStatusResponse {
   string message = 4;
 }
 
+message JoinRequestRecord {
+  string request_id = 1;
+  NodeIdentity identity = 2;
+  string status = 3;
+  string message = 4;
+  repeated string profiles = 5;
+  map<string,string> metadata = 6;
+}
+
 message ListJoinRequestsRequest {}
 message ListJoinRequestsResponse {
-  repeated NodeRecord pending = 1;
+  repeated JoinRequestRecord pending = 1;
 }
 
 message ApproveJoinRequest {
-  string node_id = 1;
-  repeated string profiles = 2;
-  map<string,string> metadata = 3;
+  string request_id = 1;
+  string node_id = 2 [deprecated = true];
+  repeated string profiles = 3;
+  map<string,string> metadata = 4;
 }
 message ApproveJoinResponse {
   string node_id = 1;
@@ -76,8 +86,9 @@ message ApproveJoinResponse {
 }
 
 message RejectJoinRequest {
-  string node_id = 1;
-  string reason = 2;
+  string request_id = 1;
+  string node_id = 2 [deprecated = true];
+  string reason = 3;
 }
 message RejectJoinResponse {
   string node_id = 1;

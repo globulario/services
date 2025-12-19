@@ -21,7 +21,7 @@ type clusterControllerConfig struct {
 func defaultClusterControllerConfig() *clusterControllerConfig {
 	return &clusterControllerConfig{
 		Port:            12000,
-		DefaultProfiles: []string{"compute"},
+		DefaultProfiles: []string{"core"},
 	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
@@ -14,6 +16,8 @@ type controllerState struct {
 	JoinTokens   map[string]*joinTokenRecord   `json:"join_tokens"`
 	JoinRequests map[string]*joinRequestRecord `json:"join_requests"`
 	Nodes        map[string]*nodeState         `json:"nodes"`
+	ClusterId    string                        `json:"cluster_id"`
+	CreatedAt    time.Time                     `json:"created_at"`
 }
 
 type joinTokenRecord struct {
@@ -36,16 +40,19 @@ type joinRequestRecord struct {
 }
 
 type nodeState struct {
-	NodeID        string             `json:"node_id"`
-	Identity      storedIdentity     `json:"identity"`
-	Profiles      []string           `json:"profiles"`
-	LastSeen      time.Time          `json:"last_seen"`
-	Status        string             `json:"status"`
-	Metadata      map[string]string  `json:"metadata,omitempty"`
-	AgentEndpoint string             `json:"agent_endpoint,omitempty"`
-	Units         []unitStatusRecord `json:"units,omitempty"`
-	LastError     string             `json:"last_error,omitempty"`
-	ReportedAt    time.Time          `json:"reported_at,omitempty"`
+	NodeID         string             `json:"node_id"`
+	Identity       storedIdentity     `json:"identity"`
+	Profiles       []string           `json:"profiles"`
+	LastSeen       time.Time          `json:"last_seen"`
+	Status         string             `json:"status"`
+	Metadata       map[string]string  `json:"metadata,omitempty"`
+	AgentEndpoint  string             `json:"agent_endpoint,omitempty"`
+	Units          []unitStatusRecord `json:"units,omitempty"`
+	LastError      string             `json:"last_error,omitempty"`
+	ReportedAt     time.Time          `json:"reported_at,omitempty"`
+	LastPlanSentAt time.Time          `json:"last_plan_sent_at,omitempty"`
+	LastPlanError  string             `json:"last_plan_error,omitempty"`
+	LastPlanHash   string             `json:"last_plan_hash,omitempty"`
 }
 
 type unitStatusRecord struct {
@@ -68,6 +75,8 @@ func newControllerState() *controllerState {
 		JoinTokens:   make(map[string]*joinTokenRecord),
 		JoinRequests: make(map[string]*joinRequestRecord),
 		Nodes:        make(map[string]*nodeState),
+		ClusterId:    uuid.NewString(),
+		CreatedAt:    time.Now(),
 	}
 }
 
@@ -85,6 +94,12 @@ func loadControllerState(path string) (*controllerState, error) {
 	}
 	if err := json.Unmarshal(b, state); err != nil {
 		return nil, err
+	}
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = time.Now()
+	}
+	if state.ClusterId == "" {
+		state.ClusterId = uuid.NewString()
 	}
 	return state, nil
 }

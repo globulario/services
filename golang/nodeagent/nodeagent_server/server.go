@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -53,6 +54,9 @@ type NodeAgentServer struct {
 	useInsecure        bool
 	joinPollCancel     context.CancelFunc
 	joinPollMu         sync.Mutex
+	etcdMode           string
+	controllerCAPath   string
+	controllerSNI      string
 }
 
 func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServer {
@@ -93,7 +97,38 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		joinRequestID:      state.RequestID,
 		advertisedAddr:     advertised,
 		useInsecure:        useInsecure,
+		etcdMode:           "managed",
+		controllerCAPath:   strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_CA")),
+		controllerSNI:      strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_SNI")),
 	}
+}
+
+func (srv *NodeAgentServer) SetEtcdMode(mode string) {
+	if mode == "" {
+		return
+	}
+	srv.etcdMode = strings.ToLower(strings.TrimSpace(mode))
+}
+
+func (srv *NodeAgentServer) isEtcdManaged() bool {
+	return strings.EqualFold(srv.etcdMode, "managed")
+}
+
+func (srv *NodeAgentServer) EnsureEtcd(ctx context.Context) error {
+	if !srv.isEtcdManaged() {
+		return nil
+	}
+	unit := units.UnitForService("etcd")
+	if unit == "" {
+		unit = "globular-etcd.service"
+	}
+	if err := supervisor.EnableNow(ctx, unit); err != nil {
+		return fmt.Errorf("enable %s: %w", unit, err)
+	}
+	if err := supervisor.WaitActive(ctx, unit, 60*time.Second); err != nil {
+		return fmt.Errorf("wait active %s: %w", unit, err)
+	}
+	return nil
 }
 
 func (srv *NodeAgentServer) SetBootstrapPlan(plan []string) {
@@ -101,16 +136,6 @@ func (srv *NodeAgentServer) SetBootstrapPlan(plan []string) {
 }
 
 func (srv *NodeAgentServer) BootstrapIfNeeded(ctx context.Context) error {
-	unit := units.UnitForService("etcd")
-	if unit == "" {
-		unit = "globular-etcd.service"
-	}
-	if err := supervisor.EnableNow(ctx, unit); err != nil {
-		return err
-	}
-	if err := supervisor.WaitActive(ctx, unit, 30*time.Second); err != nil {
-		return err
-	}
 	if len(srv.bootstrapPlan) == 0 {
 		return nil
 	}
@@ -216,11 +241,30 @@ func (srv *NodeAgentServer) controllerDialOptions() ([]grpc.DialOption, error) {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		return opts, nil
 	}
-	serverName := srv.controllerEndpoint
-	if host, _, err := net.SplitHostPort(srv.controllerEndpoint); err == nil {
-		serverName = host
+	var tlsConfig tls.Config
+	if srv.controllerCAPath != "" {
+		data, err := os.ReadFile(srv.controllerCAPath)
+		if err != nil {
+			return nil, fmt.Errorf("read controller ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(data) {
+			return nil, fmt.Errorf("failed to parse controller ca")
+		}
+		tlsConfig.RootCAs = pool
 	}
-	opts = append(opts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, serverName)))
+	serverName := srv.controllerSNI
+	if serverName == "" {
+		if host, _, err := net.SplitHostPort(srv.controllerEndpoint); err == nil {
+			serverName = host
+		} else {
+			serverName = srv.controllerEndpoint
+		}
+	}
+	if serverName != "" {
+		tlsConfig.ServerName = serverName
+	}
+	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	return opts, nil
 }
 
@@ -279,7 +323,7 @@ func (srv *NodeAgentServer) GetInventory(ctx context.Context, _ *nodeagentpb.Get
 		Inventory: &nodeagentpb.Inventory{
 			Identity:   buildNodeIdentity(),
 			UnixTime:   timestamppb.Now(),
-			Components: detectComponents([]string{"envoy", "etcd", "minio", "scylla", "globular"}),
+			Components: nil,
 			Units:      detectUnits(),
 		},
 	}
@@ -292,7 +336,11 @@ func (srv *NodeAgentServer) ApplyPlan(ctx context.Context, req *nodeagentpb.Appl
 	}
 
 	op := srv.registerOperation("apply plan", req.GetPlan().GetProfiles())
-	go srv.runPlan(context.Background(), op, req.GetPlan())
+	planCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		srv.runPlan(planCtx, op, req.GetPlan())
+	}()
 	return &nodeagentpb.ApplyPlanResponse{OperationId: op.id}, nil
 }
 
@@ -484,19 +532,6 @@ func buildNodeIdentity() *clustercontrollerpb.NodeIdentity {
 		Arch:         runtime.GOARCH,
 		AgentVersion: getEnv("NODE_AGENT_VERSION", "v0.1.0"),
 	}
-}
-
-func detectComponents(names []string) []*nodeagentpb.InstalledComponent {
-	components := make([]*nodeagentpb.InstalledComponent, 0, len(names))
-	for _, name := range names {
-		_, err := exec.LookPath(name)
-		components = append(components, &nodeagentpb.InstalledComponent{
-			Name:      name,
-			Version:   "",
-			Installed: err == nil,
-		})
-	}
-	return components
 }
 
 func detectUnits() []*nodeagentpb.UnitStatus {
