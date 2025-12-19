@@ -20,6 +20,8 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 
+var repository_pb = require('./repository_pb.js')
+
 var resource_pb = require('./resource_pb.js')
 const proto = {};
 proto.discovery = require('./discovery_pb.js');
@@ -195,6 +197,128 @@ proto.discovery.PackageDiscoveryPromiseClient.prototype.publishApplication =
       request,
       metadata || {},
       methodDescriptor_PackageDiscovery_PublishApplication);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.discovery.ResolveInstallPlanRequest,
+ *   !proto.discovery.InstallPlan>}
+ */
+const methodDescriptor_PackageDiscovery_ResolveInstallPlan = new grpc.web.MethodDescriptor(
+  '/discovery.PackageDiscovery/ResolveInstallPlan',
+  grpc.web.MethodType.UNARY,
+  proto.discovery.ResolveInstallPlanRequest,
+  proto.discovery.InstallPlan,
+  /**
+   * @param {!proto.discovery.ResolveInstallPlanRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.discovery.InstallPlan.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.discovery.ResolveInstallPlanRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.discovery.InstallPlan)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.discovery.InstallPlan>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.discovery.PackageDiscoveryClient.prototype.resolveInstallPlan =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/discovery.PackageDiscovery/ResolveInstallPlan',
+      request,
+      metadata || {},
+      methodDescriptor_PackageDiscovery_ResolveInstallPlan,
+      callback);
+};
+
+
+/**
+ * @param {!proto.discovery.ResolveInstallPlanRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.discovery.InstallPlan>}
+ *     Promise that resolves to the response
+ */
+proto.discovery.PackageDiscoveryPromiseClient.prototype.resolveInstallPlan =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/discovery.PackageDiscovery/ResolveInstallPlan',
+      request,
+      metadata || {},
+      methodDescriptor_PackageDiscovery_ResolveInstallPlan);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPackageDescriptorRequest,
+ *   !proto.resource.GetPackageDescriptorResponse>}
+ */
+const methodDescriptor_PackageDiscovery_GetPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/discovery.PackageDiscovery/GetPackageDescriptor',
+  grpc.web.MethodType.UNARY,
+  resource_pb.GetPackageDescriptorRequest,
+  resource_pb.GetPackageDescriptorResponse,
+  /**
+   * @param {!proto.resource.GetPackageDescriptorRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  resource_pb.GetPackageDescriptorResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPackageDescriptorRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPackageDescriptorResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPackageDescriptorResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.discovery.PackageDiscoveryClient.prototype.getPackageDescriptor =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/discovery.PackageDiscovery/GetPackageDescriptor',
+      request,
+      metadata || {},
+      methodDescriptor_PackageDiscovery_GetPackageDescriptor,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPackageDescriptorRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPackageDescriptorResponse>}
+ *     Promise that resolves to the response
+ */
+proto.discovery.PackageDiscoveryPromiseClient.prototype.getPackageDescriptor =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/discovery.PackageDiscovery/GetPackageDescriptor',
+      request,
+      metadata || {},
+      methodDescriptor_PackageDiscovery_GetPackageDescriptor);
 };
 
 

@@ -465,7 +465,10 @@ ipsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
 os: jspb.Message.getFieldWithDefault(msg, 4, ""),
 arch: jspb.Message.getFieldWithDefault(msg, 5, ""),
 agentVersion: jspb.Message.getFieldWithDefault(msg, 6, ""),
-lastSeen: (f = msg.getLastSeen()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+lastSeen: (f = msg.getLastSeen()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
+nodeId: jspb.Message.getFieldWithDefault(msg, 8, ""),
+agentEndpoint: jspb.Message.getFieldWithDefault(msg, 9, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -530,6 +533,18 @@ proto.clustercontroller.NodeInfo.deserializeBinaryFromReader = function(msg, rea
       var value = new google_protobuf_timestamp_pb.Timestamp;
       reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
       msg.setLastSeen(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAgentEndpoint(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
       break;
     default:
       reader.skipField();
@@ -608,6 +623,27 @@ proto.clustercontroller.NodeInfo.serializeBinaryToWriter = function(message, wri
       7,
       f,
       google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getAgentEndpoint();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
     );
   }
 };
@@ -774,6 +810,60 @@ proto.clustercontroller.NodeInfo.prototype.clearLastSeen = function() {
  */
 proto.clustercontroller.NodeInfo.prototype.hasLastSeen = function() {
   return jspb.Message.getField(this, 7) != null;
+};
+
+
+/**
+ * optional string node_id = 8;
+ * @return {string}
+ */
+proto.clustercontroller.NodeInfo.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeInfo} returns this
+ */
+proto.clustercontroller.NodeInfo.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string agent_endpoint = 9;
+ * @return {string}
+ */
+proto.clustercontroller.NodeInfo.prototype.getAgentEndpoint = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeInfo} returns this
+ */
+proto.clustercontroller.NodeInfo.prototype.setAgentEndpoint = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string platform = 10;
+ * @return {string}
+ */
+proto.clustercontroller.NodeInfo.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeInfo} returns this
+ */
+proto.clustercontroller.NodeInfo.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
@@ -1720,7 +1810,7 @@ proto.clustercontroller.ApproveNodeRequest.prototype.toObject = function(opt_inc
 proto.clustercontroller.ApproveNodeRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
 nodeId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-rolesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+profilesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
 metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
@@ -1764,7 +1854,7 @@ proto.clustercontroller.ApproveNodeRequest.deserializeBinaryFromReader = functio
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.addRoles(value);
+      msg.addProfiles(value);
       break;
     case 3:
       var value = msg.getMetadataMap();
@@ -1808,7 +1898,7 @@ proto.clustercontroller.ApproveNodeRequest.serializeBinaryToWriter = function(me
       f
     );
   }
-  f = message.getRolesList();
+  f = message.getProfilesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       2,
@@ -1841,10 +1931,10 @@ proto.clustercontroller.ApproveNodeRequest.prototype.setNodeId = function(value)
 
 
 /**
- * repeated string roles = 2;
+ * repeated string profiles = 2;
  * @return {!Array<string>}
  */
-proto.clustercontroller.ApproveNodeRequest.prototype.getRolesList = function() {
+proto.clustercontroller.ApproveNodeRequest.prototype.getProfilesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
 };
 
@@ -1853,7 +1943,7 @@ proto.clustercontroller.ApproveNodeRequest.prototype.getRolesList = function() {
  * @param {!Array<string>} value
  * @return {!proto.clustercontroller.ApproveNodeRequest} returns this
  */
-proto.clustercontroller.ApproveNodeRequest.prototype.setRolesList = function(value) {
+proto.clustercontroller.ApproveNodeRequest.prototype.setProfilesList = function(value) {
   return jspb.Message.setField(this, 2, value || []);
 };
 
@@ -1863,7 +1953,7 @@ proto.clustercontroller.ApproveNodeRequest.prototype.setRolesList = function(val
  * @param {number=} opt_index
  * @return {!proto.clustercontroller.ApproveNodeRequest} returns this
  */
-proto.clustercontroller.ApproveNodeRequest.prototype.addRoles = function(value, opt_index) {
+proto.clustercontroller.ApproveNodeRequest.prototype.addProfiles = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
 };
 
@@ -1872,8 +1962,8 @@ proto.clustercontroller.ApproveNodeRequest.prototype.addRoles = function(value, 
  * Clears the list making it empty but non-null.
  * @return {!proto.clustercontroller.ApproveNodeRequest} returns this
  */
-proto.clustercontroller.ApproveNodeRequest.prototype.clearRolesList = function() {
-  return this.setRolesList([]);
+proto.clustercontroller.ApproveNodeRequest.prototype.clearProfilesList = function() {
+  return this.setProfilesList([]);
 };
 
 
@@ -2423,7 +2513,9 @@ nodeId: jspb.Message.getFieldWithDefault(msg, 1, ""),
 hostname: jspb.Message.getFieldWithDefault(msg, 2, ""),
 domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
 status: jspb.Message.getFieldWithDefault(msg, 4, ""),
-profilesList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
+profilesList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+agentEndpoint: jspb.Message.getFieldWithDefault(msg, 6, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -2479,6 +2571,14 @@ proto.clustercontroller.NodeSubject.deserializeBinaryFromReader = function(msg, 
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.addProfiles(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAgentEndpoint(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
       break;
     default:
       reader.skipField();
@@ -2541,6 +2641,20 @@ proto.clustercontroller.NodeSubject.serializeBinaryToWriter = function(message, 
   if (f.length > 0) {
     writer.writeRepeatedString(
       5,
+      f
+    );
+  }
+  f = message.getAgentEndpoint();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
       f
     );
   }
@@ -2653,6 +2767,42 @@ proto.clustercontroller.NodeSubject.prototype.addProfiles = function(value, opt_
  */
 proto.clustercontroller.NodeSubject.prototype.clearProfilesList = function() {
   return this.setProfilesList([]);
+};
+
+
+/**
+ * optional string agent_endpoint = 6;
+ * @return {string}
+ */
+proto.clustercontroller.NodeSubject.prototype.getAgentEndpoint = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeSubject} returns this
+ */
+proto.clustercontroller.NodeSubject.prototype.setAgentEndpoint = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string platform = 7;
+ * @return {string}
+ */
+proto.clustercontroller.NodeSubject.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeSubject} returns this
+ */
+proto.clustercontroller.NodeSubject.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 
@@ -3542,7 +3692,8 @@ phase: jspb.Message.getFieldWithDefault(msg, 2, 0),
 message: jspb.Message.getFieldWithDefault(msg, 3, ""),
 percent: jspb.Message.getFieldWithDefault(msg, 4, 0),
 done: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
-nodeId: jspb.Message.getFieldWithDefault(msg, 6, "")
+nodeId: jspb.Message.getFieldWithDefault(msg, 6, ""),
+error: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -3602,6 +3753,10 @@ proto.clustercontroller.OperationEvent.deserializeBinaryFromReader = function(ms
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.setNodeId(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setError(value);
       break;
     default:
       reader.skipField();
@@ -3671,6 +3826,13 @@ proto.clustercontroller.OperationEvent.serializeBinaryToWriter = function(messag
   if (f.length > 0) {
     writer.writeString(
       6,
+      f
+    );
+  }
+  f = message.getError();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
       f
     );
   }
@@ -3782,6 +3944,24 @@ proto.clustercontroller.OperationEvent.prototype.getNodeId = function() {
  */
 proto.clustercontroller.OperationEvent.prototype.setNodeId = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string error = 7;
+ * @return {string}
+ */
+proto.clustercontroller.OperationEvent.prototype.getError = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.OperationEvent} returns this
+ */
+proto.clustercontroller.OperationEvent.prototype.setError = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 

@@ -19,8 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PackageRepository_DownloadBundle_FullMethodName = "/repository.PackageRepository/DownloadBundle"
-	PackageRepository_UploadBundle_FullMethodName   = "/repository.PackageRepository/UploadBundle"
+	PackageRepository_DownloadBundle_FullMethodName      = "/repository.PackageRepository/DownloadBundle"
+	PackageRepository_UploadBundle_FullMethodName        = "/repository.PackageRepository/UploadBundle"
+	PackageRepository_ListArtifacts_FullMethodName       = "/repository.PackageRepository/ListArtifacts"
+	PackageRepository_UploadArtifact_FullMethodName      = "/repository.PackageRepository/UploadArtifact"
+	PackageRepository_DownloadArtifact_FullMethodName    = "/repository.PackageRepository/DownloadArtifact"
+	PackageRepository_GetArtifactManifest_FullMethodName = "/repository.PackageRepository/GetArtifactManifest"
 )
 
 // PackageRepositoryClient is the client API for PackageRepository service.
@@ -37,6 +41,14 @@ type PackageRepositoryClient interface {
 	// Input: Stream of UploadBundleRequest containing the user, organization, and bundle data.
 	// Output: UploadBundleResponse indicating the result of the upload operation.
 	UploadBundle(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadBundleRequest, UploadBundleResponse], error)
+	// Lists stored artifacts (services, applications, agents, subsystems).
+	ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error)
+	// Uploads an artifact stream into the repository.
+	UploadArtifact(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadArtifactRequest, UploadArtifactResponse], error)
+	// Downloads a complete artifact from the repository.
+	DownloadArtifact(ctx context.Context, in *DownloadArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DownloadArtifactResponse], error)
+	// Retrieves metadata for a specific artifact reference.
+	GetArtifactManifest(ctx context.Context, in *GetArtifactManifestRequest, opts ...grpc.CallOption) (*GetArtifactManifestResponse, error)
 }
 
 type packageRepositoryClient struct {
@@ -79,6 +91,58 @@ func (c *packageRepositoryClient) UploadBundle(ctx context.Context, opts ...grpc
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PackageRepository_UploadBundleClient = grpc.ClientStreamingClient[UploadBundleRequest, UploadBundleResponse]
 
+func (c *packageRepositoryClient) ListArtifacts(ctx context.Context, in *ListArtifactsRequest, opts ...grpc.CallOption) (*ListArtifactsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListArtifactsResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_ListArtifacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageRepositoryClient) UploadArtifact(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadArtifactRequest, UploadArtifactResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PackageRepository_ServiceDesc.Streams[2], PackageRepository_UploadArtifact_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[UploadArtifactRequest, UploadArtifactResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_UploadArtifactClient = grpc.ClientStreamingClient[UploadArtifactRequest, UploadArtifactResponse]
+
+func (c *packageRepositoryClient) DownloadArtifact(ctx context.Context, in *DownloadArtifactRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DownloadArtifactResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PackageRepository_ServiceDesc.Streams[3], PackageRepository_DownloadArtifact_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[DownloadArtifactRequest, DownloadArtifactResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_DownloadArtifactClient = grpc.ServerStreamingClient[DownloadArtifactResponse]
+
+func (c *packageRepositoryClient) GetArtifactManifest(ctx context.Context, in *GetArtifactManifestRequest, opts ...grpc.CallOption) (*GetArtifactManifestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetArtifactManifestResponse)
+	err := c.cc.Invoke(ctx, PackageRepository_GetArtifactManifest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageRepositoryServer is the server API for PackageRepository service.
 // All implementations should embed UnimplementedPackageRepositoryServer
 // for forward compatibility.
@@ -93,6 +157,14 @@ type PackageRepositoryServer interface {
 	// Input: Stream of UploadBundleRequest containing the user, organization, and bundle data.
 	// Output: UploadBundleResponse indicating the result of the upload operation.
 	UploadBundle(grpc.ClientStreamingServer[UploadBundleRequest, UploadBundleResponse]) error
+	// Lists stored artifacts (services, applications, agents, subsystems).
+	ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error)
+	// Uploads an artifact stream into the repository.
+	UploadArtifact(grpc.ClientStreamingServer[UploadArtifactRequest, UploadArtifactResponse]) error
+	// Downloads a complete artifact from the repository.
+	DownloadArtifact(*DownloadArtifactRequest, grpc.ServerStreamingServer[DownloadArtifactResponse]) error
+	// Retrieves metadata for a specific artifact reference.
+	GetArtifactManifest(context.Context, *GetArtifactManifestRequest) (*GetArtifactManifestResponse, error)
 }
 
 // UnimplementedPackageRepositoryServer should be embedded to have
@@ -107,6 +179,18 @@ func (UnimplementedPackageRepositoryServer) DownloadBundle(*DownloadBundleReques
 }
 func (UnimplementedPackageRepositoryServer) UploadBundle(grpc.ClientStreamingServer[UploadBundleRequest, UploadBundleResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method UploadBundle not implemented")
+}
+func (UnimplementedPackageRepositoryServer) ListArtifacts(context.Context, *ListArtifactsRequest) (*ListArtifactsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListArtifacts not implemented")
+}
+func (UnimplementedPackageRepositoryServer) UploadArtifact(grpc.ClientStreamingServer[UploadArtifactRequest, UploadArtifactResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method UploadArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) DownloadArtifact(*DownloadArtifactRequest, grpc.ServerStreamingServer[DownloadArtifactResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method DownloadArtifact not implemented")
+}
+func (UnimplementedPackageRepositoryServer) GetArtifactManifest(context.Context, *GetArtifactManifestRequest) (*GetArtifactManifestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetArtifactManifest not implemented")
 }
 func (UnimplementedPackageRepositoryServer) testEmbeddedByValue() {}
 
@@ -146,13 +230,76 @@ func _PackageRepository_UploadBundle_Handler(srv interface{}, stream grpc.Server
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type PackageRepository_UploadBundleServer = grpc.ClientStreamingServer[UploadBundleRequest, UploadBundleResponse]
 
+func _PackageRepository_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListArtifactsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).ListArtifacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_ListArtifacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).ListArtifacts(ctx, req.(*ListArtifactsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageRepository_UploadArtifact_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(PackageRepositoryServer).UploadArtifact(&grpc.GenericServerStream[UploadArtifactRequest, UploadArtifactResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_UploadArtifactServer = grpc.ClientStreamingServer[UploadArtifactRequest, UploadArtifactResponse]
+
+func _PackageRepository_DownloadArtifact_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DownloadArtifactRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PackageRepositoryServer).DownloadArtifact(m, &grpc.GenericServerStream[DownloadArtifactRequest, DownloadArtifactResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PackageRepository_DownloadArtifactServer = grpc.ServerStreamingServer[DownloadArtifactResponse]
+
+func _PackageRepository_GetArtifactManifest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetArtifactManifestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageRepositoryServer).GetArtifactManifest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageRepository_GetArtifactManifest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageRepositoryServer).GetArtifactManifest(ctx, req.(*GetArtifactManifestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageRepository_ServiceDesc is the grpc.ServiceDesc for PackageRepository service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "repository.PackageRepository",
 	HandlerType: (*PackageRepositoryServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListArtifacts",
+			Handler:    _PackageRepository_ListArtifacts_Handler,
+		},
+		{
+			MethodName: "GetArtifactManifest",
+			Handler:    _PackageRepository_GetArtifactManifest_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "DownloadBundle",
@@ -163,6 +310,16 @@ var PackageRepository_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "UploadBundle",
 			Handler:       _PackageRepository_UploadBundle_Handler,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "UploadArtifact",
+			Handler:       _PackageRepository_UploadArtifact_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "DownloadArtifact",
+			Handler:       _PackageRepository_DownloadArtifact_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "repository.proto",

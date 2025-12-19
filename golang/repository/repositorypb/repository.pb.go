@@ -22,6 +22,605 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ArtifactKind int32
+
+const (
+	ArtifactKind_ARTIFACT_KIND_UNSPECIFIED ArtifactKind = 0
+	ArtifactKind_SERVICE                   ArtifactKind = 1
+	ArtifactKind_APPLICATION               ArtifactKind = 2
+	ArtifactKind_AGENT                     ArtifactKind = 3
+	ArtifactKind_SUBSYSTEM                 ArtifactKind = 4
+)
+
+// Enum value maps for ArtifactKind.
+var (
+	ArtifactKind_name = map[int32]string{
+		0: "ARTIFACT_KIND_UNSPECIFIED",
+		1: "SERVICE",
+		2: "APPLICATION",
+		3: "AGENT",
+		4: "SUBSYSTEM",
+	}
+	ArtifactKind_value = map[string]int32{
+		"ARTIFACT_KIND_UNSPECIFIED": 0,
+		"SERVICE":                   1,
+		"APPLICATION":               2,
+		"AGENT":                     3,
+		"SUBSYSTEM":                 4,
+	}
+)
+
+func (x ArtifactKind) Enum() *ArtifactKind {
+	p := new(ArtifactKind)
+	*p = x
+	return p
+}
+
+func (x ArtifactKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArtifactKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_repository_proto_enumTypes[0].Descriptor()
+}
+
+func (ArtifactKind) Type() protoreflect.EnumType {
+	return &file_repository_proto_enumTypes[0]
+}
+
+func (x ArtifactKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArtifactKind.Descriptor instead.
+func (ArtifactKind) EnumDescriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{0}
+}
+
+type ArtifactRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PublisherId   string                 `protobuf:"bytes,1,opt,name=publisher_id,json=publisherId,proto3" json:"publisher_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Platform      string                 `protobuf:"bytes,4,opt,name=platform,proto3" json:"platform,omitempty"`
+	Kind          ArtifactKind           `protobuf:"varint,5,opt,name=kind,proto3,enum=repository.ArtifactKind" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactRef) Reset() {
+	*x = ArtifactRef{}
+	mi := &file_repository_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactRef) ProtoMessage() {}
+
+func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactRef.ProtoReflect.Descriptor instead.
+func (*ArtifactRef) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ArtifactRef) GetPublisherId() string {
+	if x != nil {
+		return x.PublisherId
+	}
+	return ""
+}
+
+func (x *ArtifactRef) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ArtifactRef) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ArtifactRef) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ArtifactRef) GetKind() ArtifactKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArtifactKind_ARTIFACT_KIND_UNSPECIFIED
+}
+
+type ArtifactManifest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	Checksum      string                 `protobuf:"bytes,2,opt,name=checksum,proto3" json:"checksum,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ModifiedUnix  int64                  `protobuf:"varint,4,opt,name=modified_unix,json=modifiedUnix,proto3" json:"modified_unix,omitempty"`
+	Provides      []string               `protobuf:"bytes,10,rep,name=provides,proto3" json:"provides,omitempty"`
+	Requires      []string               `protobuf:"bytes,11,rep,name=requires,proto3" json:"requires,omitempty"`
+	Defaults      map[string]string      `protobuf:"bytes,12,rep,name=defaults,proto3" json:"defaults,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Entrypoints   []string               `protobuf:"bytes,13,rep,name=entrypoints,proto3" json:"entrypoints,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactManifest) Reset() {
+	*x = ArtifactManifest{}
+	mi := &file_repository_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactManifest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactManifest) ProtoMessage() {}
+
+func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactManifest.ProtoReflect.Descriptor instead.
+func (*ArtifactManifest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ArtifactManifest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetChecksum() string {
+	if x != nil {
+		return x.Checksum
+	}
+	return ""
+}
+
+func (x *ArtifactManifest) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ArtifactManifest) GetModifiedUnix() int64 {
+	if x != nil {
+		return x.ModifiedUnix
+	}
+	return 0
+}
+
+func (x *ArtifactManifest) GetProvides() []string {
+	if x != nil {
+		return x.Provides
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetRequires() []string {
+	if x != nil {
+		return x.Requires
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetDefaults() map[string]string {
+	if x != nil {
+		return x.Defaults
+	}
+	return nil
+}
+
+func (x *ArtifactManifest) GetEntrypoints() []string {
+	if x != nil {
+		return x.Entrypoints
+	}
+	return nil
+}
+
+type ListArtifactsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactsRequest) Reset() {
+	*x = ListArtifactsRequest{}
+	mi := &file_repository_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactsRequest) ProtoMessage() {}
+
+func (x *ListArtifactsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactsRequest.ProtoReflect.Descriptor instead.
+func (*ListArtifactsRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{2}
+}
+
+type ListArtifactsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifacts     []*ArtifactManifest    `protobuf:"bytes,1,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArtifactsResponse) Reset() {
+	*x = ListArtifactsResponse{}
+	mi := &file_repository_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArtifactsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArtifactsResponse) ProtoMessage() {}
+
+func (x *ListArtifactsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArtifactsResponse.ProtoReflect.Descriptor instead.
+func (*ListArtifactsResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListArtifactsResponse) GetArtifacts() []*ArtifactManifest {
+	if x != nil {
+		return x.Artifacts
+	}
+	return nil
+}
+
+type UploadArtifactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          string                 `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Organization  string                 `protobuf:"bytes,2,opt,name=organization,proto3" json:"organization,omitempty"`
+	Ref           *ArtifactRef           `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
+	Data          []byte                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadArtifactRequest) Reset() {
+	*x = UploadArtifactRequest{}
+	mi := &file_repository_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadArtifactRequest) ProtoMessage() {}
+
+func (x *UploadArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadArtifactRequest.ProtoReflect.Descriptor instead.
+func (*UploadArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UploadArtifactRequest) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *UploadArtifactRequest) GetOrganization() string {
+	if x != nil {
+		return x.Organization
+	}
+	return ""
+}
+
+func (x *UploadArtifactRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *UploadArtifactRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type UploadArtifactResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadArtifactResponse) Reset() {
+	*x = UploadArtifactResponse{}
+	mi := &file_repository_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadArtifactResponse) ProtoMessage() {}
+
+func (x *UploadArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadArtifactResponse.ProtoReflect.Descriptor instead.
+func (*UploadArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *UploadArtifactResponse) GetResult() bool {
+	if x != nil {
+		return x.Result
+	}
+	return false
+}
+
+type DownloadArtifactRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadArtifactRequest) Reset() {
+	*x = DownloadArtifactRequest{}
+	mi := &file_repository_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadArtifactRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadArtifactRequest) ProtoMessage() {}
+
+func (x *DownloadArtifactRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadArtifactRequest.ProtoReflect.Descriptor instead.
+func (*DownloadArtifactRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DownloadArtifactRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+type DownloadArtifactResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadArtifactResponse) Reset() {
+	*x = DownloadArtifactResponse{}
+	mi := &file_repository_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadArtifactResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadArtifactResponse) ProtoMessage() {}
+
+func (x *DownloadArtifactResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadArtifactResponse.ProtoReflect.Descriptor instead.
+func (*DownloadArtifactResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DownloadArtifactResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type GetArtifactManifestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactManifestRequest) Reset() {
+	*x = GetArtifactManifestRequest{}
+	mi := &file_repository_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactManifestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactManifestRequest) ProtoMessage() {}
+
+func (x *GetArtifactManifestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactManifestRequest.ProtoReflect.Descriptor instead.
+func (*GetArtifactManifestRequest) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetArtifactManifestRequest) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+type GetArtifactManifestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Manifest      *ArtifactManifest      `protobuf:"bytes,1,opt,name=manifest,proto3" json:"manifest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArtifactManifestResponse) Reset() {
+	*x = GetArtifactManifestResponse{}
+	mi := &file_repository_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArtifactManifestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArtifactManifestResponse) ProtoMessage() {}
+
+func (x *GetArtifactManifestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_repository_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArtifactManifestResponse.ProtoReflect.Descriptor instead.
+func (*GetArtifactManifestResponse) Descriptor() ([]byte, []int) {
+	return file_repository_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetArtifactManifestResponse) GetManifest() *ArtifactManifest {
+	if x != nil {
+		return x.Manifest
+	}
+	return nil
+}
+
 // Request for uploading a bundle.
 type UploadBundleRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -34,7 +633,7 @@ type UploadBundleRequest struct {
 
 func (x *UploadBundleRequest) Reset() {
 	*x = UploadBundleRequest{}
-	mi := &file_repository_proto_msgTypes[0]
+	mi := &file_repository_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +645,7 @@ func (x *UploadBundleRequest) String() string {
 func (*UploadBundleRequest) ProtoMessage() {}
 
 func (x *UploadBundleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[0]
+	mi := &file_repository_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +658,7 @@ func (x *UploadBundleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadBundleRequest.ProtoReflect.Descriptor instead.
 func (*UploadBundleRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{0}
+	return file_repository_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UploadBundleRequest) GetUser() string {
@@ -93,7 +692,7 @@ type UploadBundleResponse struct {
 
 func (x *UploadBundleResponse) Reset() {
 	*x = UploadBundleResponse{}
-	mi := &file_repository_proto_msgTypes[1]
+	mi := &file_repository_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -105,7 +704,7 @@ func (x *UploadBundleResponse) String() string {
 func (*UploadBundleResponse) ProtoMessage() {}
 
 func (x *UploadBundleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[1]
+	mi := &file_repository_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,7 +717,7 @@ func (x *UploadBundleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadBundleResponse.ProtoReflect.Descriptor instead.
 func (*UploadBundleResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{1}
+	return file_repository_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UploadBundleResponse) GetResult() bool {
@@ -139,7 +738,7 @@ type DownloadBundleRequest struct {
 
 func (x *DownloadBundleRequest) Reset() {
 	*x = DownloadBundleRequest{}
-	mi := &file_repository_proto_msgTypes[2]
+	mi := &file_repository_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +750,7 @@ func (x *DownloadBundleRequest) String() string {
 func (*DownloadBundleRequest) ProtoMessage() {}
 
 func (x *DownloadBundleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[2]
+	mi := &file_repository_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +763,7 @@ func (x *DownloadBundleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadBundleRequest.ProtoReflect.Descriptor instead.
 func (*DownloadBundleRequest) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{2}
+	return file_repository_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DownloadBundleRequest) GetDescriptor_() *resourcepb.PackageDescriptor {
@@ -191,7 +790,7 @@ type DownloadBundleResponse struct {
 
 func (x *DownloadBundleResponse) Reset() {
 	*x = DownloadBundleResponse{}
-	mi := &file_repository_proto_msgTypes[3]
+	mi := &file_repository_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -203,7 +802,7 @@ func (x *DownloadBundleResponse) String() string {
 func (*DownloadBundleResponse) ProtoMessage() {}
 
 func (x *DownloadBundleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_repository_proto_msgTypes[3]
+	mi := &file_repository_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -216,7 +815,7 @@ func (x *DownloadBundleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadBundleResponse.ProtoReflect.Descriptor instead.
 func (*DownloadBundleResponse) Descriptor() ([]byte, []int) {
-	return file_repository_proto_rawDescGZIP(), []int{3}
+	return file_repository_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DownloadBundleResponse) GetData() []byte {
@@ -231,7 +830,45 @@ var File_repository_proto protoreflect.FileDescriptor
 const file_repository_proto_rawDesc = "" +
 	"\n" +
 	"\x10repository.proto\x12\n" +
-	"repository\x1a\x0eresource.proto\"a\n" +
+	"repository\x1a\x0eresource.proto\"\xa8\x01\n" +
+	"\vArtifactRef\x12!\n" +
+	"\fpublisher_id\x18\x01 \x01(\tR\vpublisherId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1a\n" +
+	"\bplatform\x18\x04 \x01(\tR\bplatform\x12,\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x18.repository.ArtifactKindR\x04kind\"\xfc\x02\n" +
+	"\x10ArtifactManifest\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x1a\n" +
+	"\bchecksum\x18\x02 \x01(\tR\bchecksum\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x03R\tsizeBytes\x12#\n" +
+	"\rmodified_unix\x18\x04 \x01(\x03R\fmodifiedUnix\x12\x1a\n" +
+	"\bprovides\x18\n" +
+	" \x03(\tR\bprovides\x12\x1a\n" +
+	"\brequires\x18\v \x03(\tR\brequires\x12F\n" +
+	"\bdefaults\x18\f \x03(\v2*.repository.ArtifactManifest.DefaultsEntryR\bdefaults\x12 \n" +
+	"\ventrypoints\x18\r \x03(\tR\ventrypoints\x1a;\n" +
+	"\rDefaultsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x16\n" +
+	"\x14ListArtifactsRequest\"S\n" +
+	"\x15ListArtifactsResponse\x12:\n" +
+	"\tartifacts\x18\x01 \x03(\v2\x1c.repository.ArtifactManifestR\tartifacts\"\x8e\x01\n" +
+	"\x15UploadArtifactRequest\x12\x12\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12\"\n" +
+	"\forganization\x18\x02 \x01(\tR\forganization\x12)\n" +
+	"\x03ref\x18\x03 \x01(\v2\x17.repository.ArtifactRefR\x03ref\x12\x12\n" +
+	"\x04data\x18\x04 \x01(\fR\x04data\"0\n" +
+	"\x16UploadArtifactResponse\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"D\n" +
+	"\x17DownloadArtifactRequest\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\".\n" +
+	"\x18DownloadArtifactResponse\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"G\n" +
+	"\x1aGetArtifactManifestRequest\x12)\n" +
+	"\x03ref\x18\x01 \x01(\v2\x17.repository.ArtifactRefR\x03ref\"W\n" +
+	"\x1bGetArtifactManifestResponse\x128\n" +
+	"\bmanifest\x18\x01 \x01(\v2\x1c.repository.ArtifactManifestR\bmanifest\"a\n" +
 	"\x13UploadBundleRequest\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\"\n" +
 	"\forganization\x18\x02 \x01(\tR\forganization\x12\x12\n" +
@@ -244,10 +881,20 @@ const file_repository_proto_rawDesc = "" +
 	"descriptor\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\",\n" +
 	"\x16DownloadBundleResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data2\xc3\x01\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data*e\n" +
+	"\fArtifactKind\x12\x1d\n" +
+	"\x19ARTIFACT_KIND_UNSPECIFIED\x10\x00\x12\v\n" +
+	"\aSERVICE\x10\x01\x12\x0f\n" +
+	"\vAPPLICATION\x10\x02\x12\t\n" +
+	"\x05AGENT\x10\x03\x12\r\n" +
+	"\tSUBSYSTEM\x10\x042\xbd\x04\n" +
 	"\x11PackageRepository\x12Y\n" +
 	"\x0eDownloadBundle\x12!.repository.DownloadBundleRequest\x1a\".repository.DownloadBundleResponse0\x01\x12S\n" +
-	"\fUploadBundle\x12\x1f.repository.UploadBundleRequest\x1a .repository.UploadBundleResponse(\x01B?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
+	"\fUploadBundle\x12\x1f.repository.UploadBundleRequest\x1a .repository.UploadBundleResponse(\x01\x12T\n" +
+	"\rListArtifacts\x12 .repository.ListArtifactsRequest\x1a!.repository.ListArtifactsResponse\x12Y\n" +
+	"\x0eUploadArtifact\x12!.repository.UploadArtifactRequest\x1a\".repository.UploadArtifactResponse(\x01\x12_\n" +
+	"\x10DownloadArtifact\x12#.repository.DownloadArtifactRequest\x1a$.repository.DownloadArtifactResponse0\x01\x12f\n" +
+	"\x13GetArtifactManifest\x12&.repository.GetArtifactManifestRequest\x1a'.repository.GetArtifactManifestResponseB?Z=github.com/globulario/services/golang/repository/repositorypbb\x06proto3"
 
 var (
 	file_repository_proto_rawDescOnce sync.Once
@@ -261,25 +908,54 @@ func file_repository_proto_rawDescGZIP() []byte {
 	return file_repository_proto_rawDescData
 }
 
-var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_repository_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_repository_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_repository_proto_goTypes = []any{
-	(*UploadBundleRequest)(nil),          // 0: repository.UploadBundleRequest
-	(*UploadBundleResponse)(nil),         // 1: repository.UploadBundleResponse
-	(*DownloadBundleRequest)(nil),        // 2: repository.DownloadBundleRequest
-	(*DownloadBundleResponse)(nil),       // 3: repository.DownloadBundleResponse
-	(*resourcepb.PackageDescriptor)(nil), // 4: resource.PackageDescriptor
+	(ArtifactKind)(0),                    // 0: repository.ArtifactKind
+	(*ArtifactRef)(nil),                  // 1: repository.ArtifactRef
+	(*ArtifactManifest)(nil),             // 2: repository.ArtifactManifest
+	(*ListArtifactsRequest)(nil),         // 3: repository.ListArtifactsRequest
+	(*ListArtifactsResponse)(nil),        // 4: repository.ListArtifactsResponse
+	(*UploadArtifactRequest)(nil),        // 5: repository.UploadArtifactRequest
+	(*UploadArtifactResponse)(nil),       // 6: repository.UploadArtifactResponse
+	(*DownloadArtifactRequest)(nil),      // 7: repository.DownloadArtifactRequest
+	(*DownloadArtifactResponse)(nil),     // 8: repository.DownloadArtifactResponse
+	(*GetArtifactManifestRequest)(nil),   // 9: repository.GetArtifactManifestRequest
+	(*GetArtifactManifestResponse)(nil),  // 10: repository.GetArtifactManifestResponse
+	(*UploadBundleRequest)(nil),          // 11: repository.UploadBundleRequest
+	(*UploadBundleResponse)(nil),         // 12: repository.UploadBundleResponse
+	(*DownloadBundleRequest)(nil),        // 13: repository.DownloadBundleRequest
+	(*DownloadBundleResponse)(nil),       // 14: repository.DownloadBundleResponse
+	nil,                                  // 15: repository.ArtifactManifest.DefaultsEntry
+	(*resourcepb.PackageDescriptor)(nil), // 16: resource.PackageDescriptor
 }
 var file_repository_proto_depIdxs = []int32{
-	4, // 0: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
-	2, // 1: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
-	0, // 2: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
-	3, // 3: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
-	1, // 4: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0,  // 0: repository.ArtifactRef.kind:type_name -> repository.ArtifactKind
+	1,  // 1: repository.ArtifactManifest.ref:type_name -> repository.ArtifactRef
+	15, // 2: repository.ArtifactManifest.defaults:type_name -> repository.ArtifactManifest.DefaultsEntry
+	2,  // 3: repository.ListArtifactsResponse.artifacts:type_name -> repository.ArtifactManifest
+	1,  // 4: repository.UploadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	1,  // 5: repository.DownloadArtifactRequest.ref:type_name -> repository.ArtifactRef
+	1,  // 6: repository.GetArtifactManifestRequest.ref:type_name -> repository.ArtifactRef
+	2,  // 7: repository.GetArtifactManifestResponse.manifest:type_name -> repository.ArtifactManifest
+	16, // 8: repository.DownloadBundleRequest.descriptor:type_name -> resource.PackageDescriptor
+	13, // 9: repository.PackageRepository.DownloadBundle:input_type -> repository.DownloadBundleRequest
+	11, // 10: repository.PackageRepository.UploadBundle:input_type -> repository.UploadBundleRequest
+	3,  // 11: repository.PackageRepository.ListArtifacts:input_type -> repository.ListArtifactsRequest
+	5,  // 12: repository.PackageRepository.UploadArtifact:input_type -> repository.UploadArtifactRequest
+	7,  // 13: repository.PackageRepository.DownloadArtifact:input_type -> repository.DownloadArtifactRequest
+	9,  // 14: repository.PackageRepository.GetArtifactManifest:input_type -> repository.GetArtifactManifestRequest
+	14, // 15: repository.PackageRepository.DownloadBundle:output_type -> repository.DownloadBundleResponse
+	12, // 16: repository.PackageRepository.UploadBundle:output_type -> repository.UploadBundleResponse
+	4,  // 17: repository.PackageRepository.ListArtifacts:output_type -> repository.ListArtifactsResponse
+	6,  // 18: repository.PackageRepository.UploadArtifact:output_type -> repository.UploadArtifactResponse
+	8,  // 19: repository.PackageRepository.DownloadArtifact:output_type -> repository.DownloadArtifactResponse
+	10, // 20: repository.PackageRepository.GetArtifactManifest:output_type -> repository.GetArtifactManifestResponse
+	15, // [15:21] is the sub-list for method output_type
+	9,  // [9:15] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_repository_proto_init() }
@@ -292,13 +968,14 @@ func file_repository_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_repository_proto_rawDesc), len(file_repository_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_repository_proto_goTypes,
 		DependencyIndexes: file_repository_proto_depIdxs,
+		EnumInfos:         file_repository_proto_enumTypes,
 		MessageInfos:      file_repository_proto_msgTypes,
 	}.Build()
 	File_repository_proto = out.File

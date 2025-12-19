@@ -62,6 +62,9 @@ message NodeInfo {
   string arch = 5;
   string agent_version = 6;
   int64 unix_time = 7;
+  string node_id = 8;
+  string agent_endpoint = 9;
+  string platform = 10;
 }
 
 message InstalledComponent {

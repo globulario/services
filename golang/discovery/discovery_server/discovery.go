@@ -4,8 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discoverypb"
+	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
@@ -193,4 +196,115 @@ func (srv *server) PublishApplication(ctx context.Context, rqst *discoverypb.Pub
 	)
 
 	return &discoverypb.PublishApplicationResponse{}, nil
+}
+
+func (srv *server) ResolveInstallPlan(ctx context.Context, rqst *discoverypb.ResolveInstallPlanRequest) (*discoverypb.InstallPlan, error) {
+	if rqst == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+
+	platform := strings.TrimSpace(rqst.GetPlatform())
+	if platform == "" {
+		platform = "linux/amd64"
+	}
+
+	publisher := strings.TrimSpace(rqst.GetChannel())
+	if publisher == "" {
+		publisher = "globular"
+	}
+
+	repoID := ""
+	if repos := rqst.GetRepositories(); len(repos) > 0 {
+		repoID = repos[0]
+	}
+
+	pins := rqst.GetPins()
+	steps := make([]*discoverypb.InstallStep, 0, 8)
+	addStep := func(id, artifactName string, kind repositorypb.ArtifactKind, action discoverypb.InstallStep_Action, depends []string) {
+		artifact := &repositorypb.ArtifactRef{
+			PublisherId: publisher,
+			Name:        artifactName,
+			Version:     resolveVersion(artifactName, pins),
+			Platform:    platform,
+			Kind:        kind,
+		}
+		steps = append(steps, &discoverypb.InstallStep{
+			Id: id,
+		})
+		if artifact != nil {
+			steps[len(steps)-1].Artifact = artifact
+		}
+		if repoID != "" {
+			steps[len(steps)-1].RepositoryId = repoID
+		}
+		steps[len(steps)-1].Action = action
+		if len(depends) > 0 {
+			steps[len(steps)-1].DependsOn = append([]string{}, depends...)
+		}
+	}
+
+	addStep("nodeagent", "nodeagent", repositorypb.ArtifactKind_AGENT, discoverypb.InstallStep_DOWNLOAD, nil)
+
+	profiles := rqst.GetProfiles()
+	if hasProfile(profiles, "control-plane") {
+		addStep("etcd", "etcd", repositorypb.ArtifactKind_SUBSYSTEM, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+		addStep("envoy", "envoy", repositorypb.ArtifactKind_SUBSYSTEM, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+		addStep("clustercontroller", "clustercontroller", repositorypb.ArtifactKind_SERVICE, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+		addStep("discovery", "discovery", repositorypb.ArtifactKind_SERVICE, discoverypb.InstallStep_INSTALL, []string{"clustercontroller"})
+		addStep("repository", "repository", repositorypb.ArtifactKind_SERVICE, discoverypb.InstallStep_INSTALL, []string{"clustercontroller"})
+	}
+
+	if hasProfile(profiles, "storage") {
+		addStep("minio", "minio", repositorypb.ArtifactKind_SUBSYSTEM, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+		addStep("scylla", "scylla", repositorypb.ArtifactKind_SUBSYSTEM, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+	}
+
+	if hasProfile(profiles, "worker") {
+		addStep("globular-core", "globular-core", repositorypb.ArtifactKind_SERVICE, discoverypb.InstallStep_INSTALL, []string{"nodeagent"})
+	}
+
+	return &discoverypb.InstallPlan{
+		PlanId: Utility.GenerateUUID(platform + ":" + time.Now().String()),
+		Steps:  steps,
+	}, nil
+}
+
+func hasProfile(profiles []string, target string) bool {
+	target = strings.ToLower(strings.TrimSpace(target))
+	if target == "" {
+		return false
+	}
+	for _, p := range profiles {
+		n := strings.ToLower(strings.TrimSpace(p))
+		if n == target || strings.HasPrefix(n, target+"-") {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveVersion(name string, pins map[string]string) string {
+	if pins != nil {
+		if v := strings.TrimSpace(pins[name]); v != "" {
+			return v
+		}
+	}
+	return "latest"
+}
+
+func (srv *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
+	address, _ := config.GetAddress()
+	resourceClient, err := srv.getResourceClient(address)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "failed to connect to resource service: %v", err)
+	}
+	descriptor, err := resourceClient.GetPackageDescriptor(rqst.GetServiceId(), rqst.GetPublisherID(), rqst.GetVersion())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resource GetPackageDescriptor failed: %v", err)
+	}
+	resp := &resourcepb.GetPackageDescriptorResponse{}
+	if descriptor != nil {
+		resp.Results = []*resourcepb.PackageDescriptor{descriptor}
+	}
+	return resp, nil
 }

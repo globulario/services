@@ -5,6 +5,66 @@ import "resource.proto";
 
 option go_package="github.com/globulario/services/golang/repository/repositorypb";
 
+enum ArtifactKind {
+  ARTIFACT_KIND_UNSPECIFIED = 0;
+  SERVICE = 1;
+  APPLICATION = 2;
+  AGENT = 3;
+  SUBSYSTEM = 4;
+}
+
+message ArtifactRef {
+  string publisher_id = 1;
+  string name = 2;
+  string version = 3;
+  string platform = 4;
+  ArtifactKind kind = 5;
+}
+
+message ArtifactManifest {
+  ArtifactRef ref = 1;
+  string checksum = 2;
+  int64 size_bytes = 3;
+  int64 modified_unix = 4;
+  repeated string provides = 10;
+  repeated string requires = 11;
+  map<string,string> defaults = 12;
+  repeated string entrypoints = 13;
+}
+
+message ListArtifactsRequest {}
+
+message ListArtifactsResponse {
+  repeated ArtifactManifest artifacts = 1;
+}
+
+message UploadArtifactRequest {
+  string user = 1;
+  string organization = 2;
+  ArtifactRef ref = 3;
+  bytes data = 4;
+}
+
+message UploadArtifactResponse {
+  bool result = 1;
+}
+
+message DownloadArtifactRequest {
+  ArtifactRef ref = 1;
+}
+
+message DownloadArtifactResponse {
+  bytes data = 1;
+}
+
+message GetArtifactManifestRequest {
+  ArtifactRef ref = 1;
+}
+
+message GetArtifactManifestResponse {
+  ArtifactManifest manifest = 1;
+}
+
 // Request for uploading a bundle.
 message UploadBundleRequest {
   string user = 1;              // Username of the person uploading the bundle.
@@ -39,4 +99,16 @@ service PackageRepository {
   // Input: Stream of UploadBundleRequest containing the user, organization, and bundle data.
   // Output: UploadBundleResponse indicating the result of the upload operation.
   rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse);
+
+  // Lists stored artifacts (services, applications, agents, subsystems).
+  rpc ListArtifacts(ListArtifactsRequest) returns(ListArtifactsResponse);
+
+  // Uploads an artifact stream into the repository.
+  rpc UploadArtifact(stream UploadArtifactRequest) returns(UploadArtifactResponse);
+
+  // Downloads a complete artifact from the repository.
+  rpc DownloadArtifact(DownloadArtifactRequest) returns(stream DownloadArtifactResponse);
+
+  // Retrieves metadata for a specific artifact reference.
+  rpc GetArtifactManifest(GetArtifactManifestRequest) returns(GetArtifactManifestResponse);
 }

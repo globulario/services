@@ -14,6 +14,9 @@ message NodeInfo {
   string arch = 5;
   string agent_version = 6;
   google.protobuf.Timestamp last_seen = 7;
+  string node_id = 8;
+  string agent_endpoint = 9;
+  string platform = 10;
 }
 
 message EnrollRequest {
@@ -40,7 +43,7 @@ message ListJoinRequestsResponse { repeated JoinRequest joins = 1; }
 
 message ApproveNodeRequest {
   string node_id = 1;
-  repeated string roles = 2;
+  repeated string profiles = 2;
   map<string,string> metadata = 3;
 }
 
@@ -65,6 +68,8 @@ message NodeSubject {
   string domain = 3;
   string status = 4;
   repeated string profiles = 5;
+  string agent_endpoint = 6;
+  string platform = 7;
 }
 
 message ListNodesRequest {}
@@ -101,14 +106,17 @@ message OperationEvent {
   int32 percent = 4;
   bool done = 5;
   string node_id = 6;
+  string error = 7;
 }
 
 service ClusterControllerService {
   rpc Enroll(EnrollRequest) returns (EnrollResponse);
-  rpc ListJoinRequests(ListJoinRequestsRequest) returns (stream ListJoinRequestsResponse);
+  rpc ListJoinRequests(ListJoinRequestsRequest) returns (stream JoinRequest);
+  rpc GetJoinRequests(ListJoinRequestsRequest) returns (ListJoinRequestsResponse);
   rpc ApproveNode(ApproveNodeRequest) returns (ApproveNodeResponse);
   rpc RejectNode(RejectNodeRequest) returns (RejectNodeResponse);
-  rpc ListNodes(ListNodesRequest) returns (stream ListNodesResponse);
+  rpc ListNodes(ListNodesRequest) returns (stream NodeSubject);
+  rpc GetNodes(ListNodesRequest) returns (ListNodesResponse);
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
   rpc WatchNodeOperations(WatchNodeOperationsRequest) returns (stream OperationEvent);
 }

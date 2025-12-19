@@ -7,6 +7,7 @@
 package discoverypb
 
 import (
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -21,6 +22,58 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type InstallStep_Action int32
+
+const (
+	InstallStep_DOWNLOAD  InstallStep_Action = 0
+	InstallStep_INSTALL   InstallStep_Action = 1
+	InstallStep_CONFIGURE InstallStep_Action = 2
+	InstallStep_START     InstallStep_Action = 3
+)
+
+// Enum value maps for InstallStep_Action.
+var (
+	InstallStep_Action_name = map[int32]string{
+		0: "DOWNLOAD",
+		1: "INSTALL",
+		2: "CONFIGURE",
+		3: "START",
+	}
+	InstallStep_Action_value = map[string]int32{
+		"DOWNLOAD":  0,
+		"INSTALL":   1,
+		"CONFIGURE": 2,
+		"START":     3,
+	}
+)
+
+func (x InstallStep_Action) Enum() *InstallStep_Action {
+	p := new(InstallStep_Action)
+	*p = x
+	return p
+}
+
+func (x InstallStep_Action) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (InstallStep_Action) Descriptor() protoreflect.EnumDescriptor {
+	return file_discovery_proto_enumTypes[0].Descriptor()
+}
+
+func (InstallStep_Action) Type() protoreflect.EnumType {
+	return &file_discovery_proto_enumTypes[0]
+}
+
+func (x InstallStep_Action) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use InstallStep_Action.Descriptor instead.
+func (InstallStep_Action) EnumDescriptor() ([]byte, []int) {
+	return file_discovery_proto_rawDescGZIP(), []int{5, 0}
+}
 
 // Request for publishing a service.
 type PublishServiceRequest struct {
@@ -410,11 +463,223 @@ func (x *PublishApplicationResponse) GetResult() bool {
 	return false
 }
 
+type ResolveInstallPlanRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Platform      string                 `protobuf:"bytes,1,opt,name=platform,proto3" json:"platform,omitempty"`
+	Profiles      []string               `protobuf:"bytes,2,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Channel       string                 `protobuf:"bytes,3,opt,name=channel,proto3" json:"channel,omitempty"`
+	Repositories  []string               `protobuf:"bytes,4,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	Pins          map[string]string      `protobuf:"bytes,5,rep,name=pins,proto3" json:"pins,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveInstallPlanRequest) Reset() {
+	*x = ResolveInstallPlanRequest{}
+	mi := &file_discovery_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveInstallPlanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveInstallPlanRequest) ProtoMessage() {}
+
+func (x *ResolveInstallPlanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_discovery_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveInstallPlanRequest.ProtoReflect.Descriptor instead.
+func (*ResolveInstallPlanRequest) Descriptor() ([]byte, []int) {
+	return file_discovery_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ResolveInstallPlanRequest) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
+}
+
+func (x *ResolveInstallPlanRequest) GetProfiles() []string {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *ResolveInstallPlanRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *ResolveInstallPlanRequest) GetRepositories() []string {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+func (x *ResolveInstallPlanRequest) GetPins() map[string]string {
+	if x != nil {
+		return x.Pins
+	}
+	return nil
+}
+
+type InstallStep struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Id            string                    `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Artifact      *repositorypb.ArtifactRef `protobuf:"bytes,2,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	RepositoryId  string                    `protobuf:"bytes,3,opt,name=repository_id,json=repositoryId,proto3" json:"repository_id,omitempty"`
+	Action        InstallStep_Action        `protobuf:"varint,4,opt,name=action,proto3,enum=discovery.InstallStep_Action" json:"action,omitempty"`
+	DependsOn     []string                  `protobuf:"bytes,5,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	Config        map[string]string         `protobuf:"bytes,6,rep,name=config,proto3" json:"config,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InstallStep) Reset() {
+	*x = InstallStep{}
+	mi := &file_discovery_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstallStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstallStep) ProtoMessage() {}
+
+func (x *InstallStep) ProtoReflect() protoreflect.Message {
+	mi := &file_discovery_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstallStep.ProtoReflect.Descriptor instead.
+func (*InstallStep) Descriptor() ([]byte, []int) {
+	return file_discovery_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *InstallStep) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *InstallStep) GetArtifact() *repositorypb.ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *InstallStep) GetRepositoryId() string {
+	if x != nil {
+		return x.RepositoryId
+	}
+	return ""
+}
+
+func (x *InstallStep) GetAction() InstallStep_Action {
+	if x != nil {
+		return x.Action
+	}
+	return InstallStep_DOWNLOAD
+}
+
+func (x *InstallStep) GetDependsOn() []string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return nil
+}
+
+func (x *InstallStep) GetConfig() map[string]string {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+type InstallPlan struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PlanId        string                 `protobuf:"bytes,1,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
+	Steps         []*InstallStep         `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InstallPlan) Reset() {
+	*x = InstallPlan{}
+	mi := &file_discovery_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstallPlan) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstallPlan) ProtoMessage() {}
+
+func (x *InstallPlan) ProtoReflect() protoreflect.Message {
+	mi := &file_discovery_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstallPlan.ProtoReflect.Descriptor instead.
+func (*InstallPlan) Descriptor() ([]byte, []int) {
+	return file_discovery_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *InstallPlan) GetPlanId() string {
+	if x != nil {
+		return x.PlanId
+	}
+	return ""
+}
+
+func (x *InstallPlan) GetSteps() []*InstallStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
 var File_discovery_proto protoreflect.FileDescriptor
 
 const file_discovery_proto_rawDesc = "" +
 	"\n" +
-	"\x0fdiscovery.proto\x12\tdiscovery\x1a\x0eresource.proto\"\xdd\x02\n" +
+	"\x0fdiscovery.proto\x12\tdiscovery\x1a\x10repository.proto\x1a\x0eresource.proto\"\xdd\x02\n" +
 	"\x15PublishServiceRequest\x12\x1c\n" +
 	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12 \n" +
 	"\vserviceName\x18\x02 \x01(\tR\vserviceName\x12\x12\n" +
@@ -452,10 +717,40 @@ const file_discovery_proto_rawDesc = "" +
 	"\x0eset_as_default\x18\x10 \x01(\bR\fsetAsDefault\x12\x12\n" +
 	"\x04path\x18\x11 \x01(\tR\x04path\"4\n" +
 	"\x1aPublishApplicationResponse\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result2\xcc\x01\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x8e\x02\n" +
+	"\x19ResolveInstallPlanRequest\x12\x1a\n" +
+	"\bplatform\x18\x01 \x01(\tR\bplatform\x12\x1a\n" +
+	"\bprofiles\x18\x02 \x03(\tR\bprofiles\x12\x18\n" +
+	"\achannel\x18\x03 \x01(\tR\achannel\x12\"\n" +
+	"\frepositories\x18\x04 \x03(\tR\frepositories\x12B\n" +
+	"\x04pins\x18\x05 \x03(\v2..discovery.ResolveInstallPlanRequest.PinsEntryR\x04pins\x1a7\n" +
+	"\tPinsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x03\n" +
+	"\vInstallStep\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x123\n" +
+	"\bartifact\x18\x02 \x01(\v2\x17.repository.ArtifactRefR\bartifact\x12#\n" +
+	"\rrepository_id\x18\x03 \x01(\tR\frepositoryId\x125\n" +
+	"\x06action\x18\x04 \x01(\x0e2\x1d.discovery.InstallStep.ActionR\x06action\x12\x1d\n" +
+	"\n" +
+	"depends_on\x18\x05 \x03(\tR\tdependsOn\x12:\n" +
+	"\x06config\x18\x06 \x03(\v2\".discovery.InstallStep.ConfigEntryR\x06config\x1a9\n" +
+	"\vConfigEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"=\n" +
+	"\x06Action\x12\f\n" +
+	"\bDOWNLOAD\x10\x00\x12\v\n" +
+	"\aINSTALL\x10\x01\x12\r\n" +
+	"\tCONFIGURE\x10\x02\x12\t\n" +
+	"\x05START\x10\x03\"T\n" +
+	"\vInstallPlan\x12\x17\n" +
+	"\aplan_id\x18\x01 \x01(\tR\x06planId\x12,\n" +
+	"\x05steps\x18\x02 \x03(\v2\x16.discovery.InstallStepR\x05steps2\x87\x03\n" +
 	"\x10PackageDiscovery\x12U\n" +
 	"\x0ePublishService\x12 .discovery.PublishServiceRequest\x1a!.discovery.PublishServiceResponse\x12a\n" +
-	"\x12PublishApplication\x12$.discovery.PublishApplicationRequest\x1a%.discovery.PublishApplicationResponseB=Z;github.com/globulario/services/golang/discovery/discoverypbb\x06proto3"
+	"\x12PublishApplication\x12$.discovery.PublishApplicationRequest\x1a%.discovery.PublishApplicationResponse\x12R\n" +
+	"\x12ResolveInstallPlan\x12$.discovery.ResolveInstallPlanRequest\x1a\x16.discovery.InstallPlan\x12e\n" +
+	"\x14GetPackageDescriptor\x12%.resource.GetPackageDescriptorRequest\x1a&.resource.GetPackageDescriptorResponseB=Z;github.com/globulario/services/golang/discovery/discoverypbb\x06proto3"
 
 var (
 	file_discovery_proto_rawDescOnce sync.Once
@@ -469,27 +764,46 @@ func file_discovery_proto_rawDescGZIP() []byte {
 	return file_discovery_proto_rawDescData
 }
 
-var file_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_discovery_proto_goTypes = []any{
-	(*PublishServiceRequest)(nil),      // 0: discovery.PublishServiceRequest
-	(*PublishServiceResponse)(nil),     // 1: discovery.PublishServiceResponse
-	(*PublishApplicationRequest)(nil),  // 2: discovery.PublishApplicationRequest
-	(*PublishApplicationResponse)(nil), // 3: discovery.PublishApplicationResponse
-	(*resourcepb.Role)(nil),            // 4: resource.Role
-	(*resourcepb.Group)(nil),           // 5: resource.Group
+	(InstallStep_Action)(0),                         // 0: discovery.InstallStep.Action
+	(*PublishServiceRequest)(nil),                   // 1: discovery.PublishServiceRequest
+	(*PublishServiceResponse)(nil),                  // 2: discovery.PublishServiceResponse
+	(*PublishApplicationRequest)(nil),               // 3: discovery.PublishApplicationRequest
+	(*PublishApplicationResponse)(nil),              // 4: discovery.PublishApplicationResponse
+	(*ResolveInstallPlanRequest)(nil),               // 5: discovery.ResolveInstallPlanRequest
+	(*InstallStep)(nil),                             // 6: discovery.InstallStep
+	(*InstallPlan)(nil),                             // 7: discovery.InstallPlan
+	nil,                                             // 8: discovery.ResolveInstallPlanRequest.PinsEntry
+	nil,                                             // 9: discovery.InstallStep.ConfigEntry
+	(*resourcepb.Role)(nil),                         // 10: resource.Role
+	(*resourcepb.Group)(nil),                        // 11: resource.Group
+	(*repositorypb.ArtifactRef)(nil),                // 12: repository.ArtifactRef
+	(*resourcepb.GetPackageDescriptorRequest)(nil),  // 13: resource.GetPackageDescriptorRequest
+	(*resourcepb.GetPackageDescriptorResponse)(nil), // 14: resource.GetPackageDescriptorResponse
 }
 var file_discovery_proto_depIdxs = []int32{
-	4, // 0: discovery.PublishApplicationRequest.roles:type_name -> resource.Role
-	5, // 1: discovery.PublishApplicationRequest.groups:type_name -> resource.Group
-	0, // 2: discovery.PackageDiscovery.PublishService:input_type -> discovery.PublishServiceRequest
-	2, // 3: discovery.PackageDiscovery.PublishApplication:input_type -> discovery.PublishApplicationRequest
-	1, // 4: discovery.PackageDiscovery.PublishService:output_type -> discovery.PublishServiceResponse
-	3, // 5: discovery.PackageDiscovery.PublishApplication:output_type -> discovery.PublishApplicationResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	10, // 0: discovery.PublishApplicationRequest.roles:type_name -> resource.Role
+	11, // 1: discovery.PublishApplicationRequest.groups:type_name -> resource.Group
+	8,  // 2: discovery.ResolveInstallPlanRequest.pins:type_name -> discovery.ResolveInstallPlanRequest.PinsEntry
+	12, // 3: discovery.InstallStep.artifact:type_name -> repository.ArtifactRef
+	0,  // 4: discovery.InstallStep.action:type_name -> discovery.InstallStep.Action
+	9,  // 5: discovery.InstallStep.config:type_name -> discovery.InstallStep.ConfigEntry
+	6,  // 6: discovery.InstallPlan.steps:type_name -> discovery.InstallStep
+	1,  // 7: discovery.PackageDiscovery.PublishService:input_type -> discovery.PublishServiceRequest
+	3,  // 8: discovery.PackageDiscovery.PublishApplication:input_type -> discovery.PublishApplicationRequest
+	5,  // 9: discovery.PackageDiscovery.ResolveInstallPlan:input_type -> discovery.ResolveInstallPlanRequest
+	13, // 10: discovery.PackageDiscovery.GetPackageDescriptor:input_type -> resource.GetPackageDescriptorRequest
+	2,  // 11: discovery.PackageDiscovery.PublishService:output_type -> discovery.PublishServiceResponse
+	4,  // 12: discovery.PackageDiscovery.PublishApplication:output_type -> discovery.PublishApplicationResponse
+	7,  // 13: discovery.PackageDiscovery.ResolveInstallPlan:output_type -> discovery.InstallPlan
+	14, // 14: discovery.PackageDiscovery.GetPackageDescriptor:output_type -> resource.GetPackageDescriptorResponse
+	11, // [11:15] is the sub-list for method output_type
+	7,  // [7:11] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_discovery_proto_init() }
@@ -502,13 +816,14 @@ func file_discovery_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_discovery_proto_rawDesc), len(file_discovery_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_discovery_proto_goTypes,
 		DependencyIndexes: file_discovery_proto_depIdxs,
+		EnumInfos:         file_discovery_proto_enumTypes,
 		MessageInfos:      file_discovery_proto_msgTypes,
 	}.Build()
 	File_discovery_proto = out.File

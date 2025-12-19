@@ -132,5 +132,183 @@ proto.repository.PackageRepositoryPromiseClient.prototype.downloadBundle =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.ListArtifactsRequest,
+ *   !proto.repository.ListArtifactsResponse>}
+ */
+const methodDescriptor_PackageRepository_ListArtifacts = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/ListArtifacts',
+  grpc.web.MethodType.UNARY,
+  proto.repository.ListArtifactsRequest,
+  proto.repository.ListArtifactsResponse,
+  /**
+   * @param {!proto.repository.ListArtifactsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.ListArtifactsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.ListArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.ListArtifactsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.ListArtifactsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.listArtifacts =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/ListArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListArtifacts,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.ListArtifactsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.ListArtifactsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.listArtifacts =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/ListArtifacts',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_ListArtifacts);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.DownloadArtifactRequest,
+ *   !proto.repository.DownloadArtifactResponse>}
+ */
+const methodDescriptor_PackageRepository_DownloadArtifact = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/DownloadArtifact',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.repository.DownloadArtifactRequest,
+  proto.repository.DownloadArtifactResponse,
+  /**
+   * @param {!proto.repository.DownloadArtifactRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.DownloadArtifactResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.DownloadArtifactRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.DownloadArtifactResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.downloadArtifact =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/repository.PackageRepository/DownloadArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DownloadArtifact);
+};
+
+
+/**
+ * @param {!proto.repository.DownloadArtifactRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.DownloadArtifactResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.downloadArtifact =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/repository.PackageRepository/DownloadArtifact',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_DownloadArtifact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.repository.GetArtifactManifestRequest,
+ *   !proto.repository.GetArtifactManifestResponse>}
+ */
+const methodDescriptor_PackageRepository_GetArtifactManifest = new grpc.web.MethodDescriptor(
+  '/repository.PackageRepository/GetArtifactManifest',
+  grpc.web.MethodType.UNARY,
+  proto.repository.GetArtifactManifestRequest,
+  proto.repository.GetArtifactManifestResponse,
+  /**
+   * @param {!proto.repository.GetArtifactManifestRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.repository.GetArtifactManifestResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.repository.GetArtifactManifestRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.repository.GetArtifactManifestResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.repository.GetArtifactManifestResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.repository.PackageRepositoryClient.prototype.getArtifactManifest =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/repository.PackageRepository/GetArtifactManifest',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetArtifactManifest,
+      callback);
+};
+
+
+/**
+ * @param {!proto.repository.GetArtifactManifestRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.repository.GetArtifactManifestResponse>}
+ *     Promise that resolves to the response
+ */
+proto.repository.PackageRepositoryPromiseClient.prototype.getArtifactManifest =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/repository.PackageRepository/GetArtifactManifest',
+      request,
+      metadata || {},
+      methodDescriptor_PackageRepository_GetArtifactManifest);
+};
+
+
 module.exports = proto.repository;
 

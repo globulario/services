@@ -75,6 +75,8 @@ type server struct {
 	State           string
 	ModTime         int64
 
+	repositorypb.UnimplementedPackageRepositoryServer
+
 	// TLS
 	TLS                bool
 	CertFile           string

@@ -86,6 +86,9 @@ type NodeInfo struct {
 	Arch          string                 `protobuf:"bytes,5,opt,name=arch,proto3" json:"arch,omitempty"`
 	AgentVersion  string                 `protobuf:"bytes,6,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
 	LastSeen      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
+	NodeId        string                 `protobuf:"bytes,8,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	AgentEndpoint string                 `protobuf:"bytes,9,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
+	Platform      string                 `protobuf:"bytes,10,opt,name=platform,proto3" json:"platform,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -167,6 +170,27 @@ func (x *NodeInfo) GetLastSeen() *timestamppb.Timestamp {
 		return x.LastSeen
 	}
 	return nil
+}
+
+func (x *NodeInfo) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NodeInfo) GetAgentEndpoint() string {
+	if x != nil {
+		return x.AgentEndpoint
+	}
+	return ""
+}
+
+func (x *NodeInfo) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
 }
 
 type EnrollRequest struct {
@@ -440,7 +464,7 @@ func (x *ListJoinRequestsResponse) GetJoins() []*JoinRequest {
 type ApproveNodeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Roles         []string               `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	Profiles      []string               `protobuf:"bytes,2,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	Metadata      map[string]string      `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -483,9 +507,9 @@ func (x *ApproveNodeRequest) GetNodeId() string {
 	return ""
 }
 
-func (x *ApproveNodeRequest) GetRoles() []string {
+func (x *ApproveNodeRequest) GetProfiles() []string {
 	if x != nil {
-		return x.Roles
+		return x.Profiles
 	}
 	return nil
 }
@@ -660,6 +684,8 @@ type NodeSubject struct {
 	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
 	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
 	Profiles      []string               `protobuf:"bytes,5,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	AgentEndpoint string                 `protobuf:"bytes,6,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
+	Platform      string                 `protobuf:"bytes,7,opt,name=platform,proto3" json:"platform,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -727,6 +753,20 @@ func (x *NodeSubject) GetProfiles() []string {
 		return x.Profiles
 	}
 	return nil
+}
+
+func (x *NodeSubject) GetAgentEndpoint() string {
+	if x != nil {
+		return x.AgentEndpoint
+	}
+	return ""
+}
+
+func (x *NodeSubject) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
 }
 
 type ListNodesRequest struct {
@@ -1001,6 +1041,7 @@ type OperationEvent struct {
 	Percent       int32                  `protobuf:"varint,4,opt,name=percent,proto3" json:"percent,omitempty"`
 	Done          bool                   `protobuf:"varint,5,opt,name=done,proto3" json:"done,omitempty"`
 	NodeId        string                 `protobuf:"bytes,6,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Error         string                 `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1077,11 +1118,18 @@ func (x *OperationEvent) GetNodeId() string {
 	return ""
 }
 
+func (x *OperationEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_clustercontroller_proto protoreflect.FileDescriptor
 
 const file_clustercontroller_proto_rawDesc = "" +
 	"\n" +
-	"\x17clustercontroller.proto\x12\x11clustercontroller\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd2\x01\n" +
+	"\x17clustercontroller.proto\x12\x11clustercontroller\x1a\x1fgoogle/protobuf/timestamp.proto\"\xae\x02\n" +
 	"\bNodeInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x10\n" +
@@ -1089,7 +1137,11 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x02os\x18\x04 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x05 \x01(\tR\x04arch\x12#\n" +
 	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x127\n" +
-	"\tlast_seen\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"_\n" +
+	"\tlast_seen\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\x12\x17\n" +
+	"\anode_id\x18\b \x01(\tR\x06nodeId\x12%\n" +
+	"\x0eagent_endpoint\x18\t \x01(\tR\ragentEndpoint\x12\x1a\n" +
+	"\bplatform\x18\n" +
+	" \x01(\tR\bplatform\"_\n" +
 	"\rEnrollRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12/\n" +
@@ -1106,10 +1158,10 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\"\x19\n" +
 	"\x17ListJoinRequestsRequest\"P\n" +
 	"\x18ListJoinRequestsResponse\x124\n" +
-	"\x05joins\x18\x01 \x03(\v2\x1e.clustercontroller.JoinRequestR\x05joins\"\xd1\x01\n" +
+	"\x05joins\x18\x01 \x03(\v2\x1e.clustercontroller.JoinRequestR\x05joins\"\xd7\x01\n" +
 	"\x12ApproveNodeRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x14\n" +
-	"\x05roles\x18\x02 \x03(\tR\x05roles\x12O\n" +
+	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
+	"\bprofiles\x18\x02 \x03(\tR\bprofiles\x12O\n" +
 	"\bmetadata\x18\x03 \x03(\v23.clustercontroller.ApproveNodeRequest.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -1122,13 +1174,15 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"G\n" +
 	"\x12RejectNodeResponse\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x8e\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xd1\x01\n" +
 	"\vNodeSubject\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x16\n" +
 	"\x06domain\x18\x03 \x01(\tR\x06domain\x12\x16\n" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1a\n" +
-	"\bprofiles\x18\x05 \x03(\tR\bprofiles\"\x12\n" +
+	"\bprofiles\x18\x05 \x03(\tR\bprofiles\x12%\n" +
+	"\x0eagent_endpoint\x18\x06 \x01(\tR\ragentEndpoint\x12\x1a\n" +
+	"\bplatform\x18\a \x01(\tR\bplatform\"\x12\n" +
 	"\x10ListNodesRequest\"I\n" +
 	"\x11ListNodesResponse\x124\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x1e.clustercontroller.NodeSubjectR\x05nodes\"M\n" +
@@ -1148,21 +1202,24 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06FAILED\x10\x04\"X\n" +
 	"\x1aWatchNodeOperationsRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12!\n" +
-	"\foperation_id\x18\x02 \x01(\tR\voperationId\"\xd3\x01\n" +
+	"\foperation_id\x18\x02 \x01(\tR\voperationId\"\xe9\x01\n" +
 	"\x0eOperationEvent\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12=\n" +
 	"\x05phase\x18\x02 \x01(\x0e2'.clustercontroller.OperationPhase.PhaseR\x05phase\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12\x18\n" +
 	"\apercent\x18\x04 \x01(\x05R\apercent\x12\x12\n" +
 	"\x04done\x18\x05 \x01(\bR\x04done\x12\x17\n" +
-	"\anode_id\x18\x06 \x01(\tR\x06nodeId2\xc0\x05\n" +
+	"\anode_id\x18\x06 \x01(\tR\x06nodeId\x12\x14\n" +
+	"\x05error\x18\a \x01(\tR\x05error2\xf0\x06\n" +
 	"\x18ClusterControllerService\x12M\n" +
-	"\x06Enroll\x12 .clustercontroller.EnrollRequest\x1a!.clustercontroller.EnrollResponse\x12m\n" +
-	"\x10ListJoinRequests\x12*.clustercontroller.ListJoinRequestsRequest\x1a+.clustercontroller.ListJoinRequestsResponse0\x01\x12\\\n" +
+	"\x06Enroll\x12 .clustercontroller.EnrollRequest\x1a!.clustercontroller.EnrollResponse\x12`\n" +
+	"\x10ListJoinRequests\x12*.clustercontroller.ListJoinRequestsRequest\x1a\x1e.clustercontroller.JoinRequest0\x01\x12j\n" +
+	"\x0fGetJoinRequests\x12*.clustercontroller.ListJoinRequestsRequest\x1a+.clustercontroller.ListJoinRequestsResponse\x12\\\n" +
 	"\vApproveNode\x12%.clustercontroller.ApproveNodeRequest\x1a&.clustercontroller.ApproveNodeResponse\x12Y\n" +
 	"\n" +
-	"RejectNode\x12$.clustercontroller.RejectNodeRequest\x1a%.clustercontroller.RejectNodeResponse\x12X\n" +
-	"\tListNodes\x12#.clustercontroller.ListNodesRequest\x1a$.clustercontroller.ListNodesResponse0\x01\x12h\n" +
+	"RejectNode\x12$.clustercontroller.RejectNodeRequest\x1a%.clustercontroller.RejectNodeResponse\x12R\n" +
+	"\tListNodes\x12#.clustercontroller.ListNodesRequest\x1a\x1e.clustercontroller.NodeSubject0\x01\x12U\n" +
+	"\bGetNodes\x12#.clustercontroller.ListNodesRequest\x1a$.clustercontroller.ListNodesResponse\x12h\n" +
 	"\x0fSetNodeProfiles\x12).clustercontroller.SetNodeProfilesRequest\x1a*.clustercontroller.SetNodeProfilesResponse\x12i\n" +
 	"\x13WatchNodeOperations\x12-.clustercontroller.WatchNodeOperationsRequest\x1a!.clustercontroller.OperationEvent0\x01BaZ_github.com/globulario/services/golang/clustercontroller/clustercontrollerpb;clustercontrollerpbb\x06proto3"
 
@@ -1213,20 +1270,24 @@ var file_clustercontroller_proto_depIdxs = []int32{
 	0,  // 6: clustercontroller.OperationEvent.phase:type_name -> clustercontroller.OperationPhase.Phase
 	2,  // 7: clustercontroller.ClusterControllerService.Enroll:input_type -> clustercontroller.EnrollRequest
 	5,  // 8: clustercontroller.ClusterControllerService.ListJoinRequests:input_type -> clustercontroller.ListJoinRequestsRequest
-	7,  // 9: clustercontroller.ClusterControllerService.ApproveNode:input_type -> clustercontroller.ApproveNodeRequest
-	9,  // 10: clustercontroller.ClusterControllerService.RejectNode:input_type -> clustercontroller.RejectNodeRequest
-	12, // 11: clustercontroller.ClusterControllerService.ListNodes:input_type -> clustercontroller.ListNodesRequest
-	14, // 12: clustercontroller.ClusterControllerService.SetNodeProfiles:input_type -> clustercontroller.SetNodeProfilesRequest
-	17, // 13: clustercontroller.ClusterControllerService.WatchNodeOperations:input_type -> clustercontroller.WatchNodeOperationsRequest
-	3,  // 14: clustercontroller.ClusterControllerService.Enroll:output_type -> clustercontroller.EnrollResponse
-	6,  // 15: clustercontroller.ClusterControllerService.ListJoinRequests:output_type -> clustercontroller.ListJoinRequestsResponse
-	8,  // 16: clustercontroller.ClusterControllerService.ApproveNode:output_type -> clustercontroller.ApproveNodeResponse
-	10, // 17: clustercontroller.ClusterControllerService.RejectNode:output_type -> clustercontroller.RejectNodeResponse
-	13, // 18: clustercontroller.ClusterControllerService.ListNodes:output_type -> clustercontroller.ListNodesResponse
-	15, // 19: clustercontroller.ClusterControllerService.SetNodeProfiles:output_type -> clustercontroller.SetNodeProfilesResponse
-	18, // 20: clustercontroller.ClusterControllerService.WatchNodeOperations:output_type -> clustercontroller.OperationEvent
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
+	5,  // 9: clustercontroller.ClusterControllerService.GetJoinRequests:input_type -> clustercontroller.ListJoinRequestsRequest
+	7,  // 10: clustercontroller.ClusterControllerService.ApproveNode:input_type -> clustercontroller.ApproveNodeRequest
+	9,  // 11: clustercontroller.ClusterControllerService.RejectNode:input_type -> clustercontroller.RejectNodeRequest
+	12, // 12: clustercontroller.ClusterControllerService.ListNodes:input_type -> clustercontroller.ListNodesRequest
+	12, // 13: clustercontroller.ClusterControllerService.GetNodes:input_type -> clustercontroller.ListNodesRequest
+	14, // 14: clustercontroller.ClusterControllerService.SetNodeProfiles:input_type -> clustercontroller.SetNodeProfilesRequest
+	17, // 15: clustercontroller.ClusterControllerService.WatchNodeOperations:input_type -> clustercontroller.WatchNodeOperationsRequest
+	3,  // 16: clustercontroller.ClusterControllerService.Enroll:output_type -> clustercontroller.EnrollResponse
+	4,  // 17: clustercontroller.ClusterControllerService.ListJoinRequests:output_type -> clustercontroller.JoinRequest
+	6,  // 18: clustercontroller.ClusterControllerService.GetJoinRequests:output_type -> clustercontroller.ListJoinRequestsResponse
+	8,  // 19: clustercontroller.ClusterControllerService.ApproveNode:output_type -> clustercontroller.ApproveNodeResponse
+	10, // 20: clustercontroller.ClusterControllerService.RejectNode:output_type -> clustercontroller.RejectNodeResponse
+	11, // 21: clustercontroller.ClusterControllerService.ListNodes:output_type -> clustercontroller.NodeSubject
+	13, // 22: clustercontroller.ClusterControllerService.GetNodes:output_type -> clustercontroller.ListNodesResponse
+	15, // 23: clustercontroller.ClusterControllerService.SetNodeProfiles:output_type -> clustercontroller.SetNodeProfilesResponse
+	18, // 24: clustercontroller.ClusterControllerService.WatchNodeOperations:output_type -> clustercontroller.OperationEvent
+	16, // [16:25] is the sub-list for method output_type
+	7,  // [7:16] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name

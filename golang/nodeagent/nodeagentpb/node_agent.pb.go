@@ -354,6 +354,9 @@ type NodeInfo struct {
 	Arch          string                 `protobuf:"bytes,5,opt,name=arch,proto3" json:"arch,omitempty"`
 	AgentVersion  string                 `protobuf:"bytes,6,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
 	UnixTime      int64                  `protobuf:"varint,7,opt,name=unix_time,json=unixTime,proto3" json:"unix_time,omitempty"`
+	NodeId        string                 `protobuf:"bytes,8,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	AgentEndpoint string                 `protobuf:"bytes,9,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
+	Platform      string                 `protobuf:"bytes,10,opt,name=platform,proto3" json:"platform,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -435,6 +438,27 @@ func (x *NodeInfo) GetUnixTime() int64 {
 		return x.UnixTime
 	}
 	return 0
+}
+
+func (x *NodeInfo) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *NodeInfo) GetAgentEndpoint() string {
+	if x != nil {
+		return x.AgentEndpoint
+	}
+	return ""
+}
+
+func (x *NodeInfo) GetPlatform() string {
+	if x != nil {
+		return x.Platform
+	}
+	return ""
 }
 
 type InstalledComponent struct {
@@ -932,7 +956,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"\n" +
 	"components\x18\x02 \x03(\v2\x1d.nodeagent.InstalledComponentR\n" +
 	"components\x125\n" +
-	"\bservices\x18\x03 \x03(\v2\x19.nodeagent.RunningServiceR\bservices\"\xb6\x01\n" +
+	"\bservices\x18\x03 \x03(\v2\x19.nodeagent.RunningServiceR\bservices\"\x92\x02\n" +
 	"\bNodeInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x10\n" +
@@ -940,7 +964,11 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x02os\x18\x04 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x05 \x01(\tR\x04arch\x12#\n" +
 	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
-	"\tunix_time\x18\a \x01(\x03R\bunixTime\"`\n" +
+	"\tunix_time\x18\a \x01(\x03R\bunixTime\x12\x17\n" +
+	"\anode_id\x18\b \x01(\tR\x06nodeId\x12%\n" +
+	"\x0eagent_endpoint\x18\t \x01(\tR\ragentEndpoint\x12\x1a\n" +
+	"\bplatform\x18\n" +
+	" \x01(\tR\bplatform\"`\n" +
 	"\x12InstalledComponent\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1c\n" +

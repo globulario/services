@@ -1,6 +1,7 @@
 syntax = "proto3";
 package discovery;
 
+import "repository.proto";
 import "resource.proto";
 
 option go_package="github.com/globulario/services/golang/discovery/discoverypb";
@@ -51,6 +52,36 @@ message PublishApplicationResponse {
   bool result = 1;                // Indicates success or failure of the application publication.
 }
 
+message ResolveInstallPlanRequest {
+  string platform = 1;
+  repeated string profiles = 2;
+  string channel = 3;
+  repeated string repositories = 4;
+  map<string,string> pins = 5;
+}
+
+message InstallStep {
+  string id = 1;
+  repository.ArtifactRef artifact = 2;
+  string repository_id = 3;
+
+  enum Action {
+    DOWNLOAD = 0;
+    INSTALL = 1;
+    CONFIGURE = 2;
+    START = 3;
+  }
+
+  Action action = 4;
+  repeated string depends_on = 5;
+  map<string,string> config = 6;
+}
+
+message InstallPlan {
+  string plan_id = 1;
+  repeated InstallStep steps = 2;
+}
+
 // Service for package discovery and publishing.
 service PackageDiscovery {
 
@@ -63,4 +94,10 @@ service PackageDiscovery {
   // Input: PublishApplicationRequest with application details.
   // Output: PublishApplicationResponse indicating the result of the publication.
   rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse);
+
+  // Resolves the install plan for a set of roles and platform constraints.
+  rpc ResolveInstallPlan(ResolveInstallPlanRequest) returns (InstallPlan);
+
+  // Returns the package descriptor without contacting the resource service directly.
+  rpc GetPackageDescriptor(resource.GetPackageDescriptorRequest) returns (resource.GetPackageDescriptorResponse);
 }

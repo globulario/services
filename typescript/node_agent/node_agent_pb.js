@@ -1120,7 +1120,10 @@ ipsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
 os: jspb.Message.getFieldWithDefault(msg, 4, ""),
 arch: jspb.Message.getFieldWithDefault(msg, 5, ""),
 agentVersion: jspb.Message.getFieldWithDefault(msg, 6, ""),
-unixTime: jspb.Message.getFieldWithDefault(msg, 7, 0)
+unixTime: jspb.Message.getFieldWithDefault(msg, 7, 0),
+nodeId: jspb.Message.getFieldWithDefault(msg, 8, ""),
+agentEndpoint: jspb.Message.getFieldWithDefault(msg, 9, ""),
+platform: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -1184,6 +1187,18 @@ proto.nodeagent.NodeInfo.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setUnixTime(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAgentEndpoint(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPlatform(value);
       break;
     default:
       reader.skipField();
@@ -1260,6 +1275,27 @@ proto.nodeagent.NodeInfo.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt64(
       7,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getAgentEndpoint();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getPlatform();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
       f
     );
   }
@@ -1408,6 +1444,60 @@ proto.nodeagent.NodeInfo.prototype.getUnixTime = function() {
  */
 proto.nodeagent.NodeInfo.prototype.setUnixTime = function(value) {
   return jspb.Message.setProto3IntField(this, 7, value);
+};
+
+
+/**
+ * optional string node_id = 8;
+ * @return {string}
+ */
+proto.nodeagent.NodeInfo.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.nodeagent.NodeInfo} returns this
+ */
+proto.nodeagent.NodeInfo.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string agent_endpoint = 9;
+ * @return {string}
+ */
+proto.nodeagent.NodeInfo.prototype.getAgentEndpoint = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.nodeagent.NodeInfo} returns this
+ */
+proto.nodeagent.NodeInfo.prototype.setAgentEndpoint = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string platform = 10;
+ * @return {string}
+ */
+proto.nodeagent.NodeInfo.prototype.getPlatform = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.nodeagent.NodeInfo} returns this
+ */
+proto.nodeagent.NodeInfo.prototype.setPlatform = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 

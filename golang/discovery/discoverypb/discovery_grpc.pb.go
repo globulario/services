@@ -8,6 +8,7 @@ package discoverypb
 
 import (
 	context "context"
+	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,8 +20,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PackageDiscovery_PublishService_FullMethodName     = "/discovery.PackageDiscovery/PublishService"
-	PackageDiscovery_PublishApplication_FullMethodName = "/discovery.PackageDiscovery/PublishApplication"
+	PackageDiscovery_PublishService_FullMethodName       = "/discovery.PackageDiscovery/PublishService"
+	PackageDiscovery_PublishApplication_FullMethodName   = "/discovery.PackageDiscovery/PublishApplication"
+	PackageDiscovery_ResolveInstallPlan_FullMethodName   = "/discovery.PackageDiscovery/ResolveInstallPlan"
+	PackageDiscovery_GetPackageDescriptor_FullMethodName = "/discovery.PackageDiscovery/GetPackageDescriptor"
 )
 
 // PackageDiscoveryClient is the client API for PackageDiscovery service.
@@ -37,6 +40,10 @@ type PackageDiscoveryClient interface {
 	// Input: PublishApplicationRequest with application details.
 	// Output: PublishApplicationResponse indicating the result of the publication.
 	PublishApplication(ctx context.Context, in *PublishApplicationRequest, opts ...grpc.CallOption) (*PublishApplicationResponse, error)
+	// Resolves the install plan for a set of roles and platform constraints.
+	ResolveInstallPlan(ctx context.Context, in *ResolveInstallPlanRequest, opts ...grpc.CallOption) (*InstallPlan, error)
+	// Returns the package descriptor without contacting the resource service directly.
+	GetPackageDescriptor(ctx context.Context, in *resourcepb.GetPackageDescriptorRequest, opts ...grpc.CallOption) (*resourcepb.GetPackageDescriptorResponse, error)
 }
 
 type packageDiscoveryClient struct {
@@ -67,6 +74,26 @@ func (c *packageDiscoveryClient) PublishApplication(ctx context.Context, in *Pub
 	return out, nil
 }
 
+func (c *packageDiscoveryClient) ResolveInstallPlan(ctx context.Context, in *ResolveInstallPlanRequest, opts ...grpc.CallOption) (*InstallPlan, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InstallPlan)
+	err := c.cc.Invoke(ctx, PackageDiscovery_ResolveInstallPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *packageDiscoveryClient) GetPackageDescriptor(ctx context.Context, in *resourcepb.GetPackageDescriptorRequest, opts ...grpc.CallOption) (*resourcepb.GetPackageDescriptorResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(resourcepb.GetPackageDescriptorResponse)
+	err := c.cc.Invoke(ctx, PackageDiscovery_GetPackageDescriptor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PackageDiscoveryServer is the server API for PackageDiscovery service.
 // All implementations should embed UnimplementedPackageDiscoveryServer
 // for forward compatibility.
@@ -81,6 +108,10 @@ type PackageDiscoveryServer interface {
 	// Input: PublishApplicationRequest with application details.
 	// Output: PublishApplicationResponse indicating the result of the publication.
 	PublishApplication(context.Context, *PublishApplicationRequest) (*PublishApplicationResponse, error)
+	// Resolves the install plan for a set of roles and platform constraints.
+	ResolveInstallPlan(context.Context, *ResolveInstallPlanRequest) (*InstallPlan, error)
+	// Returns the package descriptor without contacting the resource service directly.
+	GetPackageDescriptor(context.Context, *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error)
 }
 
 // UnimplementedPackageDiscoveryServer should be embedded to have
@@ -95,6 +126,12 @@ func (UnimplementedPackageDiscoveryServer) PublishService(context.Context, *Publ
 }
 func (UnimplementedPackageDiscoveryServer) PublishApplication(context.Context, *PublishApplicationRequest) (*PublishApplicationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PublishApplication not implemented")
+}
+func (UnimplementedPackageDiscoveryServer) ResolveInstallPlan(context.Context, *ResolveInstallPlanRequest) (*InstallPlan, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveInstallPlan not implemented")
+}
+func (UnimplementedPackageDiscoveryServer) GetPackageDescriptor(context.Context, *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPackageDescriptor not implemented")
 }
 func (UnimplementedPackageDiscoveryServer) testEmbeddedByValue() {}
 
@@ -152,6 +189,42 @@ func _PackageDiscovery_PublishApplication_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PackageDiscovery_ResolveInstallPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveInstallPlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageDiscoveryServer).ResolveInstallPlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageDiscovery_ResolveInstallPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageDiscoveryServer).ResolveInstallPlan(ctx, req.(*ResolveInstallPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PackageDiscovery_GetPackageDescriptor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(resourcepb.GetPackageDescriptorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PackageDiscoveryServer).GetPackageDescriptor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PackageDiscovery_GetPackageDescriptor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PackageDiscoveryServer).GetPackageDescriptor(ctx, req.(*resourcepb.GetPackageDescriptorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PackageDiscovery_ServiceDesc is the grpc.ServiceDesc for PackageDiscovery service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -166,6 +239,14 @@ var PackageDiscovery_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PublishApplication",
 			Handler:    _PackageDiscovery_PublishApplication_Handler,
+		},
+		{
+			MethodName: "ResolveInstallPlan",
+			Handler:    _PackageDiscovery_ResolveInstallPlan_Handler,
+		},
+		{
+			MethodName: "GetPackageDescriptor",
+			Handler:    _PackageDiscovery_GetPackageDescriptor_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
