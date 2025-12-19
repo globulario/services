@@ -24,22 +24,34 @@ type joinTokenRecord struct {
 }
 
 type joinRequestRecord struct {
-	RequestID   string            `json:"request_id"`
-	Token       string            `json:"token"`
-	Identity    storedIdentity    `json:"identity"`
-	Labels      map[string]string `json:"labels"`
-	RequestedAt time.Time         `json:"requested_at"`
-	Status      string            `json:"status"`
-	Reason      string            `json:"reason,omitempty"`
+	RequestID      string            `json:"request_id"`
+	Token          string            `json:"token"`
+	Identity       storedIdentity    `json:"identity"`
+	Labels         map[string]string `json:"labels"`
+	RequestedAt    time.Time         `json:"requested_at"`
+	Status         string            `json:"status"`
+	Reason         string            `json:"reason,omitempty"`
+	Profiles       []string          `json:"profiles,omitempty"`
+	AssignedNodeID string            `json:"assigned_node_id,omitempty"`
 }
 
 type nodeState struct {
-	NodeID   string            `json:"node_id"`
-	Identity storedIdentity    `json:"identity"`
-	Profiles []string          `json:"profiles"`
-	LastSeen time.Time         `json:"last_seen"`
-	Status   string            `json:"status"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	NodeID        string             `json:"node_id"`
+	Identity      storedIdentity     `json:"identity"`
+	Profiles      []string           `json:"profiles"`
+	LastSeen      time.Time          `json:"last_seen"`
+	Status        string             `json:"status"`
+	Metadata      map[string]string  `json:"metadata,omitempty"`
+	AgentEndpoint string             `json:"agent_endpoint,omitempty"`
+	Units         []unitStatusRecord `json:"units,omitempty"`
+	LastError     string             `json:"last_error,omitempty"`
+	ReportedAt    time.Time          `json:"reported_at,omitempty"`
+}
+
+type unitStatusRecord struct {
+	Name    string `json:"name"`
+	State   string `json:"state"`
+	Details string `json:"details"`
 }
 
 type storedIdentity struct {

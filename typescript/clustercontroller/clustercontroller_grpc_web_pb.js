@@ -628,6 +628,128 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getNodeP
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.ReportNodeStatusRequest,
+ *   !proto.clustercontroller.ReportNodeStatusResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ReportNodeStatus = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/ReportNodeStatus',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.ReportNodeStatusRequest,
+  proto.clustercontroller.ReportNodeStatusResponse,
+  /**
+   * @param {!proto.clustercontroller.ReportNodeStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.ReportNodeStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.ReportNodeStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.ReportNodeStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.ReportNodeStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.reportNodeStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ReportNodeStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReportNodeStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.ReportNodeStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.ReportNodeStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.reportNodeStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ReportNodeStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReportNodeStatus);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.GetJoinRequestStatusRequest,
+ *   !proto.clustercontroller.GetJoinRequestStatusResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetJoinRequestStatus = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/GetJoinRequestStatus',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.GetJoinRequestStatusRequest,
+  proto.clustercontroller.GetJoinRequestStatusResponse,
+  /**
+   * @param {!proto.clustercontroller.GetJoinRequestStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.GetJoinRequestStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.GetJoinRequestStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.GetJoinRequestStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.GetJoinRequestStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.getJoinRequestStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetJoinRequestStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetJoinRequestStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.GetJoinRequestStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.GetJoinRequestStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getJoinRequestStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetJoinRequestStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetJoinRequestStatus);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.WatchOperationsRequest,
  *   !proto.clustercontroller.OperationEvent>}
  */

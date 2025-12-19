@@ -3,6 +3,7 @@ package planner
 import (
 	"sort"
 	"strings"
+	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 )
@@ -18,10 +19,11 @@ const (
 )
 
 type Action struct {
-	Unit  string
-	Op    Operation
-	Wait  bool
-	index int
+	Unit         string
+	Op           Operation
+	Wait         bool
+	WaitDuration time.Duration
+	index        int
 }
 
 var validOps = map[string]Operation{
@@ -62,10 +64,11 @@ func ComputeActions(plan *clustercontrollerpb.NodePlan) []Action {
 		}
 		wait := op == OpStart || op == OpRestart
 		actions = append(actions, Action{
-			Unit:  unit,
-			Op:    op,
-			Wait:  wait,
-			index: idx,
+			Unit:         unit,
+			Op:           op,
+			Wait:         wait,
+			WaitDuration: timeoutForUnit(unit),
+			index:        idx,
 		})
 	}
 	sort.SliceStable(actions, func(i, j int) bool {
@@ -77,4 +80,22 @@ func ComputeActions(plan *clustercontrollerpb.NodePlan) []Action {
 		return actions[i].index < actions[j].index
 	})
 	return actions
+}
+
+var waitDurations = map[string]time.Duration{
+	"globular-etcd.service":  60 * time.Second,
+	"etcd.service":           60 * time.Second,
+	"globular-dns.service":   45 * time.Second,
+	"dns.service":            45 * time.Second,
+	"globular-minio.service": 40 * time.Second,
+	"minio.service":          40 * time.Second,
+	"globular-file.service":  30 * time.Second,
+	"file.service":           30 * time.Second,
+}
+
+func timeoutForUnit(unit string) time.Duration {
+	if d, ok := waitDurations[strings.ToLower(unit)]; ok {
+		return d
+	}
+	return 30 * time.Second
 }

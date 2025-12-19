@@ -28,6 +28,7 @@ message NodeRecord {
   string status = 4;
   repeated string profiles = 5;
   map<string,string> metadata = 6;
+  string agent_endpoint = 7;
 }
 
 message CreateJoinTokenRequest {
@@ -44,9 +45,19 @@ message RequestJoinRequest {
   map<string,string> labels = 3;
 }
 message RequestJoinResponse {
-  string node_id = 1;
+  string request_id = 1;
   string status = 2;
   string message = 3;
+}
+
+message GetJoinRequestStatusRequest {
+  string request_id = 1;
+}
+message GetJoinRequestStatusResponse {
+  string status = 1;
+  string node_id = 2;
+  repeated string profiles = 3;
+  string message = 4;
 }
 
 message ListJoinRequestsRequest {}
@@ -147,6 +158,30 @@ message OperationEvent {
   google.protobuf.Timestamp ts = 8;
 }
 
+message NodeUnitStatus {
+  string name = 1;
+  string state = 2;
+  string details = 3;
+}
+
+message NodeStatus {
+  string node_id = 1;
+  NodeIdentity identity = 2;
+  repeated string ips = 3;
+  repeated NodeUnitStatus units = 4;
+  string last_error = 5;
+  google.protobuf.Timestamp reported_at = 6;
+  string agent_endpoint = 7;
+}
+
+message ReportNodeStatusRequest {
+  NodeStatus status = 1;
+}
+
+message ReportNodeStatusResponse {
+  string message = 1;
+}
+
 message WatchOperationsRequest {
   string node_id = 1;
   string operation_id = 2;
@@ -164,6 +199,8 @@ service ClusterControllerService {
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
   rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
+  rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
+  rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
 
   rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
 }

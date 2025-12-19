@@ -12,9 +12,10 @@ message JoinClusterRequest {
   string join_token = 2;
 }
 message JoinClusterResponse {
-  string node_id = 1;
-  string status = 2;
-  string message = 3;
+  string request_id = 1;
+  string node_id = 2;
+  string status = 3;
+  string message = 4;
 }
 
 message InstalledComponent {

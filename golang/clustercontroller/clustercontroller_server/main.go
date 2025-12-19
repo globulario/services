@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"google.golang.org/grpc"
@@ -39,6 +41,8 @@ func main() {
 	grpcServer := grpc.NewServer()
 	srv := newServer(cfg, *cfgPath, *statePath, state)
 	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
+
+	srv.startReconcileLoop(context.Background(), 15*time.Second)
 
 	log.Printf("cluster controller listening on %s (config=%s)", address, *cfgPath)
 	if err := grpcServer.Serve(lis); err != nil {

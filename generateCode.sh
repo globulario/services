@@ -100,3 +100,9 @@ done
 
 echo "=> Building Go services"
 bash "$REPO_ROOT/golang/build/build-services.sh"
+
+echo "=> Building globular CLI"
+(
+  cd "$GO_ROOT"
+  GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" go build -o globularcli/globularcli ./globularcli
+)

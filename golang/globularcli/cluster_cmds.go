@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sigs.k8s.io/yaml"
@@ -50,6 +51,8 @@ var (
 	watchPlanFlag  bool
 	watchAgentFlag bool
 	agentOpID      string
+
+	planNodeAddr string
 
 	watchNodeID string
 	watchOpID   string
@@ -91,6 +94,7 @@ func init() {
 	agentWatchCmd.Flags().StringVar(&agentOpID, "op", "", "Operation ID to watch")
 
 	planApplyCmd.Flags().BoolVar(&watchPlanFlag, "watch", false, "Watch operation on completion")
+	planApplyCmd.Flags().StringVar(&planNodeAddr, "node", "", "Node agent endpoint (required)")
 
 	watchCmd.Flags().StringVar(&watchNodeID, "node-id", "", "Filter by node ID")
 	watchCmd.Flags().StringVar(&watchOpID, "op", "", "Filter by operation ID")
@@ -404,13 +408,31 @@ var planApplyCmd = &cobra.Command{
 		}
 		defer cc.Close()
 		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.StartApply(ctxWithTimeout(), &clustercontrollerpb.StartApplyRequest{NodeId: args[0]})
+		resp, err := client.GetNodePlan(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanRequest{NodeId: args[0]})
 		if err != nil {
 			return err
 		}
-		fmt.Printf("operation_id: %s\n", resp.OperationId)
+		plan := resp.GetPlan()
+		if plan == nil {
+			return errors.New("controller returned empty plan")
+		}
+		nodeAddr := pick(planNodeAddr, rootCfg.nodeAddr)
+		if nodeAddr == "" {
+			return errors.New("--node is required")
+		}
+		nc, err := nodeClientWith(nodeAddr)
+		if err != nil {
+			return err
+		}
+		defer nc.Close()
+		nodeClient := nodeagentpb.NewNodeAgentServiceClient(nc)
+		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &nodeagentpb.ApplyPlanRequest{Plan: plan})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("operation_id: %s\n", applyResp.GetOperationId())
 		if watchPlanFlag {
-			return watchControllerOperations(args[0], resp.OperationId)
+			return watchAgentOperation(applyResp.GetOperationId(), nodeAddr)
 		}
 		return nil
 	},
@@ -612,6 +634,7 @@ func printProto(msg proto.Message) {
 			fmt.Println(string(out))
 		}
 	default:
-		fmt.Println(proto.MarshalTextString(msg))
+		out, _ := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+		fmt.Println(string(out))
 	}
 }

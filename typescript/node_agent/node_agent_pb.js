@@ -503,9 +503,10 @@ proto.nodeagent.JoinClusterResponse.prototype.toObject = function(opt_includeIns
  */
 proto.nodeagent.JoinClusterResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-nodeId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-status: jspb.Message.getFieldWithDefault(msg, 2, ""),
-message: jspb.Message.getFieldWithDefault(msg, 3, "")
+requestId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+status: jspb.Message.getFieldWithDefault(msg, 3, ""),
+message: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -544,13 +545,17 @@ proto.nodeagent.JoinClusterResponse.deserializeBinaryFromReader = function(msg, 
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setNodeId(value);
+      msg.setRequestId(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setStatus(value);
+      msg.setNodeId(value);
       break;
     case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStatus(value);
+      break;
+    case 4:
       var value = /** @type {string} */ (reader.readString());
       msg.setMessage(value);
       break;
@@ -583,24 +588,31 @@ proto.nodeagent.JoinClusterResponse.prototype.serializeBinary = function() {
  */
 proto.nodeagent.JoinClusterResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getNodeId();
+  f = message.getRequestId();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getStatus();
+  f = message.getNodeId();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = message.getMessage();
+  f = message.getStatus();
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getMessage();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -608,10 +620,10 @@ proto.nodeagent.JoinClusterResponse.serializeBinaryToWriter = function(message, 
 
 
 /**
- * optional string node_id = 1;
+ * optional string request_id = 1;
  * @return {string}
  */
-proto.nodeagent.JoinClusterResponse.prototype.getNodeId = function() {
+proto.nodeagent.JoinClusterResponse.prototype.getRequestId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -620,16 +632,16 @@ proto.nodeagent.JoinClusterResponse.prototype.getNodeId = function() {
  * @param {string} value
  * @return {!proto.nodeagent.JoinClusterResponse} returns this
  */
-proto.nodeagent.JoinClusterResponse.prototype.setNodeId = function(value) {
+proto.nodeagent.JoinClusterResponse.prototype.setRequestId = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string status = 2;
+ * optional string node_id = 2;
  * @return {string}
  */
-proto.nodeagent.JoinClusterResponse.prototype.getStatus = function() {
+proto.nodeagent.JoinClusterResponse.prototype.getNodeId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -638,16 +650,16 @@ proto.nodeagent.JoinClusterResponse.prototype.getStatus = function() {
  * @param {string} value
  * @return {!proto.nodeagent.JoinClusterResponse} returns this
  */
-proto.nodeagent.JoinClusterResponse.prototype.setStatus = function(value) {
+proto.nodeagent.JoinClusterResponse.prototype.setNodeId = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * optional string message = 3;
+ * optional string status = 3;
  * @return {string}
  */
-proto.nodeagent.JoinClusterResponse.prototype.getMessage = function() {
+proto.nodeagent.JoinClusterResponse.prototype.getStatus = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -656,8 +668,26 @@ proto.nodeagent.JoinClusterResponse.prototype.getMessage = function() {
  * @param {string} value
  * @return {!proto.nodeagent.JoinClusterResponse} returns this
  */
-proto.nodeagent.JoinClusterResponse.prototype.setMessage = function(value) {
+proto.nodeagent.JoinClusterResponse.prototype.setStatus = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string message = 4;
+ * @return {string}
+ */
+proto.nodeagent.JoinClusterResponse.prototype.getMessage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.nodeagent.JoinClusterResponse} returns this
+ */
+proto.nodeagent.JoinClusterResponse.prototype.setMessage = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 

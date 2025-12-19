@@ -20,16 +20,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClusterControllerService_GetClusterInfo_FullMethodName   = "/clustercontroller.ClusterControllerService/GetClusterInfo"
-	ClusterControllerService_CreateJoinToken_FullMethodName  = "/clustercontroller.ClusterControllerService/CreateJoinToken"
-	ClusterControllerService_RequestJoin_FullMethodName      = "/clustercontroller.ClusterControllerService/RequestJoin"
-	ClusterControllerService_ListJoinRequests_FullMethodName = "/clustercontroller.ClusterControllerService/ListJoinRequests"
-	ClusterControllerService_ApproveJoin_FullMethodName      = "/clustercontroller.ClusterControllerService/ApproveJoin"
-	ClusterControllerService_RejectJoin_FullMethodName       = "/clustercontroller.ClusterControllerService/RejectJoin"
-	ClusterControllerService_ListNodes_FullMethodName        = "/clustercontroller.ClusterControllerService/ListNodes"
-	ClusterControllerService_SetNodeProfiles_FullMethodName  = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
-	ClusterControllerService_GetNodePlan_FullMethodName      = "/clustercontroller.ClusterControllerService/GetNodePlan"
-	ClusterControllerService_WatchOperations_FullMethodName  = "/clustercontroller.ClusterControllerService/WatchOperations"
+	ClusterControllerService_GetClusterInfo_FullMethodName       = "/clustercontroller.ClusterControllerService/GetClusterInfo"
+	ClusterControllerService_CreateJoinToken_FullMethodName      = "/clustercontroller.ClusterControllerService/CreateJoinToken"
+	ClusterControllerService_RequestJoin_FullMethodName          = "/clustercontroller.ClusterControllerService/RequestJoin"
+	ClusterControllerService_ListJoinRequests_FullMethodName     = "/clustercontroller.ClusterControllerService/ListJoinRequests"
+	ClusterControllerService_ApproveJoin_FullMethodName          = "/clustercontroller.ClusterControllerService/ApproveJoin"
+	ClusterControllerService_RejectJoin_FullMethodName           = "/clustercontroller.ClusterControllerService/RejectJoin"
+	ClusterControllerService_ListNodes_FullMethodName            = "/clustercontroller.ClusterControllerService/ListNodes"
+	ClusterControllerService_SetNodeProfiles_FullMethodName      = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_GetNodePlan_FullMethodName          = "/clustercontroller.ClusterControllerService/GetNodePlan"
+	ClusterControllerService_ReportNodeStatus_FullMethodName     = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
+	ClusterControllerService_GetJoinRequestStatus_FullMethodName = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
+	ClusterControllerService_WatchOperations_FullMethodName      = "/clustercontroller.ClusterControllerService/WatchOperations"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -45,6 +47,8 @@ type ClusterControllerServiceClient interface {
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
 	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
+	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
+	GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error)
 	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 }
 
@@ -146,6 +150,26 @@ func (c *clusterControllerServiceClient) GetNodePlan(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportNodeStatusResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ReportNodeStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetJoinRequestStatusResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetJoinRequestStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_WatchOperations_FullMethodName, cOpts...)
@@ -178,6 +202,8 @@ type ClusterControllerServiceServer interface {
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
 	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
+	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
+	GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 }
 
@@ -214,6 +240,12 @@ func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Conte
 }
 func (UnimplementedClusterControllerServiceServer) GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodePlan not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportNodeStatus not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetJoinRequestStatus not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchOperations not implemented")
@@ -400,6 +432,42 @@ func _ClusterControllerService_GetNodePlan_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ReportNodeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportNodeStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ReportNodeStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ReportNodeStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ReportNodeStatus(ctx, req.(*ReportNodeStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_GetJoinRequestStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetJoinRequestStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetJoinRequestStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetJoinRequestStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetJoinRequestStatus(ctx, req.(*GetJoinRequestStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_WatchOperations_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchOperationsRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -453,6 +521,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodePlan",
 			Handler:    _ClusterControllerService_GetNodePlan_Handler,
+		},
+		{
+			MethodName: "ReportNodeStatus",
+			Handler:    _ClusterControllerService_ReportNodeStatus_Handler,
+		},
+		{
+			MethodName: "GetJoinRequestStatus",
+			Handler:    _ClusterControllerService_GetJoinRequestStatus_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

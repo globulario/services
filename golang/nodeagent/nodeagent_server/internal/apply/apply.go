@@ -10,11 +10,14 @@ import (
 )
 
 // ApplyActions runs each action sequentially via the supervisor.
-func ApplyActions(ctx context.Context, actions []planner.Action) error {
+func ApplyActions(ctx context.Context, actions []planner.Action, before func(planner.Action)) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	for _, act := range actions {
+		if before != nil {
+			before(act)
+		}
 		var err error
 		switch act.Op {
 		case planner.OpStart:
@@ -34,7 +37,11 @@ func ApplyActions(ctx context.Context, actions []planner.Action) error {
 			return fmt.Errorf("%s %s: %w", act.Op, act.Unit, err)
 		}
 		if act.Wait {
-			if err := supervisor.WaitActive(ctx, act.Unit, 30*time.Second); err != nil {
+			timeout := act.WaitDuration
+			if timeout <= 0 {
+				timeout = 30 * time.Second
+			}
+			if err := supervisor.WaitActive(ctx, act.Unit, timeout); err != nil {
 				return fmt.Errorf("wait active %s: %w", act.Unit, err)
 			}
 		}
