@@ -31,6 +31,7 @@ const (
 	ClusterControllerService_GetNodePlan_FullMethodName          = "/clustercontroller.ClusterControllerService/GetNodePlan"
 	ClusterControllerService_ReportNodeStatus_FullMethodName     = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
 	ClusterControllerService_GetJoinRequestStatus_FullMethodName = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
+	ClusterControllerService_UpgradeGlobular_FullMethodName      = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
 	ClusterControllerService_WatchOperations_FullMethodName      = "/clustercontroller.ClusterControllerService/WatchOperations"
 )
 
@@ -49,6 +50,7 @@ type ClusterControllerServiceClient interface {
 	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
 	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error)
+	UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error)
 	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 }
 
@@ -170,6 +172,16 @@ func (c *clusterControllerServiceClient) GetJoinRequestStatus(ctx context.Contex
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpgradeGlobularResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_UpgradeGlobular_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_WatchOperations_FullMethodName, cOpts...)
@@ -204,6 +216,7 @@ type ClusterControllerServiceServer interface {
 	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
 	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error)
+	UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 }
 
@@ -246,6 +259,9 @@ func (UnimplementedClusterControllerServiceServer) ReportNodeStatus(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJoinRequestStatus not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpgradeGlobular not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Errorf(codes.Unimplemented, "method WatchOperations not implemented")
@@ -468,6 +484,24 @@ func _ClusterControllerService_GetJoinRequestStatus_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_UpgradeGlobular_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpgradeGlobularRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).UpgradeGlobular(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_UpgradeGlobular_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).UpgradeGlobular(ctx, req.(*UpgradeGlobularRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_WatchOperations_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchOperationsRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -529,6 +563,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetJoinRequestStatus",
 			Handler:    _ClusterControllerService_GetJoinRequestStatus_Handler,
+		},
+		{
+			MethodName: "UpgradeGlobular",
+			Handler:    _ClusterControllerService_UpgradeGlobular_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

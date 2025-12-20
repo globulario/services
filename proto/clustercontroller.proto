@@ -136,6 +136,23 @@ message NodePlan {
   map<string,string> rendered_config = 5;
 }
 
+message UpgradeGlobularRequest {
+  string node_id = 1;
+  string platform = 2;
+  bytes artifact = 3;
+  string sha256 = 4;
+  string target_path = 5;
+  uint32 probe_port = 6;
+}
+
+message UpgradeGlobularResponse {
+  string plan_id = 1;
+  uint64 generation = 2;
+  string terminal_state = 3;
+  string error_step_id = 4;
+  string error_message = 5;
+}
+
 message GetNodePlanRequest {
   string node_id = 1;
 }
@@ -212,6 +229,7 @@ service ClusterControllerService {
   rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
   rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
   rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
+  rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse);
 
   rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
 }

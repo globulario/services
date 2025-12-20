@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -294,6 +295,54 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 	return size, nil
 }
 
+func (client *Repository_Service_Client) DownloadArtifact(ref *repositorypb.ArtifactRef) ([]byte, error) {
+	if ref == nil {
+		return nil, errors.New("artifact ref required")
+	}
+	stream, err := client.c.DownloadArtifact(client.GetCtx(), &repositorypb.DownloadArtifactRequest{Ref: ref})
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(msg.GetData()); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func (client *Repository_Service_Client) UploadArtifact(ref *repositorypb.ArtifactRef, data []byte) error {
+	if ref == nil {
+		return errors.New("artifact ref required")
+	}
+	stream, err := client.c.UploadArtifact(client.GetCtx())
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&repositorypb.UploadArtifactRequest{
+		Ref:  ref,
+		Data: data,
+	}); err != nil {
+		return err
+	}
+	resp, err := stream.CloseAndRecv()
+	if err != nil {
+		return err
+	}
+	if resp == nil || !resp.GetResult() {
+		return fmt.Errorf("artifact upload failed")
+	}
+	return nil
+}
+
 /**
  * Get the rbac client.
  */
@@ -349,7 +398,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	resource_path := PublisherID + "|" + name + "|" + version
 
 	if len(organization) > 0 {
-		if err := rbac_client_.AddResourceOwner(token, resource_path, organization,"package", rbacpb.SubjectType_ORGANIZATION); err != nil {
+		if err := rbac_client_.AddResourceOwner(token, resource_path, organization, "package", rbacpb.SubjectType_ORGANIZATION); err != nil {
 			return -1, err
 		}
 	} else if len(user) > 0 {

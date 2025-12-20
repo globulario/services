@@ -10,6 +10,8 @@ import (
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/config"
+	planstore "github.com/globulario/services/golang/plan/store"
 	"google.golang.org/grpc"
 )
 
@@ -32,6 +34,13 @@ func main() {
 		log.Fatalf("failed to load state %s: %v", *statePath, err)
 	}
 
+	var planStore planstore.PlanStore
+	if etcdClient, err := config.GetEtcdClient(); err == nil {
+		planStore = planstore.NewEtcdPlanStore(etcdClient)
+	} else {
+		log.Printf("plan store unavailable: %v", err)
+	}
+
 	address := fmt.Sprintf(":%d", cfg.Port)
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -39,7 +48,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	srv := newServer(cfg, *cfgPath, *statePath, state)
+	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
 	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
 
 	srv.startReconcileLoop(context.Background(), 15*time.Second)

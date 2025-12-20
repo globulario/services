@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -21,6 +25,11 @@ import (
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
+)
+
+const (
+	defaultUpgradeTargetPath = "/usr/local/bin/globular"
+	defaultUpgradeProbePort  = 80
 )
 
 var (
@@ -54,8 +63,13 @@ var (
 
 	planNodeAddr string
 
-	watchNodeID string
-	watchOpID   string
+	watchNodeID      string
+	watchOpID        string
+	upgradeNodeID    string
+	upgradePlatform  string
+	upgradeSha       string
+	upgradeTarget    string
+	upgradeProbePort int
 )
 
 func init() {
@@ -68,6 +82,7 @@ func init() {
 		nodesCmd,
 		agentCmd,
 		planCmd,
+		upgradeCmd,
 		watchCmd,
 	)
 
@@ -95,6 +110,11 @@ func init() {
 
 	planApplyCmd.Flags().BoolVar(&watchPlanFlag, "watch", false, "Watch operation on completion")
 	planApplyCmd.Flags().StringVar(&planNodeAddr, "node", "", "Node agent endpoint (required)")
+	upgradeCmd.Flags().StringVar(&upgradeNodeID, "node-id", "", "Target node ID (required)")
+	upgradeCmd.Flags().StringVar(&upgradePlatform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Target platform (os/arch)")
+	upgradeCmd.Flags().StringVar(&upgradeSha, "sha256", "", "Artifact sha256 (computed if omitted)")
+	upgradeCmd.Flags().StringVar(&upgradeTarget, "target-path", "", "Destination path for the Globular binary")
+	upgradeCmd.Flags().IntVar(&upgradeProbePort, "probe-port", defaultUpgradeProbePort, "HTTP port to call /checksum")
 
 	watchCmd.Flags().StringVar(&watchNodeID, "node-id", "", "Filter by node ID")
 	watchCmd.Flags().StringVar(&watchOpID, "op", "", "Filter by operation ID")
@@ -433,6 +453,66 @@ var planApplyCmd = &cobra.Command{
 		fmt.Printf("operation_id: %s\n", applyResp.GetOperationId())
 		if watchPlanFlag {
 			return watchAgentOperation(applyResp.GetOperationId(), nodeAddr)
+		}
+		return nil
+	},
+}
+
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade <artifact>",
+	Short: "Upgrade the Globular service via controller plan",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		nodeID := strings.TrimSpace(upgradeNodeID)
+		if nodeID == "" {
+			return errors.New("--node-id is required")
+		}
+		platform := strings.TrimSpace(upgradePlatform)
+		if platform == "" {
+			platform = fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+		}
+		targetPath := strings.TrimSpace(upgradeTarget)
+		if targetPath == "" {
+			targetPath = os.Getenv("GLOBULAR_BINARY_PATH")
+		}
+		if targetPath == "" {
+			targetPath = defaultUpgradeTargetPath
+		}
+		data, err := ioutil.ReadFile(args[0])
+		if err != nil {
+			return err
+		}
+		sha := strings.TrimSpace(upgradeSha)
+		if sha == "" {
+			sum := sha256.Sum256(data)
+			sha = hex.EncodeToString(sum[:])
+		} else {
+			sha = strings.ToLower(sha)
+		}
+
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		resp, err := client.UpgradeGlobular(ctxWithTimeout(), &clustercontrollerpb.UpgradeGlobularRequest{
+			NodeId:     nodeID,
+			Platform:   platform,
+			Artifact:   data,
+			Sha256:     sha,
+			TargetPath: targetPath,
+			ProbePort:  uint32(upgradeProbePort),
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("plan_id: %s\ngeneration: %d\nterminal_state: %s\n", resp.GetPlanId(), resp.GetGeneration(), resp.GetTerminalState())
+		if resp.GetErrorStepId() != "" {
+			fmt.Printf("error_step_id: %s\n", resp.GetErrorStepId())
+		}
+		if resp.GetErrorMessage() != "" {
+			fmt.Printf("error_message: %s\n", resp.GetErrorMessage())
 		}
 		return nil
 	},

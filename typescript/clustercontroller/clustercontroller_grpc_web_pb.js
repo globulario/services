@@ -750,6 +750,67 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getJoinR
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.UpgradeGlobularRequest,
+ *   !proto.clustercontroller.UpgradeGlobularResponse>}
+ */
+const methodDescriptor_ClusterControllerService_UpgradeGlobular = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/UpgradeGlobular',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.UpgradeGlobularRequest,
+  proto.clustercontroller.UpgradeGlobularResponse,
+  /**
+   * @param {!proto.clustercontroller.UpgradeGlobularRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.UpgradeGlobularResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.UpgradeGlobularRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.UpgradeGlobularResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.UpgradeGlobularResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.upgradeGlobular =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/UpgradeGlobular',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_UpgradeGlobular,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.UpgradeGlobularRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.UpgradeGlobularResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.upgradeGlobular =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/UpgradeGlobular',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_UpgradeGlobular);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.WatchOperationsRequest,
  *   !proto.clustercontroller.OperationEvent>}
  */

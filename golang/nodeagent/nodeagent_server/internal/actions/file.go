@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,15 +24,25 @@ func (fileWriteAction) Validate(args *structpb.Struct) error {
 	if path := strings.TrimSpace(args.GetFields()["path"].GetStringValue()); path == "" {
 		return errors.New("path is required")
 	}
-	if args.GetFields()["content"].GetStringValue() == "" {
-		return errors.New("content is required")
+	if strings.TrimSpace(args.GetFields()["src"].GetStringValue()) == "" && args.GetFields()["content"].GetStringValue() == "" {
+		return errors.New("content or src is required")
 	}
 	return nil
 }
 
 func (fileWriteAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
 	path := strings.TrimSpace(args.GetFields()["path"].GetStringValue())
-	content := args.GetFields()["content"].GetStringValue()
+	src := strings.TrimSpace(args.GetFields()["src"].GetStringValue())
+	var data []byte
+	if src != "" {
+		var err error
+		data, err = ioutil.ReadFile(src)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		data = []byte(args.GetFields()["content"].GetStringValue())
+	}
 	if path == "" {
 		return "", errors.New("path is required")
 	}
@@ -40,7 +50,7 @@ func (fileWriteAction) Apply(ctx context.Context, args *structpb.Struct) (string
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	newHash := sha256.Sum256([]byte(content))
+	newHash := sha256.Sum256(data)
 	if existing, err := os.ReadFile(path); err == nil {
 		if hex.EncodeToString(newHash[:]) == hashBytes(existing) {
 			return "content unchanged", nil
@@ -51,7 +61,7 @@ func (fileWriteAction) Apply(ctx context.Context, args *structpb.Struct) (string
 		return "", err
 	}
 	defer os.Remove(tmp.Name())
-	if _, err := io.WriteString(tmp, content); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return "", err
 	}
