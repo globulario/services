@@ -11,6 +11,7 @@ type nodeAgentState struct {
 	ControllerEndpoint string `json:"controller_endpoint"`
 	RequestID          string `json:"request_id"`
 	NodeID             string `json:"node_id"`
+	LastPlanGeneration uint64 `json:"last_plan_generation"`
 }
 
 func newNodeAgentState() *nodeAgentState {

@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package globular.plan.v1;
+
+option go_package = "github.com/globulario/services/golang/plan/planpb;planpb";
+
+import "google/protobuf/struct.proto";
+
+message NodePlan {
+  string api_version = 1;
+  string kind = 2;
+  string cluster_id = 3;
+  string node_id = 4;
+  string plan_id = 5;
+  uint64 generation = 6;
+  uint64 created_unix_ms = 7;
+  uint64 expires_unix_ms = 8;
+  string issued_by = 9;
+  string reason = 10;
+  repeated string locks = 11;
+  PlanPolicy policy = 12;
+  PlanSpec spec = 13;
+  PlanSignature signature = 14;
+}
+
+message PlanPolicy {
+  uint32 max_retries = 1;
+  uint32 retry_backoff_ms = 2;
+  FailureMode failure_mode = 3;
+  bool dry_run = 4;
+  uint32 max_parallel_steps = 5;
+}
+
+enum FailureMode {
+  FAILURE_MODE_ABORT = 0;
+  FAILURE_MODE_ROLLBACK = 1;
+}
+
+message PlanSignature {
+  string alg = 1;
+  string key_id = 2;
+  bytes sig = 3;
+}
+
+message PlanSpec {
+  repeated PlanStep steps = 1;
+  repeated PlanStep rollback = 2;
+  DesiredState desired = 3;
+  repeated Probe success_probes = 4;
+}
+
+message PlanStep {
+  string id = 1;
+  string action = 2;
+  google.protobuf.Struct args = 3;
+  repeated Condition pre = 4;
+  repeated Condition post = 5;
+  StepPolicy policy = 6;
+}
+
+message StepPolicy {
+  uint32 max_retries = 1;
+  uint32 timeout_ms = 2;
+  FailureMode on_fail = 3;
+  bool idempotent = 4;
+}
+
+message Condition {
+  string type = 1;
+  google.protobuf.Struct args = 2;
+}
+
+message Probe {
+  string type = 1;
+  google.protobuf.Struct args = 2;
+}
+
+message DesiredState {
+  repeated DesiredService services = 1;
+  repeated DesiredFile files = 2;
+}
+
+message DesiredService {
+  string name = 1;
+  string version = 2;
+  string unit = 3;
+}
+
+message DesiredFile {
+  string path = 1;
+  string content_ref = 2;
+  string mode = 3;
+  string owner = 4;
+}
+
+message NodePlanStatus {
+  string plan_id = 1;
+  string node_id = 2;
+  uint64 generation = 3;
+  PlanState state = 4;
+  uint64 started_unix_ms = 5;
+  uint64 finished_unix_ms = 6;
+  string current_step_id = 7;
+  repeated StepStatus steps = 8;
+  repeated PlanEvent events = 9;
+  string error_message = 10;
+  string error_step_id = 11;
+}
+
+enum PlanState {
+  PLAN_PENDING = 0;
+  PLAN_RUNNING = 1;
+  PLAN_SUCCEEDED = 2;
+  PLAN_FAILED = 3;
+  PLAN_ROLLING_BACK = 4;
+  PLAN_ROLLED_BACK = 5;
+  PLAN_EXPIRED = 6;
+}
+
+message StepStatus {
+  string id = 1;
+  StepState state = 2;
+  uint32 attempt = 3;
+  uint64 started_unix_ms = 4;
+  uint64 finished_unix_ms = 5;
+  string message = 6;
+}
+
+enum StepState {
+  STEP_PENDING = 0;
+  STEP_RUNNING = 1;
+  STEP_OK = 2;
+  STEP_FAILED = 3;
+  STEP_SKIPPED = 4;
+}
+
+message PlanEvent {
+  uint64 ts_unix_ms = 1;
+  string level = 2;
+  string msg = 3;
+  string step_id = 4;
+}
