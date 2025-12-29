@@ -183,12 +183,7 @@ func (srv *NodeAgentServer) EnsureEtcd(ctx context.Context) error {
 	if unit == "" {
 		unit = "globular-etcd.service"
 	}
-	if err := supervisor.EnableNow(ctx, unit); err != nil {
-		return fmt.Errorf("enable %s: %w", unit, err)
-	}
-	if err := supervisor.WaitActive(ctx, unit, 60*time.Second); err != nil {
-		return fmt.Errorf("wait active %s: %w", unit, err)
-	}
+	log.Printf("etcd bootstrap skipped; %s should be managed by systemd", unit)
 	return nil
 }
 

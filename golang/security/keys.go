@@ -13,7 +13,7 @@ import (
 )
 
 // Keep the same directory naming convention as before.
-var keyPath = filepath.Join(config.GetConfigDir(), "keys")
+func runtimeKeyRoot() string { return config.GetKeysDir() }
 
 // normalize id (MAC) for filenames
 func norm(id string) string { return strings.ReplaceAll(id, ":", "_") }
@@ -24,30 +24,35 @@ func norm(id string) string { return strings.ReplaceAll(id, ":", "_") }
 func DeletePublicKey(id string) error {
 	n := norm(id)
 
-	// Legacy path
-	legacy := filepath.Join(keyPath, n+"_public")
-	if Utility.Exists(legacy) {
-		if err := os.Remove(legacy); err != nil {
+	runtimePath := filepath.Join(runtimeKeyRoot(), n+"_public")
+	if Utility.Exists(runtimePath) {
+		if err := os.Remove(runtimePath); err != nil {
 			return err
 		}
 	}
 
-	// Also remove any rotation-aware public key files, e.g. <id>_<kid>_public
-	if !Utility.Exists(keyPath) {
+	legacyPath := filepath.Join(legacyKeyRoot(), n+"_public")
+	if Utility.Exists(legacyPath) {
+		if err := os.Remove(legacyPath); err != nil {
+			return err
+		}
+	}
+
+	if !Utility.Exists(runtimeKeyRoot()) {
 		return nil
 	}
-	entries, err := os.ReadDir(keyPath)
+	entries, err := os.ReadDir(runtimeKeyRoot())
 	if err != nil {
 		return nil // best effort
 	}
 	prefix, suffix := n+"_", "_public"
 	for _, e := range entries {
-		name := e.Name()
 		if e.IsDir() {
 			continue
 		}
+		name := e.Name()
 		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
-			_ = os.Remove(filepath.Join(keyPath, name))
+			_ = os.Remove(filepath.Join(runtimeKeyRoot(), name))
 		}
 	}
 	return nil
@@ -124,17 +129,22 @@ func GetPeerKey(id string) ([]byte, error) {
 	}
 
 	// 2) If rotated, return any current rotated public key (first match)
-	if Utility.Exists(keyPath) {
-		entries, err := os.ReadDir(keyPath)
+	if Utility.Exists(runtimeKeyRoot()) {
+		entries, err := os.ReadDir(runtimeKeyRoot())
 		if err == nil {
 			prefix, suffix := n+"_", "_public"
 			for _, e := range entries {
 				name := e.Name()
 				if !e.IsDir() && strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
-					return os.ReadFile(filepath.Join(keyPath, name))
+					return os.ReadFile(filepath.Join(runtimeKeyRoot(), name))
 				}
 			}
 		}
+	}
+
+	legacyPub := filepath.Join(legacyKeyRoot(), fmt.Sprintf("%s_public", n))
+	if Utility.Exists(legacyPub) {
+		return os.ReadFile(legacyPub)
 	}
 
 	return nil, fmt.Errorf("get peer key: no public key found for %s", id)
@@ -146,8 +156,8 @@ func SetPeerPublicKey(id, encPub string) error {
 	if id == "" {
 		return errors.New("set peer public key: empty id")
 	}
-	path := publicKeyPath(id, "") // legacy filename
-	if err := Utility.CreateDirIfNotExist(filepath.Dir(path)); err != nil {
+	path := publicKeyPath(id, "") // runtime filename
+	if err := config.EnsureRuntimeDir(filepath.Dir(path)); err != nil {
 		return fmt.Errorf("set peer public key: ensure dir: %w", err)
 	}
 	if err := os.WriteFile(path, []byte(encPub), 0o644); err != nil {

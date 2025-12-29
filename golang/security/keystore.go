@@ -37,6 +37,10 @@ func init() {
 // ---------- File keystore helpers ----------
 
 func keyRoot() string {
+	return config.GetKeysDir()
+}
+
+func legacyKeyRoot() string {
 	return filepath.Join(config.GetConfigDir(), keyDirName)
 }
 
@@ -94,7 +98,7 @@ func writeEd25519Private(path string, priv ed25519.PrivateKey) error {
 	if err != nil {
 		return err
 	}
-	if err := Utility.CreateDirIfNotExist(filepath.Dir(path)); err != nil {
+	if err := config.EnsureRuntimeDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: pemTypePrivate, Bytes: raw}), 0o600)
@@ -105,7 +109,7 @@ func writeEd25519Public(path string, pub ed25519.PublicKey) error {
 	if err != nil {
 		return err
 	}
-	if err := Utility.CreateDirIfNotExist(filepath.Dir(path)); err != nil {
+	if err := config.EnsureRuntimeDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: pemTypePublic, Bytes: raw}), 0o644)
@@ -113,32 +117,43 @@ func writeEd25519Public(path string, pub ed25519.PublicKey) error {
 
 // Try rotation-aware filename first (<issuer>_<kid>_*), then legacy (<issuer>_*).
 func findExistingPrivate(issuer string) (ed25519.PrivateKey, string, error) {
-	// Probe legacy first to keep backward compatibility.
-	legacy := privateKeyPath(issuer, "")
-	if Utility.Exists(legacy) {
-		priv, err := readEd25519Private(legacy)
+	// First, check runtime keys.
+	runtimePath := privateKeyPath(issuer, "")
+	if Utility.Exists(runtimePath) {
+		priv, err := readEd25519Private(runtimePath)
 		if err != nil {
 			return nil, "", err
 		}
 		kid := kidFromPub(priv.Public().(ed25519.PublicKey))
 		return priv, kid, nil
 	}
-	// If you later store rotated keys, you can scan the dir for "<issuer>_*_private".
-	entries, err := os.ReadDir(keyRoot())
-	if err == nil {
-		prefix := normID(issuer) + "_"
-		suffix := "_private"
-        // find first match
-		for _, e := range entries {
-			name := e.Name()
-			if !e.IsDir() && strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
-				kid := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
-				priv, err := readEd25519Private(filepath.Join(keyRoot(), name))
-				if err == nil {
-					return priv, kid, nil
+	// Scan runtime directory for rotated keys.
+	if Utility.Exists(runtimeKeyRoot()) {
+		entries, err := os.ReadDir(runtimeKeyRoot())
+		if err == nil {
+			prefix := normID(issuer) + "_"
+			suffix := "_private"
+			for _, e := range entries {
+				name := e.Name()
+				if !e.IsDir() && strings.HasPrefix(name, prefix) && strings.HasSuffix(name, suffix) {
+					kid := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+					priv, err := readEd25519Private(filepath.Join(runtimeKeyRoot(), name))
+					if err == nil {
+						return priv, kid, nil
+					}
 				}
 			}
 		}
+	}
+	// Fallback to legacy config dir under /etc (read-only).
+	legacyPath := filepath.Join(legacyKeyRoot(), fmt.Sprintf("%s_private", normID(issuer)))
+	if Utility.Exists(legacyPath) {
+		priv, err := readEd25519Private(legacyPath)
+		if err != nil {
+			return nil, "", err
+		}
+		kid := kidFromPub(priv.Public().(ed25519.PublicKey))
+		return priv, kid, nil
 	}
 	return nil, "", os.ErrNotExist
 }
@@ -207,4 +222,3 @@ func fileKeystoreGetPeerPublicKey(issuer, kid string) (ed25519.PublicKey, error)
 	}
 	return pub, nil
 }
-

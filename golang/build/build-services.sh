@@ -1,34 +1,51 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SERVICE_LIST="$SCRIPT_DIR/services.list"
+SERVICE_LIST="${SERVICE_LIST:-$SCRIPT_DIR/services.list}"
+ARCH="${ARCH:-$(dpkg-architecture -qDEB_HOST_ARCH 2>/dev/null || uname -m)}"
+STAGE_ROOT="${STAGE_ROOT:-$ROOT_DIR/tools/stage/linux-$ARCH}"
+
+last_line=""
+on_err() {
+  echo "Build failed." >&2
+  if [[ -n "$last_line" ]]; then
+    echo "Last manifest entry: $last_line" >&2
+  fi
+}
+trap on_err ERR
 
 if [[ ! -f "$SERVICE_LIST" ]]; then
-  echo "Service manifest not found at $SERVICE_LIST"
+  echo "Service manifest not found at $SERVICE_LIST" >&2
   exit 1
 fi
 
-echo "Running Go builds for services listed in $SERVICE_LIST"
+echo "Running Go builds listed in: $SERVICE_LIST"
+echo "ARCH=$ARCH"
+echo "STAGE_ROOT=$STAGE_ROOT"
 
-while IFS= read -r line || [[ -n "$line" ]]; do
-  line="${line%%#*}"
-  line="${line//	/ }"
-  # Trim leading/trailing whitespace.
+mkdir -p "$STAGE_ROOT"
+
+while IFS= read -r raw || [[ -n "$raw" ]]; do
+  last_line="$raw"
+  line="${raw%%#*}"
+  line="${line//$'\t'/ }"
   line="${line#"${line%%[![:space:]]*}"}"
   line="${line%"${line##*[![:space:]]}"}"
-  if [[ -z "$line" ]]; then
-    continue
+  [[ -z "$line" ]] && continue
+  if [[ "$line" != *"|"* ]]; then
+    echo "Invalid manifest line (missing '|'): $raw" >&2
+    exit 1
   fi
-  read -r module output <<<"$line"
-  if [[ -z "$module" || -z "$output" ]]; then
-    continue
-  fi
-
-  module_path="$ROOT_DIR/$module"
-  output_path="$ROOT_DIR/$output"
+  IFS='|' read -r target out_rel <<<"$line"
+  target="$(xargs <<<"$target")"
+  out_rel="$(xargs <<<"$out_rel")"
+  [[ -z "$target" || -z "$out_rel" ]] && continue
+  output_path="$STAGE_ROOT/$out_rel"
   mkdir -p "$(dirname "$output_path")"
-  echo "=> go build -buildvcs=false -o $output_path $module_path"
-  (cd "$ROOT_DIR" && go build -buildvcs=false -o "$output_path" "$module_path")
+  echo "=> go build -buildvcs=false -o $output_path $target"
+  (cd "$ROOT_DIR" && go build -buildvcs=false -o "$output_path" "$target")
 done < "$SERVICE_LIST"
+
+echo "Build complete."

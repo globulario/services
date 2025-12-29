@@ -85,7 +85,7 @@ func normalizeMACForFile(mac string) string {
 	return strings.ReplaceAll(mac, ":", "_")
 }
 
-func tokenDir() string { return filepath.Join(config.GetConfigDir(), "tokens") }
+func tokenDir() string { return config.GetTokensDir() }
 
 func tokenPathForMAC(mac string) string {
 	return filepath.Join(tokenDir(), normalizeMACForFile(mac)+"_token")
@@ -100,22 +100,32 @@ const (
 // readSessionTimeout reads SessionTimeout (minutes) from /etc/globular/config/config.json.
 // Returns a sane default if missing, invalid, or zero.
 func readSessionTimeout() (int, error) {
-	cfgPath := filepath.Join(config.GetConfigDir(), "config.json")
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: cannot read %s: %w", cfgPath, err)
+	paths := []string{
+		filepath.Join(config.GetRuntimeConfigDir(), "config.json"),
+		filepath.Join(config.GetConfigDir(), "config.json"),
 	}
-
-	var globular map[string]interface{}
-	if err := json.Unmarshal(data, &globular); err != nil {
-		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: invalid json in %s: %w", cfgPath, err)
+	var lastErr error
+	for _, cfgPath := range paths {
+		data, err := os.ReadFile(cfgPath)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		var globular map[string]interface{}
+		if err := json.Unmarshal(data, &globular); err != nil {
+			lastErr = fmt.Errorf("read session timeout: invalid json in %s: %w", cfgPath, err)
+			continue
+		}
+		v := Utility.ToInt(globular["SessionTimeout"])
+		if v <= 0 {
+			return defaultSessionTimeoutMinutes, nil
+		}
+		return v, nil
 	}
-
-	v := Utility.ToInt(globular["SessionTimeout"])
-	if v <= 0 {
-		return defaultSessionTimeoutMinutes, nil
+	if lastErr != nil {
+		return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: %w", lastErr)
 	}
-	return v, nil
+	return defaultSessionTimeoutMinutes, fmt.Errorf("read session timeout: config not found")
 }
 
 // ----------------------------------------------------------------------------

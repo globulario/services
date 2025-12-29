@@ -1,26 +1,26 @@
-# Service manifest (module_path output_binary)
-# Lines are interpreted by build-services.sh; comments or blank lines are ignored.
-./authentication/authentication_server ./authentication/authentication_server
-./catalog/catalog_server ./catalog/catalog_server
-./blog/blog_server ./blog/blog_server
-./conversation/conversation_server ./conversation/conversation_server
-./discovery/discovery_server ./discovery/discovery_server
-./dns/dns_server ./dns/dns_server
-./echo/echo_server ./echo/echo_server
-./event/event_server ./event/event_server
-./file/file_server ./file/file_server
-./log/log_server ./log/log_server
-./media/media_server ./media/media_server
-./monitoring/monitoring_server ./monitoring/monitoring_server
-./persistence/persistence_server ./persistence/persistence_server
-./rbac/rbac_server ./rbac/rbac_server
-./repository/repository_server ./repository/repository_server
-./resource/resource_server ./resource/resource_server
-./search/search_server ./search/search_server
-./sql/sql_server ./sql/sql_server
-./storage/storage_server ./storage/storage_server
-./title/title_server ./title/title_server
-./torrent/torrent_server ./torrent/torrent_server
-./clustercontroller/clustercontroller_server ./clustercontroller/clustercontroller_server
-./nodeagent/nodeagent_server ./nodeagent/nodeagent_server
-./globularcli ./globularcli
+# Service manifest (go_build_target | output_rel_stage_path)
+# Comments and whitespace ignored.
+./authentication/authentication_server | usr/local/bin/authentication_server
+./catalog/catalog_server | usr/local/bin/catalog_server
+./blog/blog_server | usr/local/bin/blog_server
+./conversation/conversation_server | usr/local/bin/conversation_server
+./discovery/discovery_server | usr/local/bin/discovery_server
+./dns/dns_server | usr/local/bin/dns_server
+./echo/echo_server | usr/local/bin/echo_server
+./event/event_server | usr/local/bin/event_server
+./file/file_server | usr/local/bin/file_server
+./log/log_server | usr/local/bin/log_server
+./media/media_server | usr/local/bin/media_server
+./monitoring/monitoring_server | usr/local/bin/monitoring_server
+./persistence/persistence_server | usr/local/bin/persistence_server
+./rbac/rbac_server | usr/local/bin/rbac_server
+./repository/repository_server | usr/local/bin/repository_server
+./resource/resource_server | usr/local/bin/resource_server
+./search/search_server | usr/local/bin/search_server
+./sql/sql_server | usr/local/bin/sql_server
+./storage/storage_server | usr/local/bin/storage_server
+./title/title_server | usr/local/bin/title_server
+./torrent/torrent_server | usr/local/bin/torrent_server
+./clustercontroller/clustercontroller_server | usr/local/bin/clustercontroller_server
+./nodeagent/nodeagent_server | usr/local/bin/nodeagent_server
+./globularcli | usr/local/bin/globularcli

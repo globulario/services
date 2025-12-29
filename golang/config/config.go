@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -382,16 +384,28 @@ func GetHostname() (string, error) {
 	return fmt.Sprintf("%s.%s", name, domain), nil
 }
 
+func GetTLSFile(name, domain, file string) string {
+	if name == "" || domain == "" {
+		return ""
+	}
+	dir := filepath.Join(name+"."+domain, file)
+	candidates := []string{
+		filepath.Join(GetRuntimeTLSDir(), dir),
+		filepath.Join(GetAdminTLSDir(), dir),
+	}
+	for _, p := range candidates {
+		if Utility.Exists(p) {
+			return p
+		}
+	}
+	return ""
+}
+
 func GetLocalServerCertificatePath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.crt"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, "server.crt")
 	}
 	return ""
 }
@@ -400,12 +414,7 @@ func GetLocalCACertificate() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/ca.crt"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, "ca.crt")
 	}
 	return ""
 }
@@ -414,12 +423,7 @@ func GetLocalServerKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/server.key"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, "server.key")
 	}
 	return ""
 }
@@ -428,12 +432,7 @@ func GetLocalClientKeyPath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/client.pem"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, "client.pem")
 	}
 	return ""
 }
@@ -442,28 +441,16 @@ func GetLocalClientCertificatePath() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/client.crt"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, "client.crt")
 	}
 	return ""
 }
-
 
 func GetLocalCertificate() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			// Try common names
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/" + domain + ".crt"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, domain+".crt")
 	}
 	return ""
 }
@@ -472,13 +459,7 @@ func GetLocalCertificateAuthorityBundle() string {
 	if cfg, err := GetLocalConfig(true); err == nil {
 		name, _ := cfg["Name"].(string)
 		domain, _ := cfg["Domain"].(string)
-		if name != "" && domain != "" {
-			// Try common names
-			p := GetConfigDir() + "/tls/" + name + "." + domain + "/" + domain + ".issuer.crt"
-			if Utility.Exists(p) {
-				return p
-			}
-		}
+		return GetTLSFile(name, domain, domain+".issuer.crt")
 	}
 	return ""
 }
@@ -539,6 +520,70 @@ func GetConfigDir() string {
 	return "/etc/globular/config"
 }
 
+func GetRuntimeConfigDir() string {
+	// Linux only for now; runtime services store generated config under the state root directory.
+	return filepath.Join(GetStateRootDir(), "config")
+}
+
+func GetRuntimeConfigPath() string {
+	return filepath.Join(GetRuntimeConfigDir(), "config.json")
+}
+
+func GetAdminConfigPath() string {
+	return filepath.Join(GetConfigDir(), "config.json")
+}
+
+// GetTokensDir returns the path where runtime tokens are stored.
+func GetTokensDir() string {
+	return filepath.Join(GetRuntimeConfigDir(), "tokens")
+}
+
+// GetKeysDir returns the location where peer keys belong at runtime.
+func GetKeysDir() string {
+	return filepath.Join(GetRuntimeConfigDir(), "keys")
+}
+
+// GetRuntimeTLSDir returns the location for auto-generated TLS materials (stateful).
+func GetRuntimeTLSDir() string {
+	return filepath.Join(GetRuntimeConfigDir(), "tls")
+}
+
+// GetAdminTLSDir returns the location for admin-provided TLS files (read-only).
+func GetAdminTLSDir() string {
+	return filepath.Join(GetConfigDir(), "tls")
+}
+
+// EnsureRuntimeDir verifies runtime paths do not resolve under /etc and creates them.
+func EnsureRuntimeDir(path string) error {
+	clean := filepath.Clean(path)
+	if strings.HasPrefix(clean, "/etc/") {
+		return fmt.Errorf("refusing to create runtime dir under /etc: %s", clean)
+	}
+	return Utility.CreateDirIfNotExist(clean)
+}
+
+// GetStateRootDir returns the base path services should write into.
+// On Linux this defaults to /var/lib/globular unless overridden via GLOBULAR_STATE_DIR.
+// On Windows it mirrors the Program Files globular directory.
+func GetStateRootDir() string {
+	if runtime.GOOS == "windows" {
+		var programFilePath string
+		if runtime.GOARCH == "386" {
+			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
+		} else {
+			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
+		}
+		if strings.TrimSpace(programFilePath) == "" {
+			programFilePath = "C:/Program Files"
+		}
+		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular"
+	}
+	if dir := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR")); dir != "" {
+		return dir
+	}
+	return "/var/lib/globular"
+}
+
 // New: persistent services config directory.
 // On Linux this is: /etc/globular/config/services
 func GetServicesConfigDir() string {
@@ -546,43 +591,35 @@ func GetServicesConfigDir() string {
 }
 
 func GetDataDir() string {
-	if runtime.GOOS == "windows" {
-		var programFilePath string
-		if runtime.GOARCH == "386" {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-		} else {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
-		}
-		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/data"
-	}
-	// linux / freebsd / darwin
-	return "/var/globular/data"
+	return filepath.Join(GetStateRootDir(), "data")
 }
 
 func GetWebRootDir() string {
-	if runtime.GOOS == "windows" {
-		var programFilePath string
-		if runtime.GOARCH == "386" {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-		} else {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
-		}
-		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/webroot"
-	}
-	// linux / freebsd / darwin
-	return "/var/globular/webroot"
+	return filepath.Join(GetStateRootDir(), "webroot")
 }
 
 func GetToken(mac string) (string, error) {
-	path := GetConfigDir() + "/tokens/" + strings.ReplaceAll(mac, ":", "_") + "_token"
-	if !Utility.Exists(path) {
-		return "", fmt.Errorf("no token found for domain %s at path %s", mac, path)
+	key := strings.ReplaceAll(mac, ":", "_") + "_token"
+	candidates := []string{
+		filepath.Join(GetTokensDir(), key),
+		filepath.Join(GetConfigDir(), "tokens", key),
 	}
-	token, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to read token at %s: %w", path, err)
+	var lastErr error
+	for _, path := range candidates {
+		if !Utility.Exists(path) {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			lastErr = fmt.Errorf("get token: read %s: %w", path, err)
+			continue
+		}
+		return string(data), nil
 	}
-	return string(token), nil
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("get token: no token found for mac %s", mac)
 }
 
 // ============================================================================
@@ -732,6 +769,254 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// EnsureLocalConfig validates or bootstraps /etc-globular-backed config under the runtime directory.
+// Returns true if the runtime config was created or rewritten.
+func EnsureLocalConfig() (bool, error) {
+	stateRoot := GetStateRootDir()
+	runtimeDir := filepath.Join(stateRoot, "config")
+	if err := EnsureRuntimeDir(runtimeDir); err != nil {
+		return false, fmt.Errorf("ensure local config: runtime dir: %w", err)
+	}
+
+	runtimeConfigPath := filepath.Join(stateRoot, "config", "config.json")
+	cfgPath := runtimeConfigPath
+	var cfg map[string]interface{}
+
+	if Utility.Exists(cfgPath) {
+		data, err := os.ReadFile(cfgPath)
+		if err != nil {
+			return false, fmt.Errorf("ensure local config: read %s: %w", cfgPath, err)
+		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			if bakErr := backupConfigFile(cfgPath); bakErr != nil {
+				return false, fmt.Errorf("ensure local config: invalid JSON and backup failed: %v (%w)", bakErr, err)
+			}
+			cfg = nil
+		} else if !isValidLocalConfig(cfg) {
+			if bakErr := backupConfigFile(cfgPath); bakErr != nil {
+				return false, fmt.Errorf("ensure local config: invalid contents and backup failed: %v", bakErr)
+			}
+			cfg = nil
+		} else {
+			if rewrite := normalizeLocalConfigArrays(cfg); rewrite {
+				if err := writeLocalConfig(cfgPath, cfg); err != nil {
+					return false, err
+				}
+				config_ = cfg
+				return true, nil
+			}
+			config_ = cfg
+			return false, nil
+		}
+	}
+
+	opts := buildMinimalLocalConfig()
+	if admin := loadAdminConfig(); admin != nil {
+		opts = admin
+	}
+	if rewrite := normalizeLocalConfigArrays(opts); rewrite {
+		// ensure consistent ordering after normalization
+	}
+	if err := writeLocalConfig(cfgPath, opts); err != nil {
+		return false, err
+	}
+	config_ = opts
+	return true, nil
+}
+
+func loadAdminConfig() map[string]interface{} {
+	adminPath := GetAdminConfigPath()
+	if !Utility.Exists(adminPath) {
+		return nil
+	}
+	data, err := os.ReadFile(adminPath)
+	if err != nil {
+		return nil
+	}
+	cfg := map[string]interface{}{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil
+	}
+	if !isValidLocalConfig(cfg) {
+		return nil
+	}
+	return cfg
+}
+
+func isValidLocalConfig(cfg map[string]interface{}) bool {
+	name := strings.TrimSpace(Utility.ToString(cfg["Name"]))
+	if name == "" {
+		return false
+	}
+	protocol := strings.TrimSpace(strings.ToLower(Utility.ToString(cfg["Protocol"])))
+	if protocol == "" {
+		return false
+	}
+	return true
+}
+
+func normalizeLocalConfigArrays(cfg map[string]interface{}) bool {
+	changed := false
+	if setNormalizedSlice(cfg, "Peers") {
+		changed = true
+	}
+	if setNormalizedSlice(cfg, "AlternateDomains") {
+		changed = true
+	}
+	return changed
+}
+
+func setNormalizedSlice(cfg map[string]interface{}, key string) bool {
+	orig, ok := cfg[key]
+	normalized := normalizeStringSlice(orig)
+	if ok {
+		if _, isSlice := orig.([]string); isSlice {
+			return false
+		}
+	}
+	cfg[key] = normalized
+	return true
+}
+
+func normalizeStringSlice(value interface{}) []string {
+	out := make([]string, 0)
+	switch v := value.(type) {
+	case []string:
+		out = append(out, v...)
+	case []interface{}:
+		for _, e := range v {
+			if s, ok := e.(string); ok {
+				if trimmed := strings.TrimSpace(s); trimmed != "" {
+					out = append(out, trimmed)
+				}
+			}
+		}
+	case string:
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func buildMinimalLocalConfig() map[string]interface{} {
+	name, err := os.Hostname()
+	if err != nil {
+		name = "localhost"
+	}
+	return map[string]interface{}{
+		"Name":              strings.TrimSpace(name),
+		"Domain":            installerDefaultDomain(),
+		"Protocol":          "http",
+		"Peers":             []string{},
+		"AlternateDomains":  []string{},
+		"MutateHostsFile":   false,
+		"MutateResolvConf":  false,
+		"Services":          map[string]interface{}{},
+		"EnablePeerUpserts": false,
+	}
+}
+
+func installerDefaultDomain() string {
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DOMAIN")); v != "" {
+		return v
+	}
+	const localConf = "/etc/globular/local.conf"
+	if domain := readConfKey(localConf, "GLOBULAR_DOMAIN"); domain != "" {
+		return domain
+	}
+	if domain := readConfKey(localConf, "DOMAIN"); domain != "" {
+		return domain
+	}
+	return ""
+}
+
+func readConfKey(path, key string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !strings.Contains(line, "=") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if strings.TrimSpace(parts[0]) != key {
+			continue
+		}
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, `"'`)
+		return value
+	}
+	return ""
+}
+
+func writeLocalConfig(cfgPath string, cfg map[string]interface{}) error {
+	dir := filepath.Dir(cfgPath)
+	tmpFile, err := os.CreateTemp(dir, ".config.json.tmp")
+	if err != nil {
+		return fmt.Errorf("ensure local config: tmp file: %w", err)
+	}
+	tmpName := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		if err != nil {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("ensure local config: marshal: %w", err)
+	}
+
+	if _, err = tmpFile.Write(data); err != nil {
+		return fmt.Errorf("ensure local config: write tmp: %w", err)
+	}
+	if err = tmpFile.Sync(); err != nil {
+		return fmt.Errorf("ensure local config: sync tmp: %w", err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		return fmt.Errorf("ensure local config: close tmp: %w", err)
+	}
+
+	if err = os.Rename(tmpName, cfgPath); err != nil {
+		return fmt.Errorf("ensure local config: rename: %w", err)
+	}
+	if err = os.Chmod(cfgPath, 0o644); err != nil {
+		return fmt.Errorf("ensure local config: chmod: %w", err)
+	}
+	if err = chownGlobular(cfgPath); err != nil {
+		return fmt.Errorf("ensure local config: chown: %w", err)
+	}
+	return nil
+}
+
+func backupConfigFile(cfgPath string) error {
+	backup := fmt.Sprintf("%s.bak.%d", cfgPath, time.Now().UnixNano())
+	return os.Rename(cfgPath, backup)
+}
+
+func chownGlobular(path string) error {
+	u, err := user.Lookup("globular")
+	if err != nil {
+		return nil
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return nil
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return nil
+	}
+	return os.Chown(path, uid, gid)
 }
 
 // ============================================================================
