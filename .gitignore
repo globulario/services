@@ -1,3 +1,4 @@
 node_modules
 package-lock.json
 .cache
+golang/resource/resourcepb/minio_proxy_config.go

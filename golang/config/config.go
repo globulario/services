@@ -800,7 +800,8 @@ func EnsureLocalConfig() (bool, error) {
 			}
 			cfg = nil
 		} else {
-			if rewrite := normalizeLocalConfigArrays(cfg); rewrite {
+			changed := ensureEtcdRuntimeDefaults(cfg, stateRoot)
+			if rewrite := normalizeLocalConfigArrays(cfg) || changed; rewrite {
 				if err := writeLocalConfig(cfgPath, cfg); err != nil {
 					return false, err
 				}
@@ -816,7 +817,8 @@ func EnsureLocalConfig() (bool, error) {
 	if admin := loadAdminConfig(); admin != nil {
 		opts = admin
 	}
-	if rewrite := normalizeLocalConfigArrays(opts); rewrite {
+	changed := ensureEtcdRuntimeDefaults(opts, stateRoot)
+	if rewrite := normalizeLocalConfigArrays(opts) || changed; rewrite {
 		// ensure consistent ordering after normalization
 	}
 	if err := writeLocalConfig(cfgPath, opts); err != nil {
@@ -1017,6 +1019,45 @@ func chownGlobular(path string) error {
 		return nil
 	}
 	return os.Chown(path, uid, gid)
+}
+
+func ensureEtcdRuntimeDefaults(cfg map[string]interface{}, stateRoot string) bool {
+	changed := false
+	changed = setDefaultIfMissing(cfg, "EtcdEnabled", true) || changed
+	changed = setDefaultIfMissing(cfg, "EtcdMode", "standalone") || changed
+
+	name := Utility.ToString(cfg["EtcdName"])
+	if name == "" {
+		name = Utility.ToString(cfg["Name"])
+		if name == "" {
+			if h, err := os.Hostname(); err == nil {
+				name = h
+			}
+		}
+		if name == "" {
+			name = "globular"
+		}
+	}
+	changed = setDefaultIfMissing(cfg, "EtcdName", name) || changed
+
+	changed = setDefaultIfMissing(cfg, "EtcdClientPort", "2379") || changed
+	changed = setDefaultIfMissing(cfg, "EtcdPeerPort", "2380") || changed
+
+	dataDir := filepath.Join(stateRoot, "etcd")
+	changed = setDefaultIfMissing(cfg, "EtcdDataDir", dataDir) || changed
+
+	configPath := filepath.Join(dataDir, "etcd.yml")
+	changed = setDefaultIfMissing(cfg, "EtcdConfigPath", configPath) || changed
+
+	return changed
+}
+
+func setDefaultIfMissing(cfg map[string]interface{}, key string, value interface{}) bool {
+	if _, ok := cfg[key]; ok {
+		return false
+	}
+	cfg[key] = value
+	return true
 }
 
 // ============================================================================

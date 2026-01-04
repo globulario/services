@@ -1184,7 +1184,7 @@ func ensureEtcdAndScyllaPerms(cfgDir, dataDir, advHost string) error {
 //   - Waits for readiness (HTTP /health or TCP).
 //   - Handles SIGTERM for graceful shutdown.
 //
-// The generated config is written to <config>/etcd.yml and data to <data>/etcd-data.
+// The generated config is written to <stateRoot>/etcd/etcd.yml and data lives in <stateRoot>/etcd.
 func StartEtcdServer() error {
 	const (
 		readyTimeout = 60 * time.Second
@@ -1223,9 +1223,19 @@ func StartEtcdServer() error {
 		advHost = "localhost"
 	}
 
-	dataDir := config.GetDataDir() + "/etcd-data"
+	stateRoot := config.GetStateRootDir()
+	dataDir := Utility.ToString(localConfig["EtcdDataDir"])
+	if dataDir == "" {
+		dataDir = filepath.Join(stateRoot, "etcd")
+	}
 	_ = Utility.CreateDirIfNotExist(dataDir)
-	cfgPath := config.GetConfigDir() + "/etcd.yml"
+	cfgPath := Utility.ToString(localConfig["EtcdConfigPath"])
+	if cfgPath == "" {
+		cfgPath = filepath.Join(dataDir, "etcd.yml")
+	}
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		return fmt.Errorf("create etcd config dir: %w", err)
+	}
 
 	// Set permissions for etcd data dir and TLS files (if any).
 	cfgDir := config.GetConfigDir()
