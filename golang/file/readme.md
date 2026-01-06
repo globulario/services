@@ -172,6 +172,43 @@ Set your server to accept `sa/adminadmin` (or adjust the test harness to your cr
 
 ---
 
+## MinIO Configuration
+
+Services can use MinIO-compatible object storage for file persistence.
+
+### Environment Variables (Legacy)
+- `MINIO_ENDPOINT` - MinIO server endpoint (e.g., `localhost:9000`)
+- `MINIO_ACCESS_KEY` - Access key
+- `MINIO_SECRET_KEY` - Secret key
+- `MINIO_BUCKET` - Bucket name
+- `MINIO_PREFIX` - Path prefix (default: `/users`)
+- `MINIO_USE_SSL` - Enable TLS (true/false)
+
+### Configuration File (Recommended)
+```json
+{
+  "MinioConfig": {
+    "endpoint": "s3.amazonaws.com",
+    "bucket": "my-app-data",
+    "prefix": "/files",
+    "secure": true,
+    "caBundlePath": "/etc/ssl/certs/ca.pem",
+    "auth": {
+      "mode": "accessKey",
+      "accessKey": "YOUR_ACCESS_KEY",
+      "secretKey": "YOUR_SECRET_KEY"
+    }
+  }
+}
+```
+
+### Auth Modes
+- `accessKey` - Static access key/secret key
+- `file` - Read credentials from file (format: `accessKey:secretKey`)
+- `none` - No authentication (local development only)
+
+---
+
 ## Notes & Tips
 
 - For large uploads, `MoveFile` uses a fixed chunk size (5 KB by default) — tune server-side flow control accordingly.

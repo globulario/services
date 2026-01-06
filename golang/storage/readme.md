@@ -150,6 +150,43 @@ Each store type accepts JSON options when opening:
 
 ---
 
+## MinIO Configuration
+
+Services can use MinIO-compatible object storage for additional persistence layers.
+
+### Environment Variables (Legacy)
+- `MINIO_ENDPOINT` - MinIO server endpoint (e.g., `localhost:9000`)
+- `MINIO_ACCESS_KEY` - Access key
+- `MINIO_SECRET_KEY` - Secret key
+- `MINIO_BUCKET` - Bucket name
+- `MINIO_PREFIX` - Path prefix (default: `/users`)
+- `MINIO_USE_SSL` - Enable TLS (true/false)
+
+### Configuration File (Recommended)
+```json
+{
+  "MinioConfig": {
+    "endpoint": "s3.amazonaws.com",
+    "bucket": "my-app-data",
+    "prefix": "/files",
+    "secure": true,
+    "caBundlePath": "/etc/ssl/certs/ca.pem",
+    "auth": {
+      "mode": "accessKey",
+      "accessKey": "YOUR_ACCESS_KEY",
+      "secretKey": "YOUR_SECRET_KEY"
+    }
+  }
+}
+```
+
+### Auth Modes
+- `accessKey` - Static access key/secret key
+- `file` - Read credentials from file (format: `accessKey:secretKey`)
+- `none` - No authentication (local development only)
+
+---
+
 ## Integration in Globular
 
 - Managed as a Globular microservice

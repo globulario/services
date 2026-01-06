@@ -11,7 +11,6 @@ import (
 
 	Utility "github.com/globulario/utility"
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // Storage is the abstraction used by FileService + HTTP handlers.
@@ -78,7 +77,7 @@ func (s *OSStorage) Stat(ctx context.Context, path string) (fs.FileInfo, error) 
 
 // Exists checks for file existence under the storage root.
 func (s *OSStorage) Exists(ctx context.Context, path string) bool {
-	
+
 	return Utility.Exists(s.resolve(path))
 }
 
@@ -191,22 +190,14 @@ type MinioStorage struct {
 	prefix string // optional path prefix inside bucket (e.g. "root/")
 }
 
-// NewMinioStorage creates a MinioStorage backed by the provided MinIO endpoint/bucket.
-// Endpoint should be host:port, credentials map to an access/secret key pair.
-func NewMinioStorage(endpoint, accessKey, secretKey, bucket, prefix string, useSSL bool) (*MinioStorage, error) {
-	mc, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
-	})
-	if err != nil {
-		return nil, err
-	}
+// NewMinioStorage creates a MinioStorage backed by the provided MinIO client, bucket, and prefix.
+func NewMinioStorage(client *minio.Client, bucket, prefix string) (*MinioStorage, error) {
 	prefix = strings.Trim(prefix, "/")
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 	return &MinioStorage{
-		client: mc,
+		client: client,
 		bucket: bucket,
 		prefix: prefix,
 	}, nil

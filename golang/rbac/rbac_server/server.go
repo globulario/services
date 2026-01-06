@@ -94,14 +94,9 @@ type server struct {
 	cache       *storage_store.BigCache_store
 	permissions storage_store.Store
 
-	UseMinio       bool
-	MinioEndpoint  string
-	MinioAccessKey string
-	MinioSecretKey string
-	MinioBucket    string
-	MinioPrefix    string
-	MinioUseSSL    bool
-	minioClient    *minio.Client
+	MinioConfig *config.MinioProxyConfig
+
+	minioClient *minio.Client
 }
 
 // -----------------------------------------------------------------------------
@@ -612,6 +607,78 @@ func (srv *server) Stop(ctx context.Context, _ *rbacpb.StopRqst) (*rbacpb.StopRe
 	return &rbacpb.StopResponse{}, srv.StopService()
 }*/
 
+func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
+	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
+		if minioRaw, ok := cfg["MinioConfig"]; ok {
+			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
+				return parseMinioConfigFromMap(minioMap)
+			}
+		}
+	}
+
+	endpoint := os.Getenv("MINIO_ENDPOINT")
+	if endpoint == "" {
+		return nil
+	}
+
+	return &config.MinioProxyConfig{
+		Endpoint: endpoint,
+		Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
+		Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
+		Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
+		Auth: &config.MinioProxyAuth{
+			Mode:      config.MinioProxyAuthModeAccessKey,
+			AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
+			SecretKey: os.Getenv("MINIO_SECRET_KEY"),
+		},
+	}
+}
+
+func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {
+	cfg := &config.MinioProxyConfig{}
+
+	if v, ok := m["endpoint"].(string); ok {
+		cfg.Endpoint = v
+	}
+	if v, ok := m["bucket"].(string); ok {
+		cfg.Bucket = v
+	}
+	if v, ok := m["prefix"].(string); ok {
+		cfg.Prefix = v
+	}
+	if v, ok := m["secure"].(bool); ok {
+		cfg.Secure = v
+	}
+	if v, ok := m["caBundlePath"].(string); ok {
+		cfg.CABundlePath = v
+	}
+
+	if authRaw, ok := m["auth"].(map[string]interface{}); ok {
+		cfg.Auth = &config.MinioProxyAuth{}
+		if mode, ok := authRaw["mode"].(string); ok {
+			cfg.Auth.Mode = mode
+		}
+		if ak, ok := authRaw["accessKey"].(string); ok {
+			cfg.Auth.AccessKey = ak
+		}
+		if sk, ok := authRaw["secretKey"].(string); ok {
+			cfg.Auth.SecretKey = sk
+		}
+		if cf, ok := authRaw["credFile"].(string); ok {
+			cfg.Auth.CredFile = cf
+		}
+	}
+
+	return cfg
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultValue
+}
+
 // -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
@@ -884,6 +951,13 @@ func main() {
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
+	}
+	srv.MinioConfig = srv.loadMinioConfig()
+	if srv.MinioConfig != nil {
+		logger.Info("minio storage configured",
+			"endpoint", srv.MinioConfig.Endpoint,
+			"bucket", srv.MinioConfig.Bucket,
+			"secure", srv.MinioConfig.Secure)
 	}
 
 	// Clear precomputed USED_SPACE keys on startup (ensures fresh computation)

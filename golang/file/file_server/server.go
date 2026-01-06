@@ -27,6 +27,8 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	Utility "github.com/globulario/utility"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -98,13 +100,9 @@ type server struct {
 	CacheReplicationFactor int
 	Public                 []string
 
-	UseMinio       bool
-	MinioEndpoint  string
-	MinioAccessKey string
-	MinioSecretKey string
-	MinioBucket    string
-	MinioPrefix    string
-	MinioUseSSL    bool
+	MinioConfig *config.MinioProxyConfig
+
+	minioClient *minio.Client
 
 	checksumCache sync.Map
 }
@@ -202,9 +200,6 @@ func (srv *server) SetPublicDirs(dirs []string) {
 
 func (srv *server) Init() error {
 	if err := globular.InitService(srv); err != nil {
-		return err
-	}
-	if err := srv.initStorage(); err != nil {
 		return err
 	}
 	gs, err := globular.InitGrpcServer(srv)
@@ -460,32 +455,150 @@ func (srv *server) initStorage() error {
 	// Public storage always uses local filesystem
 	srv.publicStorage = NewOSStorage("")
 
-	if srv.UseMinio {
-		if srv.MinioEndpoint == "" || srv.MinioBucket == "" {
-			return fmt.Errorf("inio storage enabled but endpoint or bucket is empty")
+	if srv.minioEnabled() {
+		if err := srv.ensureMinioClient(); err != nil {
+			return err
 		}
 		m, err := NewMinioStorage(
-			srv.MinioEndpoint,
-			srv.MinioAccessKey,
-			srv.MinioSecretKey,
-			srv.MinioBucket,
-			srv.MinioPrefix,
-			srv.MinioUseSSL,
+			srv.minioClient,
+			srv.MinioConfig.Bucket,
+			srv.MinioConfig.Prefix,
 		)
 		if err != nil {
 			return err
 		}
 		srv.storage = m
-
-		fmt.Println("---------------------------------> storage minio success!")
+		logger.Info("minio storage initialized",
+			"endpoint", srv.MinioConfig.Endpoint,
+			"bucket", srv.MinioConfig.Bucket)
 		return nil
 	}
 
-	// Public storage always uses local filesystem
-	srv.publicStorage = NewOSStorage("")
-
 	srv.storage = NewOSStorage("")
 	return nil
+}
+
+func (srv *server) minioEnabled() bool {
+	return srv.MinioConfig != nil && srv.MinioConfig.Endpoint != "" && srv.MinioConfig.Bucket != ""
+}
+
+func (srv *server) ensureMinioClient() error {
+	if !srv.minioEnabled() {
+		return fmt.Errorf("minio is not enabled")
+	}
+	if srv.minioClient != nil {
+		return nil
+	}
+
+	cfg := srv.MinioConfig
+	auth := cfg.Auth
+	if auth == nil {
+		auth = &config.MinioProxyAuth{Mode: config.MinioProxyAuthModeNone}
+	}
+
+	var creds *credentials.Credentials
+	switch auth.Mode {
+	case config.MinioProxyAuthModeAccessKey:
+		creds = credentials.NewStaticV4(auth.AccessKey, auth.SecretKey, "")
+	case config.MinioProxyAuthModeFile:
+		data, err := os.ReadFile(auth.CredFile)
+		if err != nil {
+			return fmt.Errorf("read minio credentials file: %w", err)
+		}
+		parts := strings.Split(strings.TrimSpace(string(data)), ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid minio credentials file format")
+		}
+		creds = credentials.NewStaticV4(parts[0], parts[1], "")
+	case config.MinioProxyAuthModeNone:
+		creds = credentials.NewStaticV4("", "", "")
+	default:
+		return fmt.Errorf("unknown minio auth mode: %s", auth.Mode)
+	}
+
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  creds,
+		Secure: cfg.Secure,
+	})
+	if err != nil {
+		return err
+	}
+
+	srv.minioClient = client
+	return nil
+}
+
+// loadMinioConfig reads MinIO configuration from the service config or environment.
+func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
+	if cfg, err := config.GetServiceConfigurationById(srv.Id); err == nil && cfg != nil {
+		if minioRaw, ok := cfg["MinioConfig"]; ok {
+			if minioMap, ok := minioRaw.(map[string]interface{}); ok {
+				return parseMinioConfigFromMap(minioMap)
+			}
+		}
+	}
+
+	endpoint := os.Getenv("MINIO_ENDPOINT")
+	if endpoint == "" {
+		return nil
+	}
+
+	return &config.MinioProxyConfig{
+		Endpoint: endpoint,
+		Bucket:   getEnvOrDefault("MINIO_BUCKET", "globular"),
+		Prefix:   getEnvOrDefault("MINIO_PREFIX", "/users"),
+		Secure:   getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
+		Auth: &config.MinioProxyAuth{
+			Mode:      config.MinioProxyAuthModeAccessKey,
+			AccessKey: os.Getenv("MINIO_ACCESS_KEY"),
+			SecretKey: os.Getenv("MINIO_SECRET_KEY"),
+		},
+	}
+}
+
+func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {
+	cfg := &config.MinioProxyConfig{}
+
+	if v, ok := m["endpoint"].(string); ok {
+		cfg.Endpoint = v
+	}
+	if v, ok := m["bucket"].(string); ok {
+		cfg.Bucket = v
+	}
+	if v, ok := m["prefix"].(string); ok {
+		cfg.Prefix = v
+	}
+	if v, ok := m["secure"].(bool); ok {
+		cfg.Secure = v
+	}
+	if v, ok := m["caBundlePath"].(string); ok {
+		cfg.CABundlePath = v
+	}
+
+	if authRaw, ok := m["auth"].(map[string]interface{}); ok {
+		cfg.Auth = &config.MinioProxyAuth{}
+		if mode, ok := authRaw["mode"].(string); ok {
+			cfg.Auth.Mode = mode
+		}
+		if ak, ok := authRaw["accessKey"].(string); ok {
+			cfg.Auth.AccessKey = ak
+		}
+		if sk, ok := authRaw["secretKey"].(string); ok {
+			cfg.Auth.SecretKey = sk
+		}
+		if cf, ok := authRaw["credFile"].(string); ok {
+			cfg.Auth.CredFile = cf
+		}
+	}
+
+	return cfg
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultValue
 }
 
 // Storage returns the configured backend (defaulting to local filesystem).
@@ -820,6 +933,17 @@ func main() {
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("initialization failed", "service", s.Name, "id", s.Id, "err", err)
+		os.Exit(1)
+	}
+	s.MinioConfig = s.loadMinioConfig()
+	if s.MinioConfig != nil {
+		logger.Info("minio storage configured",
+			"endpoint", s.MinioConfig.Endpoint,
+			"bucket", s.MinioConfig.Bucket,
+			"secure", s.MinioConfig.Secure)
+	}
+	if err := s.initStorage(); err != nil {
+		logger.Error("storage initialization failed", "err", err)
 		os.Exit(1)
 	}
 	if s.Address == "" {

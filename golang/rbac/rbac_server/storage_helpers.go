@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	Utility "github.com/globulario/utility"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 func (srv *server) minioEnabled() bool {
-	return srv.UseMinio && srv.MinioEndpoint != "" && srv.MinioBucket != ""
+	return srv.MinioConfig != nil && srv.MinioConfig.Endpoint != "" && srv.MinioConfig.Bucket != ""
 }
 
 func (srv *server) ensureMinioClient() error {
@@ -25,27 +26,56 @@ func (srv *server) ensureMinioClient() error {
 	if !srv.minioEnabled() {
 		return fmt.Errorf("minio is not enabled")
 	}
-	client, err := minio.New(srv.MinioEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(srv.MinioAccessKey, srv.MinioSecretKey, ""),
-		Secure: srv.MinioUseSSL,
+
+	auth := srv.MinioConfig.Auth
+	if auth == nil {
+		auth = &config.MinioProxyAuth{Mode: config.MinioProxyAuthModeNone}
+	}
+
+	var creds *credentials.Credentials
+	switch auth.Mode {
+	case config.MinioProxyAuthModeAccessKey:
+		creds = credentials.NewStaticV4(auth.AccessKey, auth.SecretKey, "")
+	case config.MinioProxyAuthModeFile:
+		data, err := os.ReadFile(auth.CredFile)
+		if err != nil {
+			return fmt.Errorf("read minio credentials file: %w", err)
+		}
+		parts := strings.Split(strings.TrimSpace(string(data)), ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid minio credentials file format")
+		}
+		creds = credentials.NewStaticV4(parts[0], parts[1], "")
+	case config.MinioProxyAuthModeNone:
+		creds = credentials.NewStaticV4("", "", "")
+	default:
+		return fmt.Errorf("unknown minio auth mode: %s", auth.Mode)
+	}
+
+	client, err := minio.New(srv.MinioConfig.Endpoint, &minio.Options{
+		Creds:  creds,
+		Secure: srv.MinioConfig.Secure,
 	})
 	if err != nil {
 		return err
 	}
+
 	srv.minioClient = client
 	return nil
 }
 
 func (srv *server) normalizedMinioPrefix() string {
-	prefix := filepath.ToSlash(strings.TrimSpace(srv.MinioPrefix))
-	if prefix == "" {
-		return ""
+	if srv.MinioConfig == nil {
+		return "/users"
 	}
-	prefix = strings.TrimSuffix(prefix, "/")
+	prefix := filepath.ToSlash(strings.TrimSpace(srv.MinioConfig.Prefix))
+	if prefix == "" {
+		prefix = "/users"
+	}
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	return prefix
+	return filepath.ToSlash(filepath.Clean(prefix))
 }
 
 func (srv *server) isMinioPath(path string) bool {
@@ -54,10 +84,8 @@ func (srv *server) isMinioPath(path string) bool {
 	}
 	p := filepath.ToSlash(strings.TrimSpace(path))
 	prefix := srv.normalizedMinioPrefix()
-	if prefix != "" && strings.HasPrefix(p, prefix+"/") {
-		return true
-	}
-	if prefix != "" && p == prefix {
+	base := strings.TrimSuffix(prefix, "/")
+	if base != "" && (p == base || strings.HasPrefix(p, base+"/")) {
 		return true
 	}
 	if strings.HasPrefix(p, "/users/") || p == "/users" || strings.HasPrefix(p, "/applications/") || p == "/applications" {
@@ -69,11 +97,7 @@ func (srv *server) isMinioPath(path string) bool {
 func (srv *server) minioKeyFromPath(path string) string {
 	p := filepath.ToSlash(strings.TrimSpace(path))
 	prefix := srv.normalizedMinioPrefix()
-	if prefix != "" {
-		if strings.HasPrefix(p, prefix) {
-			p = strings.TrimPrefix(p, prefix)
-		}
-	}
+	p = strings.TrimPrefix(p, prefix)
 	p = strings.TrimPrefix(p, "/")
 	return p
 }
@@ -112,7 +136,7 @@ func (srv *server) storageExists(path string) bool {
 		if key == "" {
 			return false
 		}
-		_, err := srv.minioClient.StatObject(ctx, srv.MinioBucket, key, minio.StatObjectOptions{})
+		_, err := srv.minioClient.StatObject(ctx, srv.MinioConfig.Bucket, key, minio.StatObjectOptions{})
 		return err == nil
 	}
 	return false
@@ -131,7 +155,7 @@ func (srv *server) storageStat(path string) (fs.FileInfo, error) {
 		}
 		key := srv.minioKeyFromPath(path)
 		ctx := context.Background()
-		info, err := srv.minioClient.StatObject(ctx, srv.MinioBucket, key, minio.StatObjectOptions{})
+		info, err := srv.minioClient.StatObject(ctx, srv.MinioConfig.Bucket, key, minio.StatObjectOptions{})
 		if err != nil {
 			return nil, err
 		}

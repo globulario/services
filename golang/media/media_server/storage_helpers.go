@@ -21,19 +21,26 @@ type mediaWorkFile struct {
 	IsMinio     bool
 }
 
-func (srv *server) isMinioPath(p string) bool {
-	if !srv.minioEnabled() {
-		return false
+func (srv *server) normalizedMinioPrefix() string {
+	if srv.MinioConfig == nil {
+		return "/users"
 	}
-	p = filepath.ToSlash(p)
-	prefix := filepath.ToSlash(srv.MinioPrefix)
+	prefix := filepath.ToSlash(strings.TrimSpace(srv.MinioConfig.Prefix))
 	if prefix == "" {
 		prefix = "/users"
 	}
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	prefix = filepath.ToSlash(prefix)
+	return filepath.ToSlash(filepath.Clean(prefix))
+}
+
+func (srv *server) isMinioPath(p string) bool {
+	if p == "" || !srv.minioEnabled() {
+		return false
+	}
+	p = filepath.ToSlash(strings.TrimSpace(p))
+	prefix := srv.normalizedMinioPrefix()
 	base := strings.TrimSuffix(prefix, "/")
 	if base == "" {
 		return false
@@ -45,8 +52,8 @@ func (srv *server) isMinioPath(p string) bool {
 }
 
 func (srv *server) minioKeyFromPath(p string) string {
-	p = filepath.ToSlash(p)
-	prefix := filepath.ToSlash(srv.MinioPrefix)
+	p = filepath.ToSlash(strings.TrimSpace(p))
+	prefix := srv.normalizedMinioPrefix()
 	p = strings.TrimPrefix(p, prefix)
 	p = strings.TrimPrefix(p, "/")
 	return p
@@ -59,7 +66,7 @@ func (srv *server) minioDownloadToTemp(ctx context.Context, logicalPath string) 
 	key := srv.minioKeyFromPath(logicalPath)
 	ext := filepath.Ext(logicalPath)
 	tmp := filepath.ToSlash(filepath.Join(os.TempDir(), Utility.GenerateUUID("media")+ext))
-	if err := srv.minioClient.FGetObject(ctx, srv.MinioBucket, key, tmp, minio.GetObjectOptions{}); err != nil {
+	if err := srv.minioClient.FGetObject(ctx, srv.MinioConfig.Bucket, key, tmp, minio.GetObjectOptions{}); err != nil {
 		return "", func() {}, err
 	}
 	cleanup := func() {
@@ -73,7 +80,7 @@ func (srv *server) minioUploadFile(ctx context.Context, logicalPath, localPath, 
 		return err
 	}
 	key := srv.minioKeyFromPath(logicalPath)
-	_, err := srv.minioClient.FPutObject(ctx, srv.MinioBucket, key, localPath, minio.PutObjectOptions{
+	_, err := srv.minioClient.FPutObject(ctx, srv.MinioConfig.Bucket, key, localPath, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	return err
@@ -134,7 +141,7 @@ func (srv *server) minioObjectExists(ctx context.Context, logicalPath string) bo
 		return false
 	}
 	key := srv.minioKeyFromPath(logicalPath)
-	_, err := srv.minioClient.StatObject(ctx, srv.MinioBucket, key, minio.StatObjectOptions{})
+	_, err := srv.minioClient.StatObject(ctx, srv.MinioConfig.Bucket, key, minio.StatObjectOptions{})
 	return err == nil
 }
 
@@ -224,7 +231,7 @@ func (srv *server) resolveIOPath(path string) (string, bool) {
 		if srv.localPathExists(p) {
 			return p, false
 		}
-		return  p, false
+		return p, false
 	}
 	return p, false
 }
@@ -300,7 +307,7 @@ func (srv *server) removePath(path string) error {
 		if err := srv.ensureMinioClient(); err != nil {
 			return err
 		}
-		return srv.minioClient.RemoveObject(context.Background(), srv.MinioBucket, srv.minioKeyFromPath(resolved), minio.RemoveObjectOptions{})
+		return srv.minioClient.RemoveObject(context.Background(), srv.MinioConfig.Bucket, srv.minioKeyFromPath(resolved), minio.RemoveObjectOptions{})
 	}
 	return os.Remove(resolved)
 }
@@ -317,7 +324,7 @@ func (srv *server) removeAll(path string) error {
 		ctx := context.Background()
 		key := srv.minioKeyFromPath(resolved)
 		if key != "" {
-			if err := srv.minioClient.RemoveObject(ctx, srv.MinioBucket, key, minio.RemoveObjectOptions{}); err != nil {
+			if err := srv.minioClient.RemoveObject(ctx, srv.MinioConfig.Bucket, key, minio.RemoveObjectOptions{}); err != nil {
 				return err
 			}
 		}
@@ -326,12 +333,12 @@ func (srv *server) removeAll(path string) error {
 			return nil
 		}
 		prefix += "/"
-		objs := srv.minioClient.ListObjects(ctx, srv.MinioBucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true})
+		objs := srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true})
 		for obj := range objs {
 			if obj.Err != nil {
 				return obj.Err
 			}
-			if err := srv.minioClient.RemoveObject(ctx, srv.MinioBucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+			if err := srv.minioClient.RemoveObject(ctx, srv.MinioConfig.Bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
 				return err
 			}
 		}
@@ -445,7 +452,7 @@ func (srv *server) walkMinioDir(root string, fn fs.WalkDirFunc) error {
 	if root != "/" {
 		key := srv.minioKeyFromPath(root)
 		if key != "" {
-			if statInfo, err := srv.minioClient.StatObject(context.Background(), srv.MinioBucket, key, minio.StatObjectOptions{}); err == nil {
+			if statInfo, err := srv.minioClient.StatObject(context.Background(), srv.MinioConfig.Bucket, key, minio.StatObjectOptions{}); err == nil {
 				entry := walkDirEntry{name: filepath.Base(root), dir: false}
 				if err := fn(root, entry, nil); err != nil && !errors.Is(err, fs.SkipDir) {
 					return err
@@ -476,7 +483,7 @@ func (srv *server) walkMinioDir(root string, fn fs.WalkDirFunc) error {
 	visited := map[string]bool{root: true}
 	skipped := map[string]bool{}
 
-	list := srv.minioClient.ListObjects(ctx, srv.MinioBucket, minio.ListObjectsOptions{
+	list := srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: true,
 	})
@@ -592,7 +599,7 @@ func (srv *server) readDirEntries(path string) ([]fs.DirEntry, error) {
 		}
 		var entries []fs.DirEntry
 		seenDirs := make(map[string]bool)
-		for obj := range srv.minioClient.ListObjects(ctx, srv.MinioBucket, opts) {
+		for obj := range srv.minioClient.ListObjects(ctx, srv.MinioConfig.Bucket, opts) {
 			if obj.Err != nil {
 				return nil, obj.Err
 			}
