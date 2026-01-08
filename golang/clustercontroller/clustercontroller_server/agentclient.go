@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,13 +63,17 @@ func newAgentClient(ctx context.Context, endpoint string, insecureEnabled bool, 
 	return client, nil
 }
 
-func (a *agentClient) ApplyPlan(ctx context.Context, plan *clustercontrollerpb.NodePlan) error {
+func (a *agentClient) ApplyPlan(ctx context.Context, plan *clustercontrollerpb.NodePlan, operationID string) error {
 	if plan == nil {
 		return nil
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	_, err := a.client.ApplyPlan(reqCtx, &nodeagentpb.ApplyPlanRequest{Plan: plan})
+	req := &nodeagentpb.ApplyPlanRequest{Plan: plan}
+	if strings.TrimSpace(operationID) != "" {
+		req.OperationId = operationID
+	}
+	_, err := a.client.ApplyPlan(reqCtx, req)
 	a.touch()
 	return err
 }

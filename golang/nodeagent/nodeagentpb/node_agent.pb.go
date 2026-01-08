@@ -414,6 +414,7 @@ func (x *GetInventoryResponse) GetInventory() *Inventory {
 type ApplyPlanRequest struct {
 	state         protoimpl.MessageState        `protogen:"open.v1"`
 	Plan          *clustercontrollerpb.NodePlan `protobuf:"bytes,1,opt,name=plan,proto3" json:"plan,omitempty"`
+	OperationId   string                        `protobuf:"bytes,2,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -453,6 +454,13 @@ func (x *ApplyPlanRequest) GetPlan() *clustercontrollerpb.NodePlan {
 		return x.Plan
 	}
 	return nil
+}
+
+func (x *ApplyPlanRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
 }
 
 type ApplyPlanResponse struct {
@@ -788,9 +796,10 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x05units\x18\x04 \x03(\v2\x15.nodeagent.UnitStatusR\x05units\"\x15\n" +
 	"\x13GetInventoryRequest\"J\n" +
 	"\x14GetInventoryResponse\x122\n" +
-	"\tinventory\x18\x01 \x01(\v2\x14.nodeagent.InventoryR\tinventory\"C\n" +
+	"\tinventory\x18\x01 \x01(\v2\x14.nodeagent.InventoryR\tinventory\"f\n" +
 	"\x10ApplyPlanRequest\x12/\n" +
-	"\x04plan\x18\x01 \x01(\v2\x1b.clustercontroller.NodePlanR\x04plan\"6\n" +
+	"\x04plan\x18\x01 \x01(\v2\x1b.clustercontroller.NodePlanR\x04plan\x12!\n" +
+	"\foperation_id\x18\x02 \x01(\tR\voperationId\"6\n" +
 	"\x11ApplyPlanResponse\x12!\n" +
 	"\foperation_id\x18\x01 \x01(\tR\voperationId\":\n" +
 	"\x15WatchOperationRequest\x12!\n" +

@@ -29,20 +29,22 @@ import (
 )
 
 const (
-	agentIdleTimeoutDefault = 5 * time.Minute
-	agentCleanupInterval    = 1 * time.Minute
-	joinRequestRetention    = 72 * time.Hour
-	pendingJoinRetention    = 7 * 24 * time.Hour
-	statePersistInterval    = 5 * time.Second
-	statusGracePeriod       = 2 * time.Minute
-	planPollInterval        = 3 * time.Second
-	upgradePlanTTL          = 10 * time.Minute
-	defaultProbePort        = 80
-	defaultBinaryPath       = "/usr/local/bin/globular"
-	defaultTargetPublisher  = "globular"
-	defaultTargetName       = "globular"
-	upgradeDiskMinBytes     = 1 << 30
-	repositoryAddressEnv    = "REPOSITORY_ADDRESS"
+	agentIdleTimeoutDefault  = 5 * time.Minute
+	agentCleanupInterval     = 1 * time.Minute
+	operationCleanupInterval = 1 * time.Minute
+	operationTimeout         = 10 * time.Minute
+	joinRequestRetention     = 72 * time.Hour
+	pendingJoinRetention     = 7 * 24 * time.Hour
+	statePersistInterval     = 5 * time.Second
+	statusGracePeriod        = 2 * time.Minute
+	planPollInterval         = 3 * time.Second
+	upgradePlanTTL           = 10 * time.Minute
+	defaultProbePort         = 80
+	defaultBinaryPath        = "/usr/local/bin/globular"
+	defaultTargetPublisher   = "globular"
+	defaultTargetName        = "globular"
+	upgradeDiskMinBytes      = 1 << 30
+	repositoryAddressEnv     = "REPOSITORY_ADDRESS"
 )
 
 type server struct {
@@ -419,12 +421,12 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 	opID := uuid.NewString()
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
-	if err := srv.dispatchPlan(ctx, node, plan); err != nil {
+	if err := srv.dispatchPlan(ctx, node, plan, opID); err != nil {
 		log.Printf("node %s apply dispatch failed: %v", nodeID, err)
 		srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
 		return nil, status.Errorf(codes.Internal, "dispatch plan: %v", err)
 	}
-	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, true, ""))
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
 	if srv.recordPlanSent(nodeID, hash) {
 		srv.mu.Lock()
 		if err := srv.persistStateLocked(true); err != nil {
@@ -435,6 +437,42 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 
 	return &clustercontrollerpb.ApplyNodePlanResponse{
 		OperationId: opID,
+	}, nil
+}
+
+func (srv *server) CompleteOperation(ctx context.Context, req *clustercontrollerpb.CompleteOperationRequest) (*clustercontrollerpb.CompleteOperationResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	opID := strings.TrimSpace(req.GetOperationId())
+	if opID == "" {
+		return nil, status.Error(codes.InvalidArgument, "operation_id is required")
+	}
+	nodeID := strings.TrimSpace(req.GetNodeId())
+	if nodeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	phase := clustercontrollerpb.OperationPhase_OP_SUCCEEDED
+	if !req.GetSuccess() {
+		phase = clustercontrollerpb.OperationPhase_OP_FAILED
+	}
+	message := strings.TrimSpace(req.GetMessage())
+	if message == "" {
+		if phase == clustercontrollerpb.OperationPhase_OP_SUCCEEDED {
+			message = "plan applied"
+		} else {
+			message = "plan failed"
+		}
+	}
+	percent := req.GetPercent()
+	if percent == 0 && phase == clustercontrollerpb.OperationPhase_OP_SUCCEEDED {
+		percent = 100
+	}
+	errMsg := strings.TrimSpace(req.GetError())
+	evt := srv.newOperationEvent(opID, nodeID, phase, message, percent, true, errMsg)
+	srv.broadcastOperationEvent(evt)
+	return &clustercontrollerpb.CompleteOperationResponse{
+		Message: fmt.Sprintf("operation %s completion recorded", opID),
 	}, nil
 }
 
@@ -658,6 +696,21 @@ func (srv *server) startAgentCleanupLoop(ctx context.Context) {
 	}()
 }
 
+func (srv *server) startOperationCleanupLoop(ctx context.Context) {
+	ticker := time.NewTicker(operationCleanupInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				srv.cleanupTimedOutOperations()
+			}
+		}
+	}()
+}
+
 func (srv *server) reconcileNodes(ctx context.Context) {
 	now := time.Now()
 	srv.mu.Lock()
@@ -686,7 +739,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		opID := uuid.NewString()
 		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
-		if err := srv.dispatchPlan(ctx, node, plan); err != nil {
+		if err := srv.dispatchPlan(ctx, node, plan, opID); err != nil {
 			log.Printf("plan dispatch for node %s failed: %v", node.NodeID, err)
 			srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
 			if srv.recordPlanError(node.NodeID, err.Error()) {
@@ -697,7 +750,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 			continue
 		}
-		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, true, ""))
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
 		if srv.recordPlanSent(node.NodeID, hash) {
 			stateDirty = true
 		}
@@ -801,7 +854,7 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 	if spec == nil {
 		return nil
 	}
-	out := make(map[string]string, 2)
+	out := make(map[string]string, 4)
 	if specJSON, err := protojson.Marshal(spec); err == nil {
 		out["cluster.network.spec.json"] = string(specJSON)
 	}
@@ -815,12 +868,45 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 		"AdminEmail":       spec.GetAdminEmail(),
 	}
 	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
-		out["/etc/globular/config.json"] = string(cfgJSON)
+		out["/etc/globular/network.json"] = string(cfgJSON)
+	}
+	if gen := srv.networkingGeneration(); gen > 0 {
+		out["cluster.network.generation"] = fmt.Sprintf("%d", gen)
+	}
+	if units := restartUnitsForSpec(spec); len(units) > 0 {
+		if b, err := json.Marshal(units); err == nil {
+			out["reconcile.restart_units"] = string(b)
+		}
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+func (srv *server) networkingGeneration() uint64 {
+	srv.mu.Lock()
+	gen := srv.state.NetworkingGeneration
+	srv.mu.Unlock()
+	return gen
+}
+
+func restartUnitsForSpec(spec *clustercontrollerpb.ClusterNetworkSpec) []string {
+	if spec == nil {
+		return nil
+	}
+	units := []string{
+		"globular-etcd.service",
+		"globular-xds.service",
+		"globular-envoy.service",
+		"globular-gateway.service",
+		"globular-minio.service",
+		"scylladb.service",
+	}
+	if spec.GetProtocol() == "https" {
+		units = append(units, "globular-storage.service")
+	}
+	return units
 }
 
 func normalizeDomains(domains []string) []string {
@@ -868,7 +954,7 @@ func (srv *server) shouldDispatch(node *nodeState, hash string) bool {
 	return false
 }
 
-func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *clustercontrollerpb.NodePlan) error {
+func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *clustercontrollerpb.NodePlan, operationID string) error {
 	if plan == nil {
 		return fmt.Errorf("node %s plan is empty", node.NodeID)
 	}
@@ -876,7 +962,7 @@ func (srv *server) dispatchPlan(ctx context.Context, node *nodeState, plan *clus
 	if err != nil {
 		return fmt.Errorf("node %s: %w", node.NodeID, err)
 	}
-	if err := client.ApplyPlan(ctx, plan); err != nil {
+	if err := client.ApplyPlan(ctx, plan, operationID); err != nil {
 		return fmt.Errorf("node %s apply plan: %w", node.NodeID, err)
 	}
 	return nil
@@ -1052,6 +1138,36 @@ func (srv *server) cleanupAgentClients() {
 	}
 }
 
+func (srv *server) cleanupTimedOutOperations() {
+	now := time.Now()
+	var expired []struct {
+		id     string
+		nodeID string
+	}
+	srv.opMu.Lock()
+	for id, op := range srv.operations {
+		op.mu.Lock()
+		done := op.done
+		created := op.created
+		nodeID := op.nodeID
+		op.mu.Unlock()
+		if done || created.IsZero() || nodeID == "" {
+			continue
+		}
+		if now.Sub(created) > operationTimeout {
+			expired = append(expired, struct {
+				id     string
+				nodeID string
+			}{id: id, nodeID: nodeID})
+		}
+	}
+	srv.opMu.Unlock()
+	for _, entry := range expired {
+		evt := srv.newOperationEvent(entry.id, entry.nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "operation timed out", 0, true, "operation timed out")
+		srv.broadcastOperationEvent(evt)
+	}
+}
+
 func protoToStoredIdentity(pi *clustercontrollerpb.NodeIdentity) storedIdentity {
 	if pi == nil {
 		return storedIdentity{}
@@ -1158,8 +1274,11 @@ func normalizedUnits(units []unitStatusRecord) []unitStatusRecord {
 }
 
 type operationState struct {
-	mu   sync.Mutex
-	last *clustercontrollerpb.OperationEvent
+	mu      sync.Mutex
+	last    *clustercontrollerpb.OperationEvent
+	created time.Time
+	done    bool
+	nodeID  string
 }
 
 type operationWatcher struct {
@@ -1198,7 +1317,16 @@ func (srv *server) broadcastOperationEvent(evt *clustercontrollerpb.OperationEve
 	}
 	op := srv.getOperationState(evt.GetOperationId())
 	op.mu.Lock()
+	if op.created.IsZero() {
+		op.created = time.Now()
+	}
+	if op.nodeID == "" && evt.GetNodeId() != "" {
+		op.nodeID = evt.GetNodeId()
+	}
 	op.last = evt
+	if evt.GetDone() {
+		op.done = true
+	}
 	op.mu.Unlock()
 	srv.watchMu.Lock()
 	for w := range srv.watchers {

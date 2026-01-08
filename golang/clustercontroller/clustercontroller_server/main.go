@@ -53,6 +53,7 @@ func main() {
 
 	srv.startReconcileLoop(context.Background(), 15*time.Second)
 	srv.startAgentCleanupLoop(context.Background())
+	srv.startOperationCleanupLoop(context.Background())
 
 	log.Printf("cluster controller listening on %s (config=%s)", address, *cfgPath)
 	if err := grpcServer.Serve(lis); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -25,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/supervisor"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/units"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
+	"github.com/globulario/services/golang/pki"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
 	"github.com/google/uuid"
@@ -34,6 +36,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -41,6 +44,14 @@ var defaultPort = "11000"
 
 const defaultPlanPollInterval = 5 * time.Second
 const planLockTTL = 30
+
+var (
+	restartCommand    = restartUnit
+	systemctlLookPath = exec.LookPath
+	networkPKIManager = func(opts pki.Options) pki.Manager {
+		return pki.NewFileManager(opts)
+	}
+)
 
 // NodeAgentServer implements the simplified node executor API.
 type NodeAgentServer struct {
@@ -72,6 +83,8 @@ type NodeAgentServer struct {
 	planStore                store.PlanStore
 	planPollInterval         time.Duration
 	lastPlanGeneration       uint64
+	planRunnerCtx            context.Context
+	planRunnerOnce           sync.Once
 }
 
 type lockablePlanStore interface {
@@ -238,10 +251,20 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 }
 
 func (srv *NodeAgentServer) StartPlanRunner(ctx context.Context) {
-	if srv.planStore == nil || srv.nodeID == "" {
+	if srv.planStore == nil {
 		return
 	}
-	go srv.planLoop(ctx)
+	srv.planRunnerCtx = ctx
+	srv.startPlanRunnerLoop()
+}
+
+func (srv *NodeAgentServer) startPlanRunnerLoop() {
+	if srv.planRunnerCtx == nil || srv.planStore == nil {
+		return
+	}
+	srv.planRunnerOnce.Do(func() {
+		go srv.planLoop(srv.planRunnerCtx)
+	})
 }
 
 func (srv *NodeAgentServer) planLoop(ctx context.Context) {
@@ -736,7 +759,11 @@ func (srv *NodeAgentServer) ApplyPlan(ctx context.Context, req *nodeagentpb.Appl
 		return nil, status.Error(codes.InvalidArgument, "plan is required")
 	}
 
-	op := srv.registerOperation("apply plan", req.GetPlan().GetProfiles())
+	opID := strings.TrimSpace(req.GetOperationId())
+	if opID == "" {
+		opID = uuid.NewString()
+	}
+	op := srv.registerOperationWithID("apply plan", opID, req.GetPlan().GetProfiles())
 	go srv.runPlan(ctx, op, req.GetPlan())
 	return &nodeagentpb.ApplyPlanResponse{OperationId: op.id}, nil
 }
@@ -749,10 +776,16 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	if err != nil {
 		msg := err.Error()
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 10, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, err)
 		return
 	}
 	if netChanged {
-		srv.restartServicesForNetworkChange()
+		if err := srv.reconcileNetwork(plan, op); err != nil {
+			msg := err.Error()
+			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 20, true, msg))
+			srv.notifyControllerOperationResult(op.id, false, msg, err)
+			return
+		}
 	}
 
 	actions := planner.ComputeActions(plan)
@@ -767,10 +800,12 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	if err != nil {
 		msg := err.Error()
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, lastPercent, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, err)
 		return
 	}
 
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+	srv.notifyControllerOperationResult(op.id, true, "plan applied", nil)
 }
 
 func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) (bool, error) {
@@ -792,16 +827,47 @@ func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePl
 				return false, fmt.Errorf("write network spec snapshot: %w", err)
 			}
 			networkChanged = true
+		case "/etc/globular/network.json":
+			if err := srv.applyNetworkOverlay(target, value); err != nil {
+				return false, fmt.Errorf("apply network overlay: %w", err)
+			}
+			networkChanged = true
 		default:
+			if !isAllowedRenderTarget(target) {
+				log.Printf("nodeagent: render target %s not allowed; skipping", target)
+				continue
+			}
 			if err := writeAtomicFile(target, []byte(value), 0o644); err != nil {
 				return false, fmt.Errorf("write rendered config %s: %w", target, err)
-			}
-			if target == "/etc/globular/config.json" {
-				networkChanged = true
 			}
 		}
 	}
 	return networkChanged, nil
+}
+
+func isAllowedRenderTarget(target string) bool {
+	if target == "" {
+		return false
+	}
+	if !filepath.IsAbs(target) {
+		return false
+	}
+	clean := filepath.Clean(target)
+	if strings.Contains(clean, "..") {
+		return false
+	}
+	allowed := []string{
+		"/etc/globular/",
+		"/var/lib/globular/",
+		"/run/globular/",
+		"/etc/systemd/system/",
+	}
+	for _, prefix := range allowed {
+		if clean == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(clean, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
@@ -812,23 +878,289 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 	return writeAtomicFile(path, []byte(data), 0o600)
 }
 
+func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan, op *operation) error {
+	if plan == nil {
+		return nil
+	}
+	spec, err := specFromPlan(plan)
+	if err != nil {
+		return fmt.Errorf("parse desired spec: %w", err)
+	}
+	if err := srv.ensureNetworkCerts(spec); err != nil {
+		return fmt.Errorf("ensure network certs: %w", err)
+	}
+	units := parseRestartUnits(plan)
+	if len(units) > 0 {
+		if err := srv.performRestartUnits(units, op); err != nil {
+			return fmt.Errorf("restart units: %w", err)
+		}
+	}
+	return nil
+}
+
+func specFromPlan(plan *clustercontrollerpb.NodePlan) (*clustercontrollerpb.ClusterNetworkSpec, error) {
+	if plan == nil {
+		return nil, nil
+	}
+	data := strings.TrimSpace(plan.GetRenderedConfig()["cluster.network.spec.json"])
+	if data == "" {
+		return nil, nil
+	}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{}
+	if err := protojson.Unmarshal([]byte(data), spec); err != nil {
+		return nil, err
+	}
+	return spec, nil
+}
+
+func parseRestartUnits(plan *clustercontrollerpb.NodePlan) []string {
+	if plan == nil {
+		return nil
+	}
+	data := strings.TrimSpace(plan.GetRenderedConfig()["reconcile.restart_units"])
+	if data == "" {
+		return nil
+	}
+	var units []string
+	if err := json.Unmarshal([]byte(data), &units); err != nil {
+		log.Printf("nodeagent: invalid restart unit list: %v", err)
+		return nil
+	}
+	return units
+}
+
+func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	if spec == nil || strings.ToLower(spec.GetProtocol()) != "https" {
+		return nil
+	}
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	if domain == "" {
+		return nil
+	}
+	if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
+		return errors.New("admin_email is required for ACME")
+	}
+	dns := append([]string{domain}, spec.GetAlternateDomains()...)
+	dir := filepath.Join(config.GetRuntimeConfigDir(), "pki", domain)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create pki dir: %w", err)
+	}
+	opts := pki.Options{
+		Storage: pki.FileStorage{},
+		LocalCA: pki.LocalCAConfig{
+			Enabled: true,
+		},
+	}
+	if spec.GetAcmeEnabled() {
+		opts.ACME = pki.ACMEConfig{
+			Enabled: true,
+			Email:   strings.TrimSpace(spec.GetAdminEmail()),
+			Domain:  domain,
+		}
+	}
+	manager := networkPKIManager(opts)
+	if spec.GetAcmeEnabled() {
+		subject := fmt.Sprintf("CN=%s", domain)
+		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(dir, domain, subject, dns, 90*24*time.Hour)
+		if err != nil {
+			return fmt.Errorf("issue ACME certs: %w", err)
+		}
+		if err := copyFilePerm(keyFile, filepath.Join(dir, "privkey.pem"), 0o600); err != nil {
+			return err
+		}
+		if err := copyFilePerm(fullchainFile, filepath.Join(dir, "fullchain.pem"), 0o644); err != nil {
+			return err
+		}
+		if err := copyFilePerm(issuerFile, filepath.Join(dir, "ca.pem"), 0o644); err != nil {
+			return err
+		}
+		return nil
+	}
+	keyFile, leafFile, caFile, err := manager.EnsureServerCert(dir, domain, dns, 90*24*time.Hour)
+	if err != nil {
+		return fmt.Errorf("issue server certs: %w", err)
+	}
+	if err := copyFilePerm(keyFile, filepath.Join(dir, "privkey.pem"), 0o600); err != nil {
+		return err
+	}
+	chainDst := filepath.Join(dir, "fullchain.pem")
+	if err := concatFiles(chainDst, leafFile, caFile); err != nil {
+		return fmt.Errorf("build fullchain: %w", err)
+	}
+	if caFile != "" {
+		if err := copyFilePerm(caFile, filepath.Join(dir, "ca.pem"), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) performRestartUnits(units []string, op *operation) error {
+	if len(units) == 0 {
+		return nil
+	}
+	systemctl, err := systemctlLookPath("systemctl")
+	if err != nil {
+		return fmt.Errorf("systemctl lookup: %w", err)
+	}
+	var errs []string
+	for idx, unit := range units {
+		unit = strings.TrimSpace(unit)
+		if unit == "" {
+			continue
+		}
+		percent := int32(30 + idx*10)
+		if percent > 95 {
+			percent = 95
+		}
+		if op != nil {
+			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("restart %s", unit), percent, false, ""))
+		}
+		if err := restartCommand(systemctl, unit); err != nil {
+			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
+			errs = append(errs, fmt.Sprintf("%s: %v", unit, err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("restart failures: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func restartUnit(systemctl, unit string) error {
+	if err := systemdUnitExists(systemctl, unit); err != nil {
+		return err
+	}
+	if err := runSystemctl(systemctl, "reload", unit); err != nil {
+		if err := runSystemctl(systemctl, "restart", unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) applyNetworkOverlay(target, data string) error {
+	if strings.TrimSpace(data) == "" {
+		return nil
+	}
+	if err := writeAtomicFile(target, []byte(data), 0o644); err != nil {
+		return fmt.Errorf("write network overlay %s: %w", target, err)
+	}
+	if err := mergeNetworkIntoConfig(config.GetAdminConfigPath(), data); err != nil {
+		return fmt.Errorf("merge network overlay: %w", err)
+	}
+	return nil
+}
+
+func mergeNetworkIntoConfig(basePath, overlay string) error {
+	if strings.TrimSpace(overlay) == "" {
+		return nil
+	}
+	var overlayData map[string]interface{}
+	if err := json.Unmarshal([]byte(overlay), &overlayData); err != nil {
+		return fmt.Errorf("parse overlay: %w", err)
+	}
+	if len(overlayData) == 0 {
+		return nil
+	}
+	base := make(map[string]interface{})
+	data, err := os.ReadFile(basePath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("read base config: %w", err)
+		}
+	} else if len(data) > 0 {
+		if err := json.Unmarshal(data, &base); err != nil {
+			return fmt.Errorf("parse base config: %w", err)
+		}
+	}
+	if base == nil {
+		base = make(map[string]interface{})
+	}
+	allowed := map[string]struct{}{
+		"Domain":           {},
+		"Protocol":         {},
+		"PortHTTP":         {},
+		"PortHTTPS":        {},
+		"ACMEEnabled":      {},
+		"AdminEmail":       {},
+		"AlternateDomains": {},
+	}
+	for key, value := range overlayData {
+		if _, ok := allowed[key]; ok {
+			base[key] = value
+		}
+	}
+	merged, err := json.MarshalIndent(base, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal merged config: %w", err)
+	}
+	if err := writeAtomicFile(basePath, merged, 0o644); err != nil {
+		return fmt.Errorf("write merged config: %w", err)
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) notifyControllerOperationResult(operationID string, success bool, message string, opErr error) {
+	if srv.controllerEndpoint == "" || operationID == "" || srv.nodeID == "" {
+		return
+	}
+	if srv.controllerClient == nil {
+		if err := srv.ensureControllerClient(context.Background()); err != nil {
+			log.Printf("controller client unavailable: %v", err)
+			return
+		}
+	}
+	payload := &clustercontrollerpb.CompleteOperationRequest{
+		OperationId: operationID,
+		NodeId:      srv.nodeID,
+		Success:     success,
+		Message:     message,
+	}
+	if opErr != nil {
+		payload.Error = opErr.Error()
+		if payload.Message == "" {
+			payload.Message = "plan failed"
+		}
+	}
+	if success && payload.Percent == 0 {
+		payload.Percent = 100
+		if payload.Message == "" {
+			payload.Message = "plan applied"
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := srv.controllerClient.CompleteOperation(ctx, payload); err != nil {
+		log.Printf("notify controller operation %s completion: %v", operationID, err)
+	}
+}
+
 func writeAtomicFile(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".tmp-*")
+	base := filepath.Base(path)
+	tmp, err := os.CreateTemp(dir, "."+base+".tmp-*")
 	if err != nil {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if _, err := tmp.Write(data); err != nil {
+	cleanup := func() {
 		tmp.Close()
+		if tmpName != "" {
+			os.Remove(tmpName)
+		}
+	}
+	defer cleanup()
+	if err := tmp.Chmod(perm); err != nil {
 		return err
 	}
-	if err := tmp.Chmod(perm); err != nil {
-		tmp.Close()
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
@@ -837,78 +1169,54 @@ func writeAtomicFile(path string, data []byte, perm os.FileMode) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		return err
 	}
-	return nil
-}
-
-func (srv *NodeAgentServer) restartServicesForNetworkChange() {
-	systemctl, err := exec.LookPath("systemctl")
-	if err != nil {
-		log.Printf("nodeagent: systemctl unavailable: %v", err)
-		return
-	}
-	log.Print("nodeagent: network change detected; reconciling systemd units")
-	units := []string{
-		"globular-etcd.service",
-		"globular-xds.service",
-		"globular-envoy.service",
-		"globular-gateway.service",
-	}
-	for _, unit := range units {
-		if err := systemdReloadOrRestart(systemctl, unit); err != nil {
-			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
-		}
-	}
-	for _, unit := range globularGRPCUnitNames(systemctl) {
-		if err := systemdReloadOrRestart(systemctl, unit); err != nil {
-			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
-		}
-	}
-}
-
-func globularGRPCUnitNames(systemctl string) []string {
-	if systemctl == "" {
-		return nil
-	}
-	cmd := exec.Command(systemctl, "list-unit-files", "--type=service", "globular-*.service")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Printf("nodeagent: list globular services failed: %v", err)
-		return nil
-	}
-	var units []string
-	for _, line := range strings.Split(string(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "UNIT FILE") || strings.HasPrefix(line, "-") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		unit := fields[0]
-		if strings.Contains(strings.ToLower(unit), "grpc") {
-			units = append(units, unit)
-		}
-	}
-	return units
-}
-
-func systemdReloadOrRestart(systemctl, unit string) error {
-	if systemctl == "" {
-		return fmt.Errorf("systemctl path is empty")
-	}
-	if unit == "" {
-		return fmt.Errorf("unit name is empty")
-	}
-	if err := systemdUnitExists(systemctl, unit); err != nil {
+	if err := os.Chmod(path, perm); err != nil {
 		return err
 	}
-	if err := runSystemctl(systemctl, "reload", unit); err != nil {
-		if err := runSystemctl(systemctl, "restart", unit); err != nil {
-			return fmt.Errorf("reload/restart failed: %w", err)
-		}
+	tmpName = ""
+	dirFile, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer dirFile.Close()
+	if err := dirFile.Sync(); err != nil {
+		return err
 	}
 	return nil
+}
+
+func copyFilePerm(src, dst string, perm os.FileMode) error {
+	if src == "" {
+		return fmt.Errorf("source file is empty")
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := writeAtomicFile(dst, data, perm); err != nil {
+		return err
+	}
+	return os.Chmod(dst, perm)
+}
+
+func concatFiles(dst string, parts ...string) error {
+	if len(parts) == 0 {
+		return fmt.Errorf("no parts to concat")
+	}
+	var out []byte
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		data, err := os.ReadFile(part)
+		if err != nil {
+			return err
+		}
+		out = append(out, data...)
+	}
+	if len(out) == 0 {
+		return fmt.Errorf("no content to write")
+	}
+	return writeAtomicFile(dst, out, 0o644)
 }
 
 func systemdUnitExists(systemctl, unit string) error {
@@ -1270,6 +1578,7 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	if err := srv.saveState(); err != nil {
 		log.Printf("warn: persist approved node id: %v", err)
 	}
+	srv.startPlanRunnerLoop()
 }
 
 func parseNodeAgentLabels() map[string]string {

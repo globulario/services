@@ -42,6 +42,7 @@ message GetInventoryResponse { Inventory inventory = 1; }
 
 message ApplyPlanRequest {
   clustercontroller.NodePlan plan = 1;
+  string operation_id = 2;
 }
 message ApplyPlanResponse {
   string operation_id = 1;

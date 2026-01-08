@@ -1670,7 +1670,8 @@ proto.nodeagent.ApplyPlanRequest.prototype.toObject = function(opt_includeInstan
  */
 proto.nodeagent.ApplyPlanRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-plan: (f = msg.getPlan()) && clustercontroller_pb.NodePlan.toObject(includeInstance, f)
+plan: (f = msg.getPlan()) && clustercontroller_pb.NodePlan.toObject(includeInstance, f),
+operationId: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -1712,6 +1713,10 @@ proto.nodeagent.ApplyPlanRequest.deserializeBinaryFromReader = function(msg, rea
       reader.readMessage(value,clustercontroller_pb.NodePlan.deserializeBinaryFromReader);
       msg.setPlan(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOperationId(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1747,6 +1752,13 @@ proto.nodeagent.ApplyPlanRequest.serializeBinaryToWriter = function(message, wri
       1,
       f,
       clustercontroller_pb.NodePlan.serializeBinaryToWriter
+    );
+  }
+  f = message.getOperationId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
     );
   }
 };
@@ -1786,6 +1798,24 @@ proto.nodeagent.ApplyPlanRequest.prototype.clearPlan = function() {
  */
 proto.nodeagent.ApplyPlanRequest.prototype.hasPlan = function() {
   return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional string operation_id = 2;
+ * @return {string}
+ */
+proto.nodeagent.ApplyPlanRequest.prototype.getOperationId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.nodeagent.ApplyPlanRequest} returns this
+ */
+proto.nodeagent.ApplyPlanRequest.prototype.setOperationId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

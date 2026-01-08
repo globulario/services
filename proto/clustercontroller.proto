@@ -210,6 +210,19 @@ message OperationEvent {
   google.protobuf.Timestamp ts = 8;
 }
 
+message CompleteOperationRequest {
+  string operation_id = 1;
+  string node_id = 2;
+  bool success = 3;
+  string message = 4;
+  string error = 5;
+  int32 percent = 6;
+}
+
+message CompleteOperationResponse {
+  string message = 1;
+}
+
 message NodeUnitStatus {
   string name = 1;
   string state = 2;
@@ -256,6 +269,7 @@ service ClusterControllerService {
   rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
   rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
   rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse);
+  rpc CompleteOperation(CompleteOperationRequest) returns (CompleteOperationResponse);
 
   rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
 }

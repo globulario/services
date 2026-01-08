@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -49,9 +50,11 @@ var (
 
 	tokenExpires string
 
-	reqProfiles  []string
-	reqMetadata  []string
-	rejectReason string
+	reqProfiles              []string
+	reqMetadata              []string
+	rejectReason             string
+	requestsApproveRequestID string
+	requestsRejectRequestID  string
 
 	profileSet []string
 
@@ -107,7 +110,9 @@ func init() {
 
 	requestsApproveCmd.Flags().StringSliceVar(&reqProfiles, "profile", nil, "Profiles to assign")
 	requestsApproveCmd.Flags().StringSliceVar(&reqMetadata, "meta", nil, "Metadata entries (k=v)")
+	requestsApproveCmd.Flags().StringVar(&requestsApproveRequestID, "request-id", "", "Join request ID (overrides positional argument)")
 	requestsRejectCmd.Flags().StringVar(&rejectReason, "reason", "", "Rejection reason")
+	requestsRejectCmd.Flags().StringVar(&requestsRejectRequestID, "request-id", "", "Join request ID (overrides positional argument)")
 
 	nodeProfilesCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
 
@@ -245,15 +250,15 @@ var requestsListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		printProto(resp)
+		printJoinRequests(resp)
 		return nil
 	},
 }
 
 var requestsApproveCmd = &cobra.Command{
-	Use:   "approve <node_id>",
-	Short: "Approve a pending node",
-	Args:  cobra.ExactArgs(1),
+	Use:   "approve <request_id>",
+	Short: "Approve a pending join request",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cc, err := controllerClient()
 		if err != nil {
@@ -261,10 +266,14 @@ var requestsApproveCmd = &cobra.Command{
 		}
 		defer cc.Close()
 		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		requestID, err := resolveRequestID(args, requestsApproveRequestID)
+		if err != nil {
+			return err
+		}
 		resp, err := client.ApproveJoin(ctxWithTimeout(), &clustercontrollerpb.ApproveJoinRequest{
-			NodeId:   args[0],
-			Profiles: reqProfiles,
-			Metadata: parseMetadata(reqMetadata),
+			RequestId: requestID,
+			Profiles:  reqProfiles,
+			Metadata:  parseMetadata(reqMetadata),
 		})
 		if err != nil {
 			return err
@@ -275,9 +284,9 @@ var requestsApproveCmd = &cobra.Command{
 }
 
 var requestsRejectCmd = &cobra.Command{
-	Use:   "reject <node_id>",
-	Short: "Reject a pending node",
-	Args:  cobra.ExactArgs(1),
+	Use:   "reject <request_id>",
+	Short: "Reject a pending join request",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cc, err := controllerClient()
 		if err != nil {
@@ -285,9 +294,13 @@ var requestsRejectCmd = &cobra.Command{
 		}
 		defer cc.Close()
 		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		requestID, err := resolveRequestID(args, requestsRejectRequestID)
+		if err != nil {
+			return err
+		}
 		resp, err := client.RejectJoin(ctxWithTimeout(), &clustercontrollerpb.RejectJoinRequest{
-			NodeId: args[0],
-			Reason: rejectReason,
+			RequestId: requestID,
+			Reason:    rejectReason,
 		})
 		if err != nil {
 			return err
@@ -295,6 +308,34 @@ var requestsRejectCmd = &cobra.Command{
 		printProto(resp)
 		return nil
 	},
+}
+
+func resolveRequestID(args []string, flagValue string) (string, error) {
+	id := strings.TrimSpace(flagValue)
+	if id == "" && len(args) > 0 {
+		id = strings.TrimSpace(args[0])
+	}
+	if id == "" {
+		return "", errors.New("request id is required")
+	}
+	return id, nil
+}
+
+func printJoinRequests(resp *clustercontrollerpb.ListJoinRequestsResponse) {
+	if resp == nil || len(resp.GetPending()) == 0 {
+		fmt.Println("no pending join requests")
+		return
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "REQUEST ID\tSTATUS\tHOSTNAME\tDOMAIN\tPROFILES")
+	for _, jr := range resp.GetPending() {
+		identity := jr.GetIdentity()
+		host := identity.GetHostname()
+		domain := identity.GetDomain()
+		profiles := strings.Join(jr.GetProfiles(), ",")
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", jr.GetRequestId(), jr.GetStatus(), host, domain, profiles)
+	}
+	w.Flush()
 }
 
 var nodesCmd = &cobra.Command{

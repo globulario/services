@@ -933,6 +933,67 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.upgradeG
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.CompleteOperationRequest,
+ *   !proto.clustercontroller.CompleteOperationResponse>}
+ */
+const methodDescriptor_ClusterControllerService_CompleteOperation = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/CompleteOperation',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.CompleteOperationRequest,
+  proto.clustercontroller.CompleteOperationResponse,
+  /**
+   * @param {!proto.clustercontroller.CompleteOperationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.CompleteOperationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.CompleteOperationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.CompleteOperationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.CompleteOperationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.completeOperation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/CompleteOperation',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CompleteOperation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.CompleteOperationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.CompleteOperationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.completeOperation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/CompleteOperation',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CompleteOperation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.WatchOperationsRequest,
  *   !proto.clustercontroller.OperationEvent>}
  */
