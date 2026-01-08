@@ -43,19 +43,20 @@ type joinRequestRecord struct {
 }
 
 type nodeState struct {
-	NodeID         string             `json:"node_id"`
-	Identity       storedIdentity     `json:"identity"`
-	Profiles       []string           `json:"profiles"`
-	LastSeen       time.Time          `json:"last_seen"`
-	Status         string             `json:"status"`
-	Metadata       map[string]string  `json:"metadata,omitempty"`
-	AgentEndpoint  string             `json:"agent_endpoint,omitempty"`
-	Units          []unitStatusRecord `json:"units,omitempty"`
-	LastError      string             `json:"last_error,omitempty"`
-	ReportedAt     time.Time          `json:"reported_at,omitempty"`
-	LastPlanSentAt time.Time          `json:"last_plan_sent_at,omitempty"`
-	LastPlanError  string             `json:"last_plan_error,omitempty"`
-	LastPlanHash   string             `json:"last_plan_hash,omitempty"`
+	NodeID                string             `json:"node_id"`
+	Identity              storedIdentity     `json:"identity"`
+	Profiles              []string           `json:"profiles"`
+	LastSeen              time.Time          `json:"last_seen"`
+	Status                string             `json:"status"`
+	Metadata              map[string]string  `json:"metadata,omitempty"`
+	AgentEndpoint         string             `json:"agent_endpoint,omitempty"`
+	Units                 []unitStatusRecord `json:"units,omitempty"`
+	LastError             string             `json:"last_error,omitempty"`
+	ReportedAt            time.Time          `json:"reported_at,omitempty"`
+	LastPlanSentAt        time.Time          `json:"last_plan_sent_at,omitempty"`
+	LastPlanError         string             `json:"last_plan_error,omitempty"`
+	LastPlanHash          string             `json:"last_plan_hash,omitempty"`
+	LastAppliedGeneration uint64             `json:"last_applied_generation,omitempty"`
 }
 
 type unitStatusRecord struct {

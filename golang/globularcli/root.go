@@ -36,4 +36,5 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&rootCfg.output, "output", rootCfg.output, "Output format (table|json|yaml)")
 
 	rootCmd.AddCommand(clusterCmd)
+	rootCmd.AddCommand(debugCmd)
 }

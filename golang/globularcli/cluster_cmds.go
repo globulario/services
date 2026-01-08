@@ -55,13 +55,12 @@ var (
 
 	profileSet []string
 
-	agentNodeAddr  string
-	planFile       string
-	watchPlanFlag  bool
-	watchAgentFlag bool
-	agentOpID      string
-
-	planNodeAddr string
+	debugAgentEndpoint  string
+	debugAgentPlanFile  string
+	watchPlanFlag       bool
+	debugAgentWatchPlan bool
+	debugAgentOpID      string
+	debugAgentWatchCtrl bool
 
 	watchNodeID      string
 	watchOpID        string
@@ -89,7 +88,6 @@ func init() {
 		tokenCmd,
 		requestsCmd,
 		nodesCmd,
-		agentCmd,
 		planCmd,
 		upgradeCmd,
 		watchCmd,
@@ -113,13 +111,14 @@ func init() {
 
 	nodeProfilesCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
 
-	agentInventoryCmd.Flags().StringVar(&agentNodeAddr, "node", "", "Node agent endpoint")
-	agentApplyCmd.Flags().StringVar(&planFile, "plan-file", "", "Path to NodePlan JSON or YAML")
-	agentApplyCmd.Flags().BoolVar(&watchAgentFlag, "watch", false, "Watch operation on completion")
-	agentWatchCmd.Flags().StringVar(&agentOpID, "op", "", "Operation ID to watch")
+	agentInventoryCmd.Flags().StringVar(&debugAgentEndpoint, "agent", "", "Node agent endpoint (required)")
+	agentApplyCmd.Flags().StringVar(&debugAgentPlanFile, "plan-file", "", "Path to NodePlan JSON or YAML")
+	agentApplyCmd.Flags().BoolVar(&debugAgentWatchPlan, "watch", false, "Watch operation on completion")
+	agentWatchCmd.Flags().StringVar(&debugAgentOpID, "op", "", "Operation ID to watch")
 
 	planApplyCmd.Flags().BoolVar(&watchPlanFlag, "watch", false, "Watch operation on completion")
-	planApplyCmd.Flags().StringVar(&planNodeAddr, "node", "", "Node agent endpoint (required)")
+	debugAgentApplyPlanCmd.Flags().StringVar(&debugAgentEndpoint, "agent", "", "Node agent endpoint (required)")
+	debugAgentApplyPlanCmd.Flags().BoolVar(&debugAgentWatchCtrl, "watch", false, "Watch node-agent operation")
 	upgradeCmd.Flags().StringVar(&upgradeNodeID, "node-id", "", "Target node ID (required)")
 	upgradeCmd.Flags().StringVar(&upgradePlatform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Target platform (os/arch)")
 	upgradeCmd.Flags().StringVar(&upgradeSha, "sha256", "", "Artifact sha256 (computed if omitted)")
@@ -348,16 +347,15 @@ var nodeProfilesCmd = &cobra.Command{
 	},
 }
 
-var agentCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "Invoke node agents directly",
-}
-
 var agentInventoryCmd = &cobra.Command{
 	Use:   "inventory",
 	Short: "Fetch node inventory from the agent",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cc, err := nodeClientWith(agentNodeAddr)
+		endpoint := strings.TrimSpace(debugAgentEndpoint)
+		if endpoint == "" {
+			return errors.New("--agent is required")
+		}
+		cc, err := nodeClientWith(endpoint)
 		if err != nil {
 			return err
 		}
@@ -376,14 +374,18 @@ var agentApplyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a plan directly to a node agent",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if planFile == "" {
+		if debugAgentPlanFile == "" {
 			return errors.New("--plan-file is required")
 		}
-		plan, err := loadPlan(planFile)
+		plan, err := loadPlan(debugAgentPlanFile)
 		if err != nil {
 			return err
 		}
-		cc, err := nodeClientWith(agentNodeAddr)
+		endpoint := strings.TrimSpace(debugAgentEndpoint)
+		if endpoint == "" {
+			return errors.New("--agent is required")
+		}
+		cc, err := nodeClientWith(endpoint)
 		if err != nil {
 			return err
 		}
@@ -394,8 +396,8 @@ var agentApplyCmd = &cobra.Command{
 			return err
 		}
 		fmt.Printf("operation_id: %s\n", resp.OperationId)
-		if watchAgentFlag {
-			return watchAgentOperation(resp.OperationId, agentNodeAddr)
+		if debugAgentWatchPlan {
+			return watchAgentOperation(resp.OperationId, endpoint)
 		}
 		return nil
 	},
@@ -405,10 +407,14 @@ var agentWatchCmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Watch an operation on a node agent",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if agentOpID == "" {
+		if debugAgentOpID == "" {
 			return errors.New("--op is required")
 		}
-		return watchAgentOperation(agentOpID, agentNodeAddr)
+		endpoint := strings.TrimSpace(debugAgentEndpoint)
+		if endpoint == "" {
+			return errors.New("--agent is required")
+		}
+		return watchAgentOperation(debugAgentOpID, endpoint)
 	},
 }
 
@@ -442,37 +448,25 @@ var planApplyCmd = &cobra.Command{
 	Short: "Request controller apply a node plan",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		nodeID := strings.TrimSpace(args[0])
+		if nodeID == "" {
+			return errors.New("node_id is required")
+		}
 		cc, err := controllerClient()
 		if err != nil {
 			return err
 		}
 		defer cc.Close()
 		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-		resp, err := client.GetNodePlan(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanRequest{NodeId: args[0]})
+		resp, err := client.ApplyNodePlan(ctxWithTimeout(), &clustercontrollerpb.ApplyNodePlanRequest{
+			NodeId: nodeID,
+		})
 		if err != nil {
 			return err
 		}
-		plan := resp.GetPlan()
-		if plan == nil {
-			return errors.New("controller returned empty plan")
-		}
-		nodeAddr := pick(planNodeAddr, rootCfg.nodeAddr)
-		if nodeAddr == "" {
-			return errors.New("--node is required")
-		}
-		nc, err := nodeClientWith(nodeAddr)
-		if err != nil {
-			return err
-		}
-		defer nc.Close()
-		nodeClient := nodeagentpb.NewNodeAgentServiceClient(nc)
-		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &nodeagentpb.ApplyPlanRequest{Plan: plan})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("operation_id: %s\n", applyResp.GetOperationId())
+		fmt.Printf("operation_id: %s\n", resp.GetOperationId())
 		if watchPlanFlag {
-			return watchAgentOperation(applyResp.GetOperationId(), nodeAddr)
+			return watchControllerOperations(nodeID, resp.GetOperationId())
 		}
 		return nil
 	},
@@ -552,6 +546,66 @@ var networkSetCmd = &cobra.Command{
 					fmt.Fprintf(os.Stderr, "watch op %s: %v\n", planResp.GetOperationId(), err)
 				}
 			}
+		}
+		return nil
+	},
+}
+
+var debugCmd = &cobra.Command{
+	Use:   "debug",
+	Short: "Low-level debug helpers",
+	Long:  "Bypasses the cluster-controller; for troubleshooting only.",
+}
+
+var debugAgentCmd = &cobra.Command{
+	Use:   "agent",
+	Short: "Run debug helpers against a node agent",
+	Long:  "Bypasses the cluster-controller; for troubleshooting only.",
+}
+
+var debugAgentApplyPlanCmd = &cobra.Command{
+	Use:   "apply-plan <node_id>",
+	Short: "DEBUG ONLY: direct node-agent plan apply",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		nodeID := strings.TrimSpace(args[0])
+		if nodeID == "" {
+			return errors.New("node_id is required")
+		}
+		agentEndpoint := strings.TrimSpace(debugAgentEndpoint)
+		if agentEndpoint == "" {
+			return errors.New("--agent is required")
+		}
+		fmt.Fprintln(os.Stderr, "WARNING: bypassing the controller; use only for debugging")
+
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+		planResp, err := client.GetNodePlan(ctxWithTimeout(), &clustercontrollerpb.GetNodePlanRequest{NodeId: nodeID})
+		if err != nil {
+			return err
+		}
+		plan := planResp.GetPlan()
+		if plan == nil {
+			return errors.New("controller returned empty plan")
+		}
+
+		nc, err := nodeClientWith(agentEndpoint)
+		if err != nil {
+			return err
+		}
+		defer nc.Close()
+		nodeClient := nodeagentpb.NewNodeAgentServiceClient(nc)
+		applyResp, err := nodeClient.ApplyPlan(ctxWithTimeout(), &nodeagentpb.ApplyPlanRequest{Plan: plan})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("operation_id: %s\n", applyResp.GetOperationId())
+		if debugAgentWatchCtrl {
+			return watchAgentOperation(applyResp.GetOperationId(), agentEndpoint)
 		}
 		return nil
 	},
@@ -641,8 +695,9 @@ func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
 	nodesCmd.AddCommand(nodesListCmd, nodeProfilesCmd)
-	agentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd)
 	planCmd.AddCommand(planGetCmd, planApplyCmd)
+	debugCmd.AddCommand(debugAgentCmd)
+	debugAgentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd, debugAgentApplyPlanCmd)
 }
 
 func controllerClient() (*grpc.ClientConn, error) {

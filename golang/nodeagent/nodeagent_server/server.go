@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -744,17 +745,21 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
-	if err := srv.applyRenderedConfig(plan); err != nil {
+	netChanged, err := srv.applyRenderedConfig(plan)
+	if err != nil {
 		msg := err.Error()
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 10, true, msg))
 		return
+	}
+	if netChanged {
+		srv.restartServicesForNetworkChange()
 	}
 
 	actions := planner.ComputeActions(plan)
 	total := len(actions)
 	current := 0
 	var lastPercent int32
-	err := apply.ApplyActions(ctx, actions, func(action planner.Action) {
+	err = apply.ApplyActions(ctx, actions, func(action planner.Action) {
 		lastPercent = percentForStep(current, total)
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("%s %s", action.Op, action.Unit), lastPercent, false, ""))
 		current++
@@ -768,14 +773,15 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
 }
 
-func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) error {
+func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) (bool, error) {
 	if plan == nil {
-		return nil
+		return false, nil
 	}
 	rendered := plan.GetRenderedConfig()
 	if len(rendered) == 0 {
-		return nil
+		return false, nil
 	}
+	networkChanged := false
 	for target, value := range rendered {
 		if target == "" {
 			continue
@@ -783,16 +789,19 @@ func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePl
 		switch target {
 		case "cluster.network.spec.json":
 			if err := srv.writeNetworkSpecSnapshot(value); err != nil {
-				return fmt.Errorf("write network spec snapshot: %w", err)
+				return false, fmt.Errorf("write network spec snapshot: %w", err)
 			}
+			networkChanged = true
 		default:
 			if err := writeAtomicFile(target, []byte(value), 0o644); err != nil {
-				return fmt.Errorf("write rendered config %s: %w", target, err)
+				return false, fmt.Errorf("write rendered config %s: %w", target, err)
+			}
+			if target == "/etc/globular/config.json" {
+				networkChanged = true
 			}
 		}
 	}
-	srv.restartServicesForNetworkChange()
-	return nil
+	return networkChanged, nil
 }
 
 func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
@@ -832,7 +841,99 @@ func writeAtomicFile(path string, data []byte, perm os.FileMode) error {
 }
 
 func (srv *NodeAgentServer) restartServicesForNetworkChange() {
-	log.Printf("nodeagent: network configuration applied; services requiring reload should be restarted soon (stub)")
+	systemctl, err := exec.LookPath("systemctl")
+	if err != nil {
+		log.Printf("nodeagent: systemctl unavailable: %v", err)
+		return
+	}
+	log.Print("nodeagent: network change detected; reconciling systemd units")
+	units := []string{
+		"globular-etcd.service",
+		"globular-xds.service",
+		"globular-envoy.service",
+		"globular-gateway.service",
+	}
+	for _, unit := range units {
+		if err := systemdReloadOrRestart(systemctl, unit); err != nil {
+			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
+		}
+	}
+	for _, unit := range globularGRPCUnitNames(systemctl) {
+		if err := systemdReloadOrRestart(systemctl, unit); err != nil {
+			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
+		}
+	}
+}
+
+func globularGRPCUnitNames(systemctl string) []string {
+	if systemctl == "" {
+		return nil
+	}
+	cmd := exec.Command(systemctl, "list-unit-files", "--type=service", "globular-*.service")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("nodeagent: list globular services failed: %v", err)
+		return nil
+	}
+	var units []string
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "UNIT FILE") || strings.HasPrefix(line, "-") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		unit := fields[0]
+		if strings.Contains(strings.ToLower(unit), "grpc") {
+			units = append(units, unit)
+		}
+	}
+	return units
+}
+
+func systemdReloadOrRestart(systemctl, unit string) error {
+	if systemctl == "" {
+		return fmt.Errorf("systemctl path is empty")
+	}
+	if unit == "" {
+		return fmt.Errorf("unit name is empty")
+	}
+	if err := systemdUnitExists(systemctl, unit); err != nil {
+		return err
+	}
+	if err := runSystemctl(systemctl, "reload", unit); err != nil {
+		if err := runSystemctl(systemctl, "restart", unit); err != nil {
+			return fmt.Errorf("reload/restart failed: %w", err)
+		}
+	}
+	return nil
+}
+
+func systemdUnitExists(systemctl, unit string) error {
+	cmd := exec.Command(systemctl, "show", "--property=LoadState", unit)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if len(output) > 0 {
+			return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+		}
+		return err
+	}
+	return nil
+}
+
+func runSystemctl(systemctl, action, unit string) error {
+	cmd := exec.Command(systemctl, action, unit)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed != "" {
+			return fmt.Errorf("%w: %s", err, trimmed)
+		}
+		return err
+	}
+	return nil
 }
 
 func (srv *NodeAgentServer) WatchOperation(req *nodeagentpb.WatchOperationRequest, stream nodeagentpb.NodeAgentService_WatchOperationServer) error {

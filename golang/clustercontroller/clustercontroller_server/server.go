@@ -411,15 +411,27 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 	if len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0 {
 		return nil, status.Error(codes.FailedPrecondition, "plan has no changes")
 	}
+	hash := planHash(plan)
+	if hash == "" {
+		return nil, status.Error(codes.FailedPrecondition, "plan has no changes")
+	}
 
 	opID := uuid.NewString()
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 	if err := srv.dispatchPlan(ctx, node, plan); err != nil {
+		log.Printf("node %s apply dispatch failed: %v", nodeID, err)
 		srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
 		return nil, status.Errorf(codes.Internal, "dispatch plan: %v", err)
 	}
-	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, true, ""))
+	if srv.recordPlanSent(nodeID, hash) {
+		srv.mu.Lock()
+		if err := srv.persistStateLocked(true); err != nil {
+			log.Printf("persist state after ApplyNodePlan: %v", err)
+		}
+		srv.mu.Unlock()
+	}
 
 	return &clustercontrollerpb.ApplyNodePlanResponse{
 		OperationId: opID,
@@ -661,11 +673,14 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			continue
 		}
 		plan := srv.computeNodePlan(node)
-		if plan == nil || len(plan.GetUnitActions()) == 0 {
+		if plan == nil || (len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0) {
 			continue
 		}
-		planHash := planHash(plan)
-		if !srv.shouldDispatch(node, planHash) {
+		hash := planHash(plan)
+		if hash == "" {
+			continue
+		}
+		if !srv.shouldDispatch(node, hash) {
 			continue
 		}
 		opID := uuid.NewString()
@@ -682,8 +697,8 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			}
 			continue
 		}
-		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
-		if srv.recordPlanSent(node.NodeID, planHash) {
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, true, ""))
+		if srv.recordPlanSent(node.NodeID, hash) {
 			stateDirty = true
 		}
 	}
@@ -719,8 +734,31 @@ func planHash(plan *clustercontrollerpb.NodePlan) string {
 	if plan == nil {
 		return ""
 	}
+	actions := plan.GetUnitActions()
+	rendered := plan.GetRenderedConfig()
+	if len(actions) == 0 && len(rendered) == 0 {
+		return ""
+	}
 	h := sha256.New()
-	for _, action := range plan.GetUnitActions() {
+	sortedActions := append([]*clustercontrollerpb.UnitAction(nil), actions...)
+	sort.Slice(sortedActions, func(i, j int) bool {
+		a := sortedActions[i]
+		b := sortedActions[j]
+		if a == nil && b == nil {
+			return false
+		}
+		if a == nil {
+			return true
+		}
+		if b == nil {
+			return false
+		}
+		if a.GetUnitName() != b.GetUnitName() {
+			return a.GetUnitName() < b.GetUnitName()
+		}
+		return a.GetAction() < b.GetAction()
+	})
+	for _, action := range sortedActions {
 		if action == nil {
 			continue
 		}
@@ -728,6 +766,19 @@ func planHash(plan *clustercontrollerpb.NodePlan) string {
 		h.Write([]byte{0})
 		h.Write([]byte(action.GetAction()))
 		h.Write([]byte{0})
+	}
+	if len(rendered) > 0 {
+		keys := make([]string, 0, len(rendered))
+		for key := range rendered {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			h.Write([]byte(key))
+			h.Write([]byte{0})
+			h.Write([]byte(rendered[key]))
+			h.Write([]byte{0})
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -959,6 +1010,7 @@ func (srv *server) recordPlanSent(nodeID, planHash string) bool {
 	if planHash != "" {
 		node.LastPlanHash = planHash
 	}
+	node.LastAppliedGeneration = srv.state.NetworkingGeneration
 	return true
 }
 
