@@ -70,6 +70,15 @@ var (
 	upgradeSha       string
 	upgradeTarget    string
 	upgradeProbePort int
+
+	networkDomain     string
+	networkProtocol   string
+	networkHTTPPort   int
+	networkHTTPSPort  int
+	networkAcme       bool
+	networkEmail      string
+	networkAltDomains []string
+	networkWatch      bool
 )
 
 func init() {
@@ -84,6 +93,7 @@ func init() {
 		planCmd,
 		upgradeCmd,
 		watchCmd,
+		networkCmd,
 	)
 
 	bootstrapCmd.Flags().StringVar(&bootstrapNodeAddr, "node", "", "Node agent endpoint (required)")
@@ -115,6 +125,16 @@ func init() {
 	upgradeCmd.Flags().StringVar(&upgradeSha, "sha256", "", "Artifact sha256 (computed if omitted)")
 	upgradeCmd.Flags().StringVar(&upgradeTarget, "target-path", "", "Destination path for the Globular binary")
 	upgradeCmd.Flags().IntVar(&upgradeProbePort, "probe-port", defaultUpgradeProbePort, "HTTP port to call /checksum")
+
+	networkCmd.AddCommand(networkSetCmd)
+	networkSetCmd.Flags().StringVar(&networkDomain, "domain", "", "Cluster domain (required)")
+	networkSetCmd.Flags().StringVar(&networkProtocol, "protocol", "http", "Network protocol (http|https)")
+	networkSetCmd.Flags().IntVar(&networkHTTPPort, "http-port", 8080, "HTTP port to configure")
+	networkSetCmd.Flags().IntVar(&networkHTTPSPort, "https-port", 8443, "HTTPS port to configure")
+	networkSetCmd.Flags().BoolVar(&networkAcme, "acme", false, "Enable ACME certificate management")
+	networkSetCmd.Flags().StringVar(&networkEmail, "email", "", "Admin email (required when --acme)")
+	networkSetCmd.Flags().StringSliceVar(&networkAltDomains, "alt-domain", nil, "Add alternate domains")
+	networkSetCmd.Flags().BoolVar(&networkWatch, "watch", true, "Watch controller operations after apply")
 
 	watchCmd.Flags().StringVar(&watchNodeID, "node-id", "", "Filter by node ID")
 	watchCmd.Flags().StringVar(&watchOpID, "op", "", "Filter by operation ID")
@@ -458,6 +478,85 @@ var planApplyCmd = &cobra.Command{
 	},
 }
 
+var networkCmd = &cobra.Command{
+	Use:   "network",
+	Short: "Manage cluster network configuration",
+}
+
+var networkSetCmd = &cobra.Command{
+	Use:   "set",
+	Short: "Update the cluster domain/protocol configuration",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if networkDomain == "" {
+			return errors.New("--domain is required")
+		}
+		protocol := strings.ToLower(strings.TrimSpace(networkProtocol))
+		if protocol == "" {
+			protocol = "http"
+		}
+		if protocol != "http" && protocol != "https" {
+			return errors.New("--protocol must be http or https")
+		}
+		if networkAcme && strings.TrimSpace(networkEmail) == "" {
+			return errors.New("--email is required when --acme")
+		}
+		spec := &clustercontrollerpb.ClusterNetworkSpec{
+			ClusterDomain:    strings.TrimSpace(networkDomain),
+			Protocol:         protocol,
+			PortHttp:         uint32(networkHTTPPort),
+			PortHttps:        uint32(networkHTTPSPort),
+			AlternateDomains: normalizeAltDomains(networkAltDomains),
+			AcmeEnabled:      networkAcme,
+			AdminEmail:       strings.TrimSpace(networkEmail),
+		}
+
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+
+		resp, err := client.UpdateClusterNetwork(ctxWithTimeout(), &clustercontrollerpb.UpdateClusterNetworkRequest{
+			Spec: spec,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("network generation: %d\n", resp.GetGeneration())
+
+		nodesResp, err := client.ListNodes(ctxWithoutTimeout(), &clustercontrollerpb.ListNodesRequest{})
+		if err != nil {
+			return err
+		}
+		if len(nodesResp.GetNodes()) == 0 {
+			fmt.Println("no nodes registered")
+			return nil
+		}
+
+		for _, node := range nodesResp.GetNodes() {
+			if node.GetAgentEndpoint() == "" {
+				fmt.Fprintf(os.Stderr, "node %s has no agent endpoint; skipping\n", node.GetNodeId())
+				continue
+			}
+			planResp, err := client.ApplyNodePlan(ctxWithTimeout(), &clustercontrollerpb.ApplyNodePlanRequest{
+				NodeId: node.GetNodeId(),
+			})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "node %s apply failed: %v\n", node.GetNodeId(), err)
+				continue
+			}
+			fmt.Printf("node %s apply started (op %s)\n", node.GetNodeId(), planResp.GetOperationId())
+			if networkWatch {
+				if err := watchControllerOperations(node.GetNodeId(), planResp.GetOperationId()); err != nil {
+					fmt.Fprintf(os.Stderr, "watch op %s: %v\n", planResp.GetOperationId(), err)
+				}
+			}
+		}
+		return nil
+	},
+}
+
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade <artifact>",
 	Short: "Upgrade the Globular service via controller plan",
@@ -677,6 +776,26 @@ func watchAgentOperation(operationID, nodeOverride string) error {
 			return nil
 		}
 	}
+}
+
+func normalizeAltDomains(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		trimmed := strings.TrimSpace(strings.ToLower(v))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func loadPlan(path string) (*clustercontrollerpb.NodePlan, error) {

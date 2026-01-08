@@ -12,6 +12,16 @@ message ClusterInfo {
   google.protobuf.Timestamp created_at = 3;
 }
 
+message ClusterNetworkSpec {
+  string cluster_domain = 1;
+  string protocol = 2;
+  uint32 port_http = 3;
+  uint32 port_https = 4;
+  repeated string alternate_domains = 5;
+  bool acme_enabled = 6;
+  string admin_email = 7;
+}
+
 message NodeIdentity {
   string hostname = 1;
   string domain = 2;
@@ -105,6 +115,20 @@ message SetNodeProfilesRequest {
   repeated string profiles = 2;
 }
 message SetNodeProfilesResponse {
+  string operation_id = 1;
+}
+
+message UpdateClusterNetworkRequest {
+  ClusterNetworkSpec spec = 1;
+}
+message UpdateClusterNetworkResponse {
+  uint64 generation = 1;
+}
+
+message ApplyNodePlanRequest {
+  string node_id = 1;
+}
+message ApplyNodePlanResponse {
   string operation_id = 1;
 }
 
@@ -227,6 +251,8 @@ service ClusterControllerService {
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
   rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
+  rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse);
+  rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse);
   rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
   rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
   rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse);

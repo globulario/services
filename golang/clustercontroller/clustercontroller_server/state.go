@@ -7,17 +7,20 @@ import (
 	"path/filepath"
 	"time"
 
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/google/uuid"
 )
 
 const defaultClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
 
 type controllerState struct {
-	JoinTokens   map[string]*joinTokenRecord   `json:"join_tokens"`
-	JoinRequests map[string]*joinRequestRecord `json:"join_requests"`
-	Nodes        map[string]*nodeState         `json:"nodes"`
-	ClusterId    string                        `json:"cluster_id"`
-	CreatedAt    time.Time                     `json:"created_at"`
+	JoinTokens           map[string]*joinTokenRecord             `json:"join_tokens"`
+	JoinRequests         map[string]*joinRequestRecord           `json:"join_requests"`
+	Nodes                map[string]*nodeState                   `json:"nodes"`
+	ClusterId            string                                  `json:"cluster_id"`
+	CreatedAt            time.Time                               `json:"created_at"`
+	ClusterNetworkSpec   *clustercontrollerpb.ClusterNetworkSpec `json:"cluster_network_spec,omitempty"`
+	NetworkingGeneration uint64                                  `json:"networking_generation"`
 }
 
 type joinTokenRecord struct {

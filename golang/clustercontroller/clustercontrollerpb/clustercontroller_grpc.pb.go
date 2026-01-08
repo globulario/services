@@ -29,6 +29,8 @@ const (
 	ClusterControllerService_ListNodes_FullMethodName            = "/clustercontroller.ClusterControllerService/ListNodes"
 	ClusterControllerService_SetNodeProfiles_FullMethodName      = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
 	ClusterControllerService_GetNodePlan_FullMethodName          = "/clustercontroller.ClusterControllerService/GetNodePlan"
+	ClusterControllerService_UpdateClusterNetwork_FullMethodName = "/clustercontroller.ClusterControllerService/UpdateClusterNetwork"
+	ClusterControllerService_ApplyNodePlan_FullMethodName        = "/clustercontroller.ClusterControllerService/ApplyNodePlan"
 	ClusterControllerService_ReportNodeStatus_FullMethodName     = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
 	ClusterControllerService_GetJoinRequestStatus_FullMethodName = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
 	ClusterControllerService_UpgradeGlobular_FullMethodName      = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
@@ -48,6 +50,8 @@ type ClusterControllerServiceClient interface {
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
 	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
+	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
+	ApplyNodePlan(ctx context.Context, in *ApplyNodePlanRequest, opts ...grpc.CallOption) (*ApplyNodePlanResponse, error)
 	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error)
@@ -152,6 +156,26 @@ func (c *clusterControllerServiceClient) GetNodePlan(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateClusterNetworkResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_UpdateClusterNetwork_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ApplyNodePlan(ctx context.Context, in *ApplyNodePlanRequest, opts ...grpc.CallOption) (*ApplyNodePlanResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyNodePlanResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApplyNodePlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportNodeStatusResponse)
@@ -214,6 +238,8 @@ type ClusterControllerServiceServer interface {
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
 	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
+	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
+	ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error)
 	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error)
@@ -253,6 +279,12 @@ func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Conte
 }
 func (UnimplementedClusterControllerServiceServer) GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNodePlan not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateClusterNetwork not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyNodePlan not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportNodeStatus not implemented")
@@ -448,6 +480,42 @@ func _ClusterControllerService_GetNodePlan_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_UpdateClusterNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateClusterNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).UpdateClusterNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_UpdateClusterNetwork_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).UpdateClusterNetwork(ctx, req.(*UpdateClusterNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ApplyNodePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyNodePlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ApplyNodePlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ApplyNodePlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ApplyNodePlan(ctx, req.(*ApplyNodePlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_ReportNodeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReportNodeStatusRequest)
 	if err := dec(in); err != nil {
@@ -555,6 +623,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodePlan",
 			Handler:    _ClusterControllerService_GetNodePlan_Handler,
+		},
+		{
+			MethodName: "UpdateClusterNetwork",
+			Handler:    _ClusterControllerService_UpdateClusterNetwork_Handler,
+		},
+		{
+			MethodName: "ApplyNodePlan",
+			Handler:    _ClusterControllerService_ApplyNodePlan_Handler,
 		},
 		{
 			MethodName: "ReportNodeStatus",

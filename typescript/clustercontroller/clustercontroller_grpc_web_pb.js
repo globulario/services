@@ -628,6 +628,128 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getNodeP
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.UpdateClusterNetworkRequest,
+ *   !proto.clustercontroller.UpdateClusterNetworkResponse>}
+ */
+const methodDescriptor_ClusterControllerService_UpdateClusterNetwork = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/UpdateClusterNetwork',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.UpdateClusterNetworkRequest,
+  proto.clustercontroller.UpdateClusterNetworkResponse,
+  /**
+   * @param {!proto.clustercontroller.UpdateClusterNetworkRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.UpdateClusterNetworkResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.UpdateClusterNetworkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.UpdateClusterNetworkResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.UpdateClusterNetworkResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.updateClusterNetwork =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/UpdateClusterNetwork',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_UpdateClusterNetwork,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.UpdateClusterNetworkRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.UpdateClusterNetworkResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.updateClusterNetwork =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/UpdateClusterNetwork',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_UpdateClusterNetwork);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.ApplyNodePlanRequest,
+ *   !proto.clustercontroller.ApplyNodePlanResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ApplyNodePlan = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/ApplyNodePlan',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.ApplyNodePlanRequest,
+  proto.clustercontroller.ApplyNodePlanResponse,
+  /**
+   * @param {!proto.clustercontroller.ApplyNodePlanRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.ApplyNodePlanResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.ApplyNodePlanRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.ApplyNodePlanResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.ApplyNodePlanResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.applyNodePlan =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ApplyNodePlan',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyNodePlan,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.ApplyNodePlanRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.ApplyNodePlanResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.applyNodePlan =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ApplyNodePlan',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyNodePlan);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.ReportNodeStatusRequest,
  *   !proto.clustercontroller.ReportNodeStatusResponse>}
  */

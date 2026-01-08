@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/apply"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/planner"
@@ -742,6 +744,12 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
+	if err := srv.applyRenderedConfig(plan); err != nil {
+		msg := err.Error()
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 10, true, msg))
+		return
+	}
+
 	actions := planner.ComputeActions(plan)
 	total := len(actions)
 	current := 0
@@ -758,6 +766,73 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	}
 
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+}
+
+func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) error {
+	if plan == nil {
+		return nil
+	}
+	rendered := plan.GetRenderedConfig()
+	if len(rendered) == 0 {
+		return nil
+	}
+	for target, value := range rendered {
+		if target == "" {
+			continue
+		}
+		switch target {
+		case "cluster.network.spec.json":
+			if err := srv.writeNetworkSpecSnapshot(value); err != nil {
+				return fmt.Errorf("write network spec snapshot: %w", err)
+			}
+		default:
+			if err := writeAtomicFile(target, []byte(value), 0o644); err != nil {
+				return fmt.Errorf("write rendered config %s: %w", target, err)
+			}
+		}
+	}
+	srv.restartServicesForNetworkChange()
+	return nil
+}
+
+func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
+	if strings.TrimSpace(data) == "" {
+		return nil
+	}
+	path := filepath.Join(config.GetRuntimeConfigDir(), "cluster_network_spec.json")
+	return writeAtomicFile(path, []byte(data), 0o600)
+}
+
+func writeAtomicFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) restartServicesForNetworkChange() {
+	log.Printf("nodeagent: network configuration applied; services requiring reload should be restarted soon (stub)")
 }
 
 func (srv *NodeAgentServer) WatchOperation(req *nodeagentpb.WatchOperationRequest, stream nodeagentpb.NodeAgentService_WatchOperationServer) error {

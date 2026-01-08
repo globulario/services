@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -21,6 +22,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -335,6 +338,94 @@ func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.Get
 	}, nil
 }
 
+func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrollerpb.UpdateClusterNetworkRequest) (*clustercontrollerpb.UpdateClusterNetworkResponse, error) {
+	if req == nil || req.GetSpec() == nil {
+		return nil, status.Error(codes.InvalidArgument, "spec is required")
+	}
+	spec := req.GetSpec()
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	if domain == "" {
+		return nil, status.Error(codes.InvalidArgument, "cluster_domain is required")
+	}
+	spec.ClusterDomain = domain
+
+	protocol := strings.ToLower(strings.TrimSpace(spec.GetProtocol()))
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" {
+		return nil, status.Error(codes.InvalidArgument, "protocol must be http or https")
+	}
+	spec.Protocol = protocol
+
+	if protocol == "http" && spec.GetPortHttp() == 0 {
+		spec.PortHttp = 80
+	}
+	if protocol == "https" && spec.GetPortHttps() == 0 {
+		spec.PortHttps = 443
+	}
+
+	if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "admin_email is required when acme_enabled is true")
+	}
+
+	spec.AdminEmail = strings.TrimSpace(spec.GetAdminEmail())
+	spec.AlternateDomains = normalizeDomains(spec.GetAlternateDomains())
+
+	srv.mu.Lock()
+	changed := !proto.Equal(srv.state.ClusterNetworkSpec, spec)
+	if changed {
+		srv.state.ClusterNetworkSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
+		srv.state.NetworkingGeneration++
+		if err := srv.persistStateLocked(true); err != nil {
+			srv.mu.Unlock()
+			return nil, status.Errorf(codes.Internal, "persist network spec: %v", err)
+		}
+	}
+	generation := srv.state.NetworkingGeneration
+	srv.mu.Unlock()
+
+	return &clustercontrollerpb.UpdateClusterNetworkResponse{
+		Generation: generation,
+	}, nil
+}
+
+func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.ApplyNodePlanRequest) (*clustercontrollerpb.ApplyNodePlanResponse, error) {
+	if req == nil || strings.TrimSpace(req.GetNodeId()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	nodeID := strings.TrimSpace(req.GetNodeId())
+	srv.mu.Lock()
+	node := srv.state.Nodes[nodeID]
+	srv.mu.Unlock()
+	if node == nil {
+		return nil, status.Error(codes.NotFound, "node not found")
+	}
+	if node.AgentEndpoint == "" {
+		return nil, status.Error(codes.FailedPrecondition, "agent endpoint unknown")
+	}
+	plan := srv.computeNodePlan(node)
+	if plan == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plan is empty")
+	}
+	if len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0 {
+		return nil, status.Error(codes.FailedPrecondition, "plan has no changes")
+	}
+
+	opID := uuid.NewString()
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
+	if err := srv.dispatchPlan(ctx, node, plan); err != nil {
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
+		return nil, status.Errorf(codes.Internal, "dispatch plan: %v", err)
+	}
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+
+	return &clustercontrollerpb.ApplyNodePlanResponse{
+		OperationId: opID,
+	}, nil
+}
+
 func (srv *server) UpgradeGlobular(ctx context.Context, req *clustercontrollerpb.UpgradeGlobularRequest) (*clustercontrollerpb.UpgradeGlobularResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -618,6 +709,9 @@ func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePla
 	if len(actionList) > 0 {
 		plan.UnitActions = actionList
 	}
+	if rendered := srv.renderedConfigForSpec(); len(rendered) > 0 {
+		plan.RenderedConfig = rendered
+	}
 	return plan
 }
 
@@ -636,6 +730,69 @@ func planHash(plan *clustercontrollerpb.NodePlan) string {
 		h.Write([]byte{0})
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (srv *server) clusterNetworkSpec() *clustercontrollerpb.ClusterNetworkSpec {
+	srv.mu.Lock()
+	spec := srv.state.ClusterNetworkSpec
+	srv.mu.Unlock()
+	if spec == nil {
+		return nil
+	}
+	if clone, ok := proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec); ok {
+		return clone
+	}
+	return nil
+}
+
+func (srv *server) renderedConfigForSpec() map[string]string {
+	spec := srv.clusterNetworkSpec()
+	if spec == nil {
+		return nil
+	}
+	out := make(map[string]string, 2)
+	if specJSON, err := protojson.Marshal(spec); err == nil {
+		out["cluster.network.spec.json"] = string(specJSON)
+	}
+	configPayload := map[string]interface{}{
+		"Domain":           spec.GetClusterDomain(),
+		"Protocol":         spec.GetProtocol(),
+		"PortHTTP":         spec.GetPortHttp(),
+		"PortHTTPS":        spec.GetPortHttps(),
+		"AlternateDomains": spec.GetAlternateDomains(),
+		"ACMEEnabled":      spec.GetAcmeEnabled(),
+		"AdminEmail":       spec.GetAdminEmail(),
+	}
+	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
+		out["/etc/globular/config.json"] = string(cfgJSON)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeDomains(domains []string) []string {
+	if len(domains) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	out := make([]string, 0, len(domains))
+	for _, v := range domains {
+		if v == "" {
+			continue
+		}
+		trimmed := strings.TrimSpace(strings.ToLower(v))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func (srv *server) shouldDispatch(node *nodeState, hash string) bool {
