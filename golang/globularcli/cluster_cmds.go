@@ -84,7 +84,6 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(clusterCmd)
 	clusterCmd.AddCommand(
 		bootstrapCmd,
 		joinCmd,

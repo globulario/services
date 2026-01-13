@@ -37,4 +37,5 @@ func init() {
 
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(debugCmd)
+	rootCmd.AddCommand(pkgCmd)
 }
