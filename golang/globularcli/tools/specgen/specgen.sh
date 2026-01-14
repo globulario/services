@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BIN_DIR="${1:-/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin}"
-OUT_ROOT="${2:-$(pwd)/generated}"
-SPECS_DIR="${OUT_ROOT}/specs"
-CONFIG_DIR="${OUT_ROOT}/config"
-
-mkdir -p "${SPECS_DIR}" "${CONFIG_DIR}"
+BIN_DIR="/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin"
+OUT_ROOT="$(pwd)/generated"
 
 # Normalize: strips "_server" suffix and replaces underscores with dashes
 svc_name_from_exe() {
@@ -19,6 +15,39 @@ svc_name_from_exe() {
     *) echo "${base//_/-}" ;;
   esac
 }
+
+usage() {
+  cat <<EOF
+Usage: $0 <BIN_DIR> <OUT_ROOT>
+
+Generates:
+  <OUT_ROOT>/specs/<svc>_service.yaml
+  <OUT_ROOT>/config/<svc>/config.json
+
+Arguments:
+  BIN_DIR   Directory containing *_server binaries
+  OUT_ROOT  Output directory (default recommended: ./generated)
+
+Example:
+  $0 /path/to/stage/bin ./generated
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 2 ]]; then
+  usage >&2
+  exit 2
+fi
+
+BIN_DIR="$1"
+OUT_ROOT="$2"
+SPECS_DIR="${OUT_ROOT}/specs"
+CONFIG_DIR="${OUT_ROOT}/config"
+mkdir -p "${SPECS_DIR}" "${CONFIG_DIR}"
 
 yaml_indent_json_block() {
   # Reads JSON from stdin; prints YAML block content indented by 10 spaces.

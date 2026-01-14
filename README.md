@@ -1,6 +1,8 @@
 # Globular Services
 Globular services are gRPC services with predefined attributes that make them manageable, each services can be use without Globular. ATTOW Golang, C++, Typescript, and C# contain code for writting Globular services. 
 
+For packaging instructions, see `docs/packaging-workflow.md`.
+
 Currently, there are 28 available microservices that can be used by your applications. Here is a list of some of the most useful ones:
 
 * File Service: This service can be used for file operations such as creating, renaming, moving, and deleting files or directories.

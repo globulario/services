@@ -14,16 +14,33 @@ usage() {
   cat <<EOF
 Usage: $0 [options]
 
-Options:
+Builds one package per *_server binary by assembling a per-service payload root and invoking:
+  globular pkg build --spec <spec> --root <payload-root> --version <ver> --out <out>
+
+Required:
+  --version <ver>
+
+Common options:
   --globular <path>     Path to globular CLI binary (default: env GLOBULAR_BIN or 'globular')
   --bin-dir <path>      Directory containing *_server binaries
   --gen-root <path>     Directory containing generated/specs and generated/config
   --out <path>          Output packages directory
-  --version <ver>       Package version (required)
   --publisher <id>      Publisher (default: core@globular.io)
   --platform <goos_goarch> Platform (default: current go env)
+
+Example:
+  $0 --globular ./globularcli \\
+     --bin-dir /path/to/stage/bin \\
+     --gen-root ./generated \\
+     --out ./generated/packages \\
+     --version 0.0.1
 EOF
 }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
