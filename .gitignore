@@ -3,3 +3,4 @@ package-lock.json
 .cache
 golang/resource/resourcepb/minio_proxy_config.go
 golang/tools/stage/
+golang/globularcli/generated/
