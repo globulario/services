@@ -34,7 +34,11 @@ func TestExecDerivationFromBinPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := ScanSpec(specPath, assets, ScanOptions{SkipMissingConfig: true, SkipMissingSystemd: true})
+	roots := AssetRoots{
+		BinRoot:    filepath.Join(assets, "bin"),
+		ConfigRoot: filepath.Join(assets, "config"),
+	}
+	info, err := ScanSpec(specPath, roots, ScanOptions{SkipMissingConfig: true, SkipMissingSystemd: true})
 	if err != nil {
 		t.Fatalf("scan error: %v", err)
 	}

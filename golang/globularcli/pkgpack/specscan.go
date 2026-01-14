@@ -28,13 +28,18 @@ type SystemdFile struct {
 	Content    []byte // optional: inline content
 }
 
+type AssetRoots struct {
+	BinRoot    string
+	ConfigRoot string
+}
+
 type ScanOptions struct {
 	SkipMissingConfig  bool
 	SkipMissingSystemd bool
 }
 
 // ScanSpec reads a spec file and derives service metadata, executable, config, and systemd assets.
-func ScanSpec(specPath, assetsDir string, opts ScanOptions) (*SpecInfo, error) {
+func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, error) {
 	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return nil, err
@@ -46,18 +51,18 @@ func ScanSpec(specPath, assetsDir string, opts ScanOptions) (*SpecInfo, error) {
 	}
 
 	serviceName := deriveServiceName(specPath, doc)
-	execName, err := deriveExecName(doc, assetsDir, serviceName)
+	execName, err := deriveExecName(doc, roots, serviceName)
 	if err != nil {
 		return nil, fmt.Errorf("spec %s: %w", specPath, err)
 	}
-	execPath := filepath.Join(assetsDir, "bin", execName)
+	execPath := filepath.Join(roots.BinRoot, execName)
 
-	configDirs, err := discoverConfigDirs(doc, assetsDir, serviceName, opts.SkipMissingConfig)
+	configDirs, err := discoverConfigDirs(doc, roots, serviceName, opts.SkipMissingConfig)
 	if err != nil {
 		return nil, fmt.Errorf("spec %s: %w", specPath, err)
 	}
 
-	systemdFiles, err := discoverSystemdUnits(doc, assetsDir, serviceName, configDirs, opts.SkipMissingSystemd)
+	systemdFiles, err := discoverSystemdUnits(doc, roots, serviceName, configDirs, opts.SkipMissingSystemd)
 	if err != nil {
 		return nil, fmt.Errorf("spec %s: %w", specPath, err)
 	}
@@ -99,7 +104,7 @@ func normalizeServiceName(input string) string {
 	return name
 }
 
-func deriveExecName(doc map[string]any, assetsDir, serviceName string) (string, error) {
+func deriveExecName(doc map[string]any, roots AssetRoots, serviceName string) (string, error) {
 	var candidates []string
 
 	// direct fields
@@ -147,14 +152,14 @@ func deriveExecName(doc map[string]any, assetsDir, serviceName string) (string, 
 		if name == "" {
 			continue
 		}
-		binPath := filepath.Join(assetsDir, "bin", name)
+		binPath := filepath.Join(roots.BinRoot, name)
 		if _, err := os.Stat(binPath); err == nil {
 			present = append(present, name)
 		}
 	}
 
 	if len(present) == 0 {
-		return "", fmt.Errorf("no executable found in assets/bin among candidates: %s", strings.Join(unique, ", "))
+		return "", fmt.Errorf("no executable found in %s among candidates: %s", roots.BinRoot, strings.Join(unique, ", "))
 	}
 	if len(present) > 1 {
 		return "", fmt.Errorf("multiple executable candidates found: %s", strings.Join(present, ", "))
@@ -162,7 +167,7 @@ func deriveExecName(doc map[string]any, assetsDir, serviceName string) (string, 
 	return present[0], nil
 }
 
-func discoverConfigDirs(doc map[string]any, assetsDir, serviceName string, skipMissing bool) ([]string, error) {
+func discoverConfigDirs(doc map[string]any, roots AssetRoots, serviceName string, skipMissing bool) ([]string, error) {
 	var candidates []string
 	var missing []string
 
@@ -181,7 +186,7 @@ func discoverConfigDirs(doc map[string]any, assetsDir, serviceName string, skipM
 		if name == "" {
 			continue
 		}
-		dir := filepath.Join(assetsDir, "config", name)
+		dir := filepath.Join(roots.ConfigRoot, name)
 		info, err := os.Stat(dir)
 		if err != nil {
 			if !skipMissing && errors.Is(err, os.ErrNotExist) {
@@ -200,7 +205,7 @@ func discoverConfigDirs(doc map[string]any, assetsDir, serviceName string, skipM
 	return configDirs, nil
 }
 
-func discoverSystemdUnits(doc map[string]any, assetsDir, serviceName string, configDirs []string, skipMissing bool) ([]SystemdFile, error) {
+func discoverSystemdUnits(doc map[string]any, roots AssetRoots, serviceName string, configDirs []string, skipMissing bool) ([]SystemdFile, error) {
 	referenced := collectSystemdReferences(doc)
 	found := make(map[string]SystemdFile)
 
@@ -212,8 +217,8 @@ func discoverSystemdUnits(doc map[string]any, assetsDir, serviceName string, con
 
 	// From config/systemd folders
 	candidates := []string{
-		filepath.Join(assetsDir, "config", serviceName, "systemd"),
-		filepath.Join(assetsDir, "config", strings.ReplaceAll(serviceName, "-", "_"), "systemd"),
+		filepath.Join(roots.ConfigRoot, serviceName, "systemd"),
+		filepath.Join(roots.ConfigRoot, strings.ReplaceAll(serviceName, "-", "_"), "systemd"),
 	}
 	candidates = append(candidates, configDirs...)
 	candidates = uniquePathsWithSystemd(candidates)

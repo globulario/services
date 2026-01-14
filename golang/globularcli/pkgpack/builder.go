@@ -16,6 +16,9 @@ type BuildOptions struct {
 	SpecDir            string
 	AssetsDir          string
 	InstallerRoot      string
+	Root               string
+	BinDir             string
+	ConfigDir          string
 	Version            string
 	Publisher          string
 	Platform           string
@@ -41,6 +44,25 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 	if (opts.SpecPath == "" && opts.SpecDir == "") || (opts.SpecPath != "" && opts.SpecDir != "") {
 		return nil, fmt.Errorf("spec or spec-dir must be set")
 	}
+	rootMode := opts.Root != ""
+	explicitMode := opts.BinDir != "" || opts.ConfigDir != ""
+	installerMode := opts.InstallerRoot != "" || opts.AssetsDir != ""
+	modeCount := 0
+	for _, active := range []bool{rootMode, explicitMode, installerMode} {
+		if active {
+			modeCount++
+		}
+	}
+	if modeCount == 0 {
+		return nil, fmt.Errorf("one of installer-root/assets, root, or bin-dir+config-dir is required")
+	}
+	if modeCount > 1 {
+		return nil, fmt.Errorf("choose only one of installer-root/assets, root, or bin-dir+config-dir")
+	}
+	if explicitMode && (opts.BinDir == "" || opts.ConfigDir == "") {
+		return nil, fmt.Errorf("bin-dir and config-dir must both be set when using explicit roots")
+	}
+
 	if opts.InstallerRoot != "" {
 		if opts.AssetsDir == "" {
 			opts.AssetsDir = filepath.Join(opts.InstallerRoot, "internal", "assets")
@@ -53,10 +75,28 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		if opts.SpecPath != "" && !filepath.IsAbs(opts.SpecPath) {
 			opts.SpecPath = filepath.Join(opts.InstallerRoot, opts.SpecPath)
 		}
-	} else {
+	}
+
+	var binRoot, configRoot string
+	switch {
+	case rootMode:
+		binRoot = opts.BinDir
+		if binRoot == "" {
+			binRoot = filepath.Join(opts.Root, "bin")
+		}
+		configRoot = opts.ConfigDir
+		if configRoot == "" {
+			configRoot = filepath.Join(opts.Root, "config")
+		}
+	case explicitMode:
+		binRoot = opts.BinDir
+		configRoot = opts.ConfigDir
+	default:
 		if opts.AssetsDir == "" {
 			return nil, fmt.Errorf("assets directory is required (use --assets or --installer-root)")
 		}
+		binRoot = filepath.Join(opts.AssetsDir, "bin")
+		configRoot = filepath.Join(opts.AssetsDir, "config")
 	}
 	if opts.Publisher == "" {
 		opts.Publisher = "core@globular.io"
@@ -79,7 +119,8 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 	var hadErr bool
 	for _, spec := range specs {
 		res := BuildResult{SpecPath: spec}
-		info, err := ScanSpec(spec, opts.AssetsDir, ScanOptions{SkipMissingConfig: opts.SkipMissingConfig, SkipMissingSystemd: opts.SkipMissingSystemd})
+		roots := AssetRoots{BinRoot: binRoot, ConfigRoot: configRoot}
+		info, err := ScanSpec(spec, roots, ScanOptions{SkipMissingConfig: opts.SkipMissingConfig, SkipMissingSystemd: opts.SkipMissingSystemd})
 		if err != nil {
 			res.Err = err
 			results = append(results, res)

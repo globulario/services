@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -74,6 +75,56 @@ func TestVerifyConfigDirPresent(t *testing.T) {
 		t.Fatalf("write tgz: %v", err)
 	}
 	if _, err := VerifyTGZ(out); err != nil {
+		t.Fatalf("verify tgz: %v", err)
+	}
+}
+
+func TestBuildPackagesWithRoot(t *testing.T) {
+	payloadRoot := t.TempDir()
+
+	binRoot := filepath.Join(payloadRoot, "bin")
+	configRoot := filepath.Join(payloadRoot, "config", "root-service")
+	if err := os.MkdirAll(binRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(configRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	execPath := filepath.Join(binRoot, "root-service")
+	if err := os.WriteFile(execPath, []byte("#!/bin/sh\necho hi\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "config.yaml"), []byte("x: 1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	specPath := filepath.Join(t.TempDir(), "root_service.yaml")
+	spec := "metadata:\n  name: root-service\nsteps:\n  - cmd: './bin/root-service'\n"
+	if err := os.WriteFile(specPath, []byte(spec), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := t.TempDir()
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	results, err := BuildPackages(BuildOptions{
+		Root:      payloadRoot,
+		SpecPath:  specPath,
+		Version:   "1.2.3",
+		Platform:  platform,
+		OutDir:    outDir,
+		Publisher: "tester@example.com",
+	})
+	if err != nil {
+		t.Fatalf("build packages: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Err != nil {
+		t.Fatalf("result error: %v", results[0].Err)
+	}
+	if _, err := VerifyTGZ(results[0].OutputPath); err != nil {
 		t.Fatalf("verify tgz: %v", err)
 	}
 }

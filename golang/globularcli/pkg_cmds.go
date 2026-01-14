@@ -18,7 +18,7 @@ var (
 
 	pkgBuildCmd = &cobra.Command{
 		Use:   "build",
-		Short: "Build service packages from installer assets/specs",
+		Short: "Build service packages from payload roots (installer assets or custom roots)",
 		RunE:  runPkgBuild,
 	}
 
@@ -31,9 +31,12 @@ var (
 
 var (
 	pkgInstallerRoot      string
+	pkgRoot               string
 	pkgSpecPath           string
 	pkgSpecDir            string
 	pkgAssetsDir          string
+	pkgBinDir             string
+	pkgConfigDir          string
 	pkgVersion            string
 	pkgPublisher          string
 	pkgPlatform           string
@@ -49,9 +52,12 @@ func init() {
 	pkgCmd.AddCommand(pkgVerifyCmd)
 
 	pkgBuildCmd.Flags().StringVar(&pkgInstallerRoot, "installer-root", "", "path to globular-installer root")
+	pkgBuildCmd.Flags().StringVar(&pkgRoot, "root", "", "payload root containing bin/ and config/")
 	pkgBuildCmd.Flags().StringVar(&pkgSpecPath, "spec", "", "path to one YAML spec (exclusive with --spec-dir)")
 	pkgBuildCmd.Flags().StringVar(&pkgSpecDir, "spec-dir", "", "directory of YAML specs")
 	pkgBuildCmd.Flags().StringVar(&pkgAssetsDir, "assets", "", "assets directory (default resolved from installer-root)")
+	pkgBuildCmd.Flags().StringVar(&pkgBinDir, "bin-dir", "", "explicit path to bin directory")
+	pkgBuildCmd.Flags().StringVar(&pkgConfigDir, "config-dir", "", "explicit path to config directory")
 	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "", "package version (required)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "target platform (goos_goarch)")
@@ -72,15 +78,34 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 	if pkgOutDir == "" {
 		return errors.New("--out is required")
 	}
-	if pkgInstallerRoot == "" && pkgAssetsDir == "" {
-		return errors.New("--installer-root is required (or specify --assets and absolute specs)")
+
+	rootMode := pkgRoot != ""
+	explicitMode := pkgBinDir != "" || pkgConfigDir != ""
+	installerMode := pkgInstallerRoot != "" || pkgAssetsDir != ""
+	modeCount := 0
+	for _, active := range []bool{rootMode, explicitMode, installerMode} {
+		if active {
+			modeCount++
+		}
+	}
+	if modeCount == 0 {
+		return errors.New("one of --installer-root/--assets, --root, or --bin-dir+--config-dir is required")
+	}
+	if modeCount > 1 {
+		return errors.New("choose only one of --installer-root/--assets, --root, or --bin-dir+--config-dir")
+	}
+	if explicitMode && (pkgBinDir == "" || pkgConfigDir == "") {
+		return errors.New("--bin-dir and --config-dir must both be set when using explicit paths")
 	}
 
 	results, err := pkgpack.BuildPackages(pkgpack.BuildOptions{
 		InstallerRoot:      pkgInstallerRoot,
+		Root:               pkgRoot,
 		SpecPath:           pkgSpecPath,
 		SpecDir:            pkgSpecDir,
 		AssetsDir:          pkgAssetsDir,
+		BinDir:             pkgBinDir,
+		ConfigDir:          pkgConfigDir,
 		Version:            pkgVersion,
 		Publisher:          pkgPublisher,
 		Platform:           pkgPlatform,
