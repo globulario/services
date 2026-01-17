@@ -12,6 +12,7 @@ type nodeAgentState struct {
 	RequestID          string `json:"request_id"`
 	NodeID             string `json:"node_id"`
 	LastPlanGeneration uint64 `json:"last_plan_generation"`
+	NetworkGeneration  uint64 `json:"network_generation"`
 }
 
 func newNodeAgentState() *nodeAgentState {

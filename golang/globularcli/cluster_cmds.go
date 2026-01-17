@@ -137,7 +137,7 @@ func init() {
 	networkSetCmd.Flags().BoolVar(&networkAcme, "acme", false, "Enable ACME certificate management")
 	networkSetCmd.Flags().StringVar(&networkEmail, "email", "", "Admin email (required when --acme)")
 	networkSetCmd.Flags().StringSliceVar(&networkAltDomains, "alt-domain", nil, "Add alternate domains")
-	networkSetCmd.Flags().BoolVar(&networkWatch, "watch", true, "Watch controller operations after apply")
+	networkSetCmd.Flags().BoolVar(&networkWatch, "watch", false, "Watch controller operations after apply")
 
 	watchCmd.Flags().StringVar(&watchNodeID, "node-id", "", "Filter by node ID")
 	watchCmd.Flags().StringVar(&watchOpID, "op", "", "Filter by operation ID")
@@ -551,15 +551,20 @@ var networkSetCmd = &cobra.Command{
 		defer cc.Close()
 		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
 
-		resp, err := client.UpdateClusterNetwork(ctxWithTimeout(), &clustercontrollerpb.UpdateClusterNetworkRequest{
+		ctx, cancel := ctxWithCLITimeout(cmd.Context())
+		defer cancel()
+		resp, err := client.UpdateClusterNetwork(ctx, &clustercontrollerpb.UpdateClusterNetworkRequest{
 			Spec: spec,
 		})
 		if err != nil {
 			return err
 		}
 		fmt.Printf("network generation: %d\n", resp.GetGeneration())
+		targetGen := resp.GetGeneration()
 
-		nodesResp, err := client.ListNodes(ctxWithoutTimeout(), &clustercontrollerpb.ListNodesRequest{})
+		ctxNodes, cancelNodes := ctxWithCLITimeout(cmd.Context())
+		nodesResp, err := client.ListNodes(ctxNodes, &clustercontrollerpb.ListNodesRequest{})
+		cancelNodes()
 		if err != nil {
 			return err
 		}
@@ -573,18 +578,22 @@ var networkSetCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "node %s has no agent endpoint; skipping\n", node.GetNodeId())
 				continue
 			}
-			planResp, err := client.ApplyNodePlan(ctxWithTimeout(), &clustercontrollerpb.ApplyNodePlanRequest{
+			fmt.Printf("dispatching plan to node %s\n", node.GetNodeId())
+			ctxApply, cancelApply := ctxWithCLITimeout(cmd.Context())
+			planResp, err := client.ApplyNodePlan(ctxApply, &clustercontrollerpb.ApplyNodePlanRequest{
 				NodeId: node.GetNodeId(),
 			})
+			cancelApply()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "node %s apply failed: %v\n", node.GetNodeId(), err)
 				continue
 			}
 			fmt.Printf("node %s apply started (op %s)\n", node.GetNodeId(), planResp.GetOperationId())
-			if networkWatch {
-				if err := watchControllerOperations(node.GetNodeId(), planResp.GetOperationId()); err != nil {
-					fmt.Fprintf(os.Stderr, "watch op %s: %v\n", planResp.GetOperationId(), err)
-				}
+		}
+		if networkWatch {
+			fmt.Printf("watching convergence to generation %d (timeout %s)\n", targetGen, rootCfg.timeout)
+			if err := watchNetworkConvergence(cmd.Context(), client, targetGen); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -786,12 +795,14 @@ func ctxWithTimeout() context.Context {
 	return ctx
 }
 
-func ctxWithoutTimeout() context.Context {
-	ctx := context.Background()
-	if rootCfg.token != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "token", rootCfg.token)
+func ctxWithCLITimeout(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
 	}
-	return ctx
+	if rootCfg.token != "" {
+		parent = metadata.AppendToOutgoingContext(parent, "token", rootCfg.token)
+	}
+	return context.WithTimeout(parent, rootCfg.timeout)
 }
 
 func parseExpiration(value string) (*timestamppb.Timestamp, error) {
@@ -821,7 +832,9 @@ func parseMetadata(items []string) map[string]string {
 
 func watchControllerStream(cc *grpc.ClientConn, req *clustercontrollerpb.WatchOperationsRequest) error {
 	client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-	stream, err := client.WatchOperations(ctxWithoutTimeout(), req)
+	ctx, cancel := ctxWithCLITimeout(context.Background())
+	defer cancel()
+	stream, err := client.WatchOperations(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -857,7 +870,9 @@ func watchAgentOperation(operationID, nodeOverride string) error {
 	}
 	defer cc.Close()
 	client := nodeagentpb.NewNodeAgentServiceClient(cc)
-	stream, err := client.WatchOperation(ctxWithoutTimeout(), &nodeagentpb.WatchOperationRequest{OperationId: operationID})
+	ctx, cancel := ctxWithCLITimeout(context.Background())
+	defer cancel()
+	stream, err := client.WatchOperation(ctx, &nodeagentpb.WatchOperationRequest{OperationId: operationID})
 	if err != nil {
 		return err
 	}
@@ -891,6 +906,43 @@ func normalizeAltDomains(values []string) []string {
 		out = append(out, trimmed)
 	}
 	return out
+}
+
+func watchNetworkConvergence(ctx context.Context, client clustercontrollerpb.ClusterControllerServiceClient, targetGen uint64) error {
+	deadline := time.Now().Add(rootCfg.timeout)
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("watch timed out after %s", rootCfg.timeout)
+		}
+		pollCtx, cancel := ctxWithCLITimeout(ctx)
+		resp, err := client.ListNodes(pollCtx, &clustercontrollerpb.ListNodesRequest{})
+		cancel()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "poll list nodes: %v\n", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		if len(resp.GetNodes()) == 0 {
+			return nil
+		}
+		allReady := true
+		for _, n := range resp.GetNodes() {
+			status := strings.ToLower(strings.TrimSpace(n.GetStatus()))
+			lastSeen := ""
+			if ts := n.GetLastSeen(); ts != nil {
+				lastSeen = ts.AsTime().Format(time.RFC3339)
+			}
+			fmt.Printf("node %s: status=%s last_seen=%s\n", n.GetNodeId(), status, lastSeen)
+			if status == "" || status == "converging" {
+				allReady = false
+			}
+		}
+		if allReady {
+			fmt.Printf("network generation %d converged\n", targetGen)
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func loadPlan(path string) (*clustercontrollerpb.NodePlan, error) {

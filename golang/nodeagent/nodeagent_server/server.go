@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -80,6 +81,7 @@ type NodeAgentServer struct {
 	controllerCAPath         string
 	controllerSNI            string
 	controllerUseSystemRoots bool
+	lastNetworkGeneration    uint64
 	planStore                store.PlanStore
 	planPollInterval         time.Duration
 	lastPlanGeneration       uint64
@@ -170,6 +172,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		controllerUseSystemRoots: strings.EqualFold(os.Getenv("NODE_AGENT_CONTROLLER_USE_SYSTEM_ROOTS"), "true"),
 		planPollInterval:         defaultPlanPollInterval,
 		lastPlanGeneration:       state.LastPlanGeneration,
+		lastNetworkGeneration:    state.NetworkGeneration,
 	}
 }
 
@@ -779,8 +782,10 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 		srv.notifyControllerOperationResult(op.id, false, msg, err)
 		return
 	}
+	networkGen := networkGenerationFromPlan(plan)
+	netChanged = netChanged || (networkGen > 0 && networkGen != srv.lastNetworkGeneration)
 	if netChanged {
-		if err := srv.reconcileNetwork(plan, op); err != nil {
+		if err := srv.reconcileNetwork(plan, op, networkGen); err != nil {
 			msg := err.Error()
 			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 20, true, msg))
 			srv.notifyControllerOperationResult(op.id, false, msg, err)
@@ -878,7 +883,7 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 	return writeAtomicFile(path, []byte(data), 0o600)
 }
 
-func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan, op *operation) error {
+func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan, op *operation, generation uint64) error {
 	if plan == nil {
 		return nil
 	}
@@ -893,6 +898,16 @@ func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan,
 	if len(units) > 0 {
 		if err := srv.performRestartUnits(units, op); err != nil {
 			return fmt.Errorf("restart units: %w", err)
+		}
+	}
+	if generation > 0 && generation != srv.lastNetworkGeneration {
+		if err := srv.syncDNS(spec); err != nil {
+			return fmt.Errorf("sync dns: %w", err)
+		}
+		srv.lastNetworkGeneration = generation
+		srv.state.NetworkGeneration = generation
+		if err := srv.saveState(); err != nil {
+			log.Printf("nodeagent: save state after dns sync: %v", err)
 		}
 	}
 	return nil
@@ -927,6 +942,21 @@ func parseRestartUnits(plan *clustercontrollerpb.NodePlan) []string {
 		return nil
 	}
 	return units
+}
+
+func networkGenerationFromPlan(plan *clustercontrollerpb.NodePlan) uint64 {
+	if plan == nil {
+		return 0
+	}
+	data := strings.TrimSpace(plan.GetRenderedConfig()["cluster.network.generation"])
+	if data == "" {
+		return 0
+	}
+	gen, err := strconv.ParseUint(data, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return gen
 }
 
 func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.ClusterNetworkSpec) error {
@@ -1499,6 +1529,8 @@ func (srv *NodeAgentServer) saveState() error {
 	srv.state.ControllerEndpoint = srv.controllerEndpoint
 	srv.state.RequestID = srv.joinRequestID
 	srv.state.NodeID = srv.nodeID
+	srv.state.LastPlanGeneration = srv.lastPlanGeneration
+	srv.state.NetworkGeneration = srv.lastNetworkGeneration
 	return srv.state.save(srv.statePath)
 }
 

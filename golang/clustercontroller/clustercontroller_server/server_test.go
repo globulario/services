@@ -23,6 +23,9 @@ func TestRestartUnitsForSpecChanges(t *testing.T) {
 	if len(httpUnits) == 0 {
 		t.Fatalf("expected restart units for http spec")
 	}
+	if !containsUnit(httpUnits, "globular-dns.service") {
+		t.Fatalf("http restart units missing globular-dns.service")
+	}
 	httpsUnits := restartUnitsForSpec(httpsSpec)
 	if len(httpsUnits) <= len(httpUnits) {
 		t.Fatalf("expected https spec to include additional units")
@@ -37,6 +40,15 @@ func TestRestartUnitsForSpecChanges(t *testing.T) {
 	if !found {
 		t.Fatalf("https restart units missing globular-storage.service")
 	}
+}
+
+func containsUnit(units []string, target string) bool {
+	for _, u := range units {
+		if u == target {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCompleteOperationMarksDone(t *testing.T) {

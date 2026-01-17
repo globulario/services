@@ -9,9 +9,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
@@ -55,6 +58,8 @@ type server struct {
 	statePath        string
 	state            *controllerState
 	mu               sync.Mutex
+	muHeldSince      atomic.Int64
+	muHeldBy         atomic.Value
 	planStore        store.PlanStore
 	agentMu          sync.Mutex
 	agentClients     map[string]*agentClient
@@ -67,7 +72,10 @@ type server struct {
 	operations       map[string]*operationState
 	watchMu          sync.Mutex
 	watchers         map[*operationWatcher]struct{}
+	reconcileRunning atomic.Bool
 }
+
+var testHookBeforeReportNodeStatusApply func()
 
 func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *controllerState, planStore store.PlanStore) *server {
 	if state == nil {
@@ -78,7 +86,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 	agentCAPath := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_CA"))
 	serverName := strings.TrimSpace(os.Getenv("CLUSTER_AGENT_SERVER_NAME"))
-	return &server{
+	srv := &server{
 		cfg:              cfg,
 		cfgPath:          cfgPath,
 		statePath:        statePath,
@@ -92,6 +100,51 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
 	}
+
+	safeGo("mu-watchdog", func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			since := srv.muHeldSince.Load()
+			if since == 0 {
+				continue
+			}
+			heldFor := time.Since(time.Unix(0, since))
+			if heldFor < 3*time.Second {
+				continue
+			}
+			tag, _ := srv.muHeldBy.Load().(string)
+			log.Printf("[WARN] srv.mu held for %s by %q; dumping goroutines", heldFor, tag)
+			buf := make([]byte, 1<<20)
+			n := runtime.Stack(buf, true)
+			log.Printf("[WARN] goroutine dump:\n%s", string(buf[:n]))
+		}
+	})
+
+	return srv
+}
+
+func (srv *server) lock(tag string) {
+	srv.mu.Lock()
+	srv.muHeldBy.Store(tag)
+	srv.muHeldSince.Store(time.Now().UnixNano())
+}
+
+func (srv *server) unlock() {
+	srv.muHeldSince.Store(0)
+	srv.muHeldBy.Store("")
+	srv.mu.Unlock()
+}
+
+func safeGo(tag string, fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in %s: %v\n%s", tag, r, debug.Stack())
+			}
+		}()
+		fn()
+	}()
 }
 
 func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestamp) (*clustercontrollerpb.ClusterInfo, error) {
@@ -112,8 +165,8 @@ func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestam
 }
 
 func (srv *server) CreateJoinToken(ctx context.Context, req *clustercontrollerpb.CreateJoinTokenRequest) (*clustercontrollerpb.CreateJoinTokenResponse, error) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("CreateJoinToken")
+	defer srv.unlock()
 	token := uuid.NewString()
 	expiresAt := time.Now().Add(24 * time.Hour)
 	if req != nil && req.ExpiresAt != nil {
@@ -138,8 +191,8 @@ func (srv *server) RequestJoin(ctx context.Context, req *clustercontrollerpb.Req
 		return nil, status.Error(codes.InvalidArgument, "join_token is required")
 	}
 	token := strings.TrimSpace(req.GetJoinToken())
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	jt := srv.state.JoinTokens[token]
 	if jt == nil {
 		return nil, status.Error(codes.NotFound, "join token not found")
@@ -171,8 +224,8 @@ func (srv *server) RequestJoin(ctx context.Context, req *clustercontrollerpb.Req
 }
 
 func (srv *server) ListJoinRequests(ctx context.Context, req *clustercontrollerpb.ListJoinRequestsRequest) (*clustercontrollerpb.ListJoinRequestsResponse, error) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	resp := &clustercontrollerpb.ListJoinRequestsResponse{}
 	pending := make([]*joinRequestRecord, 0, len(srv.state.JoinRequests))
 	for _, jr := range srv.state.JoinRequests {
@@ -207,8 +260,8 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 	if reqID == "" {
 		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	jr := srv.state.JoinRequests[reqID]
 	if jr == nil {
 		return nil, status.Error(codes.NotFound, "join request not found")
@@ -252,8 +305,8 @@ func (srv *server) RejectJoin(ctx context.Context, req *clustercontrollerpb.Reje
 	if reqID == "" {
 		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	jr := srv.state.JoinRequests[reqID]
 	if jr == nil {
 		return nil, status.Error(codes.NotFound, "join request not found")
@@ -273,8 +326,8 @@ func (srv *server) RejectJoin(ctx context.Context, req *clustercontrollerpb.Reje
 }
 
 func (srv *server) ListNodes(ctx context.Context, req *clustercontrollerpb.ListNodesRequest) (*clustercontrollerpb.ListNodesResponse, error) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	resp := &clustercontrollerpb.ListNodesResponse{}
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
@@ -308,8 +361,8 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb
 	if req == nil || req.GetNodeId() == "" || len(req.GetProfiles()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "--profile is required")
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	node := srv.state.Nodes[req.GetNodeId()]
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
@@ -328,8 +381,8 @@ func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.Get
 	if req == nil || req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	node := srv.state.Nodes[req.GetNodeId()]
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
@@ -374,18 +427,18 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrol
 	spec.AdminEmail = strings.TrimSpace(spec.GetAdminEmail())
 	spec.AlternateDomains = normalizeDomains(spec.GetAlternateDomains())
 
-	srv.mu.Lock()
+	srv.lock("unknown")
 	changed := !proto.Equal(srv.state.ClusterNetworkSpec, spec)
 	if changed {
 		srv.state.ClusterNetworkSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
 		srv.state.NetworkingGeneration++
 		if err := srv.persistStateLocked(true); err != nil {
-			srv.mu.Unlock()
+			srv.unlock()
 			return nil, status.Errorf(codes.Internal, "persist network spec: %v", err)
 		}
 	}
 	generation := srv.state.NetworkingGeneration
-	srv.mu.Unlock()
+	srv.unlock()
 
 	return &clustercontrollerpb.UpdateClusterNetworkResponse{
 		Generation: generation,
@@ -397,9 +450,9 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
 	nodeID := strings.TrimSpace(req.GetNodeId())
-	srv.mu.Lock()
+	srv.lock("unknown")
 	node := srv.state.Nodes[nodeID]
-	srv.mu.Unlock()
+	srv.unlock()
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
@@ -428,11 +481,11 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 	}
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
 	if srv.recordPlanSent(nodeID, hash) {
-		srv.mu.Lock()
+		srv.lock("unknown")
 		if err := srv.persistStateLocked(true); err != nil {
 			log.Printf("persist state after ApplyNodePlan: %v", err)
 		}
-		srv.mu.Unlock()
+		srv.unlock()
 	}
 
 	return &clustercontrollerpb.ApplyNodePlanResponse{
@@ -491,9 +544,9 @@ func (srv *server) UpgradeGlobular(ctx context.Context, req *clustercontrollerpb
 	if nodeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
-	srv.mu.Lock()
+	srv.lock("unknown")
 	node := srv.state.Nodes[nodeID]
-	srv.mu.Unlock()
+	srv.unlock()
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
@@ -583,37 +636,55 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 		return nil, status.Error(codes.InvalidArgument, "status.node_id is required")
 	}
 	nodeStatus := req.GetStatus()
-	srv.mu.Lock()
-	node := srv.state.Nodes[nodeStatus.GetNodeId()]
+	ns := nodeStatus
+	nodeID := strings.TrimSpace(ns.GetNodeId())
+	newIdentity := protoToStoredIdentity(ns.GetIdentity())
+	newEndpoint := strings.TrimSpace(ns.GetAgentEndpoint())
+	reportedAt := time.Now()
+	if ts := ns.GetReportedAt(); ts != nil {
+		reportedAt = ts.AsTime()
+	}
+	rawUnits := protoUnitsToStored(ns.GetUnits())
+	units := normalizedUnits(rawUnits)
+	lastError := ns.GetLastError()
+
+	// Snapshot existing node for evaluation without holding the lock during compute.
+	srv.lock("ReportNodeStatus:snapshot")
+	node := srv.state.Nodes[nodeID]
 	if node == nil {
-		srv.mu.Unlock()
+		srv.unlock()
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
-	changed := false
-	if identity := nodeStatus.GetIdentity(); identity != nil {
-		newIdentity := protoToStoredIdentity(identity)
-		if !identitiesEqual(node.Identity, newIdentity) {
-			changed = true
-		}
-		node.Identity = newIdentity
-	}
-	oldEndpoint := node.AgentEndpoint
-	newEndpoint := nodeStatus.GetAgentEndpoint()
-	node.AgentEndpoint = newEndpoint
-	if reported := nodeStatus.GetReportedAt(); reported != nil {
-		node.ReportedAt = reported.AsTime()
-		node.LastSeen = node.ReportedAt
-	} else {
-		node.ReportedAt = time.Now()
-		node.LastSeen = node.ReportedAt
-	}
-	rawUnits := protoUnitsToStored(nodeStatus.GetUnits())
-	units := normalizedUnits(rawUnits)
-	healthStatus, reason := srv.evaluateNodeStatus(node, units)
-	lastError := nodeStatus.GetLastError()
+	nodeSnapshot := *node
+	srv.unlock()
+
+	healthStatus, reason := srv.evaluateNodeStatus(&nodeSnapshot, units)
 	if lastError == "" && reason != "" && healthStatus != "ready" {
 		lastError = reason
 	}
+
+	if testHookBeforeReportNodeStatusApply != nil {
+		testHookBeforeReportNodeStatusApply()
+	}
+
+	srv.lock("ReportNodeStatus:commit")
+	defer srv.unlock()
+	node = srv.state.Nodes[nodeID]
+	if node == nil {
+		return nil, status.Error(codes.NotFound, "node not found")
+	}
+	changed := false
+
+	if !identitiesEqual(node.Identity, newIdentity) {
+		changed = true
+	}
+	node.Identity = newIdentity
+
+	oldEndpoint := node.AgentEndpoint
+	node.AgentEndpoint = newEndpoint
+	node.ReportedAt = reportedAt
+	node.LastSeen = reportedAt
+
 	if !unitsEqual(node.Units, units) {
 		node.Units = units
 		changed = true
@@ -635,11 +706,10 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerp
 	}
 	if changed {
 		if err := srv.persistStateLocked(false); err != nil {
-			srv.mu.Unlock()
 			return nil, status.Errorf(codes.Internal, "persist node status: %v", err)
 		}
 	}
-	srv.mu.Unlock()
+
 	if endpointToClose != "" {
 		srv.closeAgentClient(endpointToClose)
 	}
@@ -652,8 +722,8 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *clustercontrol
 	if req == nil || req.GetRequestId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	jr := srv.state.JoinRequests[req.GetRequestId()]
 	if jr == nil {
 		return nil, status.Error(codes.NotFound, "join request not found")
@@ -668,7 +738,7 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *clustercontrol
 
 func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	go func() {
+	safeGo("reconcile-loop", func() {
 		defer ticker.Stop()
 		for {
 			select {
@@ -678,12 +748,12 @@ func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duratio
 				srv.reconcileNodes(ctx)
 			}
 		}
-	}()
+	})
 }
 
 func (srv *server) startAgentCleanupLoop(ctx context.Context) {
 	ticker := time.NewTicker(agentCleanupInterval)
-	go func() {
+	safeGo("agent-cleanup", func() {
 		defer ticker.Stop()
 		for {
 			select {
@@ -693,12 +763,12 @@ func (srv *server) startAgentCleanupLoop(ctx context.Context) {
 				srv.cleanupAgentClients()
 			}
 		}
-	}()
+	})
 }
 
 func (srv *server) startOperationCleanupLoop(ctx context.Context) {
 	ticker := time.NewTicker(operationCleanupInterval)
-	go func() {
+	safeGo("operation-cleanup", func() {
 		defer ticker.Stop()
 		for {
 			select {
@@ -708,18 +778,22 @@ func (srv *server) startOperationCleanupLoop(ctx context.Context) {
 				srv.cleanupTimedOutOperations()
 			}
 		}
-	}()
+	})
 }
 
 func (srv *server) reconcileNodes(ctx context.Context) {
+	if !srv.reconcileRunning.CompareAndSwap(false, true) {
+		return
+	}
+	defer srv.reconcileRunning.Store(false)
 	now := time.Now()
-	srv.mu.Lock()
+	srv.lock("reconcile:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
 	}
 	stateDirty := srv.cleanupJoinStateLocked(now)
-	srv.mu.Unlock()
+	srv.unlock()
 
 	for _, node := range nodes {
 		if node.AgentEndpoint == "" {
@@ -757,11 +831,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	}
 
 	if stateDirty {
-		srv.mu.Lock()
+		srv.lock("reconcile:persist")
 		if err := srv.persistStateLocked(true); err != nil {
 			log.Printf("persist state: %v", err)
 		}
-		srv.mu.Unlock()
+		srv.unlock()
 	}
 }
 
@@ -837,9 +911,9 @@ func planHash(plan *clustercontrollerpb.NodePlan) string {
 }
 
 func (srv *server) clusterNetworkSpec() *clustercontrollerpb.ClusterNetworkSpec {
-	srv.mu.Lock()
+	srv.lock("unknown")
 	spec := srv.state.ClusterNetworkSpec
-	srv.mu.Unlock()
+	srv.unlock()
 	if spec == nil {
 		return nil
 	}
@@ -885,9 +959,9 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 }
 
 func (srv *server) networkingGeneration() uint64 {
-	srv.mu.Lock()
+	srv.lock("state:network-gen")
 	gen := srv.state.NetworkingGeneration
-	srv.mu.Unlock()
+	srv.unlock()
 	return gen
 }
 
@@ -897,6 +971,8 @@ func restartUnitsForSpec(spec *clustercontrollerpb.ClusterNetworkSpec) []string 
 	}
 	units := []string{
 		"globular-etcd.service",
+		"globular-dns.service",
+		"globular-discovery.service",
 		"globular-xds.service",
 		"globular-envoy.service",
 		"globular-gateway.service",
@@ -1061,8 +1137,8 @@ func (srv *server) cleanupJoinStateLocked(now time.Time) bool {
 }
 
 func (srv *server) updateNodeState(nodeID, status, lastError string) bool {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("unknown")
+	defer srv.unlock()
 	node := srv.state.Nodes[nodeID]
 	if node == nil {
 		return false
@@ -1083,8 +1159,8 @@ func (srv *server) updateNodeState(nodeID, status, lastError string) bool {
 }
 
 func (srv *server) recordPlanSent(nodeID, planHash string) bool {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("plan:record-sent")
+	defer srv.unlock()
 	node := srv.state.Nodes[nodeID]
 	if node == nil {
 		return false
@@ -1101,8 +1177,8 @@ func (srv *server) recordPlanSent(nodeID, planHash string) bool {
 }
 
 func (srv *server) recordPlanError(nodeID, errMsg string) bool {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	srv.lock("plan:record-error")
+	defer srv.unlock()
 	node := srv.state.Nodes[nodeID]
 	if node == nil {
 		return false
