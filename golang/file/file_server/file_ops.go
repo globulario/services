@@ -317,7 +317,7 @@ func (srv *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filep
 func (srv *server) CreateLnk(ctx context.Context, rqst *filepb.CreateLnkRequest) (*filepb.CreateLnkResponse, error) {
 	p := rqst.Path
 	if !srv.storageForPath(p).Exists(ctx, p) {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory found at path %s", p)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), fmt.Errorf("no directory found at path %s", p)))
 	}
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {

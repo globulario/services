@@ -865,6 +865,7 @@ func isAllowedRenderTarget(target string) bool {
 	allowed := []string{
 		"/var/lib/globular/",
 		"/run/globular/",
+		"/etc/globular/",
 		"/etc/systemd/system/",
 	}
 	for _, prefix := range allowed {

@@ -3,17 +3,21 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/globulario/services/golang/globularcli/pkgpack"
+	"github.com/globulario/services/golang/repository/repository_client"
 )
 
 var (
 	pkgCmd = &cobra.Command{
 		Use:   "pkg",
-		Short: "Package build and verification",
+		Short: "Package build, verification and publishing",
 	}
 
 	pkgBuildCmd = &cobra.Command{
@@ -26,6 +30,27 @@ var (
 		Use:   "verify",
 		Short: "Verify a package tgz",
 		RunE:  runPkgVerify,
+	}
+
+	pkgPublishCmd = &cobra.Command{
+		Use:   "publish",
+		Short: "Publish a package to the repository service",
+		Long: `Publish a package (.tgz) to the Globular repository service.
+
+The package must be a valid .tgz file created by 'globular pkg build'.
+Authentication is done via the --token flag (global) or GLOBULAR_TOKEN env var.
+
+Examples:
+  # Publish a single package
+  globular pkg publish --file service.echo_1.0.0_linux_amd64.tgz --repository localhost:10003
+
+  # Publish all packages in a directory
+  globular pkg publish --dir ./packages --repository localhost:10003
+
+  # Publish with custom publisher
+  globular pkg publish --file myservice.tgz --repository localhost:10003 --publisher myorg@example.com
+`,
+		RunE: runPkgPublish,
 	}
 )
 
@@ -45,11 +70,19 @@ var (
 	pkgSkipMissingSystemd bool
 
 	pkgVerifyFile string
+
+	// Publish command flags
+	pkgPublishFile       string
+	pkgPublishDir        string
+	pkgPublishRepository string
+	pkgPublishPublisher  string
+	pkgPublishDryRun     bool
 )
 
 func init() {
 	pkgCmd.AddCommand(pkgBuildCmd)
 	pkgCmd.AddCommand(pkgVerifyCmd)
+	pkgCmd.AddCommand(pkgPublishCmd)
 
 	pkgBuildCmd.Flags().StringVar(&pkgInstallerRoot, "installer-root", "", "path to globular-installer root")
 	pkgBuildCmd.Flags().StringVar(&pkgRoot, "root", "", "payload root containing bin/ and config/")
@@ -66,6 +99,13 @@ func init() {
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingSystemd, "skip-missing-systemd", true, "skip missing systemd units")
 
 	pkgVerifyCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
+
+	// Publish command flags
+	pkgPublishCmd.Flags().StringVar(&pkgPublishFile, "file", "", "path to a package tgz to publish")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishDir, "dir", "", "directory containing package tgz files to publish")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishRepository, "repository", "", "repository service address (required)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishPublisher, "publisher", "", "override publisher from package manifest")
+	pkgPublishCmd.Flags().BoolVar(&pkgPublishDryRun, "dry-run", false, "validate packages without uploading")
 }
 
 func runPkgBuild(cmd *cobra.Command, args []string) error {
@@ -147,4 +187,161 @@ func printPkgBuildSummary(results []pkgpack.BuildResult) {
 			fmt.Printf("[OK] %s -> %s\n", name, res.OutputPath)
 		}
 	}
+}
+
+// PublishResult holds the outcome of a single package publish attempt.
+type PublishResult struct {
+	File    string
+	Name    string
+	Version string
+	Size    int
+	Err     error
+}
+
+func runPkgPublish(cmd *cobra.Command, args []string) error {
+	// Validate flags
+	if pkgPublishFile == "" && pkgPublishDir == "" {
+		return errors.New("either --file or --dir is required")
+	}
+	if pkgPublishFile != "" && pkgPublishDir != "" {
+		return errors.New("use either --file or --dir, not both")
+	}
+	if pkgPublishRepository == "" {
+		return errors.New("--repository is required")
+	}
+
+	// Get token from flag or environment
+	token := rootCfg.token
+	if token == "" {
+		token = os.Getenv("GLOBULAR_TOKEN")
+	}
+	if token == "" && !pkgPublishDryRun {
+		return errors.New("authentication required: set --token flag or GLOBULAR_TOKEN environment variable")
+	}
+
+	// Collect package files to publish
+	var files []string
+	if pkgPublishFile != "" {
+		files = []string{pkgPublishFile}
+	} else {
+		entries, err := os.ReadDir(pkgPublishDir)
+		if err != nil {
+			return fmt.Errorf("reading directory: %w", err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tgz") {
+				files = append(files, filepath.Join(pkgPublishDir, entry.Name()))
+			}
+		}
+		if len(files) == 0 {
+			return errors.New("no .tgz files found in directory")
+		}
+	}
+
+	// Process each package
+	var results []PublishResult
+	for _, file := range files {
+		result := publishPackage(file, token)
+		results = append(results, result)
+	}
+
+	// Print summary
+	printPublishSummary(results)
+
+	// Return error if any failed
+	for _, r := range results {
+		if r.Err != nil {
+			return errors.New("one or more packages failed to publish")
+		}
+	}
+	return nil
+}
+
+func publishPackage(file, token string) PublishResult {
+	result := PublishResult{File: file}
+
+	// Verify the package first
+	summary, err := pkgpack.VerifyTGZ(file)
+	if err != nil {
+		result.Err = fmt.Errorf("verification failed: %w", err)
+		return result
+	}
+
+	result.Name = summary.Name
+	result.Version = summary.Version
+
+	// Get file size
+	info, err := os.Stat(file)
+	if err != nil {
+		result.Err = fmt.Errorf("stat failed: %w", err)
+		return result
+	}
+
+	if pkgPublishDryRun {
+		fmt.Printf("[DRY-RUN] would publish: %s (name=%s version=%s platform=%s size=%d)\n",
+			file, summary.Name, summary.Version, summary.Platform, info.Size())
+		return result
+	}
+
+	// Create repository client
+	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
+	if err != nil {
+		result.Err = fmt.Errorf("connect to repository: %w", err)
+		return result
+	}
+	defer client.Close()
+
+	// Determine publisher
+	publisher := pkgPublishPublisher
+	if publisher == "" {
+		publisher = summary.Publisher
+	}
+	if publisher == "" {
+		publisher = "core@globular.io"
+	}
+
+	// Upload the bundle
+	fmt.Printf("publishing %s (name=%s version=%s platform=%s)...\n",
+		filepath.Base(file), summary.Name, summary.Version, summary.Platform)
+
+	size, err := client.UploadBundle(
+		token,
+		pkgPublishRepository, // discoveryId (same as repository address)
+		summary.Name,         // serviceId
+		publisher,            // PublisherID
+		summary.Version,      // version
+		summary.Platform,     // platform
+		file,                 // packagePath
+	)
+	if err != nil {
+		result.Err = fmt.Errorf("upload failed: %w", err)
+		return result
+	}
+
+	result.Size = size
+	return result
+}
+
+func printPublishSummary(results []PublishResult) {
+	if len(results) == 0 {
+		fmt.Println("no packages to publish")
+		return
+	}
+
+	fmt.Println("\npublish summary:")
+	var succeeded, failed int
+	for _, r := range results {
+		if r.Err != nil {
+			fmt.Printf("  [FAIL] %s: %v\n", filepath.Base(r.File), r.Err)
+			failed++
+		} else if pkgPublishDryRun {
+			fmt.Printf("  [DRY-RUN] %s\n", filepath.Base(r.File))
+			succeeded++
+		} else {
+			fmt.Printf("  [OK] %s (%s v%s, %d bytes uploaded)\n",
+				filepath.Base(r.File), r.Name, r.Version, r.Size)
+			succeeded++
+		}
+	}
+	fmt.Printf("\ntotal: %d succeeded, %d failed\n", succeeded, failed)
 }

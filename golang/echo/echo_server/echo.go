@@ -30,7 +30,7 @@ func (srv *server) Echo(ctx context.Context, rqst *echopb.EchoRequest) (*echopb.
 		).Error("config save failed on echo")
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 		)
 	}
 

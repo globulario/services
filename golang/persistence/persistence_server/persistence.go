@@ -32,7 +32,7 @@ func norm(s string) string {
 func grpcErr(err error) error {
 	return status.Errorf(
 		codes.Internal,
-		Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
+		"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err),
 	)
 }
 

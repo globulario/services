@@ -1,41 +1,33 @@
 package mail_client
 
 import (
-	"fmt"
 	"log"
 	"testing"
 
 	"github.com/globulario/services/golang/mail/mailpb"
+	"github.com/globulario/services/golang/testutil"
 )
 
-var (
-	client *Mail_Client
-	// address string = "globule-aws.globular.io"
-	address string = "globule-ryzen.globular.cloud"
-)
+// newTestClient creates a client for testing, skipping if external services are not available.
+func newTestClient(t *testing.T) *Mail_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
 
-// smtpServer data to smtp server
-type smtpServer struct {
-	host string
-	port string
-}
-
-// Address URI to smtp server
-func (s *smtpServer) Address() string {
-	return s.host + ":" + s.port
+	addr := testutil.GetAddress()
+	client, err := NewMailService_Client(addr, "mail.MailService")
+	if err != nil {
+		t.Fatalf("NewMailService_Client: %v", err)
+	}
+	return client
 }
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
+	client := newTestClient(t)
+	saUser, saPwd := testutil.GetSACredentials()
+	addr := testutil.GetAddress()
 
-	var err error
-	client, err = NewMailService_Client( address, "mail.MailService")
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	err = client.CreateConnection("test_smtp", "sa", "adminadmin", 587, address)
-
+	err := client.CreateConnection("test_smtp", saUser, saPwd, 587, addr)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -45,6 +37,7 @@ func TestCreateConnection(t *testing.T) {
  * Test send email whitout attachements.
  */
 func TestSendEmail(t *testing.T) {
+	client := newTestClient(t)
 
 	from := "sa@globular.io"
 	to := []string{"test-1norsw1sk@srv1.mail-tester.com"}

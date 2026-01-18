@@ -19,6 +19,21 @@ import (
 	_ "github.com/mattn/go-sqlite3" // Import the sqlite3 driver
 )
 
+// sanitizeIdentifier removes or escapes characters that could be used for SQL injection
+// in table/column names. SQLite identifiers can be quoted with double quotes.
+func sanitizeIdentifier(name string) string {
+	// Remove any double quotes to prevent escaping out of quoted identifier
+	name = strings.ReplaceAll(name, `"`, "")
+	// Remove any characters that aren't alphanumeric, underscore, or dash
+	var result strings.Builder
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
+}
+
 // SqlConnection represents a connection to a SQL database.
 type SqlConnection struct {
 	Id        string             // Unique identifier for the connection
@@ -62,6 +77,41 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		return errors.New("the connection id is required")
 	}
 
+	// Parse options.
+	options := make(map[string]interface{})
+	if len(options_str) > 0 {
+		if err := json.Unmarshal([]byte(options_str), &options); err != nil {
+			log.Error("failed to parse options", "err", err)
+			return err
+		}
+	}
+
+	skipAuth := false
+	if v, ok := options["skip_auth"].(bool); ok && v {
+		skipAuth = true
+	}
+	if v, ok := options["no_auth"].(bool); ok && v {
+		skipAuth = true
+	}
+
+	// Determine data path.
+	path := config.GetDataDir()
+	if path == "" {
+		path = os.TempDir()
+	}
+	path = path + "/sql-data"
+	if v, ok := options["path"]; ok {
+		if s, ok2 := v.(string); ok2 && s != "" {
+			path = s
+		}
+	}
+
+	// Ensure directory exists.
+	if err := Utility.CreateDirIfNotExist(path); err != nil {
+		log.Error("failed to ensure data path", "path", path, "err", err)
+		return err
+	}
+
 	if store.connections != nil {
 		if _, ok := store.connections[id]; ok {
 			if store.connections[id].databases != nil {
@@ -75,66 +125,43 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 		store.connections = make(map[string]SqlConnection)
 	}
 
-	if len(host) == 0 {
-		return errors.New("the host is required")
-	}
-
-	if len(user) == 0 {
-		return errors.New("the user is required")
-	}
-
-	if len(password) == 0 {
-		return errors.New("the password is required")
-	}
-
 	if len(database) == 0 {
 		return errors.New("the database is required")
 	}
 
-	// Authenticate the user.
-	authCli, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
-	if err != nil {
-		log.Error("failed to create authentication client", "err", err)
-		return err
+	if len(host) == 0 {
+		host = "localhost"
 	}
 
-	nbTry := 5
 	var token string
-	for nbTry > 0 {
-		var aerr error
-		token, aerr = authCli.Authenticate(user, password)
-		if aerr == nil {
-			break
+	if !skipAuth {
+		if len(user) == 0 {
+			return errors.New("the user is required")
 		}
-		nbTry--
-		if nbTry == 0 {
-			log.Error("authentication failed", "err", aerr)
-			return aerr
+		if len(password) == 0 {
+			return errors.New("the password is required")
 		}
-		time.Sleep(1 * time.Second)
-	}
 
-	// Parse options.
-	options := make(map[string]interface{})
-	if len(options_str) > 0 {
-		if err := json.Unmarshal([]byte(options_str), &options); err != nil {
-			log.Error("failed to parse options", "err", err)
+		authCli, err := authentication_client.NewAuthenticationService_Client(host, "authentication.AuthenticationService")
+		if err != nil {
+			log.Error("failed to create authentication client", "err", err)
 			return err
 		}
-	}
 
-	// Determine data path.
-	path := config.GetDataDir() + "/sql-data"
-	if v, ok := options["path"]; ok {
-		if s, ok2 := v.(string); ok2 && s != "" {
-			path = s
+		nbTry := 5
+		for nbTry > 0 {
+			var aerr error
+			token, aerr = authCli.Authenticate(user, password)
+			if aerr == nil {
+				break
+			}
+			nbTry--
+			if nbTry == 0 {
+				log.Error("authentication failed", "err", aerr)
+				return aerr
+			}
+			time.Sleep(1 * time.Second)
 		}
-	}
-
-	// Ensure directory exists.
-	if err := Utility.CreateDirIfNotExist(path); err != nil {
-		log.Error("failed to ensure data path", "path", path, "err", err)
-		return err
 	}
 
 	// Ensure connection struct is present.
@@ -255,10 +282,11 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 }
 
 // QueryContext runs a SELECT query with parameters and returns a JSON object:
-// {
-//   "header": [{ "name": "<col>", "typeInfo": { ... } }, ...],
-//   "data":   [[v1, v2, ...], ...]
-// }
+//
+//	{
+//	  "header": [{ "name": "<col>", "typeInfo": { ... } }, ...],
+//	  "data":   [[v1, v2, ...], ...]
+//	}
 func (store *SqlStore) QueryContext(connectionId string, database string, query string, parameters_ string) (string, error) {
 	log := slog.With("component", "SqlStore", "method", "QueryContext", "id", connectionId, "database", database)
 
@@ -415,15 +443,16 @@ func (store *SqlStore) DeleteDatabase(ctx context.Context, connectionId string, 
 	if len(db) == 0 {
 		return errors.New("the database name is required")
 	}
-	databasePath := store.connections[connectionId].Path + "/" + db + ".db"
+	databasePath := store.connections[connectionId].Path + "/" + sanitizeIdentifier(db) + ".db"
 	return os.RemoveAll(databasePath)
 }
 
 // Count returns the number of records for a given query.
 // If query is "{}", a SELECT * FROM <table> is used.
 func (store *SqlStore) Count(ctx context.Context, connectionId string, db string, table string, query string, options string) (int64, error) {
+	safeTable := sanitizeIdentifier(table)
 	if len(query) == 0 || query == "{}" {
-		query = fmt.Sprintf("SELECT * FROM %s", table)
+		query = fmt.Sprintf(`SELECT * FROM "%s"`, safeTable)
 	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
 		var err error
 		query, err = store.formatQuery(table, query)
@@ -441,12 +470,23 @@ func (store *SqlStore) Count(ctx context.Context, connectionId string, db string
 	if err := json.Unmarshal([]byte(str), &data); err != nil {
 		return 0, err
 	}
-	return int64(len(data["data"].([]interface{}))), nil
+	// Safe type assertion
+	dataRaw, ok := data["data"]
+	if !ok {
+		return 0, nil
+	}
+	dataSlice, ok := dataRaw.([]interface{})
+	if !ok {
+		return 0, nil
+	}
+	return int64(len(dataSlice)), nil
 }
 
 func (store *SqlStore) isTableExist(connectionId string, db string, table string) bool {
-	query := fmt.Sprintf("SELECT name FROM sqlite_master WHERE type='table' AND name='%s'", table)
-	str, err := store.QueryContext(connectionId, db, query, "[]")
+	table = sanitizeIdentifier(table)
+	// Use parameterized query to prevent SQL injection
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+	str, err := store.QueryContext(connectionId, db, query, fmt.Sprintf(`["%s"]`, table))
 	if err != nil {
 		return false
 	}
@@ -454,11 +494,21 @@ func (store *SqlStore) isTableExist(connectionId string, db string, table string
 	if err := json.Unmarshal([]byte(str), &result); err != nil {
 		return false
 	}
-	return len(result["data"].([]interface{})) > 0
+	// Safe type assertion
+	dataRaw, ok := result["data"]
+	if !ok {
+		return false
+	}
+	data, ok := dataRaw.([]interface{})
+	if !ok {
+		return false
+	}
+	return len(data) > 0
 }
 
 // generateCreateTableSQL builds the CREATE TABLE statement for the main entity table.
 func generateCreateTableSQL(tableName string, columns map[string]interface{}) (string, []string) {
+	tableName = sanitizeIdentifier(tableName)
 	var columnsSQL []string
 	var arrayTables []string
 
@@ -466,6 +516,7 @@ func generateCreateTableSQL(tableName string, columns map[string]interface{}) (s
 		if columnType == nil {
 			continue
 		}
+		columnName = sanitizeIdentifier(columnName)
 		sqlType := getSQLType(reflect.TypeOf(columnType))
 		isArray := reflect.Slice == reflect.TypeOf(columnType).Kind()
 		if !isArray && columnName != "typeName" {
@@ -500,6 +551,7 @@ func getSQLType(goType reflect.Type) string {
 
 // generateMainInsertSQL creates the INSERT statement for the main table.
 func generateMainInsertSQL(tableName string, data map[string]interface{}) (string, []interface{}) {
+	tableName = sanitizeIdentifier(tableName)
 	var mainColumns []string
 	var mainPlaceholders []string
 	var mainValues []interface{}
@@ -512,6 +564,7 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
 		if isArray {
 			continue
 		}
+		columnName = sanitizeIdentifier(columnName)
 		if columnName == "id" {
 			columnName = "_id"
 		}
@@ -528,7 +581,8 @@ func generateMainInsertSQL(tableName string, data map[string]interface{}) (strin
 
 // insertData writes one entity into the main table and its auxiliary array/reference tables.
 func (store *SqlStore) insertData(connectionId string, db string, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
-	log := slog.With("component", "SqlStore", "method", "insertData", "table", tableName)
+	safeTable := sanitizeIdentifier(tableName)
+	log := slog.With("component", "SqlStore", "method", "insertData", "table", safeTable)
 
 	var id string
 	switch {
@@ -553,14 +607,18 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 	data["_id"] = id
 
 	// If table exists and entity exists, return it (idempotent).
-	if store.isTableExist(connectionId, db, tableName) {
-		query := fmt.Sprintf("SELECT * FROM %s WHERE id='%s'", tableName, id)
-		if values, err := store.FindOne(context.Background(), connectionId, db, tableName, query, ""); err == nil {
-			return values.(map[string]interface{}), nil
+	if store.isTableExist(connectionId, db, safeTable) {
+		// Use parameterized query - sanitize table name and use placeholder for id
+		query := fmt.Sprintf(`SELECT * FROM "%s" WHERE _id=?`, safeTable)
+		queryArgs := fmt.Sprintf(`["%s"]`, id)
+		if values, err := store.FindOne(context.Background(), connectionId, db, safeTable, query, queryArgs); err == nil {
+			if valMap, ok := values.(map[string]interface{}); ok {
+				return valMap, nil
+			}
 		}
 	}
 
-	insertSQL, values := generateMainInsertSQL(tableName, data)
+	insertSQL, values := generateMainInsertSQL(safeTable, data)
 	if _, err := store.ExecContext(connectionId, db, insertSQL, values, 0); err != nil {
 		log.Error("insert main table failed", "err", err)
 		return nil, err
@@ -583,19 +641,19 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 				switch el := element.Interface().(type) {
 				case int, float64, string:
 					// Primitive arrays keep the old shape <table>_<field>
-					arrayTableName := tableName + "_" + columnName
+					arrayTableName := safeTable + "_" + sanitizeIdentifier(columnName)
 					// Ensure primitive array table exists.
 					if !store.isTableExist(connectionId, db, arrayTableName) {
 						sqlType := getSQLType(reflect.TypeOf(el))
 						createTableSQL := fmt.Sprintf(
 							"CREATE TABLE IF NOT EXISTS %s (value %s, %s_id TEXT)",
-							arrayTableName, sqlType, tableName,
+							arrayTableName, sqlType, safeTable,
 						)
 						if _, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0); err != nil {
 							return nil, err
 						}
 					}
-					insert := fmt.Sprintf("INSERT INTO %s (value, %s_id) VALUES (?, ?);", arrayTableName, tableName)
+					insert := fmt.Sprintf("INSERT INTO %s (value, %s_id) VALUES (?, ?);", arrayTableName, safeTable)
 					if _, err := store.ExecContext(connectionId, db, insert, []interface{}{el, id}, 0); err != nil {
 						log.Error("insert array value failed", "arrayTable", arrayTableName, "err", err)
 						return nil, err
@@ -619,7 +677,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 							log.Error("insert nested entity failed", "type", typeName, "err", err)
 						}
 						targetID := Utility.ToString(entity["_id"])
-						linkTable, baseIsFirst := canonicalRefTable(tableName, typeName)
+						linkTable, baseIsFirst := canonicalRefTable(safeTable, sanitizeIdentifier(typeName))
 
 						createLink := fmt.Sprintf(
 							"CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)",
@@ -639,7 +697,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 					} else if entity["$ref"] != nil {
 						targetCollection := ensurePlural(Utility.ToString(entity["$ref"]))
 						targetID := Utility.ToString(entity["$id"])
-						linkTable, baseIsFirst := canonicalRefTable(tableName, targetCollection)
+						linkTable, baseIsFirst := canonicalRefTable(safeTable, sanitizeIdentifier(targetCollection))
 
 						createLink := fmt.Sprintf(
 							"CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)",
@@ -676,7 +734,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 					log.Error("insert nested entity failed", "type", typeName, "err", err)
 				}
 				targetID := Utility.ToString(entity["_id"])
-				linkTable, baseIsFirst := canonicalRefTable(tableName, typeName)
+				linkTable, baseIsFirst := canonicalRefTable(safeTable, sanitizeIdentifier(typeName))
 
 				createLink := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)", linkTable)
 				_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
@@ -693,7 +751,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 			} else if entity["$ref"] != nil {
 				targetCollection := ensurePlural(Utility.ToString(entity["$ref"]))
 				targetID := Utility.ToString(entity["$id"])
-				linkTable, baseIsFirst := canonicalRefTable(tableName, targetCollection)
+				linkTable, baseIsFirst := canonicalRefTable(safeTable, sanitizeIdentifier(targetCollection))
 
 				createLink := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (source_id TEXT, target_id TEXT)", linkTable)
 				_, _ = store.ExecContext(connectionId, db, createLink, nil, 0)
@@ -715,6 +773,7 @@ func (store *SqlStore) insertData(connectionId string, db string, tableName stri
 
 // InsertOne inserts a single entity, creating the table if needed.
 func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, db string, table string, entity interface{}, options string) (interface{}, error) {
+	table = sanitizeIdentifier(table)
 	entity_, err := Utility.ToMap(entity)
 	if err != nil {
 		return nil, err
@@ -741,6 +800,7 @@ func (store *SqlStore) InsertOne(ctx context.Context, connectionId string, db st
 
 // InsertMany inserts multiple entities, creating the table if needed.
 func (store *SqlStore) InsertMany(ctx context.Context, connectionId string, db string, table string, entities []interface{}, options string) ([]interface{}, error) {
+	table = sanitizeIdentifier(table)
 	if !store.isTableExist(connectionId, db, table) {
 		entity_, err := Utility.ToMap(entities[0])
 		if err != nil {
@@ -928,8 +988,9 @@ func (store *SqlStore) recreateArrayOfObjects(connectionId, db, tableName string
 }
 
 func (store *SqlStore) formatQuery(table, query string) (string, error) {
+	safeTable := sanitizeIdentifier(table)
 	if query == "{}" {
-		return fmt.Sprintf("SELECT * FROM %s", table), nil
+		return fmt.Sprintf("SELECT * FROM %s", safeTable), nil
 	}
 
 	parameters := make(map[string]interface{})
@@ -937,7 +998,7 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 		return "", err
 	}
 
-	q := fmt.Sprintf("SELECT * FROM %s WHERE ", table)
+	q := fmt.Sprintf("SELECT * FROM %s WHERE ", safeTable)
 	for key, value := range parameters {
 		if key == "id" {
 			key = "_id"
@@ -968,6 +1029,7 @@ func (store *SqlStore) formatQuery(table, query string) (string, error) {
 
 // FindOne returns a single object that matches the query.
 func (store *SqlStore) FindOne(ctx context.Context, connectionId string, database string, table string, query string, options string) (interface{}, error) {
+	table = sanitizeIdentifier(table)
 	if len(query) == 0 {
 		return nil, errors.New("query is empty")
 	}
@@ -1026,6 +1088,7 @@ func (store *SqlStore) getParameters(condition string, values []interface{}) str
 
 // Find returns a list of objects that match the query.
 func (store *SqlStore) Find(ctx context.Context, connectionId string, db string, table string, query string, options string) ([]any, error) {
+	table = sanitizeIdentifier(table)
 	if len(query) == 0 || query == "{}" {
 		query = fmt.Sprintf("SELECT * FROM %s", table)
 	} else if strings.HasPrefix(query, "{") && strings.HasSuffix(query, "}") {
@@ -1066,6 +1129,7 @@ func (store *SqlStore) Find(ctx context.Context, connectionId string, db string,
 // ReplaceOne replaces a single entity matching the query with the provided value.
 // If the table does not exist, it is created.
 func (store *SqlStore) ReplaceOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
+	table = sanitizeIdentifier(table)
 	entity := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(value), &entity); err != nil {
 		return err
@@ -1117,6 +1181,7 @@ func generateSqlUpdateTableQuery(tableName string, fields []interface{}, whereCl
 
 // Update applies a $set patch to all entities matching the query.
 func (store *SqlStore) Update(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
+	table = sanitizeIdentifier(table)
 	values_ := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(value), &values_); err != nil {
 		return err
@@ -1157,6 +1222,7 @@ func (store *SqlStore) Update(ctx context.Context, connectionId string, db strin
 // UpdateOne applies a $set patch to a single entity and synchronizes primitive array tables.
 // (Reference arrays are best updated via ReplaceOne/InsertOne in this minimal change.)
 func (store *SqlStore) UpdateOne(ctx context.Context, connectionId string, db string, table string, query string, value string, options string) error {
+	table = sanitizeIdentifier(table)
 	values_ := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(value), &values_); err != nil {
 		return err
@@ -1308,12 +1374,12 @@ func (store *SqlStore) deleteOneSqlEntry(connectionId string, db string, table s
 
 // Delete removes all entities matching the query.
 func (store *SqlStore) Delete(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	return store.deleteSqlEntries(connectionId, db, table, query)
+	return store.deleteSqlEntries(connectionId, db, sanitizeIdentifier(table), query)
 }
 
 // DeleteOne removes a single entity matching the query.
 func (store *SqlStore) DeleteOne(ctx context.Context, connectionId string, db string, table string, query string, options string) error {
-	return store.deleteOneSqlEntry(connectionId, db, table, query)
+	return store.deleteOneSqlEntry(connectionId, db, sanitizeIdentifier(table), query)
 }
 
 // Aggregate is not implemented for the SQLite variant.
@@ -1323,6 +1389,7 @@ func (store *SqlStore) Aggregate(ctx context.Context, connectionId string, keysp
 
 // CreateTable creates a new table with provided fields (all TEXT except _id which is TEXT PRIMARY KEY).
 func (store *SqlStore) CreateTable(ctx context.Context, connectionId string, db string, table string, fields []string) error {
+	table = sanitizeIdentifier(table)
 	createTableSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (_id TEXT PRIMARY KEY, %s);", table, strings.Join(fields, ", "))
 	_, err := store.ExecContext(connectionId, db, createTableSQL, nil, 0)
 	return err
@@ -1335,6 +1402,7 @@ func (store *SqlStore) CreateCollection(ctx context.Context, connectionId string
 
 // DeleteCollection drops the table and all its auxiliary tables (<table>_*) and ref tables containing this table.
 func (store *SqlStore) DeleteCollection(ctx context.Context, connectionId string, database string, collection string) error {
+	collection = sanitizeIdentifier(collection)
 	// Drop main table.
 	drop := fmt.Sprintf("DROP TABLE IF EXISTS %s", collection)
 	if _, err := store.ExecContext(connectionId, database, drop, nil, 0); err != nil {

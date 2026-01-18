@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 /**
@@ -522,28 +522,35 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
  * Roles example: [{ role: "myReadOnlyRole", db: "mytest"}]
  */
 func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
-	if store.clients[connectionId] == nil {
+	client := store.clients[connectionId]
+	if client == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
 
-	cmd := "mongosh" // mongosh since MongoDB 6+
-	args := []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port)}
+	// Try using the connected client first.
+	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := client.Database("admin").RunCommand(runCtx, bson.D{{Key: "eval", Value: script}}).Err(); err == nil {
+		return nil
+	} else {
+		slog.Warn("mongo admin RunCommand failed; falling back to mongosh", "err", err)
+	}
 
-	// If the command needs authentication.
+	cmd := "mongosh" // fallback
+	args := []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port)}
 	if len(user) > 0 {
 		args = append(args, "-u", user, "-p", password, "--authenticationDatabase", "admin")
 	}
-
 	args = append(args, "--eval", script)
 
 	cmd_ := exec.Command(cmd, args...)
 	cmd_.Dir = os.TempDir()
 
-	err := cmd_.Run()
-	if err != nil {
+	if err := cmd_.Run(); err != nil {
 		slog.Error("mongosh admin cmd failed", "script", script, "err", err)
+		return err
 	}
-	return err
+	return nil
 }
 
 /**
@@ -554,8 +561,7 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
 	if store.clients[connectionId] == nil {
 		return errors.New("No connection found with name " + connectionId)
 	}
-	// Not implemented; keep signature.
-	return nil
+	return errors.New("CreateRole not implemented; use RunAdminCmd with a Mongo script instead")
 }
 
 /////////////////

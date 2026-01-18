@@ -3844,11 +3844,11 @@ func (srv *server) UploadVideo(rqst *mediapb.UploadVideoRequest, stream mediapb.
 	}
 	if !srv.pathExists(dest) {
 		if !srv.isMinioPath(dest) {
-			return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no folder found with path "+dest)))
+			return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no folder found with path "+dest)))
 		}
 	}
 	if err := srv.createDirIfNotExist(dest); err != nil {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	playlistDir, playlist, info, scanErr := srv.getYTDLPInfos(rqst.Url, dest, rqst.Format)
@@ -4084,7 +4084,7 @@ func (srv *server) SetStartVideoConversionHour(ctx context.Context, rqst *mediap
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetStartVideoConversionHourResponse{}, nil
 }
@@ -4105,7 +4105,7 @@ func (srv *server) SetVideoConversion(ctx context.Context, rqst *mediapb.SetVide
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &mediapb.SetVideoConversionResponse{}, nil
 }
@@ -4117,7 +4117,7 @@ func (srv *server) SetVideoStreamConversion(ctx context.Context, rqst *mediapb.S
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &mediapb.SetVideoStreamConversionResponse{}, nil
@@ -4133,7 +4133,7 @@ func (srv *server) StopProcessVideo(ctx context.Context, rqst *mediapb.StopProce
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &mediapb.StopProcessVideoResponse{}, nil

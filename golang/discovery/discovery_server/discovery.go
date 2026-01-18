@@ -66,7 +66,7 @@ func (srv *server) PublishService(ctx context.Context, rqst *discoverypb.Publish
 		isMember, mErr := srv.isOrganizationMember(rqst.User, org)
 		if mErr != nil {
 			slog.Error("PublishService organization membership check failed", "user", rqst.User, "org", org, "err", mErr)
-			return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), mErr))
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), mErr))
 		}
 		if !isMember {
 			e := status.Errorf(codes.PermissionDenied, "user %s is not a member of organization %s", rqst.User, org)

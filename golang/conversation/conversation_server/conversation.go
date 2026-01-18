@@ -225,7 +225,7 @@ func (srv *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !isOwner {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner of the conversation can kick out a participant")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner of the conversation can kick out a participant")))
 	}
 
 	if err := srv.removeConversationParticipant(rqst.Account, rqst.ConversationUuid); err != nil {
@@ -355,7 +355,7 @@ func (srv *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if len(claims.UserDomain) == 0 {
-				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
+				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
 			}
 			clientId = claims.ID + "@" + claims.UserDomain
 		} else {
@@ -405,7 +405,7 @@ func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			if len(claims.UserDomain) == 0 {
-				return status.Errorf(codes.Unauthenticated, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
+				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
 			}
 			clientId = claims.ID + "@" + claims.UserDomain
 		} else {
@@ -499,7 +499,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	if clientId != rqst.Invitation.From {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("invitation must be sent by the authenticated user")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("invitation must be sent by the authenticated user")))
 	}
 
 	domain, _ := config.GetDomain()
@@ -508,7 +508,7 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if !hasAccess {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner can invite users")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("only the owner can invite users")))
 	}
 
 	conv, err := srv.getConversation(rqst.Invitation.Conversation)
@@ -516,13 +516,13 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if Utility.Contains(conv.Participants, rqst.Invitation.To) {
-		return nil, status.Errorf(codes.AlreadyExists, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already participating")))
+		return nil, status.Errorf(codes.AlreadyExists, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already participating")))
 	}
 
 	if conv.Invitations != nil {
 		for _, inv := range conv.Invitations.Invitations {
 			if inv.From == rqst.Invitation.From && inv.To == rqst.Invitation.To {
-				return nil, status.Errorf(codes.AlreadyExists, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already invited")))
+				return nil, status.Errorf(codes.AlreadyExists, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already invited")))
 			}
 		}
 	} else {
@@ -637,7 +637,7 @@ func (srv *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.To {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -656,7 +656,7 @@ func (srv *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.To {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation recipient")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -674,7 +674,7 @@ func (srv *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Invitation.From {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation sender")))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as the invitation sender")))
 	}
 	if err := srv.removeInvitation(rqst.Invitation); err != nil {
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -692,7 +692,7 @@ func (srv *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Account {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
 	}
 	b, err := srv.store.GetItem(clientId + "_received_invitations")
 	if err != nil {
@@ -714,7 +714,7 @@ func (srv *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if clientId != rqst.Account {
-		return nil, status.Errorf(codes.PermissionDenied, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you are not authenticated as "+rqst.Account)))
 	}
 	b, err := srv.store.GetItem(clientId + "_sent_invitations")
 	sent := &conversationpb.Invitations{Invitations: []*conversationpb.Invitation{}}
@@ -826,7 +826,7 @@ func (srv *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMes
 		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if msg.Author == rqst.Account {
-		return nil, status.Errorf(codes.FailedPrecondition, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot like your own message")))
+		return nil, status.Errorf(codes.FailedPrecondition, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot like your own message")))
 	}
 	if !Utility.Contains(msg.Likes, rqst.Account) {
 		msg.Dislikes = Utility.RemoveString(msg.Dislikes, rqst.Account)
@@ -849,7 +849,7 @@ func (srv *server) DislikeMessage(ctx context.Context, rqst *conversationpb.Disl
 		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	if msg.Author == rqst.Account {
-		return nil, status.Errorf(codes.FailedPrecondition, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot dislike your own message")))
+		return nil, status.Errorf(codes.FailedPrecondition, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot dislike your own message")))
 	}
 	if !Utility.Contains(msg.Dislikes, rqst.Account) {
 		msg.Likes = Utility.RemoveString(msg.Likes, rqst.Account)

@@ -1,29 +1,49 @@
 package dns_client
 
 import (
-	//"encoding/json"
 	"log"
-	"os"
 	"testing"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
+	"github.com/globulario/services/golang/testutil"
 	Utility "github.com/globulario/utility"
 )
 
-var (
-	// Try to connect to a nameserver.
-	domain                    = "globule-ryzen.globular.cloud"
-	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
-	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	token, err                = authentication_client_.Authenticate("sa", "adminadmin")
-)
+// testContext holds client and token for DNS tests
+type testContext struct {
+	client *Dns_Client
+	token  string
+}
+
+// newTestContext creates clients and authenticates for testing, skipping if external services are not available.
+func newTestContext(t *testing.T) *testContext {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	saUser, saPwd := testutil.GetSACredentials()
+
+	client, err := NewDnsService_Client(addr, "dns.DnsService")
+	if err != nil {
+		t.Fatalf("NewDnsService_Client: %v", err)
+	}
+
+	authClient, err := authentication_client.NewAuthenticationService_Client(addr, "authentication.AuthenticationService")
+	if err != nil {
+		t.Fatalf("NewAuthenticationService_Client: %v", err)
+	}
+
+	token, err := authClient.Authenticate(saUser, saPwd)
+	if err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+
+	return &testContext{client: client, token: token}
+}
 
 // Test various function here.
 func TestSetA(t *testing.T) {
-
-	if authentication_client_ == nil {
-		log.Println("authentication_client_ is nil")
-	}
+	ctx := newTestContext(t)
 
 	// Set ip address
 	ipv4 := Utility.MyIP()
@@ -34,59 +54,45 @@ func TestSetA(t *testing.T) {
 	}
 
 	// not I will set a subdomain
-	_, err = client.SetA(token, "ns1.globular.io", ipv4, 60)
+	_, err = ctx.client.SetA(ctx.token, "ns1.globular.io", ipv4, 60)
 	if err != nil {
 		log.Println(" fail to set A ns1.globular.io with error", err)
 	}
 
-	_, err = client.SetA(token, "ns2.globular.io", ipv4, 60)
+	_, err = ctx.client.SetA(ctx.token, "ns2.globular.io", ipv4, 60)
 	if err != nil {
 		log.Println(" fail to set A ns2.globular.io with error", err)
 	}
 
-	_, err = client.SetAAAA(token, "ns2.globular.io", ipv6, 60)
+	_, err = ctx.client.SetAAAA(ctx.token, "ns2.globular.io", ipv6, 60)
 	if err != nil {
 		log.Println(" fail to set AAAA ns2.globular.io with error", err)
 	}
 
-	_, err = client.SetAAAA(token, "ns1.globular.io", ipv6, 60)
+	_, err = ctx.client.SetAAAA(ctx.token, "ns1.globular.io", ipv6, 60)
 	if err != nil {
 		log.Println(" fail to set AAAA ns1.globular.io with error", err)
 	}
 
-	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv4, 60)
+	_, err = ctx.client.SetAAAA(ctx.token, "globule-dell.globular.cloud", ipv4, 60)
 	if err != nil {
 		log.Println(" fail to set AAAA globular.app with error", err)
 	}
 
-	_, err = client.SetAAAA(token, "globule-dell.globular.cloud", ipv6, 60)
+	_, err = ctx.client.SetAAAA(ctx.token, "globule-dell.globular.cloud", ipv6, 60)
 	if err != nil {
 		log.Println(" fail to set AAAA globular.app with error", err)
 	}
 }
 
-func TestGetClusterCertificatesBundle(t *testing.T) {
-	// Connect to the client.
-	data, err := client.GetClusterCertificatesBundle("globular.cloud")
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	// Now I will save it to a file.
-	err = os.WriteFile(os.TempDir()+"/certificates.tar.gz", data, 0644)
-
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	log.Println("certificates bundle was save to ", os.TempDir()+"/certificates.tar.gz")
-}
+// TestGetClusterCertificatesBundle is removed - method does not exist on client
 
 func TestGetA(t *testing.T) {
+	ctx := newTestContext(t)
 
 	// Connect to the plc client.
 	log.Println("---> test resolve A")
-	ipv4, err := client.GetA("globular.cloud")
+	ipv4, err := ctx.client.GetA("globular.cloud")
 	if err == nil {
 		log.Println("--> your ip is ", ipv4)
 	} else {
@@ -121,15 +127,16 @@ func TestResolve(t *testing.T) {
 }*/
 
 func TestTextValue(t *testing.T) {
+	ctx := newTestContext(t)
 	// Connect to the plc client.
 	log.Println("---> test set text")
-	err := client.SetText(token, "_acme-challenge.globular.cloud.", []string{"toto", "titi", "tata"}, 300)
+	err := ctx.client.SetText(ctx.token, "_acme-challenge.globular.cloud.", []string{"toto", "titi", "tata"}, 300)
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	log.Println("---> test get text")
-	values, err := client.GetText("_acme-challenge.globular.cloud.")
+	values, err := ctx.client.GetText("_acme-challenge.globular.cloud.")
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -137,7 +144,7 @@ func TestTextValue(t *testing.T) {
 	log.Println("--> values retreive: ", values)
 
 	log.Println("---> test remove text")
-	/*err = client.RemoveText(token, "_acme-challenge.globular.cloud.")
+	/*err = ctx.client.RemoveText(ctx.token, "_acme-challenge.globular.cloud.")
 	if err != nil {
 		log.Panicln(err)
 	}*/
@@ -145,6 +152,7 @@ func TestTextValue(t *testing.T) {
 }
 
 func TestNsValue(t *testing.T) {
+	ctx := newTestContext(t)
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
 	id := "globule-ryzen.globular.cloud."
@@ -152,27 +160,28 @@ func TestNsValue(t *testing.T) {
 	ns := "ns1.globular.io."
 	ttl := uint32(11200)
 
-	client.RemoveNs(token, id)
+	ctx.client.RemoveNs(ctx.token, id)
 
-	err := client.SetNs(token, id, ns, ttl)
+	err := ctx.client.SetNs(ctx.token, id, ns, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	ns = "ns2.globular.io."
 
-	err = client.SetNs(token, id, ns, ttl)
+	err = ctx.client.SetNs(ctx.token, id, ns, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}
 }
 
 func TestSoaValue(t *testing.T) {
+	ctx := newTestContext(t)
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 
 	id := "globule-ryzen.globular.cloud."
 
-	client.RemoveSoa(token, id)
+	ctx.client.RemoveSoa(ctx.token, id)
 
 	ns := "ns1.globular.io."
 	mbox := "admin.globular.io."
@@ -182,7 +191,7 @@ func TestSoaValue(t *testing.T) {
 	expire := uint32(4000000)
 	ttl := uint32(11200)
 
-	err := client.SetSoa(token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
+	err := ctx.client.SetSoa(ctx.token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -190,7 +199,7 @@ func TestSoaValue(t *testing.T) {
 	ns = "ns2.globular.io."
 	serial = uint32(2)
 
-	err = client.SetSoa(token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
+	err = ctx.client.SetSoa(ctx.token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}

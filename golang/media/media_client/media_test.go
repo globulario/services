@@ -1,33 +1,31 @@
 package media_client
 
 import (
-	//"encoding/json"
-	"fmt"
 	"log"
 	"testing"
-	"time"
+
+	"github.com/globulario/services/golang/testutil"
 )
 
-// Test various function here.
-func TestMedia(t *testing.T) {
+// newTestClient creates a client for testing, skipping if external services are not available.
+func newTestClient(t *testing.T) *Media_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
 
-	// Connect to the plc client.
-	client, err := NewMediaService_Client("globule-ryzen.globular.cloud", "media.MediaService")
+	addr := testutil.GetAddress()
+	client, err := NewMediaService_Client(addr, "media.MediaService")
 	if err != nil {
-		log.Println("17 ---> ", err)
-		return
+		t.Fatalf("NewMediaService_Client: %v", err)
 	}
+	return client
+}
 
-	for i := 0; i < 10; i++ {
-		
-		val, err := client.Echo("", "Ceci est un test")
-		err_ := client.Reconnect()
-		fmt.Println("===> ", err_)
-		if err != nil {
-			log.Println("20 ---> ", err)
-		} else {
-			log.Println("23 ---> ", val)
-		}
-		time.Sleep(1 * time.Second)
-	}
+// Test connection and basic client operations.
+func TestMedia(t *testing.T) {
+	client := newTestClient(t)
+
+	// Test basic client operations
+	log.Println("Media client connected successfully")
+	log.Println("Domain:", client.GetDomain())
+	log.Println("Address:", client.GetAddress())
 }

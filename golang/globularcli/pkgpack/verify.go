@@ -15,6 +15,7 @@ type VerificationSummary struct {
 	Name         string
 	Version      string
 	Platform     string
+	Publisher    string
 	Entrypoint   string
 	ConfigCount  int
 	SystemdCount int
@@ -110,6 +111,7 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		Name:         manifest.Name,
 		Version:      manifest.Version,
 		Platform:     manifest.Platform,
+		Publisher:    manifest.Publisher,
 		Entrypoint:   manifest.Entrypoint,
 		ConfigCount:  configCount,
 		SystemdCount: systemdCount,

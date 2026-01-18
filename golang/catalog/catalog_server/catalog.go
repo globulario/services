@@ -24,7 +24,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 	if rqst.Connection == nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection information found in the request!")))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection information found in the request!")))
 	}
 
 	// So here I will call the function on the client.
@@ -88,7 +88,7 @@ func (srv *server) SaveUnitOfMeasure(ctx context.Context, rqst *catalogpb.SaveUn
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
@@ -122,7 +122,7 @@ func (srv *server) SavePropertyDefinition(ctx context.Context, rqst *catalogpb.S
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -150,7 +150,7 @@ func (srv *server) SaveItemDefinition(ctx context.Context, rqst *catalogpb.SaveI
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -184,7 +184,7 @@ func (srv *server) SaveInventory(ctx context.Context, rqst *catalogpb.SaveInvent
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -215,7 +215,7 @@ func (srv *server) SaveItemInstance(ctx context.Context, rqst *catalogpb.SaveIte
 
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -245,7 +245,7 @@ func (srv *server) SaveManufacturer(ctx context.Context, rqst *catalogpb.SaveMan
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -269,7 +269,7 @@ func (srv *server) SaveSupplier(ctx context.Context, rqst *catalogpb.SaveSupplie
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -293,7 +293,7 @@ func (srv *server) SaveLocalisation(ctx context.Context, rqst *catalogpb.SaveLoc
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -330,7 +330,7 @@ func (srv *server) SavePackage(ctx context.Context, rqst *catalogpb.SavePackageR
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -385,7 +385,7 @@ func (srv *server) SavePackageSupplier(ctx context.Context, rqst *catalogpb.Save
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -431,7 +431,7 @@ func (srv *server) SaveItemManufacturer(ctx context.Context, rqst *catalogpb.Sav
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -469,7 +469,7 @@ func (srv *server) SaveCategory(ctx context.Context, rqst *catalogpb.SaveCategor
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -493,7 +493,7 @@ func (srv *server) AppendItemDefinitionCategory(ctx context.Context, rqst *catal
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -518,7 +518,7 @@ func (srv *server) RemoveItemDefinitionCategory(ctx context.Context, rqst *catal
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -545,7 +545,7 @@ func (srv *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItemI
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -576,7 +576,7 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
 		return nil, status.Errorf(codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -611,7 +611,7 @@ func (srv *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetItem
 func (srv *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetItemDefinitionRequest) (*catalogpb.GetItemDefinitionResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -640,7 +640,7 @@ func (srv *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIte
 func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInventoriesRequest) (*catalogpb.GetInventoriesResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -674,7 +674,7 @@ func (srv *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInvent
 func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetItemDefinitionsRequest) (*catalogpb.GetItemDefinitionsResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -710,7 +710,7 @@ func (srv *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetIt
 func (srv *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierRequest) (*catalogpb.GetSupplierResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -739,7 +739,7 @@ func (srv *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplierR
 func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSuppliersRequest) (*catalogpb.GetSuppliersResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -773,7 +773,7 @@ func (srv *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplier
 func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetSupplierPackagesRequest) (*catalogpb.GetSupplierPackagesResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -821,7 +821,7 @@ func (srv *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.GetS
 func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageRequest) (*catalogpb.GetPackageResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -855,7 +855,7 @@ func (srv *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageReq
 func (srv *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackagesRequest) (*catalogpb.GetPackagesResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1051,7 +1051,7 @@ func (srv *server) GetCategories(ctx context.Context, rqst *catalogpb.GetCategor
 func (srv *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManufacturerRequest) (*catalogpb.GetManufacturerResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -1108,7 +1108,7 @@ func (srv *server) getOptionsString(options string) (string, error) {
 func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManufacturersRequest) (*catalogpb.GetManufacturersResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1143,7 +1143,7 @@ func (srv *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetManu
 func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUnitOfMeasuresRequest) (*catalogpb.GetUnitOfMeasuresResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1178,7 +1178,7 @@ func (srv *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUni
 func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnitOfMeasureRequest) (*catalogpb.GetUnitOfMeasureResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 	var query string
@@ -1212,7 +1212,7 @@ func (srv *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUnit
 func (srv *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePackageRequest) (*catalogpb.DeletePackageResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1227,7 +1227,7 @@ func (srv *server) DeletePackage(ctx context.Context, rqst *catalogpb.DeletePack
 func (srv *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.DeletePackageSupplierRequest) (*catalogpb.DeletePackageSupplierResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1242,7 +1242,7 @@ func (srv *server) DeletePackageSupplier(ctx context.Context, rqst *catalogpb.De
 func (srv *server) DeleteSupplier(ctx context.Context, rqst *catalogpb.DeleteSupplierRequest) (*catalogpb.DeleteSupplierResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 
@@ -1328,7 +1328,7 @@ func (srv *server) DeleteLocalisation(ctx context.Context, rqst *catalogpb.Delet
 func (srv *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteInventoryRequest) (*catalogpb.DeleteInventoryResponse, error) {
 	persistence := srv.Services["Persistence"].(map[string]interface{})
 	if persistence["Connections"].(map[string]interface{})[rqst.ConnectionId] == nil {
-		return nil, status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.ConnectionId)))
 	}
 	connection := persistence["Connections"].(map[string]interface{})[rqst.ConnectionId].(map[string]interface{})
 

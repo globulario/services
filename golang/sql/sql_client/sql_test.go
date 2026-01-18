@@ -4,15 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-
-	//"os"
 	"testing"
+
+	"github.com/globulario/services/golang/testutil"
 )
 
-// Set the correct addresse here as needed.
-var (
-	client, _ = NewSqlService_Client("localhost:8080", "78cdbe01-51f1-4f4f-beb7-a382848471d6") // connect with the local service.
-)
+// newTestClient creates a client for testing, skipping if external services are not available.
+func newTestClient(t *testing.T) *SQL_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	client, err := NewSqlService_Client(addr, "sql.SqlService")
+	if err != nil {
+		t.Fatalf("NewSqlService_Client: %v", err)
+	}
+	return client
+}
 
 /*
 func TestCreateConnection(t *testing.T) {
@@ -44,9 +52,11 @@ func TestCreateConnection(t *testing.T) {
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
+	client := newTestClient(t)
 	// The test will be made with the sqlite for simplicity.
 	fmt.Println("Connection creation test.")
-	err := client.CreateConnection("employees_db", "employees_db", "sqlite3", "", "", "/tmp", 0, "")
+	// CreateConnection(connectionId, name, driver, user, password, host, port, charset, path)
+	err := client.CreateConnection("employees_db", "employees_db", "sqlite3", "", "", "/tmp", 0, "", "/tmp/employees.db")
 	if err != nil {
 		log.Println("Fail to run CreateConnection ", err)
 		return
@@ -58,6 +68,7 @@ func TestCreateConnection(t *testing.T) {
 // Ping a connection,
 // ** there is 1 second delay before the ping give up..
 func TestPingConnection(t *testing.T) {
+	client := newTestClient(t)
 	fmt.Println("Ping connectio test.")
 	pong, err := client.Ping("employees_db")
 	if err != nil {
@@ -68,6 +79,7 @@ func TestPingConnection(t *testing.T) {
 
 // Test some sql queries here...
 func TestCreateTable(t *testing.T) {
+	client := newTestClient(t)
 	query := "CREATE TABLE IF NOT EXISTS employees (id INTERGER PRIMARY KEY, firstname TEXT, lastname TEXT, gender TEXT)"
 	_, err := client.ExecContext("employees_db", query, "[]", nil)
 	if err != nil {
@@ -78,6 +90,7 @@ func TestCreateTable(t *testing.T) {
 
 // Test a simple query that return first_name and last_name.
 func TestInsertValue(t *testing.T) {
+	client := newTestClient(t)
 	// Test create query...
 	query := "INSERT INTO employees (id, firstname, lastname, gender) VALUES (?, ?, ?, ?);"
 
@@ -92,6 +105,7 @@ func TestInsertValue(t *testing.T) {
 
 // Test a simple query that return first_name and last_name.
 func TestQueryContext(t *testing.T) {
+	client := newTestClient(t)
 
 	fmt.Println("Test running a sql query")
 
@@ -112,6 +126,7 @@ func TestQueryContext(t *testing.T) {
 
 // Test upatade value
 func TestUpdateValue(t *testing.T) {
+	client := newTestClient(t)
 	// Test create query...
 	query := "UPDATE employees SET firstname=? WHERE id = ?;"
 
@@ -125,6 +140,7 @@ func TestUpdateValue(t *testing.T) {
 
 // Test delete value
 func TestDeleteValue(t *testing.T) {
+	client := newTestClient(t)
 	// Test create query...
 	query := "DELETE FROM employees WHERE id = ?;"
 	data, err := client.ExecContext("employees_db", query, `[1]`, nil)
@@ -136,6 +152,7 @@ func TestDeleteValue(t *testing.T) {
 }
 
 func TestDeleteTable(t *testing.T) {
+	client := newTestClient(t)
 	// Test create query...
 	query := "DROP TABLE IF EXISTS employees"
 	data, err := client.ExecContext("employees_db", query, `[]`, nil)
@@ -148,6 +165,7 @@ func TestDeleteTable(t *testing.T) {
 
 // Remove the test connection from the service.
 func TestDeleteConnection(t *testing.T) {
+	client := newTestClient(t)
 
 	fmt.Println("Connection delete test.")
 	err := client.DeleteConnection("employees_db")

@@ -6,16 +6,26 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/catalog/catalogpb"
+	"github.com/globulario/services/golang/testutil"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Set the correct addresse here as needed.
-var (
-	client, _ = NewCatalogService_Client("localhost", "catalog_server")
-)
+// newTestClient creates a client for testing, skipping if external services are not available.
+func newTestClient(t *testing.T) *Catalog_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	client, err := NewCatalogService_Client(addr, "catalog_server")
+	if err != nil {
+		t.Fatalf("NewCatalogService_Client: %v", err)
+	}
+	return client
+}
 
 func TestCreatePersistenceConnection(t *testing.T) {
+	client := newTestClient(t)
 	log.Println("test create connection.")
 	err := client.CreateConnection("catalogue_2_db", "catalogue_2_db", "localhost", float64(27017), float64(0), "sa", "adminadmin", float64(0), "")
 	if err != nil {
@@ -25,6 +35,7 @@ func TestCreatePersistenceConnection(t *testing.T) {
 
 // First test create a fresh new connection...
 func TestSaveUnitMeasure(t *testing.T) {
+	client := newTestClient(t)
 	log.Println("test create unit of measure.")
 	client.SaveUnitOfMesure("catalogue_2_db", "INCH", "en", "inch", `″`, "The inch (abbreviation: in or ″) is a unit of length in the (British) imperial and United States customary systems of measurement")
 	client.SaveUnitOfMesure("catalogue_2_db", "INCH", "fr", "pouce", `″`, "Le pouce (symbole : ″ (double prime) ou po au Canada francophone) est une unité de longueur datant du Moyen Âge.")
@@ -35,6 +46,7 @@ func TestSaveUnitMeasure(t *testing.T) {
 
 // Create some common properties.
 func TestSavePropertyDefintion(t *testing.T) {
+	client := newTestClient(t)
 	// Length
 	client.SavePropertyDefinition("catalogue_2_db", "LENGTH", "en", "length", `l`, "Length is commonly understood to mean the most extended dimension of an object.", 3.0)
 	client.SavePropertyDefinition("catalogue_2_db", "LENGTH", "fr", "longueur", `l`, "La longueur est une grandeur physique et une dimension spatiale. C'est une unité fondamentale dans pratiquement tout système d'unités. C'est notamment la dimension fondamentale unique du système d'unités géométriques, qui présente la singularité de ne pas avoir d'autre unité fondamentale.", 3.0)
@@ -44,15 +56,16 @@ func TestSavePropertyDefintion(t *testing.T) {
 }
 
 func TestSaveItemDefintion(t *testing.T) {
+	client := newTestClient(t)
 	// External properties.
 	properties_ids_en := &catalogpb.References{
 		Values: []*catalogpb.Reference{
-			&catalogpb.Reference{
+			{
 				RefDbName: "catalogue_2_db",
 				RefObjId:  Utility.GenerateUUID("LENGTHen"),
 				RefColId:  "PropertyDefinition",
 			},
-			&catalogpb.Reference{
+			{
 				RefDbName: "catalogue_2_db",
 				RefObjId:  Utility.GenerateUUID("DIAMETERen"),
 				RefColId:  "PropertyDefinition",
@@ -62,12 +75,12 @@ func TestSaveItemDefintion(t *testing.T) {
 
 	properties_ids_fr := &catalogpb.References{
 		Values: []*catalogpb.Reference{
-			&catalogpb.Reference{
+			{
 				RefDbName: "catalogue_2_db",
 				RefObjId:  Utility.GenerateUUID("LENGTHfr"),
 				RefColId:  "PropertyDefinition",
 			},
-			&catalogpb.Reference{
+			{
 				RefDbName: "catalogue_2_db",
 				RefObjId:  Utility.GenerateUUID("DIAMETERfr"),
 				RefColId:  "PropertyDefinition",
@@ -79,20 +92,21 @@ func TestSaveItemDefintion(t *testing.T) {
 	properties_ids_fr_str, _ := protojson.Marshal(properties_ids_fr)
 
 	// Create item definition from predefined properties.
-	client.SaveItemDefinition("catalogue_2_db", "PIPE", "en", "pipe", ``, `A pipe is a tubular section or hollow cylinder, usually but not necessarily of circular cross-section, used mainly to convey substances which can flow — liquids and gases (fluids), slurries, powders and masses of small solids. It can also be used for structural applications; hollow pipe is far stiffer per unit weight than solid members.`, "", properties_ids_en_str)
-	client.SaveItemDefinition("catalogue_2_db", "PIPE", "fr", "pipe", ``, `Un tuyau est un élément de section circulaire destiné à l'écoulement d'un fluide, liquide, ou gaz ou d'un solide pulvérulent, au transport de l'énergie de pression (air comprimé, vapeur, huile hydromécanique, etc.), à l'échange de l'énergie au travers de la paroi (échangeur thermique, radiateur). Il peut être rigide ou souple (flexible). La paroi du tuyau sépare l'intérieur de l'extérieur et permet ces fonctions.`, "", properties_ids_fr_str)
+	client.SaveItemDefinition("catalogue_2_db", "PIPE", "en", "pipe", ``, `A pipe is a tubular section or hollow cylinder, usually but not necessarily of circular cross-section, used mainly to convey substances which can flow — liquids and gases (fluids), slurries, powders and masses of small solids. It can also be used for structural applications; hollow pipe is far stiffer per unit weight than solid members.`, "", string(properties_ids_en_str))
+	client.SaveItemDefinition("catalogue_2_db", "PIPE", "fr", "pipe", ``, `Un tuyau est un élément de section circulaire destiné à l'écoulement d'un fluide, liquide, ou gaz ou d'un solide pulvérulent, au transport de l'énergie de pression (air comprimé, vapeur, huile hydromécanique, etc.), à l'échange de l'énergie au travers de la paroi (échangeur thermique, radiateur). Il peut être rigide ou souple (flexible). La paroi du tuyau sépare l'intérieur de l'extérieur et permet ces fonctions.`, "", string(properties_ids_fr_str))
 
 }
 
 // Test save item instance function.
 func TestSaveItemInstance(t *testing.T) {
+	client := newTestClient(t)
 
 	// Here I will create french item instance.
 	pipe_instance := &catalogpb.ItemInstance{
 		ItemDefinitionId: "PIPE",
 		Id:               "instance_0",
 		Values: []*catalogpb.PropertyValue{
-			&catalogpb.PropertyValue{
+			{
 				PropertyDefinitionId: "DIAMETER",
 				Value: &catalogpb.PropertyValue_DimensionVal{
 					DimensionVal: &catalogpb.Dimension{
@@ -101,7 +115,7 @@ func TestSaveItemInstance(t *testing.T) {
 					},
 				},
 			},
-			&catalogpb.PropertyValue{
+			{
 				PropertyDefinitionId: "LENGTH",
 				Value: &catalogpb.PropertyValue_DimensionVal{
 					DimensionVal: &catalogpb.Dimension{
@@ -115,15 +129,17 @@ func TestSaveItemInstance(t *testing.T) {
 
 	pipe_instance_str, _ := protojson.Marshal(pipe_instance)
 
-	client.SaveItemInstance("catalogue_2_db", pipe_instance_str)
+	client.SaveItemInstance("catalogue_2_db", string(pipe_instance_str))
 }
 
 // Test save a manufacturer
 func TestSaveManufacturer(t *testing.T) {
+	client := newTestClient(t)
 	client.SaveManufacturer("catalogue_2_db", "3M", "3M corporation")
 }
 
 func TestSavePackage(t *testing.T) {
+	client := newTestClient(t)
 
 	err := client.SavePackage("catalogue_2_db", "pipe_pack_1", "pipe six pack", "en", "package of six pipe", nil)
 
@@ -140,10 +156,12 @@ func TestSavePackage(t *testing.T) {
 
 // save/create a new supplier.
 func TestSaveSupplier(t *testing.T) {
+	client := newTestClient(t)
 	client.SaveSupplier("catalogue_2_db", "Fastenal", "Fastenal")
 }
 
 func TestSavePackageSupplier(t *testing.T) {
+	client := newTestClient(t)
 
 	// Set the package reference.
 	packageRef := &catalogpb.Reference{
@@ -168,13 +186,14 @@ func TestSavePackageSupplier(t *testing.T) {
 	packageRef_str, _ := protojson.Marshal(packageRef)
 	supplierRef_str, _ := protojson.Marshal(supplierRef)
 
-	err := client.SavePackageSupplier("catalogue_2_db", "000123254", supplierRef_str, packageRef_str, price_str, time.Now().Unix(), 1)
+	err := client.SavePackageSupplier("catalogue_2_db", "000123254", string(supplierRef_str), string(packageRef_str), string(price_str), time.Now().Unix(), 1)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
 func TestSaveItemManufacturer(t *testing.T) {
+	client := newTestClient(t)
 	// Set the package reference.
 	itemRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
@@ -192,7 +211,7 @@ func TestSaveItemManufacturer(t *testing.T) {
 	itemRef_str, _ := protojson.Marshal(itemRef)
 	manufacturerRef_str, _ := protojson.Marshal(manufacturerRef)
 
-	err := client.SaveItemManufacturer("catalogue_2_db", "3M_011002", manufacturerRef_str, itemRef_str)
+	err := client.SaveItemManufacturer("catalogue_2_db", "3M_011002", string(manufacturerRef_str), string(itemRef_str))
 	if err != nil {
 		log.Println(err)
 	}
@@ -200,6 +219,7 @@ func TestSaveItemManufacturer(t *testing.T) {
 
 // save/create a new supplier.
 func TestSaveCategory(t *testing.T) {
+	client := newTestClient(t)
 	client.SaveCategory("catalogue_2_db", "Pipes", "Tuyaux", "fr", "")
 }
 
@@ -254,6 +274,7 @@ func TestRemoveItemdescriptionCategory(t *testing.T) {
 */
 
 func TestSaveLocalisation(t *testing.T) {
+	client := newTestClient(t)
 	mag0 := new(catalogpb.Localisation)
 	mag0.Id = "P001"
 	mag0.LanguageCode = "fr"
@@ -281,6 +302,7 @@ func TestSaveLocalisation(t *testing.T) {
 }
 
 func TestSaveInventory(t *testing.T) {
+	client := newTestClient(t)
 
 	inventory := new(catalogpb.Inventory)
 	inventory.LocalisationId = "loc0"
@@ -290,5 +312,7 @@ func TestSaveInventory(t *testing.T) {
 	inventory.Quantity = 8
 	inventory.Factor = 1.0
 
+	_ = client // TODO: uncomment when SaveInventory is implemented
 	//client.SaveInventory("catalogue_2_db", inventory)
+	_ = inventory
 }

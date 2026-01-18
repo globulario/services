@@ -509,7 +509,7 @@ func (srv *server) sendEmail(
 // CreateConnection creates or updates an SMTP connection profile and persists it.
 func (srv *server) CreateConnection(ctx context.Context, rqst *mailpb.CreateConnectionRqst) (*mailpb.CreateConnectionRsp, error) {
 	if rqst == nil || rqst.Connection == nil {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing connection payload")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing connection payload")))
 	}
 
 	c := connection{
@@ -521,7 +521,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *mailpb.CreateConn
 	}
 
 	if c.Id == "" || c.Host == "" || c.Port == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("id, host and port are required")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("id, host and port are required")))
 	}
 
 	if srv.Connections == nil {
@@ -539,11 +539,11 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *mailpb.CreateConn
 // DeleteConnection removes an SMTP connection profile and persists changes.
 func (srv *server) DeleteConnection(ctx context.Context, rqst *mailpb.DeleteConnectionRqst) (*mailpb.DeleteConnectionRsp, error) {
 	if rqst == nil {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing request")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing request")))
 	}
 	id := strings.TrimSpace(rqst.GetId())
 	if id == "" {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing id")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing id")))
 	}
 
 	if _, ok := srv.Connections[id]; ok {
@@ -559,14 +559,14 @@ func (srv *server) DeleteConnection(ctx context.Context, rqst *mailpb.DeleteConn
 // SendEmail sends a simple email without attachments using a stored connection.
 func (srv *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*mailpb.SendEmailRsp, error) {
 	if rqst == nil {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing request")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing request")))
 	}
 	conn, ok := srv.Connections[rqst.Id]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection with id "+rqst.Id)))
+		return nil, status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection with id "+rqst.Id)))
 	}
 	if rqst.Email == nil {
-		return nil, status.Errorf(codes.InvalidArgument, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing email payload")))
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("missing email payload")))
 	}
 
 	ccs := make([]*CarbonCopy, len(rqst.Email.Cc))
@@ -609,7 +609,7 @@ func (srv *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 			// Finalize: send email
 			conn, ok := srv.Connections[id]
 			if !ok {
-				return status.Errorf(codes.NotFound, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection with id "+id)))
+				return status.Errorf(codes.NotFound, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection with id "+id)))
 			}
 			if err := srv.sendEmail(conn.Host, conn.User, conn.Password, int(conn.Port), from, to, cc, subject, body, attachments, bodyType); err != nil {
 				return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

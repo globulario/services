@@ -212,7 +212,7 @@ func (srv *server) UploadFile(rqst *filepb.UploadFileRequest, stream filepb.File
 // ReadDir streams FileInfo structures for a directory.
 func (srv *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 	if len(rqst.Path) == 0 {
-		return status.Errorf(codes.Internal, Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("path is empty")))
 	}
 	p := srv.formatPath(rqst.Path)
 	ctx := stream.Context()

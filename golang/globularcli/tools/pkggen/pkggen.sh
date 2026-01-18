@@ -92,18 +92,19 @@ build_one() {
     echo "WARN: missing spec for ${svc}: ${spec_src} (run make specgen first); skipping"
     return 0
   fi
-  if [[ ! -f "${cfg_src}" ]]; then
-    echo "WARN: missing config for ${svc}: ${cfg_src} (run make specgen first); skipping"
-    return 0
-  fi
 
   local root="${PAYLOAD_DIR}/${svc}"
   rm -rf "${root}"
-  mkdir -p "${root}/bin" "${root}/specs" "${root}/config/${svc}"
+  mkdir -p "${root}/bin" "${root}/specs"
 
   cp -a "${exe_path}" "${root}/bin/${exe}"
   cp -a "${spec_src}" "${root}/specs/${svc}_service.yaml"
-  cp -a "${cfg_src}" "${root}/config/${svc}/config.json"
+
+  # Copy config if it exists
+  if [[ -f "${cfg_src}" ]]; then
+    mkdir -p "${root}/config/${svc}"
+    cp -a "${cfg_src}" "${root}/config/${svc}/config.json"
+  fi
 
   echo "==> pkg build ${svc} (${exe})"
   "${GLOBULAR_BIN}" pkg build \
