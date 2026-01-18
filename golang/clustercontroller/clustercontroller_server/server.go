@@ -864,7 +864,7 @@ func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePla
 	if len(actionList) > 0 {
 		plan.UnitActions = actionList
 	}
-	if rendered := srv.renderedConfigForSpec(); len(rendered) > 0 {
+	if rendered := srv.renderedConfigForNode(node); len(rendered) > 0 {
 		plan.RenderedConfig = rendered
 	}
 	return plan
@@ -965,6 +965,102 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 			out["reconcile.restart_units"] = string(b)
 		}
 	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// snapshotClusterMembership creates a snapshot of all cluster nodes for config rendering.
+// This captures the current state without holding the lock during config generation.
+func (srv *server) snapshotClusterMembership() *clusterMembership {
+	srv.lock("snapshot-membership")
+	defer srv.unlock()
+
+	membership := &clusterMembership{
+		ClusterID: srv.state.ClusterId,
+		Nodes:     make([]memberNode, 0, len(srv.state.Nodes)),
+	}
+
+	for _, node := range srv.state.Nodes {
+		if node == nil {
+			continue
+		}
+		// Use the first IP address if available
+		var ip string
+		if len(node.Identity.Ips) > 0 {
+			ip = node.Identity.Ips[0]
+		}
+		membership.Nodes = append(membership.Nodes, memberNode{
+			NodeID:   node.NodeID,
+			Hostname: node.Identity.Hostname,
+			IP:       ip,
+			Profiles: append([]string(nil), node.Profiles...),
+		})
+	}
+
+	// Sort nodes by ID for deterministic output
+	sort.Slice(membership.Nodes, func(i, j int) bool {
+		return membership.Nodes[i].NodeID < membership.Nodes[j].NodeID
+	})
+
+	return membership
+}
+
+// renderedConfigForNode combines network config with service-specific configs for a node.
+func (srv *server) renderedConfigForNode(node *nodeState) map[string]string {
+	// Start with the network config
+	out := srv.renderedConfigForSpec()
+	if out == nil {
+		out = make(map[string]string)
+	}
+
+	// Get cluster membership snapshot for service config rendering
+	membership := srv.snapshotClusterMembership()
+
+	// Find the current node in the membership
+	var currentMember *memberNode
+	for i := range membership.Nodes {
+		if membership.Nodes[i].NodeID == node.NodeID {
+			currentMember = &membership.Nodes[i]
+			break
+		}
+	}
+
+	// If node not found in membership (shouldn't happen), create a temporary entry
+	if currentMember == nil {
+		var ip string
+		if len(node.Identity.Ips) > 0 {
+			ip = node.Identity.Ips[0]
+		}
+		currentMember = &memberNode{
+			NodeID:   node.NodeID,
+			Hostname: node.Identity.Hostname,
+			IP:       ip,
+			Profiles: node.Profiles,
+		}
+	}
+
+	// Get the cluster domain from network spec
+	domain := ""
+	if spec := srv.clusterNetworkSpec(); spec != nil {
+		domain = spec.GetClusterDomain()
+	}
+
+	// Create config context
+	ctx := &serviceConfigContext{
+		Membership:  membership,
+		CurrentNode: currentMember,
+		ClusterID:   membership.ClusterID,
+		Domain:      domain,
+	}
+
+	// Render service-specific configs
+	serviceConfigs := renderServiceConfigs(ctx)
+	for path, content := range serviceConfigs {
+		out[path] = content
+	}
+
 	if len(out) == 0 {
 		return nil
 	}
