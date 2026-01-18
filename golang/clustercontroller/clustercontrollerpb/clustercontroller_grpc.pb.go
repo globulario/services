@@ -28,6 +28,8 @@ const (
 	ClusterControllerService_RejectJoin_FullMethodName           = "/clustercontroller.ClusterControllerService/RejectJoin"
 	ClusterControllerService_ListNodes_FullMethodName            = "/clustercontroller.ClusterControllerService/ListNodes"
 	ClusterControllerService_SetNodeProfiles_FullMethodName      = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_RemoveNode_FullMethodName           = "/clustercontroller.ClusterControllerService/RemoveNode"
+	ClusterControllerService_GetClusterHealth_FullMethodName     = "/clustercontroller.ClusterControllerService/GetClusterHealth"
 	ClusterControllerService_GetNodePlan_FullMethodName          = "/clustercontroller.ClusterControllerService/GetNodePlan"
 	ClusterControllerService_UpdateClusterNetwork_FullMethodName = "/clustercontroller.ClusterControllerService/UpdateClusterNetwork"
 	ClusterControllerService_ApplyNodePlan_FullMethodName        = "/clustercontroller.ClusterControllerService/ApplyNodePlan"
@@ -50,6 +52,8 @@ type ClusterControllerServiceClient interface {
 	RejectJoin(ctx context.Context, in *RejectJoinRequest, opts ...grpc.CallOption) (*RejectJoinResponse, error)
 	ListNodes(ctx context.Context, in *ListNodesRequest, opts ...grpc.CallOption) (*ListNodesResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
+	RemoveNode(ctx context.Context, in *RemoveNodeRequest, opts ...grpc.CallOption) (*RemoveNodeResponse, error)
+	GetClusterHealth(ctx context.Context, in *GetClusterHealthRequest, opts ...grpc.CallOption) (*GetClusterHealthResponse, error)
 	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
 	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(ctx context.Context, in *ApplyNodePlanRequest, opts ...grpc.CallOption) (*ApplyNodePlanResponse, error)
@@ -142,6 +146,26 @@ func (c *clusterControllerServiceClient) SetNodeProfiles(ctx context.Context, in
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetNodeProfilesResponse)
 	err := c.cc.Invoke(ctx, ClusterControllerService_SetNodeProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) RemoveNode(ctx context.Context, in *RemoveNodeRequest, opts ...grpc.CallOption) (*RemoveNodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveNodeResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RemoveNode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) GetClusterHealth(ctx context.Context, in *GetClusterHealthRequest, opts ...grpc.CallOption) (*GetClusterHealthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetClusterHealthResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetClusterHealth_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +273,8 @@ type ClusterControllerServiceServer interface {
 	RejectJoin(context.Context, *RejectJoinRequest) (*RejectJoinResponse, error)
 	ListNodes(context.Context, *ListNodesRequest) (*ListNodesResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
+	RemoveNode(context.Context, *RemoveNodeRequest) (*RemoveNodeResponse, error)
+	GetClusterHealth(context.Context, *GetClusterHealthRequest) (*GetClusterHealthResponse, error)
 	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
 	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error)
@@ -289,6 +315,12 @@ func (UnimplementedClusterControllerServiceServer) ListNodes(context.Context, *L
 }
 func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetNodeProfiles not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) RemoveNode(context.Context, *RemoveNodeRequest) (*RemoveNodeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveNode not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetClusterHealth(context.Context, *GetClusterHealthRequest) (*GetClusterHealthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetClusterHealth not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNodePlan not implemented")
@@ -478,6 +510,42 @@ func _ClusterControllerService_SetNodeProfiles_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_RemoveNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RemoveNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RemoveNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RemoveNode(ctx, req.(*RemoveNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_GetClusterHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterHealthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetClusterHealth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetClusterHealth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetClusterHealth(ctx, req.(*GetClusterHealthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_GetNodePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNodePlanRequest)
 	if err := dec(in); err != nil {
@@ -653,6 +721,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetNodeProfiles",
 			Handler:    _ClusterControllerService_SetNodeProfiles_Handler,
+		},
+		{
+			MethodName: "RemoveNode",
+			Handler:    _ClusterControllerService_RemoveNode_Handler,
+		},
+		{
+			MethodName: "GetClusterHealth",
+			Handler:    _ClusterControllerService_GetClusterHealth_Handler,
 		},
 		{
 			MethodName: "GetNodePlan",

@@ -78,6 +78,18 @@ func (a *agentClient) ApplyPlan(ctx context.Context, plan *clustercontrollerpb.N
 	return err
 }
 
+// GetInventory retrieves the node's inventory, used to verify connectivity.
+func (a *agentClient) GetInventory(ctx context.Context) (*nodeagentpb.GetInventoryResponse, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := a.client.GetInventory(reqCtx, &nodeagentpb.GetInventoryRequest{})
+	if err != nil {
+		return nil, err
+	}
+	a.touch()
+	return resp, nil
+}
+
 func (a *agentClient) touch() {
 	a.mu.Lock()
 	a.lastUsed = time.Now()

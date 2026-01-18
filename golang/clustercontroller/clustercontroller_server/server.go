@@ -48,6 +48,12 @@ const (
 	defaultTargetName        = "globular"
 	upgradeDiskMinBytes      = 1 << 30
 	repositoryAddressEnv     = "REPOSITORY_ADDRESS"
+
+	// Health monitoring constants
+	healthCheckInterval      = 30 * time.Second // How often to check node health
+	unhealthyThreshold       = 2 * time.Minute  // Time without contact before marking unhealthy
+	recoveryAttemptInterval  = 5 * time.Minute  // How often to attempt recovery
+	maxRecoveryAttempts      = 3                // Max recovery attempts before giving up
 )
 
 type server struct {
@@ -388,6 +394,182 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb
 	return &clustercontrollerpb.SetNodeProfilesResponse{
 		OperationId: uuid.NewString(),
 	}, nil
+}
+
+func (srv *server) RemoveNode(ctx context.Context, req *clustercontrollerpb.RemoveNodeRequest) (*clustercontrollerpb.RemoveNodeResponse, error) {
+	if req == nil || req.GetNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	nodeID := strings.TrimSpace(req.GetNodeId())
+
+	srv.lock("remove-node")
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		srv.unlock()
+		return nil, status.Error(codes.NotFound, "node not found")
+	}
+
+	agentEndpoint := node.AgentEndpoint
+	srv.unlock()
+
+	opID := uuid.NewString()
+	var drainErr error
+
+	// If drain requested and node has an agent endpoint, try to stop services gracefully
+	if req.GetDrain() && agentEndpoint != "" {
+		drainErr = srv.drainNode(ctx, node, opID)
+		if drainErr != nil && !req.GetForce() {
+			return nil, status.Errorf(codes.FailedPrecondition, "drain failed (use force=true to override): %v", drainErr)
+		}
+	}
+
+	// Remove from state
+	srv.lock("remove-node")
+	delete(srv.state.Nodes, nodeID)
+	if err := srv.persistStateLocked(true); err != nil {
+		srv.unlock()
+		return nil, status.Errorf(codes.Internal, "persist node removal: %v", err)
+	}
+	srv.unlock()
+
+	// Close agent client if we have one
+	if agentEndpoint != "" {
+		srv.closeAgentClient(agentEndpoint)
+	}
+
+	message := fmt.Sprintf("node %s removed from cluster", nodeID)
+	if drainErr != nil {
+		message = fmt.Sprintf("node %s removed (drain failed: %v)", nodeID, drainErr)
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_SUCCEEDED, message, 100, true, ""))
+
+	return &clustercontrollerpb.RemoveNodeResponse{
+		OperationId: opID,
+		Message:     message,
+	}, nil
+}
+
+// drainNode sends stop commands to the node agent to gracefully stop all services.
+func (srv *server) drainNode(ctx context.Context, node *nodeState, opID string) error {
+	if node.AgentEndpoint == "" {
+		return fmt.Errorf("node %s has no agent endpoint", node.NodeID)
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "draining node services", 10, false, ""))
+
+	// Build a plan with stop actions for all services
+	plan := &clustercontrollerpb.NodePlan{
+		NodeId:   node.NodeID,
+		Profiles: node.Profiles,
+	}
+
+	// Add stop actions for known service units based on profiles
+	unitStops := []string{}
+	for _, profile := range node.Profiles {
+		switch profile {
+		case "core":
+			unitStops = append(unitStops, "globular-etcd.service", "globular-minio.service", "globular-xds.service", "globular-dns.service")
+		case "compute":
+			unitStops = append(unitStops, "globular-etcd.service", "globular-minio.service", "globular-xds.service")
+		case "control-plane":
+			unitStops = append(unitStops, "globular-etcd.service", "globular-xds.service")
+		case "storage":
+			unitStops = append(unitStops, "globular-minio.service")
+		case "dns":
+			unitStops = append(unitStops, "globular-dns.service")
+		case "gateway":
+			unitStops = append(unitStops, "globular-xds.service")
+		}
+	}
+
+	// Dedupe and add stop actions
+	seen := make(map[string]bool)
+	for _, unit := range unitStops {
+		if !seen[unit] {
+			seen[unit] = true
+			plan.UnitActions = append(plan.UnitActions, &clustercontrollerpb.UnitAction{
+				UnitName: unit,
+				Action:   "stop",
+			})
+		}
+	}
+
+	if len(plan.UnitActions) == 0 {
+		return nil // Nothing to drain
+	}
+
+	client, err := srv.getAgentClient(ctx, node.AgentEndpoint)
+	if err != nil {
+		return fmt.Errorf("connect to agent: %w", err)
+	}
+
+	if err := client.ApplyPlan(ctx, plan, opID); err != nil {
+		return fmt.Errorf("apply drain plan: %w", err)
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "drain plan sent", 50, false, ""))
+
+	return nil
+}
+
+func (srv *server) GetClusterHealth(ctx context.Context, req *clustercontrollerpb.GetClusterHealthRequest) (*clustercontrollerpb.GetClusterHealthResponse, error) {
+	srv.lock("cluster-health")
+	defer srv.unlock()
+
+	resp := &clustercontrollerpb.GetClusterHealthResponse{
+		TotalNodes: int32(len(srv.state.Nodes)),
+	}
+
+	now := time.Now()
+	healthyThreshold := 2 * time.Minute // Node is healthy if seen within this time
+
+	for _, node := range srv.state.Nodes {
+		nodeHealth := &clustercontrollerpb.NodeHealthStatus{
+			NodeId:    node.NodeID,
+			Hostname:  node.Identity.Hostname,
+			LastError: node.LastError,
+			LastSeen:  timestamppb.New(node.LastSeen),
+		}
+
+		// Determine node health status
+		timeSinceSeen := now.Sub(node.LastSeen)
+		switch {
+		case node.Status == "healthy" && timeSinceSeen < healthyThreshold:
+			nodeHealth.Status = "healthy"
+			resp.HealthyNodes++
+		case node.Status == "unhealthy" || node.LastError != "":
+			nodeHealth.Status = "unhealthy"
+			nodeHealth.FailedChecks = 1
+			if node.LastError != "" {
+				nodeHealth.LastError = node.LastError
+			}
+			resp.UnhealthyNodes++
+		case timeSinceSeen >= healthyThreshold:
+			nodeHealth.Status = "unknown"
+			nodeHealth.LastError = fmt.Sprintf("not seen for %v", timeSinceSeen.Round(time.Second))
+			resp.UnknownNodes++
+		default:
+			nodeHealth.Status = "unknown"
+			resp.UnknownNodes++
+		}
+
+		resp.NodeHealth = append(resp.NodeHealth, nodeHealth)
+	}
+
+	// Determine overall cluster status
+	switch {
+	case resp.TotalNodes == 0:
+		resp.Status = "unhealthy"
+	case resp.UnhealthyNodes == 0 && resp.UnknownNodes == 0:
+		resp.Status = "healthy"
+	case resp.HealthyNodes > 0:
+		resp.Status = "degraded"
+	default:
+		resp.Status = "unhealthy"
+	}
+
+	return resp, nil
 }
 
 func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.GetNodePlanRequest) (*clustercontrollerpb.GetNodePlanResponse, error) {
@@ -792,6 +974,145 @@ func (srv *server) startOperationCleanupLoop(ctx context.Context) {
 			}
 		}
 	})
+}
+
+// startHealthMonitorLoop runs periodic health checks and attempts recovery for unhealthy nodes.
+func (srv *server) startHealthMonitorLoop(ctx context.Context) {
+	ticker := time.NewTicker(healthCheckInterval)
+	safeGo("health-monitor", func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				srv.monitorNodeHealth(ctx)
+			}
+		}
+	})
+}
+
+// monitorNodeHealth checks all nodes and attempts recovery for unhealthy ones.
+func (srv *server) monitorNodeHealth(ctx context.Context) {
+	now := time.Now()
+
+	srv.lock("health-monitor:snapshot")
+	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
+	for _, node := range srv.state.Nodes {
+		nodes = append(nodes, node)
+	}
+	srv.unlock()
+
+	var stateDirty bool
+
+	for _, node := range nodes {
+		timeSinceSeen := now.Sub(node.LastSeen)
+
+		srv.lock("health-monitor:check")
+		currentNode := srv.state.Nodes[node.NodeID]
+		if currentNode == nil {
+			srv.unlock()
+			continue
+		}
+
+		previousStatus := currentNode.Status
+
+		// Check if node is unhealthy
+		if timeSinceSeen > unhealthyThreshold {
+			currentNode.FailedHealthChecks++
+
+			if currentNode.Status != "unhealthy" {
+				currentNode.Status = "unhealthy"
+				currentNode.MarkedUnhealthySince = now
+				currentNode.LastError = fmt.Sprintf("no contact for %v", timeSinceSeen.Round(time.Second))
+				log.Printf("node %s marked unhealthy: %s", node.NodeID, currentNode.LastError)
+				stateDirty = true
+			}
+
+			// Attempt recovery if needed
+			shouldRecover := currentNode.RecoveryAttempts < maxRecoveryAttempts &&
+				(currentNode.LastRecoveryAttempt.IsZero() || now.Sub(currentNode.LastRecoveryAttempt) > recoveryAttemptInterval)
+
+			if shouldRecover && node.AgentEndpoint != "" {
+				currentNode.LastRecoveryAttempt = now
+				currentNode.RecoveryAttempts++
+				stateDirty = true
+				log.Printf("attempting recovery for node %s (attempt %d/%d)", node.NodeID, currentNode.RecoveryAttempts, maxRecoveryAttempts)
+				srv.unlock()
+
+				// Attempt to reconnect and redispatch plan
+				if err := srv.attemptNodeRecovery(ctx, node); err != nil {
+					log.Printf("recovery attempt for node %s failed: %v", node.NodeID, err)
+					srv.lock("health-monitor:recovery-failed")
+					if n := srv.state.Nodes[node.NodeID]; n != nil {
+						n.LastError = fmt.Sprintf("recovery failed: %v", err)
+					}
+					srv.unlock()
+				} else {
+					log.Printf("recovery attempt for node %s initiated successfully", node.NodeID)
+				}
+				continue
+			}
+		} else if currentNode.Status == "unhealthy" && previousStatus == "unhealthy" {
+			// Node came back online - reset recovery counters
+			currentNode.Status = "healthy"
+			currentNode.FailedHealthChecks = 0
+			currentNode.RecoveryAttempts = 0
+			currentNode.MarkedUnhealthySince = time.Time{}
+			currentNode.LastError = ""
+			log.Printf("node %s recovered and marked healthy", node.NodeID)
+			stateDirty = true
+		}
+		srv.unlock()
+	}
+
+	if stateDirty {
+		srv.lock("health-monitor:persist")
+		if err := srv.persistStateLocked(true); err != nil {
+			log.Printf("health monitor: persist state: %v", err)
+		}
+		srv.unlock()
+	}
+}
+
+// attemptNodeRecovery tries to reconnect to a node and redispatch its plan.
+func (srv *server) attemptNodeRecovery(ctx context.Context, node *nodeState) error {
+	if node.AgentEndpoint == "" {
+		return fmt.Errorf("no agent endpoint for node %s", node.NodeID)
+	}
+
+	// Close any existing connection to force reconnection
+	srv.closeAgentClient(node.AgentEndpoint)
+
+	// Get fresh agent client
+	client, err := srv.getAgentClient(ctx, node.AgentEndpoint)
+	if err != nil {
+		return fmt.Errorf("connect to agent: %w", err)
+	}
+
+	// Try to get inventory to verify connectivity
+	_, err = client.GetInventory(ctx)
+	if err != nil {
+		return fmt.Errorf("get inventory: %w", err)
+	}
+
+	// If we can connect, dispatch the current plan
+	plan := srv.computeNodePlan(node)
+	if plan == nil || (len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0) {
+		// No plan needed, just mark as recovered
+		return nil
+	}
+
+	opID := uuid.NewString()
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "recovery: plan queued", 0, false, ""))
+
+	if err := srv.dispatchPlan(ctx, node, plan, opID); err != nil {
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "recovery: plan failed", 0, true, err.Error()))
+		return fmt.Errorf("dispatch plan: %w", err)
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "recovery: plan dispatched", 25, false, ""))
+	return nil
 }
 
 func (srv *server) reconcileNodes(ctx context.Context) {

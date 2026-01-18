@@ -100,3 +100,141 @@ func TestCleanupTimedOutOperationsFails(t *testing.T) {
 		t.Fatalf("expected timeout message, got %q", op.last.GetMessage())
 	}
 }
+
+func TestRemoveNodeNotFound(t *testing.T) {
+	state := newControllerState()
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	_, err := srv.RemoveNode(context.Background(), &clustercontrollerpb.RemoveNodeRequest{
+		NodeId: "nonexistent-node",
+	})
+	if err == nil {
+		t.Fatal("expected error for non-existent node")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestRemoveNodeSuccess(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID: "node-1",
+		Identity: storedIdentity{
+			Hostname: "test-host",
+		},
+		Profiles: []string{"core"},
+		Status:   "healthy",
+	}
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	resp, err := srv.RemoveNode(context.Background(), &clustercontrollerpb.RemoveNodeRequest{
+		NodeId: "node-1",
+		Force:  true,
+		Drain:  false,
+	})
+	if err != nil {
+		t.Fatalf("RemoveNode error: %v", err)
+	}
+	if resp.GetOperationId() == "" {
+		t.Fatal("expected operation_id in response")
+	}
+	if !strings.Contains(resp.GetMessage(), "removed") {
+		t.Fatalf("expected 'removed' message, got: %s", resp.GetMessage())
+	}
+
+	// Verify node was actually removed
+	srv.lock("test")
+	if _, exists := srv.state.Nodes["node-1"]; exists {
+		t.Fatal("expected node to be removed from state")
+	}
+	srv.unlock()
+}
+
+func TestGetClusterHealthEmpty(t *testing.T) {
+	state := newControllerState()
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	resp, err := srv.GetClusterHealth(context.Background(), &clustercontrollerpb.GetClusterHealthRequest{})
+	if err != nil {
+		t.Fatalf("GetClusterHealth error: %v", err)
+	}
+	if resp.GetTotalNodes() != 0 {
+		t.Fatalf("expected 0 nodes, got %d", resp.GetTotalNodes())
+	}
+	if resp.GetStatus() != "unhealthy" {
+		t.Fatalf("expected 'unhealthy' status for empty cluster, got %s", resp.GetStatus())
+	}
+}
+
+func TestGetClusterHealthMixedNodes(t *testing.T) {
+	state := newControllerState()
+	now := time.Now()
+
+	// Healthy node (seen recently)
+	state.Nodes["healthy-node"] = &nodeState{
+		NodeID:   "healthy-node",
+		Identity: storedIdentity{Hostname: "healthy"},
+		Status:   "healthy",
+		LastSeen: now.Add(-30 * time.Second),
+	}
+
+	// Unhealthy node (seen long ago)
+	state.Nodes["unhealthy-node"] = &nodeState{
+		NodeID:    "unhealthy-node",
+		Identity:  storedIdentity{Hostname: "unhealthy"},
+		Status:    "unhealthy",
+		LastSeen:  now.Add(-5 * time.Minute),
+		LastError: "connection refused",
+	}
+
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	resp, err := srv.GetClusterHealth(context.Background(), &clustercontrollerpb.GetClusterHealthRequest{})
+	if err != nil {
+		t.Fatalf("GetClusterHealth error: %v", err)
+	}
+	if resp.GetTotalNodes() != 2 {
+		t.Fatalf("expected 2 nodes, got %d", resp.GetTotalNodes())
+	}
+	if resp.GetHealthyNodes() != 1 {
+		t.Fatalf("expected 1 healthy node, got %d", resp.GetHealthyNodes())
+	}
+	if resp.GetUnhealthyNodes() != 1 {
+		t.Fatalf("expected 1 unhealthy node, got %d", resp.GetUnhealthyNodes())
+	}
+	if resp.GetStatus() != "degraded" {
+		t.Fatalf("expected 'degraded' status for mixed cluster, got %s", resp.GetStatus())
+	}
+}
+
+func TestGetClusterHealthAllHealthy(t *testing.T) {
+	state := newControllerState()
+	now := time.Now()
+
+	state.Nodes["node-1"] = &nodeState{
+		NodeID:   "node-1",
+		Identity: storedIdentity{Hostname: "node1"},
+		Status:   "healthy",
+		LastSeen: now.Add(-10 * time.Second),
+	}
+	state.Nodes["node-2"] = &nodeState{
+		NodeID:   "node-2",
+		Identity: storedIdentity{Hostname: "node2"},
+		Status:   "healthy",
+		LastSeen: now.Add(-20 * time.Second),
+	}
+
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	resp, err := srv.GetClusterHealth(context.Background(), &clustercontrollerpb.GetClusterHealthRequest{})
+	if err != nil {
+		t.Fatalf("GetClusterHealth error: %v", err)
+	}
+	if resp.GetStatus() != "healthy" {
+		t.Fatalf("expected 'healthy' status, got %s", resp.GetStatus())
+	}
+	if resp.GetHealthyNodes() != 2 {
+		t.Fatalf("expected 2 healthy nodes, got %d", resp.GetHealthyNodes())
+	}
+}

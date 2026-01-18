@@ -118,6 +118,38 @@ message SetNodeProfilesResponse {
   string operation_id = 1;
 }
 
+// RemoveNode removes a node from the cluster.
+// The node's services will be stopped and it will be deregistered.
+message RemoveNodeRequest {
+  string node_id = 1;
+  bool force = 2;        // Force removal even if node is unreachable
+  bool drain = 3;        // Stop services gracefully before removal
+}
+message RemoveNodeResponse {
+  string operation_id = 1;
+  string message = 2;
+}
+
+// GetClusterHealth returns the overall health status of the cluster.
+message GetClusterHealthRequest {}
+message GetClusterHealthResponse {
+  string status = 1;     // healthy, degraded, unhealthy
+  int32 total_nodes = 2;
+  int32 healthy_nodes = 3;
+  int32 unhealthy_nodes = 4;
+  int32 unknown_nodes = 5;
+  repeated NodeHealthStatus node_health = 6;
+}
+
+message NodeHealthStatus {
+  string node_id = 1;
+  string hostname = 2;
+  string status = 3;     // healthy, unhealthy, unknown
+  string last_error = 4;
+  google.protobuf.Timestamp last_seen = 5;
+  int32 failed_checks = 6;
+}
+
 message UpdateClusterNetworkRequest {
   ClusterNetworkSpec spec = 1;
 }
@@ -263,6 +295,8 @@ service ClusterControllerService {
 
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
   rpc SetNodeProfiles(SetNodeProfilesRequest) returns (SetNodeProfilesResponse);
+  rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse);
+  rpc GetClusterHealth(GetClusterHealthRequest) returns (GetClusterHealthResponse);
   rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
   rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse);
   rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse);

@@ -58,6 +58,9 @@ var (
 
 	profileSet []string
 
+	removeNodeForce bool
+	removeNodeDrain bool
+
 	debugAgentEndpoint  string
 	debugAgentPlanFile  string
 	watchPlanFlag       bool
@@ -94,6 +97,7 @@ func init() {
 		upgradeCmd,
 		watchCmd,
 		networkCmd,
+		healthCmd,
 	)
 
 	bootstrapCmd.Flags().StringVar(&bootstrapNodeAddr, "node", "", "Node agent endpoint (required)")
@@ -114,6 +118,9 @@ func init() {
 	requestsRejectCmd.Flags().StringVar(&requestsRejectRequestID, "request-id", "", "Join request ID (overrides positional argument)")
 
 	nodeProfilesCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
+
+	nodeRemoveCmd.Flags().BoolVar(&removeNodeForce, "force", false, "Force removal even if node is unreachable")
+	nodeRemoveCmd.Flags().BoolVar(&removeNodeDrain, "drain", true, "Drain node (stop services gracefully) before removal")
 
 	agentInventoryCmd.Flags().StringVar(&debugAgentEndpoint, "agent", "", "Node agent endpoint (required)")
 	agentApplyCmd.Flags().StringVar(&debugAgentPlanFile, "plan-file", "", "Path to NodePlan JSON or YAML")
@@ -475,6 +482,93 @@ var nodeProfilesCmd = &cobra.Command{
 			return err
 		}
 		fmt.Println("profiles intent recorded")
+		return nil
+	},
+}
+
+var nodeRemoveCmd = &cobra.Command{
+	Use:   "remove <node_id>",
+	Short: "Remove a node from the cluster",
+	Long: `Remove a node from the cluster. By default, this will attempt to drain
+the node (stop services gracefully) before removal. Use --drain=false to skip draining.
+Use --force to remove even if the node is unreachable.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		nodeID := strings.TrimSpace(args[0])
+		if nodeID == "" {
+			return errors.New("node_id is required")
+		}
+
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+
+		resp, err := client.RemoveNode(ctxWithTimeout(), &clustercontrollerpb.RemoveNodeRequest{
+			NodeId: nodeID,
+			Force:  removeNodeForce,
+			Drain:  removeNodeDrain,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("operation_id: %s\n", resp.GetOperationId())
+		fmt.Printf("message: %s\n", resp.GetMessage())
+		return nil
+	},
+}
+
+var healthCmd = &cobra.Command{
+	Use:   "health",
+	Short: "Display cluster health status",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+
+		resp, err := client.GetClusterHealth(ctxWithTimeout(), &clustercontrollerpb.GetClusterHealthRequest{})
+		if err != nil {
+			return err
+		}
+
+		// Print overall status
+		fmt.Printf("Cluster Status: %s\n", strings.ToUpper(resp.GetStatus()))
+		fmt.Printf("\nNode Summary:\n")
+		fmt.Printf("  Total:     %d\n", resp.GetTotalNodes())
+		fmt.Printf("  Healthy:   %d\n", resp.GetHealthyNodes())
+		fmt.Printf("  Unhealthy: %d\n", resp.GetUnhealthyNodes())
+		fmt.Printf("  Unknown:   %d\n", resp.GetUnknownNodes())
+
+		if len(resp.GetNodeHealth()) > 0 {
+			fmt.Printf("\nNode Details:\n")
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "NODE ID\tHOSTNAME\tSTATUS\tLAST SEEN\tERROR")
+			for _, node := range resp.GetNodeHealth() {
+				lastSeen := "never"
+				if ts := node.GetLastSeen(); ts != nil {
+					lastSeen = ts.AsTime().Format(time.RFC3339)
+				}
+				lastError := node.GetLastError()
+				if lastError == "" {
+					lastError = "-"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+					node.GetNodeId(),
+					node.GetHostname(),
+					node.GetStatus(),
+					lastSeen,
+					lastError,
+				)
+			}
+			w.Flush()
+		}
+
 		return nil
 	},
 }
@@ -910,7 +1004,7 @@ var watchCmd = &cobra.Command{
 func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
-	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd)
+	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeRemoveCmd)
 	planCmd.AddCommand(planGetCmd, planApplyCmd)
 	debugCmd.AddCommand(debugAgentCmd)
 	debugAgentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd, debugAgentApplyPlanCmd)
