@@ -2,12 +2,21 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 )
+
+// newTestServer creates a server with a writable temp state path for tests.
+func newTestServer(t *testing.T, state *controllerState) *server {
+	t.Helper()
+	tmpDir := t.TempDir()
+	statePath := filepath.Join(tmpDir, "state.json")
+	return newServer(defaultClusterControllerConfig(), "", statePath, state, nil)
+}
 
 func TestRestartUnitsForSpecChanges(t *testing.T) {
 	httpSpec := &clustercontrollerpb.ClusterNetworkSpec{
@@ -103,7 +112,7 @@ func TestCleanupTimedOutOperationsFails(t *testing.T) {
 
 func TestRemoveNodeNotFound(t *testing.T) {
 	state := newControllerState()
-	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+	srv := newTestServer(t, state)
 
 	_, err := srv.RemoveNode(context.Background(), &clustercontrollerpb.RemoveNodeRequest{
 		NodeId: "nonexistent-node",
@@ -126,7 +135,7 @@ func TestRemoveNodeSuccess(t *testing.T) {
 		Profiles: []string{"core"},
 		Status:   "healthy",
 	}
-	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+	srv := newTestServer(t, state)
 
 	resp, err := srv.RemoveNode(context.Background(), &clustercontrollerpb.RemoveNodeRequest{
 		NodeId: "node-1",
