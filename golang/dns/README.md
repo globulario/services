@@ -21,7 +21,134 @@ This service implements a full DNS server that listens on UDP port 53 for DNS qu
 
 ---
 
-## Linux Setup Guide
+## Cluster Integration (Automated Setup)
+
+When running as part of a Globular cluster, DNS configuration is **largely automated** through the cluster controller and node agent.
+
+### What's Automated
+
+| Component | Automated | Manual |
+|-----------|-----------|--------|
+| Service deployment (`globular-dns.service`) | Yes | - |
+| Domain registration (`SetDomains`) | Yes | - |
+| Node A records (`<hostname>.<domain>`) | Yes | - |
+| Gateway A records (`gateway.<domain>`) | Yes | - |
+| SOA records | Yes (via plan) | - |
+| NS records | Yes (via plan) | - |
+| Glue records (A for NS) | Yes (via plan) | - |
+| Linux port 53 setup | - | Yes |
+| Registrar glue records | - | Yes |
+
+### DNS Profile
+
+Nodes with the following profiles run the DNS service:
+- `core`
+- `compute`
+- `control-plane`
+- `dns` (dedicated DNS nodes)
+
+### Automated Configuration Flow
+
+```
+┌──────────────────────┐
+│  Cluster Controller  │
+│                      │
+│  1. Compute node plan│
+│  2. Render DNS config│
+│     - SOA record     │
+│     - NS records     │
+│     - Glue records   │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    Node Agent        │
+│                      │
+│  3. Receive plan     │
+│  4. Write dns_init.json
+│  5. Start DNS service│
+│  6. syncDNS()        │
+│     - SetDomains     │
+│     - Node A records │
+│     - Apply init cfg │
+└──────────────────────┘
+```
+
+### Configuration Files
+
+The cluster controller renders:
+
+**`/var/lib/globular/dns/dns_init.json`** - DNS initialization config:
+```json
+{
+  "domain": "example.com",
+  "soa": {
+    "domain": "example.com",
+    "ns": "ns1.example.com.",
+    "mbox": "admin.example.com.",
+    "serial": 2024011800,
+    "refresh": 7200,
+    "retry": 3600,
+    "expire": 1209600,
+    "minttl": 3600,
+    "ttl": 3600
+  },
+  "ns_records": [
+    {"ns": "ns1.example.com", "ttl": 3600},
+    {"ns": "ns2.example.com", "ttl": 3600}
+  ],
+  "glue_records": [
+    {"hostname": "ns1.example.com", "ip": "192.168.1.10", "ttl": 3600},
+    {"hostname": "ns2.example.com", "ip": "192.168.1.11", "ttl": 3600}
+  ],
+  "is_primary": true
+}
+```
+
+### CLI Commands for DNS Setup
+
+Using `globularcli`, you can bootstrap a DNS-enabled cluster:
+
+```bash
+# Step 1: Create cluster with DNS domain (do this AFTER Linux setup)
+globularcli cluster create \
+  --domain yourdomain.com \
+  --admin-email admin@yourdomain.com
+
+# Step 2: Bootstrap first node with DNS profile
+globularcli cluster bootstrap \
+  --profiles core,dns
+
+# Step 3: Join additional DNS nodes
+globularcli cluster join \
+  --controller <controller-address>:10010 \
+  --profiles dns
+
+# Step 4: Verify DNS records
+globularcli dns list --domain yourdomain.com
+```
+
+### What You Still Need to Do Manually
+
+1. **Linux OS Setup** (before cluster bootstrap):
+   - Free port 53 (disable systemd-resolved stub)
+   - Configure hostname
+   - Open firewall ports
+
+2. **Domain Registrar Setup** (after cluster is running):
+   - Create glue records at registrar
+
+### Related Documentation
+
+- [Cluster Controller README](../clustercontroller/README.md) - DNS config rendering details
+- [Node Agent README](../nodeagent/README.md) - DNS synchronization details
+   - Point nameservers to your DNS nodes
+
+See sections below for detailed manual setup instructions.
+
+---
+
+## Linux Setup Guide (Manual Prerequisites)
 
 Running a DNS server on Linux requires some system configuration to free up port 53, which is typically used by `systemd-resolved`.
 
@@ -631,6 +758,13 @@ sudo systemctl stop systemd-resolved
 
 - Storage: BadgerDB (embedded, no external dependencies)
 - DNS library: `github.com/miekg/dns`
+
+## Cluster Integration
+
+When deployed in a Globular cluster:
+
+- [Cluster Controller](../clustercontroller/README.md) - Renders DNS init config (`/var/lib/globular/dns/dns_init.json`)
+- [Node Agent](../nodeagent/README.md) - Applies DNS init config and syncs node records
 
 ---
 

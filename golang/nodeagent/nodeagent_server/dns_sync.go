@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -22,6 +23,7 @@ const (
 	envDNSIPv4                   = "GLOBULAR_DNS_IPv4"
 	envDNSIPv6                   = "GLOBULAR_DNS_IPv6"
 	envDNSIface                  = "GLOBULAR_DNS_IFACE"
+	dnsInitConfigPath            = "/var/lib/globular/dns/dns_init.json"
 )
 
 func (srv *NodeAgentServer) syncDNS(spec *clustercontrollerpb.ClusterNetworkSpec) error {
@@ -79,6 +81,125 @@ func (srv *NodeAgentServer) syncDNS(spec *clustercontrollerpb.ClusterNetworkSpec
 		}
 		if _, err := client.SetAAAA(token, hostFQDN, ipv6, dnsDefaultTTL); err != nil {
 			return fmt.Errorf("set AAAA %s: %w", hostFQDN, err)
+		}
+	}
+
+	// Apply DNS init config if it exists (SOA, NS, glue records)
+	if err := applyDNSInitConfig(client, token); err != nil {
+		// Log but don't fail - the basic DNS records are already set
+		// This is non-critical for node operation
+		fmt.Printf("nodeagent: dns init config: %v\n", err)
+	}
+
+	return nil
+}
+
+// dnsInitConfig represents the DNS initialization configuration rendered by cluster controller.
+type dnsInitConfig struct {
+	Domain      string       `json:"domain"`
+	SOA         dnsSOAConfig `json:"soa"`
+	NSRecords   []dnsNSConfig `json:"ns_records"`
+	GlueRecords []dnsGlueConfig `json:"glue_records"`
+	IsPrimary   bool         `json:"is_primary"`
+}
+
+type dnsSOAConfig struct {
+	Domain  string `json:"domain"`
+	NS      string `json:"ns"`
+	Mbox    string `json:"mbox"`
+	Serial  uint32 `json:"serial"`
+	Refresh uint32 `json:"refresh"`
+	Retry   uint32 `json:"retry"`
+	Expire  uint32 `json:"expire"`
+	Minttl  uint32 `json:"minttl"`
+	TTL     uint32 `json:"ttl"`
+}
+
+type dnsNSConfig struct {
+	NS  string `json:"ns"`
+	TTL uint32 `json:"ttl"`
+}
+
+type dnsGlueConfig struct {
+	Hostname string `json:"hostname"`
+	IP       string `json:"ip"`
+	TTL      uint32 `json:"ttl"`
+}
+
+// applyDNSInitConfig reads the DNS init config file and applies SOA, NS, and glue records.
+// This is called after basic DNS sync to set up authoritative DNS records.
+func applyDNSInitConfig(client *dns_client.Dns_Client, token string) error {
+	data, err := os.ReadFile(dnsInitConfigPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No init config - this is fine, node may not have DNS profile
+			return nil
+		}
+		return fmt.Errorf("read dns init config: %w", err)
+	}
+
+	var config dnsInitConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("parse dns init config: %w", err)
+	}
+
+	if config.Domain == "" {
+		return fmt.Errorf("dns init config: empty domain")
+	}
+
+	// Only the primary node should set SOA and NS records to avoid conflicts
+	if !config.IsPrimary {
+		// Non-primary nodes only set their own glue records
+		for _, glue := range config.GlueRecords {
+			if glue.Hostname != "" && glue.IP != "" {
+				ttl := glue.TTL
+				if ttl == 0 {
+					ttl = 3600
+				}
+				if _, err := client.SetA(token, glue.Hostname, glue.IP, ttl); err != nil {
+					return fmt.Errorf("set glue A %s: %w", glue.Hostname, err)
+				}
+			}
+		}
+		return nil
+	}
+
+	// Primary node sets SOA, NS, and all glue records
+	soa := config.SOA
+	if soa.NS != "" {
+		ttl := soa.TTL
+		if ttl == 0 {
+			ttl = 3600
+		}
+		if err := client.SetSoa(token, config.Domain,
+			soa.NS, soa.Mbox, soa.Serial, soa.Refresh, soa.Retry, soa.Expire, soa.Minttl, ttl); err != nil {
+			return fmt.Errorf("set SOA %s: %w", config.Domain, err)
+		}
+	}
+
+	// Set NS records
+	for _, ns := range config.NSRecords {
+		if ns.NS != "" {
+			ttl := ns.TTL
+			if ttl == 0 {
+				ttl = 3600
+			}
+			if err := client.SetNs(token, config.Domain, ns.NS, ttl); err != nil {
+				return fmt.Errorf("set NS %s: %w", ns.NS, err)
+			}
+		}
+	}
+
+	// Set glue records (A records for nameservers)
+	for _, glue := range config.GlueRecords {
+		if glue.Hostname != "" && glue.IP != "" {
+			ttl := glue.TTL
+			if ttl == 0 {
+				ttl = 3600
+			}
+			if _, err := client.SetA(token, glue.Hostname, glue.IP, ttl); err != nil {
+				return fmt.Errorf("set glue A %s: %w", glue.Hostname, err)
+			}
 		}
 	}
 

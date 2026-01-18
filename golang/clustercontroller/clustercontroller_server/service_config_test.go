@@ -405,6 +405,140 @@ func TestRenderXDSConfig(t *testing.T) {
 	})
 }
 
+func TestRenderDNSConfig(t *testing.T) {
+	t.Run("single node cluster", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "ns1", IP: "192.168.1.10", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "ns1", IP: "192.168.1.10", Profiles: []string{"core"}},
+			Domain:      "example.com",
+		}
+
+		config, ok := renderDNSConfig(ctx)
+		if !ok {
+			t.Fatal("renderDNSConfig() returned false")
+		}
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+			t.Fatalf("config is not valid JSON: %v", err)
+		}
+
+		// Check domain
+		if parsed["domain"] != "example.com" {
+			t.Errorf("unexpected domain: %v", parsed["domain"])
+		}
+
+		// Check is_primary (first node should be primary)
+		if parsed["is_primary"] != true {
+			t.Error("first node should be primary")
+		}
+
+		// Check SOA record
+		soa, ok := parsed["soa"].(map[string]interface{})
+		if !ok {
+			t.Fatal("missing soa record")
+		}
+		if soa["domain"] != "example.com" {
+			t.Errorf("unexpected SOA domain: %v", soa["domain"])
+		}
+		if !strings.HasPrefix(soa["ns"].(string), "ns1.example.com") {
+			t.Errorf("unexpected SOA ns: %v", soa["ns"])
+		}
+
+		// Check NS records
+		nsRecords, ok := parsed["ns_records"].([]interface{})
+		if !ok || len(nsRecords) != 1 {
+			t.Fatalf("expected 1 NS record, got %v", nsRecords)
+		}
+
+		// Check glue records
+		glueRecords, ok := parsed["glue_records"].([]interface{})
+		if !ok || len(glueRecords) != 1 {
+			t.Fatalf("expected 1 glue record, got %v", glueRecords)
+		}
+		glue := glueRecords[0].(map[string]interface{})
+		if glue["ip"] != "192.168.1.10" {
+			t.Errorf("unexpected glue IP: %v", glue["ip"])
+		}
+	})
+
+	t.Run("multi-node cluster", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "ns1", IP: "192.168.1.10", Profiles: []string{"dns"}},
+					{NodeID: "n2", Hostname: "ns2", IP: "192.168.1.11", Profiles: []string{"dns"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n2", Hostname: "ns2", IP: "192.168.1.11", Profiles: []string{"dns"}},
+			Domain:      "example.com",
+		}
+
+		config, ok := renderDNSConfig(ctx)
+		if !ok {
+			t.Fatal("renderDNSConfig() returned false")
+		}
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+			t.Fatalf("config is not valid JSON: %v", err)
+		}
+
+		// n2 should not be primary (n1 is first alphabetically)
+		if parsed["is_primary"] != false {
+			t.Error("second node should not be primary")
+		}
+
+		// Should have 2 NS records
+		nsRecords, ok := parsed["ns_records"].([]interface{})
+		if !ok || len(nsRecords) != 2 {
+			t.Fatalf("expected 2 NS records, got %v", nsRecords)
+		}
+
+		// Should have 2 glue records
+		glueRecords, ok := parsed["glue_records"].([]interface{})
+		if !ok || len(glueRecords) != 2 {
+			t.Fatalf("expected 2 glue records, got %v", glueRecords)
+		}
+	})
+
+	t.Run("node without dns profile", func(t *testing.T) {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: "test-cluster",
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"storage"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"storage"}},
+			Domain:      "example.com",
+		}
+
+		_, ok := renderDNSConfig(ctx)
+		if ok {
+			t.Error("renderDNSConfig() should return false for node without dns profile")
+		}
+	})
+}
+
+func TestGenerateSOASerial(t *testing.T) {
+	serial := generateSOASerial()
+	// Serial should be at least YYYYMMDD00 format (2024010100 minimum)
+	if serial < 2024010100 {
+		t.Errorf("serial seems too low: %d", serial)
+	}
+	// Serial should not exceed reasonable bounds (2099123199)
+	if serial > 2099123199 {
+		t.Errorf("serial seems too high: %d", serial)
+	}
+}
+
 func TestRenderServiceConfigs(t *testing.T) {
 	t.Run("core profile gets all configs", func(t *testing.T) {
 		ctx := &serviceConfigContext{
@@ -428,6 +562,7 @@ func TestRenderServiceConfigs(t *testing.T) {
 			"/var/lib/globular/etcd/etcd.yaml",
 			"/var/lib/globular/minio/minio.env",
 			"/var/lib/globular/xds/config.json",
+			"/var/lib/globular/dns/dns_init.json",
 		}
 
 		for _, path := range expectedPaths {

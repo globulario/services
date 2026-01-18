@@ -158,6 +158,74 @@ Different services have different startup timeouts:
 | Media | 40s | 30s |
 | Other | 30s | 20s |
 
+## DNS Synchronization
+
+After receiving network configuration from the cluster controller, the node agent automatically synchronizes DNS records.
+
+### What Gets Synchronized
+
+| Record Type | Example | Description |
+|-------------|---------|-------------|
+| Domain registration | `SetDomains(["example.com"])` | Registers managed domains |
+| Gateway A record | `gateway.example.com → 192.168.1.10` | Cluster gateway endpoint |
+| Node A record | `node1.example.com → 192.168.1.10` | Node hostname FQDN |
+| Gateway AAAA record | `gateway.example.com → 2001:db8::1` | IPv6 (if available) |
+| Node AAAA record | `node1.example.com → 2001:db8::1` | IPv6 (if available) |
+
+### DNS Init Config (Authoritative DNS)
+
+For nodes with DNS profiles, the agent also applies authoritative DNS configuration from `/var/lib/globular/dns/dns_init.json`:
+
+| Record Type | Description | Applied By |
+|-------------|-------------|------------|
+| SOA | Start of Authority record | Primary node only |
+| NS | Nameserver records | Primary node only |
+| Glue A | A records for NS hosts | All DNS nodes |
+
+### DNS Sync Flow
+
+```
+┌───────────────────────┐
+│  Network Spec         │
+│  Received from        │
+│  Controller           │
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│  syncDNS()            │
+│                       │
+│  1. SetDomains        │
+│  2. Set gateway A/AAAA│
+│  3. Set node A/AAAA   │
+│  4. Apply init config │
+│     (if exists)       │
+└───────────────────────┘
+            │
+            ▼
+┌───────────────────────┐
+│  applyDNSInitConfig() │
+│                       │
+│  If primary node:     │
+│  - Set SOA record     │
+│  - Set NS records     │
+│  - Set all glue A     │
+│                       │
+│  If secondary node:   │
+│  - Set own glue A     │
+└───────────────────────┘
+```
+
+### DNS Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GLOBULAR_DNS_ENDPOINT` | Override DNS service endpoint | `127.0.0.1:10033` |
+| `GLOBULAR_DNS_IPv4` | Override IPv4 for DNS records | Auto-detected |
+| `GLOBULAR_DNS_IPv6` | Override IPv6 for DNS records | Auto-detected |
+| `GLOBULAR_DNS_IFACE` | Use specific interface for IP detection | - |
+| `GLOBULAR_DNS_TOKEN` | Override authentication token | Auto-generated |
+
 ## Configuration
 
 ### Environment Variables

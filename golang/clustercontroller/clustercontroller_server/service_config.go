@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // clusterMembership is a snapshot of cluster nodes used for generating service configurations.
@@ -38,6 +39,9 @@ var profilesForMinio = []string{"core", "compute", "storage"}
 
 // profilesForXDS lists the profiles that run the XDS server.
 var profilesForXDS = []string{"core", "compute", "control-plane", "gateway"}
+
+// profilesForDNS lists the profiles that run the DNS server.
+var profilesForDNS = []string{"core", "compute", "control-plane", "dns"}
 
 // nodeHasProfile returns true if the node has at least one of the given profiles.
 func nodeHasProfile(node *memberNode, profiles []string) bool {
@@ -264,6 +268,98 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 	return result, true
 }
 
+// renderDNSConfig generates the DNS initialization configuration JSON for a node.
+// This config is used by the node-agent to set up authoritative DNS records (SOA, NS, glue).
+// File path: /var/lib/globular/dns/dns_init.json
+func renderDNSConfig(ctx *serviceConfigContext) (string, bool) {
+	if ctx == nil || ctx.CurrentNode == nil {
+		return "", false
+	}
+	if !nodeHasProfile(ctx.CurrentNode, profilesForDNS) {
+		return "", false
+	}
+
+	dnsNodes := filterNodesByProfile(ctx.Membership, profilesForDNS)
+	if len(dnsNodes) == 0 {
+		return "", false
+	}
+
+	domain := ctx.Domain
+	if domain == "" {
+		domain = "example.com"
+	}
+
+	// Determine primary DNS node (first in sorted list)
+	primaryNS := dnsNodes[0]
+	primaryHostname := primaryNS.Hostname
+	if primaryHostname == "" {
+		primaryHostname = "ns1"
+	}
+
+	// Build NS records and glue records
+	nsRecords := make([]map[string]interface{}, 0, len(dnsNodes))
+	glueRecords := make([]map[string]interface{}, 0, len(dnsNodes))
+
+	for i, node := range dnsNodes {
+		hostname := node.Hostname
+		if hostname == "" {
+			hostname = fmt.Sprintf("ns%d", i+1)
+		}
+		nsFQDN := fmt.Sprintf("%s.%s", hostname, domain)
+
+		nsRecords = append(nsRecords, map[string]interface{}{
+			"ns":  nsFQDN,
+			"ttl": 3600,
+		})
+
+		if node.IP != "" {
+			glueRecords = append(glueRecords, map[string]interface{}{
+				"hostname": nsFQDN,
+				"ip":       node.IP,
+				"ttl":      3600,
+			})
+		}
+	}
+
+	// Build admin email (replace @ with . for SOA MBOX format)
+	adminEmail := fmt.Sprintf("admin.%s", domain)
+
+	// SOA record configuration
+	soaRecord := map[string]interface{}{
+		"domain":  domain,
+		"ns":      fmt.Sprintf("%s.%s.", primaryHostname, domain),
+		"mbox":    adminEmail + ".",
+		"serial":  generateSOASerial(),
+		"refresh": 7200,  // 2 hours
+		"retry":   3600,  // 1 hour
+		"expire":  1209600, // 2 weeks
+		"minttl":  3600,  // 1 hour
+		"ttl":     3600,
+	}
+
+	config := map[string]interface{}{
+		"domain":       domain,
+		"soa":          soaRecord,
+		"ns_records":   nsRecords,
+		"glue_records": glueRecords,
+		"is_primary":   ctx.CurrentNode.NodeID == primaryNS.NodeID,
+	}
+
+	result, err := renderJSON(config)
+	if err != nil {
+		return "", false
+	}
+	return result, true
+}
+
+// generateSOASerial creates a serial number in YYYYMMDDNN format based on current time.
+func generateSOASerial() uint32 {
+	now := time.Now().UTC()
+	// Format: YYYYMMDD00 - using 00 as revision, can be incremented if needed
+	serial := uint32(now.Year())*1000000 + uint32(now.Month())*10000 + uint32(now.Day())*100
+	return serial
+}
+
 // renderYAML converts a map to YAML format.
 // Uses a simple key: value format suitable for etcd configuration.
 func renderYAML(data map[string]interface{}) (string, error) {
@@ -331,6 +427,10 @@ func renderServiceConfigs(ctx *serviceConfigContext) map[string]string {
 
 	if xdsConfig, ok := renderXDSConfig(ctx); ok {
 		configs["/var/lib/globular/xds/config.json"] = xdsConfig
+	}
+
+	if dnsConfig, ok := renderDNSConfig(ctx); ok {
+		configs["/var/lib/globular/dns/dns_init.json"] = dnsConfig
 	}
 
 	if len(configs) == 0 {

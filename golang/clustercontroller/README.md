@@ -441,6 +441,7 @@ When nodes join or profiles change, the cluster controller automatically generat
 | etcd | `/var/lib/globular/etcd/etcd.yaml` | Cluster membership, peer URLs |
 | MinIO | `/var/lib/globular/minio/minio.env` | Distributed storage endpoints |
 | XDS | `/var/lib/globular/xds/config.json` | etcd endpoints, TLS config |
+| DNS | `/var/lib/globular/dns/dns_init.json` | SOA, NS, and glue records |
 | Network | `/var/lib/globular/network.json` | Cluster domain, protocol |
 
 ### etcd Configuration
@@ -509,6 +510,66 @@ Generated for nodes with profiles: `core`, `compute`, `control-plane`, `gateway`
 }
 ```
 
+### DNS Configuration
+
+Generated for nodes with profiles: `core`, `compute`, `control-plane`, `dns`
+
+The DNS init config provides authoritative DNS setup including SOA, NS, and glue records. The node agent applies these records via the DNS service gRPC API.
+
+**Single DNS node:**
+```json
+{
+  "domain": "mycluster.example.com",
+  "soa": {
+    "domain": "mycluster.example.com",
+    "ns": "ns1.mycluster.example.com.",
+    "mbox": "admin.mycluster.example.com.",
+    "serial": 2024011800,
+    "refresh": 7200,
+    "retry": 3600,
+    "expire": 1209600,
+    "minttl": 3600,
+    "ttl": 3600
+  },
+  "ns_records": [
+    {"ns": "ns1.mycluster.example.com", "ttl": 3600}
+  ],
+  "glue_records": [
+    {"hostname": "ns1.mycluster.example.com", "ip": "192.168.1.10", "ttl": 3600}
+  ],
+  "is_primary": true
+}
+```
+
+**Multi-node DNS cluster:**
+```json
+{
+  "domain": "mycluster.example.com",
+  "soa": {
+    "domain": "mycluster.example.com",
+    "ns": "ns1.mycluster.example.com.",
+    "mbox": "admin.mycluster.example.com.",
+    "serial": 2024011800,
+    "refresh": 7200,
+    "retry": 3600,
+    "expire": 1209600,
+    "minttl": 3600,
+    "ttl": 3600
+  },
+  "ns_records": [
+    {"ns": "ns1.mycluster.example.com", "ttl": 3600},
+    {"ns": "ns2.mycluster.example.com", "ttl": 3600}
+  ],
+  "glue_records": [
+    {"hostname": "ns1.mycluster.example.com", "ip": "192.168.1.10", "ttl": 3600},
+    {"hostname": "ns2.mycluster.example.com", "ip": "192.168.1.11", "ttl": 3600}
+  ],
+  "is_primary": true
+}
+```
+
+**Note:** Only the primary DNS node (first in sorted order) sets SOA and NS records. Secondary nodes only set their own glue A records to avoid conflicts.
+
 ### How Configuration Updates Work
 
 ```
@@ -551,6 +612,7 @@ NodePlan
     ├── "/var/lib/globular/etcd/etcd.yaml": <content>
     ├── "/var/lib/globular/minio/minio.env": <content>
     ├── "/var/lib/globular/xds/config.json": <content>
+    ├── "/var/lib/globular/dns/dns_init.json": <content>
     ├── "/var/lib/globular/network.json": <content>
     └── "cluster.network.generation": "42"
 ```
