@@ -129,7 +129,7 @@ func init() {
 	upgradeCmd.Flags().StringVar(&upgradeTarget, "target-path", "", "Destination path for the Globular binary")
 	upgradeCmd.Flags().IntVar(&upgradeProbePort, "probe-port", defaultUpgradeProbePort, "HTTP port to call /checksum")
 
-	networkCmd.AddCommand(networkSetCmd)
+	networkCmd.AddCommand(networkSetCmd, networkGetCmd)
 	networkSetCmd.Flags().StringVar(&networkDomain, "domain", "", "Cluster domain (required)")
 	networkSetCmd.Flags().StringVar(&networkProtocol, "protocol", "http", "Network protocol (http|https)")
 	networkSetCmd.Flags().IntVar(&networkHTTPPort, "http-port", 8080, "HTTP port to configure")
@@ -361,6 +361,98 @@ var nodesListCmd = &cobra.Command{
 	},
 }
 
+var nodesGetCmd = &cobra.Command{
+	Use:   "get <node_id>",
+	Short: "Get detailed information about a specific node",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		nodeID := strings.TrimSpace(args[0])
+		if nodeID == "" {
+			return errors.New("node_id is required")
+		}
+
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+
+		// List nodes and find the specific one
+		ctx, cancel := ctxWithCLITimeout(cmd.Context())
+		defer cancel()
+
+		resp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+		if err != nil {
+			return err
+		}
+
+		var foundNode *clustercontrollerpb.NodeRecord
+		for _, node := range resp.GetNodes() {
+			if node.GetNodeId() == nodeID {
+				foundNode = node
+				break
+			}
+		}
+
+		if foundNode == nil {
+			return fmt.Errorf("node %s not found", nodeID)
+		}
+
+		// Get the node's plan to show applied configuration
+		planResp, err := client.GetNodePlan(ctx, &clustercontrollerpb.GetNodePlanRequest{
+			NodeId: nodeID,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not get node plan: %v\n", err)
+		}
+
+		// Print node details
+		fmt.Printf("Node ID: %s\n", foundNode.GetNodeId())
+		fmt.Printf("Status: %s\n", foundNode.GetStatus())
+		fmt.Printf("Agent Endpoint: %s\n", foundNode.GetAgentEndpoint())
+		fmt.Printf("Profiles: %s\n", strings.Join(foundNode.GetProfiles(), ", "))
+
+		if identity := foundNode.GetIdentity(); identity != nil {
+			fmt.Printf("\nIdentity:\n")
+			fmt.Printf("  Hostname: %s\n", identity.GetHostname())
+			fmt.Printf("  Domain: %s\n", identity.GetDomain())
+			if len(identity.GetIps()) > 0 {
+				fmt.Printf("  IPs: %s\n", strings.Join(identity.GetIps(), ", "))
+			}
+			fmt.Printf("  OS/Arch: %s/%s\n", identity.GetOs(), identity.GetArch())
+			fmt.Printf("  Agent Version: %s\n", identity.GetAgentVersion())
+		}
+
+		if lastSeen := foundNode.GetLastSeen(); lastSeen != nil {
+			fmt.Printf("\nLast Seen: %s\n", lastSeen.AsTime().Format(time.RFC3339))
+		}
+
+		if metadata := foundNode.GetMetadata(); len(metadata) > 0 {
+			fmt.Printf("\nMetadata:\n")
+			for k, v := range metadata {
+				fmt.Printf("  %s: %s\n", k, v)
+			}
+		}
+
+		if planResp != nil && planResp.GetPlan() != nil {
+			plan := planResp.GetPlan()
+			if genStr := plan.GetRenderedConfig()["cluster.network.generation"]; genStr != "" {
+				fmt.Printf("\nNetwork Generation: %s\n", genStr)
+			}
+
+			if len(plan.GetUnitActions()) > 0 {
+				fmt.Printf("\nPlanned Unit Actions:\n")
+				for _, action := range plan.GetUnitActions() {
+					fmt.Printf("  %s: %s\n", action.GetUnitName(), action.GetAction())
+				}
+			}
+		}
+
+		return nil
+	},
+}
+
 var nodeProfilesCmd = &cobra.Command{
 	Use:   "profiles set <node_id>",
 	Short: "Replace a node's profiles",
@@ -515,6 +607,81 @@ var planApplyCmd = &cobra.Command{
 var networkCmd = &cobra.Command{
 	Use:   "network",
 	Short: "Manage cluster network configuration",
+}
+
+var networkGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Display current cluster network configuration",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cc, err := controllerClient()
+		if err != nil {
+			return err
+		}
+		defer cc.Close()
+		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
+
+		// Use GetNodePlan from a node to extract network spec, or use UpdateClusterNetwork with empty to get current
+		// Actually, we can read the state file or use a workaround - let's list nodes and get plan to see network config
+		ctx, cancel := ctxWithCLITimeout(cmd.Context())
+		defer cancel()
+
+		nodesResp, err := client.ListNodes(ctx, &clustercontrollerpb.ListNodesRequest{})
+		if err != nil {
+			return err
+		}
+
+		if len(nodesResp.GetNodes()) == 0 {
+			fmt.Println("No nodes in cluster - network configuration not yet initialized")
+			return nil
+		}
+
+		// Get plan from first node to extract network config
+		firstNode := nodesResp.GetNodes()[0]
+		planResp, err := client.GetNodePlan(ctx, &clustercontrollerpb.GetNodePlanRequest{
+			NodeId: firstNode.GetNodeId(),
+		})
+		if err != nil {
+			return fmt.Errorf("get node plan: %w", err)
+		}
+
+		plan := planResp.GetPlan()
+		if plan == nil || len(plan.GetRenderedConfig()) == 0 {
+			fmt.Println("Network configuration not yet applied")
+			return nil
+		}
+
+		// Extract network spec from rendered config
+		specJSON := plan.GetRenderedConfig()["cluster.network.spec.json"]
+		if specJSON == "" {
+			fmt.Println("Network configuration not found in plan")
+			return nil
+		}
+
+		var spec clustercontrollerpb.ClusterNetworkSpec
+		if err := protojson.Unmarshal([]byte(specJSON), &spec); err != nil {
+			return fmt.Errorf("parse network spec: %w", err)
+		}
+
+		genStr := plan.GetRenderedConfig()["cluster.network.generation"]
+
+		fmt.Printf("Cluster Network Configuration:\n")
+		fmt.Printf("  Domain:            %s\n", spec.GetClusterDomain())
+		fmt.Printf("  Protocol:          %s\n", spec.GetProtocol())
+		fmt.Printf("  HTTP Port:         %d\n", spec.GetPortHttp())
+		fmt.Printf("  HTTPS Port:        %d\n", spec.GetPortHttps())
+		fmt.Printf("  ACME Enabled:      %t\n", spec.GetAcmeEnabled())
+		if spec.GetAdminEmail() != "" {
+			fmt.Printf("  Admin Email:       %s\n", spec.GetAdminEmail())
+		}
+		if len(spec.GetAlternateDomains()) > 0 {
+			fmt.Printf("  Alternate Domains: %s\n", strings.Join(spec.GetAlternateDomains(), ", "))
+		}
+		if genStr != "" {
+			fmt.Printf("  Generation:        %s\n", genStr)
+		}
+
+		return nil
+	},
 }
 
 var networkSetCmd = &cobra.Command{
@@ -743,7 +910,7 @@ var watchCmd = &cobra.Command{
 func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
-	nodesCmd.AddCommand(nodesListCmd, nodeProfilesCmd)
+	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd)
 	planCmd.AddCommand(planGetCmd, planApplyCmd)
 	debugCmd.AddCommand(debugAgentCmd)
 	debugAgentCmd.AddCommand(agentInventoryCmd, agentApplyCmd, agentWatchCmd, debugAgentApplyPlanCmd)

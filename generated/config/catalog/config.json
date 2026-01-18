@@ -1,0 +1,447 @@
+{
+  "Address": "localhost:10017",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "Catalog service",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "999bb122-c41f-354d-b4bb-ce30d51ff870",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "catalog.CatalogService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/catalog.CatalogService/Stop",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/catalog.CatalogService/CreateConnection",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/DeleteConnection",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveUnitOfMeasure",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SavePropertyDefinition",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveItemDefinition",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveItemInstance",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveInventory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveManufacturer",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveSupplier",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveLocalisation",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SavePackage",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SavePackageSupplier",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveItemManufacturer",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/SaveCategory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/AppendItemDefinitionCategory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/RemoveItemDefinitionCategory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getSupplier",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getSuppliers",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getManufacturer",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getManufacturers",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getSupplierPackages",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getPackage",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getPackages",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getUnitOfMeasure",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getUnitOfMeasures",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getItemDefinition",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getItemDefinitions",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getItemInstance",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getItemInstances",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getLocalisation",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getLocalisations",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getCategory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getCategories",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/getInventories",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteInventory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deletePackage",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deletePackageSupplier",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteSupplier",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deletePropertyDefinition",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteUnitOfMeasure",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteItemInstance",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteManufacturer",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteItemManufacturer",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteCategory",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/catalog.CatalogService/deleteLocalisation",
+      "resources": [
+        {
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10017,
+  "Process": 1774352,
+  "Proto": "catalog.proto",
+  "Protocol": "grpc",
+  "Proxy": 10018,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

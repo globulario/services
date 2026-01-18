@@ -1,0 +1,156 @@
+{
+  "Address": "localhost:10029",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [
+    "rbac.RbacService",
+    "event.EventService",
+    "authentication.AuthenticationService",
+    "log.LogService"
+  ],
+  "Description": "Media service with previews and scheduled conversions.",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "c3da51ba-c9d3-3c6a-b07d-0929d0171409",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Example",
+    "media",
+    "Test",
+    "Service"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "media.MediaService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/media.MediaService/UploadVideo",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Dest",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/CreateVideoPreview",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/CreateVideoTimeLine",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/ConvertVideoToMpeg4H264",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/ConvertVideoToHls",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/StartProcessVideo",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/StartProcessAudio",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/ClearVideoConversionError",
+      "permission": "delete",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/GeneratePlaylist",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Dir",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/media.MediaService/CreateVttFile",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Path",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10029,
+  "Process": 1774658,
+  "Proto": "media.proto",
+  "Protocol": "grpc",
+  "Proxy": 10030,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

@@ -1,0 +1,107 @@
+version: 1
+
+metadata:
+  name: torrent
+
+service:
+  name: torrent
+  exec: torrent_server
+
+steps:
+  - id: ensure-user-group
+    type: ensure_user_group
+    user: globular
+    group: globular
+    home: "{{.StateDir}}"
+    shell: /usr/sbin/nologin
+    system: true
+
+  - id: ensure-dirs
+    type: ensure_dirs
+    dirs:
+      - path: "{{.Prefix}}"
+        owner: root
+        group: root
+        mode: 0755
+      - path: "{{.Prefix}}/bin"
+        owner: root
+        group: root
+        mode: 0755
+
+      - path: "{{.StateDir}}"
+        owner: globular
+        group: globular
+        mode: 0750
+      - path: "{{.StateDir}}/torrent"
+        owner: globular
+        group: globular
+        mode: 0750
+
+      - path: "{{.ConfigDir}}"
+        owner: root
+        group: root
+        mode: 0755
+      - path: "{{.ConfigDir}}/torrent"
+        owner: root
+        group: root
+        mode: 0755
+
+  - id: install-torrent-config
+    type: install_files
+    files:
+      - path: "{{.ConfigDir}}/torrent/config.json"
+        owner: root
+        group: root
+        mode: 0644
+        atomic: true
+        # NOTE: this is intended to be replaced by node-agent/controller later.
+        # It is seeded from 'torrent_server --describe'.
+        content: |
+
+
+  - id: install-torrent-service
+    type: install_services
+    units:
+      - name: globular-torrent.service
+        owner: root
+        group: root
+        mode: 0644
+        atomic: true
+        content: |
+          [Unit]
+          Description=Globular torrent
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=globular
+          Group=globular
+          WorkingDirectory={{.StateDir}}/torrent
+          ExecStart={{.Prefix}}/bin/torrent_server
+          Restart=on-failure
+          RestartSec=2
+          LimitNOFILE=524288
+
+          [Install]
+          WantedBy=multi-user.target
+
+  - id: enable-torrent
+    type: enable_services
+    services:
+      - globular-torrent.service
+
+  - id: start-torrent
+    type: start_services
+    services:
+      - globular-torrent.service
+    restart_on_files:
+      globular-torrent.service:
+        - "{{.ConfigDir}}/torrent/config.json"
+    binaries:
+      globular-torrent.service: torrent_server
+
+  - id: health-torrent
+    type: health_checks
+    services:
+      - globular-torrent.service

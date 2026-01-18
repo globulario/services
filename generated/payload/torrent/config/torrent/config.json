@@ -1,0 +1,83 @@
+{
+  "Address": "localhost:10000",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "Torrent gRPC service for Globular.",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "6390b03b-72a6-3c91-97e3-2037a35f52f6",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Torrent",
+    "Download",
+    "P2P",
+    "Service"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "torrent.TorrentService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/torrent.TorrentService/DownloadTorrent",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Link",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "Dest",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "Seed",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/torrent.TorrentService/GetTorrentInfos",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/torrent.TorrentService/DropTorrent",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Name",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/torrent.TorrentService/GetTorrentLnks",
+      "permission": "read",
+      "resources": []
+    }
+  ],
+  "Platform": "",
+  "Port": 10000,
+  "Process": 1775129,
+  "Proto": "torrent.proto",
+  "Protocol": "grpc",
+  "Proxy": 10001,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

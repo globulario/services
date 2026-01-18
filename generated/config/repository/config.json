@@ -1,0 +1,72 @@
+{
+  "Address": "localhost:10000",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [
+    "resource.ResourceService",
+    "log.LogService",
+    "applications_manager.ApplicationManagerService"
+  ],
+  "Description": "Repository service where packages are stored.",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "cb03007a-2f5e-3fa6-b03e-456ea6ba3629",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Repo",
+    "Repository",
+    "Package",
+    "Service"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "repository.PackageRepository",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/repository.PackageRepository/UploadBundle",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Organization",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/repository.PackageRepository/DownloadBundle",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Descriptor.PublisherID",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "Platform",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10000,
+  "Process": 1774823,
+  "Proto": "repository.proto",
+  "Protocol": "grpc",
+  "Proxy": 10001,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

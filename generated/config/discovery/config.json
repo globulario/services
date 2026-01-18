@@ -1,0 +1,76 @@
+{
+  "Address": "localhost:10029",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [
+    "rbac.RbacService",
+    "resource.ResourceService"
+  ],
+  "Description": "Service discovery client",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "875f2100-3508-376c-8e81-f5780ac7312b",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Discovery",
+    "Package",
+    "Service",
+    "Application"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "discovery.PackageDiscovery",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/discovery.PackageDiscovery/PublishService",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "RepositoryId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "DiscoveryId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/discovery.PackageDiscovery/PublishApplication",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Repository",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "Discovery",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10029,
+  "Process": 1774425,
+  "Proto": "discovery.proto",
+  "Protocol": "grpc",
+  "Proxy": 10030,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

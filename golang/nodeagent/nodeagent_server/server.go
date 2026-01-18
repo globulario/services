@@ -138,6 +138,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		if ips := gatherIPs(); len(ips) > 0 {
 			advertised = fmt.Sprintf("%s:%s", ips[0], port)
 		} else {
+			// Fallback to first non-loopback IP or localhost
 			advertised = fmt.Sprintf("localhost:%s", port)
 		}
 	}
@@ -832,7 +833,7 @@ func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePl
 				return false, fmt.Errorf("write network spec snapshot: %w", err)
 			}
 			networkChanged = true
-		case "/etc/globular/network.json":
+		case "/var/lib/globular/network.json":
 			if err := srv.applyNetworkOverlay(target, value); err != nil {
 				return false, fmt.Errorf("apply network overlay: %w", err)
 			}
@@ -862,7 +863,6 @@ func isAllowedRenderTarget(target string) bool {
 		return false
 	}
 	allowed := []string{
-		"/etc/globular/",
 		"/var/lib/globular/",
 		"/run/globular/",
 		"/etc/systemd/system/",
@@ -1321,13 +1321,26 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *nodeage
 		profiles = []string{"control-plane", "gateway"}
 	}
 
+	// Store controller endpoint if provided
+	controllerEndpoint := strings.TrimSpace(req.GetControllerBind())
+	if controllerEndpoint != "" {
+		srv.controllerEndpoint = controllerEndpoint
+		srv.state.ControllerEndpoint = controllerEndpoint
+		if err := srv.saveState(); err != nil {
+			log.Printf("warn: persist controller endpoint: %v", err)
+		}
+	}
+
+	// Create a plan with both unit actions and network configuration
+	plan := srv.buildBootstrapPlanWithNetwork(profiles, req.GetClusterDomain())
+
 	op := srv.registerOperation("bootstrap node", profiles)
-	srv.startOperation(op, "bootstrapping first node")
+	go srv.runPlan(ctx, op, plan)
 
 	return &nodeagentpb.BootstrapFirstNodeResponse{
 		OperationId: op.id,
 		JoinToken:   srv.joinToken,
-		Message:     "bootstrap initiated",
+		Message:     "bootstrap initiated with network configuration",
 	}, nil
 }
 
@@ -1401,6 +1414,7 @@ func gatherIPs() []string {
 		return ips
 	}
 	for _, iface := range ifaces {
+		// Skip down or loopback interfaces
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
@@ -1416,6 +1430,7 @@ func gatherIPs() []string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
+			// Skip nil, loopback, or IPv6 addresses
 			if ip == nil || ip.IsLoopback() {
 				continue
 			}
@@ -1431,7 +1446,52 @@ func gatherIPs() []string {
 			ips = append(ips, text)
 		}
 	}
+
+	// Sort IPs: prefer private network addresses (10.x, 172.16-31.x, 192.168.x) first
+	sort.Slice(ips, func(i, j int) bool {
+		ipI := net.ParseIP(ips[i])
+		ipJ := net.ParseIP(ips[j])
+		if ipI == nil || ipJ == nil {
+			return ips[i] < ips[j]
+		}
+
+		privateI := isPrivateIP(ipI)
+		privateJ := isPrivateIP(ipJ)
+
+		// Private IPs come first
+		if privateI != privateJ {
+			return privateI
+		}
+
+		// Otherwise, sort by IP string
+		return ips[i] < ips[j]
+	})
+
 	return ips
+}
+
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	ip = ip.To4()
+	if ip == nil {
+		return false
+	}
+
+	// 10.0.0.0/8
+	if ip[0] == 10 {
+		return true
+	}
+	// 172.16.0.0/12
+	if ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31 {
+		return true
+	}
+	// 192.168.0.0/16
+	if ip[0] == 192 && ip[1] == 168 {
+		return true
+	}
+	return false
 }
 
 func buildNodeIdentity() *clustercontrollerpb.NodeIdentity {
@@ -1515,6 +1575,67 @@ func buildBootstrapPlan(services []string) *clustercontrollerpb.NodePlan {
 		Profiles:    []string{"bootstrap"},
 		UnitActions: actions,
 	}
+}
+
+func (srv *NodeAgentServer) buildBootstrapPlanWithNetwork(profiles []string, clusterDomain string) *clustercontrollerpb.NodePlan {
+	// Build unit actions from profiles
+	plan := buildBootstrapPlan(profiles)
+	plan.Profiles = append([]string(nil), profiles...)
+
+	// Add network configuration if domain is provided
+	domain := strings.TrimSpace(clusterDomain)
+	if domain == "" {
+		return plan
+	}
+
+	// Create default network spec for bootstrap
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		ClusterDomain: domain,
+		Protocol:      "http",  // Default to http for bootstrap
+		PortHttp:      8080,
+		PortHttps:     8443,
+		AcmeEnabled:   false,
+		AdminEmail:    "",
+	}
+
+	// Build rendered config
+	rendered := make(map[string]string)
+
+	// Add network spec snapshot
+	if specJSON, err := protojson.Marshal(spec); err == nil {
+		rendered["cluster.network.spec.json"] = string(specJSON)
+	}
+
+	// Add network overlay
+	configPayload := map[string]interface{}{
+		"Domain":   spec.ClusterDomain,
+		"Protocol": spec.Protocol,
+		"PortHTTP": spec.PortHttp,
+		"PortHTTPS": spec.PortHttps,
+	}
+	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
+		rendered["/var/lib/globular/network.json"] = string(cfgJSON)
+	}
+
+	// Add network generation (bootstrap starts at 1)
+	rendered["cluster.network.generation"] = "1"
+
+	// Add restart units for network config
+	restartUnits := []string{
+		"globular-etcd.service",
+		"globular-dns.service",
+		"globular-discovery.service",
+		"globular-xds.service",
+		"globular-envoy.service",
+		"globular-gateway.service",
+		"globular-minio.service",
+	}
+	if unitsJSON, err := json.Marshal(restartUnits); err == nil {
+		rendered["reconcile.restart_units"] = string(unitsJSON)
+	}
+
+	plan.RenderedConfig = rendered
+	return plan
 }
 
 func (srv *NodeAgentServer) saveState() error {

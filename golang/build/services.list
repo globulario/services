@@ -21,6 +21,6 @@
 ./storage/storage_server | usr/local/bin/storage_server
 ./title/title_server | usr/local/bin/title_server
 ./torrent/torrent_server | usr/local/bin/torrent_server
-./clustercontroller/clustercontroller_server | usr/local/bin/clustercontroller_server
-./nodeagent/nodeagent_server | usr/local/bin/nodeagent_server
+./clustercontroller/clustercontroller_server | usr/local/bin/cluster_controller
+./nodeagent/nodeagent_server | usr/local/bin/node_agent
 ./globularcli | usr/local/bin/globularcli

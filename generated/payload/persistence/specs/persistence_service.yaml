@@ -1,0 +1,107 @@
+version: 1
+
+metadata:
+  name: persistence
+
+service:
+  name: persistence
+  exec: persistence_server
+
+steps:
+  - id: ensure-user-group
+    type: ensure_user_group
+    user: globular
+    group: globular
+    home: "{{.StateDir}}"
+    shell: /usr/sbin/nologin
+    system: true
+
+  - id: ensure-dirs
+    type: ensure_dirs
+    dirs:
+      - path: "{{.Prefix}}"
+        owner: root
+        group: root
+        mode: 0755
+      - path: "{{.Prefix}}/bin"
+        owner: root
+        group: root
+        mode: 0755
+
+      - path: "{{.StateDir}}"
+        owner: globular
+        group: globular
+        mode: 0750
+      - path: "{{.StateDir}}/persistence"
+        owner: globular
+        group: globular
+        mode: 0750
+
+      - path: "{{.ConfigDir}}"
+        owner: root
+        group: root
+        mode: 0755
+      - path: "{{.ConfigDir}}/persistence"
+        owner: root
+        group: root
+        mode: 0755
+
+  - id: install-persistence-config
+    type: install_files
+    files:
+      - path: "{{.ConfigDir}}/persistence/config.json"
+        owner: root
+        group: root
+        mode: 0644
+        atomic: true
+        # NOTE: this is intended to be replaced by node-agent/controller later.
+        # It is seeded from 'persistence_server --describe'.
+        content: |
+
+
+  - id: install-persistence-service
+    type: install_services
+    units:
+      - name: globular-persistence.service
+        owner: root
+        group: root
+        mode: 0644
+        atomic: true
+        content: |
+          [Unit]
+          Description=Globular persistence
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=globular
+          Group=globular
+          WorkingDirectory={{.StateDir}}/persistence
+          ExecStart={{.Prefix}}/bin/persistence_server
+          Restart=on-failure
+          RestartSec=2
+          LimitNOFILE=524288
+
+          [Install]
+          WantedBy=multi-user.target
+
+  - id: enable-persistence
+    type: enable_services
+    services:
+      - globular-persistence.service
+
+  - id: start-persistence
+    type: start_services
+    services:
+      - globular-persistence.service
+    restart_on_files:
+      globular-persistence.service:
+        - "{{.ConfigDir}}/persistence/config.json"
+    binaries:
+      globular-persistence.service: persistence_server
+
+  - id: health-persistence
+    type: health_checks
+    services:
+      - globular-persistence.service

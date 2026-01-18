@@ -506,23 +506,17 @@ func GetServicesRoot() string {
 	return ""
 }
 
+// GetConfigDir returns the configuration directory.
+// DEPRECATED: Use GetRuntimeConfigDir() instead. This function is kept for backward compatibility
+// but now delegates to GetRuntimeConfigDir() to consolidate all configuration under /var/lib/globular.
 func GetConfigDir() string {
-	if runtime.GOOS == "windows" {
-		var programFilePath string
-		if runtime.GOARCH == "386" {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-		} else {
-			programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
-		}
-		return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/config"
-	}
-	// linux / freebsd / darwin
-	return "/etc/globular/config"
+	return GetRuntimeConfigDir()
 }
 
 func GetRuntimeConfigDir() string {
-	// Linux only for now; runtime services store generated config under the state root directory.
-	return filepath.Join(GetStateRootDir(), "config")
+	// Linux only for now; runtime config is stored directly under the state root directory.
+	// Tokens, keys, TLS, and config.json all live directly under /var/lib/globular.
+	return GetStateRootDir()
 }
 
 func GetRuntimeConfigPath() string {
@@ -584,10 +578,14 @@ func GetStateRootDir() string {
 	return "/var/lib/globular"
 }
 
-// New: persistent services config directory.
-// On Linux this is: /etc/globular/config/services
+// GetServicesConfigDir returns the directory where service configs are stored.
+// Services store their configs as <uuid>.json files in this directory.
+// This can be overridden via the GLOBULAR_SERVICES_DIR environment variable.
 func GetServicesConfigDir() string {
-	return filepath.Join(GetConfigDir(), "services")
+	if dir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR")); dir != "" {
+		return dir
+	}
+	return filepath.Join(GetStateRootDir(), "services")
 }
 
 func GetDataDir() string {
@@ -771,17 +769,16 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	return cfg, nil
 }
 
-// EnsureLocalConfig validates or bootstraps /etc-globular-backed config under the runtime directory.
+// EnsureLocalConfig validates or bootstraps the runtime config under the state directory.
 // Returns true if the runtime config was created or rewritten.
 func EnsureLocalConfig() (bool, error) {
 	stateRoot := GetStateRootDir()
-	runtimeDir := filepath.Join(stateRoot, "config")
+	runtimeDir := GetRuntimeConfigDir()
 	if err := EnsureRuntimeDir(runtimeDir); err != nil {
 		return false, fmt.Errorf("ensure local config: runtime dir: %w", err)
 	}
 
-	runtimeConfigPath := filepath.Join(stateRoot, "config", "config.json")
-	cfgPath := runtimeConfigPath
+	cfgPath := GetRuntimeConfigPath()
 	var cfg map[string]interface{}
 
 	if Utility.Exists(cfgPath) {
@@ -925,14 +922,14 @@ func installerDefaultDomain() string {
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DOMAIN")); v != "" {
 		return v
 	}
-	const localConf = "/etc/globular/local.conf"
+	localConf := filepath.Join(GetRuntimeConfigDir(), "local.conf")
 	if domain := readConfKey(localConf, "GLOBULAR_DOMAIN"); domain != "" {
 		return domain
 	}
 	if domain := readConfKey(localConf, "DOMAIN"); domain != "" {
 		return domain
 	}
-	return ""
+	return "localhost"
 }
 
 func readConfKey(path, key string) string {

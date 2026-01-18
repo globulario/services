@@ -1,0 +1,475 @@
+{
+  "Address": "localhost:10000",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "Finds Title information and associates it with files.",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "547deed1-e144-3427-9cf7-c9f21540c0e0",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Search",
+    "Movie",
+    "Title",
+    "Episode",
+    "MultiMedia",
+    "IMDB"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "title.TitleService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/title.TitleService/CreatePublisher",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Publisher.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeletePublisher",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "PublisherID",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetPublisherById",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "PublisherID",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/CreatePerson",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Person.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeletePerson",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "PersonId",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetPersonById",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "PersonId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/CreateTitle",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Title.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetTitleById",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "TitleId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeleteTitle",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "TitleId",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/UpdateTitleMetadata",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Title.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/CreateAudio",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Audio.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetAudioById",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "AudioId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetAlbum",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "AlbumId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeleteAudio",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "AudioId",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeleteAlbum",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "AlbumId",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/CreateVideo",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Video.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetVideoById",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "VideoId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DeleteVideo",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "VideoId",
+          "index": 0,
+          "permission": "admin"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/UpdateVideoMetadata",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Video.ID",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/AssociateFileWithTitle",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "TitleId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "FilePath",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/DissociateFileWithTitle",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "TitleId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "FilePath",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetFileTitles",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "FilePath",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetFileVideos",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "FilePath",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetFileAudios",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "FilePath",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/GetTitleFiles",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "TitleId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/SearchTitles",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/title.TitleService/SearchPersons",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "IndexPath",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10000,
+  "Process": 1775090,
+  "Proto": "title.proto",
+  "Protocol": "grpc",
+  "Proxy": 10001,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

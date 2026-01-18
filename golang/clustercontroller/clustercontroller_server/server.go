@@ -260,13 +260,14 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 	if reqID == "" {
 		return nil, status.Error(codes.InvalidArgument, "request_id is required")
 	}
-	srv.lock("unknown")
-	defer srv.unlock()
+	srv.lock("ApproveJoin")
 	jr := srv.state.JoinRequests[reqID]
 	if jr == nil {
+		srv.unlock()
 		return nil, status.Error(codes.NotFound, "join request not found")
 	}
 	if jr.Status != "pending" {
+		srv.unlock()
 		return nil, status.Error(codes.FailedPrecondition, "request not pending")
 	}
 	jr.Status = "approved"
@@ -277,20 +278,32 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 	jr.Profiles = append([]string(nil), profiles...)
 	nodeID := uuid.NewString()
 	jr.AssignedNodeID = nodeID
-	srv.state.Nodes[nodeID] = &nodeState{
-		NodeID:   nodeID,
-		Identity: jr.Identity,
-		Profiles: append([]string(nil), profiles...),
-		LastSeen: time.Now(),
-		Status:   "converging",
-		Metadata: copyLabels(jr.Labels),
+
+	// Create new node with current network generation
+	node := &nodeState{
+		NodeID:                nodeID,
+		Identity:              jr.Identity,
+		Profiles:              append([]string(nil), profiles...),
+		LastSeen:              time.Now(),
+		Status:                "converging",
+		Metadata:              copyLabels(jr.Labels),
+		LastAppliedGeneration: 0, // New node hasn't applied any generation yet
 	}
+	srv.state.Nodes[nodeID] = node
+
 	if err := srv.persistStateLocked(true); err != nil {
+		srv.unlock()
 		return nil, status.Errorf(codes.Internal, "persist node state: %v", err)
 	}
+
+	// Immediately dispatch initial plan with network config if node has endpoint
+	// Note: New nodes won't have endpoint yet, so reconciliation loop will pick this up
+	// when the node first reports status with its agent endpoint
+	srv.unlock()
+
 	return &clustercontrollerpb.ApproveJoinResponse{
 		NodeId:  nodeID,
-		Message: "approved",
+		Message: "approved; node will receive configuration on first heartbeat",
 	}, nil
 }
 
@@ -942,7 +955,7 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 		"AdminEmail":       spec.GetAdminEmail(),
 	}
 	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
-		out["/etc/globular/network.json"] = string(cfgJSON)
+		out["/var/lib/globular/network.json"] = string(cfgJSON)
 	}
 	if gen := srv.networkingGeneration(); gen > 0 {
 		out["cluster.network.generation"] = fmt.Sprintf("%d", gen)

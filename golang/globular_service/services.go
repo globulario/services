@@ -214,14 +214,35 @@ func InitService(s Service) error {
 		s.SetId(Utility.RandomUUID())
 	}
 
-	// Contextual values.
-	address, _ := config.GetAddress()
-	domain, _ := config.GetDomain()
-	mac, _ := config.GetMacAddress()
-
-	s.SetMac(mac)
-	s.SetAddress(address)
+	// Contextual values with proper fallbacks.
+	// Domain: from cluster config or default to "localhost"
+	domain, err := config.GetDomain()
+	if err != nil || domain == "" {
+		domain = "localhost"
+	}
 	s.SetDomain(domain)
+
+	// Mac: from cluster config or derive from network interface
+	mac, err := config.GetMacAddress()
+	if err != nil || mac == "" {
+		// Try to derive MAC from primary IP
+		if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil {
+			if derivedMac, macErr := Utility.MyMacAddr(ip); macErr == nil {
+				mac = derivedMac
+			}
+		}
+	}
+	s.SetMac(mac)
+
+	// Address: for services, this is the listening address (IP only, not host:port).
+	// Services typically listen on 127.0.0.1 since they're accessed through the proxy.
+	// Use local IP if available, otherwise default to 127.0.0.1.
+	address := "127.0.0.1"
+	if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
+		// Use the local IP (services are accessible on the local network)
+		address = ip
+	}
+	s.SetAddress(address)
 
 	// Startup runtime.
 	s.SetState("starting")

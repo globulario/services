@@ -1,0 +1,100 @@
+{
+  "Address": "localhost:10050",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "Event service",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "dcfab4ce-8372-3cb8-a16c-5a34dcc8a971",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Event",
+    "PubSub",
+    "Subscribe",
+    "Publish"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "event.EventService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/event.EventService/OnEvent",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Uuid",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/event.EventService/Quit",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Uuid",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/event.EventService/Subscribe",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Name",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/event.EventService/UnSubscribe",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Name",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/event.EventService/Publish",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Evt.Name",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/event.EventService/Stop",
+      "permission": "write"
+    }
+  ],
+  "Platform": "",
+  "Port": 10050,
+  "Process": 1774545,
+  "Proto": "event.proto",
+  "Protocol": "grpc",
+  "Proxy": 10051,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

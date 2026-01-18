@@ -19,7 +19,7 @@ func TestExecDerivationFromBinPath(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(assets, "bin"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	execPath := filepath.Join(assets, "bin", "nodeagent_server")
+	execPath := filepath.Join(assets, "bin", "node_agent")
 	if err := os.WriteFile(execPath, []byte("#!/bin/sh\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestExecDerivationFromBinPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	specPath := filepath.Join(specDir, "node_agent_service.yaml")
-	content := "steps:\n  - cmd: '/internal/assets/bin/nodeagent_server --flag'\n"
+	content := "steps:\n  - cmd: '/internal/assets/bin/node_agent --flag'\n"
 	if err := os.WriteFile(specPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestExecDerivationFromBinPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan error: %v", err)
 	}
-	if info.ExecName != "nodeagent_server" {
-		t.Fatalf("expected exec nodeagent_server, got %s", info.ExecName)
+	if info.ExecName != "node_agent" {
+		t.Fatalf("expected exec node_agent, got %s", info.ExecName)
 	}
 }

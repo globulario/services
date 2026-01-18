@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	cfgPath := flag.String("config", "/etc/globular/clustercontroller/config.json", "cluster controller configuration file")
+	cfgPath := flag.String("config", "/var/lib/globular/cluster-controller/config.json", "cluster controller configuration file")
 	statePath := flag.String("state", defaultClusterStatePath, "cluster controller state file")
 	flag.Parse()
 

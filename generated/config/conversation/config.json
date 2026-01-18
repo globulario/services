@@ -1,0 +1,237 @@
+{
+  "Address": "localhost:10029",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [
+    "rbac.RbacService"
+  ],
+  "Description": "A way to communicate with other members of an organization",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "f5824934-5069-3575-a530-81341d5fc984",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "Conversation",
+    "Chat",
+    "Messenger"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "conversation.ConversationService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/conversation.ConversationService/Stop",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/Connect",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/Disconnect",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/CreateConversation",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/DeleteConversation",
+      "resources": [
+        {
+          "field": "ConversationUuid",
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/FindConversations",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/JoinConversation",
+      "resources": [
+        {
+          "field": "ConversationUuid",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/LeaveConversation",
+      "resources": [
+        {
+          "field": "ConversationUuid",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/GetConversation",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/GetConversations",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/KickoutFromConversation",
+      "resources": [
+        {
+          "field": "ConversationUuid",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/SendInvitation",
+      "resources": [
+        {
+          "field": "Invitation.Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/AcceptInvitation",
+      "resources": [
+        {
+          "field": "Invitation.Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/DeclineInvitation",
+      "resources": [
+        {
+          "field": "Invitation.Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/RevokeInvitation",
+      "resources": [
+        {
+          "field": "Invitation.Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/GetReceivedInvitations",
+      "resources": [
+        {
+          "field": "Account",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/GetSentInvitations",
+      "resources": [
+        {
+          "field": "Account",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/SendMessage",
+      "resources": [
+        {
+          "field": "Msg.Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/DeleteMessage",
+      "resources": [
+        {
+          "field": "Conversation",
+          "index": 0,
+          "permission": "delete"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/FindMessages",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/conversation.ConversationService/LikeMessage",
+      "resources": [
+        {
+          "field": "Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/DislikeMessage",
+      "resources": [
+        {
+          "field": "Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/conversation.ConversationService/SetMessageRead",
+      "resources": [
+        {
+          "field": "Conversation",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10029,
+  "Process": 1774385,
+  "Proto": "conversation.proto",
+  "Protocol": "grpc",
+  "Proxy": 10030,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

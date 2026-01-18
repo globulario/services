@@ -1,0 +1,790 @@
+{
+  "Address": "localhost:10000",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "Resource service",
+  "Discoveries": [],
+  "Domain": "localhost",
+  "Id": "f368ad51-e14f-3acb-a627-d1f108d8a3cb",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "resource",
+    "rbac",
+    "accounts",
+    "globular"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "resource.ResourceService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/resource.ResourceService/CreateReference",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "SourceId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "TargetId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/DeleteReference",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "RefId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "TargetId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/CreateOrganization",
+      "permission": "admin",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/UpdateOrganization",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetOrganizations",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/DeleteOrganization",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "Organization",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddOrganizationAccount",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddOrganizationGroup",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "GroupId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddOrganizationRole",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddOrganizationApplication",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveOrganizationAccount",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveOrganizationGroup",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "GroupId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveOrganizationRole",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveOrganizationApplication",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/IsOrgnanizationMember",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "OrganizationId",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/CreateGroup",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/UpdateGroup",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "GroupId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetGroups",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/DeleteGroup",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "Group",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddGroupMemberAccount",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "GroupId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveGroupMemberAccount",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "GroupId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RegisterAccount",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/DeleteAccount",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetAccount",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetAccount",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Account.Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetAccountPassword",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddAccountRole",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveAccountRole",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetAccountContact",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetEmail",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/CreateRole",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/UpdateRole",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/DeleteRole",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddRoleActions",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveRoleAction",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "RoleId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveRolesAction",
+      "permission": "admin",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/CreateApplication",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/UpdateApplication",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/DeleteApplication",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/AddApplicationActions",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveApplicationAction",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "ApplicationId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/RemoveApplicationsAction",
+      "permission": "admin",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/GetApplicationVersion",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetApplicationIcon",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetApplicationAlias",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/ListNodeIdentities",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/GetNodeIdentity",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "NodeId",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/UpsertNodeIdentity",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "Node.NodeId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetNodeIdentityEnabled",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "NodeId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/FindPackages",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/GetPackageDescriptor",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "ServiceId",
+          "index": 0,
+          "permission": "read"
+        },
+        {
+          "field": "PublisherID",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetPackagesDescriptor",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/SetPackageDescriptor",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "PackageDescriptor.Id",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetPackageBundle",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "Bundle.PackageDescriptor.Id",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetPackageBundleChecksum",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/UpdateSession",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Session.AccountId",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetSessions",
+      "permission": "read",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/RemoveSession",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetSession",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetCallHistory",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/SetCall",
+      "permission": "write",
+      "resources": []
+    },
+    {
+      "action": "/resource.ResourceService/DeleteCall",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "Uuid",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/ClearCalls",
+      "permission": "admin",
+      "resources": [
+        {
+          "field": "AccountId",
+          "index": 0,
+          "permission": "admin"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/CreateNotification",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Notification.Recipient",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/GetNotifications",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Recipient",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/DeleteNotification",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Recipient",
+          "index": 0,
+          "permission": "write"
+        },
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/ClearAllNotifications",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Recipient",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/resource.ResourceService/ClearNotificationsByType",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Recipient",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    }
+  ],
+  "Platform": "",
+  "Port": 10000,
+  "Process": 1774855,
+  "Proto": "resource.proto",
+  "Protocol": "grpc",
+  "Proxy": 10001,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

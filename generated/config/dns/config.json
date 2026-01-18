@@ -1,0 +1,388 @@
+{
+  "Address": "localhost:10033",
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "Checksum": "",
+  "Dependencies": [],
+  "Description": "DNS service",
+  "Discoveries": [
+    "log.LogService",
+    "rbac.RbacService"
+  ],
+  "Domain": "localhost",
+  "Id": "cbc3192e-d7c3-37cf-b02f-fd8eb0e02826",
+  "KeepAlive": true,
+  "KeepUpToDate": true,
+  "KeyFile": "",
+  "Keywords": [
+    "DNS",
+    "Records",
+    "Resolver"
+  ],
+  "LastError": "",
+  "Mac": "",
+  "ModTime": 0,
+  "Name": "dns.DnsService",
+  "Path": "/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin",
+  "Permissions": [
+    {
+      "action": "/dns.DnsService/SetDomains",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetA",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveA",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetA",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetAAAA",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveAAAA",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetAAAA",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Domain",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetText",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveText",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetText",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetNs",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveNs",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetNs",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetCName",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveCName",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetCName",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetMx",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveMx",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetMx",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetSoa",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveSoa",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetSoa",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetUri",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveUri",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetUri",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetCaa",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveCaa",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetCaa",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/SetAfsdb",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/RemoveAfsdb",
+      "permission": "write",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "write"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/GetAfsdb",
+      "permission": "read",
+      "resources": [
+        {
+          "field": "Id",
+          "index": 0,
+          "permission": "read"
+        }
+      ]
+    },
+    {
+      "action": "/dns.DnsService/Stop",
+      "permission": "write"
+    }
+  ],
+  "Platform": "",
+  "Port": 10033,
+  "Process": 1774457,
+  "Proto": "dns.proto",
+  "Protocol": "grpc",
+  "Proxy": 10034,
+  "ProxyProcess": -1,
+  "PublisherID": "localhost",
+  "Repositories": [],
+  "State": "starting",
+  "TLS": false,
+  "Version": "0.0.1"
+}

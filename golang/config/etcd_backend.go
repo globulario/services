@@ -553,8 +553,8 @@ func etcdKey(id, leaf string) string {
 }
 
 // BootstrapServicesFromFiles loads all JSON configs from
-// /etc/globular/config/services and applies them to etcd by calling
-// SaveServiceConfiguration for each.
+// the services config directory (default: /var/lib/globular/services)
+// and applies them to etcd by calling SaveServiceConfiguration for each.
 //
 // It is safe to call this on every startup: it will simply re-assert the
 // desired configs into etcd (overwriting whatever was there with the
@@ -623,7 +623,7 @@ func BootstrapServicesFromFiles() error {
 // SaveServiceConfiguration persists desired/runtime in separate keys
 // and mirrors the desired config to a JSON file on disk:
 //
-//   /etc/globular/config/services/<Id>.json
+//   <ServicesConfigDir>/<Id>.json  (default: /var/lib/globular/services/<Id>.json)
 //
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
@@ -1217,7 +1217,7 @@ func RestoreGlobularKeysJSON(path string) error {
 }
 
 // saveServiceConfigFile writes the "desired" config to
-//   /etc/globular/config/services/<id>.json
+//   <ServicesConfigDir>/<id>.json  (default: /var/lib/globular/services/<id>.json)
 // using an atomic tmp+rename write.
 func saveServiceConfigFile(id string, desired map[string]interface{}) error {
 	if id == "" {
