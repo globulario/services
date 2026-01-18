@@ -10,28 +10,38 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/storage/storagepb"
+	"github.com/globulario/services/golang/testutil"
 )
 
 // ---------- CONSTANTS ----------
-// Adjust these once and forget about env noise.
+// These can be overridden via environment variables.
 
 const (
-	// gRPC endpoint of your storage service
-	storageAddr = "globule-ryzen.globular.io"
-
 	// Service ID (as registered in Globular)
 	serviceID = "storage.StorageService"
 
-	// Set both to enable Scylla tests; leave empty to skip.
-	scyllaHosts    = storageAddr + ":9142"            // e.g. "10.0.0.63:9042,10.0.0.63:9142"
-	scyllaKeyspace = "storage_test"            // e.g. "storage_test"
-	scyllaTable    = "kv"          // optional
-	scyllaUseTLS   = true         // optional
-	scyllaCAFile   = "/etc/globular/config/tls/globule-ryzen.globular.io/ca.crt"            // optional
-	scyllaCertFile = "/etc/globular/config/tls/globule-ryzen.globular.io/client.crt"            // optional
-	scyllaKeyFile  = "/etc/globular/config/tls/globule-ryzen.globular.io/client.key"            // optional
-	scyllaInsecure = false         // optional
+	// Scylla test defaults - can be overridden via environment
+	defaultScyllaKeyspace = "storage_test"
+	defaultScyllaTable    = "kv"
 )
+
+// getStorageAddr returns the storage service address from environment or default.
+func getStorageAddr() string {
+	return testutil.GetAddress()
+}
+
+// getScyllaConfig returns Scylla configuration from environment variables.
+func getScyllaConfig() (hosts, keyspace, table string, useTLS bool, caFile, certFile, keyFile string, insecure bool) {
+	addr := getStorageAddr()
+	hosts = testutil.GetEnvOrDefault("SCYLLA_HOSTS", addr+":9142")
+	keyspace = testutil.GetEnvOrDefault("SCYLLA_KEYSPACE", defaultScyllaKeyspace)
+	table = testutil.GetEnvOrDefault("SCYLLA_TABLE", defaultScyllaTable)
+	useTLS = testutil.GetEnvOrDefault("SCYLLA_USE_TLS", "true") == "true"
+	caFile, certFile, _ = testutil.GetTLSPaths()
+	keyFile = os.Getenv(testutil.EnvTLSKeyPath)
+	insecure = testutil.GetEnvOrDefault("SCYLLA_INSECURE", "false") == "true"
+	return
+}
 
 // ---------- option builders ----------
 
@@ -51,6 +61,7 @@ func buildOptionsBigCache() string {
 }
 
 func buildOptionsScylla(t *testing.T, logicalName string) (string, bool) {
+	scyllaHosts, scyllaKeyspace, scyllaTable, scyllaUseTLS, scyllaCAFile, scyllaCertFile, scyllaKeyFile, scyllaInsecure := getScyllaConfig()
 	if strings.TrimSpace(scyllaHosts) == "" || strings.TrimSpace(scyllaKeyspace) == "" {
 		return "", false
 	}
@@ -122,6 +133,9 @@ func kvRoundTrip(t *testing.T, c *Storage_Client, id string) {
 // ---------- the suite ----------
 
 func TestStoreImplementations(t *testing.T) {
+	testutil.SkipIfNoExternalServices(t)
+
+	storageAddr := getStorageAddr()
 	client, err := NewStorageService_Client(storageAddr, serviceID)
 	if err != nil {
 		t.Fatalf("NewStorageService_Client: %v", err)
@@ -197,6 +211,9 @@ func TestStoreImplementations(t *testing.T) {
 
 // Quick error-surface check: should fail fast and not hang.
 func TestErrorPaths_AllStores(t *testing.T) {
+	testutil.SkipIfNoExternalServices(t)
+
+	storageAddr := getStorageAddr()
 	client, err := NewStorageService_Client(storageAddr, serviceID)
 	if err != nil {
 		t.Fatalf("NewStorageService_Client: %v", err)

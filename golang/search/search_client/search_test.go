@@ -5,19 +5,24 @@ import (
 	"fmt"
 	"log"
 	"testing"
+
+	"github.com/globulario/services/golang/testutil"
 )
 
 var (
-	client    *Search_Client
 	tmpDir    = "/tmp"
 	ebookPath = "E:/ebooks"
 )
 
-func getClient() *Search_Client {
-	if client != nil {
-		return client
+func getClient(t *testing.T) *Search_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	client, err := NewSearchService_Client(addr, "search.SearchService")
+	if err != nil {
+		t.Fatalf("NewSearchService_Client: %v", err)
 	}
-	client, _ = NewSearchService_Client("globule-ryzen.globular.cloud:443", "search.SearchService")
 	return client
 }
 
@@ -28,6 +33,7 @@ func TestIndexDocument(t *testing.T) {
 
 func TestIndexJsonObject(t *testing.T) {
 	fmt.Println("test index json object")
+	client := getClient(t)
 
 	var str = `
 	[
@@ -68,31 +74,32 @@ func TestIndexJsonObject(t *testing.T) {
 	]
 	`
 
-	err := getClient().IndexJsonObject(tmpDir+"/search_test_db", str, "english", "id", []string{"name", "BornAt"}, "")
+	err := client.IndexJsonObject(tmpDir+"/search_test_db", str, "english", "id", []string{"name", "BornAt"}, "")
 	if err != nil {
 		log.Println(err)
 	}
 
 	// Count the number of document in the db
-	count, _ := getClient().Count(tmpDir + "/search_test_db")
+	count, _ := client.Count(tmpDir + "/search_test_db")
 
 	log.Println(count)
 }
 
 // Test various function here.
 func TestVersion(t *testing.T) {
+	client := getClient(t)
 
 	// Connect to the plc client.
-	val, err := getClient().GetVersion()
+	val, err := client.GetVersion()
 	if err != nil {
 		log.Println(err)
 	} else {
 		log.Println("found version ", val)
 	}
-
 }
 
 func TestSearchDocument(t *testing.T) {
+	client := getClient(t)
 	paths := []string{tmpDir + "/search_test_db"}
 	query := `name:"Tom Cruise"`
 	language := "english"
@@ -101,7 +108,7 @@ func TestSearchDocument(t *testing.T) {
 	pageSize := int32(10)
 	snippetLength := int32(500)
 
-	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
+	results, err := client.SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
 		log.Println(err)
 		return
@@ -113,6 +120,7 @@ func TestSearchDocument(t *testing.T) {
 }
 
 func TestSearchPdf(t *testing.T) {
+	client := getClient(t)
 	paths := []string{
 		`/users/sa@globular.io/.hidden/img1/__index_db__`,
 		`/users/sa@globular.io/.hidden/95062B1 Mandat/__index_db__`,
@@ -124,7 +132,7 @@ func TestSearchPdf(t *testing.T) {
 	pageSize := int32(10)
 	snippetLength := int32(500)
 
-	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
+	results, err := client.SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
 		log.Println("-- ", err)
 		return
@@ -136,12 +144,13 @@ func TestSearchPdf(t *testing.T) {
 }
 
 func TestDeleteDocument(t *testing.T) {
-	err := getClient().DeleteDocument(tmpDir+"/search_test_db", "2")
+	client := getClient(t)
+	err := client.DeleteDocument(tmpDir+"/search_test_db", "2")
 	if err != nil {
 		log.Println(err)
 	}
 
 	// Count the number of document in the db
-	count, _ := getClient().Count(tmpDir + "/search_test_db")
+	count, _ := client.Count(tmpDir + "/search_test_db")
 	log.Println(count)
 }

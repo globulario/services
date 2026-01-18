@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/testutil"
 	"github.com/go-ldap/ldap/v3"
 )
 
@@ -33,10 +34,11 @@ type testCfg struct {
 }
 
 func loadCfg() testCfg {
-	addr := getenv("GLOBULAR_ADDRESS", "globule-ryzen.globular.io")
+	addr := testutil.GetAddress()
 	service := getenv("LDAP_SERVICE_ID", "ldap.LdapService")
 	ldapHost := getenv("LDAP_HOST", strings.Split(addr, ":")[0])
 	ldapPort := getenv("LDAP_PORT", "636")
+	_, saPwd := testutil.GetSACredentials()
 
 	return testCfg{
 		Address:   addr,
@@ -45,7 +47,7 @@ func loadCfg() testCfg {
 		LDAPPort:  ldapPort,
 		BindLogin: os.Getenv("LDAP_BIND_LOGIN"), // empty by default
 		BindDN:    getenv("LDAP_BIND_DN", "cn=sa,dc=globular,dc=io"),
-		BindPwd:   getenv("LDAP_BIND_PW", "adminadmin"),
+		BindPwd:   getenv("LDAP_BIND_PW", saPwd),
 		BaseDN:    os.Getenv("LDAP_BASE_DN"),
 		Filter:    os.Getenv("LDAP_FILTER"),
 		AttrsCSV:  os.Getenv("LDAP_ATTRS"),
@@ -67,6 +69,13 @@ var (
 
 // TestMain sets up a single gRPC client used by subtests.
 func TestMain(m *testing.M) {
+	// Skip all tests if external services are not available
+	skipEnv := os.Getenv(testutil.EnvSkipExternal)
+	if skipEnv != "false" && skipEnv != "0" {
+		fmt.Println("Skipping LDAP tests: external services not available. Set GLOBULAR_SKIP_EXTERNAL_TESTS=false to run.")
+		os.Exit(0)
+	}
+
 	c, err := NewLdapService_Client(cfg.Address, cfg.ServiceID)
 	if err != nil {
 		fmt.Println("failed to init ldap client:", err)

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
-	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/testutil"
 )
 
 /*
@@ -36,11 +36,8 @@ func uniq(prefix string) string { return fmt.Sprintf("%s_%d", prefix, time.Now()
 
 func getServiceAddress(t *testing.T) string {
 	t.Helper()
-	addr, err := config.GetAddress()
-	if err != nil || addr == "" {
-		t.Fatalf("cannot resolve service address from config: %v", err)
-	}
-	return addr
+	testutil.SkipIfNoExternalServices(t)
+	return testutil.GetAddress()
 }
 
 // Resolve Scylla host/port for CreateConnection.
@@ -50,7 +47,7 @@ func resolveScyllaHostPort(t *testing.T) (string, int) {
 	t.Helper()
 	host := strings.TrimSpace(os.Getenv("SCYLLA_HOST"))
 	if host == "" {
-		addr := getServiceAddress(t)
+		addr := testutil.GetAddress()
 		host = strings.Split(addr, ":")[0]
 	}
 	port := 9042
@@ -68,7 +65,8 @@ func TestPersistenceServiceLifecycle(t *testing.T) {
 	// Authenticate (validates we can talk to the platform, not used further here)
 	authClient, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
 	auth := must(t, authClient, err)
-	if _, err := auth.Authenticate("sa", "adminadmin"); err != nil {
+	saUser, saPass := testutil.GetSACredentials()
+	if _, err := auth.Authenticate(saUser, saPass); err != nil {
 		t.Fatalf("Authenticate(sa) failed: %v", err)
 	}
 
@@ -87,7 +85,7 @@ func TestPersistenceServiceLifecycle(t *testing.T) {
 
 	t.Run("CreateConnection", func(t *testing.T) {
 		options := `{"consistency":"ONE"}`
-		if err := client.CreateConnection(connID, db, scyllaHost, float64(scyllaPort), 2 /*SCYLLA*/, "sa", "adminadmin", 500, options, true); err != nil {
+		if err := client.CreateConnection(connID, db, scyllaHost, float64(scyllaPort), 2 /*SCYLLA*/, saUser, saPass, 500, options, true); err != nil {
 			t.Fatalf("CreateConnection failed: %v", err)
 		}
 	})
@@ -99,7 +97,7 @@ func TestPersistenceServiceLifecycle(t *testing.T) {
 	})
 
 	t.Run("ConnectAndPing", func(t *testing.T) {
-		if err := client.Connect(connID, "adminadmin"); err != nil {
+		if err := client.Connect(connID, saPass); err != nil {
 			t.Fatalf("Connect failed: %v", err)
 		}
 		if err := client.Ping(connID); err != nil {

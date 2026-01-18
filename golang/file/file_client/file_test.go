@@ -12,6 +12,7 @@ import (
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/file/filepb"
+	"github.com/globulario/services/golang/testutil"
 )
 
 // ---------- Test harness (connect to an already-running server) ----------
@@ -25,22 +26,25 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
 
-	const domain = "globular.io"
+	domain := testutil.GetDomain()
+	address := testutil.GetAddress()
 
 	// IMPORTANT: the file client id must be the File service id
-	client, err := NewFileService_Client(domain, "file.FileService")
+	client, err := NewFileService_Client(address, "file.FileService")
 	if err != nil {
 		t.Fatalf("file client: %v", err)
 	}
 
-	auth, err := authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	auth, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
 	if err != nil {
 		t.Fatalf("auth client: %v", err)
 	}
 
-	// This must match your server config (sa/adminadmin by default).
-	token, err := auth.Authenticate("sa", "adminadmin")
+	// Credentials from environment or defaults.
+	saUser, saPass := testutil.GetSACredentials()
+	token, err := auth.Authenticate(saUser, saPass)
 	if err != nil {
 		t.Fatalf("authenticate sa: %v", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	authn "github.com/globulario/services/golang/authentication/authentication_client"
+	"github.com/globulario/services/golang/testutil"
 )
 
 // ---------- Test harness ----------
@@ -28,21 +29,24 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
 
-	const domain = "globular.io"
+	domain := testutil.GetDomain()
+	address := testutil.GetAddress()
 
-	client, err := NewResourceService_Client(domain, "resource.ResourceService")
+	client, err := NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		t.Fatalf("resource client: %v", err)
 	}
 
-	auth, err := authn.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	auth, err := authn.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
 	if err != nil {
 		t.Fatalf("auth client: %v", err)
 	}
 
-	// NOTE: this must match your server config (sa/adminadmin by default).
-	token, err := auth.Authenticate("sa", "adminadmin")
+	// Credentials from environment or defaults.
+	saUser, saPass := testutil.GetSACredentials()
+	token, err := auth.Authenticate(saUser, saPass)
 	if err != nil {
 		t.Fatalf("authenticate sa: %v", err)
 	}

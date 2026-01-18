@@ -11,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/testutil"
 )
 
 func randStr(prefix string) string {
@@ -21,7 +22,10 @@ func randStr(prefix string) string {
 
 func newClient(t *testing.T) *Log_Client {
 	t.Helper()
-	c, err := NewLogService_Client("globule-ryzen.globular.io", "log.LogService")
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	c, err := NewLogService_Client(addr, "log.LogService")
 	if err != nil {
 		t.Fatalf("NewLogService_Client: %v", err)
 	}

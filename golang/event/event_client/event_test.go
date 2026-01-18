@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/event/eventpb"
+	"github.com/globulario/services/golang/testutil"
 )
 
 // --- helpers -----------------------------------------------------------------
@@ -25,13 +26,10 @@ func randSubject(prefix string) string {
 // newClient creates a client using the standard service id.
 func newClient(t *testing.T) *Event_Client {
 	t.Helper()
-	// Prefer local peer; fall back to default domain if the user runs a cluster.
-	addr := "globule-ryzen.globular.io"
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
 	client, err := NewEventService_Client(addr, "event.EventService")
-	if err != nil {
-		// second try using the canonical demo domain used in this repo
-		client, err = NewEventService_Client("globular.io", "event.EventService")
-	}
 	if err != nil {
 		t.Fatalf("NewEventService_Client: %v", err)
 	}

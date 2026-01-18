@@ -9,6 +9,7 @@ import (
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/testutil"
 )
 
 // -----------------------------------------------------------------------------
@@ -31,9 +32,10 @@ func mustNoErr(t *testing.T, err error, msg string) {
 
 func mustClients(t *testing.T) clients {
 	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
 
-	domain := "globular.io"
-	address := "globule-ryzen.globular.io"
+	domain := testutil.GetDomain()
+	address := testutil.GetAddress()
 
 	rbacCli, err := NewRbacService_Client(address, "rbac.RbacService")
 	if err != nil {
@@ -53,7 +55,8 @@ func mustClients(t *testing.T) clients {
 
 func mustAuthSA(t *testing.T, c clients) string {
 	t.Helper()
-	token, err := c.auth.Authenticate("sa", "adminadmin")
+	user, pass := testutil.GetSACredentials()
+	token, err := c.auth.Authenticate(user, pass)
 	mustNoErr(t, err, "authenticate sa")
 	return token
 }

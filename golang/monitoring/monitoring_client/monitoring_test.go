@@ -4,13 +4,23 @@ import (
 	"fmt"
 	"log"
 	"testing"
+
+	"github.com/globulario/services/golang/testutil"
 	//	"time"
 )
 
-// Set the correct addresse here as needed.
-var (
-	client, _ = NewMonitoringService_Client("localhost", "monitoring.MonitoringService")
-)
+// newTestClient creates a client for testing, skipping if external services are not available.
+func newTestClient(t *testing.T) *Monitoring_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	client, err := NewMonitoringService_Client(addr, "monitoring.MonitoringService")
+	if err != nil {
+		t.Fatalf("NewMonitoringService_Client: %v", err)
+	}
+	return client
+}
 
 // First test create a fresh new connection...
 func TestMonitoring(t *testing.T) {
@@ -19,6 +29,7 @@ func TestMonitoring(t *testing.T) {
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
+	client := newTestClient(t)
 	// err := client.CreateConnection("test", "127.0.0.1", 0, 9090)
 	err := client.CreateConnection("dashboard_connection", "localhost", 0, 9090)
 	if err != nil {
@@ -28,6 +39,7 @@ func TestCreateConnection(t *testing.T) {
 
 // Test getting the configurations infromations.
 func TestGetConfig(t *testing.T) {
+	client := newTestClient(t)
 	fmt.Println("Get configuration test.")
 	config, err := client.Config("dashboard_connection")
 	if err != nil {

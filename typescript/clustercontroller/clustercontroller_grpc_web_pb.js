@@ -567,6 +567,128 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.setNodeP
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.RemoveNodeRequest,
+ *   !proto.clustercontroller.RemoveNodeResponse>}
+ */
+const methodDescriptor_ClusterControllerService_RemoveNode = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/RemoveNode',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.RemoveNodeRequest,
+  proto.clustercontroller.RemoveNodeResponse,
+  /**
+   * @param {!proto.clustercontroller.RemoveNodeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.RemoveNodeResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.RemoveNodeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.RemoveNodeResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.RemoveNodeResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.removeNode =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/RemoveNode',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RemoveNode,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.RemoveNodeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.RemoveNodeResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.removeNode =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/RemoveNode',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RemoveNode);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.GetClusterHealthRequest,
+ *   !proto.clustercontroller.GetClusterHealthResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetClusterHealth = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/GetClusterHealth',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.GetClusterHealthRequest,
+  proto.clustercontroller.GetClusterHealthResponse,
+  /**
+   * @param {!proto.clustercontroller.GetClusterHealthRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.GetClusterHealthResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.GetClusterHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.GetClusterHealthResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.GetClusterHealthResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.getClusterHealth =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetClusterHealth',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetClusterHealth,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.GetClusterHealthRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.GetClusterHealthResponse>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getClusterHealth =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetClusterHealth',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetClusterHealth);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.GetNodePlanRequest,
  *   !proto.clustercontroller.GetNodePlanResponse>}
  */

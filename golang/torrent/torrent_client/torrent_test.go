@@ -5,15 +5,26 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/globulario/services/golang/testutil"
 	"github.com/globulario/services/golang/torrent/torrentpb"
 )
 
-var (
-	client_, _ = NewTorrentService_Client("globule-ryzen.globular.cloud", "torrent.TorrentService")
-)
+// newTorrentClient creates a client for testing, skipping if external services are not available.
+func newTorrentClient(t *testing.T) *Torrent_Client {
+	t.Helper()
+	testutil.SkipIfNoExternalServices(t)
+
+	addr := testutil.GetAddress()
+	client, err := NewTorrentService_Client(addr, "torrent.TorrentService")
+	if err != nil {
+		t.Fatalf("NewTorrentService_Client: %v", err)
+	}
+	return client
+}
 
 // Test various function here.
 func TestDownloadTorrent(t *testing.T) {
+	client := newTorrentClient(t)
 
 	// Connect to the plc client.
 	links := []string{
@@ -28,13 +39,12 @@ func TestDownloadTorrent(t *testing.T) {
 	dest := "/home/dave/Videos"
 	for _, lnk := range links {
 		fmt.Println("-----> lnk")
-		err := client_.DowloadTorrent(lnk, dest, true)
+		err := client.DowloadTorrent(lnk, dest, true)
 		if err != nil {
 			fmt.Println("fail to download torrent ", err)
 			return
 		}
 	}
-
 }
 
 // Print the list of infos received from the torrent services.
@@ -43,8 +53,9 @@ func displayTorrentInfos(infos []*torrentpb.TorrentInfo){
 }
 
 func TestGetTorrentInfos(t *testing.T) {
+	client := newTorrentClient(t)
 
-	err := client_.GetTorrentInfos(displayTorrentInfos)
+	err := client.GetTorrentInfos(displayTorrentInfos)
 	if err != nil {
 		fmt.Println("fail to download torrent ", err)
 		return
