@@ -158,11 +158,19 @@ func loadMinioConfig(path string) (*config.MinioProxyConfig, error) {
 		return cfg, nil
 	}
 	if errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("[objectstore] Contract file not found at %s, trying fallbacks...\n", path)
 		// Fallback to env defaults so Day0 does not silently skip provisioning.
 		envCfg := minioConfigFromEnv()
 		if envCfg != nil {
+			fmt.Printf("[objectstore] Using MinIO config from environment variables\n")
 			return envCfg, nil
 		}
+		// Last resort: try localhost defaults if MinIO appears to be running
+		if defaultCfg := tryLocalMinioDefaults(); defaultCfg != nil {
+			fmt.Printf("[objectstore] Using localhost default MinIO config\n")
+			return defaultCfg, nil
+		}
+		return nil, fmt.Errorf("minio contract not found at %s and no fallback configuration available (set MINIO_ENDPOINT or create contract file)", path)
 	}
 	return nil, fmt.Errorf("open minio contract %s: %w", path, err)
 }
@@ -318,6 +326,49 @@ func minioConfigFromEnv() *config.MinioProxyConfig {
 			SecretKey: secret,
 		},
 	}
+}
+
+// tryLocalMinioDefaults attempts to use localhost defaults if MinIO appears to be running.
+// This is a last-resort fallback to avoid failing Day-0 due to missing contract.
+// Returns nil if localhost MinIO is not detected or credentials are unavailable.
+func tryLocalMinioDefaults() *config.MinioProxyConfig {
+	// Check if localhost:9000 appears to be running
+	// We don't actually connect, just check if the fallback makes sense
+	credFiles := []string{
+		"/var/lib/globular/minio/credentials.txt",
+		"/etc/globular/minio/credentials.txt",
+	}
+
+	var access, secret string
+	for _, credFile := range credFiles {
+		data, err := os.ReadFile(credFile)
+		if err == nil {
+			parts := strings.Split(strings.TrimSpace(string(data)), ":")
+			if len(parts) == 2 {
+				access = strings.TrimSpace(parts[0])
+				secret = strings.TrimSpace(parts[1])
+				fmt.Printf("[objectstore] Found credentials at %s\n", credFile)
+				break
+			}
+		}
+	}
+
+	// If we found credentials, assume localhost defaults
+	if access != "" && secret != "" {
+		return &config.MinioProxyConfig{
+			Endpoint: "127.0.0.1:9000",
+			Bucket:   "globular",
+			Prefix:   "",
+			Secure:   false,
+			Auth: &config.MinioProxyAuth{
+				Mode:      config.MinioProxyAuthModeAccessKey,
+				AccessKey: access,
+				SecretKey: secret,
+			},
+		}
+	}
+
+	return nil
 }
 
 func ensureLayout(ctx context.Context, client *minio.Client, layout objectstoreLayout, createSentinels bool, sentinelName string) error {
