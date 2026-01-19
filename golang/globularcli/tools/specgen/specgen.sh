@@ -97,10 +97,6 @@ steps:
         owner: globular
         group: globular
         mode: 0750
-      - path: "{{.StateDir}}/${svc}"
-        owner: globular
-        group: globular
-        mode: 0750
 
   - id: install-${svc}-service
     type: install_services
@@ -120,7 +116,7 @@ steps:
           Type=simple
           User=globular
           Group=globular
-          WorkingDirectory={{.StateDir}}/${svc}
+          WorkingDirectory={{.StateDir}}/services
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/${exe}
           Restart=on-failure
