@@ -331,44 +331,44 @@ func minioConfigFromEnv() *config.MinioProxyConfig {
 // tryLocalMinioDefaults attempts to use localhost defaults if MinIO appears to be running.
 // This is a last-resort fallback to avoid failing Day-0 due to missing contract.
 // Returns nil if localhost MinIO is not detected or credentials are unavailable.
+//
+// SINGLE SOURCE OF TRUTH: /var/lib/globular/minio/credentials (created by MinIO package)
 func tryLocalMinioDefaults() *config.MinioProxyConfig {
-	// Check if localhost:9000 appears to be running
-	// We don't actually connect, just check if the fallback makes sense
-	credFiles := []string{
-		"/var/lib/globular/minio/credentials.txt",
-		"/etc/globular/minio/credentials.txt",
+	// Standard credentials file location (created by MinIO package)
+	credFile := "/var/lib/globular/minio/credentials"
+
+	data, err := os.ReadFile(credFile)
+	if err != nil {
+		fmt.Printf("[objectstore] Could not read credentials from %s: %v\n", credFile, err)
+		return nil
 	}
 
-	var access, secret string
-	for _, credFile := range credFiles {
-		data, err := os.ReadFile(credFile)
-		if err == nil {
-			parts := strings.Split(strings.TrimSpace(string(data)), ":")
-			if len(parts) == 2 {
-				access = strings.TrimSpace(parts[0])
-				secret = strings.TrimSpace(parts[1])
-				fmt.Printf("[objectstore] Found credentials at %s\n", credFile)
-				break
-			}
-		}
+	parts := strings.Split(strings.TrimSpace(string(data)), ":")
+	if len(parts) != 2 {
+		fmt.Printf("[objectstore] Invalid credentials format in %s\n", credFile)
+		return nil
 	}
 
-	// If we found credentials, assume localhost defaults
-	if access != "" && secret != "" {
-		return &config.MinioProxyConfig{
-			Endpoint: "127.0.0.1:9000",
-			Bucket:   "globular",
-			Prefix:   "",
-			Secure:   false,
-			Auth: &config.MinioProxyAuth{
-				Mode:      config.MinioProxyAuthModeAccessKey,
-				AccessKey: access,
-				SecretKey: secret,
-			},
-		}
+	access := strings.TrimSpace(parts[0])
+	secret := strings.TrimSpace(parts[1])
+
+	if access == "" || secret == "" {
+		fmt.Printf("[objectstore] Empty credentials in %s\n", credFile)
+		return nil
 	}
 
-	return nil
+	fmt.Printf("[objectstore] Using localhost defaults with credentials from %s\n", credFile)
+	return &config.MinioProxyConfig{
+		Endpoint: "127.0.0.1:9000",
+		Bucket:   "globular",
+		Prefix:   "",
+		Secure:   false,
+		Auth: &config.MinioProxyAuth{
+			Mode:      config.MinioProxyAuthModeAccessKey,
+			AccessKey: access,
+			SecretKey: secret,
+		},
+	}
 }
 
 func ensureLayout(ctx context.Context, client *minio.Client, layout objectstoreLayout, createSentinels bool, sentinelName string) error {
