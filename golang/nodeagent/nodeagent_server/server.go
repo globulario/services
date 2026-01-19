@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -776,6 +777,13 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
+	var desiredDomain string
+	if spec, err := specFromPlan(plan); err == nil && spec != nil {
+		if d := strings.TrimSpace(spec.GetClusterDomain()); d != "" {
+			desiredDomain = d
+		}
+	}
+
 	netChanged, err := srv.applyRenderedConfig(plan)
 	if err != nil {
 		msg := err.Error()
@@ -786,7 +794,7 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	networkGen := networkGenerationFromPlan(plan)
 	netChanged = netChanged || (networkGen > 0 && networkGen != srv.lastNetworkGeneration)
 	if netChanged {
-		if err := srv.reconcileNetwork(plan, op, networkGen); err != nil {
+		if err := srv.reconcileNetwork(ctx, plan, op, networkGen); err != nil {
 			msg := err.Error()
 			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 20, true, msg))
 			srv.notifyControllerOperationResult(op.id, false, msg, err)
@@ -810,8 +818,61 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 		return
 	}
 
+	// Ensure objectstore layout (bucket + sentinels) is present; must succeed.
+	layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	if err := srv.ensureObjectstoreLayout(layoutCtx, desiredDomain); err != nil {
+		msg := fmt.Sprintf("ensure objectstore layout: %v", err)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, lastPercent, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, err)
+		return
+	}
+
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
 	srv.notifyControllerOperationResult(op.id, true, "plan applied", nil)
+}
+
+func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain string) error {
+	log.Printf("==== ensureObjectstoreLayout CALLED ====")
+	log.Printf("  domain passed: %q", domain)
+
+	handler := actions.Get("ensure_objectstore_layout")
+	if handler == nil {
+		log.Printf("  ERROR: ensure_objectstore_layout handler not registered")
+		return errors.New("ensure_objectstore_layout handler not registered")
+	}
+
+	contractPath := strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT"))
+	if contractPath == "" {
+		contractPath = "/var/lib/globular/objectstore/minio.json"
+	}
+	log.Printf("  contract_path: %s (env override: %t)", contractPath, os.Getenv("NODE_AGENT_MINIO_CONTRACT") != "")
+
+	fields := map[string]interface{}{
+		"contract_path":    contractPath,
+		"domain":           domain,
+		"create_sentinels": true,
+		"sentinel_name":    ".keep",
+		"retry":            30.0,
+		"retry_delay_ms":   1000.0,
+	}
+	args, err := structpb.NewStruct(fields)
+	if err != nil {
+		log.Printf("  ERROR building args: %v", err)
+		return fmt.Errorf("build args: %w", err)
+	}
+	if err := handler.Validate(args); err != nil {
+		log.Printf("  ERROR validating: %v", err)
+		return fmt.Errorf("validate ensure_objectstore_layout: %w", err)
+	}
+	msg, err := handler.Apply(ctx, args)
+	if err != nil {
+		log.Printf("  ERROR applying ensure_objectstore_layout: %v", err)
+		return fmt.Errorf("apply ensure_objectstore_layout: %w", err)
+	}
+	log.Printf("  SUCCESS: %s", msg)
+	log.Printf("==== ensureObjectstoreLayout COMPLETED ====")
+	return nil
 }
 
 func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) (bool, error) {
@@ -884,7 +945,7 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 	return writeAtomicFile(path, []byte(data), 0o600)
 }
 
-func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan, op *operation, generation uint64) error {
+func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clustercontrollerpb.NodePlan, op *operation, generation uint64) error {
 	if plan == nil {
 		return nil
 	}
@@ -909,6 +970,14 @@ func (srv *NodeAgentServer) reconcileNetwork(plan *clustercontrollerpb.NodePlan,
 		srv.state.NetworkGeneration = generation
 		if err := srv.saveState(); err != nil {
 			log.Printf("nodeagent: save state after dns sync: %v", err)
+		}
+	}
+
+	if spec != nil && strings.TrimSpace(spec.ClusterDomain) != "" {
+		layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		if err := srv.ensureObjectstoreLayout(layoutCtx, spec.ClusterDomain); err != nil {
+			return fmt.Errorf("ensure objectstore layout: %w", err)
 		}
 	}
 	return nil
@@ -1592,7 +1661,7 @@ func (srv *NodeAgentServer) buildBootstrapPlanWithNetwork(profiles []string, clu
 	// Create default network spec for bootstrap
 	spec := &clustercontrollerpb.ClusterNetworkSpec{
 		ClusterDomain: domain,
-		Protocol:      "http",  // Default to http for bootstrap
+		Protocol:      "http", // Default to http for bootstrap
 		PortHttp:      8080,
 		PortHttps:     8443,
 		AcmeEnabled:   false,
@@ -1609,9 +1678,9 @@ func (srv *NodeAgentServer) buildBootstrapPlanWithNetwork(profiles []string, clu
 
 	// Add network overlay
 	configPayload := map[string]interface{}{
-		"Domain":   spec.ClusterDomain,
-		"Protocol": spec.Protocol,
-		"PortHTTP": spec.PortHttp,
+		"Domain":    spec.ClusterDomain,
+		"Protocol":  spec.Protocol,
+		"PortHTTP":  spec.PortHttp,
 		"PortHTTPS": spec.PortHttps,
 	}
 	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
