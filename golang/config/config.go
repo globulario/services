@@ -385,13 +385,9 @@ func GetHostname() (string, error) {
 }
 
 func GetTLSFile(name, domain, file string) string {
-	if name == "" || domain == "" {
-		return ""
-	}
-	dir := filepath.Join(name+"."+domain, file)
 	candidates := []string{
-		filepath.Join(GetRuntimeTLSDir(), dir),
-		filepath.Join(GetAdminTLSDir(), dir),
+		filepath.Join(GetRuntimeTLSDir(), file),
+		filepath.Join(GetAdminTLSDir(), file),
 	}
 	for _, p := range candidates {
 		if Utility.Exists(p) {

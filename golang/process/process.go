@@ -38,6 +38,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func runtimeTLSPaths() (tlsDir, fullchain, privkey, ca string) {
+	return config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+}
+
 //
 // =====================================================================================
 // Prometheus metrics
@@ -197,20 +201,17 @@ func KillServiceProcess(s map[string]interface{}) error {
 
 // WaitForEtcdHTTPS blocks until etcd is healthy over HTTPS (or times out).
 func WaitForEtcdHTTPS(timeout time.Duration) error {
-	name, _ := config.GetName()
-	domain, _ := config.GetDomain()
-	host := name
-	if domain != "" && !strings.Contains(name, ".") {
-		host = name + "." + domain
+	tlsDir, _, _, ca := runtimeTLSPaths()
+	caFile := ca
+	if alt := filepath.Join(tlsDir, "ca.crt"); Utility.Exists(alt) { // legacy name fallback
+		caFile = alt
 	}
-	certDir := filepath.Join(config.GetConfigDir(), "tls", host)
-	ca := filepath.Join(certDir, "ca.crt")
-	cl := filepath.Join(certDir, "client.crt")
-	key := filepath.Join(certDir, "client.pem")
+	cl := filepath.Join(tlsDir, "client.crt")
+	key := filepath.Join(tlsDir, "client.pem")
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if alreadyHealthy("https", ca, cl, key) {
+		if alreadyHealthy("https", caFile, cl, key) {
 			return nil
 		}
 		time.Sleep(300 * time.Millisecond)
@@ -593,15 +594,9 @@ func RestartAllServiceProxiesTLS() error {
 		return err
 	}
 
-	name, _ := config.GetName()
-	domain, _ := config.GetDomain()
-	advHost := name
-	if domain != "" && !strings.Contains(name, ".") {
-		advHost = name + "." + domain
-	}
-
 	// Ensure creds dir exists.
-	credsDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
+	tlsDir, fullchain, _, ca := runtimeTLSPaths()
+	credsDir := tlsDir
 	if !Utility.Exists(credsDir) {
 		return fmt.Errorf("cannot restart proxies: creds dir does not exist: %s", credsDir)
 	}
@@ -609,8 +604,14 @@ func RestartAllServiceProxiesTLS() error {
 	// Choose the certs used by your proxies:
 	// - For the proxy's own TLS server: use the local server keypair (server.key/.crt) and trust bundle.
 	// - For backend mTLS: we already pass backend CA/client in StartServiceProxyProcess.
-	caBundle := filepath.Join(credsDir, "ca.crt")
-	serverCert := filepath.Join(credsDir, "server.crt")
+	caBundle := ca
+	if alt := filepath.Join(credsDir, "ca.crt"); Utility.Exists(alt) {
+		caBundle = alt
+	}
+	serverCert := fullchain
+	if alt := filepath.Join(credsDir, "server.crt"); Utility.Exists(alt) {
+		serverCert = alt
+	}
 
 	var firstErr error
 	for _, s := range services {
@@ -718,11 +719,36 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		cmdName += ".exe"
 	}
 
-	nameCfg, _ := config.GetName()
-	domain, _ := config.GetDomain()
-	credsDir := filepath.Join(config.GetConfigDir(), "tls", nameCfg+"."+domain)
+	tlsDir, fullchain, privkey, ca := runtimeTLSPaths()
+	credsDir := tlsDir
 	proxyPort := Utility.ToInt(s["Proxy"])
 	tlsEnabled := Utility.ToBool(s["TLS"])
+	caTrust := ca
+	if v := strings.TrimSpace(certificateAuthorityBundle); v != "" {
+		if filepath.IsAbs(v) {
+			caTrust = v
+		} else if candidate := filepath.Join(credsDir, v); Utility.Exists(candidate) {
+			caTrust = candidate
+		} else {
+			caTrust = filepath.Join(credsDir, v)
+		}
+	}
+	serverCert := fullchain
+	if v := strings.TrimSpace(certificate); v != "" {
+		if filepath.IsAbs(v) {
+			serverCert = v
+		} else if candidate := filepath.Join(credsDir, v); Utility.Exists(candidate) {
+			serverCert = candidate
+		} else {
+			serverCert = filepath.Join(credsDir, v)
+		}
+	}
+	serverKey := privkey
+	if alt := filepath.Join(credsDir, "server.key"); Utility.Exists(alt) {
+		serverKey = alt
+	} else if alt := filepath.Join(credsDir, "server.pem"); Utility.Exists(alt) {
+		serverKey = alt
+	}
 
 	args := []string{
 		"--backend_addr=" + backend,
@@ -732,7 +758,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		"--server_http_max_write_timeout=48h",
 	}
 	if tlsEnabled {
-		caTrust := filepath.Join(credsDir, "ca.crt")
 		args = append(args,
 			"--backend_tls=true",
 			"--backend_tls_ca_files="+caTrust,
@@ -741,9 +766,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 			"--run_http_server=false",
 			"--run_tls_server=true",
 			"--server_http_tls_port="+strconv.Itoa(proxyPort),
-			"--server_tls_key_file="+filepath.Join(credsDir, "server.key"),
-			"--server_tls_client_ca_files="+filepath.Join(credsDir, certificateAuthorityBundle),
-			"--server_tls_cert_file="+filepath.Join(credsDir, certificate),
+			"--server_tls_key_file="+serverKey,
+			"--server_tls_client_ca_files="+caTrust,
+			"--server_tls_cert_file="+serverCert,
 		)
 	} else {
 		args = append(args,
@@ -1065,33 +1090,31 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 // If etcd is already healthy on HTTPS, it does nothing. If it’s only on HTTP, it
 // stops the current process and relaunches on TLS.
 func RestartEtcdIfCertsReady() error {
-	localCfg, err := config.GetLocalConfig(true)
-	if err != nil {
-		return err
+	tlsDir, fullchain, privkey, ca := runtimeTLSPaths()
+	certFile := fullchain
+	if alt := filepath.Join(tlsDir, "server.crt"); Utility.Exists(alt) {
+		certFile = alt
 	}
-	name := Utility.ToString(localCfg["Name"])
-	if name == "" {
-		name, _ = config.GetName()
+	keyPem := filepath.Join(tlsDir, "server.pem")
+	keyKey := filepath.Join(tlsDir, "server.key")
+	keyFile := privkey
+	if Utility.Exists(keyPem) {
+		keyFile = keyPem
+	} else if Utility.Exists(keyKey) {
+		keyFile = keyKey
 	}
-	domain, _ := config.GetDomain()
-	advHost := name
-	if domain != "" && !strings.Contains(name, ".") {
-		advHost = name + "." + domain
+	caFile := ca
+	if alt := filepath.Join(tlsDir, "ca.crt"); Utility.Exists(alt) {
+		caFile = alt
 	}
-
-	certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
-	certFile := filepath.Join(certDir, "server.crt")
-	keyPem := filepath.Join(certDir, "server.pem")
-	keyKey := filepath.Join(certDir, "server.key")
-	caFile := filepath.Join(certDir, "ca.crt")
 
 	// Need cert + key(.pem or .key) + ca
-	if !(Utility.Exists(certFile) && Utility.Exists(caFile) && (Utility.Exists(keyPem) || Utility.Exists(keyKey))) {
+	if !(Utility.Exists(certFile) && Utility.Exists(caFile) && Utility.Exists(keyFile)) {
 		return nil
 	}
 
 	// If HTTPS is already healthy, nothing to do.
-	if alreadyHealthy("https", caFile, filepath.Join(certDir, "client.crt"), filepath.Join(certDir, "client.pem")) {
+	if alreadyHealthy("https", caFile, filepath.Join(tlsDir, "client.crt"), filepath.Join(tlsDir, "client.pem")) {
 		return nil
 	}
 
@@ -1119,59 +1142,78 @@ func RestartEtcdIfCertsReady() error {
 // - TLS dir -> 0750 (root:scylla so scylla can traverse)
 // - PRIVATE keys   (*.key, client.pem, server.pem, anything with "key" in name & .pem) -> 0640 root:scylla
 // - PUBLIC material (*.crt, *fullchain*.pem, *.csr, .conf, .txt, etc.) -> 0644 root:root
-func ensureEtcdAndScyllaPerms(cfgDir, dataDir, advHost string) error {
-    if err := os.MkdirAll(dataDir, 0o700); err != nil { return err }
-    if err := os.Chmod(dataDir, 0o700); err != nil { return err }
+func ensureEtcdAndScyllaPerms(tlsDir, dataDir string) error {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(dataDir, 0o700); err != nil {
+		return err
+	}
 
-    tlsRoot := filepath.Join(cfgDir, "tls")
-    tlsDir  := filepath.Join(tlsRoot, advHost)
+	// ensure parents are traversable
+	tlsRoot := filepath.Dir(tlsDir)
+	_ = os.MkdirAll(tlsRoot, 0o755)
+	_ = os.Chmod(tlsRoot, 0o755)
 
-    // ensure parents are traversable
-    _ = os.MkdirAll(tlsRoot, 0o755)
-    _ = os.Chmod(tlsRoot, 0o755)
+	// TLS dir: 0755 so public files are actually readable
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.Chmod(tlsDir, 0o755); err != nil {
+		return err
+	}
 
-    // TLS dir: 0755 so public files are actually readable
-    if err := os.MkdirAll(tlsDir, 0o755); err != nil { return err }
-    if err := os.Chmod(tlsDir, 0o755); err != nil { return err }
+	var scyllaGID = -1
+	if grp, err := user.LookupGroup("scylla"); err == nil {
+		if gid, e := strconv.Atoi(grp.Gid); e == nil {
+			scyllaGID = gid
+		}
+	}
+	if scyllaGID >= 0 {
+		_ = os.Chown(tlsDir, 0, scyllaGID)
+	}
 
-    var scyllaGID = -1
-    if grp, err := user.LookupGroup("scylla"); err == nil {
-        if gid, e := strconv.Atoi(grp.Gid); e == nil { scyllaGID = gid }
-    }
-    if scyllaGID >= 0 { _ = os.Chown(tlsDir, 0, scyllaGID) }
+	isPrivate := func(n string) bool {
+		l := strings.ToLower(n)
+		return strings.HasSuffix(l, ".key") ||
+			l == "client.pem" || l == "server.pem" ||
+			(strings.HasSuffix(l, ".pem") && strings.Contains(l, "key"))
+	}
+	isPublic := func(n string) bool {
+		l := strings.ToLower(n)
+		return strings.HasSuffix(l, ".crt") ||
+			(strings.Contains(l, "fullchain") && strings.HasSuffix(l, ".pem")) ||
+			strings.HasSuffix(l, ".csr") || strings.HasSuffix(l, ".conf") || strings.HasSuffix(l, ".txt") ||
+			strings.HasSuffix(l, ".pem")
+	}
 
-    isPrivate := func(n string) bool {
-        l := strings.ToLower(n)
-        return strings.HasSuffix(l, ".key") ||
-               l == "client.pem" || l == "server.pem" ||
-               (strings.HasSuffix(l, ".pem") && strings.Contains(l, "key"))
-    }
-    isPublic := func(n string) bool {
-        l := strings.ToLower(n)
-        return strings.HasSuffix(l, ".crt") ||
-               (strings.Contains(l, "fullchain") && strings.HasSuffix(l, ".pem")) ||
-               strings.HasSuffix(l, ".csr") || strings.HasSuffix(l, ".conf") || strings.HasSuffix(l, ".txt")
-    }
-
-    ents, err := os.ReadDir(tlsDir)
-    if err != nil { return err }
-    for _, e := range ents {
-        if !e.Type().IsRegular() { continue }
-        p := filepath.Join(tlsDir, e.Name())
-        switch {
-        case isPrivate(e.Name()):
-            if scyllaGID >= 0 {
-                _ = os.Chown(p, 0, scyllaGID); _ = os.Chmod(p, 0o640)
-            } else {
-                _ = os.Chown(p, 0, 0);        _ = os.Chmod(p, 0o600)
-            }
-        case isPublic(e.Name()):
-            _ = os.Chown(p, 0, 0);            _ = os.Chmod(p, 0o644)
-        default:
-            _ = os.Chown(p, 0, 0);            _ = os.Chmod(p, 0o644)
-        }
-    }
-    return nil
+	ents, err := os.ReadDir(tlsDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range ents {
+		if !e.Type().IsRegular() {
+			continue
+		}
+		p := filepath.Join(tlsDir, e.Name())
+		switch {
+		case isPrivate(e.Name()):
+			if scyllaGID >= 0 {
+				_ = os.Chown(p, 0, scyllaGID)
+				_ = os.Chmod(p, 0o640)
+			} else {
+				_ = os.Chown(p, 0, 0)
+				_ = os.Chmod(p, 0o600)
+			}
+		case isPublic(e.Name()):
+			_ = os.Chown(p, 0, 0)
+			_ = os.Chmod(p, 0o644)
+		default:
+			_ = os.Chown(p, 0, 0)
+			_ = os.Chmod(p, 0o644)
+		}
+	}
+	return nil
 }
 
 // StartEtcdServer launches etcd using a generated config file. It:
@@ -1223,6 +1265,8 @@ func StartEtcdServer() error {
 		advHost = "localhost"
 	}
 
+	tlsDir, _, _, _ := runtimeTLSPaths()
+
 	stateRoot := config.GetStateRootDir()
 	dataDir := Utility.ToString(localConfig["EtcdDataDir"])
 	if dataDir == "" {
@@ -1238,8 +1282,7 @@ func StartEtcdServer() error {
 	}
 
 	// Set permissions for etcd data dir and TLS files (if any).
-	cfgDir := config.GetConfigDir()
-	if err := ensureEtcdAndScyllaPerms(cfgDir, dataDir, advHost); err != nil {
+	if err := ensureEtcdAndScyllaPerms(tlsDir, dataDir); err != nil {
 		return fmt.Errorf("perm bootstrap failed: %w", err)
 	}
 
@@ -1274,17 +1317,29 @@ func StartEtcdServer() error {
 	}
 
 	if wantTLS {
-		certDir := filepath.Join(config.GetConfigDir(), "tls", advHost)
-		serverCRT := filepath.Join(certDir, "server.crt")
-		serverKEY := filepath.Join(certDir, "server.key")
-		if !Utility.Exists(serverKEY) {
-			serverKEY = filepath.Join(certDir, "server.pem")
+		resolveTLS := func() (string, string, string) {
+			cert := filepath.Join(tlsDir, "fullchain.pem")
+			if Utility.Exists(filepath.Join(tlsDir, "server.crt")) {
+				cert = filepath.Join(tlsDir, "server.crt")
+			}
+			key := filepath.Join(tlsDir, "privkey.pem")
+			if Utility.Exists(filepath.Join(tlsDir, "server.key")) {
+				key = filepath.Join(tlsDir, "server.key")
+			} else if Utility.Exists(filepath.Join(tlsDir, "server.pem")) {
+				key = filepath.Join(tlsDir, "server.pem")
+			}
+			caPath := filepath.Join(tlsDir, "ca.pem")
+			if Utility.Exists(filepath.Join(tlsDir, "ca.crt")) {
+				caPath = filepath.Join(tlsDir, "ca.crt")
+			}
+			return cert, key, caPath
 		}
-		caCRT := filepath.Join(certDir, "ca.crt")
+
+		serverCRT, serverKEY, caCRT := resolveTLS()
 
 		if !(Utility.Exists(serverCRT) && Utility.Exists(serverKEY) && Utility.Exists(caCRT)) {
 			slog.Warn("etcd TLS requested but cert/key/CA missing; generating local certificates via security.GenerateServicesCertificates",
-				"certDir", certDir)
+				"certDir", tlsDir)
 
 			localIP := listenAddress
 			var alts []interface{}
@@ -1325,11 +1380,12 @@ func StartEtcdServer() error {
 			org := Utility.ToString(localConfig["Organization"])
 
 			if err := security.GenerateServicesCertificates(
-				"1111", defaultDays, advHost, certDir, country, state, city, org, alts,
+				"1111", defaultDays, advHost, tlsDir, country, state, city, org, alts,
 			); err != nil {
 				slog.Error("TLS bootstrap failed; falling back to HTTP", "err", err)
 				wantTLS = false
 			}
+			serverCRT, serverKEY, caCRT = resolveTLS()
 		}
 
 		if wantTLS && Utility.Exists(serverCRT) && Utility.Exists(serverKEY) && Utility.Exists(caCRT) {
@@ -1436,8 +1492,8 @@ func StartEtcdServer() error {
 	// If etcd already healthy at advertised endpoint, do NOT start another.
 	var clientCertFile, clientKeyFile string
 	if wantTLS && clientMTLS {
-		clientCertFile = filepath.Join(config.GetConfigDir(), "tls", advHost, "client.crt")
-		clientKeyFile = filepath.Join(config.GetConfigDir(), "tls", advHost, "client.pem")
+		clientCertFile = filepath.Join(tlsDir, "client.crt")
+		clientKeyFile = filepath.Join(tlsDir, "client.pem")
 	}
 	if alreadyHealthy(scheme, caFile, clientCertFile, clientKeyFile) {
 		slog.Info("etcd already running and healthy; skipping start", "advertise-client-urls", advClientURL)

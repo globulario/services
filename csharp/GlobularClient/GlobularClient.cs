@@ -480,7 +480,7 @@ namespace Globular
                         System.Console.WriteLine("The client and server are not on the same host...");
                         System.Console.Write("Generate certificate from remote");
                         // I will need to create certificate and make it sign by the CA.
-                        var path = Environment.ExpandEnvironmentVariables("%ProgramW6432%") + "/globular/config/tls/" + this.domain;
+                        var path = Environment.ExpandEnvironmentVariables("%ProgramW6432%") + "/globular/config/tls";
 
                         if (!Directory.Exists(path))
                         {

@@ -143,7 +143,7 @@ void Globular::Client::initClient(std::string name, std::string domain, unsigned
 
         }else{
 
-            auto path =  getLocalConfigPath() + "/tls/" + this->config->Domain;
+            auto path =  getLocalConfigPath() + "/tls";
 
             // Here I will create a directory named
             if(!exists(path)){

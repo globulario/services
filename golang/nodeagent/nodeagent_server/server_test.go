@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"context"
+
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/config"
+	certpkg "github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/certs"
 	"github.com/globulario/services/golang/pki"
 )
 
@@ -160,6 +164,38 @@ func (f *fakePKIManager) EnsureServerKeyAndCSR(dir, commonName, country, state, 
 	return nil
 }
 
+type recordingKV struct {
+	leader     bool
+	putCount   int
+	bundle     certpkg.CertBundle
+	waitBundle certpkg.CertBundle
+}
+
+func (r *recordingKV) AcquireCertIssuerLock(ctx context.Context, domain, nodeID string, ttl time.Duration) (bool, func(), error) {
+	if r.leader {
+		return true, func() {}, nil
+	}
+	return false, func() {}, nil
+}
+
+func (r *recordingKV) PutBundle(ctx context.Context, domain string, bundle certpkg.CertBundle) error {
+	r.putCount++
+	r.bundle = bundle
+	return nil
+}
+
+func (r *recordingKV) GetBundle(ctx context.Context, domain string) (certpkg.CertBundle, error) {
+	return r.bundle, nil
+}
+
+func (r *recordingKV) WaitForBundle(ctx context.Context, domain string, timeout time.Duration) (certpkg.CertBundle, error) {
+	return r.waitBundle, nil
+}
+
+func (r *recordingKV) GetBundleGeneration(ctx context.Context, domain string) (uint64, error) {
+	return r.bundle.Generation, nil
+}
+
 func TestIsAllowedRenderTarget(t *testing.T) {
 	allowed := []string{
 		"/etc/globular/config.json",
@@ -239,5 +275,80 @@ func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
 	}
 	if called {
 		t.Fatalf("expected non-issuer to skip issuance")
+	}
+}
+
+func TestEnsureNetworkCertsACMEPublishesBundle(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
+
+	recKV := &recordingKV{leader: true}
+	fake := &fakePKIManager{}
+	orig := networkPKIManager
+	networkPKIManager = func(opts pki.Options) pki.Manager {
+		return fake
+	}
+	defer func() { networkPKIManager = orig }()
+
+	srv := &NodeAgentServer{
+		nodeID: "node-0",
+		state:  &nodeAgentState{},
+		certKV: recKV,
+	}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		ClusterDomain: "example.com",
+		Protocol:      "https",
+		AcmeEnabled:   true,
+		AdminEmail:    "ops@example.com",
+	}
+	if err := srv.ensureNetworkCerts(spec); err != nil {
+		t.Fatalf("ensureNetworkCerts acme: %v", err)
+	}
+	if recKV.putCount != 1 {
+		t.Fatalf("expected bundle published once, got %d", recKV.putCount)
+	}
+	if len(recKV.bundle.Key) == 0 || len(recKV.bundle.Fullchain) == 0 || len(recKV.bundle.CA) == 0 {
+		t.Fatalf("bundle contents missing: %+v", recKV.bundle)
+	}
+	if srv.state.CertGeneration == 0 {
+		t.Fatalf("expected cert generation to be recorded")
+	}
+}
+
+func TestEnsureNetworkCertsFollowerWaitsForACMEBundle(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
+	recKV := &recordingKV{
+		leader: false,
+		waitBundle: certpkg.CertBundle{
+			Key:        []byte("k"),
+			Fullchain:  []byte("f"),
+			CA:         []byte("c"),
+			Generation: 42,
+		},
+	}
+	srv := &NodeAgentServer{
+		nodeID: "node-1",
+		state:  &nodeAgentState{},
+		certKV: recKV,
+	}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		ClusterDomain: "example.com",
+		Protocol:      "https",
+		AcmeEnabled:   true,
+		AdminEmail:    "ops@example.com",
+	}
+	if err := srv.ensureNetworkCerts(spec); err != nil {
+		t.Fatalf("ensureNetworkCerts follower: %v", err)
+	}
+	_, fullchain, key, ca := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	if b, _ := os.ReadFile(key); string(b) != "k" {
+		t.Fatalf("expected key from bundle, got %s", string(b))
+	}
+	if b, _ := os.ReadFile(fullchain); string(b) != "f" {
+		t.Fatalf("expected fullchain from bundle, got %s", string(b))
+	}
+	if b, _ := os.ReadFile(ca); string(b) != "c" {
+		t.Fatalf("expected ca from bundle, got %s", string(b))
 	}
 }

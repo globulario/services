@@ -614,6 +614,62 @@ func TestRenderServiceConfigs(t *testing.T) {
 	})
 }
 
+func TestRenderXDSConfigTLSPaths(t *testing.T) {
+	node := memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}}
+	ctx := &serviceConfigContext{
+		Membership: &clusterMembership{
+			ClusterID: "test-cluster",
+			Nodes:     []memberNode{node},
+		},
+		CurrentNode: &node,
+		Domain:      "example.com",
+	}
+
+	raw, ok := renderXDSConfig(ctx)
+	if !ok {
+		t.Fatalf("renderXDSConfig returned ok=false")
+	}
+
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("unmarshal xds config: %v", err)
+	}
+	ingress, ok := cfg["ingress"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing ingress config: %#v", cfg)
+	}
+	tlsCfg, ok := ingress["tls"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing tls config: %#v", ingress)
+	}
+
+	certPath, _ := tlsCfg["cert_chain_path"].(string)
+	keyPath, _ := tlsCfg["private_key_path"].(string)
+	caPath, _ := tlsCfg["ca_path"].(string)
+	for field, value := range map[string]string{
+		"cert_chain_path":  certPath,
+		"private_key_path": keyPath,
+		"ca_path":          caPath,
+	} {
+		if value == "" {
+			t.Fatalf("%s missing or not a string", field)
+		}
+		if strings.Contains(value, "/tls/example.com/") || strings.Contains(value, "/pki/example.com/") {
+			t.Fatalf("%s should not include domain-scoped path: %s", field, value)
+		}
+	}
+
+	if !strings.Contains(certPath, "/config/tls/fullchain.pem") {
+		t.Fatalf("cert_chain_path should point to fullchain.pem, got %s", certPath)
+	}
+	if !strings.Contains(keyPath, "/config/tls/privkey.pem") {
+		t.Fatalf("private_key_path should point to privkey.pem, got %s", keyPath)
+	}
+	if !strings.Contains(caPath, "/config/tls/ca.pem") {
+		t.Fatalf("ca_path should point to ca.pem, got %s", caPath)
+	}
+}
+
 func TestRenderYAML(t *testing.T) {
 	data := map[string]interface{}{
 		"name":    "test",

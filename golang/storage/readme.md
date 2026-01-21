@@ -142,9 +142,9 @@ Each store type accepts JSON options when opening:
     "table": "kv",
     "replication_factor": 1,
     "tls": true,
-    "ca_file": "/etc/globular/config/tls/ca.crt",
-    "cert_file": "/etc/globular/config/tls/client.crt",
-    "key_file": "/etc/globular/config/tls/client.key"
+    "ca_file": "/var/lib/globular/config/tls/ca.pem",
+    "cert_file": "/var/lib/globular/config/tls/fullchain.pem",
+    "key_file": "/var/lib/globular/config/tls/privkey.pem"
   }
   ```
 

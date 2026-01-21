@@ -253,50 +253,37 @@ func etcdEndpointsFromEnv() []string {
 func GetEtcdTLS() (*tls.Config, error) {
 	cfgDir := GetConfigDir()
 
-	// Build search list identical to etcdServerTLSExists
-	name := Utility.ToString(GetLocalConfigMust(true)["Name"])
-	if name == "" {
-		name, _ = GetName()
-	}
-	dom, _ := GetDomain()
-
-	tryDirs := []string{}
-	if name != "" && dom != "" && !strings.Contains(name, ".") {
-		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", name+"."+dom))
-	}
-	if name != "" {
-		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", name))
-	}
-	if hn, _ := GetHostname(); hn != "" {
-		tryDirs = append(tryDirs, filepath.Join(cfgDir, "tls", hn))
-	}
-	tlsRoot := filepath.Join(cfgDir, "tls")
-	if entries, err := os.ReadDir(tlsRoot); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				tryDirs = append(tryDirs, filepath.Join(tlsRoot, e.Name()))
+	canonical := filepath.Join(cfgDir, "tls", "etcd")
+	legacyAllowed := strings.TrimSpace(os.Getenv("GLOBULAR_ALLOW_LEGACY_TLS_DIRS")) == "1"
+	var base string
+	if hasServerTriplet(canonical) {
+		base = canonical
+	} else if legacyAllowed {
+		tryDirs := []string{}
+		tlsRoot := filepath.Join(cfgDir, "tls")
+		if entries, err := os.ReadDir(tlsRoot); err == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					tryDirs = append(tryDirs, filepath.Join(tlsRoot, e.Name()))
+				}
 			}
 		}
-	}
-	// de-dup
-	uniq := make([]string, 0, len(tryDirs))
-	seen := map[string]bool{}
-	for _, d := range tryDirs {
-		if d != "" && !seen[d] {
-			seen[d] = true
-			uniq = append(uniq, d)
+		uniq := make([]string, 0, len(tryDirs))
+		seen := map[string]bool{}
+		for _, d := range tryDirs {
+			if d != "" && !seen[d] {
+				seen[d] = true
+				uniq = append(uniq, d)
+			}
 		}
-	}
-
-	var base string
-	for _, d := range uniq {
-		if hasServerTriplet(d) {
-			base = d
-			break
+		for _, d := range uniq {
+			if hasServerTriplet(d) {
+				base = d
+				break
+			}
 		}
-	}
-	if base == "" {
-		return nil, fmt.Errorf("etcd TLS requested but no cert directory found")
+	} else {
+		return nil, fmt.Errorf("etcd TLS requested but no cert directory found (looked in %s)", canonical)
 	}
 
 	caPath := filepath.Join(base, "ca.crt")
@@ -341,31 +328,25 @@ func fileExists(p string) bool {
 // etcdServerTLSExists reports whether the local etcd server is configured for TLS.
 func etcdServerTLSExists() bool {
 	// Match where StartEtcdServer writes certs:
-	// <config>/tls/<advHost>/{server.crt, server.key, ca.crt}
 	cfgDir := GetConfigDir()
-	// We don't know advHost here; check any host directory that has a full triplet.
-	tlsRoot := filepath.Join(cfgDir, "tls")
-	dirs, err := os.ReadDir(tlsRoot)
-	if err != nil {
-		return false
+	canonical := filepath.Join(cfgDir, "tls", "etcd")
+	if hasServerTriplet(canonical) {
+		return true
 	}
-	for _, d := range dirs {
-		if !d.IsDir() {
-			continue
+	if strings.TrimSpace(os.Getenv("GLOBULAR_ALLOW_LEGACY_TLS_DIRS")) == "1" {
+		tlsRoot := filepath.Join(cfgDir, "tls")
+		dirs, err := os.ReadDir(tlsRoot)
+		if err != nil {
+			return false
 		}
-		dir := filepath.Join(tlsRoot, d.Name())
-		crt := filepath.Join(dir, "server.crt")
-		key := filepath.Join(dir, "server.key")
-		if !Utility.Exists(key) {
-			key = filepath.Join(dir, "server.pem")
-		}
-		ca := filepath.Join(dir, "ca.crt")
-		if Utility.Exists(crt) && Utility.Exists(key) {
-			// ca may be optional if client-cert-auth is false, but keep it permissive:
-			return true
-		}
-		if Utility.Exists(crt) && Utility.Exists(key) && Utility.Exists(ca) {
-			return true
+		for _, d := range dirs {
+			if !d.IsDir() {
+				continue
+			}
+			dir := filepath.Join(tlsRoot, d.Name())
+			if hasServerTriplet(dir) {
+				return true
+			}
 		}
 	}
 	return false
@@ -623,8 +604,7 @@ func BootstrapServicesFromFiles() error {
 // SaveServiceConfiguration persists desired/runtime in separate keys
 // and mirrors the desired config to a JSON file on disk:
 //
-//   <ServicesConfigDir>/<Id>.json  (default: /var/lib/globular/services/<Id>.json)
-//
+//	<ServicesConfigDir>/<Id>.json  (default: /var/lib/globular/services/<Id>.json)
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	id := Utility.ToString(s["Id"])
 	if id == "" {
@@ -662,7 +642,6 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 
 	return nil
 }
-
 
 // IsEtcdHealthy checks any endpoint for health within timeout.
 func IsEtcdHealthy(endpoints []string, to time.Duration) bool {
@@ -1081,7 +1060,9 @@ func WatchRuntimes(ctx context.Context, cb func(RuntimeEvent)) error {
 // -----------------------------
 
 // CreateEtcdSnapshot saves a binary etcd snapshot under
-//   <configDir>/etcd-snapshots/etcd-<unix>.db
+//
+//	<configDir>/etcd-snapshots/etcd-<unix>.db
+//
 // and returns the snapshot filepath.
 //
 // You still need to use "etcdutl snapshot restore" offline to rebuild
@@ -1122,7 +1103,7 @@ func CreateEtcdSnapshot() (string, error) {
 // BackupGlobularKeysJSON exports all keys under "/globular/" (including
 // /globular/services, /globular/accounts, etc.) to a JSON file:
 //
-//   <configDir>/backups/globular_config_backup.json
+//	<configDir>/backups/globular_config_backup.json
 //
 // It returns the full path to the backup file.
 func BackupGlobularKeysJSON() (string, error) {
@@ -1217,7 +1198,9 @@ func RestoreGlobularKeysJSON(path string) error {
 }
 
 // saveServiceConfigFile writes the "desired" config to
-//   <ServicesConfigDir>/<id>.json  (default: /var/lib/globular/services/<id>.json)
+//
+//	<ServicesConfigDir>/<id>.json  (default: /var/lib/globular/services/<id>.json)
+//
 // using an atomic tmp+rename write.
 func saveServiceConfigFile(id string, desired map[string]interface{}) error {
 	if id == "" {

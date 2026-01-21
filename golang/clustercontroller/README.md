@@ -503,8 +503,8 @@ Generated for nodes with profiles: `core`, `compute`, `control-plane`, `gateway`
   "ingress": {
     "tls": {
       "enabled": true,
-      "cert_chain_path": "/var/lib/globular/pki/mycluster.example.com/fullchain.pem",
-      "private_key_path": "/var/lib/globular/pki/mycluster.example.com/privkey.pem"
+      "cert_chain_path": "/var/lib/globular/config/tls/fullchain.pem",
+      "private_key_path": "/var/lib/globular/config/tls/privkey.pem"
     }
   }
 }
@@ -906,7 +906,7 @@ globular cluster plan get <node-id>
 | `/var/lib/globular/minio/minio.env` | MinIO configuration |
 | `/var/lib/globular/xds/config.json` | XDS configuration |
 | `/var/lib/globular/network.json` | Network configuration |
-| `/var/lib/globular/pki/<domain>/` | TLS certificates |
+| `/var/lib/globular/config/tls/` | TLS certificates |
 
 ### Default Ports
 

@@ -251,7 +251,7 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 		domain = "example.com"
 	}
 
-	tlsDir, fullchain, privkey, _ := configpkg.CanonicalTLSPaths(configpkg.GetRuntimeConfigDir())
+	tlsDir, fullchain, privkey, ca := configpkg.CanonicalTLSPaths(configpkg.GetRuntimeConfigDir())
 	config := map[string]interface{}{
 		"etcd_endpoints":        etcdEndpoints,
 		"sync_interval_seconds": 5,
@@ -261,6 +261,7 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 				"cert_chain_path":  fullchain,
 				"private_key_path": privkey,
 				"tls_dir":          tlsDir,
+				"ca_path":          ca,
 			},
 		},
 	}

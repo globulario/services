@@ -1059,7 +1059,24 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 	if desiredDomain == "" {
 		return fmt.Errorf("objectstore layout enforcement requires cluster domain, but none was found in reconcile")
 	}
-	shouldSyncDNS := networkChanged || generation != srv.lastNetworkGeneration
+	if spec != nil && strings.EqualFold(spec.GetProtocol(), "https") && strings.TrimSpace(spec.GetClusterDomain()) == "" {
+		return fmt.Errorf("cluster_domain is required when protocol=https")
+	}
+
+	if spec != nil && strings.TrimSpace(spec.GetClusterDomain()) == "" {
+		return fmt.Errorf("cluster domain required for reconcile")
+	}
+
+	shouldSyncDNS := networkChanged
+	if spec != nil {
+		if strings.TrimSpace(spec.GetClusterDomain()) != strings.TrimSpace(srv.state.ClusterDomain) {
+			shouldSyncDNS = true
+		}
+		if strings.ToLower(strings.TrimSpace(spec.GetProtocol())) != strings.ToLower(strings.TrimSpace(srv.state.Protocol)) {
+			shouldSyncDNS = true
+		}
+	}
+
 	if shouldSyncDNS {
 		syncFn := srv.syncDNS
 		if srv.syncDNSHook != nil {
@@ -1075,16 +1092,22 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 		if err := waitFn(ctx, spec); err != nil {
 			return fmt.Errorf("dns readiness: %w", err)
 		}
+		srv.state.ClusterDomain = spec.GetClusterDomain()
+		srv.state.Protocol = spec.GetProtocol()
+		if generation != 0 {
+			srv.lastNetworkGeneration = generation
+			srv.state.NetworkGeneration = generation
+		}
+		if err := srv.saveState(); err != nil {
+			log.Printf("nodeagent: save state after dns sync: %v", err)
+		}
 	}
 
 	if spec != nil && strings.EqualFold(spec.GetProtocol(), "https") {
-		if strings.TrimSpace(spec.GetClusterDomain()) == "" {
-			return fmt.Errorf("cluster_domain is required when protocol=https")
-		}
 		if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
 			return fmt.Errorf("admin_email is required for ACME")
 		}
-		if strings.EqualFold(spec.GetProtocol(), "https") && spec.GetAcmeEnabled() {
+		if spec.GetAcmeEnabled() {
 			if err := srv.acmeDNSPreflight(ctx, spec); err != nil {
 				return fmt.Errorf("acme preflight: %w", err)
 			}
@@ -1109,29 +1132,24 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 		}
 	}
 
-	if shouldSyncDNS && generation != 0 {
-		srv.lastNetworkGeneration = generation
-		srv.state.NetworkGeneration = generation
-		if err := srv.saveState(); err != nil {
-			log.Printf("nodeagent: save state after dns sync: %v", err)
-		}
-	}
-
 	if spec != nil {
-		checks := buildHealthChecks(spec)
+		checkFn := runConvergenceChecks
 		if srv.healthCheckHook != nil {
-			if err := srv.healthCheckHook(ctx, spec); err != nil {
-				return fmt.Errorf("post-restart health checks failed: %w", err)
-			}
-		} else if err := healthchecks.RunChecks(ctx, checks); err != nil {
-			return fmt.Errorf("post-restart health checks failed: %w", err)
+			checkFn = srv.healthCheckHook
+		}
+		if err := checkFn(ctx, spec); err != nil {
+			return fmt.Errorf("convergence checks failed: %w", err)
 		}
 	}
 
 	if spec != nil && strings.TrimSpace(spec.ClusterDomain) != "" {
 		srv.lastSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
-		srv.state.ClusterDomain = spec.GetClusterDomain()
-		srv.state.Protocol = spec.GetProtocol()
+		if strings.TrimSpace(spec.GetClusterDomain()) != "" {
+			srv.state.ClusterDomain = spec.GetClusterDomain()
+		}
+		if strings.TrimSpace(spec.GetProtocol()) != "" {
+			srv.state.Protocol = spec.GetProtocol()
+		}
 		layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 		log.Printf("Invoking ensure_objectstore_layout (network reconcile, domain=%s)", spec.ClusterDomain)
@@ -1387,6 +1405,58 @@ func (srv *NodeAgentServer) waitForDNSAuthoritative(ctx context.Context, spec *c
 	}
 }
 
+type certWatcherDeps struct {
+	kv                   certs.KV
+	writeTLS             func(certs.CertBundle) error
+	restartUnits         func() error
+	runConvergenceChecks func(context.Context) error
+	now                  func() time.Time
+	debounce             time.Duration
+}
+
+func runCertWatcherOnce(ctx context.Context, domain string, stateGen uint64, lastRestart time.Time, deps certWatcherDeps) (uint64, time.Time, bool, error) {
+	if deps.now == nil {
+		deps.now = time.Now
+	}
+	if deps.debounce == 0 {
+		deps.debounce = 10 * time.Second
+	}
+	if deps.kv == nil || strings.TrimSpace(domain) == "" {
+		return stateGen, lastRestart, false, nil
+	}
+
+	gen, err := deps.kv.GetBundleGeneration(ctx, domain)
+	if err != nil || gen == 0 || gen <= stateGen {
+		return stateGen, lastRestart, false, err
+	}
+	bundle, err := deps.kv.GetBundle(ctx, domain)
+	if err != nil {
+		return stateGen, lastRestart, false, err
+	}
+	if deps.writeTLS != nil {
+		if err := deps.writeTLS(bundle); err != nil {
+			return stateGen, lastRestart, false, err
+		}
+	}
+
+	restarted := false
+	if deps.restartUnits != nil && (lastRestart.IsZero() || deps.now().Sub(lastRestart) >= deps.debounce) {
+		if err := deps.restartUnits(); err != nil {
+			return gen, lastRestart, false, err
+		}
+		lastRestart = deps.now()
+		restarted = true
+	}
+
+	if restarted && deps.runConvergenceChecks != nil {
+		if err := deps.runConvergenceChecks(ctx); err != nil {
+			return gen, lastRestart, restarted, err
+		}
+	}
+
+	return gen, lastRestart, restarted, nil
+}
+
 func (srv *NodeAgentServer) pollCertGeneration(ctx context.Context) {
 	if srv == nil || srv.state == nil {
 		return
@@ -1394,60 +1464,60 @@ func (srv *NodeAgentServer) pollCertGeneration(ctx context.Context) {
 	if strings.ToLower(strings.TrimSpace(srv.state.Protocol)) != "https" {
 		return
 	}
-	if strings.TrimSpace(srv.state.ClusterDomain) == "" {
+	domain := strings.TrimSpace(srv.state.ClusterDomain)
+	if domain == "" {
 		return
 	}
 	kv := srv.getCertKV()
 	if kv == nil {
 		return
 	}
-	gen, err := kv.GetBundleGeneration(ctx, srv.state.ClusterDomain)
-	if err != nil || gen == 0 || gen <= srv.state.CertGeneration {
-		return
-	}
-	bundle, err := kv.GetBundle(ctx, srv.state.ClusterDomain)
-	if err != nil {
-		log.Printf("cert watcher: get bundle: %v", err)
-		return
-	}
 	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
-	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
-		log.Printf("cert watcher: mkdir tls: %v", err)
-		return
-	}
-	if err := writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst); err != nil {
-		log.Printf("cert watcher: write bundle: %v", err)
-		return
-	}
-	srv.state.CertGeneration = gen
-	if err := srv.saveState(); err != nil {
-		log.Printf("cert watcher: save state: %v", err)
-	}
-
-	if time.Since(srv.lastCertRestart) < 10*time.Second {
-		return
-	}
-	units := orderRestartUnits([]string{"globular-xds.service", "globular-envoy.service", "globular-gateway.service"})
-	restartFn := srv.performRestartUnits
-	if srv.restartHook != nil {
-		restartFn = srv.restartHook
-	}
-	if err := restartFn(units, nil); err != nil {
-		log.Printf("cert watcher: restart units: %v", err)
-		return
-	}
-	srv.lastCertRestart = time.Now()
-
-	spec := srv.lastSpec
-	if spec != nil {
-		if srv.healthCheckHook != nil {
-			if err := srv.healthCheckHook(ctx, spec); err != nil {
-				log.Printf("cert watcher: health checks failed: %v", err)
+	deps := certWatcherDeps{
+		kv: kv,
+		writeTLS: func(bundle certs.CertBundle) error {
+			if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+				return err
 			}
-		} else if err := healthchecks.RunChecks(ctx, buildHealthChecks(spec)); err != nil {
-			log.Printf("cert watcher: health checks failed: %v", err)
+			return writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst)
+		},
+		restartUnits: func() error {
+			units := orderRestartUnits([]string{"globular-xds.service", "globular-envoy.service", "globular-gateway.service"})
+			restartFn := srv.performRestartUnits
+			if srv.restartHook != nil {
+				restartFn = srv.restartHook
+			}
+			return restartFn(units, nil)
+		},
+		now:      time.Now,
+		debounce: 10 * time.Second,
+	}
+	if spec := srv.lastSpec; spec != nil {
+		deps.runConvergenceChecks = func(c context.Context) error {
+			checkFn := runConvergenceChecks
+			if srv.healthCheckHook != nil {
+				checkFn = srv.healthCheckHook
+			}
+			if err := checkFn(c, spec); err != nil {
+				return err
+			}
+			log.Printf("cert watcher: convergence checks passed")
+			return nil
 		}
 	}
+
+	newGen, newRestart, _, err := runCertWatcherOnce(ctx, domain, srv.state.CertGeneration, srv.lastCertRestart, deps)
+	if err != nil {
+		log.Printf("cert watcher: %v", err)
+		return
+	}
+	if newGen > srv.state.CertGeneration {
+		srv.state.CertGeneration = newGen
+		if err := srv.saveState(); err != nil {
+			log.Printf("cert watcher: save state: %v", err)
+		}
+	}
+	srv.lastCertRestart = newRestart
 }
 
 func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.ClusterNetworkSpec) error {
@@ -1493,6 +1563,10 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	if kv == nil && spec.GetAcmeEnabled() {
+		log.Printf("nodeagent: ACME enabled but cert KV unavailable; bundle distribution will rely on local files")
+	}
+
 	if kv != nil {
 		isLeader, release, err := kv.AcquireCertIssuerLock(ctx, domain, srv.nodeID, 30*time.Second)
 		if err != nil {
@@ -1533,7 +1607,9 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	}
 
 	manager := networkPKIManager(opts)
+	issuedViaACME := false
 	if spec.GetAcmeEnabled() {
+		issuedViaACME = true
 		subject := fmt.Sprintf("CN=%s", domain)
 		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(workDir, domain, subject, dns, 90*24*time.Hour)
 		if err != nil {
@@ -1548,46 +1624,34 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 		if err := copyFilePerm(issuerFile, caDst, 0o644); err != nil {
 			return err
 		}
-		return nil
-	}
-	keyFile, leafFile, caFile, err := manager.EnsureServerCert(workDir, domain, dns, 90*24*time.Hour)
-	if err != nil {
-		return fmt.Errorf("issue server certs: %w", err)
-	}
-	if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
-		return err
-	}
-	chainDst := fullchainDst
-	if err := concatFiles(chainDst, leafFile, caFile); err != nil {
-		return fmt.Errorf("build fullchain: %w", err)
-	}
-	if caFile != "" {
-		if err := copyFilePerm(caFile, caDst, 0o644); err != nil {
+	} else {
+		keyFile, leafFile, caFile, err := manager.EnsureServerCert(workDir, domain, dns, 90*24*time.Hour)
+		if err != nil {
+			return fmt.Errorf("issue server certs: %w", err)
+		}
+		if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
 			return err
 		}
-	}
-	legacy := []string{
-		filepath.Join(config.GetRuntimeConfigDir(), "pki", domain),
-		filepath.Join(config.GetRuntimeConfigDir(), "tls", domain),
-	}
-	for _, ldir := range legacy {
-		if strings.TrimSpace(domain) == "" {
-			continue
+		chainDst := fullchainDst
+		if err := concatFiles(chainDst, leafFile, caFile); err != nil {
+			return fmt.Errorf("build fullchain: %w", err)
 		}
-		if err := os.MkdirAll(ldir, 0o755); err != nil {
-			continue
+		if caFile != "" {
+			if err := copyFilePerm(caFile, caDst, 0o644); err != nil {
+				return err
+			}
 		}
-		_ = os.Remove(filepath.Join(ldir, "privkey.pem"))
-		_ = os.Remove(filepath.Join(ldir, "fullchain.pem"))
-		_ = os.Remove(filepath.Join(ldir, "ca.pem"))
-		_ = os.Symlink(keyDst, filepath.Join(ldir, "privkey.pem"))
-		_ = os.Symlink(fullchainDst, filepath.Join(ldir, "fullchain.pem"))
-		_ = os.Symlink(caDst, filepath.Join(ldir, "ca.pem"))
 	}
 
 	if kv != nil {
-		keyBytes, _ := os.ReadFile(keyDst)
-		fullchainBytes, _ := os.ReadFile(fullchainDst)
+		keyBytes, err := os.ReadFile(keyDst)
+		if err != nil {
+			return fmt.Errorf("read key for publish: %w", err)
+		}
+		fullchainBytes, err := os.ReadFile(fullchainDst)
+		if err != nil {
+			return fmt.Errorf("read fullchain for publish: %w", err)
+		}
 		caBytes, _ := os.ReadFile(caDst)
 		bundle := certs.CertBundle{
 			Key:        keyBytes,
@@ -1596,7 +1660,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 			Generation: uint64(time.Now().UnixNano()),
 			UpdatedMS:  time.Now().UnixMilli(),
 		}
-		if err := kv.PutBundle(context.Background(), domain, bundle); err != nil {
+		if err := kv.PutBundle(ctx, domain, bundle); err != nil {
 			log.Printf("nodeagent: failed to publish cert bundle: %v", err)
 		} else {
 			log.Printf("nodeagent: published cert bundle for %s generation %d", domain, bundle.Generation)
@@ -1604,6 +1668,8 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 			_ = srv.saveState()
 		}
 	}
+
+	_ = issuedViaACME
 	return nil
 }
 
@@ -1817,16 +1883,17 @@ func buildHealthChecks(spec *clustercontrollerpb.ClusterNetworkSpec) []healthche
 	httpPort := spec.GetPortHttp()
 	httpsPort := spec.GetPortHttps()
 	domain := strings.TrimSpace(spec.GetClusterDomain())
+
 	checks := []healthchecks.Check{
 		{
 			Name:           "minio",
-			URL:            "http://127.0.0.1:9000/minio/health/ready",
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_MINIO_URL")), "http://127.0.0.1:9000/minio/health/ready"),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 		},
 		{
 			Name:           "envoy-admin",
-			URL:            "http://127.0.0.1:9901/ready",
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_ENVOY_URL")), "http://127.0.0.1:9901/ready"),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 		},
@@ -1834,7 +1901,7 @@ func buildHealthChecks(spec *clustercontrollerpb.ClusterNetworkSpec) []healthche
 	if strings.EqualFold(spec.GetProtocol(), "https") {
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-https",
-			URL:            fmt.Sprintf("https://127.0.0.1:%d/health", httpsPort),
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("https://127.0.0.1:%d/health", httpsPort)),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			InsecureTLS:    true,
@@ -1843,13 +1910,85 @@ func buildHealthChecks(spec *clustercontrollerpb.ClusterNetworkSpec) []healthche
 	} else {
 		checks = append(checks, healthchecks.Check{
 			Name:           "gateway-http",
-			URL:            fmt.Sprintf("http://127.0.0.1:%d/health", httpPort),
+			URL:            firstNonEmpty(strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_GATEWAY_URL")), fmt.Sprintf("http://127.0.0.1:%d/health", httpPort)),
 			ExpectedStatus: []int{200},
 			Timeout:        3 * time.Second,
 			HostHeader:     domain,
 		})
 	}
 	return checks
+}
+
+func runConvergenceChecks(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	if spec == nil {
+		return nil
+	}
+	if err := healthchecks.RunChecks(ctx, buildHealthChecks(spec)); err != nil {
+		return err
+	}
+	if err := runSupplementalChecks(ctx, spec); err != nil {
+		return err
+	}
+	return nil
+}
+
+var dnsLookupHost = func(ctx context.Context, resolver *net.Resolver, host string) ([]string, error) {
+	return resolver.LookupHost(ctx, host)
+}
+
+func runSupplementalChecks(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	var errs []string
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	if domain == "" {
+		errs = append(errs, "dns: empty domain")
+	} else {
+		dnsAddr := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_UDP_ADDR"))
+		if dnsAddr == "" {
+			dnsAddr = "127.0.0.1:53"
+		}
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return net.DialTimeout("udp", dnsAddr, 3*time.Second)
+			},
+		}
+		target := fmt.Sprintf("gateway.%s", domain)
+		if _, err := dnsLookupHost(ctx, resolver, target); err != nil {
+			errs = append(errs, fmt.Sprintf("dns lookup %s failed: %v", target, err))
+		}
+	}
+
+	addrs := []struct {
+		name string
+		addr string
+	}{
+		{"etcd", firstNonEmpty(os.Getenv("GLOBULAR_ETCD_ADDR"), "127.0.0.1:2379")},
+		{"minio-tcp", firstNonEmpty(os.Getenv("GLOBULAR_MINIO_ADDR"), "127.0.0.1:9000")},
+		{"scylla", firstNonEmpty(os.Getenv("GLOBULAR_SCYLLA_ADDR"), "127.0.0.1:9042")},
+	}
+	for _, a := range addrs {
+		d := net.Dialer{Timeout: 3 * time.Second}
+		conn, err := d.DialContext(ctx, "tcp", a.addr)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s dial %s: %v", a.name, a.addr, err))
+			continue
+		}
+		conn.Close()
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("supplemental health failed: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func writeAtomicFile(path string, data []byte, perm os.FileMode) error {
