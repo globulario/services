@@ -1524,7 +1524,6 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	if spec == nil || strings.ToLower(spec.GetProtocol()) != "https" {
 		return nil
 	}
-	kv := srv.getCertKV()
 	domain := strings.TrimSpace(spec.GetClusterDomain())
 	if domain == "" {
 		return errors.New("cluster_domain is required when protocol=https")
@@ -1537,6 +1536,54 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
 		return fmt.Errorf("create tls dir: %w", err)
 	}
+	kv := srv.getCertKV()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	isLeader := true
+	var release func()
+	if kv != nil {
+		lockLeader, unlock, err := kv.AcquireCertIssuerLock(ctx, domain, srv.nodeID, 30*time.Second)
+		if err != nil {
+			return fmt.Errorf("acquire cert issuer lock: %w", err)
+		}
+		isLeader = lockLeader
+		release = unlock
+	}
+	if release != nil {
+		defer release()
+	}
+
+	waitTimeout := 60 * time.Second
+	if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			waitTimeout = time.Duration(n) * time.Second
+		}
+	}
+
+	if kv == nil && !srv.isIssuerNode() {
+		if err := waitForFiles([]string{keyDst, fullchainDst, caDst}, waitTimeout); err != nil {
+			return fmt.Errorf("wait for tls files: %w", err)
+		}
+		return nil
+	}
+
+	if kv != nil && !isLeader {
+		bundle, err := kv.WaitForBundle(ctx, domain, waitTimeout)
+		if err != nil {
+			return fmt.Errorf("wait for tls bundle: %w", err)
+		}
+		if err := writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst); err != nil {
+			return fmt.Errorf("write cert bundle: %w", err)
+		}
+		if srv.state != nil {
+			srv.state.CertGeneration = bundle.Generation
+			_ = srv.saveState()
+		}
+		log.Printf("nodeagent: fetched cert bundle for %s generation %d", domain, bundle.Generation)
+		return nil
+	}
+
 	opts := pki.Options{
 		Storage: pki.FileStorage{},
 		LocalCA: pki.LocalCAConfig{
@@ -1560,56 +1607,9 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 		return fmt.Errorf("create tls work dir: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	if kv == nil && spec.GetAcmeEnabled() {
-		log.Printf("nodeagent: ACME enabled but cert KV unavailable; bundle distribution will rely on local files")
-	}
-
-	if kv != nil {
-		isLeader, release, err := kv.AcquireCertIssuerLock(ctx, domain, srv.nodeID, 30*time.Second)
-		if err != nil {
-			return fmt.Errorf("acquire cert issuer lock: %w", err)
-		}
-		if release != nil {
-			defer release()
-		}
-		if !isLeader {
-			timeout := 60 * time.Second
-			if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
-				if n, err := strconv.Atoi(v); err == nil && n > 0 {
-					timeout = time.Duration(n) * time.Second
-				}
-			}
-			bundle, err := kv.WaitForBundle(ctx, domain, timeout)
-			if err != nil {
-				return fmt.Errorf("wait for tls bundle: %w", err)
-			}
-			if err := writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst); err != nil {
-				return fmt.Errorf("write cert bundle: %w", err)
-			}
-			log.Printf("nodeagent: fetched cert bundle for %s generation %d", domain, bundle.Generation)
-			return nil
-		}
-		log.Printf("nodeagent: acquired cert issuer lock for domain %s", domain)
-	} else if !srv.isIssuerNode() {
-		timeout := 60 * time.Second
-		if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
-				timeout = time.Duration(n) * time.Second
-			}
-		}
-		if err := waitForFiles([]string{keyDst, fullchainDst, caDst}, timeout); err != nil {
-			return fmt.Errorf("wait for tls files: %w", err)
-		}
-		return nil
-	}
-
 	manager := networkPKIManager(opts)
-	issuedViaACME := false
+	var bundle certs.CertBundle
 	if spec.GetAcmeEnabled() {
-		issuedViaACME = true
 		subject := fmt.Sprintf("CN=%s", domain)
 		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(workDir, domain, subject, dns, 90*24*time.Hour)
 		if err != nil {
@@ -1632,8 +1632,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 		if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
 			return err
 		}
-		chainDst := fullchainDst
-		if err := concatFiles(chainDst, leafFile, caFile); err != nil {
+		if err := concatFiles(fullchainDst, leafFile, caFile); err != nil {
 			return fmt.Errorf("build fullchain: %w", err)
 		}
 		if caFile != "" {
@@ -1643,23 +1642,24 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 		}
 	}
 
+	keyBytes, err := os.ReadFile(keyDst)
+	if err != nil {
+		return fmt.Errorf("read key for publish: %w", err)
+	}
+	fullchainBytes, err := os.ReadFile(fullchainDst)
+	if err != nil {
+		return fmt.Errorf("read fullchain for publish: %w", err)
+	}
+	caBytes, _ := os.ReadFile(caDst)
+	bundle = certs.CertBundle{
+		Key:        keyBytes,
+		Fullchain:  fullchainBytes,
+		CA:         caBytes,
+		Generation: uint64(time.Now().UnixNano()),
+		UpdatedMS:  time.Now().UnixMilli(),
+	}
+
 	if kv != nil {
-		keyBytes, err := os.ReadFile(keyDst)
-		if err != nil {
-			return fmt.Errorf("read key for publish: %w", err)
-		}
-		fullchainBytes, err := os.ReadFile(fullchainDst)
-		if err != nil {
-			return fmt.Errorf("read fullchain for publish: %w", err)
-		}
-		caBytes, _ := os.ReadFile(caDst)
-		bundle := certs.CertBundle{
-			Key:        keyBytes,
-			Fullchain:  fullchainBytes,
-			CA:         caBytes,
-			Generation: uint64(time.Now().UnixNano()),
-			UpdatedMS:  time.Now().UnixMilli(),
-		}
 		if err := kv.PutBundle(ctx, domain, bundle); err != nil {
 			log.Printf("nodeagent: failed to publish cert bundle: %v", err)
 		} else {
@@ -1668,8 +1668,6 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 			_ = srv.saveState()
 		}
 	}
-
-	_ = issuedViaACME
 	return nil
 }
 

@@ -121,7 +121,8 @@ func TestEnsureNetworkCertsRequiresDomainWhenHTTPS(t *testing.T) {
 }
 
 type fakePKIManager struct {
-	acmeCalled bool
+	acmeCalled   bool
+	serverCalled bool
 }
 
 func (f *fakePKIManager) EnsurePeerCert(dir string, subject string, dns []string, ips []string, ttl time.Duration) (string, string, string, error) {
@@ -129,7 +130,17 @@ func (f *fakePKIManager) EnsurePeerCert(dir string, subject string, dns []string
 }
 
 func (f *fakePKIManager) EnsureServerCert(dir string, subject string, dns []string, ttl time.Duration) (string, string, string, error) {
-	return "", "", "", nil
+	f.serverCalled = true
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", "", err
+	}
+	key := filepath.Join(dir, "server.key")
+	leaf := filepath.Join(dir, "server.crt")
+	ca := filepath.Join(dir, "ca.crt")
+	os.WriteFile(key, []byte("key"), 0o600)
+	os.WriteFile(leaf, []byte("leaf"), 0o644)
+	os.WriteFile(ca, []byte("ca"), 0o644)
+	return key, leaf, ca, nil
 }
 
 func (f *fakePKIManager) EnsurePublicACMECert(dir, base, subject string, dns []string, ttl time.Duration) (string, string, string, string, error) {
@@ -315,6 +326,44 @@ func TestEnsureNetworkCertsACMEPublishesBundle(t *testing.T) {
 	}
 }
 
+func TestEnsureNetworkCertsLocalCAPublishesBundle(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
+
+	recKV := &recordingKV{leader: true}
+	fake := &fakePKIManager{}
+	orig := networkPKIManager
+	networkPKIManager = func(opts pki.Options) pki.Manager {
+		return fake
+	}
+	defer func() { networkPKIManager = orig }()
+
+	srv := &NodeAgentServer{
+		nodeID: "node-0",
+		state:  &nodeAgentState{},
+		certKV: recKV,
+	}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		ClusterDomain: "example.com",
+		Protocol:      "https",
+	}
+	if err := srv.ensureNetworkCerts(spec); err != nil {
+		t.Fatalf("ensureNetworkCerts local CA: %v", err)
+	}
+	if !fake.serverCalled {
+		t.Fatalf("expected local CA issuance path invoked")
+	}
+	if recKV.putCount != 1 {
+		t.Fatalf("expected bundle published once, got %d", recKV.putCount)
+	}
+	if len(recKV.bundle.CA) == 0 {
+		t.Fatalf("expected CA in bundle")
+	}
+	if srv.state.CertGeneration == 0 {
+		t.Fatalf("expected cert generation recorded")
+	}
+}
+
 func TestEnsureNetworkCertsFollowerWaitsForACMEBundle(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
@@ -350,5 +399,8 @@ func TestEnsureNetworkCertsFollowerWaitsForACMEBundle(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(ca); string(b) != "c" {
 		t.Fatalf("expected ca from bundle, got %s", string(b))
+	}
+	if srv.state.CertGeneration != 42 {
+		t.Fatalf("expected cert generation recorded from bundle, got %d", srv.state.CertGeneration)
 	}
 }
