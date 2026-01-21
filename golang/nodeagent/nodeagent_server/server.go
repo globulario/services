@@ -821,6 +821,7 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	// Ensure objectstore layout (bucket + sentinels) is present; must succeed.
 	layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+	log.Printf("Invoking ensure_objectstore_layout (domain=%s)", desiredDomain)
 	if err := srv.ensureObjectstoreLayout(layoutCtx, desiredDomain); err != nil {
 		msg := fmt.Sprintf("ensure objectstore layout: %v", err)
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, lastPercent, true, msg))
@@ -842,11 +843,18 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 		return errors.New("ensure_objectstore_layout handler not registered")
 	}
 
-	contractPath := strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT"))
+	contractPath := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_CONTRACT_PATH"))
+	envOverride := false
+	if contractPath == "" {
+		contractPath = strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT"))
+		envOverride = contractPath != ""
+	} else {
+		envOverride = true
+	}
 	if contractPath == "" {
 		contractPath = "/var/lib/globular/objectstore/minio.json"
 	}
-	log.Printf("  contract_path: %s (env override: %t)", contractPath, os.Getenv("NODE_AGENT_MINIO_CONTRACT") != "")
+	log.Printf("  contract_path: %s (env override: %t)", contractPath, envOverride)
 
 	fields := map[string]interface{}{
 		"contract_path":    contractPath,
@@ -855,6 +863,7 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 		"sentinel_name":    ".keep",
 		"retry":            30.0,
 		"retry_delay_ms":   1000.0,
+		"strict_contract":  false,
 	}
 	args, err := structpb.NewStruct(fields)
 	if err != nil {
@@ -976,6 +985,7 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 	if spec != nil && strings.TrimSpace(spec.ClusterDomain) != "" {
 		layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
+		log.Printf("Invoking ensure_objectstore_layout (network reconcile, domain=%s)", spec.ClusterDomain)
 		if err := srv.ensureObjectstoreLayout(layoutCtx, spec.ClusterDomain); err != nil {
 			return fmt.Errorf("ensure objectstore layout: %w", err)
 		}

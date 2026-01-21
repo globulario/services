@@ -32,6 +32,7 @@ type ensureObjectstoreLayoutArgs struct {
 	SentinelName    string
 	Retry           int
 	RetryDelay      time.Duration
+	StrictContract  bool
 }
 
 type objectstoreLayout struct {
@@ -48,9 +49,6 @@ func (a *ensureObjectstoreLayoutAction) Name() string { return "ensure_objectsto
 
 func (a *ensureObjectstoreLayoutAction) Validate(args *structpb.Struct) error {
 	parsed := parseEnsureObjectstoreArgs(args)
-	if parsed.ContractPath == "" {
-		return errors.New("contract_path is required")
-	}
 	if parsed.Retry < 1 {
 		return errors.New("retry must be >= 1")
 	}
@@ -61,12 +59,12 @@ func (a *ensureObjectstoreLayoutAction) Apply(ctx context.Context, args *structp
 	parsed := parseEnsureObjectstoreArgs(args)
 	fmt.Printf("[objectstore] Loading contract from: %s\n", parsed.ContractPath)
 
-	cfg, err := loadMinioConfig(parsed.ContractPath)
+	cfg, source, err := loadMinioConfig(parsed.ContractPath, parsed.StrictContract)
 	if err != nil {
 		fmt.Printf("[objectstore] ERROR loading config: %v\n", err)
 		return "", err
 	}
-	fmt.Printf("[objectstore] MinIO endpoint: %s (secure=%t)\n", cfg.Endpoint, cfg.Secure)
+	fmt.Printf("[objectstore] MinIO config source: %s endpoint: %s (secure=%t)\n", source, cfg.Endpoint, cfg.Secure)
 
 	layout, err := deriveMinioLayoutForNodeAgent(cfg, parsed.Domain)
 	if err != nil {
@@ -115,8 +113,10 @@ func parseEnsureObjectstoreArgs(args *structpb.Struct) ensureObjectstoreLayoutAr
 		SentinelName:    defaultSentinelName,
 		Retry:           defaultRetryAttempts,
 		RetryDelay:      defaultRetryDelay,
+		StrictContract:  true,
 	}
 	if args == nil {
+		out.ContractPath = resolveContractPath()
 		return out
 	}
 	fields := args.GetFields()
@@ -144,35 +144,56 @@ func parseEnsureObjectstoreArgs(args *structpb.Struct) ensureObjectstoreLayoutAr
 			out.RetryDelay = time.Duration(ms) * time.Millisecond
 		}
 	}
+	if v, ok := fields["strict_contract"]; ok {
+		out.StrictContract = v.GetBoolValue()
+	}
+	if out.ContractPath == "" {
+		out.ContractPath = resolveContractPath()
+	}
 	return out
 }
 
-func loadMinioConfig(path string) (*config.MinioProxyConfig, error) {
+func resolveContractPath() string {
+	if env := strings.TrimSpace(os.Getenv("GLOBULAR_MINIO_CONTRACT_PATH")); env != "" {
+		return env
+	}
+	if env := strings.TrimSpace(os.Getenv("NODE_AGENT_MINIO_CONTRACT")); env != "" {
+		return env
+	}
+	return defaultMinioContractPath
+}
+
+func loadMinioConfig(path string, strict bool) (*config.MinioProxyConfig, string, error) {
+	if strings.TrimSpace(path) == "" {
+		path = defaultMinioContractPath
+	}
 	f, err := os.Open(path)
 	if err == nil {
 		defer f.Close()
 		cfg, cfgErr := config.LoadMinioProxyConfigFrom(f)
 		if cfgErr != nil {
-			return nil, fmt.Errorf("load minio contract %s: %w", path, cfgErr)
+			return nil, "", fmt.Errorf("load minio contract %s: %w", path, cfgErr)
 		}
-		return cfg, nil
+		return cfg, "contract:" + path, nil
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		fmt.Printf("[objectstore] Contract file not found at %s, trying fallbacks...\n", path)
+		if strict {
+			return nil, "", fmt.Errorf("minio contract not found at %s (strict contract mode enabled)", path)
+		}
 		// Fallback to env defaults so Day0 does not silently skip provisioning.
-		envCfg := minioConfigFromEnv()
-		if envCfg != nil {
+		if envCfg := minioConfigFromEnv(); envCfg != nil {
 			fmt.Printf("[objectstore] Using MinIO config from environment variables\n")
-			return envCfg, nil
+			return envCfg, "env", nil
 		}
 		// Last resort: try localhost defaults if MinIO appears to be running
 		if defaultCfg := tryLocalMinioDefaults(); defaultCfg != nil {
 			fmt.Printf("[objectstore] Using localhost default MinIO config\n")
-			return defaultCfg, nil
+			return defaultCfg, "local-default", nil
 		}
-		return nil, fmt.Errorf("minio contract not found at %s and no fallback configuration available (set MINIO_ENDPOINT or create contract file)", path)
+		return nil, "", fmt.Errorf("minio contract not found at %s and no fallback configuration available (set MINIO_ENDPOINT or create contract file)", path)
 	}
-	return nil, fmt.Errorf("open minio contract %s: %w", path, err)
+	return nil, "", fmt.Errorf("open minio contract %s: %w", path, err)
 }
 
 func deriveMinioLayoutForNodeAgent(cfg *config.MinioProxyConfig, domain string) (objectstoreLayout, error) {
@@ -451,7 +472,13 @@ func ensureSentinel(ctx context.Context, client *minio.Client, bucket, key strin
 	_, putErr := client.PutObject(ctx, bucket, key, reader, 0, minio.PutObjectOptions{
 		ContentType: "application/octet-stream",
 	})
-	return putErr
+	if putErr != nil {
+		return putErr
+	}
+	if _, statErr := client.StatObject(ctx, bucket, key, minio.StatObjectOptions{}); statErr != nil {
+		return statErr
+	}
+	return nil
 }
 
 func init() {
