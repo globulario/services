@@ -30,7 +30,29 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	srv.Domains = rqst.Domains
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	normalized := make([]string, 0, len(rqst.Domains))
+	for _, d := range rqst.Domains {
+		d = strings.TrimSpace(strings.ToLower(d))
+		if d == "" {
+			continue
+		}
+		if !strings.HasSuffix(d, ".") {
+			d += "."
+		}
+		if !Utility.Contains(normalized, d) {
+			normalized = append(normalized, d)
+		}
+	}
+	if len(normalized) == 0 {
+		err := errors.New("no valid domains provided")
+		srv.Logger.Error("SetDomains no valid domains", "err", err)
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	srv.Domains = normalized
 
 	srv.Logger.Info("Domains set", "domains", strings.Join(srv.Domains, ", "))
 
@@ -52,6 +74,8 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 
 // Get multiple domain names.
 func (srv *server) GetDomains(context.Context, *dnspb.GetDomainsRequest) (*dnspb.GetDomainsResponse, error) {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
 	domainsData, err := srv.store.GetItem("domains")
 	if err != nil {
 		srv.Logger.Error("GetDomains getItem", "err", err)
@@ -324,7 +348,7 @@ func (srv *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest
 		srv.Logger.Error("RemoveAAAA getClientId", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	domain := strings.ToLower(rqst.Domain)
 	if !strings.HasSuffix(domain, ".") {
 		domain += "."
@@ -450,27 +474,31 @@ func (srv *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dn
 //	*dnspb.SetTextResponse - The response indicating the result of the operation.
 //	error                  - An error if the operation fails.
 func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
-	values, err := json.Marshal(rqst.Values)
-	if err != nil {
-		srv.Logger.Error("SetText marshal", "id", rqst.Id, "err", err)
-		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	valuesSet := make([]string, 0, len(rqst.Values))
+	for _, v := range rqst.Values {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		if !Utility.Contains(valuesSet, v) {
+			valuesSet = append(valuesSet, v)
+		}
+	}
+	if len(valuesSet) == 0 {
+		err := errors.New("no TXT values provided")
+		srv.Logger.Error("SetText no values", "id", rqst.Id, "err", err)
+		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 
-	// Merge with existing values (if any).
-	if data, err := srv.store.GetItem(uuid); err == nil {
-		values_ := make([]string, 0)
-		if err := json.Unmarshal(data, &values_); err != nil {
-			srv.Logger.Error("SetText unmarshal-existing", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-		values_ = append(values_, rqst.Values...)
-		values, err = json.Marshal(values_)
-		if err != nil {
-			srv.Logger.Error("SetText marshal-merged", "id", id, "err", err)
-			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
+	values, err := json.Marshal(valuesSet)
+	if err != nil {
+		srv.Logger.Error("SetText marshal", "id", rqst.Id, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if err := srv.store.SetItem(uuid, values); err != nil {
@@ -485,6 +513,8 @@ func (srv *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dn
 
 // getText returns TXT values and TTL for an identifier.
 func (srv *server) getText(id string) ([]string, uint32, error) {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
 	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -516,6 +546,8 @@ func (srv *server) getText(id string) ([]string, uint32, error) {
 //	*dnspb.GetTextResponse - The response containing the TXT record values.
 //	error - An error if the operation fails, otherwise nil.
 func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := srv.store.GetItem(uuid)
@@ -542,6 +574,8 @@ func (srv *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dn
 //	*dnspb.RemoveTextResponse - The response indicating the result of the removal operation.
 //	error                     - An error if the removal fails, otherwise nil.
 func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	_, token, err := security.GetClientId(ctx)
 	if err != nil {
 		srv.Logger.Error("RemoveText getClientId", "err", err)

@@ -464,21 +464,40 @@ func ensureSentinel(ctx context.Context, client *minio.Client, bucket, key strin
 	if bucket == "" || key == "" {
 		return errors.New("bucket or key is empty")
 	}
-	_, err := client.StatObject(ctx, bucket, key, minio.StatObjectOptions{})
-	if err == nil {
+	if _, err := client.StatObject(ctx, bucket, key, minio.StatObjectOptions{}); err == nil {
 		return nil
+	} else if !isNotFoundErr(err) {
+		return fmt.Errorf("stat sentinel %q failed: %w", key, err)
 	}
+
 	reader := bytes.NewReader([]byte{})
-	_, putErr := client.PutObject(ctx, bucket, key, reader, 0, minio.PutObjectOptions{
+	if _, err := client.PutObject(ctx, bucket, key, reader, 0, minio.PutObjectOptions{
 		ContentType: "application/octet-stream",
-	})
-	if putErr != nil {
-		return putErr
+	}); err != nil {
+		return err
 	}
-	if _, statErr := client.StatObject(ctx, bucket, key, minio.StatObjectOptions{}); statErr != nil {
-		return statErr
+	if _, err := client.StatObject(ctx, bucket, key, minio.StatObjectOptions{}); err != nil {
+		return fmt.Errorf("verify sentinel %q: %w", key, err)
 	}
 	return nil
+}
+
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	// minio.ToErrorResponse handles wrapped errors too.
+	resp := minio.ToErrorResponse(err)
+	code := strings.ToLower(resp.Code)
+	if code == "nosuchkey" || code == "nosuchobject" || code == "notfound" {
+		return true
+	}
+	// Fallback: conservative string match.
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "no such key") || strings.Contains(msg, "no such object") {
+		return true
+	}
+	return false
 }
 
 func init() {

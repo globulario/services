@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -36,7 +37,7 @@ var (
 	defaultProxy      = 10034
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
-	
+
 	// Global service pointer used by UDP DNS handler.
 	srv *server
 )
@@ -100,6 +101,8 @@ type server struct {
 	// storage
 	store              storage_store.Store
 	connection_is_open bool
+
+	mu sync.RWMutex
 }
 
 // -----------------------------------------------------------------------------
@@ -297,7 +300,7 @@ func (srv *server) createPermission(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	return rbacClient.AddResourceOwner(token, path,  clientId,"domain", rbacpb.SubjectType_ACCOUNT)
+	return rbacClient.AddResourceOwner(token, path, clientId, "domain", rbacpb.SubjectType_ACCOUNT)
 }
 
 // Lifecycle
@@ -327,10 +330,11 @@ func (srv *server) Init() error {
 	if err == nil && value != nil {
 		var domains []string
 		if err := json.Unmarshal(value, &domains); err == nil {
+			srv.mu.Lock()
 			srv.Domains = domains
+			srv.mu.Unlock()
 		}
 	}
-
 
 	return nil
 }
@@ -361,6 +365,8 @@ func (srv *server) openConnection() error {
 }
 
 func (srv *server) isManaged(domain string) bool {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
 	for _, d := range srv.Domains {
 		if strings.HasSuffix(domain, d) {
 			return true
@@ -527,18 +533,18 @@ func main() {
 
 		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
 		allocator, err := config.NewDefaultPortAllocator()
-	
+
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)
 			os.Exit(1)
 		}
-		
+
 		p, err := allocator.Next(srv.Id)
 		if err != nil {
 			logger.Error("fail to allocate port", "error", err)
 			os.Exit(1)
 		}
-		
+
 		srv.Port = p
 	}
 
@@ -657,7 +663,7 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func (srv *server) setActionResourcesPermissions(token string,permissions map[string]interface{}) error {
+func (srv *server) setActionResourcesPermissions(token string, permissions map[string]interface{}) error {
 	rbacClient, err := GetRbacClient(srv.Address)
 	if err != nil {
 		return err

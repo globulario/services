@@ -50,10 +50,10 @@ const (
 	repositoryAddressEnv     = "REPOSITORY_ADDRESS"
 
 	// Health monitoring constants
-	healthCheckInterval      = 30 * time.Second // How often to check node health
-	unhealthyThreshold       = 2 * time.Minute  // Time without contact before marking unhealthy
-	recoveryAttemptInterval  = 5 * time.Minute  // How often to attempt recovery
-	maxRecoveryAttempts      = 3                // Max recovery attempts before giving up
+	healthCheckInterval     = 30 * time.Second // How often to check node health
+	unhealthyThreshold      = 2 * time.Minute  // Time without contact before marking unhealthy
+	recoveryAttemptInterval = 5 * time.Minute  // How often to attempt recovery
+	maxRecoveryAttempts     = 3                // Max recovery attempts before giving up
 )
 
 type server struct {
@@ -624,9 +624,14 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrol
 
 	srv.lock("unknown")
 	changed := !proto.Equal(srv.state.ClusterNetworkSpec, spec)
-	if changed {
+	gen := computeNetworkGeneration(spec)
+	if gen == 0 {
+		srv.unlock()
+		return nil, status.Error(codes.Internal, "failed to compute network generation")
+	}
+	if changed || srv.state.NetworkingGeneration != gen {
 		srv.state.ClusterNetworkSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
-		srv.state.NetworkingGeneration++
+		srv.state.NetworkingGeneration = gen
 		if err := srv.persistStateLocked(true); err != nil {
 			srv.unlock()
 			return nil, status.Errorf(codes.Internal, "persist network spec: %v", err)
@@ -1274,6 +1279,8 @@ func (srv *server) renderedConfigForSpec() map[string]string {
 		"AlternateDomains": spec.GetAlternateDomains(),
 		"ACMEEnabled":      spec.GetAcmeEnabled(),
 		"AdminEmail":       spec.GetAdminEmail(),
+		"ACMEChallenge":    "dns-01",
+		"ACMEDNSPreflight": true,
 	}
 	if cfgJSON, err := json.MarshalIndent(configPayload, "", "  "); err == nil {
 		out["/var/lib/globular/network.json"] = string(cfgJSON)
@@ -1413,6 +1420,38 @@ func restartUnitsForSpec(spec *clustercontrollerpb.ClusterNetworkSpec) []string 
 		units = append(units, "globular-storage.service")
 	}
 	return units
+}
+
+func computeNetworkGeneration(spec *clustercontrollerpb.ClusterNetworkSpec) uint64 {
+	if spec == nil {
+		return 0
+	}
+	domain := strings.ToLower(strings.TrimSpace(spec.GetClusterDomain()))
+	protoStr := strings.ToLower(strings.TrimSpace(spec.GetProtocol()))
+	alts := normalizeDomains(spec.GetAlternateDomains())
+	sort.Strings(alts)
+	builder := strings.Builder{}
+	builder.WriteString(domain)
+	builder.WriteString("|")
+	builder.WriteString(protoStr)
+	builder.WriteString("|")
+	builder.WriteString(fmt.Sprintf("%d|%d|", spec.GetPortHttp(), spec.GetPortHttps()))
+	builder.WriteString(fmt.Sprintf("%t|", spec.GetAcmeEnabled()))
+	builder.WriteString(strings.ToLower(strings.TrimSpace(spec.GetAdminEmail())))
+	builder.WriteString("|")
+	for _, a := range alts {
+		builder.WriteString(a)
+		builder.WriteString(",")
+	}
+	sum := sha256.Sum256([]byte(builder.String()))
+	var gen uint64
+	for i := 0; i < 8; i++ {
+		gen = (gen << 8) | uint64(sum[i])
+	}
+	if gen == 0 {
+		gen = 1
+	}
+	return gen
 }
 
 func normalizeDomains(domains []string) []string {

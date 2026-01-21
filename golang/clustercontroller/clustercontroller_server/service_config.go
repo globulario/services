@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	configpkg "github.com/globulario/services/golang/config"
 )
 
 // clusterMembership is a snapshot of cluster nodes used for generating service configurations.
@@ -249,14 +251,16 @@ func renderXDSConfig(ctx *serviceConfigContext) (string, bool) {
 		domain = "example.com"
 	}
 
+	tlsDir, fullchain, privkey, _ := configpkg.CanonicalTLSPaths(configpkg.GetRuntimeConfigDir())
 	config := map[string]interface{}{
 		"etcd_endpoints":        etcdEndpoints,
 		"sync_interval_seconds": 5,
 		"ingress": map[string]interface{}{
 			"tls": map[string]interface{}{
 				"enabled":          true,
-				"cert_chain_path":  fmt.Sprintf("/var/lib/globular/pki/%s/fullchain.pem", domain),
-				"private_key_path": fmt.Sprintf("/var/lib/globular/pki/%s/privkey.pem", domain),
+				"cert_chain_path":  fullchain,
+				"private_key_path": privkey,
+				"tls_dir":          tlsDir,
 			},
 		},
 	}
@@ -330,10 +334,10 @@ func renderDNSConfig(ctx *serviceConfigContext) (string, bool) {
 		"ns":      fmt.Sprintf("%s.%s.", primaryHostname, domain),
 		"mbox":    adminEmail + ".",
 		"serial":  generateSOASerial(),
-		"refresh": 7200,  // 2 hours
-		"retry":   3600,  // 1 hour
+		"refresh": 7200,    // 2 hours
+		"retry":   3600,    // 1 hour
 		"expire":  1209600, // 2 weeks
-		"minttl":  3600,  // 1 hour
+		"minttl":  3600,    // 1 hour
 		"ttl":     3600,
 	}
 

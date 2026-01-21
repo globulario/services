@@ -85,7 +85,7 @@ func TestEnsureNetworkCertsUsesACME(t *testing.T) {
 	defer func() {
 		networkPKIManager = orig
 	}()
-	srv := &NodeAgentServer{}
+	srv := &NodeAgentServer{nodeID: "node-0"}
 	spec := &clustercontrollerpb.ClusterNetworkSpec{
 		ClusterDomain: "example.com",
 		Protocol:      "https",
@@ -97,6 +97,22 @@ func TestEnsureNetworkCertsUsesACME(t *testing.T) {
 	}
 	if !fake.acmeCalled {
 		t.Fatalf("expected ACME path invoked")
+	}
+	tlsDir := filepath.Join(tmpDir, "config", "tls")
+	for _, f := range []string{"privkey.pem", "fullchain.pem", "ca.pem"} {
+		if _, err := os.Stat(filepath.Join(tlsDir, f)); err != nil {
+			t.Fatalf("expected %s written: %v", f, err)
+		}
+	}
+}
+
+func TestEnsureNetworkCertsRequiresDomainWhenHTTPS(t *testing.T) {
+	srv := &NodeAgentServer{nodeID: "node-0"}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		Protocol: "https",
+	}
+	if err := srv.ensureNetworkCerts(spec); err == nil {
+		t.Fatalf("expected error when domain empty for https")
 	}
 }
 
@@ -185,5 +201,43 @@ func TestCopyFilePermSetsMode(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("expected 0600, got %o", info.Mode().Perm())
+	}
+}
+
+func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
+	t.Setenv("GLOBULAR_CERT_ISSUER_NODE", "node-0")
+
+	tlsDir := filepath.Join(tmpDir, "config", "tls")
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		t.Fatalf("mkdir tls dir: %v", err)
+	}
+	for _, f := range []string{"privkey.pem", "fullchain.pem", "ca.pem"} {
+		if err := os.WriteFile(filepath.Join(tlsDir, f), []byte("data"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", f, err)
+		}
+	}
+
+	called := false
+	orig := networkPKIManager
+	networkPKIManager = func(opts pki.Options) pki.Manager {
+		called = true
+		return &fakePKIManager{}
+	}
+	defer func() {
+		networkPKIManager = orig
+	}()
+
+	srv := &NodeAgentServer{nodeID: "node-1"}
+	spec := &clustercontrollerpb.ClusterNetworkSpec{
+		ClusterDomain: "example.com",
+		Protocol:      "https",
+	}
+	if err := srv.ensureNetworkCerts(spec); err != nil {
+		t.Fatalf("ensureNetworkCerts non-issuer: %v", err)
+	}
+	if called {
+		t.Fatalf("expected non-issuer to skip issuance")
 	}
 }

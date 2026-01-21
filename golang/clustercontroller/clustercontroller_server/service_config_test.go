@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	configpkg "github.com/globulario/services/golang/config"
 )
 
 func TestNodeHasProfile(t *testing.T) {
@@ -348,8 +351,9 @@ func TestRenderXDSConfig(t *testing.T) {
 			t.Fatal("missing tls config")
 		}
 		certPath, _ := tls["cert_chain_path"].(string)
-		if !strings.Contains(certPath, "example.com") {
-			t.Errorf("cert path should include domain: %s", certPath)
+		expectedCert := filepath.Join(configpkg.GetRuntimeConfigDir(), "config", "tls", "fullchain.pem")
+		if certPath != expectedCert {
+			t.Errorf("unexpected cert path: got %s want %s", certPath, expectedCert)
 		}
 	})
 

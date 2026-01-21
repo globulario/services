@@ -542,6 +542,15 @@ func GetRuntimeTLSDir() string {
 	return filepath.Join(GetRuntimeConfigDir(), "tls")
 }
 
+// CanonicalTLSPaths returns the canonical TLS directory and files for data plane usage.
+func CanonicalTLSPaths(runtimeConfigDir string) (tlsDir, fullchain, privkey, ca string) {
+	tlsDir = filepath.Join(runtimeConfigDir, "config", "tls")
+	fullchain = filepath.Join(tlsDir, "fullchain.pem")
+	privkey = filepath.Join(tlsDir, "privkey.pem")
+	ca = filepath.Join(tlsDir, "ca.pem")
+	return
+}
+
 // GetAdminTLSDir returns the location for admin-provided TLS files (read-only).
 func GetAdminTLSDir() string {
 	return filepath.Join(GetConfigDir(), "tls")

@@ -21,8 +21,10 @@ import (
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/healthchecks"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/apply"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/certs"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/planner"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/supervisor"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/units"
@@ -38,6 +40,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -88,6 +91,19 @@ type NodeAgentServer struct {
 	lastPlanGeneration       uint64
 	planRunnerCtx            context.Context
 	planRunnerOnce           sync.Once
+
+	// test hooks
+	syncDNSHook           func(*clustercontrollerpb.ClusterNetworkSpec) error
+	waitDNSHook           func(context.Context, *clustercontrollerpb.ClusterNetworkSpec) error
+	ensureCertsHook       func(*clustercontrollerpb.ClusterNetworkSpec) error
+	restartHook           func([]string, *operation) error
+	objectstoreLayoutHook func(context.Context, string) error
+	healthCheckHook       func(context.Context, *clustercontrollerpb.ClusterNetworkSpec) error
+
+	certKV certs.KV
+
+	lastCertRestart time.Time
+	lastSpec        *clustercontrollerpb.ClusterNetworkSpec
 }
 
 type lockablePlanStore interface {
@@ -280,12 +296,14 @@ func (srv *NodeAgentServer) planLoop(ctx context.Context) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	srv.pollPlan(ctx)
+	srv.pollCertGeneration(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			srv.pollPlan(ctx)
+			srv.pollCertGeneration(ctx)
 		}
 	}
 }
@@ -353,9 +371,11 @@ func (srv *NodeAgentServer) acquirePlanLocks(ctx context.Context, plan *planpb.N
 	go guard.keepAliveLoop(ch)
 	for _, lock := range locks {
 		key := planLockKey(plan.GetNodeId(), lock)
-		txn := client.Txn(ctx).If(clientv3.Compare(clientv3.CreateRevision(key), "=", 0)).
+		txnCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		txn := client.Txn(txnCtx).If(clientv3.Compare(clientv3.CreateRevision(key), "=", 0)).
 			Then(clientv3.OpPut(key, "", clientv3.WithLease(leaseResp.ID)))
 		resp, err := txn.Commit()
+		cancel()
 		if err != nil {
 			guard.release(ctx)
 			return nil, fmt.Errorf("lock %s: %w", lock, err)
@@ -777,13 +797,6 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
-	var desiredDomain string
-	if spec, err := specFromPlan(plan); err == nil && spec != nil {
-		if d := strings.TrimSpace(spec.GetClusterDomain()); d != "" {
-			desiredDomain = d
-		}
-	}
-
 	netChanged, err := srv.applyRenderedConfig(plan)
 	if err != nil {
 		msg := err.Error()
@@ -792,9 +805,34 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 		return
 	}
 	networkGen := networkGenerationFromPlan(plan)
+	if networkGen == 0 {
+		msg := "network generation missing from plan"
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 15, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, errors.New(msg))
+		return
+	}
+	log.Printf("nodeagent: network generation desired=%d current=%d", networkGen, srv.lastNetworkGeneration)
+	spec, specErr := specFromPlan(plan)
+	if specErr != nil {
+		msg := fmt.Sprintf("parse desired spec: %v", specErr)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 18, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, specErr)
+		return
+	}
+	var desiredDomain string
+	if spec != nil {
+		desiredDomain = strings.TrimSpace(spec.GetClusterDomain())
+	}
+	if desiredDomain == "" {
+		hasSpec := plan != nil && plan.GetRenderedConfig()["cluster.network.spec.json"] != ""
+		msg := fmt.Sprintf("objectstore layout enforcement requires cluster domain, but none was found (spec_present=%t)", hasSpec)
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 19, true, msg))
+		srv.notifyControllerOperationResult(op.id, false, msg, errors.New(msg))
+		return
+	}
 	netChanged = netChanged || (networkGen > 0 && networkGen != srv.lastNetworkGeneration)
 	if netChanged {
-		if err := srv.reconcileNetwork(ctx, plan, op, networkGen); err != nil {
+		if err := srv.reconcileNetwork(ctx, plan, op, networkGen, desiredDomain, netChanged); err != nil {
 			msg := err.Error()
 			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 20, true, msg))
 			srv.notifyControllerOperationResult(op.id, false, msg, err)
@@ -830,12 +868,19 @@ func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *cl
 	}
 
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan applied", 100, true, ""))
+	srv.lastNetworkGeneration = networkGen
+	srv.state.NetworkGeneration = networkGen
+	_ = srv.saveState()
 	srv.notifyControllerOperationResult(op.id, true, "plan applied", nil)
 }
 
 func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain string) error {
 	log.Printf("==== ensureObjectstoreLayout CALLED ====")
 	log.Printf("  domain passed: %q", domain)
+
+	if strings.TrimSpace(domain) == "" {
+		return fmt.Errorf("objectstore layout enforcement requires cluster domain, but none was provided")
+	}
 
 	handler := actions.Get("ensure_objectstore_layout")
 	if handler == nil {
@@ -856,16 +901,24 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 	}
 	log.Printf("  contract_path: %s (env override: %t)", contractPath, envOverride)
 
-	fields := map[string]interface{}{
-		"contract_path":    contractPath,
-		"domain":           domain,
-		"create_sentinels": true,
-		"sentinel_name":    ".keep",
-		"retry":            30.0,
-		"retry_delay_ms":   1000.0,
-		"strict_contract":  false,
+	retry := 30
+	if v := strings.TrimSpace(os.Getenv("OBJECTSTORE_RETRY")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			retry = n
+		}
 	}
-	args, err := structpb.NewStruct(fields)
+	retryDelay := 1000
+	if v := strings.TrimSpace(os.Getenv("OBJECTSTORE_RETRY_DELAY_MS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			retryDelay = n
+		}
+	}
+
+	if cfg := parseContractForLog(contractPath); cfg != nil {
+		log.Printf("  minio endpoint=%s bucket=%s secure=%t", cfg.Endpoint, cfg.Bucket, cfg.Secure)
+	}
+
+	args, err := buildObjectstoreArgs(contractPath, domain, retry, retryDelay, true)
 	if err != nil {
 		log.Printf("  ERROR building args: %v", err)
 		return fmt.Errorf("build args: %w", err)
@@ -882,6 +935,44 @@ func (srv *NodeAgentServer) ensureObjectstoreLayout(ctx context.Context, domain 
 	log.Printf("  SUCCESS: %s", msg)
 	log.Printf("==== ensureObjectstoreLayout COMPLETED ====")
 	return nil
+}
+
+func buildObjectstoreArgs(contractPath, domain string, retry int, retryDelayMs int, strict bool) (*structpb.Struct, error) {
+	fields := map[string]interface{}{
+		"contract_path":    contractPath,
+		"domain":           domain,
+		"create_sentinels": true,
+		"sentinel_name":    ".keep",
+		"retry":            int64(retry),
+		"retry_delay_ms":   int64(retryDelayMs),
+		"strict_contract":  strict,
+	}
+	return structpb.NewStruct(fields)
+}
+
+type minioContractLog struct {
+	Endpoint string
+	Bucket   string
+	Secure   bool
+}
+
+func parseContractForLog(path string) *minioContractLog {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("  WARN: cannot read contract %s: %v", path, err)
+		return nil
+	}
+	defer f.Close()
+	var cfg config.MinioProxyConfig
+	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+		log.Printf("  WARN: cannot parse contract %s: %v", path, err)
+		return nil
+	}
+	return &minioContractLog{
+		Endpoint: cfg.Endpoint,
+		Bucket:   cfg.Bucket,
+		Secure:   cfg.Secure,
+	}
 }
 
 func (srv *NodeAgentServer) applyRenderedConfig(plan *clustercontrollerpb.NodePlan) (bool, error) {
@@ -954,7 +1045,7 @@ func (srv *NodeAgentServer) writeNetworkSpecSnapshot(data string) error {
 	return writeAtomicFile(path, []byte(data), 0o600)
 }
 
-func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clustercontrollerpb.NodePlan, op *operation, generation uint64) error {
+func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clustercontrollerpb.NodePlan, op *operation, generation uint64, desiredDomain string, networkChanged bool) error {
 	if plan == nil {
 		return nil
 	}
@@ -962,19 +1053,63 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 	if err != nil {
 		return fmt.Errorf("parse desired spec: %w", err)
 	}
-	if err := srv.ensureNetworkCerts(spec); err != nil {
-		return fmt.Errorf("ensure network certs: %w", err)
+	if desiredDomain == "" && spec != nil {
+		desiredDomain = strings.TrimSpace(spec.GetClusterDomain())
 	}
-	units := parseRestartUnits(plan)
+	if desiredDomain == "" {
+		return fmt.Errorf("objectstore layout enforcement requires cluster domain, but none was found in reconcile")
+	}
+	shouldSyncDNS := networkChanged || generation != srv.lastNetworkGeneration
+	if shouldSyncDNS {
+		syncFn := srv.syncDNS
+		if srv.syncDNSHook != nil {
+			syncFn = srv.syncDNSHook
+		}
+		if err := syncFn(spec); err != nil {
+			return fmt.Errorf("sync dns: %w", err)
+		}
+		waitFn := srv.waitForDNSAuthoritative
+		if srv.waitDNSHook != nil {
+			waitFn = srv.waitDNSHook
+		}
+		if err := waitFn(ctx, spec); err != nil {
+			return fmt.Errorf("dns readiness: %w", err)
+		}
+	}
+
+	if spec != nil && strings.EqualFold(spec.GetProtocol(), "https") {
+		if strings.TrimSpace(spec.GetClusterDomain()) == "" {
+			return fmt.Errorf("cluster_domain is required when protocol=https")
+		}
+		if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
+			return fmt.Errorf("admin_email is required for ACME")
+		}
+		if strings.EqualFold(spec.GetProtocol(), "https") && spec.GetAcmeEnabled() {
+			if err := srv.acmeDNSPreflight(ctx, spec); err != nil {
+				return fmt.Errorf("acme preflight: %w", err)
+			}
+		}
+		certFn := srv.ensureNetworkCerts
+		if srv.ensureCertsHook != nil {
+			certFn = srv.ensureCertsHook
+		}
+		if err := certFn(spec); err != nil {
+			return fmt.Errorf("ensure network certs: %w", err)
+		}
+	}
+
+	units := orderRestartUnits(parseRestartUnits(plan))
 	if len(units) > 0 {
-		if err := srv.performRestartUnits(units, op); err != nil {
+		restartFn := srv.performRestartUnits
+		if srv.restartHook != nil {
+			restartFn = srv.restartHook
+		}
+		if err := restartFn(units, op); err != nil {
 			return fmt.Errorf("restart units: %w", err)
 		}
 	}
-	if generation > 0 && generation != srv.lastNetworkGeneration {
-		if err := srv.syncDNS(spec); err != nil {
-			return fmt.Errorf("sync dns: %w", err)
-		}
+
+	if shouldSyncDNS && generation != 0 {
 		srv.lastNetworkGeneration = generation
 		srv.state.NetworkGeneration = generation
 		if err := srv.saveState(); err != nil {
@@ -982,12 +1117,35 @@ func (srv *NodeAgentServer) reconcileNetwork(ctx context.Context, plan *clusterc
 		}
 	}
 
+	if spec != nil {
+		checks := buildHealthChecks(spec)
+		if srv.healthCheckHook != nil {
+			if err := srv.healthCheckHook(ctx, spec); err != nil {
+				return fmt.Errorf("post-restart health checks failed: %w", err)
+			}
+		} else if err := healthchecks.RunChecks(ctx, checks); err != nil {
+			return fmt.Errorf("post-restart health checks failed: %w", err)
+		}
+	}
+
 	if spec != nil && strings.TrimSpace(spec.ClusterDomain) != "" {
+		srv.lastSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
+		srv.state.ClusterDomain = spec.GetClusterDomain()
+		srv.state.Protocol = spec.GetProtocol()
 		layoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 		log.Printf("Invoking ensure_objectstore_layout (network reconcile, domain=%s)", spec.ClusterDomain)
-		if err := srv.ensureObjectstoreLayout(layoutCtx, spec.ClusterDomain); err != nil {
+		ensureFn := srv.ensureObjectstoreLayout
+		if srv.objectstoreLayoutHook != nil {
+			ensureFn = func(c context.Context, d string) error {
+				return srv.objectstoreLayoutHook(c, d)
+			}
+		}
+		if err := ensureFn(layoutCtx, spec.ClusterDomain); err != nil {
 			return fmt.Errorf("ensure objectstore layout: %w", err)
+		}
+		if err := srv.saveState(); err != nil {
+			log.Printf("nodeagent: save state after reconcile: %v", err)
 		}
 	}
 	return nil
@@ -1024,6 +1182,103 @@ func parseRestartUnits(plan *clustercontrollerpb.NodePlan) []string {
 	return units
 }
 
+func orderRestartUnits(units []string) []string {
+	priority := map[string]int{
+		"globular-etcd.service":      1,
+		"globular-minio.service":     2,
+		"scylladb.service":           3,
+		"globular-dns.service":       4,
+		"globular-discovery.service": 5,
+		"globular-xds.service":       6,
+		"globular-envoy.service":     7,
+		"globular-gateway.service":   8,
+		"globular-storage.service":   9,
+	}
+	seen := map[string]struct{}{}
+	type pair struct {
+		unit string
+		p    int
+	}
+	var ordered []pair
+	for _, u := range units {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		if _, ok := seen[u]; ok {
+			continue
+		}
+		seen[u] = struct{}{}
+		p := 100
+		if v, ok := priority[strings.ToLower(u)]; ok {
+			p = v
+		}
+		ordered = append(ordered, pair{unit: u, p: p})
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].p == ordered[j].p {
+			return ordered[i].unit < ordered[j].unit
+		}
+		return ordered[i].p < ordered[j].p
+	})
+	out := make([]string, 0, len(ordered))
+	for _, p := range ordered {
+		out = append(out, p.unit)
+	}
+	return out
+}
+
+func resolveUnits(units []string, exists func(string) bool) []string {
+	aliasMap := map[string][]string{
+		"globular-envoy.service":     {"envoy.service", "globular-envoy.service"},
+		"globular-gateway.service":   {"gateway.service", "globular-gateway.service"},
+		"globular-xds.service":       {"xds.service", "globular-xds.service"},
+		"globular-etcd.service":      {"etcd.service", "globular-etcd.service"},
+		"globular-minio.service":     {"minio.service", "globular-minio.service"},
+		"globular-dns.service":       {"dns.service", "globular-dns.service"},
+		"globular-discovery.service": {"discovery.service", "globular-discovery.service"},
+		"globular-storage.service":   {"storage.service", "globular-storage.service"},
+	}
+	resolved := []string{}
+	seen := map[string]struct{}{}
+	for _, u := range units {
+		original := strings.TrimSpace(u)
+		if original == "" {
+			continue
+		}
+		effective := original
+		for canon, aliases := range aliasMap {
+			match := strings.EqualFold(canon, original)
+			if !match {
+				for _, a := range aliases {
+					if strings.EqualFold(a, original) {
+						match = true
+						break
+					}
+				}
+			}
+			if match {
+				for _, cand := range append([]string{canon}, aliases...) {
+					if exists != nil && exists(cand) {
+						effective = cand
+						break
+					}
+				}
+				break
+			}
+		}
+		if _, ok := seen[effective]; ok {
+			continue
+		}
+		seen[effective] = struct{}{}
+		if effective != original {
+			log.Printf("nodeagent: resolved unit %s -> %s", original, effective)
+		}
+		resolved = append(resolved, effective)
+	}
+	return orderRestartUnits(resolved)
+}
+
 func networkGenerationFromPlan(plan *clustercontrollerpb.NodePlan) uint64 {
 	if plan == nil {
 		return 0
@@ -1039,21 +1294,178 @@ func networkGenerationFromPlan(plan *clustercontrollerpb.NodePlan) uint64 {
 	return gen
 }
 
+func (srv *NodeAgentServer) acmeDNSPreflight(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	if spec == nil || !strings.EqualFold(spec.GetProtocol(), "https") || !spec.GetAcmeEnabled() {
+		return nil
+	}
+	if os.Getenv("GLOBULAR_ACME_PUBLIC_DNS_PREFLIGHT") != "1" {
+		return nil
+	}
+	resolver := &net.Resolver{}
+	if override := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_RESOLVER")); override != "" {
+		dialer := func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{}
+			target := override
+			if !strings.Contains(target, ":") {
+				target = net.JoinHostPort(target, "53")
+			}
+			return d.DialContext(ctx, "udp", target)
+		}
+		resolver = &net.Resolver{
+			PreferGo: true,
+			Dial:     dialer,
+		}
+	}
+	domains := []string{strings.TrimSpace(spec.GetClusterDomain())}
+	for _, alt := range spec.GetAlternateDomains() {
+		alt = strings.TrimSpace(alt)
+		if alt != "" {
+			domains = append(domains, alt)
+		}
+	}
+	waitSeconds := 0
+	if v := strings.TrimSpace(os.Getenv("ACME_DNS_WAIT_SECONDS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			waitSeconds = n
+		}
+	}
+	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
+	missing := []string{}
+	for _, d := range domains {
+		if d == "" {
+			continue
+		}
+		name := "_acme-challenge." + d
+		ok := false
+		for {
+			txt, err := resolver.LookupTXT(ctx, name)
+			if err == nil && len(txt) > 0 {
+				ok = true
+			}
+			if ok || waitSeconds == 0 || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(time.Second)
+		}
+		if !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("ACME preflight failed: missing public DNS TXT record(s): %s. Create these _acme-challenge TXT records at your DNS provider and retry.", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) waitForDNSAuthoritative(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	if spec == nil || strings.TrimSpace(spec.GetClusterDomain()) == "" {
+		return fmt.Errorf("cluster domain required for dns readiness check")
+	}
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	target := "gateway." + domain
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(c context.Context, network, address string) (net.Conn, error) {
+			udpAddr := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_UDP_ADDR"))
+			if udpAddr == "" {
+				udpAddr = "127.0.0.1:53"
+			}
+			d := net.Dialer{}
+			return d.DialContext(c, "udp", udpAddr)
+		},
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		_, err := resolver.LookupHost(ctx, target)
+		if err == nil {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("dns not authoritative for %s: %v", target, err)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (srv *NodeAgentServer) pollCertGeneration(ctx context.Context) {
+	if srv == nil || srv.state == nil {
+		return
+	}
+	if strings.ToLower(strings.TrimSpace(srv.state.Protocol)) != "https" {
+		return
+	}
+	if strings.TrimSpace(srv.state.ClusterDomain) == "" {
+		return
+	}
+	kv := srv.getCertKV()
+	if kv == nil {
+		return
+	}
+	gen, err := kv.GetBundleGeneration(ctx, srv.state.ClusterDomain)
+	if err != nil || gen == 0 || gen <= srv.state.CertGeneration {
+		return
+	}
+	bundle, err := kv.GetBundle(ctx, srv.state.ClusterDomain)
+	if err != nil {
+		log.Printf("cert watcher: get bundle: %v", err)
+		return
+	}
+	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		log.Printf("cert watcher: mkdir tls: %v", err)
+		return
+	}
+	if err := writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst); err != nil {
+		log.Printf("cert watcher: write bundle: %v", err)
+		return
+	}
+	srv.state.CertGeneration = gen
+	if err := srv.saveState(); err != nil {
+		log.Printf("cert watcher: save state: %v", err)
+	}
+
+	if time.Since(srv.lastCertRestart) < 10*time.Second {
+		return
+	}
+	units := orderRestartUnits([]string{"globular-xds.service", "globular-envoy.service", "globular-gateway.service"})
+	restartFn := srv.performRestartUnits
+	if srv.restartHook != nil {
+		restartFn = srv.restartHook
+	}
+	if err := restartFn(units, nil); err != nil {
+		log.Printf("cert watcher: restart units: %v", err)
+		return
+	}
+	srv.lastCertRestart = time.Now()
+
+	spec := srv.lastSpec
+	if spec != nil {
+		if srv.healthCheckHook != nil {
+			if err := srv.healthCheckHook(ctx, spec); err != nil {
+				log.Printf("cert watcher: health checks failed: %v", err)
+			}
+		} else if err := healthchecks.RunChecks(ctx, buildHealthChecks(spec)); err != nil {
+			log.Printf("cert watcher: health checks failed: %v", err)
+		}
+	}
+}
+
 func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.ClusterNetworkSpec) error {
 	if spec == nil || strings.ToLower(spec.GetProtocol()) != "https" {
 		return nil
 	}
+	kv := srv.getCertKV()
 	domain := strings.TrimSpace(spec.GetClusterDomain())
 	if domain == "" {
-		return nil
+		return errors.New("cluster_domain is required when protocol=https")
 	}
 	if spec.GetAcmeEnabled() && strings.TrimSpace(spec.GetAdminEmail()) == "" {
 		return errors.New("admin_email is required for ACME")
 	}
 	dns := append([]string{domain}, spec.GetAlternateDomains()...)
-	dir := filepath.Join(config.GetRuntimeConfigDir(), "pki", domain)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create pki dir: %w", err)
+	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return fmt.Errorf("create tls dir: %w", err)
 	}
 	opts := pki.Options{
 		Storage: pki.FileStorage{},
@@ -1063,42 +1475,190 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	}
 	if spec.GetAcmeEnabled() {
 		opts.ACME = pki.ACMEConfig{
-			Enabled: true,
-			Email:   strings.TrimSpace(spec.GetAdminEmail()),
-			Domain:  domain,
+			Enabled:  true,
+			Email:    strings.TrimSpace(spec.GetAdminEmail()),
+			Domain:   domain,
+			Provider: "globular",
+			DNS:      strings.TrimSpace(os.Getenv("GLOBULAR_DNS_ADDR")),
+		}
+		if opts.ACME.DNS == "" {
+			opts.ACME.DNS = "127.0.0.1:10033"
 		}
 	}
+	workDir := filepath.Join(tlsDir, "work")
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		return fmt.Errorf("create tls work dir: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if kv != nil {
+		isLeader, release, err := kv.AcquireCertIssuerLock(ctx, domain, srv.nodeID, 30*time.Second)
+		if err != nil {
+			return fmt.Errorf("acquire cert issuer lock: %w", err)
+		}
+		if release != nil {
+			defer release()
+		}
+		if !isLeader {
+			timeout := 60 * time.Second
+			if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n > 0 {
+					timeout = time.Duration(n) * time.Second
+				}
+			}
+			bundle, err := kv.WaitForBundle(ctx, domain, timeout)
+			if err != nil {
+				return fmt.Errorf("wait for tls bundle: %w", err)
+			}
+			if err := writeCertBundleFiles(bundle, keyDst, fullchainDst, caDst); err != nil {
+				return fmt.Errorf("write cert bundle: %w", err)
+			}
+			log.Printf("nodeagent: fetched cert bundle for %s generation %d", domain, bundle.Generation)
+			return nil
+		}
+		log.Printf("nodeagent: acquired cert issuer lock for domain %s", domain)
+	} else if !srv.isIssuerNode() {
+		timeout := 60 * time.Second
+		if v := strings.TrimSpace(os.Getenv("CERT_WAIT_SECONDS")); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				timeout = time.Duration(n) * time.Second
+			}
+		}
+		if err := waitForFiles([]string{keyDst, fullchainDst, caDst}, timeout); err != nil {
+			return fmt.Errorf("wait for tls files: %w", err)
+		}
+		return nil
+	}
+
 	manager := networkPKIManager(opts)
 	if spec.GetAcmeEnabled() {
 		subject := fmt.Sprintf("CN=%s", domain)
-		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(dir, domain, subject, dns, 90*24*time.Hour)
+		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(workDir, domain, subject, dns, 90*24*time.Hour)
 		if err != nil {
 			return fmt.Errorf("issue ACME certs: %w", err)
 		}
-		if err := copyFilePerm(keyFile, filepath.Join(dir, "privkey.pem"), 0o600); err != nil {
+		if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
 			return err
 		}
-		if err := copyFilePerm(fullchainFile, filepath.Join(dir, "fullchain.pem"), 0o644); err != nil {
+		if err := copyFilePerm(fullchainFile, fullchainDst, 0o644); err != nil {
 			return err
 		}
-		if err := copyFilePerm(issuerFile, filepath.Join(dir, "ca.pem"), 0o644); err != nil {
+		if err := copyFilePerm(issuerFile, caDst, 0o644); err != nil {
 			return err
 		}
 		return nil
 	}
-	keyFile, leafFile, caFile, err := manager.EnsureServerCert(dir, domain, dns, 90*24*time.Hour)
+	keyFile, leafFile, caFile, err := manager.EnsureServerCert(workDir, domain, dns, 90*24*time.Hour)
 	if err != nil {
 		return fmt.Errorf("issue server certs: %w", err)
 	}
-	if err := copyFilePerm(keyFile, filepath.Join(dir, "privkey.pem"), 0o600); err != nil {
+	if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
 		return err
 	}
-	chainDst := filepath.Join(dir, "fullchain.pem")
+	chainDst := fullchainDst
 	if err := concatFiles(chainDst, leafFile, caFile); err != nil {
 		return fmt.Errorf("build fullchain: %w", err)
 	}
 	if caFile != "" {
-		if err := copyFilePerm(caFile, filepath.Join(dir, "ca.pem"), 0o644); err != nil {
+		if err := copyFilePerm(caFile, caDst, 0o644); err != nil {
+			return err
+		}
+	}
+	legacy := []string{
+		filepath.Join(config.GetRuntimeConfigDir(), "pki", domain),
+		filepath.Join(config.GetRuntimeConfigDir(), "tls", domain),
+	}
+	for _, ldir := range legacy {
+		if strings.TrimSpace(domain) == "" {
+			continue
+		}
+		if err := os.MkdirAll(ldir, 0o755); err != nil {
+			continue
+		}
+		_ = os.Remove(filepath.Join(ldir, "privkey.pem"))
+		_ = os.Remove(filepath.Join(ldir, "fullchain.pem"))
+		_ = os.Remove(filepath.Join(ldir, "ca.pem"))
+		_ = os.Symlink(keyDst, filepath.Join(ldir, "privkey.pem"))
+		_ = os.Symlink(fullchainDst, filepath.Join(ldir, "fullchain.pem"))
+		_ = os.Symlink(caDst, filepath.Join(ldir, "ca.pem"))
+	}
+
+	if kv != nil {
+		keyBytes, _ := os.ReadFile(keyDst)
+		fullchainBytes, _ := os.ReadFile(fullchainDst)
+		caBytes, _ := os.ReadFile(caDst)
+		bundle := certs.CertBundle{
+			Key:        keyBytes,
+			Fullchain:  fullchainBytes,
+			CA:         caBytes,
+			Generation: uint64(time.Now().UnixNano()),
+			UpdatedMS:  time.Now().UnixMilli(),
+		}
+		if err := kv.PutBundle(context.Background(), domain, bundle); err != nil {
+			log.Printf("nodeagent: failed to publish cert bundle: %v", err)
+		} else {
+			log.Printf("nodeagent: published cert bundle for %s generation %d", domain, bundle.Generation)
+			srv.state.CertGeneration = bundle.Generation
+			_ = srv.saveState()
+		}
+	}
+	return nil
+}
+
+func (srv *NodeAgentServer) isIssuerNode() bool {
+	issuer := strings.TrimSpace(os.Getenv("GLOBULAR_CERT_ISSUER_NODE"))
+	if issuer == "" {
+		issuer = "node-0"
+	}
+	if srv == nil || strings.TrimSpace(srv.nodeID) == "" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(srv.nodeID), issuer)
+}
+
+func waitForFiles(paths []string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		missing := []string{}
+		for _, p := range paths {
+			info, err := os.Stat(p)
+			if err != nil || info.Size() == 0 {
+				missing = append(missing, p)
+			}
+		}
+		if len(missing) == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("missing files after wait: %s", strings.Join(missing, ", "))
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (srv *NodeAgentServer) getCertKV() certs.KV {
+	if srv.certKV != nil {
+		return srv.certKV
+	}
+	ps, ok := srv.planStore.(lockablePlanStore)
+	if !ok || ps.Client() == nil {
+		return nil
+	}
+	srv.certKV = certs.NewEtcdKV(ps.Client())
+	return srv.certKV
+}
+
+func writeCertBundleFiles(bundle certs.CertBundle, keyDst, fullchainDst, caDst string) error {
+	if err := writeAtomicFile(keyDst, bundle.Key, 0o600); err != nil {
+		return err
+	}
+	if err := writeAtomicFile(fullchainDst, bundle.Fullchain, 0o644); err != nil {
+		return err
+	}
+	if len(bundle.CA) > 0 {
+		if err := writeAtomicFile(caDst, bundle.CA, 0o644); err != nil {
 			return err
 		}
 	}
@@ -1114,11 +1674,10 @@ func (srv *NodeAgentServer) performRestartUnits(units []string, op *operation) e
 		return fmt.Errorf("systemctl lookup: %w", err)
 	}
 	var errs []string
-	for idx, unit := range units {
-		unit = strings.TrimSpace(unit)
-		if unit == "" {
-			continue
-		}
+	resolved := resolveUnits(units, func(u string) bool {
+		return systemdUnitExists(systemctl, u) == nil
+	})
+	for idx, unit := range resolved {
 		percent := int32(30 + idx*10)
 		if percent > 95 {
 			percent = 95
@@ -1128,7 +1687,12 @@ func (srv *NodeAgentServer) performRestartUnits(units []string, op *operation) e
 		}
 		if err := restartCommand(systemctl, unit); err != nil {
 			log.Printf("nodeagent: %s reload/restart: %v", unit, err)
-			errs = append(errs, fmt.Sprintf("%s: %v", unit, err))
+			var details string
+			journal, jerr := exec.Command(systemctl, "status", unit, "--no-pager", "-n", "50").CombinedOutput()
+			if jerr == nil {
+				details = string(journal)
+			}
+			errs = append(errs, fmt.Sprintf("%s: %v %s", unit, err, details))
 		}
 	}
 	if len(errs) > 0 {
@@ -1244,6 +1808,48 @@ func (srv *NodeAgentServer) notifyControllerOperationResult(operationID string, 
 	if _, err := srv.controllerClient.CompleteOperation(ctx, payload); err != nil {
 		log.Printf("notify controller operation %s completion: %v", operationID, err)
 	}
+}
+
+func buildHealthChecks(spec *clustercontrollerpb.ClusterNetworkSpec) []healthchecks.Check {
+	if spec == nil {
+		return nil
+	}
+	httpPort := spec.GetPortHttp()
+	httpsPort := spec.GetPortHttps()
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	checks := []healthchecks.Check{
+		{
+			Name:           "minio",
+			URL:            "http://127.0.0.1:9000/minio/health/ready",
+			ExpectedStatus: []int{200},
+			Timeout:        3 * time.Second,
+		},
+		{
+			Name:           "envoy-admin",
+			URL:            "http://127.0.0.1:9901/ready",
+			ExpectedStatus: []int{200},
+			Timeout:        3 * time.Second,
+		},
+	}
+	if strings.EqualFold(spec.GetProtocol(), "https") {
+		checks = append(checks, healthchecks.Check{
+			Name:           "gateway-https",
+			URL:            fmt.Sprintf("https://127.0.0.1:%d/health", httpsPort),
+			ExpectedStatus: []int{200},
+			Timeout:        3 * time.Second,
+			InsecureTLS:    true,
+			HostHeader:     domain,
+		})
+	} else {
+		checks = append(checks, healthchecks.Check{
+			Name:           "gateway-http",
+			URL:            fmt.Sprintf("http://127.0.0.1:%d/health", httpPort),
+			ExpectedStatus: []int{200},
+			Timeout:        3 * time.Second,
+			HostHeader:     domain,
+		})
+	}
+	return checks
 }
 
 func writeAtomicFile(path string, data []byte, perm os.FileMode) error {

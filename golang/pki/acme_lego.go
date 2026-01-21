@@ -7,9 +7,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/security"
@@ -52,7 +54,6 @@ func (m *FileManager) ensureACMEAccountKey(dir, email string) (crypto.PrivateKey
 	return parseAnyPrivateKey(blk)
 }
 
-
 // atomicWriteFile writes to a temp dir then renames into place.
 // mode is the file permission mode for the final file.
 func atomicWriteFile(path string, mode os.FileMode, write func(tmpDir string) error) error {
@@ -92,22 +93,21 @@ func atomicWriteFile(path string, mode os.FileMode, write func(tmpDir string) er
 	return nil
 }
 
-
 // acmeObtainOrRenewCSR uses the existing CSR at <name>.csr and writes <name>.crt + acme-ca.crt.
 func (m *FileManager) acmeObtainOrRenewCSRNamed(dir string, name string) (crt string, ca string, err error) {
 
-    csrFile := csrPath(dir, name)
-    blk, _, err := readPEMBlock(csrFile)
-    if err != nil {
-        return "", "", fmt.Errorf("read CSR: %w", err)
-    }
-    if blk.Type != "CERTIFICATE REQUEST" && blk.Type != "NEW CERTIFICATE REQUEST" {
-        return "", "", fmt.Errorf("invalid CSR PEM type %q", blk.Type)
-    }
-    csr, err := x509.ParseCertificateRequest(blk.Bytes)
-    if err != nil {
-        return "", "", fmt.Errorf("parse CSR: %w", err)
-    }
+	csrFile := csrPath(dir, name)
+	blk, _, err := readPEMBlock(csrFile)
+	if err != nil {
+		return "", "", fmt.Errorf("read CSR: %w", err)
+	}
+	if blk.Type != "CERTIFICATE REQUEST" && blk.Type != "NEW CERTIFICATE REQUEST" {
+		return "", "", fmt.Errorf("invalid CSR PEM type %q", blk.Type)
+	}
+	csr, err := x509.ParseCertificateRequest(blk.Bytes)
+	if err != nil {
+		return "", "", fmt.Errorf("parse CSR: %w", err)
+	}
 
 	// lego config
 	email := strings.TrimSpace(m.ACME.Email)
@@ -190,47 +190,49 @@ func (m *FileManager) acmeObtainOrRenewCSRNamed(dir string, name string) (crt st
 		defer cancel()
 	}
 
-	    // Perform order
-    res, err := client.Certificate.ObtainForCSR(req)
-    if err != nil {
-        return "", "", fmt.Errorf("lego obtain: %w", err)
-    }
+	// Perform order
+	res, err := client.Certificate.ObtainForCSR(req)
+	if err != nil {
+		return "", "", fmt.Errorf("lego obtain: %w", err)
+	}
 
-    leaf := crtPath(dir, name) // <dir>/<name>.crt
-    if err := atomicWriteFile(leaf, 0o444, func(tmp string) error {
-        fn := filepath.Join(tmp, filepath.Base(leaf))
-        return os.WriteFile(fn, res.Certificate, 0o444)
-    }); err != nil {
-        return "", "", err
-    }
+	leaf := crtPath(dir, name) // <dir>/<name>.crt
+	if err := atomicWriteFile(leaf, 0o444, func(tmp string) error {
+		fn := filepath.Join(tmp, filepath.Base(leaf))
+		return os.WriteFile(fn, res.Certificate, 0o444)
+	}); err != nil {
+		return "", "", err
+	}
 
-    // >>> write issuer where the rest of your code expects it
-    issuer := filepath.Join(dir, name+".issuer.crt")
-    if len(res.IssuerCertificate) > 0 {
-        if err := atomicWriteFile(issuer, 0o444, func(tmp string) error {
-            fn := filepath.Join(tmp, filepath.Base(issuer))
-            return os.WriteFile(fn, res.IssuerCertificate, 0o444)
-        }); err != nil {
-            return "", "", err
-        }
-    } else {
-        // If the CA didn’t return a chain, fail fast so callers don’t try to build a fullchain and crash later.
-        return "", "", fmt.Errorf("lego obtain: issuer chain missing in response")
-    }
+	// >>> write issuer where the rest of your code expects it
+	issuer := filepath.Join(dir, name+".issuer.crt")
+	if len(res.IssuerCertificate) > 0 {
+		if err := atomicWriteFile(issuer, 0o444, func(tmp string) error {
+			fn := filepath.Join(tmp, filepath.Base(issuer))
+			return os.WriteFile(fn, res.IssuerCertificate, 0o444)
+		}); err != nil {
+			return "", "", err
+		}
+	} else {
+		// If the CA didn’t return a chain, fail fast so callers don’t try to build a fullchain and crash later.
+		return "", "", fmt.Errorf("lego obtain: issuer chain missing in response")
+	}
 
-    return leaf, issuer, nil
+	return leaf, issuer, nil
 }
 
 // globularDNSProvider is a minimal lego DNS-01 provider that talks to your DNS service.
 // Adjust endpoints to your existing DNS HTTP API:
-//   POST {base}/acme/present  JSON: {"fqdn": "...", "value": "...", "ttl": 60}
-//   POST {base}/acme/cleanup  JSON: {"fqdn": "...", "value": "..."}
+//
+//	POST {base}/acme/present  JSON: {"fqdn": "...", "value": "...", "ttl": 60}
+//	POST {base}/acme/cleanup  JSON: {"fqdn": "...", "value": "..."}
+//
 // and return 2xx on success.
 type globularDNSProvider struct {
-	addr string
-	domain string
+	addr    string
+	domain  string
 	timeout int
-	email string
+	email   string
 }
 
 func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
@@ -254,7 +256,43 @@ func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
 	if err := c.SetText(tk, fqdn, []string{value}, 60); err != nil {
 		return fmt.Errorf("set TXT %q: %w", fqdn, err)
 	}
-	return nil
+	deadline := time.Now().Add(120 * time.Second)
+	for {
+		if vals, err := c.GetText(fqdn); err == nil {
+			for _, v := range vals {
+				if v == value {
+					goto udpcheck
+				}
+			}
+		}
+	udpcheck:
+		host := p.addr
+		if strings.Contains(host, ":") {
+			host, _, _ = net.SplitHostPort(p.addr)
+		}
+		udpAddr := strings.TrimSpace(os.Getenv("GLOBULAR_DNS_UDP_ADDR"))
+		if udpAddr == "" {
+			udpAddr = net.JoinHostPort(host, "53")
+		}
+		r := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{}
+				return d.DialContext(ctx, "udp", udpAddr)
+			},
+		}
+		if txts, err := r.LookupTXT(context.Background(), fqdn); err == nil {
+			for _, v := range txts {
+				if v == value {
+					return nil
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for TXT %s propagation", fqdn)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
