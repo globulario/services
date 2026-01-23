@@ -23,6 +23,8 @@ grpc.web = require('grpc-web');
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
 
 var clustercontroller_pb = require('./clustercontroller_pb.js')
+
+var plan_pb = require('./plan_pb.js')
 const proto = {};
 proto.nodeagent = require('./node_agent_pb.js');
 
@@ -258,6 +260,184 @@ proto.nodeagent.NodeAgentServicePromiseClient.prototype.applyPlan =
       request,
       metadata || {},
       methodDescriptor_NodeAgentService_ApplyPlan);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.nodeagent.ApplyPlanV1Request,
+ *   !proto.nodeagent.ApplyPlanV1Response>}
+ */
+const methodDescriptor_NodeAgentService_ApplyPlanV1 = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/ApplyPlanV1',
+  grpc.web.MethodType.UNARY,
+  proto.nodeagent.ApplyPlanV1Request,
+  proto.nodeagent.ApplyPlanV1Response,
+  /**
+   * @param {!proto.nodeagent.ApplyPlanV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.nodeagent.ApplyPlanV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.nodeagent.ApplyPlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.nodeagent.ApplyPlanV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.ApplyPlanV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.nodeagent.NodeAgentServiceClient.prototype.applyPlanV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/nodeagent.NodeAgentService/ApplyPlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ApplyPlanV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.nodeagent.ApplyPlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.nodeagent.ApplyPlanV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.applyPlanV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/nodeagent.NodeAgentService/ApplyPlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_ApplyPlanV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.nodeagent.GetPlanStatusV1Request,
+ *   !proto.nodeagent.GetPlanStatusV1Response>}
+ */
+const methodDescriptor_NodeAgentService_GetPlanStatusV1 = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/GetPlanStatusV1',
+  grpc.web.MethodType.UNARY,
+  proto.nodeagent.GetPlanStatusV1Request,
+  proto.nodeagent.GetPlanStatusV1Response,
+  /**
+   * @param {!proto.nodeagent.GetPlanStatusV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.nodeagent.GetPlanStatusV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.nodeagent.GetPlanStatusV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.nodeagent.GetPlanStatusV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.nodeagent.GetPlanStatusV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.nodeagent.NodeAgentServiceClient.prototype.getPlanStatusV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/nodeagent.NodeAgentService/GetPlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetPlanStatusV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.nodeagent.GetPlanStatusV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.nodeagent.GetPlanStatusV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.getPlanStatusV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/nodeagent.NodeAgentService/GetPlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetPlanStatusV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.nodeagent.WatchPlanStatusV1Request,
+ *   !proto.globular.plan.v1.NodePlanStatus>}
+ */
+const methodDescriptor_NodeAgentService_WatchPlanStatusV1 = new grpc.web.MethodDescriptor(
+  '/nodeagent.NodeAgentService/WatchPlanStatusV1',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.nodeagent.WatchPlanStatusV1Request,
+  plan_pb.NodePlanStatus,
+  /**
+   * @param {!proto.nodeagent.WatchPlanStatusV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  plan_pb.NodePlanStatus.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.nodeagent.WatchPlanStatusV1Request} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.globular.plan.v1.NodePlanStatus>}
+ *     The XHR Node Readable Stream
+ */
+proto.nodeagent.NodeAgentServiceClient.prototype.watchPlanStatusV1 =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/nodeagent.NodeAgentService/WatchPlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_WatchPlanStatusV1);
+};
+
+
+/**
+ * @param {!proto.nodeagent.WatchPlanStatusV1Request} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.globular.plan.v1.NodePlanStatus>}
+ *     The XHR Node Readable Stream
+ */
+proto.nodeagent.NodeAgentServicePromiseClient.prototype.watchPlanStatusV1 =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/nodeagent.NodeAgentService/WatchPlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_WatchPlanStatusV1);
 };
 
 

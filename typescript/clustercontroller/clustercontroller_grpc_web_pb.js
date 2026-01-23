@@ -21,6 +21,8 @@ grpc.web = require('grpc-web');
 
 
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js')
+
+var plan_pb = require('./plan_pb.js')
 const proto = {};
 proto.clustercontroller = require('./clustercontroller_pb.js');
 
@@ -744,6 +746,184 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getNodeP
       request,
       metadata || {},
       methodDescriptor_ClusterControllerService_GetNodePlan);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.GetNodePlanV1Request,
+ *   !proto.clustercontroller.GetNodePlanV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_GetNodePlanV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/GetNodePlanV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.GetNodePlanV1Request,
+  proto.clustercontroller.GetNodePlanV1Response,
+  /**
+   * @param {!proto.clustercontroller.GetNodePlanV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.GetNodePlanV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.GetNodePlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.GetNodePlanV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.GetNodePlanV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.getNodePlanV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetNodePlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetNodePlanV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.GetNodePlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.GetNodePlanV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getNodePlanV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetNodePlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetNodePlanV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.ReconcileNodeV1Request,
+ *   !proto.clustercontroller.ReconcileNodeV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_ReconcileNodeV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/ReconcileNodeV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.ReconcileNodeV1Request,
+  proto.clustercontroller.ReconcileNodeV1Response,
+  /**
+   * @param {!proto.clustercontroller.ReconcileNodeV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.ReconcileNodeV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.ReconcileNodeV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.ReconcileNodeV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.ReconcileNodeV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.reconcileNodeV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ReconcileNodeV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReconcileNodeV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.ReconcileNodeV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.ReconcileNodeV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.reconcileNodeV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ReconcileNodeV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ReconcileNodeV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.WatchNodePlanStatusV1Request,
+ *   !proto.globular.plan.v1.NodePlanStatus>}
+ */
+const methodDescriptor_ClusterControllerService_WatchNodePlanStatusV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/WatchNodePlanStatusV1',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.clustercontroller.WatchNodePlanStatusV1Request,
+  plan_pb.NodePlanStatus,
+  /**
+   * @param {!proto.clustercontroller.WatchNodePlanStatusV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  plan_pb.NodePlanStatus.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.WatchNodePlanStatusV1Request} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.globular.plan.v1.NodePlanStatus>}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.watchNodePlanStatusV1 =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/WatchNodePlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_WatchNodePlanStatusV1);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.WatchNodePlanStatusV1Request} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.globular.plan.v1.NodePlanStatus>}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.watchNodePlanStatusV1 =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/WatchNodePlanStatusV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_WatchNodePlanStatusV1);
 };
 
 

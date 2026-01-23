@@ -34,9 +34,9 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		return nil, fmt.Errorf("marshal network spec: %w", err)
 	}
 	steps := []*planpb.PlanStep{
-		planStep("file.write_atomic", map[string]interface{}{
-			"path":    "/var/lib/globular/network.json",
-			"content": string(content),
+		planStep("network.apply_spec", map[string]interface{}{
+			"spec_json": string(content),
+			"mode":      "merge",
 		}),
 		planStep("service.restart", map[string]interface{}{
 			"unit": "globular-xds.service",
@@ -80,8 +80,16 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		},
 	}
 	if protocol == "https" {
+		probes = append(probes, &planpb.Probe{
+			Type: "tls.cert_valid_for_domain",
+			Args: structpbFromMap(map[string]interface{}{
+				"domain":     spec.GetClusterDomain(),
+				"cert_path":  "/etc/globular/tls/fullchain.pem",
+				"requireSAN": true,
+			}),
+		})
 		desiredState.Files = append(desiredState.Files, &planpb.DesiredFile{
-			Path: fmt.Sprintf("/etc/globular/tls/%s/fullchain.pem", spec.GetClusterDomain()),
+			Path: "/etc/globular/tls/fullchain.pem",
 		})
 	}
 

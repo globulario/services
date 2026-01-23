@@ -318,8 +318,15 @@ func checkDesiredServices(ctx context.Context, services []*planpb.DesiredService
 		}
 		// Version verification is best-effort; skip if unknown.
 		if v := strings.TrimSpace(svc.GetVersion()); v != "" {
-			if installed, _ := detectServiceVersion(svc.GetName()); installed != "" && installed != v {
-				return fmt.Errorf("service %s version mismatch: have %s want %s", unit, installed, v)
+			installed, err := detectServiceVersion(svc.GetName())
+			if err != nil {
+				return fmt.Errorf("service %s version check: %w", svc.GetName(), err)
+			}
+			if installed == "" {
+				return fmt.Errorf("service %s version marker missing", svc.GetName())
+			}
+			if installed != v {
+				return fmt.Errorf("service %s version mismatch: have %s want %s", svc.GetName(), installed, v)
 			}
 		}
 	}
