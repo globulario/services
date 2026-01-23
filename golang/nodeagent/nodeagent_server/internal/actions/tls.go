@@ -7,13 +7,41 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+type tlsEnsureAction struct{}
 type tlsCertValidAction struct{}
+
+func (tlsEnsureAction) Name() string { return "tls.ensure" }
+
+func (tlsEnsureAction) Validate(args *structpb.Struct) error {
+	return nil
+}
+
+func (tlsEnsureAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
+	paths := tlsPaths(args)
+	if err := os.MkdirAll(filepath.Dir(paths.fullchain), 0o755); err != nil {
+		return "", fmt.Errorf("create tls dir: %w", err)
+	}
+	if _, err := os.Stat(paths.fullchain); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("missing TLS material at %s; provide cert/key or enable ACME", paths.fullchain)
+		}
+		return "", fmt.Errorf("stat fullchain: %w", err)
+	}
+	if _, err := os.Stat(paths.privkey); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("missing TLS material at %s; provide cert/key or enable ACME", paths.privkey)
+		}
+		return "", fmt.Errorf("stat privkey: %w", err)
+	}
+	return "tls assets present", nil
+}
 
 func (tlsCertValidAction) Name() string { return "tls.cert_valid_for_domain" }
 
@@ -72,5 +100,31 @@ func (tlsCertValidAction) Apply(ctx context.Context, args *structpb.Struct) (str
 var nowFunc = func() time.Time { return time.Now() }
 
 func init() {
+	Register(tlsEnsureAction{})
 	Register(tlsCertValidAction{})
+}
+
+type tlsPathsSet struct {
+	fullchain string
+	privkey   string
+}
+
+func tlsPaths(args *structpb.Struct) tlsPathsSet {
+	const (
+		defaultCert = "/var/lib/globular/tls/fullchain.pem"
+		defaultKey  = "/var/lib/globular/tls/privkey.pem"
+	)
+	if args == nil {
+		return tlsPathsSet{fullchain: defaultCert, privkey: defaultKey}
+	}
+	fields := args.GetFields()
+	cert := strings.TrimSpace(fields["fullchain_path"].GetStringValue())
+	key := strings.TrimSpace(fields["privkey_path"].GetStringValue())
+	if cert == "" {
+		cert = defaultCert
+	}
+	if key == "" {
+		key = defaultKey
+	}
+	return tlsPathsSet{fullchain: cert, privkey: key}
 }

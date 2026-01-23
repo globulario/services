@@ -3,6 +3,7 @@ package actions
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,16 +60,10 @@ func TestMergeNetworkOverlayCanonical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read merged: %v", err)
 	}
-	if !contains(data, `"Protocol": "https"`) {
+	if !strings.Contains(string(data), `"Protocol": "https"`) {
 		t.Fatalf("protocol not updated: %s", data)
 	}
-	if !contains(data, `"Extra": "keep"`) {
+	if !strings.Contains(string(data), `"Extra": "keep"`) {
 		t.Fatalf("extra key removed unexpectedly: %s", data)
 	}
-}
-
-func contains(b []byte, substr string) bool {
-	return string(b) == substr || (len(b) > 0 && len(substr) > 0 && (string(b) == substr || func() bool {
-		return len(b) >= len(substr) && string(b[len(b)-len(substr):]) == substr || string(b[:len(substr)]) == substr || string(b) == substr
-	}()))
 }

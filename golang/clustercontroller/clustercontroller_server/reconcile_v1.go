@@ -23,6 +23,16 @@ type NodeObservedState struct {
 	Units []unitStatusRecord
 }
 
+func hasUnit(units []unitStatusRecord, name string) bool {
+	target := strings.ToLower(strings.TrimSpace(name))
+	for _, u := range units {
+		if strings.ToLower(strings.TrimSpace(u.Name)) == target {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildNetworkTransitionPlan constructs a reconciliation plan for network/protocol changes.
 func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, observed NodeObservedState) (*planpb.NodePlan, error) {
 	if desired.Network == nil {
@@ -38,18 +48,31 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 			"spec_json": string(content),
 			"mode":      "merge",
 		}),
-		planStep("service.restart", map[string]interface{}{
-			"unit": "globular-xds.service",
-		}),
-		planStep("service.restart", map[string]interface{}{
-			"unit": "globular-gateway.service",
-		}),
 	}
 	// Success probes
 	var probes []*planpb.Probe
 	protocol := strings.ToLower(strings.TrimSpace(spec.GetProtocol()))
 	if protocol == "" {
 		protocol = "http"
+	}
+	if protocol == "https" {
+		steps = append(steps, planStep("tls.ensure", map[string]interface{}{
+			"fullchain_path": "/var/lib/globular/tls/fullchain.pem",
+			"privkey_path":   "/var/lib/globular/tls/privkey.pem",
+		}))
+	}
+	steps = append(steps,
+		planStep("service.restart", map[string]interface{}{
+			"unit": "globular-xds.service",
+		}),
+		planStep("service.restart", map[string]interface{}{
+			"unit": "globular-gateway.service",
+		}),
+	)
+	if hasUnit(observed.Units, "envoy.service") {
+		steps = append(steps, planStep("service.restart", map[string]interface{}{
+			"unit": "envoy.service",
+		}))
 	}
 	port := spec.GetPortHttp()
 	if protocol == "https" && spec.GetPortHttps() > 0 {
@@ -62,10 +85,13 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 				"address": fmt.Sprintf("127.0.0.1:%d", port),
 			}),
 		})
+	}
+	if protocol == "https" {
 		probes = append(probes, &planpb.Probe{
-			Type: "probe.http",
+			Type: "tls.cert_valid_for_domain",
 			Args: structpbFromMap(map[string]interface{}{
-				"url": fmt.Sprintf("%s://127.0.0.1:%d/health", protocol, port),
+				"domain":    spec.GetClusterDomain(),
+				"cert_path": "/var/lib/globular/tls/fullchain.pem",
 			}),
 		})
 	}
@@ -80,16 +106,8 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		},
 	}
 	if protocol == "https" {
-		probes = append(probes, &planpb.Probe{
-			Type: "tls.cert_valid_for_domain",
-			Args: structpbFromMap(map[string]interface{}{
-				"domain":     spec.GetClusterDomain(),
-				"cert_path":  "/etc/globular/tls/fullchain.pem",
-				"requireSAN": true,
-			}),
-		})
 		desiredState.Files = append(desiredState.Files, &planpb.DesiredFile{
-			Path: "/etc/globular/tls/fullchain.pem",
+			Path: "/var/lib/globular/tls/fullchain.pem",
 		})
 	}
 
@@ -98,7 +116,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		Kind:          "NodePlan",
 		NodeId:        nodeID,
 		Reason:        "update_cluster_network",
-		Locks:         []string{"network", "tls", "service:gateway", "service:xds"},
+		Locks:         []string{"network", "tls", "service:gateway", "service:xds", "service:envoy"},
 		CreatedUnixMs: uint64(time.Now().UnixMilli()),
 		Policy: &planpb.PlanPolicy{
 			MaxRetries:     3,

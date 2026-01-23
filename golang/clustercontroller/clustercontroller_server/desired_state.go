@@ -93,7 +93,7 @@ func (srv *server) ensureDesiredState(ctx context.Context) (*clustercontrollerpb
 		return nil, err
 	}
 	now := timestamppb.Now()
-	return &clustercontrollerpb.DesiredState{
+	desired := &clustercontrollerpb.DesiredState{
 		Generation: 1,
 		UpdatedAt:  now,
 		Network: &clustercontrollerpb.DesiredNetwork{
@@ -105,7 +105,11 @@ func (srv *server) ensureDesiredState(ctx context.Context) (*clustercontrollerpb
 			AdminEmail:       "",
 			AlternateDomains: nil,
 		},
-	}, nil
+	}
+	if err := srv.saveDesiredState(ctx, desired); err != nil {
+		return nil, err
+	}
+	return desired, nil
 }
 
 func desiredNetworkToSpec(net *clustercontrollerpb.DesiredNetwork) *clustercontrollerpb.ClusterNetworkSpec {

@@ -1291,7 +1291,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 		plan, err := BuildNetworkTransitionPlan(node.NodeID, ClusterDesiredState{
 			Network: spec,
-		}, NodeObservedState{})
+		}, NodeObservedState{Units: node.Units})
 		if err != nil {
 			log.Printf("reconcile: build plan for %s failed: %v", node.NodeID, err)
 			continue
