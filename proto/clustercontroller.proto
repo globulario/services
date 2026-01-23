@@ -327,4 +327,29 @@ service ClusterControllerService {
   rpc CompleteOperation(CompleteOperationRequest) returns (CompleteOperationResponse);
 
   rpc WatchOperations(WatchOperationsRequest) returns (stream OperationEvent);
+
+  rpc SetDesiredNetworkV1(SetDesiredNetworkV1Request) returns (SetDesiredNetworkV1Response);
+  rpc GetDesiredStateV1(GetDesiredStateV1Request) returns (GetDesiredStateV1Response);
 }
+
+message DesiredNetwork {
+  string domain = 1;
+  string protocol = 2;
+  uint32 port_http = 3;
+  uint32 port_https = 4;
+  bool acme_enabled = 5;
+  string admin_email = 6;
+  repeated string alternate_domains = 7;
+}
+
+message DesiredState {
+  uint64 generation = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  DesiredNetwork network = 3;
+}
+
+message SetDesiredNetworkV1Request { DesiredNetwork network = 1; }
+message SetDesiredNetworkV1Response { DesiredState desired = 1; }
+
+message GetDesiredStateV1Request {}
+message GetDesiredStateV1Response { DesiredState desired = 1; }

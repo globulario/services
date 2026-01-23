@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/google/uuid"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -57,6 +58,18 @@ const (
 	maxRecoveryAttempts     = 3                // Max recovery attempts before giving up
 )
 
+type kvClient interface {
+	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
+}
+
+func extractKV(ps store.PlanStore) kvClient {
+	if eps, ok := ps.(*store.EtcdPlanStore); ok && eps != nil {
+		return eps.Client()
+	}
+	return nil
+}
+
 type server struct {
 	clustercontrollerpb.UnimplementedClusterControllerServiceServer
 
@@ -68,6 +81,7 @@ type server struct {
 	muHeldSince      atomic.Int64
 	muHeldBy         atomic.Value
 	planStore        store.PlanStore
+	kv               kvClient
 	agentMu          sync.Mutex
 	agentClients     map[string]*agentClient
 	agentInsecure    bool
@@ -99,6 +113,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		statePath:        statePath,
 		state:            state,
 		planStore:        planStore,
+		kv:               extractKV(planStore),
 		agentClients:     make(map[string]*agentClient),
 		agentInsecure:    strings.EqualFold(os.Getenv("CLUSTER_INSECURE_AGENT_GRPC"), "true"),
 		agentIdleTimeout: agentIdleTimeoutDefault,
@@ -985,6 +1000,65 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *clustercontrol
 	}, nil
 }
 
+func (srv *server) SetDesiredNetworkV1(ctx context.Context, req *clustercontrollerpb.SetDesiredNetworkV1Request) (*clustercontrollerpb.SetDesiredNetworkV1Response, error) {
+	if req == nil || req.GetNetwork() == nil {
+		return nil, status.Error(codes.InvalidArgument, "network is required")
+	}
+	if srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
+	}
+	net := proto.Clone(req.GetNetwork()).(*clustercontrollerpb.DesiredNetwork)
+	net.Domain = strings.TrimSpace(net.GetDomain())
+	if net.GetDomain() == "" {
+		return nil, status.Error(codes.InvalidArgument, "domain is required")
+	}
+	protocol := strings.ToLower(strings.TrimSpace(net.GetProtocol()))
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "https" {
+		return nil, status.Error(codes.InvalidArgument, "protocol must be http or https")
+	}
+	net.Protocol = protocol
+	if net.GetPortHttp() == 0 {
+		net.PortHttp = 80
+	}
+	if net.GetPortHttps() == 0 {
+		net.PortHttps = 443
+	}
+	desired, err := srv.loadDesiredState(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+	}
+	if desired == nil {
+		desired = &clustercontrollerpb.DesiredState{}
+	}
+	changed := !proto.Equal(desired.GetNetwork(), net)
+	desired.Network = net
+	if changed {
+		desired.Generation++
+	}
+	if desired.Generation == 0 {
+		desired.Generation = 1
+	}
+	desired.UpdatedAt = timestamppb.Now()
+	if err := srv.saveDesiredState(ctx, desired); err != nil {
+		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
+	}
+	return &clustercontrollerpb.SetDesiredNetworkV1Response{Desired: desired}, nil
+}
+
+func (srv *server) GetDesiredStateV1(ctx context.Context, _ *clustercontrollerpb.GetDesiredStateV1Request) (*clustercontrollerpb.GetDesiredStateV1Response, error) {
+	if srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
+	}
+	desired, err := srv.ensureDesiredState(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+	}
+	return &clustercontrollerpb.GetDesiredStateV1Response{Desired: desired}, nil
+}
+
 func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	safeGo("reconcile-loop", func() {
@@ -1174,50 +1248,79 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		return
 	}
 	defer srv.reconcileRunning.Store(false)
-	now := time.Now()
+	if srv.planStore == nil || srv.kv == nil {
+		return
+	}
+	desired, err := srv.ensureDesiredState(ctx)
+	if err != nil {
+		log.Printf("reconcile: load desired failed: %v", err)
+		return
+	}
+	if desired == nil || desired.GetNetwork() == nil {
+		return
+	}
+	specHash, err := hashDesiredNetwork(desired.GetNetwork())
+	if err != nil {
+		log.Printf("reconcile: hash desired network: %v", err)
+		return
+	}
 	srv.lock("reconcile:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
 	}
-	stateDirty := srv.cleanupJoinStateLocked(now)
+	stateDirty := srv.cleanupJoinStateLocked(time.Now())
 	srv.unlock()
+	now := time.Now()
 
 	for _, node := range nodes {
-		if node.AgentEndpoint == "" {
+		if node == nil || node.NodeID == "" {
 			continue
 		}
-		plan := srv.computeNodePlan(node)
-		if plan == nil || (len(plan.GetUnitActions()) == 0 && len(plan.GetRenderedConfig()) == 0) {
+		lastHash, err := srv.getNodeDesiredHash(ctx, node.NodeID)
+		if err != nil {
+			log.Printf("reconcile: read desired hash for %s: %v", node.NodeID, err)
 			continue
 		}
-		hash := planHash(plan)
-		if hash == "" {
+		if specHash != "" && lastHash == specHash {
 			continue
 		}
-		if !srv.shouldDispatch(node, hash) {
+		spec := desiredNetworkToSpec(desired.GetNetwork())
+		if spec == nil {
 			continue
 		}
-		opID := uuid.NewString()
-		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
-		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
-		if err := srv.dispatchPlan(ctx, node, plan, opID); err != nil {
-			log.Printf("plan dispatch for node %s failed: %v", node.NodeID, err)
-			srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan failed", 0, true, err.Error()))
-			if srv.recordPlanError(node.NodeID, err.Error()) {
-				stateDirty = true
-			}
-			if srv.updateNodeState(node.NodeID, "degraded", err.Error()) {
-				stateDirty = true
-			}
+		plan, err := BuildNetworkTransitionPlan(node.NodeID, ClusterDesiredState{
+			Network: spec,
+		}, NodeObservedState{})
+		if err != nil {
+			log.Printf("reconcile: build plan for %s failed: %v", node.NodeID, err)
 			continue
 		}
-		srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
-		if srv.recordPlanSent(node.NodeID, hash) {
-			stateDirty = true
+		plan.PlanId = uuid.NewString()
+		plan.ClusterId = srv.state.ClusterId
+		plan.NodeId = node.NodeID
+		plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
+		if plan.GetCreatedUnixMs() == 0 {
+			plan.CreatedUnixMs = uint64(now.UnixMilli())
 		}
-	}
+		plan.IssuedBy = "cluster-controller"
 
+		if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
+			log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
+			continue
+		}
+		if appendable, ok := srv.planStore.(interface {
+			AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
+		}); ok {
+			_ = appendable.AppendHistory(ctx, node.NodeID, plan)
+		}
+		if specHash != "" {
+			if err := srv.putNodeDesiredHash(ctx, node.NodeID, specHash); err != nil {
+				log.Printf("reconcile: store hash for %s: %v", node.NodeID, err)
+			}
+		}
+		log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
+	}
 	if stateDirty {
 		srv.lock("reconcile:persist")
 		if err := srv.persistStateLocked(true); err != nil {

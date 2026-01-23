@@ -82,7 +82,7 @@ func main() {
 		}
 	}()
 
-	srv.startReconcileLoop(context.Background(), 15*time.Second)
+	srv.startReconcileLoop(context.Background(), 2*time.Second)
 	srv.startAgentCleanupLoop(context.Background())
 	srv.startOperationCleanupLoop(context.Background())
 	srv.startHealthMonitorLoop(context.Background())
