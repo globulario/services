@@ -92,6 +92,9 @@ type NodeAgentServer struct {
 	lastPlanGeneration       uint64
 	planRunnerCtx            context.Context
 	planRunnerOnce           sync.Once
+	controllerDialer         func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	controllerClientFactory  func(conn grpc.ClientConnInterface) clustercontrollerpb.ClusterControllerServiceClient
+	controllerClientOverride func(addr string) clustercontrollerpb.ClusterControllerServiceClient
 
 	// test hooks
 	syncDNSHook           func(*clustercontrollerpb.ClusterNetworkSpec) error
@@ -201,6 +204,8 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		planPollInterval:         defaultPlanPollInterval,
 		lastPlanGeneration:       state.LastPlanGeneration,
 		lastNetworkGeneration:    state.NetworkGeneration,
+		controllerDialer:         grpc.DialContext,
+		controllerClientFactory:  clustercontrollerpb.NewClusterControllerServiceClient,
 	}
 }
 
@@ -593,11 +598,6 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	if srv.controllerEndpoint == "" {
 		return nil
 	}
-	if srv.controllerClient == nil {
-		if err := srv.ensureControllerClient(ctx); err != nil {
-			return err
-		}
-	}
 	if srv.nodeID == "" {
 		return nil
 	}
@@ -611,12 +611,71 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		ReportedAt:    timestamppb.Now(),
 		AgentEndpoint: srv.advertisedAddr,
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	_, err := srv.controllerClient.ReportNodeStatus(ctx, &clustercontrollerpb.ReportNodeStatusRequest{
-		Status: status,
-	})
-	return err
+	return srv.sendStatusWithRetry(ctx, status)
+}
+
+func leaderAddrFromError(err error) string {
+	st, ok := status.FromError(err)
+	if !ok {
+		return ""
+	}
+	if st.Code() != codes.FailedPrecondition {
+		return ""
+	}
+	msg := st.Message()
+	const marker = "leader_addr="
+	idx := strings.Index(msg, marker)
+	if idx < 0 {
+		return ""
+	}
+	addr := strings.TrimSpace(msg[idx+len(marker):])
+	addr = strings.Trim(addr, ")")
+	return addr
+}
+
+func (srv *NodeAgentServer) resetControllerClient() {
+	srv.controllerConnMu.Lock()
+	defer srv.controllerConnMu.Unlock()
+	if srv.controllerConn != nil {
+		_ = srv.controllerConn.Close()
+		srv.controllerConn = nil
+	}
+	srv.controllerClient = nil
+}
+
+func (srv *NodeAgentServer) sendStatusWithRetry(ctx context.Context, statusReq *clustercontrollerpb.NodeStatus) error {
+	if statusReq == nil {
+		return errors.New("status request is nil")
+	}
+	if err := srv.ensureControllerClient(ctx); err != nil {
+		return err
+	}
+	send := func() error {
+		sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		_, err := srv.controllerClient.ReportNodeStatus(sendCtx, &clustercontrollerpb.ReportNodeStatusRequest{
+			Status: statusReq,
+		})
+		return err
+	}
+	if err := send(); err != nil {
+		addr := leaderAddrFromError(err)
+		if addr == "" {
+			return err
+		}
+		// Switch to leader and retry once.
+		srv.controllerEndpoint = addr
+		if srv.controllerClientOverride != nil {
+			srv.controllerClient = srv.controllerClientOverride(addr)
+		} else {
+			srv.resetControllerClient()
+			if errEnsure := srv.ensureControllerClient(ctx); errEnsure != nil {
+				return err
+			}
+		}
+		return send()
+	}
+	return nil
 }
 
 func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
@@ -634,12 +693,20 @@ func (srv *NodeAgentServer) ensureControllerClient(ctx context.Context) error {
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(dialCtx, srv.controllerEndpoint, opts...)
+	dialer := srv.controllerDialer
+	if dialer == nil {
+		dialer = grpc.DialContext
+	}
+	conn, err := dialer(dialCtx, srv.controllerEndpoint, opts...)
 	if err != nil {
 		return err
 	}
 	srv.controllerConn = conn
-	srv.controllerClient = clustercontrollerpb.NewClusterControllerServiceClient(conn)
+	factory := srv.controllerClientFactory
+	if factory == nil {
+		factory = clustercontrollerpb.NewClusterControllerServiceClient
+	}
+	srv.controllerClient = factory(conn)
 	return nil
 }
 

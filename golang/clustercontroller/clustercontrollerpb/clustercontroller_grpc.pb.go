@@ -44,6 +44,7 @@ const (
 	ClusterControllerService_WatchOperations_FullMethodName       = "/clustercontroller.ClusterControllerService/WatchOperations"
 	ClusterControllerService_SetDesiredNetworkV1_FullMethodName   = "/clustercontroller.ClusterControllerService/SetDesiredNetworkV1"
 	ClusterControllerService_GetDesiredStateV1_FullMethodName     = "/clustercontroller.ClusterControllerService/GetDesiredStateV1"
+	ClusterControllerService_GetClusterHealthV1_FullMethodName    = "/clustercontroller.ClusterControllerService/GetClusterHealthV1"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -73,6 +74,7 @@ type ClusterControllerServiceClient interface {
 	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 	SetDesiredNetworkV1(ctx context.Context, in *SetDesiredNetworkV1Request, opts ...grpc.CallOption) (*SetDesiredNetworkV1Response, error)
 	GetDesiredStateV1(ctx context.Context, in *GetDesiredStateV1Request, opts ...grpc.CallOption) (*GetDesiredStateV1Response, error)
+	GetClusterHealthV1(ctx context.Context, in *GetClusterHealthV1Request, opts ...grpc.CallOption) (*GetClusterHealthV1Response, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -331,6 +333,16 @@ func (c *clusterControllerServiceClient) GetDesiredStateV1(ctx context.Context, 
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetClusterHealthV1(ctx context.Context, in *GetClusterHealthV1Request, opts ...grpc.CallOption) (*GetClusterHealthV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetClusterHealthV1Response)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetClusterHealthV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -358,6 +370,7 @@ type ClusterControllerServiceServer interface {
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	SetDesiredNetworkV1(context.Context, *SetDesiredNetworkV1Request) (*SetDesiredNetworkV1Response, error)
 	GetDesiredStateV1(context.Context, *GetDesiredStateV1Request) (*GetDesiredStateV1Response, error)
+	GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -435,6 +448,9 @@ func (UnimplementedClusterControllerServiceServer) SetDesiredNetworkV1(context.C
 }
 func (UnimplementedClusterControllerServiceServer) GetDesiredStateV1(context.Context, *GetDesiredStateV1Request) (*GetDesiredStateV1Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDesiredStateV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetClusterHealthV1 not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -856,6 +872,24 @@ func _ClusterControllerService_GetDesiredStateV1_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetClusterHealthV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterHealthV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetClusterHealthV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetClusterHealthV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetClusterHealthV1(ctx, req.(*GetClusterHealthV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -946,6 +980,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDesiredStateV1",
 			Handler:    _ClusterControllerService_GetDesiredStateV1_Handler,
+		},
+		{
+			MethodName: "GetClusterHealthV1",
+			Handler:    _ClusterControllerService_GetClusterHealthV1_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

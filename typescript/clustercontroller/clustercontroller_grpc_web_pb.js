@@ -1471,5 +1471,66 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getDesir
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.GetClusterHealthV1Request,
+ *   !proto.clustercontroller.GetClusterHealthV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_GetClusterHealthV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/GetClusterHealthV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.GetClusterHealthV1Request,
+  proto.clustercontroller.GetClusterHealthV1Response,
+  /**
+   * @param {!proto.clustercontroller.GetClusterHealthV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.GetClusterHealthV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.GetClusterHealthV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.GetClusterHealthV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.GetClusterHealthV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.getClusterHealthV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetClusterHealthV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetClusterHealthV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.GetClusterHealthV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.GetClusterHealthV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getClusterHealthV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetClusterHealthV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetClusterHealthV1);
+};
+
+
 module.exports = proto.clustercontroller;
 

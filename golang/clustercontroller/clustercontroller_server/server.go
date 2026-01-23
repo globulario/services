@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/operator"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
@@ -71,32 +72,41 @@ func filterVersionsForNode(desired map[string]string, node *nodeState) map[strin
 		return out
 	}
 	for svc, ver := range desired {
-		unit := serviceUnitName(svc)
+		norm := canonicalServiceName(svc)
+		unit := serviceUnitForCanonical(norm)
 		if hasUnit(node.Units, unit) {
-			out[svc] = ver
+			out[norm] = ver
 		}
 	}
 	return out
 }
 
-func hashDesiredServiceVersions(versions map[string]string) string {
-	if len(versions) == 0 {
-		return ""
+// computeServiceDelta returns desiredPresent (desired services that exist on the node) and toRemove (services present on node but not desired).
+func computeServiceDelta(desiredCanon map[string]string, units []unitStatusRecord) (map[string]string, []string) {
+	desiredPresent := make(map[string]string)
+	for svc, ver := range desiredCanon {
+		unit := serviceUnitForCanonical(svc)
+		if hasUnit(units, unit) {
+			desiredPresent[svc] = ver
+		}
 	}
-	keys := make([]string, 0, len(versions))
-	for k := range versions {
-		keys = append(keys, k)
+	toRemove := make([]string, 0)
+	for _, u := range units {
+		unitName := strings.ToLower(strings.TrimSpace(u.Name))
+		canon := ""
+		if strings.HasPrefix(unitName, "globular-") && strings.HasSuffix(unitName, ".service") {
+			canon = canonicalServiceName(unitName)
+		} else if unitName == "envoy.service" {
+			canon = "envoy"
+		}
+		if canon == "" {
+			continue
+		}
+		if _, ok := desiredCanon[canon]; !ok {
+			toRemove = append(toRemove, canon)
+		}
 	}
-	sort.Strings(keys)
-	var b strings.Builder
-	for _, k := range keys {
-		b.WriteString(k)
-		b.WriteString("=")
-		b.WriteString(versions[k])
-		b.WriteString(";")
-	}
-	sum := sha256.Sum256([]byte(b.String()))
-	return hex.EncodeToString(sum[:])
+	return desiredPresent, toRemove
 }
 
 type kvClient interface {
@@ -114,27 +124,32 @@ func extractKV(ps store.PlanStore) kvClient {
 type server struct {
 	clustercontrollerpb.UnimplementedClusterControllerServiceServer
 
-	cfg              *clusterControllerConfig
-	cfgPath          string
-	statePath        string
-	state            *controllerState
-	mu               sync.Mutex
-	muHeldSince      atomic.Int64
-	muHeldBy         atomic.Value
-	planStore        store.PlanStore
-	kv               kvClient
-	agentMu          sync.Mutex
-	agentClients     map[string]*agentClient
-	agentInsecure    bool
-	agentIdleTimeout time.Duration
-	agentCAPath      string
-	lastStateSave    time.Time
-	agentServerName  string
-	opMu             sync.Mutex
-	operations       map[string]*operationState
-	watchMu          sync.Mutex
-	watchers         map[*operationWatcher]struct{}
-	reconcileRunning atomic.Bool
+	cfg                  *clusterControllerConfig
+	cfgPath              string
+	statePath            string
+	state                *controllerState
+	mu                   sync.Mutex
+	muHeldSince          atomic.Int64
+	muHeldBy             atomic.Value
+	planStore            store.PlanStore
+	kv                   kvClient
+	agentMu              sync.Mutex
+	agentClients         map[string]*agentClient
+	agentInsecure        bool
+	agentIdleTimeout     time.Duration
+	agentCAPath          string
+	lastStateSave        time.Time
+	agentServerName      string
+	opMu                 sync.Mutex
+	operations           map[string]*operationState
+	watchMu              sync.Mutex
+	watchers             map[*operationWatcher]struct{}
+	serviceBlock         map[string]time.Time
+	enableServiceRemoval bool
+	leader               atomic.Bool
+	leaderID             atomic.Value
+	leaderAddr           atomic.Value
+	reconcileRunning     atomic.Bool
 }
 
 var testHookBeforeReportNodeStatusApply func()
@@ -156,6 +171,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		planStore:        planStore,
 		kv:               extractKV(planStore),
 		agentClients:     make(map[string]*agentClient),
+		serviceBlock:     make(map[string]time.Time),
 		agentInsecure:    strings.EqualFold(os.Getenv("CLUSTER_INSECURE_AGENT_GRPC"), "true"),
 		agentIdleTimeout: agentIdleTimeoutDefault,
 		agentCAPath:      agentCAPath,
@@ -163,6 +179,24 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		operations:       make(map[string]*operationState),
 		watchers:         make(map[*operationWatcher]struct{}),
 	}
+	if strings.EqualFold(os.Getenv("ENABLE_SERVICE_REMOVAL"), "true") {
+		srv.enableServiceRemoval = true
+	}
+	srv.setLeader(false, "", "")
+
+	// Register built-in operators
+	nodesFn := func() []string {
+		srv.lock("nodes:snapshot")
+		defer srv.unlock()
+		ids := make([]string, 0, len(srv.state.Nodes))
+		for id := range srv.state.Nodes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	operator.Register("etcd", operator.NewEtcdOperator(planStore, nodesFn))
+	operator.Register("minio", operator.NewMinioOperator(planStore, nodesFn))
+	operator.Register("scylla", operator.NewScyllaOperator(planStore, nodesFn))
 
 	safeGo("mu-watchdog", func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -228,6 +262,9 @@ func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestam
 }
 
 func (srv *server) CreateJoinToken(ctx context.Context, req *clustercontrollerpb.CreateJoinTokenRequest) (*clustercontrollerpb.CreateJoinTokenResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	srv.lock("CreateJoinToken")
 	defer srv.unlock()
 	token := uuid.NewString()
@@ -250,6 +287,9 @@ func (srv *server) CreateJoinToken(ctx context.Context, req *clustercontrollerpb
 }
 
 func (srv *server) RequestJoin(ctx context.Context, req *clustercontrollerpb.RequestJoinRequest) (*clustercontrollerpb.RequestJoinResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetJoinToken() == "" {
 		return nil, status.Error(codes.InvalidArgument, "join_token is required")
 	}
@@ -313,6 +353,9 @@ func (srv *server) ListJoinRequests(ctx context.Context, req *clustercontrollerp
 }
 
 func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.ApproveJoinRequest) (*clustercontrollerpb.ApproveJoinResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -371,6 +414,9 @@ func (srv *server) ApproveJoin(ctx context.Context, req *clustercontrollerpb.App
 }
 
 func (srv *server) RejectJoin(ctx context.Context, req *clustercontrollerpb.RejectJoinRequest) (*clustercontrollerpb.RejectJoinResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -434,6 +480,9 @@ func (srv *server) ListNodes(ctx context.Context, req *clustercontrollerpb.ListN
 }
 
 func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb.SetNodeProfilesRequest) (*clustercontrollerpb.SetNodeProfilesResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetNodeId() == "" || len(req.GetProfiles()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "--profile is required")
 	}
@@ -454,6 +503,9 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *clustercontrollerpb
 }
 
 func (srv *server) RemoveNode(ctx context.Context, req *clustercontrollerpb.RemoveNodeRequest) (*clustercontrollerpb.RemoveNodeResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
@@ -646,6 +698,9 @@ func (srv *server) GetNodePlan(ctx context.Context, req *clustercontrollerpb.Get
 }
 
 func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrollerpb.UpdateClusterNetworkRequest) (*clustercontrollerpb.UpdateClusterNetworkResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetSpec() == nil {
 		return nil, status.Error(codes.InvalidArgument, "spec is required")
 	}
@@ -744,6 +799,9 @@ func (srv *server) reconcileNetworkPlans(ctx context.Context, spec *clustercontr
 }
 
 func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.ApplyNodePlanRequest) (*clustercontrollerpb.ApplyNodePlanResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || strings.TrimSpace(req.GetNodeId()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
@@ -792,6 +850,9 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 }
 
 func (srv *server) CompleteOperation(ctx context.Context, req *clustercontrollerpb.CompleteOperationRequest) (*clustercontrollerpb.CompleteOperationResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -828,6 +889,9 @@ func (srv *server) CompleteOperation(ctx context.Context, req *clustercontroller
 }
 
 func (srv *server) UpgradeGlobular(ctx context.Context, req *clustercontrollerpb.UpgradeGlobularRequest) (*clustercontrollerpb.UpgradeGlobularResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
@@ -930,6 +994,9 @@ func (srv *server) UpgradeGlobular(ctx context.Context, req *clustercontrollerpb
 }
 
 func (srv *server) ReportNodeStatus(ctx context.Context, req *clustercontrollerpb.ReportNodeStatusRequest) (*clustercontrollerpb.ReportNodeStatusResponse, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetStatus() == nil || req.GetStatus().GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "status.node_id is required")
 	}
@@ -1035,6 +1102,9 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *clustercontrol
 }
 
 func (srv *server) SetDesiredNetworkV1(ctx context.Context, req *clustercontrollerpb.SetDesiredNetworkV1Request) (*clustercontrollerpb.SetDesiredNetworkV1Response, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || req.GetNetwork() == nil {
 		return nil, status.Error(codes.InvalidArgument, "network is required")
 	}
@@ -1078,14 +1148,121 @@ func (srv *server) GetDesiredStateV1(ctx context.Context, _ *clustercontrollerpb
 	return &clustercontrollerpb.GetDesiredStateV1Response{Desired: desired}, nil
 }
 
+func (srv *server) GetClusterHealthV1(ctx context.Context, _ *clustercontrollerpb.GetClusterHealthV1Request) (*clustercontrollerpb.GetClusterHealthV1Response, error) {
+	if srv.planStore == nil || srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plan store or kv unavailable")
+	}
+	desired, err := srv.ensureDesiredState(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+	}
+	specHash, _ := hashDesiredNetwork(desired.GetNetwork())
+	srv.lock("health:snapshot")
+	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
+	for _, n := range srv.state.Nodes {
+		nodes = append(nodes, n)
+	}
+	srv.unlock()
+
+	var nodeHealths []*clustercontrollerpb.NodeHealth
+	serviceCounts := make(map[string]int)
+	serviceAtDesired := make(map[string]int)
+	serviceUpgrading := make(map[string]int)
+	desiredCanon := make(map[string]string)
+	for svc, ver := range desired.GetServiceVersions() {
+		canon := canonicalServiceName(svc)
+		if canon == "" {
+			continue
+		}
+		desiredCanon[canon] = ver
+	}
+
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		appliedNet, _ := srv.getNodeAppliedHash(ctx, node.NodeID)
+		filtered := filterVersionsForNode(desired.GetServiceVersions(), node)
+		desiredSvcHash := stableServiceDesiredHash(filtered)
+		appliedSvcHash, _ := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
+		plan, _ := srv.planStore.GetCurrentPlan(ctx, node.NodeID)
+		status, _ := srv.planStore.GetStatus(ctx, node.NodeID)
+		phase := ""
+		if status != nil {
+			phase = status.GetState().String()
+		}
+		lastErr := ""
+		if status != nil {
+			lastErr = status.GetErrorMessage()
+		}
+		nodeHealths = append(nodeHealths, &clustercontrollerpb.NodeHealth{
+			NodeId:              node.NodeID,
+			DesiredNetworkHash:  specHash,
+			AppliedNetworkHash:  appliedNet,
+			DesiredServicesHash: desiredSvcHash,
+			AppliedServicesHash: appliedSvcHash,
+			CurrentPlanId: func() string {
+				if plan != nil {
+					return plan.GetPlanId()
+				} else {
+					return ""
+				}
+			}(),
+			CurrentPlanGeneration: func() uint64 {
+				if plan != nil {
+					return plan.GetGeneration()
+				} else {
+					return 0
+				}
+			}(),
+			CurrentPlanPhase: phase,
+			LastError:        lastErr,
+		})
+
+		for svc := range filtered {
+			serviceCounts[svc]++
+			if desiredSvcHash != "" && desiredSvcHash == appliedSvcHash {
+				serviceAtDesired[svc]++
+			}
+			if status != nil && plan != nil && plan.GetDesiredHash() != "" && plan.GetDesiredHash() == desiredSvcHash {
+				if status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING {
+					serviceUpgrading[svc]++
+				}
+			}
+		}
+	}
+
+	var summaries []*clustercontrollerpb.ServiceSummary
+	for svc, ver := range desiredCanon {
+		total := int32(serviceCounts[svc])
+		at := int32(serviceAtDesired[svc])
+		up := int32(serviceUpgrading[svc])
+		summaries = append(summaries, &clustercontrollerpb.ServiceSummary{
+			ServiceName:    svc,
+			DesiredVersion: ver,
+			NodesAtDesired: at,
+			NodesTotal:     total,
+			Upgrading:      up,
+		})
+	}
+
+	return &clustercontrollerpb.GetClusterHealthV1Response{
+		Nodes:    nodeHealths,
+		Services: summaries,
+	}, nil
+}
+
 func (srv *server) SetDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.SetDesiredServiceVersionV1Request) (*clustercontrollerpb.SetDesiredServiceVersionV1Response, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" || strings.TrimSpace(req.GetVersion()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "service_name and version are required")
 	}
 	if srv.kv == nil {
 		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
 	}
-	svc := strings.TrimSpace(req.GetServiceName())
+	svc := canonicalServiceName(req.GetServiceName())
 	ver := strings.TrimSpace(req.GetVersion())
 	desired, err := srv.ensureDesiredState(ctx)
 	if err != nil {
@@ -1110,13 +1287,19 @@ func (srv *server) SetDesiredServiceVersionV1(ctx context.Context, req *clusterc
 }
 
 func (srv *server) ClearDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.ClearDesiredServiceVersionV1Request) (*clustercontrollerpb.ClearDesiredServiceVersionV1Response, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
 	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" {
 		return nil, status.Error(codes.InvalidArgument, "service_name is required")
 	}
 	if srv.kv == nil {
 		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
 	}
-	svc := strings.TrimSpace(req.GetServiceName())
+	svc := canonicalServiceName(req.GetServiceName())
+	if svc == "" {
+		return nil, status.Error(codes.InvalidArgument, "service_name is invalid")
+	}
 	desired, err := srv.ensureDesiredState(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
@@ -1146,6 +1329,9 @@ func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duratio
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !srv.isLeader() {
+					continue
+				}
 				srv.reconcileNodes(ctx)
 			}
 		}
@@ -1161,6 +1347,9 @@ func (srv *server) startAgentCleanupLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !srv.isLeader() {
+					continue
+				}
 				srv.cleanupAgentClients()
 			}
 		}
@@ -1176,6 +1365,9 @@ func (srv *server) startOperationCleanupLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !srv.isLeader() {
+					continue
+				}
 				srv.cleanupTimedOutOperations()
 			}
 		}
@@ -1192,10 +1384,37 @@ func (srv *server) startHealthMonitorLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !srv.isLeader() {
+					continue
+				}
 				srv.monitorNodeHealth(ctx)
 			}
 		}
 	})
+}
+
+func (srv *server) isLeader() bool {
+	return srv.leader.Load()
+}
+
+func (srv *server) setLeader(isLeader bool, id, addr string) {
+	srv.leader.Store(isLeader)
+	srv.leaderID.Store(id)
+	srv.leaderAddr.Store(addr)
+}
+
+func (srv *server) requireLeader(ctx context.Context) error {
+	if srv.isLeader() {
+		return nil
+	}
+	addr, _ := srv.leaderAddr.Load().(string)
+	if addr == "" && srv.kv != nil {
+		if resp, err := srv.kv.Get(ctx, leaderElectionPrefix+"/addr"); err == nil && resp != nil && len(resp.Kvs) > 0 {
+			addr = string(resp.Kvs[0].Value)
+			srv.leaderAddr.Store(addr)
+		}
+	}
+	return status.Errorf(codes.FailedPrecondition, "not leader (leader_addr=%s)", addr)
 }
 
 // monitorNodeHealth checks all nodes and attempts recovery for unhealthy ones.
@@ -1452,17 +1671,62 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 
 		// Services reconciliation
-		filtered := filterVersionsForNode(desired.GetServiceVersions(), node)
-		if len(filtered) == 0 {
-			continue
+		desiredCanon := make(map[string]string)
+		for svc, ver := range desired.GetServiceVersions() {
+			canon := canonicalServiceName(svc)
+			if canon == "" {
+				continue
+			}
+			desiredCanon[canon] = ver
 		}
-		svcHash := hashDesiredServiceVersions(filtered)
+		filtered, toRemove := computeServiceDelta(desiredCanon, node.Units)
+		svcHash := stableServiceDesiredHash(filtered)
+		if srv.enableServiceRemoval && len(toRemove) > 0 {
+			sort.Strings(toRemove)
+			remSvc := toRemove[0]
+			if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) && planHash == svcHash {
+				continue
+			}
+			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash {
+				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
+					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+				continue
+			}
+			rmPlan := BuildServiceRemovePlan(node.NodeID, remSvc, svcHash)
+			rmPlan.PlanId = uuid.NewString()
+			rmPlan.ClusterId = srv.state.ClusterId
+			rmPlan.NodeId = node.NodeID
+			rmPlan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
+			rmPlan.DesiredHash = svcHash
+			if rmPlan.GetCreatedUnixMs() == 0 {
+				rmPlan.CreatedUnixMs = uint64(now.UnixMilli())
+			}
+			rmPlan.IssuedBy = "cluster-controller"
+			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, rmPlan); err == nil {
+				if appendable, ok := srv.planStore.(interface {
+					AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
+				}); ok {
+					_ = appendable.AppendHistory(ctx, node.NodeID, rmPlan)
+				}
+				log.Printf("reconcile: wrote service removal plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, remSvc, rmPlan.GetPlanId(), rmPlan.GetGeneration())
+				continue
+			}
+		}
 		if svcHash == "" {
 			continue
 		}
 		appliedSvcHash, err := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
 		if err != nil {
 			log.Printf("reconcile: read applied service hash for %s: %v", node.NodeID, err)
+			continue
+		}
+		if len(filtered) == 0 {
+			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
+					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+			}
 			continue
 		}
 		if svcHash == appliedSvcHash {
@@ -1502,7 +1766,37 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		sort.Strings(svcNames)
 		svcName := svcNames[0]
 		version := filtered[svcName]
-		plan := BuildServiceUpgradePlan(node.NodeID, svcName, version, svcHash)
+		if blockUntil, ok := srv.serviceBlock[svcName]; ok && now.Before(blockUntil) {
+			continue
+		}
+		op := operator.Get(canonicalServiceName(svcName))
+		decision, err := op.AdmitPlan(ctx, operator.AdmitRequest{
+			Service:        canonicalServiceName(svcName),
+			NodeID:         node.NodeID,
+			DesiredVersion: version,
+			DesiredHash:    svcHash,
+		})
+		if err != nil {
+			log.Printf("reconcile: operator admit %s on %s failed: %v", svcName, node.NodeID, err)
+			continue
+		}
+		if !decision.Allowed {
+			if decision.RequeueAfterSeconds > 0 {
+				srv.serviceBlock[svcName] = now.Add(time.Duration(decision.RequeueAfterSeconds) * time.Second)
+			}
+			continue
+		}
+		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, svcHash)
+		if plan != nil {
+			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desired.GetNetwork().GetDomain(), DesiredProtocol: desired.GetNetwork().GetProtocol(), ClusterID: srv.state.ClusterId})
+			if err != nil {
+				log.Printf("reconcile: operator mutate %s on %s failed: %v", svcName, node.NodeID, err)
+				continue
+			}
+			if mutated != nil {
+				plan = mutated
+			}
+		}
 		plan.PlanId = uuid.NewString()
 		plan.ClusterId = srv.state.ClusterId
 		plan.NodeId = node.NodeID

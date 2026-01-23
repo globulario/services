@@ -15,7 +15,9 @@ func newTestServer(t *testing.T, state *controllerState) *server {
 	t.Helper()
 	tmpDir := t.TempDir()
 	statePath := filepath.Join(tmpDir, "state.json")
-	return newServer(defaultClusterControllerConfig(), "", statePath, state, nil)
+	srv := newServer(defaultClusterControllerConfig(), "", statePath, state, nil)
+	srv.setLeader(true, "test", "127.0.0.1:1234")
+	return srv
 }
 
 func TestRestartUnitsForSpecChanges(t *testing.T) {
@@ -62,6 +64,7 @@ func containsUnit(units []string, target string) bool {
 
 func TestCompleteOperationMarksDone(t *testing.T) {
 	srv := newServer(defaultClusterControllerConfig(), "", "", nil, nil)
+	srv.setLeader(true, "test", "127.0.0.1:1234")
 	opID := "op-complete"
 	nodeID := "node-1"
 	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "running", 10, false, ""))
@@ -89,6 +92,7 @@ func TestCompleteOperationMarksDone(t *testing.T) {
 
 func TestCleanupTimedOutOperationsFails(t *testing.T) {
 	srv := newServer(defaultClusterControllerConfig(), "", "", nil, nil)
+	srv.setLeader(true, "test", "127.0.0.1:1234")
 	opID := "op-timeout"
 	srv.operations[opID] = &operationState{
 		created: time.Now().Add(-(operationTimeout + time.Minute)),
@@ -136,6 +140,7 @@ func TestRemoveNodeSuccess(t *testing.T) {
 		Status:   "healthy",
 	}
 	srv := newTestServer(t, state)
+	srv.setLeader(true, "test", "127.0.0.1:1234")
 
 	resp, err := srv.RemoveNode(context.Background(), &clustercontrollerpb.RemoveNodeRequest{
 		NodeId: "node-1",

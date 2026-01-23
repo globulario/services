@@ -386,7 +386,8 @@ reason: jspb.Message.getFieldWithDefault(msg, 10, ""),
 locksList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
 policy: (f = msg.getPolicy()) && proto.globular.plan.v1.PlanPolicy.toObject(includeInstance, f),
 spec: (f = msg.getSpec()) && proto.globular.plan.v1.PlanSpec.toObject(includeInstance, f),
-signature: (f = msg.getSignature()) && proto.globular.plan.v1.PlanSignature.toObject(includeInstance, f)
+signature: (f = msg.getSignature()) && proto.globular.plan.v1.PlanSignature.toObject(includeInstance, f),
+desiredHash: jspb.Message.getFieldWithDefault(msg, 15, "")
   };
 
   if (includeInstance) {
@@ -481,6 +482,10 @@ proto.globular.plan.v1.NodePlan.deserializeBinaryFromReader = function(msg, read
       var value = new proto.globular.plan.v1.PlanSignature;
       reader.readMessage(value,proto.globular.plan.v1.PlanSignature.deserializeBinaryFromReader);
       msg.setSignature(value);
+      break;
+    case 15:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDesiredHash(value);
       break;
     default:
       reader.skipField();
@@ -610,6 +615,13 @@ proto.globular.plan.v1.NodePlan.serializeBinaryToWriter = function(message, writ
       14,
       f,
       proto.globular.plan.v1.PlanSignature.serializeBinaryToWriter
+    );
+  }
+  f = message.getDesiredHash();
+  if (f.length > 0) {
+    writer.writeString(
+      15,
+      f
     );
   }
 };
@@ -940,6 +952,24 @@ proto.globular.plan.v1.NodePlan.prototype.clearSignature = function() {
  */
 proto.globular.plan.v1.NodePlan.prototype.hasSignature = function() {
   return jspb.Message.getField(this, 14) != null;
+};
+
+
+/**
+ * optional string desired_hash = 15;
+ * @return {string}
+ */
+proto.globular.plan.v1.NodePlan.prototype.getDesiredHash = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 15, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.globular.plan.v1.NodePlan} returns this
+ */
+proto.globular.plan.v1.NodePlan.prototype.setDesiredHash = function(value) {
+  return jspb.Message.setProto3StringField(this, 15, value);
 };
 
 

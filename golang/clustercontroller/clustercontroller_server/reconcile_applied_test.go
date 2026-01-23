@@ -150,12 +150,12 @@ func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
 	desired := &clustercontrollerpb.DesiredState{
 		Generation: 1,
 		Network:    desiredNetworkForTests(),
 		ServiceVersions: map[string]string{
-			"gateway": "1.2.3",
+			"globular-gateway.service": "1.2.3",
 		},
 	}
 	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
@@ -170,7 +170,7 @@ func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
 	if plan == nil {
 		t.Fatalf("expected service plan emitted")
 	}
-	svcHash := hashDesiredServiceVersions(map[string]string{"gateway": "1.2.3"})
+	svcHash := stableServiceDesiredHash(map[string]string{"gateway": "1.2.3"})
 	if plan.GetDesiredHash() != svcHash {
 		t.Fatalf("plan desired_hash mismatch: got %s want %s", plan.GetDesiredHash(), svcHash)
 	}
@@ -194,12 +194,12 @@ func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
 	desired := &clustercontrollerpb.DesiredState{
 		Generation: 1,
 		Network:    desiredNetworkForTests(),
 		ServiceVersions: map[string]string{
-			"gateway": "1.2.3",
+			"globular-gateway.service": "1.2.3",
 		},
 	}
 	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
@@ -210,7 +210,7 @@ func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
 	}
 	srv.reconcileNodes(context.Background())
 	firstPlan := ps.lastPlan
-	svcHash := hashDesiredServiceVersions(map[string]string{"gateway": "1.2.3"})
+	svcHash := stableServiceDesiredHash(map[string]string{"gateway": "1.2.3"})
 	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
 		PlanId:     firstPlan.GetPlanId(),
 		NodeId:     "n1",
@@ -230,12 +230,12 @@ func TestServiceReconcileReemitsAfterFailure(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
 	srv := newTestServerWithNode(kv, ps)
-	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}
 	desired := &clustercontrollerpb.DesiredState{
 		Generation: 1,
 		Network:    desiredNetworkForTests(),
 		ServiceVersions: map[string]string{
-			"gateway": "1.2.3",
+			"globular-gateway.service": "1.2.3",
 		},
 	}
 	if err := srv.saveDesiredState(context.Background(), desired); err != nil {

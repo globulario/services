@@ -137,17 +137,15 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		svcName = "globular"
 	}
 	platform := "linux_amd64"
-	unit := svcName
-	if !strings.HasSuffix(strings.ToLower(unit), ".service") {
-		unit = fmt.Sprintf("%s.service", svcName)
-	}
+	svcCanonical := canonicalServiceName(svcName)
+	unit := serviceUnitForCanonical(svcCanonical)
 	marker := versionutil.MarkerPath(svcName)
 	return &planpb.NodePlan{
 		ApiVersion:  "globular.io/plan/v1",
 		Kind:        "NodePlan",
 		NodeId:      nodeID,
 		Reason:      "service_upgrade",
-		Locks:       []string{fmt.Sprintf("service:%s", svcName)},
+		Locks:       []string{fmt.Sprintf("service:%s", svcCanonical)},
 		DesiredHash: desiredHash,
 		Policy: &planpb.PlanPolicy{
 			MaxRetries:     3,
@@ -206,6 +204,34 @@ func serviceProbeForUnit(unit string) *planpb.Probe {
 		return &planpb.Probe{Type: "probe.http", Args: structpbFromMap(map[string]interface{}{"url": "http://127.0.0.1:9901/ready"})}
 	default:
 		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
+	}
+}
+
+// BuildServiceRemovePlan creates a removal plan that stops and disables the service unit.
+func BuildServiceRemovePlan(nodeID string, svcCanonical string, desiredHash string) *planpb.NodePlan {
+	unit := serviceUnitForCanonical(svcCanonical)
+	return &planpb.NodePlan{
+		ApiVersion:  "globular.io/plan/v1",
+		Kind:        "NodePlan",
+		NodeId:      nodeID,
+		Reason:      "service_remove",
+		Locks:       []string{fmt.Sprintf("service:%s", svcCanonical)},
+		DesiredHash: desiredHash,
+		Policy: &planpb.PlanPolicy{
+			MaxRetries:     3,
+			RetryBackoffMs: 2000,
+			FailureMode:    planpb.FailureMode_FAILURE_MODE_ROLLBACK,
+		},
+		Spec: &planpb.PlanSpec{
+			Steps: []*planpb.PlanStep{
+				planStep("service.stop", map[string]interface{}{"unit": unit}),
+				planStep("service.disable", map[string]interface{}{"unit": unit}),
+			},
+			Desired: &planpb.DesiredState{Services: []*planpb.DesiredService{}},
+			SuccessProbes: []*planpb.Probe{
+				{Type: "probe.exec", Args: structpbFromMap(map[string]interface{}{"cmd": fmt.Sprintf("! systemctl is-active --quiet %s", unit)})},
+			},
+		},
 	}
 }
 

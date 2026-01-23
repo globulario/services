@@ -15,6 +15,7 @@ import (
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
 	planstore "github.com/globulario/services/golang/plan/store"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )
@@ -38,11 +39,18 @@ func main() {
 		log.Fatalf("failed to load state %s: %v", *statePath, err)
 	}
 
-	var planStore planstore.PlanStore
-	if etcdClient, err := config.GetEtcdClient(); err == nil {
-		planStore = planstore.NewEtcdPlanStore(etcdClient)
+	var (
+		planStore  planstore.PlanStore
+		etcdClient *clientv3.Client
+	)
+	if c, err := config.GetEtcdClient(); err == nil {
+		etcdClient = c
+		planStore = planstore.NewEtcdPlanStore(c)
 	} else {
 		log.Printf("plan store unavailable: %v", err)
+	}
+	if etcdClient != nil {
+		defer etcdClient.Close()
 	}
 
 	address := fmt.Sprintf(":%d", cfg.Port)
@@ -69,6 +77,12 @@ func main() {
 	)
 	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
 	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	leaderAddr := resolveLeaderAddr(address)
+	bootstrapLeadership(ctx, srv, etcdClient, leaderAddr)
 
 	go func() {
 		mux := http.NewServeMux()

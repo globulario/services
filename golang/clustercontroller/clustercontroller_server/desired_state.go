@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -177,7 +178,11 @@ func (srv *server) getNodeAppliedServiceHash(ctx context.Context, nodeID string)
 	if len(resp.Kvs) == 0 {
 		return "", nil
 	}
-	return string(resp.Kvs[0].Value), nil
+	val := string(resp.Kvs[0].Value)
+	if val != "" && !strings.HasPrefix(val, "services:") {
+		return "services:" + val, nil
+	}
+	return val, nil
 }
 
 func (srv *server) putNodeAppliedServiceHash(ctx context.Context, nodeID, hash string) error {

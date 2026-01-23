@@ -330,6 +330,7 @@ service ClusterControllerService {
 
   rpc SetDesiredNetworkV1(SetDesiredNetworkV1Request) returns (SetDesiredNetworkV1Response);
   rpc GetDesiredStateV1(GetDesiredStateV1Request) returns (GetDesiredStateV1Response);
+  rpc GetClusterHealthV1(GetClusterHealthV1Request) returns (GetClusterHealthV1Response);
 }
 
 message DesiredNetwork {
@@ -368,4 +369,33 @@ message ClearDesiredServiceVersionV1Request {
 }
 message ClearDesiredServiceVersionV1Response {
   DesiredState desired = 1;
+}
+
+message GetClusterHealthV1Request {
+  string cluster_id = 1;
+}
+
+message NodeHealth {
+  string node_id = 1;
+  string desired_network_hash = 2;
+  string applied_network_hash = 3;
+  string desired_services_hash = 4;
+  string applied_services_hash = 5;
+  string current_plan_id = 6;
+  uint64 current_plan_generation = 7;
+  string current_plan_phase = 8;
+  string last_error = 9;
+}
+
+message ServiceSummary {
+  string service_name = 1;
+  string desired_version = 2;
+  int32 nodes_at_desired = 3;
+  int32 nodes_total = 4;
+  int32 upgrading = 5;
+}
+
+message GetClusterHealthV1Response {
+  repeated NodeHealth nodes = 1;
+  repeated ServiceSummary services = 2;
 }

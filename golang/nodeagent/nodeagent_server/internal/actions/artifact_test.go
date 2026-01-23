@@ -48,10 +48,12 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 	binDir := filepath.Join(t.TempDir(), "bin")
 	systemdDir := filepath.Join(t.TempDir(), "systemd")
 	configDir := filepath.Join(t.TempDir(), "config")
+	stagingRoot := t.TempDir()
 	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
 	t.Setenv("GLOBULAR_INSTALL_SYSTEMD_DIR", systemdDir)
 	t.Setenv("GLOBULAR_INSTALL_CONFIG_DIR", configDir)
 	t.Setenv("GLOBULAR_SKIP_SYSTEMD", "1")
+	t.Setenv("GLOBULAR_STAGING_ROOT", stagingRoot)
 
 	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
 	createTestArchive(t, artifactPath)
