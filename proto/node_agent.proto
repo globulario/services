@@ -6,6 +6,7 @@ option go_package = "github.com/globulario/services/golang/nodeagent/nodeagentpb
 
 import "google/protobuf/timestamp.proto";
 import "clustercontroller.proto";
+import "plan.proto";
 
 message JoinClusterRequest {
   string controller_endpoint = 1;
@@ -48,6 +49,27 @@ message ApplyPlanResponse {
   string operation_id = 1;
 }
 
+message ApplyPlanV1Request {
+  globular.plan.v1.NodePlan plan = 1;
+  string operation_id = 2; // optional; server will generate if empty
+}
+message ApplyPlanV1Response {
+  string operation_id = 1; // always non-empty; returned even if client omitted
+  string plan_id = 2;
+  uint64 plan_generation = 3;
+}
+
+message GetPlanStatusV1Request {
+  string node_id = 1; // optional: defaults to the node-agent's node id
+}
+message GetPlanStatusV1Response {
+  globular.plan.v1.NodePlanStatus status = 1;
+}
+
+message WatchPlanStatusV1Request {
+  string node_id = 1; // optional: defaults to the node-agent's node id
+}
+
 message WatchOperationRequest { string operation_id = 1; }
 
 message OperationEvent {
@@ -75,6 +97,9 @@ service NodeAgentService {
   rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
   rpc GetInventory(GetInventoryRequest) returns (GetInventoryResponse);
   rpc ApplyPlan(ApplyPlanRequest) returns (ApplyPlanResponse);
+  rpc ApplyPlanV1(ApplyPlanV1Request) returns (ApplyPlanV1Response);
+  rpc GetPlanStatusV1(GetPlanStatusV1Request) returns (GetPlanStatusV1Response);
+  rpc WatchPlanStatusV1(WatchPlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
   rpc WatchOperation(WatchOperationRequest) returns (stream OperationEvent);
   rpc BootstrapFirstNode(BootstrapFirstNodeRequest) returns (BootstrapFirstNodeResponse);
 }

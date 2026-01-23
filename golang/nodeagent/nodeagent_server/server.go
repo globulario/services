@@ -25,6 +25,7 @@ import (
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/apply"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/certs"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/planexec"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/planner"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/supervisor"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/units"
@@ -143,6 +144,15 @@ func (g *planLockGuard) keepAliveLoop(ch <-chan *clientv3.LeaseKeepAliveResponse
 
 func planLockKey(nodeID, lock string) string {
 	return fmt.Sprintf("%s/%s/%s", store.PlanLockBaseKey, nodeID, lock)
+}
+
+func isTerminalState(state planpb.PlanState) bool {
+	switch state {
+	case planpb.PlanState_PLAN_SUCCEEDED, planpb.PlanState_PLAN_FAILED, planpb.PlanState_PLAN_ROLLED_BACK, planpb.PlanState_PLAN_EXPIRED:
+		return true
+	default:
+		return false
+	}
 }
 
 func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServer {
@@ -319,13 +329,14 @@ func (srv *NodeAgentServer) pollPlan(ctx context.Context) {
 		log.Printf("unable to read current plan: %v", err)
 		return
 	}
+	status, _ := srv.planStore.GetStatus(pollCtx, srv.nodeID)
 	if plan == nil {
 		return
 	}
 	if plan.GetNodeId() != "" && plan.GetNodeId() != srv.nodeID {
 		return
 	}
-	if plan.GetGeneration() <= srv.lastPlanGeneration {
+	if status != nil && status.GetGeneration() == plan.GetGeneration() && isTerminalState(status.GetState()) {
 		return
 	}
 	now := time.Now().UnixMilli()
@@ -333,7 +344,7 @@ func (srv *NodeAgentServer) pollPlan(ctx context.Context) {
 		srv.markPlanExpired(pollCtx, plan)
 		return
 	}
-	srv.runStoredPlan(ctx, plan)
+	srv.runStoredPlan(ctx, plan, status)
 }
 
 func (srv *NodeAgentServer) acquirePlanLocks(ctx context.Context, plan *planpb.NodePlan) (*planLockGuard, error) {
@@ -405,7 +416,7 @@ func (srv *NodeAgentServer) markPlanExpired(ctx context.Context, plan *planpb.No
 	srv.publishPlanStatus(ctx, status)
 }
 
-func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.NodePlan) {
+func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.NodePlan, status *planpb.NodePlanStatus) {
 	if plan == nil {
 		return
 	}
@@ -418,11 +429,11 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 		}
 		op := srv.registerOperationWithID("plan-runner", opID, nil)
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 0, true, msg))
-		status := srv.newPlanStatus(plan)
-		status.State = planpb.PlanState_PLAN_FAILED
-		status.ErrorMessage = msg
-		srv.addPlanEvent(status, "error", msg, "")
-		srv.publishPlanStatus(ctx, status)
+		st := srv.newPlanStatus(plan)
+		st.State = planpb.PlanState_PLAN_PENDING
+		st.ErrorMessage = msg
+		srv.addPlanEvent(st, "error", msg, "")
+		srv.publishPlanStatus(ctx, st)
 		return
 	}
 	defer guard.release(ctx)
@@ -434,66 +445,20 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_QUEUED, "plan queued", 0, false, ""))
 	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, "plan running", 5, false, ""))
 
-	status := srv.newPlanStatus(plan)
-	status.State = planpb.PlanState_PLAN_RUNNING
-	status.StartedUnixMs = uint64(time.Now().UnixMilli())
-	srv.publishPlanStatus(ctx, status)
-
-	var steps []*planpb.PlanStep
-	if spec := plan.GetSpec(); spec != nil {
-		steps = spec.GetSteps()
+	runner := planexec.NewRunner(srv.nodeID, srv.publishPlanStatus)
+	updated, recErr := runner.ReconcilePlan(ctx, plan, status)
+	if recErr != nil {
+		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, recErr.Error(), 90, true, recErr.Error()))
+		return
 	}
-	total := len(steps)
-	for idx, step := range steps {
-		stepStatus := &planpb.StepStatus{
-			Id:            step.GetId(),
-			State:         planpb.StepState_STEP_RUNNING,
-			Attempt:       1,
-			StartedUnixMs: uint64(time.Now().UnixMilli()),
+	if updated != nil && isTerminalState(updated.GetState()) {
+		srv.lastPlanGeneration = plan.GetGeneration()
+		srv.state.LastPlanGeneration = plan.GetGeneration()
+		if err := srv.state.save(srv.statePath); err != nil {
+			log.Printf("save state: %v", err)
 		}
-		status.Steps = append(status.Steps, stepStatus)
-		status.CurrentStepId = step.GetId()
-		srv.addPlanEvent(status, "info", fmt.Sprintf("step %s running", step.GetId()), step.GetId())
-		srv.publishPlanStatus(ctx, status)
-
-		percent := percentForStep(idx, total)
-		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_RUNNING, fmt.Sprintf("step %s running", step.GetId()), percent, false, ""))
-
-		if err := srv.executePlanStep(ctx, step); err != nil {
-			stepStatus.State = planpb.StepState_STEP_FAILED
-			stepStatus.FinishedUnixMs = uint64(time.Now().UnixMilli())
-			status.State = planpb.PlanState_PLAN_FAILED
-			status.ErrorMessage = err.Error()
-			status.ErrorStepId = step.GetId()
-			status.FinishedUnixMs = uint64(time.Now().UnixMilli())
-			srv.addPlanEvent(status, "error", fmt.Sprintf("step %s failed: %v", step.GetId(), err), step.GetId())
-			srv.publishPlanStatus(ctx, status)
-			op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, err.Error(), percent, true, err.Error()))
-			if plan.GetPolicy().GetFailureMode() == planpb.FailureMode_FAILURE_MODE_ROLLBACK {
-				if rbErr := srv.performRollback(ctx, plan, status, op); rbErr != nil {
-					log.Printf("rollback failed: %v", rbErr)
-				}
-			}
-			return
-		}
-
-		stepStatus.State = planpb.StepState_STEP_OK
-		stepStatus.FinishedUnixMs = uint64(time.Now().UnixMilli())
-		srv.addPlanEvent(status, "info", fmt.Sprintf("step %s succeeded", step.GetId()), step.GetId())
-		srv.publishPlanStatus(ctx, status)
 	}
-
-	status.State = planpb.PlanState_PLAN_SUCCEEDED
-	status.FinishedUnixMs = uint64(time.Now().UnixMilli())
-	status.CurrentStepId = ""
-	srv.addPlanEvent(status, "info", "plan succeeded", "")
-	srv.publishPlanStatus(ctx, status)
-	srv.lastPlanGeneration = plan.GetGeneration()
-	srv.state.LastPlanGeneration = plan.GetGeneration()
-	if err := srv.state.save(srv.statePath); err != nil {
-		log.Printf("save state: %v", err)
-	}
-	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan succeeded", 100, true, ""))
+	op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_SUCCEEDED, "plan reconciled", 100, true, ""))
 }
 
 func (srv *NodeAgentServer) performRollback(ctx context.Context, plan *planpb.NodePlan, status *planpb.NodePlanStatus, op *operation) error {
@@ -791,6 +756,120 @@ func (srv *NodeAgentServer) ApplyPlan(ctx context.Context, req *nodeagentpb.Appl
 	op := srv.registerOperationWithID("apply plan", opID, req.GetPlan().GetProfiles())
 	go srv.runPlan(ctx, op, req.GetPlan())
 	return &nodeagentpb.ApplyPlanResponse{OperationId: op.id}, nil
+}
+
+func (srv *NodeAgentServer) ApplyPlanV1(ctx context.Context, req *nodeagentpb.ApplyPlanV1Request) (*nodeagentpb.ApplyPlanV1Response, error) {
+	if req == nil || req.GetPlan() == nil {
+		return nil, status.Error(codes.InvalidArgument, "plan is required")
+	}
+	if srv.planStore == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plan store unavailable")
+	}
+	plan := proto.Clone(req.GetPlan()).(*planpb.NodePlan)
+	if plan.GetNodeId() == "" {
+		plan.NodeId = srv.nodeID
+	}
+	if srv.nodeID != "" && plan.GetNodeId() != "" && plan.GetNodeId() != srv.nodeID {
+		return nil, status.Error(codes.InvalidArgument, "plan node_id does not match this agent")
+	}
+	planID := strings.TrimSpace(plan.GetPlanId())
+	if planID == "" {
+		planID = uuid.NewString()
+		plan.PlanId = planID
+	}
+	opID := strings.TrimSpace(req.GetOperationId())
+	if opID == "" {
+		opID = planID
+	}
+	generation := plan.GetGeneration()
+	if generation == 0 {
+		generation = srv.lastPlanGeneration + 1
+		if statusValue, err := srv.planStore.GetStatus(ctx, srv.nodeID); err == nil && statusValue != nil && statusValue.GetGeneration() >= generation {
+			generation = statusValue.GetGeneration() + 1
+		}
+		if currentPlan, err := srv.planStore.GetCurrentPlan(ctx, srv.nodeID); err == nil && currentPlan != nil && currentPlan.GetGeneration() >= generation {
+			generation = currentPlan.GetGeneration() + 1
+		}
+		plan.Generation = generation
+	}
+	if plan.GetCreatedUnixMs() == 0 {
+		plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
+	}
+	if err := srv.planStore.PutCurrentPlan(ctx, srv.nodeID, plan); err != nil {
+		return nil, status.Errorf(codes.Internal, "persist plan: %v", err)
+	}
+	log.Printf("nodeagent: ApplyPlanV1 stored plan node=%s plan_id=%s gen=%d op_id=%s", plan.GetNodeId(), planID, plan.GetGeneration(), opID)
+	return &nodeagentpb.ApplyPlanV1Response{
+		OperationId:    opID,
+		PlanId:         planID,
+		PlanGeneration: plan.GetGeneration(),
+	}, nil
+}
+
+func (srv *NodeAgentServer) GetPlanStatusV1(ctx context.Context, req *nodeagentpb.GetPlanStatusV1Request) (*nodeagentpb.GetPlanStatusV1Response, error) {
+	if srv.planStore == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plan store unavailable")
+	}
+	targetNode := srv.nodeID
+	if req != nil && strings.TrimSpace(req.GetNodeId()) != "" {
+		if srv.nodeID != "" && req.GetNodeId() != srv.nodeID {
+			return nil, status.Error(codes.InvalidArgument, "node_id does not match this agent")
+		}
+		targetNode = strings.TrimSpace(req.GetNodeId())
+	}
+	statusMsg, err := srv.planStore.GetStatus(ctx, targetNode)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "fetch plan status: %v", err)
+	}
+	return &nodeagentpb.GetPlanStatusV1Response{Status: statusMsg}, nil
+}
+
+func (srv *NodeAgentServer) WatchPlanStatusV1(req *nodeagentpb.WatchPlanStatusV1Request, stream nodeagentpb.NodeAgentService_WatchPlanStatusV1Server) error {
+	if srv.planStore == nil {
+		return status.Error(codes.FailedPrecondition, "plan store unavailable")
+	}
+	targetNode := srv.nodeID
+	if req != nil && strings.TrimSpace(req.GetNodeId()) != "" {
+		if srv.nodeID != "" && req.GetNodeId() != srv.nodeID {
+			return status.Error(codes.InvalidArgument, "node_id does not match this agent")
+		}
+		targetNode = strings.TrimSpace(req.GetNodeId())
+	}
+	var lastPayload []byte
+	sendStatus := func(ctx context.Context) error {
+		statusMsg, err := srv.planStore.GetStatus(ctx, targetNode)
+		if err != nil {
+			return status.Errorf(codes.Internal, "fetch plan status: %v", err)
+		}
+		if statusMsg == nil {
+			return nil
+		}
+		current, err := proto.Marshal(statusMsg)
+		if err != nil {
+			return status.Errorf(codes.Internal, "encode status: %v", err)
+		}
+		if string(current) == string(lastPayload) {
+			return nil
+		}
+		lastPayload = current
+		return stream.Send(statusMsg)
+	}
+
+	if err := sendStatus(stream.Context()); err != nil {
+		return err
+	}
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case <-ticker.C:
+			if err := sendStatus(stream.Context()); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (srv *NodeAgentServer) runPlan(ctx context.Context, op *operation, plan *clustercontrollerpb.NodePlan) {

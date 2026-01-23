@@ -20,6 +20,7 @@ import (
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
+	"github.com/globulario/services/golang/plan/versionutil"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/google/uuid"
@@ -640,9 +641,57 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrol
 	generation := srv.state.NetworkingGeneration
 	srv.unlock()
 
+	if srv.planStore != nil {
+		go srv.reconcileNetworkPlans(context.Background(), proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec))
+	}
+
 	return &clustercontrollerpb.UpdateClusterNetworkResponse{
 		Generation: generation,
 	}, nil
+}
+
+func (srv *server) reconcileNetworkPlans(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) {
+	if spec == nil || srv.planStore == nil {
+		return
+	}
+	srv.lock("reconcileNetworkPlans:snapshot")
+	clusterID := srv.state.ClusterId
+	nodes := make([]string, 0, len(srv.state.Nodes))
+	for id := range srv.state.Nodes {
+		nodes = append(nodes, id)
+	}
+	srv.unlock()
+
+	desired := ClusterDesiredState{
+		Network:         spec,
+		ServiceVersions: map[string]string{},
+	}
+
+	for _, nodeID := range nodes {
+		plan, err := BuildNetworkTransitionPlan(nodeID, desired, NodeObservedState{})
+		if err != nil {
+			log.Printf("reconcile network plan for node %s failed: %v", nodeID, err)
+			continue
+		}
+		plan.PlanId = uuid.NewString()
+		plan.ClusterId = clusterID
+		plan.NodeId = nodeID
+		plan.Generation = srv.nextPlanGeneration(ctx, nodeID)
+		plan.IssuedBy = "cluster-controller"
+		if plan.GetCreatedUnixMs() == 0 {
+			plan.CreatedUnixMs = uint64(time.Now().UnixMilli())
+		}
+		if err := srv.planStore.PutCurrentPlan(ctx, nodeID, plan); err != nil {
+			log.Printf("persist plan for node %s: %v", nodeID, err)
+			continue
+		}
+		if appendable, ok := srv.planStore.(interface {
+			AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
+		}); ok {
+			_ = appendable.AppendHistory(ctx, nodeID, plan)
+		}
+		log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", nodeID, plan.GetPlanId(), plan.GetGeneration())
+	}
 }
 
 func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.ApplyNodePlanRequest) (*clustercontrollerpb.ApplyNodePlanResponse, error) {
@@ -2013,6 +2062,10 @@ func buildUpgradePlan(planID, nodeID, clusterID string, generation uint64, expir
 			"path": targetPath,
 			"src":  fetchDest,
 		}),
+		planStep("file.write_atomic", map[string]interface{}{
+			"path":    versionutil.MarkerPath(defaultTargetName),
+			"content": ref.GetVersion(),
+		}),
 		planStep("service.start", map[string]interface{}{
 			"unit": "globular.service",
 		}),
@@ -2035,6 +2088,15 @@ func buildUpgradePlan(planID, nodeID, clusterID string, generation uint64, expir
 		DryRun:           false,
 		MaxParallelSteps: 1,
 	}
+	desired := &planpb.DesiredState{
+		Services: []*planpb.DesiredService{
+			{
+				Name:    defaultTargetName,
+				Version: ref.GetVersion(),
+				Unit:    "globular.service",
+			},
+		},
+	}
 	return &planpb.NodePlan{
 		ApiVersion:    "globular.io/plan/v1",
 		Kind:          "NodePlan",
@@ -2051,6 +2113,7 @@ func buildUpgradePlan(planID, nodeID, clusterID string, generation uint64, expir
 		Spec: &planpb.PlanSpec{
 			Steps:    steps,
 			Rollback: rollback,
+			Desired:  desired,
 		},
 	}
 }

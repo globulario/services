@@ -5,6 +5,7 @@ package clustercontroller;
 option go_package = "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb;clustercontrollerpb";
 
 import "google/protobuf/timestamp.proto";
+import "plan.proto";
 
 message ClusterInfo {
   string cluster_id = 1;
@@ -184,6 +185,7 @@ message UnitAction {
   string action = 2;
 }
 
+// Deprecated: use globular.plan.v1.NodePlan with the V1 plan APIs.
 message NodePlan {
   string node_id = 1;
   repeated string profiles = 2;
@@ -214,6 +216,22 @@ message GetNodePlanRequest {
 }
 message GetNodePlanResponse {
   NodePlan plan = 1;
+}
+
+message GetNodePlanV1Request {
+  string node_id = 1;
+}
+message GetNodePlanV1Response {
+  globular.plan.v1.NodePlan plan = 1;
+}
+
+message ReconcileNodeV1Request {
+  string node_id = 1;
+}
+message ReconcileNodeV1Response {}
+
+message WatchNodePlanStatusV1Request {
+  string node_id = 1;
 }
 
 message StartApplyRequest {
@@ -298,6 +316,9 @@ service ClusterControllerService {
   rpc RemoveNode(RemoveNodeRequest) returns (RemoveNodeResponse);
   rpc GetClusterHealth(GetClusterHealthRequest) returns (GetClusterHealthResponse);
   rpc GetNodePlan(GetNodePlanRequest) returns (GetNodePlanResponse);
+  rpc GetNodePlanV1(GetNodePlanV1Request) returns (GetNodePlanV1Response);
+  rpc ReconcileNodeV1(ReconcileNodeV1Request) returns (ReconcileNodeV1Response);
+  rpc WatchNodePlanStatusV1(WatchNodePlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
   rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse);
   rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse);
   rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);

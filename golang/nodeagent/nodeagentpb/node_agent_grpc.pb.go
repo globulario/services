@@ -8,6 +8,7 @@ package nodeagentpb
 
 import (
 	context "context"
+	planpb "github.com/globulario/services/golang/plan/planpb"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -22,6 +23,9 @@ const (
 	NodeAgentService_JoinCluster_FullMethodName        = "/nodeagent.NodeAgentService/JoinCluster"
 	NodeAgentService_GetInventory_FullMethodName       = "/nodeagent.NodeAgentService/GetInventory"
 	NodeAgentService_ApplyPlan_FullMethodName          = "/nodeagent.NodeAgentService/ApplyPlan"
+	NodeAgentService_ApplyPlanV1_FullMethodName        = "/nodeagent.NodeAgentService/ApplyPlanV1"
+	NodeAgentService_GetPlanStatusV1_FullMethodName    = "/nodeagent.NodeAgentService/GetPlanStatusV1"
+	NodeAgentService_WatchPlanStatusV1_FullMethodName  = "/nodeagent.NodeAgentService/WatchPlanStatusV1"
 	NodeAgentService_WatchOperation_FullMethodName     = "/nodeagent.NodeAgentService/WatchOperation"
 	NodeAgentService_BootstrapFirstNode_FullMethodName = "/nodeagent.NodeAgentService/BootstrapFirstNode"
 )
@@ -33,6 +37,9 @@ type NodeAgentServiceClient interface {
 	JoinCluster(ctx context.Context, in *JoinClusterRequest, opts ...grpc.CallOption) (*JoinClusterResponse, error)
 	GetInventory(ctx context.Context, in *GetInventoryRequest, opts ...grpc.CallOption) (*GetInventoryResponse, error)
 	ApplyPlan(ctx context.Context, in *ApplyPlanRequest, opts ...grpc.CallOption) (*ApplyPlanResponse, error)
+	ApplyPlanV1(ctx context.Context, in *ApplyPlanV1Request, opts ...grpc.CallOption) (*ApplyPlanV1Response, error)
+	GetPlanStatusV1(ctx context.Context, in *GetPlanStatusV1Request, opts ...grpc.CallOption) (*GetPlanStatusV1Response, error)
+	WatchPlanStatusV1(ctx context.Context, in *WatchPlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error)
 	WatchOperation(ctx context.Context, in *WatchOperationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
 	BootstrapFirstNode(ctx context.Context, in *BootstrapFirstNodeRequest, opts ...grpc.CallOption) (*BootstrapFirstNodeResponse, error)
 }
@@ -75,9 +82,48 @@ func (c *nodeAgentServiceClient) ApplyPlan(ctx context.Context, in *ApplyPlanReq
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) ApplyPlanV1(ctx context.Context, in *ApplyPlanV1Request, opts ...grpc.CallOption) (*ApplyPlanV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyPlanV1Response)
+	err := c.cc.Invoke(ctx, NodeAgentService_ApplyPlanV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) GetPlanStatusV1(ctx context.Context, in *GetPlanStatusV1Request, opts ...grpc.CallOption) (*GetPlanStatusV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPlanStatusV1Response)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetPlanStatusV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAgentServiceClient) WatchPlanStatusV1(ctx context.Context, in *WatchPlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeAgentService_ServiceDesc.Streams[0], NodeAgentService_WatchPlanStatusV1_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchPlanStatusV1Request, planpb.NodePlanStatus]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NodeAgentService_WatchPlanStatusV1Client = grpc.ServerStreamingClient[planpb.NodePlanStatus]
+
 func (c *nodeAgentServiceClient) WatchOperation(ctx context.Context, in *WatchOperationRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &NodeAgentService_ServiceDesc.Streams[0], NodeAgentService_WatchOperation_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &NodeAgentService_ServiceDesc.Streams[1], NodeAgentService_WatchOperation_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +157,9 @@ type NodeAgentServiceServer interface {
 	JoinCluster(context.Context, *JoinClusterRequest) (*JoinClusterResponse, error)
 	GetInventory(context.Context, *GetInventoryRequest) (*GetInventoryResponse, error)
 	ApplyPlan(context.Context, *ApplyPlanRequest) (*ApplyPlanResponse, error)
+	ApplyPlanV1(context.Context, *ApplyPlanV1Request) (*ApplyPlanV1Response, error)
+	GetPlanStatusV1(context.Context, *GetPlanStatusV1Request) (*GetPlanStatusV1Response, error)
+	WatchPlanStatusV1(*WatchPlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error
 	WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	BootstrapFirstNode(context.Context, *BootstrapFirstNodeRequest) (*BootstrapFirstNodeResponse, error)
 }
@@ -130,6 +179,15 @@ func (UnimplementedNodeAgentServiceServer) GetInventory(context.Context, *GetInv
 }
 func (UnimplementedNodeAgentServiceServer) ApplyPlan(context.Context, *ApplyPlanRequest) (*ApplyPlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyPlan not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) ApplyPlanV1(context.Context, *ApplyPlanV1Request) (*ApplyPlanV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyPlanV1 not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) GetPlanStatusV1(context.Context, *GetPlanStatusV1Request) (*GetPlanStatusV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPlanStatusV1 not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) WatchPlanStatusV1(*WatchPlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error {
+	return status.Error(codes.Unimplemented, "method WatchPlanStatusV1 not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) WatchOperation(*WatchOperationRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchOperation not implemented")
@@ -211,6 +269,53 @@ func _NodeAgentService_ApplyPlan_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_ApplyPlanV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyPlanV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).ApplyPlanV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_ApplyPlanV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).ApplyPlanV1(ctx, req.(*ApplyPlanV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_GetPlanStatusV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlanStatusV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetPlanStatusV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetPlanStatusV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetPlanStatusV1(ctx, req.(*GetPlanStatusV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAgentService_WatchPlanStatusV1_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchPlanStatusV1Request)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NodeAgentServiceServer).WatchPlanStatusV1(m, &grpc.GenericServerStream[WatchPlanStatusV1Request, planpb.NodePlanStatus]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NodeAgentService_WatchPlanStatusV1Server = grpc.ServerStreamingServer[planpb.NodePlanStatus]
+
 func _NodeAgentService_WatchOperation_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchOperationRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -260,11 +365,24 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeAgentService_ApplyPlan_Handler,
 		},
 		{
+			MethodName: "ApplyPlanV1",
+			Handler:    _NodeAgentService_ApplyPlanV1_Handler,
+		},
+		{
+			MethodName: "GetPlanStatusV1",
+			Handler:    _NodeAgentService_GetPlanStatusV1_Handler,
+		},
+		{
 			MethodName: "BootstrapFirstNode",
 			Handler:    _NodeAgentService_BootstrapFirstNode_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchPlanStatusV1",
+			Handler:       _NodeAgentService_WatchPlanStatusV1_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "WatchOperation",
 			Handler:       _NodeAgentService_WatchOperation_Handler,

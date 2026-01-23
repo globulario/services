@@ -8,6 +8,7 @@ package clustercontrollerpb
 
 import (
 	context "context"
+	planpb "github.com/globulario/services/golang/plan/planpb"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -20,24 +21,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ClusterControllerService_GetClusterInfo_FullMethodName       = "/clustercontroller.ClusterControllerService/GetClusterInfo"
-	ClusterControllerService_CreateJoinToken_FullMethodName      = "/clustercontroller.ClusterControllerService/CreateJoinToken"
-	ClusterControllerService_RequestJoin_FullMethodName          = "/clustercontroller.ClusterControllerService/RequestJoin"
-	ClusterControllerService_ListJoinRequests_FullMethodName     = "/clustercontroller.ClusterControllerService/ListJoinRequests"
-	ClusterControllerService_ApproveJoin_FullMethodName          = "/clustercontroller.ClusterControllerService/ApproveJoin"
-	ClusterControllerService_RejectJoin_FullMethodName           = "/clustercontroller.ClusterControllerService/RejectJoin"
-	ClusterControllerService_ListNodes_FullMethodName            = "/clustercontroller.ClusterControllerService/ListNodes"
-	ClusterControllerService_SetNodeProfiles_FullMethodName      = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
-	ClusterControllerService_RemoveNode_FullMethodName           = "/clustercontroller.ClusterControllerService/RemoveNode"
-	ClusterControllerService_GetClusterHealth_FullMethodName     = "/clustercontroller.ClusterControllerService/GetClusterHealth"
-	ClusterControllerService_GetNodePlan_FullMethodName          = "/clustercontroller.ClusterControllerService/GetNodePlan"
-	ClusterControllerService_UpdateClusterNetwork_FullMethodName = "/clustercontroller.ClusterControllerService/UpdateClusterNetwork"
-	ClusterControllerService_ApplyNodePlan_FullMethodName        = "/clustercontroller.ClusterControllerService/ApplyNodePlan"
-	ClusterControllerService_ReportNodeStatus_FullMethodName     = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
-	ClusterControllerService_GetJoinRequestStatus_FullMethodName = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
-	ClusterControllerService_UpgradeGlobular_FullMethodName      = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
-	ClusterControllerService_CompleteOperation_FullMethodName    = "/clustercontroller.ClusterControllerService/CompleteOperation"
-	ClusterControllerService_WatchOperations_FullMethodName      = "/clustercontroller.ClusterControllerService/WatchOperations"
+	ClusterControllerService_GetClusterInfo_FullMethodName        = "/clustercontroller.ClusterControllerService/GetClusterInfo"
+	ClusterControllerService_CreateJoinToken_FullMethodName       = "/clustercontroller.ClusterControllerService/CreateJoinToken"
+	ClusterControllerService_RequestJoin_FullMethodName           = "/clustercontroller.ClusterControllerService/RequestJoin"
+	ClusterControllerService_ListJoinRequests_FullMethodName      = "/clustercontroller.ClusterControllerService/ListJoinRequests"
+	ClusterControllerService_ApproveJoin_FullMethodName           = "/clustercontroller.ClusterControllerService/ApproveJoin"
+	ClusterControllerService_RejectJoin_FullMethodName            = "/clustercontroller.ClusterControllerService/RejectJoin"
+	ClusterControllerService_ListNodes_FullMethodName             = "/clustercontroller.ClusterControllerService/ListNodes"
+	ClusterControllerService_SetNodeProfiles_FullMethodName       = "/clustercontroller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_RemoveNode_FullMethodName            = "/clustercontroller.ClusterControllerService/RemoveNode"
+	ClusterControllerService_GetClusterHealth_FullMethodName      = "/clustercontroller.ClusterControllerService/GetClusterHealth"
+	ClusterControllerService_GetNodePlan_FullMethodName           = "/clustercontroller.ClusterControllerService/GetNodePlan"
+	ClusterControllerService_GetNodePlanV1_FullMethodName         = "/clustercontroller.ClusterControllerService/GetNodePlanV1"
+	ClusterControllerService_ReconcileNodeV1_FullMethodName       = "/clustercontroller.ClusterControllerService/ReconcileNodeV1"
+	ClusterControllerService_WatchNodePlanStatusV1_FullMethodName = "/clustercontroller.ClusterControllerService/WatchNodePlanStatusV1"
+	ClusterControllerService_UpdateClusterNetwork_FullMethodName  = "/clustercontroller.ClusterControllerService/UpdateClusterNetwork"
+	ClusterControllerService_ApplyNodePlan_FullMethodName         = "/clustercontroller.ClusterControllerService/ApplyNodePlan"
+	ClusterControllerService_ReportNodeStatus_FullMethodName      = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
+	ClusterControllerService_GetJoinRequestStatus_FullMethodName  = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
+	ClusterControllerService_UpgradeGlobular_FullMethodName       = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
+	ClusterControllerService_CompleteOperation_FullMethodName     = "/clustercontroller.ClusterControllerService/CompleteOperation"
+	ClusterControllerService_WatchOperations_FullMethodName       = "/clustercontroller.ClusterControllerService/WatchOperations"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -55,6 +59,9 @@ type ClusterControllerServiceClient interface {
 	RemoveNode(ctx context.Context, in *RemoveNodeRequest, opts ...grpc.CallOption) (*RemoveNodeResponse, error)
 	GetClusterHealth(ctx context.Context, in *GetClusterHealthRequest, opts ...grpc.CallOption) (*GetClusterHealthResponse, error)
 	GetNodePlan(ctx context.Context, in *GetNodePlanRequest, opts ...grpc.CallOption) (*GetNodePlanResponse, error)
+	GetNodePlanV1(ctx context.Context, in *GetNodePlanV1Request, opts ...grpc.CallOption) (*GetNodePlanV1Response, error)
+	ReconcileNodeV1(ctx context.Context, in *ReconcileNodeV1Request, opts ...grpc.CallOption) (*ReconcileNodeV1Response, error)
+	WatchNodePlanStatusV1(ctx context.Context, in *WatchNodePlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error)
 	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(ctx context.Context, in *ApplyNodePlanRequest, opts ...grpc.CallOption) (*ApplyNodePlanResponse, error)
 	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
@@ -182,6 +189,45 @@ func (c *clusterControllerServiceClient) GetNodePlan(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetNodePlanV1(ctx context.Context, in *GetNodePlanV1Request, opts ...grpc.CallOption) (*GetNodePlanV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetNodePlanV1Response)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetNodePlanV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ReconcileNodeV1(ctx context.Context, in *ReconcileNodeV1Request, opts ...grpc.CallOption) (*ReconcileNodeV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReconcileNodeV1Response)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ReconcileNodeV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) WatchNodePlanStatusV1(ctx context.Context, in *WatchNodePlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_WatchNodePlanStatusV1_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchNodePlanStatusV1Request, planpb.NodePlanStatus]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterControllerService_WatchNodePlanStatusV1Client = grpc.ServerStreamingClient[planpb.NodePlanStatus]
+
 func (c *clusterControllerServiceClient) UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateClusterNetworkResponse)
@@ -244,7 +290,7 @@ func (c *clusterControllerServiceClient) CompleteOperation(ctx context.Context, 
 
 func (c *clusterControllerServiceClient) WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[0], ClusterControllerService_WatchOperations_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &ClusterControllerService_ServiceDesc.Streams[1], ClusterControllerService_WatchOperations_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +322,9 @@ type ClusterControllerServiceServer interface {
 	RemoveNode(context.Context, *RemoveNodeRequest) (*RemoveNodeResponse, error)
 	GetClusterHealth(context.Context, *GetClusterHealthRequest) (*GetClusterHealthResponse, error)
 	GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error)
+	GetNodePlanV1(context.Context, *GetNodePlanV1Request) (*GetNodePlanV1Response, error)
+	ReconcileNodeV1(context.Context, *ReconcileNodeV1Request) (*ReconcileNodeV1Response, error)
+	WatchNodePlanStatusV1(*WatchNodePlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error
 	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error)
 	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
@@ -324,6 +373,15 @@ func (UnimplementedClusterControllerServiceServer) GetClusterHealth(context.Cont
 }
 func (UnimplementedClusterControllerServiceServer) GetNodePlan(context.Context, *GetNodePlanRequest) (*GetNodePlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNodePlan not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetNodePlanV1(context.Context, *GetNodePlanV1Request) (*GetNodePlanV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNodePlanV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ReconcileNodeV1(context.Context, *ReconcileNodeV1Request) (*ReconcileNodeV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReconcileNodeV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) WatchNodePlanStatusV1(*WatchNodePlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error {
+	return status.Error(codes.Unimplemented, "method WatchNodePlanStatusV1 not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateClusterNetwork not implemented")
@@ -564,6 +622,53 @@ func _ClusterControllerService_GetNodePlan_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetNodePlanV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodePlanV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetNodePlanV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetNodePlanV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetNodePlanV1(ctx, req.(*GetNodePlanV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ReconcileNodeV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReconcileNodeV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ReconcileNodeV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ReconcileNodeV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ReconcileNodeV1(ctx, req.(*ReconcileNodeV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_WatchNodePlanStatusV1_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchNodePlanStatusV1Request)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ClusterControllerServiceServer).WatchNodePlanStatusV1(m, &grpc.GenericServerStream[WatchNodePlanStatusV1Request, planpb.NodePlanStatus]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ClusterControllerService_WatchNodePlanStatusV1Server = grpc.ServerStreamingServer[planpb.NodePlanStatus]
+
 func _ClusterControllerService_UpdateClusterNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateClusterNetworkRequest)
 	if err := dec(in); err != nil {
@@ -735,6 +840,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterControllerService_GetNodePlan_Handler,
 		},
 		{
+			MethodName: "GetNodePlanV1",
+			Handler:    _ClusterControllerService_GetNodePlanV1_Handler,
+		},
+		{
+			MethodName: "ReconcileNodeV1",
+			Handler:    _ClusterControllerService_ReconcileNodeV1_Handler,
+		},
+		{
 			MethodName: "UpdateClusterNetwork",
 			Handler:    _ClusterControllerService_UpdateClusterNetwork_Handler,
 		},
@@ -760,6 +873,11 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchNodePlanStatusV1",
+			Handler:       _ClusterControllerService_WatchNodePlanStatusV1_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "WatchOperations",
 			Handler:       _ClusterControllerService_WatchOperations_Handler,
