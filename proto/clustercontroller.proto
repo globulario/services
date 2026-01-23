@@ -346,6 +346,7 @@ message DesiredState {
   uint64 generation = 1;
   google.protobuf.Timestamp updated_at = 2;
   DesiredNetwork network = 3;
+  map<string,string> service_versions = 4;
 }
 
 message SetDesiredNetworkV1Request { DesiredNetwork network = 1; }
@@ -353,3 +354,18 @@ message SetDesiredNetworkV1Response { DesiredState desired = 1; }
 
 message GetDesiredStateV1Request {}
 message GetDesiredStateV1Response { DesiredState desired = 1; }
+
+message SetDesiredServiceVersionV1Request {
+  string service_name = 1;
+  string version = 2;
+}
+message SetDesiredServiceVersionV1Response {
+  DesiredState desired = 1;
+}
+
+message ClearDesiredServiceVersionV1Request {
+  string service_name = 1;
+}
+message ClearDesiredServiceVersionV1Response {
+  DesiredState desired = 1;
+}

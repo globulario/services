@@ -1349,5 +1349,127 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.watchOpe
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.SetDesiredNetworkV1Request,
+ *   !proto.clustercontroller.SetDesiredNetworkV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_SetDesiredNetworkV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/SetDesiredNetworkV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.SetDesiredNetworkV1Request,
+  proto.clustercontroller.SetDesiredNetworkV1Response,
+  /**
+   * @param {!proto.clustercontroller.SetDesiredNetworkV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.SetDesiredNetworkV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.SetDesiredNetworkV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.SetDesiredNetworkV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.SetDesiredNetworkV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.setDesiredNetworkV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/SetDesiredNetworkV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetDesiredNetworkV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.SetDesiredNetworkV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.SetDesiredNetworkV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.setDesiredNetworkV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/SetDesiredNetworkV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetDesiredNetworkV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.GetDesiredStateV1Request,
+ *   !proto.clustercontroller.GetDesiredStateV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_GetDesiredStateV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/GetDesiredStateV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.GetDesiredStateV1Request,
+  proto.clustercontroller.GetDesiredStateV1Response,
+  /**
+   * @param {!proto.clustercontroller.GetDesiredStateV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.GetDesiredStateV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.GetDesiredStateV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.GetDesiredStateV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.GetDesiredStateV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.getDesiredStateV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetDesiredStateV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetDesiredStateV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.GetDesiredStateV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.GetDesiredStateV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.getDesiredStateV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/GetDesiredStateV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetDesiredStateV1);
+};
+
+
 module.exports = proto.clustercontroller;
 

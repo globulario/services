@@ -638,30 +638,22 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrol
 	spec.AdminEmail = strings.TrimSpace(spec.GetAdminEmail())
 	spec.AlternateDomains = normalizeDomains(spec.GetAlternateDomains())
 
-	srv.lock("unknown")
-	changed := !proto.Equal(srv.state.ClusterNetworkSpec, spec)
-	gen := computeNetworkGeneration(spec)
-	if gen == 0 {
-		srv.unlock()
-		return nil, status.Error(codes.Internal, "failed to compute network generation")
+	desiredNet := &clustercontrollerpb.DesiredNetwork{
+		Domain:           spec.GetClusterDomain(),
+		Protocol:         spec.GetProtocol(),
+		PortHttp:         spec.GetPortHttp(),
+		PortHttps:        spec.GetPortHttps(),
+		AcmeEnabled:      spec.GetAcmeEnabled(),
+		AdminEmail:       spec.GetAdminEmail(),
+		AlternateDomains: append([]string(nil), spec.GetAlternateDomains()...),
 	}
-	if changed || srv.state.NetworkingGeneration != gen {
-		srv.state.ClusterNetworkSpec = proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec)
-		srv.state.NetworkingGeneration = gen
-		if err := srv.persistStateLocked(true); err != nil {
-			srv.unlock()
-			return nil, status.Errorf(codes.Internal, "persist network spec: %v", err)
-		}
-	}
-	generation := srv.state.NetworkingGeneration
-	srv.unlock()
-
-	if srv.planStore != nil {
-		go srv.reconcileNetworkPlans(context.Background(), proto.Clone(spec).(*clustercontrollerpb.ClusterNetworkSpec))
+	desired, err := srv.applyDesiredNetwork(ctx, desiredNet)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "persist desired: %v", err)
 	}
 
 	return &clustercontrollerpb.UpdateClusterNetworkResponse{
-		Generation: generation,
+		Generation: desired.GetGeneration(),
 	}, nil
 }
 
@@ -683,7 +675,8 @@ func (srv *server) reconcileNetworkPlans(ctx context.Context, spec *clustercontr
 	}
 
 	for _, nodeID := range nodes {
-		plan, err := BuildNetworkTransitionPlan(nodeID, desired, NodeObservedState{})
+		obsUnits := srv.observedUnitsForNode(nodeID)
+		plan, err := BuildNetworkTransitionPlan(nodeID, desired, NodeObservedState{Units: obsUnits})
 		if err != nil {
 			log.Printf("reconcile network plan for node %s failed: %v", nodeID, err)
 			continue
@@ -1026,23 +1019,8 @@ func (srv *server) SetDesiredNetworkV1(ctx context.Context, req *clustercontroll
 	if net.GetPortHttps() == 0 {
 		net.PortHttps = 443
 	}
-	desired, err := srv.loadDesiredState(ctx)
+	desired, err := srv.applyDesiredNetwork(ctx, net)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
-	}
-	if desired == nil {
-		desired = &clustercontrollerpb.DesiredState{}
-	}
-	changed := !proto.Equal(desired.GetNetwork(), net)
-	desired.Network = net
-	if changed {
-		desired.Generation++
-	}
-	if desired.Generation == 0 {
-		desired.Generation = 1
-	}
-	desired.UpdatedAt = timestamppb.Now()
-	if err := srv.saveDesiredState(ctx, desired); err != nil {
 		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
 	}
 	return &clustercontrollerpb.SetDesiredNetworkV1Response{Desired: desired}, nil
@@ -1057,6 +1035,65 @@ func (srv *server) GetDesiredStateV1(ctx context.Context, _ *clustercontrollerpb
 		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
 	}
 	return &clustercontrollerpb.GetDesiredStateV1Response{Desired: desired}, nil
+}
+
+func (srv *server) SetDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.SetDesiredServiceVersionV1Request) (*clustercontrollerpb.SetDesiredServiceVersionV1Response, error) {
+	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" || strings.TrimSpace(req.GetVersion()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "service_name and version are required")
+	}
+	if srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
+	}
+	svc := strings.TrimSpace(req.GetServiceName())
+	ver := strings.TrimSpace(req.GetVersion())
+	desired, err := srv.ensureDesiredState(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+	}
+	if desired.ServiceVersions == nil {
+		desired.ServiceVersions = make(map[string]string)
+	}
+	prev, ok := desired.ServiceVersions[svc]
+	if !ok || prev != ver {
+		desired.Generation++
+	}
+	desired.ServiceVersions[svc] = ver
+	if desired.Generation == 0 {
+		desired.Generation = 1
+	}
+	desired.UpdatedAt = timestamppb.Now()
+	if err := srv.saveDesiredState(ctx, desired); err != nil {
+		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
+	}
+	return &clustercontrollerpb.SetDesiredServiceVersionV1Response{Desired: desired}, nil
+}
+
+func (srv *server) ClearDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.ClearDesiredServiceVersionV1Request) (*clustercontrollerpb.ClearDesiredServiceVersionV1Response, error) {
+	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "service_name is required")
+	}
+	if srv.kv == nil {
+		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
+	}
+	svc := strings.TrimSpace(req.GetServiceName())
+	desired, err := srv.ensureDesiredState(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+	}
+	if desired.ServiceVersions != nil {
+		if _, ok := desired.ServiceVersions[svc]; ok {
+			delete(desired.ServiceVersions, svc)
+			desired.Generation++
+		}
+	}
+	if desired.Generation == 0 {
+		desired.Generation = 1
+	}
+	desired.UpdatedAt = timestamppb.Now()
+	if err := srv.saveDesiredState(ctx, desired); err != nil {
+		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
+	}
+	return &clustercontrollerpb.ClearDesiredServiceVersionV1Response{Desired: desired}, nil
 }
 
 func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duration) {
@@ -1243,6 +1280,16 @@ func (srv *server) attemptNodeRecovery(ctx context.Context, node *nodeState) err
 	return nil
 }
 
+func (srv *server) observedUnitsForNode(nodeID string) []unitStatusRecord {
+	srv.lock("observedUnitsForNode")
+	defer srv.unlock()
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		return nil
+	}
+	return append([]unitStatusRecord(nil), node.Units...)
+}
+
 func (srv *server) reconcileNodes(ctx context.Context) {
 	if !srv.reconcileRunning.CompareAndSwap(false, true) {
 		return
@@ -1277,14 +1324,49 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		if node == nil || node.NodeID == "" {
 			continue
 		}
-		lastHash, err := srv.getNodeDesiredHash(ctx, node.NodeID)
+		appliedHash, err := srv.getNodeAppliedHash(ctx, node.NodeID)
 		if err != nil {
-			log.Printf("reconcile: read desired hash for %s: %v", node.NodeID, err)
+			log.Printf("reconcile: read applied hash for %s: %v", node.NodeID, err)
 			continue
 		}
-		if specHash != "" && lastHash == specHash {
+		status, _ := srv.planStore.GetStatus(ctx, node.NodeID)
+		meta, _ := srv.getNodePlanMeta(ctx, node.NodeID)
+		// Converged
+		if specHash != "" && appliedHash == specHash {
 			continue
 		}
+		// If running a plan for this desired hash, wait unless stuck.
+		if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
+			if meta != nil && meta.DesiredHash == specHash && status.GetPlanId() == meta.PlanId && status.GetGeneration() == meta.Generation {
+				if !isPlanStuck(meta, status, now) {
+					continue
+				}
+			}
+		}
+		// If succeeded for current desired hash, record applied and continue.
+		if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
+			if meta != nil && meta.DesiredHash == specHash && status.GetPlanId() == meta.PlanId && status.GetGeneration() == meta.Generation {
+				if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
+					log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
+				}
+				_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
+				continue
+			}
+		}
+
+		// Backoff on repeated failures.
+		fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
+		if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			delay := backoffDuration(fails)
+			var lastEmit time.Time
+			if meta != nil && meta.LastEmit > 0 {
+				lastEmit = time.UnixMilli(meta.LastEmit)
+			}
+			if !lastEmit.IsZero() && now.Sub(lastEmit) < delay {
+				continue
+			}
+		}
+
 		spec := desiredNetworkToSpec(desired.GetNetwork())
 		if spec == nil {
 			continue
@@ -1314,10 +1396,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}); ok {
 			_ = appendable.AppendHistory(ctx, node.NodeID, plan)
 		}
-		if specHash != "" {
-			if err := srv.putNodeDesiredHash(ctx, node.NodeID, specHash); err != nil {
-				log.Printf("reconcile: store hash for %s: %v", node.NodeID, err)
-			}
+		newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: specHash, LastEmit: now.UnixMilli()}
+		if err := srv.putNodePlanMeta(ctx, node.NodeID, newMeta); err != nil {
+			log.Printf("reconcile: store plan meta for %s: %v", node.NodeID, err)
+		}
+		if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			_ = srv.putNodeFailureCount(ctx, node.NodeID, fails+1)
 		}
 		log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
 	}
@@ -1328,6 +1412,38 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 		srv.unlock()
 	}
+}
+
+func backoffDuration(fails int) time.Duration {
+	switch {
+	case fails <= 0:
+		return 0
+	case fails == 1:
+		return 5 * time.Second
+	case fails == 2:
+		return 15 * time.Second
+	case fails == 3:
+		return 30 * time.Second
+	default:
+		return 60 * time.Second
+	}
+}
+
+func isPlanStuck(meta *planMeta, status *planpb.NodePlanStatus, now time.Time) bool {
+	if meta == nil || status == nil {
+		return false
+	}
+	last := status.GetFinishedUnixMs()
+	if last == 0 {
+		last = status.GetStartedUnixMs()
+	}
+	if last == 0 && meta.LastEmit > 0 {
+		last = uint64(meta.LastEmit)
+	}
+	if last == 0 {
+		return false
+	}
+	return now.Sub(time.UnixMilli(int64(last))) > 10*time.Minute
 }
 
 func (srv *server) computeNodePlan(node *nodeState) *clustercontrollerpb.NodePlan {

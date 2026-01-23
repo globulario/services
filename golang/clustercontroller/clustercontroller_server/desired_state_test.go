@@ -39,6 +39,7 @@ func (m *mapKV) Put(_ context.Context, key, val string, _ ...clientv3.OpOption) 
 type fakePlanStore struct {
 	lastPlan *planpb.NodePlan
 	count    int
+	status   *planpb.NodePlanStatus
 }
 
 func (f *fakePlanStore) PutCurrentPlan(ctx context.Context, nodeID string, plan *planpb.NodePlan) error {
@@ -53,10 +54,18 @@ func (f *fakePlanStore) GetCurrentPlan(ctx context.Context, nodeID string) (*pla
 	return proto.Clone(f.lastPlan).(*planpb.NodePlan), nil
 }
 func (f *fakePlanStore) PutStatus(ctx context.Context, nodeID string, status *planpb.NodePlanStatus) error {
+	if status == nil {
+		f.status = nil
+		return nil
+	}
+	f.status = proto.Clone(status).(*planpb.NodePlanStatus)
 	return nil
 }
 func (f *fakePlanStore) GetStatus(ctx context.Context, nodeID string) (*planpb.NodePlanStatus, error) {
-	return nil, nil
+	if f.status == nil {
+		return nil, nil
+	}
+	return proto.Clone(f.status).(*planpb.NodePlanStatus), nil
 }
 func (f *fakePlanStore) AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error {
 	return nil
@@ -107,6 +116,14 @@ func TestReconcileSkipsWhenHashUnchanged(t *testing.T) {
 	srv.reconcileNodes(context.Background())
 	if ps.count != 1 {
 		t.Fatalf("expected 1 plan write, got %d", ps.count)
+	}
+	// Mark applied to simulate convergence so second reconcile should skip.
+	hash, err := hashDesiredNetwork(desired.GetNetwork())
+	if err != nil {
+		t.Fatalf("hashDesiredNetwork: %v", err)
+	}
+	if err := srv.putNodeAppliedHash(context.Background(), "n1", hash); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 	srv.reconcileNodes(context.Background())
 	if ps.count != 1 {
