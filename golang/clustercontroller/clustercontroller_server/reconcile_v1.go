@@ -57,8 +57,8 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 	}
 	if protocol == "https" {
 		steps = append(steps, planStep("tls.ensure", map[string]interface{}{
-			"fullchain_path": "/var/lib/globular/tls/fullchain.pem",
-			"privkey_path":   "/var/lib/globular/tls/privkey.pem",
+			"fullchain_path": "/etc/globular/tls/fullchain.pem",
+			"privkey_path":   "/etc/globular/tls/privkey.pem",
 		}))
 	}
 	steps = append(steps,
@@ -91,7 +91,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 			Type: "tls.cert_valid_for_domain",
 			Args: structpbFromMap(map[string]interface{}{
 				"domain":    spec.GetClusterDomain(),
-				"cert_path": "/var/lib/globular/tls/fullchain.pem",
+				"cert_path": "/etc/globular/tls/fullchain.pem",
 			}),
 		})
 	}
@@ -107,7 +107,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 	}
 	if protocol == "https" {
 		desiredState.Files = append(desiredState.Files, &planpb.DesiredFile{
-			Path: "/var/lib/globular/tls/fullchain.pem",
+			Path: "/etc/globular/tls/fullchain.pem",
 		})
 	}
 
@@ -136,6 +136,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 	if strings.TrimSpace(svcName) == "" {
 		svcName = "globular"
 	}
+	platform := "linux_amd64"
 	unit := svcName
 	if !strings.HasSuffix(strings.ToLower(unit), ".service") {
 		unit = fmt.Sprintf("%s.service", svcName)
@@ -158,6 +159,7 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 				planStep("artifact.fetch", map[string]interface{}{
 					"service":       svcName,
 					"version":       desiredVersion,
+					"platform":      platform,
 					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
 				}),
 				planStep("artifact.verify", map[string]interface{}{
@@ -165,8 +167,8 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 				}),
 				planStep("service.install_payload", map[string]interface{}{
 					"service":       svcName,
+					"version":       desiredVersion,
 					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
-					"install_path":  fmt.Sprintf("/var/lib/globular/staging/%s/%s.bin", svcName, desiredVersion),
 				}),
 				planStep("service.write_version_marker", map[string]interface{}{
 					"service": svcName,

@@ -111,8 +111,8 @@ type tlsPathsSet struct {
 
 func tlsPaths(args *structpb.Struct) tlsPathsSet {
 	const (
-		defaultCert = "/var/lib/globular/tls/fullchain.pem"
-		defaultKey  = "/var/lib/globular/tls/privkey.pem"
+		defaultCert = "/etc/globular/tls/fullchain.pem"
+		defaultKey  = "/etc/globular/tls/privkey.pem"
 	)
 	if args == nil {
 		return tlsPathsSet{fullchain: defaultCert, privkey: defaultKey}
