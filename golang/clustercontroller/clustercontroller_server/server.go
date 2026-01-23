@@ -58,6 +58,47 @@ const (
 	maxRecoveryAttempts     = 3                // Max recovery attempts before giving up
 )
 
+func serviceUnitName(name string) string {
+	if strings.HasSuffix(strings.ToLower(name), ".service") {
+		return name
+	}
+	return fmt.Sprintf("%s.service", name)
+}
+
+func filterVersionsForNode(desired map[string]string, node *nodeState) map[string]string {
+	out := make(map[string]string)
+	if len(desired) == 0 || node == nil {
+		return out
+	}
+	for svc, ver := range desired {
+		unit := serviceUnitName(svc)
+		if hasUnit(node.Units, unit) {
+			out[svc] = ver
+		}
+	}
+	return out
+}
+
+func hashDesiredServiceVersions(versions map[string]string) string {
+	if len(versions) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(versions))
+	for k := range versions {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteString("=")
+		b.WriteString(versions[k])
+		b.WriteString(";")
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
 type kvClient interface {
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
@@ -1330,65 +1371,149 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			continue
 		}
 		status, _ := srv.planStore.GetStatus(ctx, node.NodeID)
+		currentPlan, _ := srv.planStore.GetCurrentPlan(ctx, node.NodeID)
 		meta, _ := srv.getNodePlanMeta(ctx, node.NodeID)
-		// Converged
-		if specHash != "" && appliedHash == specHash {
-			continue
+		planHash := ""
+		lastEmitMs := int64(0)
+		if currentPlan != nil {
+			planHash = currentPlan.GetDesiredHash()
+			if currentPlan.GetCreatedUnixMs() > 0 {
+				lastEmitMs = int64(currentPlan.GetCreatedUnixMs())
+			}
 		}
-		// If running a plan for this desired hash, wait unless stuck.
-		if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
-			if meta != nil && meta.DesiredHash == specHash && status.GetPlanId() == meta.PlanId && status.GetGeneration() == meta.Generation {
-				if !isPlanStuck(meta, status, now) {
+		if planHash == "" && meta != nil {
+			planHash = meta.DesiredHash
+		}
+		if lastEmitMs == 0 && meta != nil {
+			lastEmitMs = meta.LastEmit
+		}
+		if specHash != "" && appliedHash != specHash {
+			if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
+				if planHash == specHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+					if !isPlanStuck(status, lastEmitMs, now) {
+						continue
+					}
+				}
+			}
+			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
+				if planHash == specHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+					if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
+						log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
+					}
+					_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
 					continue
 				}
 			}
-		}
-		// If succeeded for current desired hash, record applied and continue.
-		if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
-			if meta != nil && meta.DesiredHash == specHash && status.GetPlanId() == meta.PlanId && status.GetGeneration() == meta.Generation {
-				if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
-					log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
+			fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
+			if status != nil && planHash == specHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+				delay := backoffDuration(fails)
+				if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
+					continue
 				}
-				_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
+			}
+
+			spec := desiredNetworkToSpec(desired.GetNetwork())
+			if spec == nil {
 				continue
 			}
-		}
-
-		// Backoff on repeated failures.
-		fails, _ := srv.getNodeFailureCount(ctx, node.NodeID)
-		if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
-			delay := backoffDuration(fails)
-			var lastEmit time.Time
-			if meta != nil && meta.LastEmit > 0 {
-				lastEmit = time.UnixMilli(meta.LastEmit)
-			}
-			if !lastEmit.IsZero() && now.Sub(lastEmit) < delay {
+			plan, err := BuildNetworkTransitionPlan(node.NodeID, ClusterDesiredState{
+				Network: spec,
+			}, NodeObservedState{Units: node.Units})
+			if err != nil {
+				log.Printf("reconcile: build plan for %s failed: %v", node.NodeID, err)
 				continue
 			}
-		}
+			plan.PlanId = uuid.NewString()
+			plan.ClusterId = srv.state.ClusterId
+			plan.NodeId = node.NodeID
+			plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
+			plan.DesiredHash = specHash
+			if plan.GetCreatedUnixMs() == 0 {
+				plan.CreatedUnixMs = uint64(now.UnixMilli())
+			}
+			plan.IssuedBy = "cluster-controller"
 
-		spec := desiredNetworkToSpec(desired.GetNetwork())
-		if spec == nil {
+			if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
+				log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
+				continue
+			}
+			if appendable, ok := srv.planStore.(interface {
+				AppendHistory(ctx context.Context, nodeID string, plan *planpb.NodePlan) error
+			}); ok {
+				_ = appendable.AppendHistory(ctx, node.NodeID, plan)
+			}
+			newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: specHash, LastEmit: now.UnixMilli()}
+			_ = srv.putNodePlanMeta(ctx, node.NodeID, newMeta)
+			if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+				_ = srv.putNodeFailureCount(ctx, node.NodeID, fails+1)
+			}
+			log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
 			continue
 		}
-		plan, err := BuildNetworkTransitionPlan(node.NodeID, ClusterDesiredState{
-			Network: spec,
-		}, NodeObservedState{Units: node.Units})
+
+		// Services reconciliation
+		filtered := filterVersionsForNode(desired.GetServiceVersions(), node)
+		if len(filtered) == 0 {
+			continue
+		}
+		svcHash := hashDesiredServiceVersions(filtered)
+		if svcHash == "" {
+			continue
+		}
+		appliedSvcHash, err := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
 		if err != nil {
-			log.Printf("reconcile: build plan for %s failed: %v", node.NodeID, err)
+			log.Printf("reconcile: read applied service hash for %s: %v", node.NodeID, err)
 			continue
 		}
+		if svcHash == appliedSvcHash {
+			continue
+		}
+		if status != nil && (status.GetState() == planpb.PlanState_PLAN_RUNNING || status.GetState() == planpb.PlanState_PLAN_PENDING) {
+			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+				if !isPlanStuck(status, lastEmitMs, now) {
+					continue
+				}
+			} else {
+				continue
+			}
+		}
+		if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED {
+			if planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
+				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
+					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+				_ = srv.putNodeFailureCountServices(ctx, node.NodeID, 0)
+				continue
+			}
+		}
+		failsSvc, _ := srv.getNodeFailureCountServices(ctx, node.NodeID)
+		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			delay := backoffDuration(failsSvc)
+			if lastEmitMs > 0 && now.Sub(time.UnixMilli(lastEmitMs)) < delay {
+				continue
+			}
+		}
+
+		// pick deterministic service to update this round
+		svcNames := make([]string, 0, len(filtered))
+		for name := range filtered {
+			svcNames = append(svcNames, name)
+		}
+		sort.Strings(svcNames)
+		svcName := svcNames[0]
+		version := filtered[svcName]
+		plan := BuildServiceUpgradePlan(node.NodeID, svcName, version, svcHash)
 		plan.PlanId = uuid.NewString()
 		plan.ClusterId = srv.state.ClusterId
 		plan.NodeId = node.NodeID
 		plan.Generation = srv.nextPlanGeneration(ctx, node.NodeID)
+		plan.DesiredHash = svcHash
 		if plan.GetCreatedUnixMs() == 0 {
 			plan.CreatedUnixMs = uint64(now.UnixMilli())
 		}
 		plan.IssuedBy = "cluster-controller"
-
 		if err := srv.planStore.PutCurrentPlan(ctx, node.NodeID, plan); err != nil {
-			log.Printf("reconcile: persist plan for %s: %v", node.NodeID, err)
+			log.Printf("reconcile: persist service plan for %s: %v", node.NodeID, err)
 			continue
 		}
 		if appendable, ok := srv.planStore.(interface {
@@ -1396,14 +1521,12 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}); ok {
 			_ = appendable.AppendHistory(ctx, node.NodeID, plan)
 		}
-		newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: specHash, LastEmit: now.UnixMilli()}
-		if err := srv.putNodePlanMeta(ctx, node.NodeID, newMeta); err != nil {
-			log.Printf("reconcile: store plan meta for %s: %v", node.NodeID, err)
+		newMeta := &planMeta{PlanId: plan.GetPlanId(), Generation: plan.GetGeneration(), DesiredHash: svcHash, LastEmit: now.UnixMilli()}
+		_ = srv.putNodePlanMeta(ctx, node.NodeID, newMeta)
+		if status != nil && planHash == svcHash && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
+			_ = srv.putNodeFailureCountServices(ctx, node.NodeID, failsSvc+1)
 		}
-		if status != nil && (status.GetState() == planpb.PlanState_PLAN_FAILED || status.GetState() == planpb.PlanState_PLAN_ROLLED_BACK || status.GetState() == planpb.PlanState_PLAN_EXPIRED) {
-			_ = srv.putNodeFailureCount(ctx, node.NodeID, fails+1)
-		}
-		log.Printf("reconcile: wrote network plan node=%s plan_id=%s gen=%d", node.NodeID, plan.GetPlanId(), plan.GetGeneration())
+		log.Printf("reconcile: wrote service plan node=%s service=%s plan_id=%s gen=%d", node.NodeID, svcName, plan.GetPlanId(), plan.GetGeneration())
 	}
 	if stateDirty {
 		srv.lock("reconcile:persist")
@@ -1429,16 +1552,16 @@ func backoffDuration(fails int) time.Duration {
 	}
 }
 
-func isPlanStuck(meta *planMeta, status *planpb.NodePlanStatus, now time.Time) bool {
-	if meta == nil || status == nil {
+func isPlanStuck(status *planpb.NodePlanStatus, lastEmitMs int64, now time.Time) bool {
+	if status == nil {
 		return false
 	}
 	last := status.GetFinishedUnixMs()
 	if last == 0 {
 		last = status.GetStartedUnixMs()
 	}
-	if last == 0 && meta.LastEmit > 0 {
-		last = uint64(meta.LastEmit)
+	if last == 0 && lastEmitMs > 0 {
+		last = uint64(lastEmitMs)
 	}
 	if last == 0 {
 		return false

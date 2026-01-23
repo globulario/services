@@ -132,18 +132,22 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 }
 
 // BuildServiceUpgradePlan scaffolds a service upgrade plan with version invariants.
-func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion string) *planpb.NodePlan {
+func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion string, desiredHash string) *planpb.NodePlan {
 	if strings.TrimSpace(svcName) == "" {
 		svcName = "globular"
 	}
-	unit := fmt.Sprintf("%s.service", svcName)
+	unit := svcName
+	if !strings.HasSuffix(strings.ToLower(unit), ".service") {
+		unit = fmt.Sprintf("%s.service", svcName)
+	}
 	marker := versionutil.MarkerPath(svcName)
 	return &planpb.NodePlan{
-		ApiVersion: "globular.io/plan/v1",
-		Kind:       "NodePlan",
-		NodeId:     nodeID,
-		Reason:     "service_upgrade",
-		Locks:      []string{fmt.Sprintf("service:%s", svcName)},
+		ApiVersion:  "globular.io/plan/v1",
+		Kind:        "NodePlan",
+		NodeId:      nodeID,
+		Reason:      "service_upgrade",
+		Locks:       []string{fmt.Sprintf("service:%s", svcName)},
+		DesiredHash: desiredHash,
 		Policy: &planpb.PlanPolicy{
 			MaxRetries:     3,
 			RetryBackoffMs: 2000,
@@ -151,9 +155,23 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 		},
 		Spec: &planpb.PlanSpec{
 			Steps: []*planpb.PlanStep{
-				planStep("file.write_atomic", map[string]interface{}{
+				planStep("artifact.fetch", map[string]interface{}{
+					"service":       svcName,
+					"version":       desiredVersion,
+					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
+				}),
+				planStep("artifact.verify", map[string]interface{}{
+					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
+				}),
+				planStep("service.install_payload", map[string]interface{}{
+					"service":       svcName,
+					"artifact_path": fmt.Sprintf("/var/lib/globular/staging/%s/%s.artifact", svcName, desiredVersion),
+					"install_path":  fmt.Sprintf("/var/lib/globular/staging/%s/%s.bin", svcName, desiredVersion),
+				}),
+				planStep("service.write_version_marker", map[string]interface{}{
+					"service": svcName,
+					"version": desiredVersion,
 					"path":    marker,
-					"content": desiredVersion,
 				}),
 				planStep("service.restart", map[string]interface{}{
 					"unit": unit,
@@ -168,14 +186,24 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 				},
 			},
 			SuccessProbes: []*planpb.Probe{
-				{
-					Type: "probe.http",
-					Args: structpbFromMap(map[string]interface{}{
-						"url": "http://127.0.0.1/health",
-					}),
-				},
+				serviceProbeForUnit(unit),
 			},
 		},
+	}
+}
+
+// serviceProbeForUnit returns a minimal probe for a given unit.
+func serviceProbeForUnit(unit string) *planpb.Probe {
+	u := strings.ToLower(unit)
+	switch {
+	case strings.Contains(u, "gateway"):
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
+	case strings.Contains(u, "xds"):
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:7443"})}
+	case strings.Contains(u, "envoy"):
+		return &planpb.Probe{Type: "probe.http", Args: structpbFromMap(map[string]interface{}{"url": "http://127.0.0.1:9901/ready"})}
+	default:
+		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
 	}
 }
 

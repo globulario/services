@@ -15,11 +15,11 @@ import (
 
 const (
 	desiredStateKey      = "globular/cluster/v1/desired"
-	desiredHashPrefix    = "globular/cluster/v1/desired_hash"
-	desiredSvcHashPrefix = "globular/cluster/v1/desired_hash_services"
 	appliedHashPrefix    = "globular/cluster/v1/applied_hash"
+	appliedSvcHashPrefix = "globular/cluster/v1/applied_hash_services"
 	planMetaPrefix       = "globular/cluster/v1/plan_meta"
 	failCountPrefix      = "globular/cluster/v1/fail_count"
+	failCountSvcPrefix   = "globular/cluster/v1/fail_count_services"
 )
 
 type planMeta struct {
@@ -72,30 +72,6 @@ func hashDesiredNetwork(net *clustercontrollerpb.DesiredNetwork) (string, error)
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func (srv *server) getNodeDesiredHash(ctx context.Context, nodeID string) (string, error) {
-	if srv.kv == nil {
-		return "", fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", desiredHashPrefix, nodeID)
-	resp, err := srv.kv.Get(ctx, key)
-	if err != nil {
-		return "", err
-	}
-	if len(resp.Kvs) == 0 {
-		return "", nil
-	}
-	return string(resp.Kvs[0].Value), nil
-}
-
-func (srv *server) putNodeDesiredHash(ctx context.Context, nodeID, hash string) error {
-	if srv.kv == nil {
-		return fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", desiredHashPrefix, nodeID)
-	_, err := srv.kv.Put(ctx, key, hash)
-	return err
 }
 
 func (srv *server) getNodeAppliedHash(ctx context.Context, nodeID string) (string, error) {
@@ -189,6 +165,62 @@ func (srv *server) putNodeFailureCount(ctx context.Context, nodeID string, count
 	return err
 }
 
+func (srv *server) getNodeAppliedServiceHash(ctx context.Context, nodeID string) (string, error) {
+	if srv.kv == nil {
+		return "", fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", appliedSvcHashPrefix, nodeID)
+	resp, err := srv.kv.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Kvs) == 0 {
+		return "", nil
+	}
+	return string(resp.Kvs[0].Value), nil
+}
+
+func (srv *server) putNodeAppliedServiceHash(ctx context.Context, nodeID, hash string) error {
+	if srv.kv == nil {
+		return fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", appliedSvcHashPrefix, nodeID)
+	_, err := srv.kv.Put(ctx, key, hash)
+	return err
+}
+
+func (srv *server) getNodeFailureCountServices(ctx context.Context, nodeID string) (int, error) {
+	if srv.kv == nil {
+		return 0, fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", failCountSvcPrefix, nodeID)
+	resp, err := srv.kv.Get(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	if len(resp.Kvs) == 0 {
+		return 0, nil
+	}
+	var count int
+	if err := json.Unmarshal(resp.Kvs[0].Value, &count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (srv *server) putNodeFailureCountServices(ctx context.Context, nodeID string, count int) error {
+	if srv.kv == nil {
+		return fmt.Errorf("etcd client unavailable")
+	}
+	key := fmt.Sprintf("%s/%s", failCountSvcPrefix, nodeID)
+	data, err := json.Marshal(count)
+	if err != nil {
+		return err
+	}
+	_, err = srv.kv.Put(ctx, key, string(data))
+	return err
+}
+
 func (srv *server) ensureDesiredState(ctx context.Context) (*clustercontrollerpb.DesiredState, error) {
 	if desired, err := srv.loadDesiredState(ctx); err == nil && desired != nil {
 		return desired, nil
@@ -259,28 +291,4 @@ func (srv *server) applyDesiredNetwork(ctx context.Context, net *clustercontroll
 		srv.unlock()
 	}
 	return desired, nil
-}
-
-func (srv *server) getNodeDesiredServiceHash(ctx context.Context, nodeID string) (string, error) {
-	if srv.kv == nil {
-		return "", fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", desiredSvcHashPrefix, nodeID)
-	resp, err := srv.kv.Get(ctx, key)
-	if err != nil {
-		return "", err
-	}
-	if len(resp.Kvs) == 0 {
-		return "", nil
-	}
-	return string(resp.Kvs[0].Value), nil
-}
-
-func (srv *server) putNodeDesiredServiceHash(ctx context.Context, nodeID, hash string) error {
-	if srv.kv == nil {
-		return fmt.Errorf("etcd client unavailable")
-	}
-	key := fmt.Sprintf("%s/%s", desiredSvcHashPrefix, nodeID)
-	_, err := srv.kv.Put(ctx, key, hash)
-	return err
 }

@@ -145,3 +145,115 @@ func mustHash(t *testing.T, net *clustercontrollerpb.DesiredNetwork) string {
 	}
 	return h
 }
+
+func TestServiceReconcileMarksAppliedOnSuccess(t *testing.T) {
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := newTestServerWithNode(kv, ps)
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	desired := &clustercontrollerpb.DesiredState{
+		Generation: 1,
+		Network:    desiredNetworkForTests(),
+		ServiceVersions: map[string]string{
+			"gateway": "1.2.3",
+		},
+	}
+	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
+		t.Fatalf("saveDesiredState: %v", err)
+	}
+	// Mark network converged so service reconcile can proceed.
+	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desired.GetNetwork())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
+	}
+	srv.reconcileNodes(context.Background())
+	plan := ps.lastPlan
+	if plan == nil {
+		t.Fatalf("expected service plan emitted")
+	}
+	svcHash := hashDesiredServiceVersions(map[string]string{"gateway": "1.2.3"})
+	if plan.GetDesiredHash() != svcHash {
+		t.Fatalf("plan desired_hash mismatch: got %s want %s", plan.GetDesiredHash(), svcHash)
+	}
+	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
+		PlanId:     plan.GetPlanId(),
+		NodeId:     "n1",
+		Generation: plan.GetGeneration(),
+		State:      planpb.PlanState_PLAN_SUCCEEDED,
+	})
+	srv.reconcileNodes(context.Background())
+	appliedSvc, err := srv.getNodeAppliedServiceHash(context.Background(), "n1")
+	if err != nil {
+		t.Fatalf("get applied svc hash: %v", err)
+	}
+	if appliedSvc != svcHash {
+		t.Fatalf("expected applied service hash %s, got %s", svcHash, appliedSvc)
+	}
+}
+
+func TestServiceReconcileDoesNotReemitWhileRunning(t *testing.T) {
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := newTestServerWithNode(kv, ps)
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	desired := &clustercontrollerpb.DesiredState{
+		Generation: 1,
+		Network:    desiredNetworkForTests(),
+		ServiceVersions: map[string]string{
+			"gateway": "1.2.3",
+		},
+	}
+	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
+		t.Fatalf("saveDesiredState: %v", err)
+	}
+	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desired.GetNetwork())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
+	}
+	srv.reconcileNodes(context.Background())
+	firstPlan := ps.lastPlan
+	svcHash := hashDesiredServiceVersions(map[string]string{"gateway": "1.2.3"})
+	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
+		PlanId:     firstPlan.GetPlanId(),
+		NodeId:     "n1",
+		Generation: firstPlan.GetGeneration(),
+		State:      planpb.PlanState_PLAN_RUNNING,
+	})
+	srv.reconcileNodes(context.Background())
+	if ps.count != 1 {
+		t.Fatalf("expected no re-emit while running, got %d", ps.count)
+	}
+	if firstPlan.GetDesiredHash() != svcHash {
+		t.Fatalf("expected desired hash set on plan")
+	}
+}
+
+func TestServiceReconcileReemitsAfterFailure(t *testing.T) {
+	kv := newMapKV()
+	ps := &fakePlanStore{}
+	srv := newTestServerWithNode(kv, ps)
+	srv.state.Nodes["n1"].Units = []unitStatusRecord{{Name: "gateway.service"}}
+	desired := &clustercontrollerpb.DesiredState{
+		Generation: 1,
+		Network:    desiredNetworkForTests(),
+		ServiceVersions: map[string]string{
+			"gateway": "1.2.3",
+		},
+	}
+	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
+		t.Fatalf("saveDesiredState: %v", err)
+	}
+	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desired.GetNetwork())); err != nil {
+		t.Fatalf("putNodeAppliedHash: %v", err)
+	}
+	srv.reconcileNodes(context.Background())
+	firstPlan := ps.lastPlan
+	ps.PutStatus(context.Background(), "n1", &planpb.NodePlanStatus{
+		PlanId:     firstPlan.GetPlanId(),
+		NodeId:     "n1",
+		Generation: firstPlan.GetGeneration(),
+		State:      planpb.PlanState_PLAN_FAILED,
+	})
+	srv.reconcileNodes(context.Background())
+	if ps.count < 2 {
+		t.Fatalf("expected re-emit after failure, got %d", ps.count)
+	}
+}

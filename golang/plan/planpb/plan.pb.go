@@ -200,6 +200,7 @@ type NodePlan struct {
 	Policy        *PlanPolicy            `protobuf:"bytes,12,opt,name=policy,proto3" json:"policy,omitempty"`
 	Spec          *PlanSpec              `protobuf:"bytes,13,opt,name=spec,proto3" json:"spec,omitempty"`
 	Signature     *PlanSignature         `protobuf:"bytes,14,opt,name=signature,proto3" json:"signature,omitempty"`
+	DesiredHash   string                 `protobuf:"bytes,15,opt,name=desired_hash,json=desiredHash,proto3" json:"desired_hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -330,6 +331,13 @@ func (x *NodePlan) GetSignature() *PlanSignature {
 		return x.Signature
 	}
 	return nil
+}
+
+func (x *NodePlan) GetDesiredHash() string {
+	if x != nil {
+		return x.DesiredHash
+	}
+	return ""
 }
 
 type PlanPolicy struct {
@@ -1253,7 +1261,7 @@ var File_plan_proto protoreflect.FileDescriptor
 const file_plan_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"plan.proto\x12\x10globular.plan.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xf0\x03\n" +
+	"plan.proto\x12\x10globular.plan.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x93\x04\n" +
 	"\bNodePlan\x12\x1f\n" +
 	"\vapi_version\x18\x01 \x01(\tR\n" +
 	"apiVersion\x12\x12\n" +
@@ -1273,7 +1281,8 @@ const file_plan_proto_rawDesc = "" +
 	"\x05locks\x18\v \x03(\tR\x05locks\x124\n" +
 	"\x06policy\x18\f \x01(\v2\x1c.globular.plan.v1.PlanPolicyR\x06policy\x12.\n" +
 	"\x04spec\x18\r \x01(\v2\x1a.globular.plan.v1.PlanSpecR\x04spec\x12=\n" +
-	"\tsignature\x18\x0e \x01(\v2\x1f.globular.plan.v1.PlanSignatureR\tsignature\"\xe0\x01\n" +
+	"\tsignature\x18\x0e \x01(\v2\x1f.globular.plan.v1.PlanSignatureR\tsignature\x12!\n" +
+	"\fdesired_hash\x18\x0f \x01(\tR\vdesiredHash\"\xe0\x01\n" +
 	"\n" +
 	"PlanPolicy\x12\x1f\n" +
 	"\vmax_retries\x18\x01 \x01(\rR\n" +
