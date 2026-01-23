@@ -18,6 +18,7 @@ import (
 )
 
 const leaderElectionPrefix = "/globular/clustercontroller/leader"
+const publishAttemptTimeout = 2 * time.Second
 
 var seedRandOnce sync.Once
 
@@ -104,13 +105,18 @@ func startLeaderWatcher(ctx context.Context, cli *clientv3.Client, srv *server) 
 		backoff := 250 * time.Millisecond
 		maxBackoff := 5 * time.Second
 		var rev int64
-		wch := cli.Watch(ctx, key, clientv3.WithRev(0))
-		if resp, err := cli.Get(ctx, key); err == nil {
-			for _, kv := range resp.Kvs {
-				srv.leaderAddr.Store(string(kv.Value))
+		syncState := func() {
+			if resp, err := cli.Get(ctx, key); err == nil {
+				if len(resp.Kvs) > 0 {
+					srv.leaderAddr.Store(string(resp.Kvs[0].Value))
+				} else {
+					srv.leaderAddr.Store("")
+				}
+				rev = resp.Header.Revision
 			}
-			rev = resp.Header.Revision
 		}
+		syncState()
+		wch := cli.Watch(ctx, key, clientv3.WithRev(rev+1))
 		for {
 			select {
 			case <-ctx.Done():
@@ -118,21 +124,14 @@ func startLeaderWatcher(ctx context.Context, cli *clientv3.Client, srv *server) 
 			case wr, ok := <-wch:
 				if !ok || wr.Canceled {
 					backoff = sleepWithJitter(backoff, maxBackoff)
-					wch = cli.Watch(ctx, key, clientv3.WithRev(rev))
+					wch = cli.Watch(ctx, key, clientv3.WithRev(rev+1))
 					continue
 				}
 				backoff = 250 * time.Millisecond
 				if wr.CompactRevision > 0 || wr.Err() == rpctypes.ErrCompacted {
 					rev = wr.CompactRevision
-					if resp, err := cli.Get(ctx, key); err == nil {
-						if len(resp.Kvs) > 0 {
-							srv.leaderAddr.Store(string(resp.Kvs[0].Value))
-						} else {
-							srv.leaderAddr.Store("")
-						}
-						rev = resp.Header.Revision
-					}
-					wch = cli.Watch(ctx, key, clientv3.WithRev(rev))
+					syncState()
+					wch = cli.Watch(ctx, key, clientv3.WithRev(rev+1))
 					continue
 				}
 				if wr.Header.GetRevision() > 0 {
@@ -157,7 +156,20 @@ func publishLeaderAddr(ctx context.Context, cli *clientv3.Client, lease clientv3
 	maxBackoff := 2 * time.Second
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		_, err := cli.Put(ctx, key, addr, clientv3.WithLease(lease))
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		timeout := publishAttemptTimeout
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return context.DeadlineExceeded
+		}
+		if remaining < timeout {
+			timeout = remaining
+		}
+		attemptCtx, cancel := context.WithTimeout(ctx, timeout)
+		_, err := cli.Put(attemptCtx, key, addr, clientv3.WithLease(lease))
+		cancel()
 		if err == nil {
 			return nil
 		}

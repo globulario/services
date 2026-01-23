@@ -19,6 +19,7 @@ import (
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/operator"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/plan/planpb"
 	"github.com/globulario/services/golang/plan/store"
 	"github.com/globulario/services/golang/plan/versionutil"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -109,6 +111,24 @@ func computeServiceDelta(desiredCanon map[string]string, units []unitStatusRecor
 	return desiredPresent, toRemove
 }
 
+func toWatchEvent(typ string, evt resourcestore.Event) *clustercontrollerpb.WatchEvent {
+	we := &clustercontrollerpb.WatchEvent{
+		EventType:       evt.Type,
+		ResourceVersion: evt.ResourceVersion,
+	}
+	switch typ {
+	case "ClusterNetwork":
+		if obj, ok := evt.Object.(*clustercontrollerpb.ClusterNetwork); ok {
+			we.ClusterNetwork = obj
+		}
+	case "ServiceDesiredVersion":
+		if obj, ok := evt.Object.(*clustercontrollerpb.ServiceDesiredVersion); ok {
+			we.ServiceDesiredVersion = obj
+		}
+	}
+	return we
+}
+
 type kvClient interface {
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
@@ -132,6 +152,7 @@ type server struct {
 	muHeldSince          atomic.Int64
 	muHeldBy             atomic.Value
 	planStore            store.PlanStore
+	resources            resourcestore.Store
 	kv                   kvClient
 	agentMu              sync.Mutex
 	agentClients         map[string]*agentClient
@@ -1320,6 +1341,131 @@ func (srv *server) ClearDesiredServiceVersionV1(ctx context.Context, req *cluste
 	return &clustercontrollerpb.ClearDesiredServiceVersionV1Response{Desired: desired}, nil
 }
 
+// ResourcesService implementation
+func (srv *server) ApplyClusterNetwork(ctx context.Context, req *clustercontrollerpb.ApplyClusterNetworkRequest) (*clustercontrollerpb.ClusterNetwork, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil || req.Object == nil || req.Object.Spec == nil || strings.TrimSpace(req.Object.Spec.ClusterDomain) == "" {
+		return nil, status.Error(codes.InvalidArgument, "cluster_network.spec.cluster_domain is required")
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj := req.Object
+	if obj.Meta == nil {
+		obj.Meta = &clustercontrollerpb.ObjectMeta{}
+	}
+	obj.Meta.Name = "default"
+	applied, err := srv.resources.Apply(ctx, "ClusterNetwork", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply cluster network: %v", err)
+	}
+	return applied.(*clustercontrollerpb.ClusterNetwork), nil
+}
+
+func (srv *server) GetClusterNetwork(ctx context.Context, _ *clustercontrollerpb.GetClusterNetworkRequest) (*clustercontrollerpb.ClusterNetwork, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	obj, _, err := srv.resources.Get(ctx, "ClusterNetwork", "default")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get cluster network: %v", err)
+	}
+	if obj == nil {
+		return nil, status.Error(codes.NotFound, "cluster network not found")
+	}
+	return obj.(*clustercontrollerpb.ClusterNetwork), nil
+}
+
+func (srv *server) ApplyServiceDesiredVersion(ctx context.Context, req *clustercontrollerpb.ApplyServiceDesiredVersionRequest) (*clustercontrollerpb.ServiceDesiredVersion, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	if req == nil || req.Object == nil || req.Object.Spec == nil || strings.TrimSpace(req.Object.Spec.ServiceName) == "" || strings.TrimSpace(req.Object.Spec.Version) == "" {
+		return nil, status.Error(codes.InvalidArgument, "service_name and version are required")
+	}
+	canon := canonicalServiceName(req.Object.Spec.ServiceName)
+	if canon == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid service_name")
+	}
+	obj := req.Object
+	if obj.Meta == nil {
+		obj.Meta = &clustercontrollerpb.ObjectMeta{}
+	}
+	obj.Meta.Name = canon
+	obj.Spec.ServiceName = canon
+	applied, err := srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "apply service desired version: %v", err)
+	}
+	return applied.(*clustercontrollerpb.ServiceDesiredVersion), nil
+}
+
+func (srv *server) DeleteServiceDesiredVersion(ctx context.Context, req *clustercontrollerpb.DeleteServiceDesiredVersionRequest) (*emptypb.Empty, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	name := canonicalServiceName(req.GetName())
+	if name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete service desired version: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *clustercontrollerpb.ListServiceDesiredVersionsRequest) (*clustercontrollerpb.ListServiceDesiredVersionsResponse, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	items, _, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list service desired versions: %v", err)
+	}
+	out := &clustercontrollerpb.ListServiceDesiredVersionsResponse{}
+	for _, obj := range items {
+		out.Items = append(out.Items, obj.(*clustercontrollerpb.ServiceDesiredVersion))
+	}
+	return out, nil
+}
+
+func (srv *server) Watch(req *clustercontrollerpb.WatchRequest, stream clustercontrollerpb.ResourcesService_WatchServer) error {
+	if srv.resources == nil {
+		return status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request required")
+	}
+	ch, err := srv.resources.Watch(stream.Context(), req.GetType(), req.GetPrefix(), req.GetFromResourceVersion())
+	if err != nil {
+		return status.Errorf(codes.Internal, "watch: %v", err)
+	}
+	if req.GetIncludeExisting() {
+		items, rv, err := srv.resources.List(stream.Context(), req.GetType(), req.GetPrefix())
+		if err == nil {
+			for _, obj := range items {
+				evt := resourcestore.Event{Type: resourcestore.EventAdded, ResourceVersion: rv, Object: obj}
+				if err := stream.Send(toWatchEvent(req.GetType(), evt)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for evt := range ch {
+		if err := stream.Send(toWatchEvent(req.GetType(), evt)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (srv *server) startReconcileLoop(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	safeGo("reconcile-loop", func() {

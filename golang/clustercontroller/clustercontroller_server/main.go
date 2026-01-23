@@ -13,6 +13,7 @@ import (
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/recovery"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/config"
 	planstore "github.com/globulario/services/golang/plan/store"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -39,19 +40,24 @@ func main() {
 		log.Fatalf("failed to load state %s: %v", *statePath, err)
 	}
 
-	var (
-		planStore  planstore.PlanStore
-		etcdClient *clientv3.Client
-	)
-	if c, err := config.GetEtcdClient(); err == nil {
-		etcdClient = c
-		planStore = planstore.NewEtcdPlanStore(c)
-	} else {
-		log.Printf("plan store unavailable: %v", err)
-	}
-	if etcdClient != nil {
-		defer etcdClient.Close()
-	}
+var (
+	planStore  planstore.PlanStore
+	etcdClient *clientv3.Client
+	resources  resourcestore.Store
+)
+if c, err := config.GetEtcdClient(); err == nil {
+	etcdClient = c
+	planStore = planstore.NewEtcdPlanStore(c)
+	resources = resourcestore.NewEtcdStore(c)
+} else {
+	log.Printf("plan store unavailable: %v", err)
+}
+if etcdClient != nil {
+	defer etcdClient.Close()
+}
+if resources == nil {
+	resources = resourcestore.NewMemStore()
+}
 
 	address := fmt.Sprintf(":%d", cfg.Port)
 	lis, err := net.Listen("tcp", address)
@@ -74,9 +80,11 @@ func main() {
 			MinTime:             10 * time.Second,
 			PermitWithoutStream: true,
 		}),
-	)
-	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
-	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
+)
+srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
+srv.resources = resources
+clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
+clustercontrollerpb.RegisterResourcesServiceServer(grpcServer, srv)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
