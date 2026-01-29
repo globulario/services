@@ -208,6 +208,12 @@ func BuildServiceUpgradePlan(nodeID string, svcName string, desiredVersion strin
 func serviceProbeForUnit(unit string) *planpb.Probe {
 	u := strings.ToLower(unit)
 	switch {
+	case strings.Contains(u, "rbac"):
+		return &planpb.Probe{Type: "probe.service_config_tcp", Args: structpbFromMap(map[string]interface{}{"service": "rbac", "timeout_ms": 1500})}
+	case strings.Contains(u, "resource"):
+		return &planpb.Probe{Type: "probe.service_config_tcp", Args: structpbFromMap(map[string]interface{}{"service": "resource", "timeout_ms": 1500})}
+	case strings.Contains(u, "repository"):
+		return &planpb.Probe{Type: "probe.service_config_tcp", Args: structpbFromMap(map[string]interface{}{"service": "repository", "timeout_ms": 1500})}
 	case strings.Contains(u, "gateway"):
 		return &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:80"})}
 	case strings.Contains(u, "xds"):

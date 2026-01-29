@@ -62,13 +62,19 @@ func (a *serviceAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 
 func serviceFromUnit(unit string) string {
 	u := strings.ToLower(strings.TrimSpace(unit))
+	u = strings.TrimSuffix(u, ".service")
+	u = strings.TrimPrefix(u, "globular-")
 	switch u {
-	case "globular-rbac.service":
+	case "rbac":
 		return "rbac"
-	case "globular-resource.service":
+	case "resource":
 		return "resource"
-	case "globular-repository.service":
+	case "repository":
 		return "repository"
+	case "xds":
+		return "xds"
+	case "gateway":
+		return "gateway"
 	default:
 		return ""
 	}

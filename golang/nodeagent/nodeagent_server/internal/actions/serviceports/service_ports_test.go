@@ -194,3 +194,109 @@ func TestEnsureServicePortReadyStrictMode(t *testing.T) {
 		t.Fatalf("expected error in strict mode for missing binary")
 	}
 }
+
+func TestEnsureServicePortReadyHealsConflict_XDS(t *testing.T) {
+	binDir := t.TempDir()
+	stateRoot := t.TempDir()
+	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
+	t.Setenv("GLOBULAR_PORT_RANGE", "62001-62004")
+
+	binPath := filepath.Join(binDir, "xds_server")
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"xds.XdsService\",\"Address\":\"localhost:62001\",\"Port\":62001}'; fi\n"
+	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write xds bin: %v", err)
+	}
+
+	cfgPath := filepath.Join(stateRoot, "services", "xds.XdsService.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir cfg: %v", err)
+	}
+	initial := map[string]any{"Id": "xds.XdsService", "Address": "localhost:62001", "Port": 62001}
+	if b, err := json.Marshal(initial); err == nil {
+		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
+			t.Fatalf("write cfg: %v", err)
+		}
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:62001")
+	if err != nil {
+		t.Skipf("listen not permitted: %v", err)
+	}
+	defer ln.Close()
+
+	if err := EnsureServicePortReady(context.Background(), "xds", "globular-xds.service"); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read cfg: %v", err)
+	}
+	var final map[string]any
+	if err := json.Unmarshal(data, &final); err != nil {
+		t.Fatalf("unmarshal cfg: %v", err)
+	}
+	port := int(final["Port"].(float64))
+	if port == 62001 || port < 62001 || port > 62004 {
+		t.Fatalf("xds port not healed/in range: %d", port)
+	}
+}
+
+func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
+	binDir := t.TempDir()
+	stateRoot := t.TempDir()
+	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
+	t.Setenv("GLOBULAR_PORT_RANGE", "63001-63002")
+
+	binPath := filepath.Join(binDir, "gateway_server")
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"gateway.GatewayService\",\"Address\":\"localhost:80\",\"Port\":80}'; fi\n"
+	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write gateway bin: %v", err)
+	}
+
+	cfgPath := filepath.Join(stateRoot, "services", "gateway.GatewayService.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir cfg: %v", err)
+	}
+	initial := map[string]any{"Id": "gateway.GatewayService", "Address": "localhost:80", "Port": 80}
+	if b, err := json.Marshal(initial); err == nil {
+		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
+			t.Fatalf("write cfg: %v", err)
+		}
+	}
+
+	if err := EnsureServicePortReady(context.Background(), "globular-gateway", "globular-gateway.service"); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read cfg: %v", err)
+	}
+	var final map[string]any
+	if err := json.Unmarshal(data, &final); err != nil {
+		t.Fatalf("unmarshal cfg: %v", err)
+	}
+	port := int(final["Port"].(float64))
+	if port < 63001 || port > 63002 {
+		t.Fatalf("gateway port not normalized into range: %d", port)
+	}
+}
+
+func TestExecutableForServiceIncludesXDSGateway(t *testing.T) {
+	cases := map[string]string{
+		"xds":                 "xds_server",
+		"globular-xds":        "xds_server",
+		"globular-xds.service": "xds_server",
+		"gateway":             "gateway_server",
+		"globular-gateway":    "gateway_server",
+		"globular-gateway.service": "gateway_server",
+	}
+	for input, want := range cases {
+		if got := executableForService(input); got != want {
+			t.Fatalf("executableForService(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

@@ -332,16 +332,27 @@ func ensureServicePortConfig(ctx context.Context, service, binDir string) error 
 }
 
 func executableForService(svc string) string {
-	switch strings.ToLower(strings.TrimSpace(svc)) {
+	switch normalizeServiceName(svc) {
 	case "rbac":
 		return "rbac_server"
 	case "resource":
 		return "resource_server"
 	case "repository":
 		return "repository_server"
+	case "xds":
+		return "xds_server"
+	case "gateway":
+		return "gateway_server"
 	default:
 		return ""
 	}
+}
+
+func normalizeServiceName(svc string) string {
+	s := strings.ToLower(strings.TrimSpace(svc))
+	s = strings.TrimPrefix(s, "globular-")
+	s = strings.TrimSuffix(s, ".service")
+	return s
 }
 
 type describePayload struct {
