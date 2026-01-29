@@ -42,8 +42,6 @@ const (
 	ClusterControllerService_UpgradeGlobular_FullMethodName       = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
 	ClusterControllerService_CompleteOperation_FullMethodName     = "/clustercontroller.ClusterControllerService/CompleteOperation"
 	ClusterControllerService_WatchOperations_FullMethodName       = "/clustercontroller.ClusterControllerService/WatchOperations"
-	ClusterControllerService_SetDesiredNetworkV1_FullMethodName   = "/clustercontroller.ClusterControllerService/SetDesiredNetworkV1"
-	ClusterControllerService_GetDesiredStateV1_FullMethodName     = "/clustercontroller.ClusterControllerService/GetDesiredStateV1"
 	ClusterControllerService_GetClusterHealthV1_FullMethodName    = "/clustercontroller.ClusterControllerService/GetClusterHealthV1"
 )
 
@@ -72,8 +70,6 @@ type ClusterControllerServiceClient interface {
 	UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error)
 	CompleteOperation(ctx context.Context, in *CompleteOperationRequest, opts ...grpc.CallOption) (*CompleteOperationResponse, error)
 	WatchOperations(ctx context.Context, in *WatchOperationsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OperationEvent], error)
-	SetDesiredNetworkV1(ctx context.Context, in *SetDesiredNetworkV1Request, opts ...grpc.CallOption) (*SetDesiredNetworkV1Response, error)
-	GetDesiredStateV1(ctx context.Context, in *GetDesiredStateV1Request, opts ...grpc.CallOption) (*GetDesiredStateV1Response, error)
 	GetClusterHealthV1(ctx context.Context, in *GetClusterHealthV1Request, opts ...grpc.CallOption) (*GetClusterHealthV1Response, error)
 }
 
@@ -313,26 +309,6 @@ func (c *clusterControllerServiceClient) WatchOperations(ctx context.Context, in
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ClusterControllerService_WatchOperationsClient = grpc.ServerStreamingClient[OperationEvent]
 
-func (c *clusterControllerServiceClient) SetDesiredNetworkV1(ctx context.Context, in *SetDesiredNetworkV1Request, opts ...grpc.CallOption) (*SetDesiredNetworkV1Response, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SetDesiredNetworkV1Response)
-	err := c.cc.Invoke(ctx, ClusterControllerService_SetDesiredNetworkV1_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterControllerServiceClient) GetDesiredStateV1(ctx context.Context, in *GetDesiredStateV1Request, opts ...grpc.CallOption) (*GetDesiredStateV1Response, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDesiredStateV1Response)
-	err := c.cc.Invoke(ctx, ClusterControllerService_GetDesiredStateV1_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *clusterControllerServiceClient) GetClusterHealthV1(ctx context.Context, in *GetClusterHealthV1Request, opts ...grpc.CallOption) (*GetClusterHealthV1Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetClusterHealthV1Response)
@@ -368,8 +344,6 @@ type ClusterControllerServiceServer interface {
 	UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error)
 	CompleteOperation(context.Context, *CompleteOperationRequest) (*CompleteOperationResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
-	SetDesiredNetworkV1(context.Context, *SetDesiredNetworkV1Request) (*SetDesiredNetworkV1Response, error)
-	GetDesiredStateV1(context.Context, *GetDesiredStateV1Request) (*GetDesiredStateV1Response, error)
 	GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error)
 }
 
@@ -442,12 +416,6 @@ func (UnimplementedClusterControllerServiceServer) CompleteOperation(context.Con
 }
 func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchOperations not implemented")
-}
-func (UnimplementedClusterControllerServiceServer) SetDesiredNetworkV1(context.Context, *SetDesiredNetworkV1Request) (*SetDesiredNetworkV1Response, error) {
-	return nil, status.Error(codes.Unimplemented, "method SetDesiredNetworkV1 not implemented")
-}
-func (UnimplementedClusterControllerServiceServer) GetDesiredStateV1(context.Context, *GetDesiredStateV1Request) (*GetDesiredStateV1Response, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetDesiredStateV1 not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetClusterHealthV1 not implemented")
@@ -836,42 +804,6 @@ func _ClusterControllerService_WatchOperations_Handler(srv interface{}, stream g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ClusterControllerService_WatchOperationsServer = grpc.ServerStreamingServer[OperationEvent]
 
-func _ClusterControllerService_SetDesiredNetworkV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetDesiredNetworkV1Request)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).SetDesiredNetworkV1(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterControllerService_SetDesiredNetworkV1_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).SetDesiredNetworkV1(ctx, req.(*SetDesiredNetworkV1Request))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterControllerService_GetDesiredStateV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDesiredStateV1Request)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterControllerServiceServer).GetDesiredStateV1(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterControllerService_GetDesiredStateV1_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterControllerServiceServer).GetDesiredStateV1(ctx, req.(*GetDesiredStateV1Request))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ClusterControllerService_GetClusterHealthV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetClusterHealthV1Request)
 	if err := dec(in); err != nil {
@@ -972,14 +904,6 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteOperation",
 			Handler:    _ClusterControllerService_CompleteOperation_Handler,
-		},
-		{
-			MethodName: "SetDesiredNetworkV1",
-			Handler:    _ClusterControllerService_SetDesiredNetworkV1_Handler,
-		},
-		{
-			MethodName: "GetDesiredStateV1",
-			Handler:    _ClusterControllerService_GetDesiredStateV1_Handler,
 		},
 		{
 			MethodName: "GetClusterHealthV1",

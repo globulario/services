@@ -97,13 +97,25 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 	}
 
 	desiredState := &planpb.DesiredState{
-		Services: []*planpb.DesiredService{
-			{Name: "globular-gateway", Unit: "globular-gateway.service", Version: desired.ServiceVersions["globular-gateway"]},
-			{Name: "globular-xds", Unit: "globular-xds.service", Version: desired.ServiceVersions["globular-xds"]},
-		},
+		Services: []*planpb.DesiredService{},
 		Files: []*planpb.DesiredFile{
 			{Path: "/var/lib/globular/network.json"},
 		},
+	}
+	for _, svc := range []struct {
+		name string
+		unit string
+	}{
+		{name: "globular-gateway", unit: "globular-gateway.service"},
+		{name: "globular-xds", unit: "globular-xds.service"},
+	} {
+		if ver, ok := desired.ServiceVersions[svc.name]; ok {
+			desiredState.Services = append(desiredState.Services, &planpb.DesiredService{
+				Name:    svc.name,
+				Unit:    svc.unit,
+				Version: ver,
+			})
+		}
 	}
 	if protocol == "https" {
 		desiredState.Files = append(desiredState.Files, &planpb.DesiredFile{

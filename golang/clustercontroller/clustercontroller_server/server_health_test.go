@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/plan/planpb"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,19 +21,22 @@ func TestGetClusterHealthV1(t *testing.T) {
 			"n1": {NodeID: "n1", Units: []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}},
 			"n2": {NodeID: "n2", Units: []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}},
 		}},
-		kv:        kv,
-		planStore: ps,
+		kv:         kv,
+		planStore:  ps,
+		resources:  resourcestore.NewMemStore(),
+		etcdClient: nil,
 	}
-	desired := &clustercontrollerpb.DesiredState{
-		Generation:      1,
-		Network:         &clustercontrollerpb.DesiredNetwork{Domain: "example.com", Protocol: "http", PortHttp: 80},
-		ServiceVersions: map[string]string{serviceUnitForCanonical("gateway"): "1"},
-	}
-	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
-		t.Fatalf("saveDesiredState: %v", err)
-	}
+	// Seed desired resources.
+	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &clustercontrollerpb.ClusterNetwork{
+		Meta: &clustercontrollerpb.ObjectMeta{Name: "default", Generation: 1},
+		Spec: &clustercontrollerpb.ClusterNetworkSpec{ClusterDomain: "example.com", Protocol: "http", PortHttp: 80},
+	})
+	_, _ = srv.resources.Apply(context.Background(), "ServiceDesiredVersion", &clustercontrollerpb.ServiceDesiredVersion{
+		Meta: &clustercontrollerpb.ObjectMeta{Name: "gateway", Generation: 1},
+		Spec: &clustercontrollerpb.ServiceDesiredVersionSpec{ServiceName: "gateway", Version: "1"},
+	})
 	// Mark applied hashes
-	hashNet, _ := hashDesiredNetwork(desired.GetNetwork())
+	hashNet, _ := hashDesiredNetwork(&clustercontrollerpb.DesiredNetwork{Domain: "example.com", Protocol: "http", PortHttp: 80})
 	_ = srv.putNodeAppliedHash(context.Background(), "n1", hashNet)
 	_ = srv.putNodeAppliedHash(context.Background(), "n2", hashNet)
 	hashSvc := stableServiceDesiredHash(map[string]string{canonicalServiceName("gateway"): "1"})

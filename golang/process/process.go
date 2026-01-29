@@ -392,8 +392,45 @@ func startServiceProcessWithWritersInternal(
 		return -1, err
 	}
 
-	s["Port"] = port
-	s["Proxy"] = port + 1
+	// Allocate service and proxy ports, avoiding collisions with other services.
+	const defaultPortStart = 10000
+	const defaultPortEnd = 20000
+	desiredPort := port
+	if desiredPort == 0 {
+		desiredPort = Utility.ToInt(s["Port"])
+	}
+	if desiredPort == 0 {
+		desiredPort = defaultPortStart
+	}
+	chosenPort, err := findFreePort("0.0.0.0", defaultPortStart, defaultPortEnd, desiredPort)
+	if err != nil {
+		return -1, fmt.Errorf("allocate service port: %w", err)
+	}
+	desiredProxy := Utility.ToInt(s["Proxy"])
+	if desiredProxy == 0 {
+		desiredProxy = chosenPort + 1
+	}
+	chosenProxy, err := findFreePort("0.0.0.0", defaultPortStart, defaultPortEnd, desiredProxy)
+	if err != nil {
+		// Log and fall back to the desired proxy (may collide).
+		slog.Warn("proxy port allocation failed; using desired value", "err", err, "desired", desiredProxy)
+		chosenProxy = desiredProxy
+	}
+	// Avoid choosing the same port for service and proxy.
+	if chosenProxy == chosenPort {
+		if next, err := findFreePort("0.0.0.0", defaultPortStart, defaultPortEnd, chosenProxy+1); err == nil {
+			chosenProxy = next
+		}
+	}
+	if chosenPort != desiredPort {
+		slog.Info("service port adjusted due to conflict", "id", id, "name", name, "from", desiredPort, "to", chosenPort)
+	}
+	if chosenProxy != desiredProxy {
+		slog.Info("proxy port adjusted due to conflict", "id", id, "name", name, "from", desiredProxy, "to", chosenProxy)
+	}
+
+	s["Port"] = chosenPort
+	s["Proxy"] = chosenProxy
 	s["Process"] = -1
 	if err := config.SaveServiceConfiguration(s); err != nil {
 		slog.Warn("failed to persist desired service config before start", "id", s["Id"], "name", s["Name"], "err", err)
@@ -1666,6 +1703,29 @@ func portInUse(hp string) bool {
 	}
 	_ = ln.Close()
 	return false
+}
+
+func isTCPPortFree(host string, port int) bool {
+	hp := net.JoinHostPort(host, strconv.Itoa(port))
+	ln, err := net.Listen("tcp", hp)
+	if err != nil {
+		return false
+	}
+	_ = ln.Close()
+	return true
+}
+
+// findFreePort returns the preferred port if available; otherwise it scans the range [start,end].
+func findFreePort(host string, start, end, preferred int) (int, error) {
+	if preferred >= start && preferred <= end && isTCPPortFree(host, preferred) {
+		return preferred, nil
+	}
+	for p := start; p <= end; p++ {
+		if isTCPPortFree(host, p) {
+			return p, nil
+		}
+	}
+	return 0, fmt.Errorf("no free port found in range %d-%d", start, end)
 }
 
 func isClientAuthCert(c tls.Certificate) bool {

@@ -152,7 +152,6 @@ type server struct {
 	muHeldSince          atomic.Int64
 	muHeldBy             atomic.Value
 	planStore            store.PlanStore
-	resources            resourcestore.Store
 	kv                   kvClient
 	agentMu              sync.Mutex
 	agentClients         map[string]*agentClient
@@ -171,6 +170,8 @@ type server struct {
 	leaderID             atomic.Value
 	leaderAddr           atomic.Value
 	reconcileRunning     atomic.Bool
+	resources            resourcestore.Store
+	etcdClient           *clientv3.Client
 }
 
 var testHookBeforeReportNodeStatusApply func()
@@ -755,22 +756,22 @@ func (srv *server) UpdateClusterNetwork(ctx context.Context, req *clustercontrol
 	spec.AdminEmail = strings.TrimSpace(spec.GetAdminEmail())
 	spec.AlternateDomains = normalizeDomains(spec.GetAlternateDomains())
 
-	desiredNet := &clustercontrollerpb.DesiredNetwork{
-		Domain:           spec.GetClusterDomain(),
-		Protocol:         spec.GetProtocol(),
-		PortHttp:         spec.GetPortHttp(),
-		PortHttps:        spec.GetPortHttps(),
-		AcmeEnabled:      spec.GetAcmeEnabled(),
-		AdminEmail:       spec.GetAdminEmail(),
-		AlternateDomains: append([]string(nil), spec.GetAlternateDomains()...),
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
 	}
-	desired, err := srv.applyDesiredNetwork(ctx, desiredNet)
+	applied, err := srv.resources.Apply(ctx, "ClusterNetwork", &clustercontrollerpb.ClusterNetwork{
+		Meta: &clustercontrollerpb.ObjectMeta{Name: "default"},
+		Spec: spec,
+	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "persist desired: %v", err)
+		return nil, status.Errorf(codes.Internal, "apply desired network: %v", err)
 	}
-
+	gen := uint64(0)
+	if cn, ok := applied.(*clustercontrollerpb.ClusterNetwork); ok && cn.Meta != nil {
+		gen = uint64(cn.Meta.Generation)
+	}
 	return &clustercontrollerpb.UpdateClusterNetworkResponse{
-		Generation: desired.GetGeneration(),
+		Generation: gen,
 	}, nil
 }
 
@@ -1122,62 +1123,34 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *clustercontrol
 	}, nil
 }
 
-func (srv *server) SetDesiredNetworkV1(ctx context.Context, req *clustercontrollerpb.SetDesiredNetworkV1Request) (*clustercontrollerpb.SetDesiredNetworkV1Response, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
-	}
-	if req == nil || req.GetNetwork() == nil {
-		return nil, status.Error(codes.InvalidArgument, "network is required")
-	}
-	if srv.kv == nil {
-		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
-	}
-	net := proto.Clone(req.GetNetwork()).(*clustercontrollerpb.DesiredNetwork)
-	net.Domain = strings.TrimSpace(net.GetDomain())
-	if net.GetDomain() == "" {
-		return nil, status.Error(codes.InvalidArgument, "domain is required")
-	}
-	protocol := strings.ToLower(strings.TrimSpace(net.GetProtocol()))
-	if protocol == "" {
-		protocol = "http"
-	}
-	if protocol != "http" && protocol != "https" {
-		return nil, status.Error(codes.InvalidArgument, "protocol must be http or https")
-	}
-	net.Protocol = protocol
-	if net.GetPortHttp() == 0 {
-		net.PortHttp = 80
-	}
-	if net.GetPortHttps() == 0 {
-		net.PortHttps = 443
-	}
-	desired, err := srv.applyDesiredNetwork(ctx, net)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
-	}
-	return &clustercontrollerpb.SetDesiredNetworkV1Response{Desired: desired}, nil
-}
-
-func (srv *server) GetDesiredStateV1(ctx context.Context, _ *clustercontrollerpb.GetDesiredStateV1Request) (*clustercontrollerpb.GetDesiredStateV1Response, error) {
-	if srv.kv == nil {
-		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
-	}
-	desired, err := srv.ensureDesiredState(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
-	}
-	return &clustercontrollerpb.GetDesiredStateV1Response{Desired: desired}, nil
-}
-
 func (srv *server) GetClusterHealthV1(ctx context.Context, _ *clustercontrollerpb.GetClusterHealthV1Request) (*clustercontrollerpb.GetClusterHealthV1Response, error) {
+	if srv.resources == nil {
+		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
+	}
 	if srv.planStore == nil || srv.kv == nil {
 		return nil, status.Error(codes.FailedPrecondition, "plan store or kv unavailable")
 	}
-	desired, err := srv.ensureDesiredState(ctx)
+	desiredNetObj, err := srv.loadDesiredNetwork(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
+		return nil, status.Errorf(codes.Internal, "load desired network: %v", err)
 	}
-	specHash, _ := hashDesiredNetwork(desired.GetNetwork())
+	specHash := ""
+	if desiredNetObj != nil && desiredNetObj.Spec != nil {
+		hash, _ := hashDesiredNetwork(&clustercontrollerpb.DesiredNetwork{
+			Domain:           desiredNetObj.Spec.GetClusterDomain(),
+			Protocol:         desiredNetObj.Spec.GetProtocol(),
+			PortHttp:         desiredNetObj.Spec.GetPortHttp(),
+			PortHttps:        desiredNetObj.Spec.GetPortHttps(),
+			AlternateDomains: append([]string(nil), desiredNetObj.Spec.GetAlternateDomains()...),
+			AcmeEnabled:      desiredNetObj.Spec.GetAcmeEnabled(),
+			AdminEmail:       desiredNetObj.Spec.GetAdminEmail(),
+		})
+		specHash = hash
+	}
+	desiredCanon, _, err := srv.loadDesiredServices(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "load desired services: %v", err)
+	}
 	srv.lock("health:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
 	for _, n := range srv.state.Nodes {
@@ -1189,21 +1162,13 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *clustercontrollerp
 	serviceCounts := make(map[string]int)
 	serviceAtDesired := make(map[string]int)
 	serviceUpgrading := make(map[string]int)
-	desiredCanon := make(map[string]string)
-	for svc, ver := range desired.GetServiceVersions() {
-		canon := canonicalServiceName(svc)
-		if canon == "" {
-			continue
-		}
-		desiredCanon[canon] = ver
-	}
 
 	for _, node := range nodes {
 		if node == nil {
 			continue
 		}
 		appliedNet, _ := srv.getNodeAppliedHash(ctx, node.NodeID)
-		filtered := filterVersionsForNode(desired.GetServiceVersions(), node)
+		filtered := filterVersionsForNode(desiredCanon, node)
 		desiredSvcHash := stableServiceDesiredHash(filtered)
 		appliedSvcHash, _ := srv.getNodeAppliedServiceHash(ctx, node.NodeID)
 		plan, _ := srv.planStore.GetCurrentPlan(ctx, node.NodeID)
@@ -1271,74 +1236,6 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *clustercontrollerp
 		Nodes:    nodeHealths,
 		Services: summaries,
 	}, nil
-}
-
-func (srv *server) SetDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.SetDesiredServiceVersionV1Request) (*clustercontrollerpb.SetDesiredServiceVersionV1Response, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
-	}
-	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" || strings.TrimSpace(req.GetVersion()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "service_name and version are required")
-	}
-	if srv.kv == nil {
-		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
-	}
-	svc := canonicalServiceName(req.GetServiceName())
-	ver := strings.TrimSpace(req.GetVersion())
-	desired, err := srv.ensureDesiredState(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
-	}
-	if desired.ServiceVersions == nil {
-		desired.ServiceVersions = make(map[string]string)
-	}
-	prev, ok := desired.ServiceVersions[svc]
-	if !ok || prev != ver {
-		desired.Generation++
-	}
-	desired.ServiceVersions[svc] = ver
-	if desired.Generation == 0 {
-		desired.Generation = 1
-	}
-	desired.UpdatedAt = timestamppb.Now()
-	if err := srv.saveDesiredState(ctx, desired); err != nil {
-		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
-	}
-	return &clustercontrollerpb.SetDesiredServiceVersionV1Response{Desired: desired}, nil
-}
-
-func (srv *server) ClearDesiredServiceVersionV1(ctx context.Context, req *clustercontrollerpb.ClearDesiredServiceVersionV1Request) (*clustercontrollerpb.ClearDesiredServiceVersionV1Response, error) {
-	if err := srv.requireLeader(ctx); err != nil {
-		return nil, err
-	}
-	if req == nil || strings.TrimSpace(req.GetServiceName()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "service_name is required")
-	}
-	if srv.kv == nil {
-		return nil, status.Error(codes.FailedPrecondition, "etcd unavailable")
-	}
-	svc := canonicalServiceName(req.GetServiceName())
-	if svc == "" {
-		return nil, status.Error(codes.InvalidArgument, "service_name is invalid")
-	}
-	desired, err := srv.ensureDesiredState(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load desired: %v", err)
-	}
-	if desired.ServiceVersions != nil {
-		if _, ok := desired.ServiceVersions[svc]; ok {
-			delete(desired.ServiceVersions, svc)
-			desired.Generation++
-		}
-	}
-	if desired.Generation == 0 {
-		desired.Generation = 1
-	}
-	desired.UpdatedAt = timestamppb.Now()
-	if err := srv.saveDesiredState(ctx, desired); err != nil {
-		return nil, status.Errorf(codes.Internal, "save desired: %v", err)
-	}
-	return &clustercontrollerpb.ClearDesiredServiceVersionV1Response{Desired: desired}, nil
 }
 
 // ResourcesService implementation
@@ -1704,15 +1601,25 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	if srv.planStore == nil || srv.kv == nil {
 		return
 	}
-	desired, err := srv.ensureDesiredState(ctx)
+	desiredNetworkObj, err := srv.loadDesiredNetwork(ctx)
 	if err != nil {
-		log.Printf("reconcile: load desired failed: %v", err)
+		log.Printf("reconcile: load desired network failed: %v", err)
 		return
 	}
-	if desired == nil || desired.GetNetwork() == nil {
+	if desiredNetworkObj == nil {
+		log.Printf("reconcile: no ClusterNetwork/default in resource store; skipping")
 		return
 	}
-	specHash, err := hashDesiredNetwork(desired.GetNetwork())
+	desiredNet := &clustercontrollerpb.DesiredNetwork{
+		Domain:           desiredNetworkObj.Spec.GetClusterDomain(),
+		Protocol:         desiredNetworkObj.Spec.GetProtocol(),
+		PortHttp:         desiredNetworkObj.Spec.GetPortHttp(),
+		PortHttps:        desiredNetworkObj.Spec.GetPortHttps(),
+		AlternateDomains: append([]string(nil), desiredNetworkObj.Spec.GetAlternateDomains()...),
+		AcmeEnabled:      desiredNetworkObj.Spec.GetAcmeEnabled(),
+		AdminEmail:       desiredNetworkObj.Spec.GetAdminEmail(),
+	}
+	specHash, err := hashDesiredNetwork(desiredNet)
 	if err != nil {
 		log.Printf("reconcile: hash desired network: %v", err)
 		return
@@ -1765,6 +1672,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					if err := srv.putNodeAppliedHash(ctx, node.NodeID, specHash); err != nil {
 						log.Printf("reconcile: store applied hash for %s: %v", node.NodeID, err)
 					}
+					if desiredNetworkObj != nil && desiredNetworkObj.Meta != nil && srv.resources != nil {
+						_, _ = srv.resources.UpdateStatus(ctx, "ClusterNetwork", "default", &clustercontrollerpb.ObjectStatus{
+							ObservedGeneration: desiredNetworkObj.Meta.Generation,
+						})
+					}
 					_ = srv.putNodeFailureCount(ctx, node.NodeID, 0)
 					continue
 				}
@@ -1777,7 +1689,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 				}
 			}
 
-			spec := desiredNetworkToSpec(desired.GetNetwork())
+			spec := desiredNetworkToSpec(desiredNet)
 			if spec == nil {
 				continue
 			}
@@ -1817,13 +1729,10 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 
 		// Services reconciliation
-		desiredCanon := make(map[string]string)
-		for svc, ver := range desired.GetServiceVersions() {
-			canon := canonicalServiceName(svc)
-			if canon == "" {
-				continue
-			}
-			desiredCanon[canon] = ver
+		desiredCanon, desiredObjs, err := srv.loadDesiredServices(ctx)
+		if err != nil {
+			log.Printf("reconcile: load desired services failed: %v", err)
+			desiredCanon = map[string]string{}
 		}
 		filtered, toRemove := computeServiceDelta(desiredCanon, node.Units)
 		svcHash := stableServiceDesiredHash(filtered)
@@ -1836,6 +1745,13 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash {
 				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
 					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+				if srv.resources != nil {
+					if obj, ok := desiredObjs[remSvc]; ok && obj != nil && obj.Meta != nil {
+						_, _ = srv.resources.UpdateStatus(ctx, "ServiceDesiredVersion", obj.Meta.Name, &clustercontrollerpb.ObjectStatus{
+							ObservedGeneration: obj.Meta.Generation,
+						})
+					}
 				}
 				continue
 			}
@@ -1871,6 +1787,15 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 			if status != nil && status.GetState() == planpb.PlanState_PLAN_SUCCEEDED && planHash == svcHash && currentPlan != nil && status.GetPlanId() == currentPlan.GetPlanId() && status.GetGeneration() == currentPlan.GetGeneration() {
 				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, svcHash); err != nil {
 					log.Printf("reconcile: store applied service hash for %s: %v", node.NodeID, err)
+				}
+				if srv.resources != nil {
+					for _, obj := range desiredObjs {
+						if obj != nil && obj.Meta != nil {
+							_, _ = srv.resources.UpdateStatus(ctx, "ServiceDesiredVersion", obj.Meta.Name, &clustercontrollerpb.ObjectStatus{
+								ObservedGeneration: obj.Meta.Generation,
+							})
+						}
+					}
 				}
 			}
 			continue
@@ -1934,7 +1859,7 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		}
 		plan := BuildServiceUpgradePlan(node.NodeID, canonicalServiceName(svcName), version, svcHash)
 		if plan != nil {
-			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desired.GetNetwork().GetDomain(), DesiredProtocol: desired.GetNetwork().GetProtocol(), ClusterID: srv.state.ClusterId})
+			mutated, err := op.MutatePlan(ctx, operator.MutateRequest{Service: canonicalServiceName(svcName), NodeID: node.NodeID, Plan: plan, DesiredDomain: desiredNet.GetDomain(), DesiredProtocol: desiredNet.GetProtocol(), ClusterID: srv.state.ClusterId})
 			if err != nil {
 				log.Printf("reconcile: operator mutate %s on %s failed: %v", svcName, node.NodeID, err)
 				continue

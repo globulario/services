@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/plan/planpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -71,28 +72,6 @@ func (f *fakePlanStore) AppendHistory(ctx context.Context, nodeID string, plan *
 	return nil
 }
 
-func TestDesiredStateRoundTrip(t *testing.T) {
-	kv := newMapKV()
-	srv := &server{kv: kv}
-	input := &clustercontrollerpb.DesiredState{
-		Generation: 3,
-		Network: &clustercontrollerpb.DesiredNetwork{
-			Domain:   "example.com",
-			Protocol: "https",
-		},
-	}
-	if err := srv.saveDesiredState(context.Background(), input); err != nil {
-		t.Fatalf("saveDesiredState: %v", err)
-	}
-	got, err := srv.loadDesiredState(context.Background())
-	if err != nil {
-		t.Fatalf("loadDesiredState: %v", err)
-	}
-	if !proto.Equal(input, got) {
-		t.Fatalf("desired state round trip mismatch: want %v got %v", input, got)
-	}
-}
-
 func TestReconcileSkipsWhenHashUnchanged(t *testing.T) {
 	kv := newMapKV()
 	ps := &fakePlanStore{}
@@ -101,24 +80,24 @@ func TestReconcileSkipsWhenHashUnchanged(t *testing.T) {
 		state:     &controllerState{Nodes: map[string]*nodeState{"n1": {NodeID: "n1"}}},
 		kv:        kv,
 		planStore: ps,
+		resources: resourcestore.NewMemStore(),
 	}
-	desired := &clustercontrollerpb.DesiredState{
-		Generation: 1,
-		Network: &clustercontrollerpb.DesiredNetwork{
-			Domain:   "example.com",
-			Protocol: "http",
-			PortHttp: 80,
+	net := &clustercontrollerpb.DesiredNetwork{Domain: "example.com", Protocol: "http", PortHttp: 80}
+	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &clustercontrollerpb.ClusterNetwork{
+		Meta: &clustercontrollerpb.ObjectMeta{Name: "default", Generation: 1},
+		Spec: &clustercontrollerpb.ClusterNetworkSpec{
+			ClusterDomain: net.GetDomain(),
+			Protocol:      net.GetProtocol(),
+			PortHttp:      net.GetPortHttp(),
+			PortHttps:     net.GetPortHttps(),
 		},
-	}
-	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
-		t.Fatalf("saveDesiredState: %v", err)
-	}
+	})
 	srv.reconcileNodes(context.Background())
 	if ps.count != 1 {
 		t.Fatalf("expected 1 plan write, got %d", ps.count)
 	}
 	// Mark applied to simulate convergence so second reconcile should skip.
-	hash, err := hashDesiredNetwork(desired.GetNetwork())
+	hash, err := hashDesiredNetwork(net)
 	if err != nil {
 		t.Fatalf("hashDesiredNetwork: %v", err)
 	}

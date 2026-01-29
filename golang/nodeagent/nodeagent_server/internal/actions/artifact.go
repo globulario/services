@@ -4,14 +4,20 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions/serviceports"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/ports"
 	"github.com/globulario/services/golang/plan/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -195,6 +201,11 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		version = filepath.Base(artifact)
 	}
 
+	// Ensure runtime config + port normalization
+	if err := serviceports.EnsureServicePortConfig(ctx, service, binDir); err != nil {
+		return "", err
+	}
+
 	return fmt.Sprintf("service payload installed version=%s", version), nil
 }
 
@@ -253,6 +264,151 @@ func copyFileAtomic(dest string, r io.Reader) error {
 		return fmt.Errorf("rename artifact: %w", err)
 	}
 	return nil
+}
+
+// ensureServicePortConfig guarantees that a service runtime config exists with a port
+// inside the configured range. It is best-effort: unknown services are skipped.
+func ensureServicePortConfig(ctx context.Context, service, binDir string) error {
+	exe := executableForService(service)
+	if exe == "" {
+		return nil
+	}
+	binPath := filepath.Join(binDir, exe)
+
+	alloc, err := ports.NewFromEnv()
+	if err != nil {
+		return err
+	}
+
+	desc, err := runDescribe(ctx, binPath)
+	if err != nil {
+		return err
+	}
+	if desc.Id == "" {
+		return fmt.Errorf("describe %s returned empty Id", binPath)
+	}
+
+	stateRoot := strings.TrimSpace(os.Getenv("GLOBULAR_STATE_DIR"))
+	if stateRoot == "" {
+		stateRoot = "/var/lib/globular"
+	}
+	cfgPath := filepath.Join(stateRoot, "services", desc.Id+".json")
+
+	cfg, _ := readServiceConfig(cfgPath)
+	if cfg == nil {
+		cfg = desc
+	}
+
+	currentPort := portFromAddress(cfg.Address)
+	if currentPort == 0 {
+		currentPort = desc.Port
+	}
+
+	needsRewrite := cfgPathMissing(cfgPath)
+	start, end := alloc.Range()
+	if currentPort < start || currentPort > end {
+		needsRewrite = true
+	}
+
+	if !needsRewrite {
+		return nil
+	}
+
+	newPort, err := alloc.Reserve(service, currentPort)
+	if err != nil {
+		return err
+	}
+
+	cfg.Port = newPort
+	cfg.Address = fmt.Sprintf("localhost:%d", newPort)
+	cfg.Id = desc.Id
+
+	if err := writeServiceConfig(cfgPath, cfg); err != nil {
+		return err
+	}
+
+	fmt.Printf("INFO service %s port normalized %d->%d range=%d-%d config=%s\n", service, currentPort, newPort, start, end, cfgPath)
+	return nil
+}
+
+func executableForService(svc string) string {
+	switch strings.ToLower(strings.TrimSpace(svc)) {
+	case "rbac":
+		return "rbac_server"
+	case "resource":
+		return "resource_server"
+	case "repository":
+		return "repository_server"
+	default:
+		return ""
+	}
+}
+
+type describePayload struct {
+	Id      string `json:"Id"`
+	Address string `json:"Address"`
+	Port    int    `json:"Port"`
+}
+
+func runDescribe(ctx context.Context, binPath string) (*describePayload, error) {
+	cmd := exec.CommandContext(ctx, binPath, "--describe")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("describe %s: %w", binPath, err)
+	}
+	var payload describePayload
+	if err := json.Unmarshal(out, &payload); err != nil {
+		return nil, fmt.Errorf("parse describe: %w", err)
+	}
+	if payload.Port == 0 {
+		payload.Port = portFromAddress(payload.Address)
+	}
+	return &payload, nil
+}
+
+func portFromAddress(addr string) int {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	_ = host
+	p, _ := strconv.Atoi(port)
+	return p
+}
+
+func readServiceConfig(path string) (*describePayload, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg describePayload
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func writeServiceConfig(path string, cfg *describePayload) error {
+	if cfg == nil {
+		return errors.New("nil config")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func cfgPathMissing(path string) bool {
+	_, err := os.Stat(path)
+	return errors.Is(err, os.ErrNotExist)
 }
 
 func installPaths() (binDir, systemdDir, configDir string, skipSystemd bool) {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/recovery"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
-	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/config"
 	planstore "github.com/globulario/services/golang/plan/store"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -40,24 +39,19 @@ func main() {
 		log.Fatalf("failed to load state %s: %v", *statePath, err)
 	}
 
-var (
-	planStore  planstore.PlanStore
-	etcdClient *clientv3.Client
-	resources  resourcestore.Store
-)
-if c, err := config.GetEtcdClient(); err == nil {
-	etcdClient = c
-	planStore = planstore.NewEtcdPlanStore(c)
-	resources = resourcestore.NewEtcdStore(c)
-} else {
-	log.Printf("plan store unavailable: %v", err)
-}
-if etcdClient != nil {
-	defer etcdClient.Close()
-}
-if resources == nil {
-	resources = resourcestore.NewMemStore()
-}
+	var (
+		planStore  planstore.PlanStore
+		etcdClient *clientv3.Client
+	)
+	if c, err := config.GetEtcdClient(); err == nil {
+		etcdClient = c
+		planStore = planstore.NewEtcdPlanStore(c)
+	} else {
+		log.Printf("plan store unavailable: %v", err)
+	}
+	if etcdClient != nil {
+		defer etcdClient.Close()
+	}
 
 	address := fmt.Sprintf(":%d", cfg.Port)
 	lis, err := net.Listen("tcp", address)
@@ -80,11 +74,11 @@ if resources == nil {
 			MinTime:             10 * time.Second,
 			PermitWithoutStream: true,
 		}),
-)
-srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
-srv.resources = resources
-clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
-clustercontrollerpb.RegisterResourcesServiceServer(grpcServer, srv)
+	)
+	srv := newServer(cfg, *cfgPath, *statePath, state, planStore)
+	srv.initResourceStore(etcdClient)
+	clustercontrollerpb.RegisterClusterControllerServiceServer(grpcServer, srv)
+	clustercontrollerpb.RegisterResourcesServiceServer(grpcServer, srv)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -104,7 +98,7 @@ clustercontrollerpb.RegisterResourcesServiceServer(grpcServer, srv)
 		}
 	}()
 
-	srv.startReconcileLoop(context.Background(), 2*time.Second)
+	srv.startControllerRuntime(ctx, 4)
 	srv.startAgentCleanupLoop(context.Background())
 	srv.startOperationCleanupLoop(context.Background())
 	srv.startHealthMonitorLoop(context.Background())

@@ -9,13 +9,9 @@ import (
 	"strings"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
-	desiredStateKey      = "globular/cluster/v1/desired"
 	appliedHashPrefix    = "globular/cluster/v1/applied_hash"
 	appliedSvcHashPrefix = "globular/cluster/v1/applied_hash_services"
 	planMetaPrefix       = "globular/cluster/v1/plan_meta"
@@ -30,44 +26,11 @@ type planMeta struct {
 	LastEmit    int64  `json:"last_emit_unix"`
 }
 
-func (srv *server) loadDesiredState(ctx context.Context) (*clustercontrollerpb.DesiredState, error) {
-	if srv.kv == nil {
-		return nil, fmt.Errorf("etcd client unavailable")
-	}
-	resp, err := srv.kv.Get(ctx, desiredStateKey)
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.Kvs) == 0 {
-		return nil, nil
-	}
-	var desired clustercontrollerpb.DesiredState
-	if err := proto.Unmarshal(resp.Kvs[0].Value, &desired); err != nil {
-		return nil, err
-	}
-	return &desired, nil
-}
-
-func (srv *server) saveDesiredState(ctx context.Context, desired *clustercontrollerpb.DesiredState) error {
-	if srv.kv == nil {
-		return fmt.Errorf("etcd client unavailable")
-	}
-	if desired == nil {
-		return fmt.Errorf("desired state is nil")
-	}
-	data, err := proto.Marshal(desired)
-	if err != nil {
-		return err
-	}
-	_, err = srv.kv.Put(ctx, desiredStateKey, string(data))
-	return err
-}
-
 func hashDesiredNetwork(net *clustercontrollerpb.DesiredNetwork) (string, error) {
 	if net == nil {
 		return "", nil
 	}
-	data, err := protojson.Marshal(net)
+	data, err := json.Marshal(net)
 	if err != nil {
 		return "", err
 	}
@@ -226,32 +189,6 @@ func (srv *server) putNodeFailureCountServices(ctx context.Context, nodeID strin
 	return err
 }
 
-func (srv *server) ensureDesiredState(ctx context.Context) (*clustercontrollerpb.DesiredState, error) {
-	if desired, err := srv.loadDesiredState(ctx); err == nil && desired != nil {
-		return desired, nil
-	} else if err != nil {
-		return nil, err
-	}
-	now := timestamppb.Now()
-	desired := &clustercontrollerpb.DesiredState{
-		Generation: 1,
-		UpdatedAt:  now,
-		Network: &clustercontrollerpb.DesiredNetwork{
-			Domain:           srv.cfg.ClusterDomain,
-			Protocol:         "http",
-			PortHttp:         80,
-			PortHttps:        443,
-			AcmeEnabled:      false,
-			AdminEmail:       "",
-			AlternateDomains: nil,
-		},
-	}
-	if err := srv.saveDesiredState(ctx, desired); err != nil {
-		return nil, err
-	}
-	return desired, nil
-}
-
 func desiredNetworkToSpec(net *clustercontrollerpb.DesiredNetwork) *clustercontrollerpb.ClusterNetworkSpec {
 	if net == nil {
 		return nil
@@ -265,35 +202,4 @@ func desiredNetworkToSpec(net *clustercontrollerpb.DesiredNetwork) *clustercontr
 		AcmeEnabled:      net.GetAcmeEnabled(),
 		AdminEmail:       net.GetAdminEmail(),
 	}
-}
-
-func (srv *server) applyDesiredNetwork(ctx context.Context, net *clustercontrollerpb.DesiredNetwork) (*clustercontrollerpb.DesiredState, error) {
-	desired, err := srv.loadDesiredState(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if desired == nil {
-		desired = &clustercontrollerpb.DesiredState{}
-	}
-	changed := !proto.Equal(desired.GetNetwork(), net)
-	desired.Network = proto.Clone(net).(*clustercontrollerpb.DesiredNetwork)
-	if changed {
-		desired.Generation++
-	}
-	if desired.Generation == 0 {
-		desired.Generation = 1
-	}
-	desired.UpdatedAt = timestamppb.Now()
-	if err := srv.saveDesiredState(ctx, desired); err != nil {
-		return nil, err
-	}
-	// Keep legacy in-memory snapshot in sync.
-	if netSpec := desiredNetworkToSpec(net); netSpec != nil {
-		gen := computeNetworkGeneration(netSpec)
-		srv.lock("desiredNetwork:snapshot")
-		srv.state.ClusterNetworkSpec = netSpec
-		srv.state.NetworkingGeneration = gen
-		srv.unlock()
-	}
-	return desired, nil
 }

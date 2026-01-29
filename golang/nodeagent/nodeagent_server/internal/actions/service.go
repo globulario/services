@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/supervisor"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -35,8 +36,12 @@ func (a *serviceAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 	if unit == "" {
 		return "", errors.New("unit is required")
 	}
+	svc := serviceFromUnit(unit)
 	switch a.name {
 	case "service.start":
+		if err := serviceports.EnsureServicePortReady(ctx, svc, unit); err != nil {
+			return "", err
+		}
 		if active, err := supervisor.IsActive(ctx, unit); err == nil && active {
 			return "already running", nil
 		}
@@ -44,11 +49,29 @@ func (a *serviceAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 		if active, err := supervisor.IsActive(ctx, unit); err == nil && !active {
 			return "already stopped", nil
 		}
+	case "service.restart":
+		if err := serviceports.EnsureServicePortReady(ctx, svc, unit); err != nil {
+			return "", err
+		}
 	}
 	if err := a.op(ctx, unit); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s completed", a.name), nil
+}
+
+func serviceFromUnit(unit string) string {
+	u := strings.ToLower(strings.TrimSpace(unit))
+	switch u {
+	case "globular-rbac.service":
+		return "rbac"
+	case "globular-resource.service":
+		return "resource"
+	case "globular-repository.service":
+		return "repository"
+	default:
+		return ""
+	}
 }
 
 func init() {

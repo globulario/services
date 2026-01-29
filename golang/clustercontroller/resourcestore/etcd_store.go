@@ -190,3 +190,9 @@ func decodeObject(typ string, data []byte) (interface{}, error) {
 		return nil, fmt.Errorf("unknown type %s", typ)
 	}
 }
+
+// IsEtcdStore reports whether the store is backed by etcd.
+func IsEtcdStore(s Store) bool {
+	_, ok := s.(*etcdStore)
+	return ok
+}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/clustercontroller/resourcestore"
 	"github.com/globulario/services/golang/plan/planpb"
 )
 
@@ -18,19 +19,16 @@ func TestServiceRemovalPlanHasStableHash(t *testing.T) {
 		state: &controllerState{Nodes: map[string]*nodeState{
 			"n1": {NodeID: "n1", Units: []unitStatusRecord{{Name: serviceUnitForCanonical("gateway")}}},
 		}},
-		kv:                  kv,
-		planStore:           ps,
+		kv:                   kv,
+		planStore:            ps,
+		resources:            resourcestore.NewMemStore(),
 		enableServiceRemoval: true,
 	}
-	desired := &clustercontrollerpb.DesiredState{
-		Generation:      1,
-		Network:         &clustercontrollerpb.DesiredNetwork{Domain: "example.com", Protocol: "http", PortHttp: 80},
-		ServiceVersions: map[string]string{}, // gateway not desired
-	}
-	if err := srv.saveDesiredState(context.Background(), desired); err != nil {
-		t.Fatalf("saveDesiredState: %v", err)
-	}
-	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desired.GetNetwork())); err != nil {
+	_, _ = srv.resources.Apply(context.Background(), "ClusterNetwork", &clustercontrollerpb.ClusterNetwork{
+		Meta: &clustercontrollerpb.ObjectMeta{Name: "default", Generation: 1},
+		Spec: &clustercontrollerpb.ClusterNetworkSpec{ClusterDomain: "example.com", Protocol: "http", PortHttp: 80},
+	})
+	if err := srv.putNodeAppliedHash(context.Background(), "n1", mustHash(t, desiredNetworkForTests())); err != nil {
 		t.Fatalf("putNodeAppliedHash: %v", err)
 	}
 
@@ -62,4 +60,3 @@ func TestServiceRemovalPlanHasStableHash(t *testing.T) {
 		t.Fatalf("expected no re-emit after success, got %d plans", ps.count)
 	}
 }
-
