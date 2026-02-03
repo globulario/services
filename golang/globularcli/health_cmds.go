@@ -59,56 +59,97 @@ func runHealthCommand(cmd *cobra.Command, args []string) error {
 	return runClusterHealthChecks()
 }
 
-// ServiceEndpoint represents a resolved service endpoint
-type ServiceEndpoint struct {
-	Host string
-	Port int
-	Proto string
+// Endpoint represents a resolved service endpoint
+type Endpoint struct {
+	Host   string
+	Port   int
+	Scheme string // "http", "https", "grpc", "tcp"
+	Path   string // for http probes, e.g. "/ready"
 }
 
-// resolveServiceEndpoint attempts to resolve a service endpoint using config-driven discovery
-// Resolution chain: 1) Runtime config 2) --describe output 3) Fallback defaults
-func resolveServiceEndpoint(serviceID string) (ServiceEndpoint, error) {
-	var endpoint ServiceEndpoint
-
+// ResolveEndpoint attempts to resolve a service endpoint using config-driven discovery
+// Resolution chain: 1) --describe output from service binary 2) Fallback to provided default
+// Returns the fallback endpoint if resolution fails, along with an error for debug purposes
+func ResolveEndpoint(serviceKey string, fallback Endpoint) (Endpoint, error) {
 	// Try to get from --describe output
 	root := config.GetServicesRoot()
 	if root != "" {
-		binPath, err := config.FindServiceBinary(root, serviceID)
+		binPath, err := config.FindServiceBinary(root, serviceKey)
 		if err == nil {
 			desc, err := config.RunDescribe(binPath, 5*time.Second, nil)
 			if err == nil {
-				endpoint.Host = desc.Address
-				if endpoint.Host == "" {
-					endpoint.Host = "127.0.0.1"
+				resolved := Endpoint{
+					Host:   desc.Address,
+					Port:   desc.Port,
+					Scheme: desc.Proto,
 				}
-				endpoint.Port = desc.Port
-				endpoint.Proto = desc.Proto
-				if endpoint.Proto == "" {
-					endpoint.Proto = desc.Protocol
+				if resolved.Scheme == "" {
+					resolved.Scheme = desc.Protocol
 				}
-				if endpoint.Port > 0 {
-					return endpoint, nil
+				if resolved.Host == "" {
+					resolved.Host = "127.0.0.1"
+				}
+				// Copy path from fallback if it was set (for envoy admin)
+				resolved.Path = fallback.Path
+
+				if resolved.Port > 0 {
+					return resolved, nil
 				}
 			}
 		}
 	}
 
-	// Fallback to default ports
-	switch strings.ToLower(serviceID) {
-	case "etcd":
-		return ServiceEndpoint{Host: "127.0.0.1", Port: 2379, Proto: "tcp"}, nil
-	case "scylla", "scylladb":
-		return ServiceEndpoint{Host: "127.0.0.1", Port: 9042, Proto: "tcp"}, nil
-	case "minio":
-		return ServiceEndpoint{Host: "127.0.0.1", Port: 9000, Proto: "http"}, nil
-	case "envoy", "envoy-admin":
-		return ServiceEndpoint{Host: "127.0.0.1", Port: 9901, Proto: "http"}, nil
-	case "dns", "dns_server", "globular-dns":
-		return ServiceEndpoint{Host: "localhost", Port: 10033, Proto: "grpc"}, nil
-	default:
-		return endpoint, fmt.Errorf("unknown service %q and no --describe output found", serviceID)
+	// Return fallback on any resolution failure
+	return fallback, fmt.Errorf("could not resolve %q from --describe, using fallback", serviceKey)
+}
+
+// Probe functions - injectable for testing
+var (
+	tcpProbe  = defaultTCPProbe
+	httpProbe = defaultHTTPProbe
+)
+
+// defaultTCPProbe checks if a TCP endpoint is reachable
+func defaultTCPProbe(ctx context.Context, endpoint Endpoint) error {
+	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
+	dialer := &net.Dialer{Timeout: 3 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return err
 	}
+	conn.Close()
+	return nil
+}
+
+// defaultHTTPProbe checks if an HTTP endpoint returns 200 OK
+func defaultHTTPProbe(ctx context.Context, endpoint Endpoint) error {
+	scheme := endpoint.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+	path := endpoint.Path
+	if path == "" {
+		path = "/"
+	}
+	url := fmt.Sprintf("%s://%s:%d%s", scheme, endpoint.Host, endpoint.Port, path)
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // HealthCheckResult represents the result of a single health check
@@ -281,19 +322,15 @@ func loadNetworkSpec() (*clustercontrollerpb.ClusterNetworkSpec, error) {
 func checkEtcd(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "etcd"}
 
-	endpoint, err := resolveServiceEndpoint("etcd")
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("failed to resolve endpoint: %v", err)
-		return result
-	}
+	fallback := Endpoint{Host: "127.0.0.1", Port: 2379, Scheme: "tcp"}
+	endpoint, _ := ResolveEndpoint("etcd", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
-	tcpResult := checkTCPPort(ctx, address)
-	result.OK = tcpResult.OK
-	if !result.OK {
+	if err := tcpProbe(ctx, endpoint); err != nil {
+		result.OK = false
 		result.Details = fmt.Sprintf("etcd unreachable on %s", address)
 	} else {
+		result.OK = true
 		result.Details = "etcd reachable"
 	}
 	return result
@@ -303,19 +340,15 @@ func checkEtcd(ctx context.Context) HealthCheckResult {
 func checkScylla(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "scylla"}
 
-	endpoint, err := resolveServiceEndpoint("scylla")
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("failed to resolve endpoint: %v", err)
-		return result
-	}
+	fallback := Endpoint{Host: "127.0.0.1", Port: 9042, Scheme: "tcp"}
+	endpoint, _ := ResolveEndpoint("scylla", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
-	tcpResult := checkTCPPort(ctx, address)
-	result.OK = tcpResult.OK
-	if !result.OK {
+	if err := tcpProbe(ctx, endpoint); err != nil {
+		result.OK = false
 		result.Details = fmt.Sprintf("scylla unreachable on %s", address)
 	} else {
+		result.OK = true
 		result.Details = "scylla reachable"
 	}
 	return result
@@ -325,19 +358,15 @@ func checkScylla(ctx context.Context) HealthCheckResult {
 func checkMinio(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "minio"}
 
-	endpoint, err := resolveServiceEndpoint("minio")
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("failed to resolve endpoint: %v", err)
-		return result
-	}
+	fallback := Endpoint{Host: "127.0.0.1", Port: 9000, Scheme: "tcp"}
+	endpoint, _ := ResolveEndpoint("minio", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
-	tcpResult := checkTCPPort(ctx, address)
-	result.OK = tcpResult.OK
-	if !result.OK {
+	if err := tcpProbe(ctx, endpoint); err != nil {
+		result.OK = false
 		result.Details = fmt.Sprintf("minio unreachable on %s", address)
 	} else {
+		result.OK = true
 		result.Details = "minio reachable"
 	}
 	return result
@@ -347,39 +376,18 @@ func checkMinio(ctx context.Context) HealthCheckResult {
 func checkEnvoy(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "envoy"}
 
-	endpoint, err := resolveServiceEndpoint("envoy-admin")
-	if err != nil {
+	fallback := Endpoint{Host: "127.0.0.1", Port: 9901, Scheme: "http", Path: "/ready"}
+	endpoint, _ := ResolveEndpoint("envoy-admin", fallback)
+
+	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
+	if err := httpProbe(ctx, endpoint); err != nil {
 		result.OK = false
-		result.Details = fmt.Sprintf("failed to resolve endpoint: %v", err)
+		result.Details = fmt.Sprintf("envoy admin unreachable on %s", address)
 		return result
 	}
 
-	url := fmt.Sprintf("http://%s:%d/ready", endpoint.Host, endpoint.Port)
-
-	client := &http.Client{Timeout: 3 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("failed to create request: %v", err)
-		return result
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("envoy admin unreachable on %s:%d", endpoint.Host, endpoint.Port)
-		return result
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == 200 {
-		result.OK = true
-		result.Details = "envoy ready"
-	} else {
-		result.OK = false
-		result.Details = fmt.Sprintf("envoy not ready (status %d)", resp.StatusCode)
-	}
-
+	result.OK = true
+	result.Details = "envoy ready"
 	return result
 }
 
@@ -396,12 +404,13 @@ func checkGateway(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkS
 		port = 80 // default
 	}
 
-	tcpResult := checkTCPPort(ctx, fmt.Sprintf("127.0.0.1:%d", port))
-	result.OK = tcpResult.OK
-	if result.OK {
-		result.Details = fmt.Sprintf("gateway reachable on port %d", port)
-	} else {
+	endpoint := Endpoint{Host: "127.0.0.1", Port: int(port), Scheme: "tcp"}
+	if err := tcpProbe(ctx, endpoint); err != nil {
+		result.OK = false
 		result.Details = fmt.Sprintf("gateway unreachable on port %d", port)
+	} else {
+		result.OK = true
+		result.Details = fmt.Sprintf("gateway reachable on port %d", port)
 	}
 
 	return result
@@ -411,12 +420,8 @@ func checkGateway(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkS
 func checkDNS(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "dns"}
 
-	endpoint, err := resolveServiceEndpoint("dns")
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("failed to resolve endpoint: %v", err)
-		return result
-	}
+	fallback := Endpoint{Host: "localhost", Port: 10033, Scheme: "grpc"}
+	endpoint, _ := ResolveEndpoint("dns", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 
@@ -521,20 +526,3 @@ func checkTLS(ctx context.Context, domain string) HealthCheckResult {
 	return result
 }
 
-// checkTCPPort checks if a TCP port is reachable
-func checkTCPPort(ctx context.Context, address string) HealthCheckResult {
-	result := HealthCheckResult{OK: false}
-
-	dialer := &net.Dialer{Timeout: 3 * time.Second}
-	conn, err := dialer.DialContext(ctx, "tcp", address)
-	if err != nil {
-		result.OK = false
-		result.Details = err.Error()
-		return result
-	}
-	conn.Close()
-
-	result.OK = true
-	result.Details = "reachable"
-	return result
-}

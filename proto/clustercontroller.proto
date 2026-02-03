@@ -165,6 +165,14 @@ message ApplyNodePlanResponse {
   string operation_id = 1;
 }
 
+message ApplyNodePlanV1Request {
+  string node_id = 1;
+  globular.plan.v1.NodePlan plan = 2;
+}
+message ApplyNodePlanV1Response {
+  string operation_id = 1;
+}
+
 enum ArtifactKind {
   ARTIFACT_KIND_UNSPECIFIED = 0;
   ARTIFACT_SERVICE = 1;
@@ -321,6 +329,7 @@ service ClusterControllerService {
   rpc WatchNodePlanStatusV1(WatchNodePlanStatusV1Request) returns (stream globular.plan.v1.NodePlanStatus);
   rpc UpdateClusterNetwork(UpdateClusterNetworkRequest) returns (UpdateClusterNetworkResponse);
   rpc ApplyNodePlan(ApplyNodePlanRequest) returns (ApplyNodePlanResponse);
+  rpc ApplyNodePlanV1(ApplyNodePlanV1Request) returns (ApplyNodePlanV1Response);
   rpc ReportNodeStatus(ReportNodeStatusRequest) returns (ReportNodeStatusResponse);
   rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse);
   rpc UpgradeGlobular(UpgradeGlobularRequest) returns (UpgradeGlobularResponse);

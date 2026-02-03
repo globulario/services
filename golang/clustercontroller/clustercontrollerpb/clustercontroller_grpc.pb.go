@@ -37,6 +37,7 @@ const (
 	ClusterControllerService_WatchNodePlanStatusV1_FullMethodName = "/clustercontroller.ClusterControllerService/WatchNodePlanStatusV1"
 	ClusterControllerService_UpdateClusterNetwork_FullMethodName  = "/clustercontroller.ClusterControllerService/UpdateClusterNetwork"
 	ClusterControllerService_ApplyNodePlan_FullMethodName         = "/clustercontroller.ClusterControllerService/ApplyNodePlan"
+	ClusterControllerService_ApplyNodePlanV1_FullMethodName       = "/clustercontroller.ClusterControllerService/ApplyNodePlanV1"
 	ClusterControllerService_ReportNodeStatus_FullMethodName      = "/clustercontroller.ClusterControllerService/ReportNodeStatus"
 	ClusterControllerService_GetJoinRequestStatus_FullMethodName  = "/clustercontroller.ClusterControllerService/GetJoinRequestStatus"
 	ClusterControllerService_UpgradeGlobular_FullMethodName       = "/clustercontroller.ClusterControllerService/UpgradeGlobular"
@@ -65,6 +66,7 @@ type ClusterControllerServiceClient interface {
 	WatchNodePlanStatusV1(ctx context.Context, in *WatchNodePlanStatusV1Request, opts ...grpc.CallOption) (grpc.ServerStreamingClient[planpb.NodePlanStatus], error)
 	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(ctx context.Context, in *ApplyNodePlanRequest, opts ...grpc.CallOption) (*ApplyNodePlanResponse, error)
+	ApplyNodePlanV1(ctx context.Context, in *ApplyNodePlanV1Request, opts ...grpc.CallOption) (*ApplyNodePlanV1Response, error)
 	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error)
@@ -250,6 +252,16 @@ func (c *clusterControllerServiceClient) ApplyNodePlan(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ApplyNodePlanV1(ctx context.Context, in *ApplyNodePlanV1Request, opts ...grpc.CallOption) (*ApplyNodePlanV1Response, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyNodePlanV1Response)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApplyNodePlanV1_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportNodeStatusResponse)
@@ -320,7 +332,7 @@ func (c *clusterControllerServiceClient) GetClusterHealthV1(ctx context.Context,
 }
 
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
-// All implementations should embed UnimplementedClusterControllerServiceServer
+// All implementations must embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
 type ClusterControllerServiceServer interface {
 	GetClusterInfo(context.Context, *timestamppb.Timestamp) (*ClusterInfo, error)
@@ -339,15 +351,17 @@ type ClusterControllerServiceServer interface {
 	WatchNodePlanStatusV1(*WatchNodePlanStatusV1Request, grpc.ServerStreamingServer[planpb.NodePlanStatus]) error
 	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
 	ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error)
+	ApplyNodePlanV1(context.Context, *ApplyNodePlanV1Request) (*ApplyNodePlanV1Response, error)
 	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
 	GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error)
 	CompleteOperation(context.Context, *CompleteOperationRequest) (*CompleteOperationResponse, error)
 	WatchOperations(*WatchOperationsRequest, grpc.ServerStreamingServer[OperationEvent]) error
 	GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error)
+	mustEmbedUnimplementedClusterControllerServiceServer()
 }
 
-// UnimplementedClusterControllerServiceServer should be embedded to have
+// UnimplementedClusterControllerServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -402,6 +416,9 @@ func (UnimplementedClusterControllerServiceServer) UpdateClusterNetwork(context.
 func (UnimplementedClusterControllerServiceServer) ApplyNodePlan(context.Context, *ApplyNodePlanRequest) (*ApplyNodePlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyNodePlan not implemented")
 }
+func (UnimplementedClusterControllerServiceServer) ApplyNodePlanV1(context.Context, *ApplyNodePlanV1Request) (*ApplyNodePlanV1Response, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyNodePlanV1 not implemented")
+}
 func (UnimplementedClusterControllerServiceServer) ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportNodeStatus not implemented")
 }
@@ -419,6 +436,8 @@ func (UnimplementedClusterControllerServiceServer) WatchOperations(*WatchOperati
 }
 func (UnimplementedClusterControllerServiceServer) GetClusterHealthV1(context.Context, *GetClusterHealthV1Request) (*GetClusterHealthV1Response, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetClusterHealthV1 not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) mustEmbedUnimplementedClusterControllerServiceServer() {
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -721,6 +740,24 @@ func _ClusterControllerService_ApplyNodePlan_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ApplyNodePlanV1_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyNodePlanV1Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ApplyNodePlanV1(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ApplyNodePlanV1_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ApplyNodePlanV1(ctx, req.(*ApplyNodePlanV1Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_ReportNodeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReportNodeStatusRequest)
 	if err := dec(in); err != nil {
@@ -888,6 +925,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyNodePlan",
 			Handler:    _ClusterControllerService_ApplyNodePlan_Handler,
+		},
+		{
+			MethodName: "ApplyNodePlanV1",
+			Handler:    _ClusterControllerService_ApplyNodePlanV1_Handler,
 		},
 		{
 			MethodName: "ReportNodeStatus",
