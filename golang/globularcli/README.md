@@ -385,14 +385,33 @@ globular cluster health --local --timeout 30
 
 **Local Health Checks** (with `--local`):
 
-Performs direct checks on the local node without contacting the cluster controller:
-- **etcd**: TCP connectivity on 127.0.0.1:2379
-- **scylla**: TCP connectivity on 127.0.0.1:9042
-- **minio**: TCP connectivity on 127.0.0.1:9000
-- **envoy**: HTTP /ready endpoint on 127.0.0.1:9901
+Performs direct checks on the local node without contacting the cluster controller. The health check system is **config-driven** and automatically discovers service endpoints:
+
+**Endpoint Resolution Strategy**:
+
+1. **Runtime discovery** (preferred): Queries each service's `--describe` output from `ServicesRoot` to get actual address/port/protocol
+2. **Fallback defaults**: Uses sensible defaults if service binary is not found or `--describe` fails
+
+This ensures health checks work reliably even when services use non-default ports or custom configurations.
+
+**Health Checks Performed**:
+
+- **etcd**: TCP connectivity (default: 127.0.0.1:2379, config-driven)
+- **scylla**: TCP connectivity (default: 127.0.0.1:9042, config-driven)
+- **minio**: TCP connectivity (default: 127.0.0.1:9000, config-driven)
+- **envoy**: HTTP /ready endpoint (default: 127.0.0.1:9901, config-driven)
 - **gateway**: TCP connectivity on configured port (from network.json)
-- **dns**: gRPC connectivity and basic query test on localhost:10033
+- **dns**: gRPC connectivity and basic query test (default: localhost:10033, config-driven)
 - **tls** (HTTPS only): Certificate presence, validity, and domain match
+
+**Configuration Requirements**:
+
+For optimal endpoint discovery, ensure:
+- `ServicesRoot` is set in `/var/lib/globular/config.json` (points to directory containing service binaries)
+- Service binaries support the `--describe` flag and output valid JSON
+- Binaries are named with `*_server` suffix (e.g., `etcd_server`, `dns_server`)
+
+If these are not configured, health checks gracefully fall back to default ports.
 
 **Cluster-Wide Health** (default):
 
@@ -409,10 +428,13 @@ Queries the cluster controller for aggregated health:
   "healthy": false,
   "checks": [
     {"name": "etcd", "ok": true, "details": "etcd reachable"},
-    {"name": "scylla", "ok": false, "details": "scylla unreachable on 127.0.0.1:9042"}
+    {"name": "scylla", "ok": false, "details": "scylla unreachable on 127.0.0.1:9042"},
+    {"name": "dns", "ok": true, "details": "dns service operational"}
   ]
 }
 ```
+
+The `details` field includes the actual endpoint used (e.g., "etcd unreachable on 127.0.0.1:2379"), making it easy to diagnose port configuration issues.
 
 **Examples**:
 
@@ -430,12 +452,19 @@ globular cluster health
 globular cluster health --local | grep tls
 ```
 
+**Benefits of Config-Driven Health Checks**:
+
+- **No false negatives**: Works correctly even if services use non-standard ports
+- **Automatic discovery**: No manual configuration of endpoints required
+- **Day-1 trust**: Reliable health reporting from initial deployment
+- **Flexible deployments**: Supports custom port allocations and multi-tenancy
+
 **Use cases**:
-- Day-1 operations: Single command to verify cluster health
+- Day-1 operations: Single command to verify cluster health with reliable port detection
 - Monitoring and alerting integration (JSON output)
-- Pre-deployment validation
-- Troubleshooting connectivity issues
-- CI/CD health gates
+- Pre-deployment validation: Ensure all services are reachable before deploying workloads
+- Troubleshooting connectivity issues: Works even with custom port configurations
+- CI/CD health gates: Reliable health checks for automated pipelines
 
 ---
 

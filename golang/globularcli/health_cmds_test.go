@@ -200,3 +200,43 @@ func TestLocalHealthStatusEmpty(t *testing.T) {
 		t.Errorf("Checks length mismatch: got %d, want 0", len(decoded.Checks))
 	}
 }
+
+func TestResolveServiceEndpointFallback(t *testing.T) {
+	// Test fallback to default ports when no config is available
+	tests := []struct {
+		serviceID string
+		wantHost  string
+		wantPort  int
+	}{
+		{"etcd", "127.0.0.1", 2379},
+		{"scylla", "127.0.0.1", 9042},
+		{"minio", "127.0.0.1", 9000},
+		{"envoy-admin", "127.0.0.1", 9901},
+		{"dns", "localhost", 10033},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.serviceID, func(t *testing.T) {
+			endpoint, err := resolveServiceEndpoint(tt.serviceID)
+			if err != nil {
+				t.Fatalf("resolveServiceEndpoint(%q) error = %v", tt.serviceID, err)
+			}
+
+			if endpoint.Host != tt.wantHost {
+				t.Errorf("Host = %s, want %s", endpoint.Host, tt.wantHost)
+			}
+
+			if endpoint.Port != tt.wantPort {
+				t.Errorf("Port = %d, want %d", endpoint.Port, tt.wantPort)
+			}
+		})
+	}
+}
+
+func TestResolveServiceEndpointUnknown(t *testing.T) {
+	// Test that unknown service returns error
+	_, err := resolveServiceEndpoint("unknown-service-xyz")
+	if err == nil {
+		t.Error("expected error for unknown service, got nil")
+	}
+}
