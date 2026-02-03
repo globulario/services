@@ -8,6 +8,8 @@ import (
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	planpb "github.com/globulario/services/golang/plan/planpb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // newTestServer creates a server with a writable temp state path for tests.
@@ -250,5 +252,169 @@ func TestGetClusterHealthAllHealthy(t *testing.T) {
 	}
 	if resp.GetHealthyNodes() != 2 {
 		t.Fatalf("expected 2 healthy nodes, got %d", resp.GetHealthyNodes())
+	}
+}
+
+func TestApplyNodePlanV1NilRequest(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for nil request")
+	}
+	if !strings.Contains(err.Error(), "request is required") {
+		t.Errorf("expected 'request is required' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1MissingNodeID(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "",
+		Plan: &planpb.NodePlan{
+			Spec: &planpb.PlanSpec{Steps: []*planpb.PlanStep{{Id: "test", Action: "test.action"}}},
+		},
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for missing node_id")
+	}
+	if !strings.Contains(err.Error(), "node_id is required") {
+		t.Errorf("expected 'node_id is required' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1MissingPlan(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "node-1",
+		Plan:   nil,
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for missing plan")
+	}
+	if !strings.Contains(err.Error(), "plan is required") {
+		t.Errorf("expected 'plan is required' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1PlanNodeMismatch(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "node-1",
+		Plan: &planpb.NodePlan{
+			NodeId: "node-2", // Mismatch
+			Spec:   &planpb.PlanSpec{Steps: []*planpb.PlanStep{{Id: "test", Action: "test.action"}}},
+		},
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for node_id mismatch")
+	}
+	if !strings.Contains(err.Error(), "does not match") {
+		t.Errorf("expected mismatch error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1EmptySteps(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "node-1",
+		Plan: &planpb.NodePlan{
+			Spec: &planpb.PlanSpec{Steps: []*planpb.PlanStep{}},
+		},
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for empty steps")
+	}
+	if !strings.Contains(err.Error(), "at least one step") {
+		t.Errorf("expected 'at least one step' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1NodeNotFound(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "nonexistent-node",
+		Plan: &planpb.NodePlan{
+			Spec: &planpb.PlanSpec{Steps: []*planpb.PlanStep{{Id: "test", Action: "test.action"}}},
+		},
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for node not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1NoAgentEndpoint(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID:        "node-1",
+		AgentEndpoint: "", // No endpoint
+	}
+	srv := newTestServer(t, state)
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "node-1",
+		Plan: &planpb.NodePlan{
+			Spec: &planpb.PlanSpec{Steps: []*planpb.PlanStep{{Id: "test", Action: "test.action"}}},
+		},
+	}
+
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for missing agent endpoint")
+	}
+	if !strings.Contains(err.Error(), "no agent endpoint") {
+		t.Errorf("expected 'no agent endpoint' error, got: %v", err)
+	}
+}
+
+func TestApplyNodePlanV1SetsNodeIDInPlan(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID:        "node-1",
+		AgentEndpoint: "127.0.0.1:50051", // Mock endpoint (will fail to connect, but validates request processing)
+	}
+	srv := newTestServer(t, state)
+
+	req := &clustercontrollerpb.ApplyNodePlanV1Request{
+		NodeId: "node-1",
+		Plan: &planpb.NodePlan{
+			NodeId: "", // Empty, should be set to request node_id
+			Spec: &planpb.PlanSpec{Steps: []*planpb.PlanStep{{
+				Id:     "test-step",
+				Action: "test.action",
+				Args:   &structpb.Struct{Fields: map[string]*structpb.Value{}},
+			}}},
+		},
+	}
+
+	// This will fail at dispatch (no real agent), but should pass validation
+	_, err := srv.ApplyNodePlanV1(context.Background(), req)
+
+	// Expect a dispatch error (agent connection failure), not a validation error
+	if err != nil && !strings.Contains(err.Error(), "dispatch") && !strings.Contains(err.Error(), "agent") && !strings.Contains(err.Error(), "connect") {
+		t.Errorf("expected dispatch/connection error, got: %v", err)
+	}
+
+	// Verify plan.NodeId was set in the request
+	if req.Plan.NodeId != "node-1" {
+		t.Errorf("expected plan.NodeId to be set to 'node-1', got %q", req.Plan.NodeId)
 	}
 }

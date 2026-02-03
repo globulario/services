@@ -871,6 +871,116 @@ func (srv *server) ApplyNodePlan(ctx context.Context, req *clustercontrollerpb.A
 	}, nil
 }
 
+// ApplyNodePlanV1 submits and executes an arbitrary V1 NodePlan.
+func (srv *server) ApplyNodePlanV1(ctx context.Context, req *clustercontrollerpb.ApplyNodePlanV1Request) (*clustercontrollerpb.ApplyNodePlanV1Response, error) {
+	if err := srv.requireLeader(ctx); err != nil {
+		return nil, err
+	}
+
+	// Validation
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	nodeID := strings.TrimSpace(req.GetNodeId())
+	if nodeID == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id is required")
+	}
+	if req.GetPlan() == nil {
+		return nil, status.Error(codes.InvalidArgument, "plan is required")
+	}
+	plan := req.GetPlan()
+
+	// Validate plan node_id matches request node_id
+	planNodeID := strings.TrimSpace(plan.GetNodeId())
+	if planNodeID != "" && planNodeID != nodeID {
+		return nil, status.Errorf(codes.InvalidArgument, "plan.node_id %q does not match request node_id %q", planNodeID, nodeID)
+	}
+	// If plan.node_id is empty, set it to request node_id
+	if planNodeID == "" {
+		plan.NodeId = nodeID
+	}
+
+	// Validate steps exist
+	if plan.GetSpec() == nil || len(plan.GetSpec().GetSteps()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "plan must have at least one step")
+	}
+
+	// Verify node exists and has agent endpoint
+	srv.lock("apply-plan-v1")
+	node := srv.state.Nodes[nodeID]
+	srv.unlock()
+	if node == nil {
+		return nil, status.Errorf(codes.NotFound, "node %q not found", nodeID)
+	}
+	if node.AgentEndpoint == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "node %q has no agent endpoint", nodeID)
+	}
+
+	// Create operation ID
+	opID := uuid.NewString()
+
+	// Persist plan to disk (optional but recommended)
+	if err := srv.persistPlanV1(nodeID, opID, plan); err != nil {
+		log.Printf("warning: failed to persist plan for node %s operation %s: %v", nodeID, opID, err)
+	}
+
+	// Broadcast initial operation events
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_QUEUED, "plan received and validated", 0, false, ""))
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "dispatching plan to node-agent", 5, false, ""))
+
+	// Dispatch plan to node agent
+	client, err := srv.getAgentClient(ctx, node.AgentEndpoint)
+	if err != nil {
+		log.Printf("node %s: failed to get agent client: %v", nodeID, err)
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "failed to connect to node-agent", 0, true, err.Error()))
+		return nil, status.Errorf(codes.Internal, "get agent client: %v", err)
+	}
+
+	if err := client.ApplyPlanV1(ctx, plan, opID); err != nil {
+		log.Printf("node %s: apply plan v1 dispatch failed: %v", nodeID, err)
+		srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_FAILED, "plan dispatch failed", 0, true, err.Error()))
+		return nil, status.Errorf(codes.Internal, "dispatch plan: %v", err)
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, clustercontrollerpb.OperationPhase_OP_RUNNING, "plan dispatched to node-agent", 25, false, ""))
+
+	return &clustercontrollerpb.ApplyNodePlanV1Response{
+		OperationId: opID,
+	}, nil
+}
+
+// persistPlanV1 writes the plan to /var/lib/globular/plans/<nodeID>/<operationID>.json
+func (srv *server) persistPlanV1(nodeID, operationID string, plan *planpb.NodePlan) error {
+	plansRoot := "/var/lib/globular/plans"
+	nodeDir := filepath.Join(plansRoot, nodeID)
+
+	// Create node directory with 0700 permissions
+	if err := os.MkdirAll(nodeDir, 0700); err != nil {
+		return fmt.Errorf("create plans directory: %w", err)
+	}
+
+	// Marshal plan to JSON
+	planJSON, err := protojson.Marshal(plan)
+	if err != nil {
+		return fmt.Errorf("marshal plan: %w", err)
+	}
+
+	// Write to temp file and rename (atomic write)
+	planFile := filepath.Join(nodeDir, operationID+".json")
+	tempFile := planFile + ".tmp"
+
+	if err := os.WriteFile(tempFile, planJSON, 0600); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	if err := os.Rename(tempFile, planFile); err != nil {
+		os.Remove(tempFile) // Clean up temp file on error
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return nil
+}
+
 func (srv *server) CompleteOperation(ctx context.Context, req *clustercontrollerpb.CompleteOperationRequest) (*clustercontrollerpb.CompleteOperationResponse, error) {
 	if err := srv.requireLeader(ctx); err != nil {
 		return nil, err

@@ -12,6 +12,7 @@ import (
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
+	planpb "github.com/globulario/services/golang/plan/planpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -74,6 +75,22 @@ func (a *agentClient) ApplyPlan(ctx context.Context, plan *clustercontrollerpb.N
 		req.OperationId = operationID
 	}
 	_, err := a.client.ApplyPlan(reqCtx, req)
+	a.touch()
+	return err
+}
+
+// ApplyPlanV1 submits a V1 plan to the node agent.
+func (a *agentClient) ApplyPlanV1(ctx context.Context, plan *planpb.NodePlan, operationID string) error {
+	if plan == nil {
+		return fmt.Errorf("plan is required")
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	req := &nodeagentpb.ApplyPlanV1Request{Plan: plan}
+	if strings.TrimSpace(operationID) != "" {
+		req.OperationId = operationID
+	}
+	_, err := a.client.ApplyPlanV1(reqCtx, req)
 	a.touch()
 	return err
 }
