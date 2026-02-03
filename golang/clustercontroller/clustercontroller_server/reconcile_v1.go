@@ -56,6 +56,18 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 		protocol = "http"
 	}
 	if protocol == "https" {
+		// If ACME is enabled, run certificate issuance/renewal before validation
+		if spec.GetAcmeEnabled() {
+			steps = append(steps, planStep("tls.acme.ensure", map[string]interface{}{
+				"domain":         spec.GetClusterDomain(),
+				"admin_email":    spec.GetAdminEmail(),
+				"acme_enabled":   spec.GetAcmeEnabled(),
+				"dns_addr":       "localhost:10033",
+				"fullchain_path": "/etc/globular/tls/fullchain.pem",
+				"privkey_path":   "/etc/globular/tls/privkey.pem",
+			}))
+		}
+		// Always run tls.ensure to validate (never issues certs)
 		steps = append(steps, planStep("tls.ensure", map[string]interface{}{
 			"fullchain_path": "/etc/globular/tls/fullchain.pem",
 			"privkey_path":   "/etc/globular/tls/privkey.pem",

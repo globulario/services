@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 
@@ -122,12 +123,263 @@ var (
 			return err
 		},
 	}
+
+	// A record commands
+	dnsACmd = &cobra.Command{
+		Use:   "a",
+		Short: "Manage DNS A (IPv4) records",
+	}
+
+	dnsASetCmd = &cobra.Command{
+		Use:   "set <name> <ipv4>",
+		Short: "Set an A record",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			ipv4 := strings.TrimSpace(args[1])
+
+			if net.ParseIP(ipv4) == nil || strings.Contains(ipv4, ":") {
+				return fmt.Errorf("invalid IPv4 address: %s", ipv4)
+			}
+
+			ttl, _ := cmd.Flags().GetUint32("ttl")
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.SetA(ctxWithTimeout(), &dnspb.SetARequest{Domain: name, A: ipv4, Ttl: ttl})
+			return err
+		},
+	}
+
+	dnsAGetCmd = &cobra.Command{
+		Use:   "get <name>",
+		Short: "Get A records for a name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			resp, err := client.GetA(ctxWithTimeout(), &dnspb.GetARequest{Domain: name})
+			if err != nil {
+				return err
+			}
+			printStringList(resp.A)
+			return nil
+		},
+	}
+
+	dnsARemoveCmd = &cobra.Command{
+		Use:   "remove <name> [<ipv4>]",
+		Short: "Remove A record(s) for a name",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			ipv4 := ""
+			if len(args) == 2 {
+				ipv4 = strings.TrimSpace(args[1])
+				if net.ParseIP(ipv4) == nil || strings.Contains(ipv4, ":") {
+					return fmt.Errorf("invalid IPv4 address: %s", ipv4)
+				}
+			}
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.RemoveA(ctxWithTimeout(), &dnspb.RemoveARequest{Domain: name, A: ipv4})
+			return err
+		},
+	}
+
+	// AAAA record commands
+	dnsAAAACmd = &cobra.Command{
+		Use:   "aaaa",
+		Short: "Manage DNS AAAA (IPv6) records",
+	}
+
+	dnsAAAASetCmd = &cobra.Command{
+		Use:   "set <name> <ipv6>",
+		Short: "Set an AAAA record",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			ipv6 := strings.TrimSpace(args[1])
+
+			if net.ParseIP(ipv6) == nil || !strings.Contains(ipv6, ":") {
+				return fmt.Errorf("invalid IPv6 address: %s", ipv6)
+			}
+
+			ttl, _ := cmd.Flags().GetUint32("ttl")
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.SetAAAA(ctxWithTimeout(), &dnspb.SetAAAARequest{Domain: name, Aaaa: ipv6, Ttl: ttl})
+			return err
+		},
+	}
+
+	dnsAAAAGetCmd = &cobra.Command{
+		Use:   "get <name>",
+		Short: "Get AAAA records for a name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			resp, err := client.GetAAAA(ctxWithTimeout(), &dnspb.GetAAAARequest{Domain: name})
+			if err != nil {
+				return err
+			}
+			printStringList(resp.Aaaa)
+			return nil
+		},
+	}
+
+	dnsAAAARemoveCmd = &cobra.Command{
+		Use:   "remove <name> [<ipv6>]",
+		Short: "Remove AAAA record(s) for a name",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			ipv6 := ""
+			if len(args) == 2 {
+				ipv6 = strings.TrimSpace(args[1])
+				if net.ParseIP(ipv6) == nil || !strings.Contains(ipv6, ":") {
+					return fmt.Errorf("invalid IPv6 address: %s", ipv6)
+				}
+			}
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.RemoveAAAA(ctxWithTimeout(), &dnspb.RemoveAAAARequest{Domain: name, Aaaa: ipv6})
+			return err
+		},
+	}
+
+	// TXT record commands
+	dnsTXTCmd = &cobra.Command{
+		Use:   "txt",
+		Short: "Manage DNS TXT records",
+	}
+
+	dnsTXTSetCmd = &cobra.Command{
+		Use:   "set <name> <text>",
+		Short: "Set a TXT record",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			text := args[1] // Don't trim text as whitespace might be significant
+
+			ttl, _ := cmd.Flags().GetUint32("ttl")
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.SetTXT(ctxWithTimeout(), &dnspb.SetTXTRequest{Domain: name, Txt: text, Ttl: ttl})
+			return err
+		},
+	}
+
+	dnsTXTGetCmd = &cobra.Command{
+		Use:   "get <name>",
+		Short: "Get TXT records for a name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			resp, err := client.GetTXT(ctxWithTimeout(), &dnspb.GetTXTRequest{Domain: name})
+			if err != nil {
+				return err
+			}
+			printStringList(resp.Txt)
+			return nil
+		},
+	}
+
+	dnsTXTRemoveCmd = &cobra.Command{
+		Use:   "remove <name> [<text>]",
+		Short: "Remove TXT record(s) for a name",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := strings.TrimSpace(args[0])
+			text := ""
+			if len(args) == 2 {
+				text = args[1]
+			}
+
+			cc, err := dialGRPC(rootCfg.dnsAddr)
+			if err != nil {
+				return err
+			}
+			defer cc.Close()
+
+			client := dnspb.NewDnsServiceClient(cc)
+			_, err = client.RemoveTXT(ctxWithTimeout(), &dnspb.RemoveTXTRequest{Domain: name, Txt: text})
+			return err
+		},
+	}
 )
 
 func init() {
 	rootCmd.AddCommand(dnsCmd)
 	dnsCmd.AddCommand(dnsDomainsCmd)
 	dnsDomainsCmd.AddCommand(dnsDomainsGetCmd, dnsDomainsSetCmd, dnsDomainsAddCmd, dnsDomainsRemoveCmd)
+
+	// A record commands
+	dnsCmd.AddCommand(dnsACmd)
+	dnsACmd.AddCommand(dnsASetCmd, dnsAGetCmd, dnsARemoveCmd)
+	dnsASetCmd.Flags().Uint32("ttl", 0, "TTL for the record")
+
+	// AAAA record commands
+	dnsCmd.AddCommand(dnsAAAACmd)
+	dnsAAAACmd.AddCommand(dnsAAAASetCmd, dnsAAAAGetCmd, dnsAAAARemoveCmd)
+	dnsAAAASetCmd.Flags().Uint32("ttl", 0, "TTL for the record")
+
+	// TXT record commands
+	dnsCmd.AddCommand(dnsTXTCmd)
+	dnsTXTCmd.AddCommand(dnsTXTSetCmd, dnsTXTGetCmd, dnsTXTRemoveCmd)
+	dnsTXTSetCmd.Flags().Uint32("ttl", 0, "TTL for the record (default 300)")
 }
 
 func normalizeDomains(in []string) []string {

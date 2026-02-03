@@ -31,6 +31,9 @@ const (
 	DnsService_SetText_FullMethodName     = "/dns.DnsService/SetText"
 	DnsService_GetText_FullMethodName     = "/dns.DnsService/GetText"
 	DnsService_RemoveText_FullMethodName  = "/dns.DnsService/RemoveText"
+	DnsService_SetTXT_FullMethodName      = "/dns.DnsService/SetTXT"
+	DnsService_GetTXT_FullMethodName      = "/dns.DnsService/GetTXT"
+	DnsService_RemoveTXT_FullMethodName   = "/dns.DnsService/RemoveTXT"
 	DnsService_SetNs_FullMethodName       = "/dns.DnsService/SetNs"
 	DnsService_GetNs_FullMethodName       = "/dns.DnsService/GetNs"
 	DnsService_RemoveNs_FullMethodName    = "/dns.DnsService/RemoveNs"
@@ -84,6 +87,12 @@ type DnsServiceClient interface {
 	GetText(ctx context.Context, in *GetTextRequest, opts ...grpc.CallOption) (*GetTextResponse, error)
 	// Remove a TXT record.
 	RemoveText(ctx context.Context, in *RemoveTextRequest, opts ...grpc.CallOption) (*RemoveTextResponse, error)
+	// Set a TXT record (normalized naming).
+	SetTXT(ctx context.Context, in *SetTXTRequest, opts ...grpc.CallOption) (*SetTXTResponse, error)
+	// Retrieve TXT records (normalized naming).
+	GetTXT(ctx context.Context, in *GetTXTRequest, opts ...grpc.CallOption) (*GetTXTResponse, error)
+	// Remove TXT record(s) (normalized naming).
+	RemoveTXT(ctx context.Context, in *RemoveTXTRequest, opts ...grpc.CallOption) (*RemoveTXTResponse, error)
 	// Set an NS record.
 	SetNs(ctx context.Context, in *SetNsRequest, opts ...grpc.CallOption) (*SetNsResponse, error)
 	// Retrieve an NS record.
@@ -250,6 +259,36 @@ func (c *dnsServiceClient) RemoveText(ctx context.Context, in *RemoveTextRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RemoveTextResponse)
 	err := c.cc.Invoke(ctx, DnsService_RemoveText_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) SetTXT(ctx context.Context, in *SetTXTRequest, opts ...grpc.CallOption) (*SetTXTResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetTXTResponse)
+	err := c.cc.Invoke(ctx, DnsService_SetTXT_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) GetTXT(ctx context.Context, in *GetTXTRequest, opts ...grpc.CallOption) (*GetTXTResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTXTResponse)
+	err := c.cc.Invoke(ctx, DnsService_GetTXT_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) RemoveTXT(ctx context.Context, in *RemoveTXTRequest, opts ...grpc.CallOption) (*RemoveTXTResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveTXTResponse)
+	err := c.cc.Invoke(ctx, DnsService_RemoveTXT_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -496,6 +535,12 @@ type DnsServiceServer interface {
 	GetText(context.Context, *GetTextRequest) (*GetTextResponse, error)
 	// Remove a TXT record.
 	RemoveText(context.Context, *RemoveTextRequest) (*RemoveTextResponse, error)
+	// Set a TXT record (normalized naming).
+	SetTXT(context.Context, *SetTXTRequest) (*SetTXTResponse, error)
+	// Retrieve TXT records (normalized naming).
+	GetTXT(context.Context, *GetTXTRequest) (*GetTXTResponse, error)
+	// Remove TXT record(s) (normalized naming).
+	RemoveTXT(context.Context, *RemoveTXTRequest) (*RemoveTXTResponse, error)
 	// Set an NS record.
 	SetNs(context.Context, *SetNsRequest) (*SetNsResponse, error)
 	// Retrieve an NS record.
@@ -582,6 +627,15 @@ func (UnimplementedDnsServiceServer) GetText(context.Context, *GetTextRequest) (
 }
 func (UnimplementedDnsServiceServer) RemoveText(context.Context, *RemoveTextRequest) (*RemoveTextResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveText not implemented")
+}
+func (UnimplementedDnsServiceServer) SetTXT(context.Context, *SetTXTRequest) (*SetTXTResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetTXT not implemented")
+}
+func (UnimplementedDnsServiceServer) GetTXT(context.Context, *GetTXTRequest) (*GetTXTResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetTXT not implemented")
+}
+func (UnimplementedDnsServiceServer) RemoveTXT(context.Context, *RemoveTXTRequest) (*RemoveTXTResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveTXT not implemented")
 }
 func (UnimplementedDnsServiceServer) SetNs(context.Context, *SetNsRequest) (*SetNsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetNs not implemented")
@@ -878,6 +932,60 @@ func _DnsService_RemoveText_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DnsServiceServer).RemoveText(ctx, req.(*RemoveTextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_SetTXT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetTXTRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).SetTXT(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_SetTXT_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).SetTXT(ctx, req.(*SetTXTRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_GetTXT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTXTRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).GetTXT(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_GetTXT_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).GetTXT(ctx, req.(*GetTXTRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_RemoveTXT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveTXTRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).RemoveTXT(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_RemoveTXT_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).RemoveTXT(ctx, req.(*RemoveTXTRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1314,6 +1422,18 @@ var DnsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveText",
 			Handler:    _DnsService_RemoveText_Handler,
+		},
+		{
+			MethodName: "SetTXT",
+			Handler:    _DnsService_SetTXT_Handler,
+		},
+		{
+			MethodName: "GetTXT",
+			Handler:    _DnsService_GetTXT_Handler,
+		},
+		{
+			MethodName: "RemoveTXT",
+			Handler:    _DnsService_RemoveTXT_Handler,
 		},
 		{
 			MethodName: "SetNs",

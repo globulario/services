@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/dns/dnspb"
 	nodeagentpb "github.com/globulario/services/golang/nodeagent/nodeagentpb"
 )
 
@@ -84,6 +85,11 @@ var (
 	networkEmail      string
 	networkAltDomains []string
 	networkWatch      bool
+
+	dnsBootstrapDomain   string
+	dnsBootstrapIPv6     string
+	dnsBootstrapIPv4     string
+	dnsBootstrapWildcard bool
 )
 
 func init() {
@@ -97,6 +103,7 @@ func init() {
 		upgradeCmd,
 		watchCmd,
 		networkCmd,
+		clusterDnsCmd,
 		healthCmd,
 	)
 
@@ -148,6 +155,12 @@ func init() {
 
 	watchCmd.Flags().StringVar(&watchNodeID, "node-id", "", "Filter by node ID")
 	watchCmd.Flags().StringVar(&watchOpID, "op", "", "Filter by operation ID")
+
+	clusterDnsCmd.AddCommand(clusterDnsBootstrapCmd)
+	clusterDnsBootstrapCmd.Flags().StringVar(&dnsBootstrapDomain, "domain", "", "Cluster domain (required)")
+	clusterDnsBootstrapCmd.Flags().StringVar(&dnsBootstrapIPv6, "ipv6", "", "IPv6 address for the domain")
+	clusterDnsBootstrapCmd.Flags().StringVar(&dnsBootstrapIPv4, "ipv4", "", "IPv4 address for the domain")
+	clusterDnsBootstrapCmd.Flags().BoolVar(&dnsBootstrapWildcard, "wildcard", false, "Also set wildcard *.<domain> records")
 }
 
 var bootstrapCmd = &cobra.Command{
@@ -517,6 +530,97 @@ Use --force to remove even if the node is unreachable.`,
 
 		fmt.Printf("operation_id: %s\n", resp.GetOperationId())
 		fmt.Printf("message: %s\n", resp.GetMessage())
+		return nil
+	},
+}
+
+var clusterDnsCmd = &cobra.Command{
+	Use:   "dns",
+	Short: "DNS configuration helpers for cluster setup",
+}
+
+var clusterDnsBootstrapCmd = &cobra.Command{
+	Use:   "bootstrap",
+	Short: "Bootstrap DNS with cluster domain and addresses",
+	Long: `Bootstrap DNS configuration by:
+  1. Adding the domain to managed domains
+  2. Setting apex A/AAAA records
+  3. Optionally setting wildcard *.<domain> records
+
+Example:
+  globularcli cluster dns bootstrap --domain globular.io --ipv6 fd12::1 --ipv4 192.168.1.10 --wildcard`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if dnsBootstrapDomain == "" {
+			return errors.New("--domain is required")
+		}
+		if dnsBootstrapIPv6 == "" && dnsBootstrapIPv4 == "" {
+			return errors.New("at least one of --ipv6 or --ipv4 is required")
+		}
+
+		domain := strings.TrimSpace(dnsBootstrapDomain)
+
+		// Connect to DNS service
+		cc, err := dialGRPC(rootCfg.dnsAddr)
+		if err != nil {
+			return fmt.Errorf("connect to DNS service: %w", err)
+		}
+		defer cc.Close()
+
+		client := dnspb.NewDnsServiceClient(cc)
+		ctx := ctxWithTimeout()
+
+		// Step 1: Add domain to managed domains
+		fmt.Printf("Adding %s to managed domains...\n", domain)
+		cur, err := client.GetDomains(ctx, &dnspb.GetDomainsRequest{})
+		if err != nil {
+			return fmt.Errorf("get domains: %w", err)
+		}
+
+		domains := append(cur.Domains, domain)
+		_, err = client.SetDomains(ctx, &dnspb.SetDomainsRequest{Domains: domains})
+		if err != nil {
+			return fmt.Errorf("set domains: %w", err)
+		}
+
+		// Step 2: Set apex records
+		if dnsBootstrapIPv4 != "" {
+			fmt.Printf("Setting A record for %s -> %s\n", domain, dnsBootstrapIPv4)
+			_, err = client.SetA(ctx, &dnspb.SetARequest{Domain: domain, A: dnsBootstrapIPv4, Ttl: 300})
+			if err != nil {
+				return fmt.Errorf("set A record: %w", err)
+			}
+		}
+
+		if dnsBootstrapIPv6 != "" {
+			fmt.Printf("Setting AAAA record for %s -> %s\n", domain, dnsBootstrapIPv6)
+			_, err = client.SetAAAA(ctx, &dnspb.SetAAAARequest{Domain: domain, Aaaa: dnsBootstrapIPv6, Ttl: 300})
+			if err != nil {
+				return fmt.Errorf("set AAAA record: %w", err)
+			}
+		}
+
+		// Step 3: Optionally set wildcard records
+		if dnsBootstrapWildcard {
+			wildcardDomain := "*." + domain
+
+			if dnsBootstrapIPv4 != "" {
+				fmt.Printf("Setting wildcard A record for %s -> %s\n", wildcardDomain, dnsBootstrapIPv4)
+				_, err = client.SetA(ctx, &dnspb.SetARequest{Domain: wildcardDomain, A: dnsBootstrapIPv4, Ttl: 300})
+				if err != nil {
+					return fmt.Errorf("set wildcard A record: %w", err)
+				}
+			}
+
+			if dnsBootstrapIPv6 != "" {
+				fmt.Printf("Setting wildcard AAAA record for %s -> %s\n", wildcardDomain, dnsBootstrapIPv6)
+				_, err = client.SetAAAA(ctx, &dnspb.SetAAAARequest{Domain: wildcardDomain, Aaaa: dnsBootstrapIPv6, Ttl: 300})
+				if err != nil {
+					return fmt.Errorf("set wildcard AAAA record: %w", err)
+				}
+			}
+		}
+
+		fmt.Println("DNS bootstrap complete!")
 		return nil
 	},
 }

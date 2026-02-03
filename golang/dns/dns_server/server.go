@@ -479,10 +479,15 @@ func main() {
 			rule("/dns.DnsService/RemoveAAAA", "write", res("Domain", "write")),
 			rule("/dns.DnsService/GetAAAA", "read", res("Domain", "read")),
 
-			// ---- TXT
+			// ---- TXT (legacy id-based)
 			rule("/dns.DnsService/SetText", "write", res("Id", "write")),
 			rule("/dns.DnsService/RemoveText", "write", res("Id", "write")),
 			rule("/dns.DnsService/GetText", "read", res("Id", "read")),
+
+			// ---- TXT (normalized domain-based)
+			rule("/dns.DnsService/SetTXT", "write", res("Domain", "write")),
+			rule("/dns.DnsService/RemoveTXT", "write", res("Domain", "write")),
+			rule("/dns.DnsService/GetTXT", "read", res("Domain", "read")),
 
 			// ---- NS
 			rule("/dns.DnsService/SetNs", "write", res("Id", "write")),

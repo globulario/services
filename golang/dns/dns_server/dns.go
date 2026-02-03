@@ -594,6 +594,188 @@ func (srv *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest
 	return &dnspb.RemoveTextResponse{Result: true}, nil
 }
 
+/* ========================================
+   TXT (normalized naming) record endpoints
+   ======================================== */
+
+// SetTXT sets a TXT record for a managed domain.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
+// Enforces managed domain rule, persists record with TTL default 300.
+func (srv *server) SetTXT(ctx context.Context, rqst *dnspb.SetTXTRequest) (*dnspb.SetTXTResponse, error) {
+	// Normalize domain first for isManaged check
+	domain := strings.ToLower(rqst.Domain)
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
+
+	if !srv.isManaged(domain) {
+		err := fmt.Errorf("the domain %s is not managed by this DNS", domain)
+		srv.Logger.Error("SetTXT unmanaged domain", "domain", domain, "err", err)
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Store without trailing dot per spec
+	domainKey := strings.TrimSuffix(domain, ".")
+	uuid := Utility.GenerateUUID("TXT:" + domainKey)
+
+	values := make([]string, 0)
+
+	// Merge new value with existing list (if any).
+	if data, err := srv.store.GetItem(uuid); err == nil {
+		if err := json.Unmarshal(data, &values); err != nil {
+			srv.Logger.Error("SetTXT unmarshal", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	txt := strings.TrimSpace(rqst.Txt)
+	if txt != "" && !Utility.Contains(values, txt) {
+		values = append(values, txt)
+	}
+
+	data, err := json.Marshal(values)
+	if err != nil {
+		srv.Logger.Error("SetTXT marshal", "domain", domainKey, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if err := srv.store.SetItem(uuid, data); err != nil {
+		srv.Logger.Error("SetTXT setItem", "domain", domainKey, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Default TTL to 300 if not specified
+	ttl := rqst.Ttl
+	if ttl == 0 {
+		ttl = 300
+	}
+	_ = srv.setTtl(uuid, ttl)
+	srv.Logger.Info("TXT record set", "domain", domainKey, "uuid", uuid, "txt", txt, "ttl", ttl)
+
+	return &dnspb.SetTXTResponse{Message: domainKey}, nil
+}
+
+// GetTXT retrieves all TXT records for a given domain.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
+func (srv *server) GetTXT(ctx context.Context, rqst *dnspb.GetTXTRequest) (*dnspb.GetTXTResponse, error) {
+	domain := strings.ToLower(rqst.Domain)
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
+
+	// Store without trailing dot per spec
+	domainKey := strings.TrimSuffix(domain, ".")
+	uuid := Utility.GenerateUUID("TXT:" + domainKey)
+
+	data, err := srv.store.GetItem(uuid)
+	values := make([]string, 0)
+	if err == nil {
+		if err := json.Unmarshal(data, &values); err != nil {
+			srv.Logger.Error("GetTXT unmarshal", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	srv.Logger.Debug("TXT fetched", "domain", domainKey, "uuid", uuid, "values", len(values))
+	return &dnspb.GetTXTResponse{Txt: values}, nil
+}
+
+// RemoveTXT removes TXT record(s) for a given domain.
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
+// If txt is empty, removes all TXT records for the domain. Otherwise, removes only the specific txt value.
+func (srv *server) RemoveTXT(ctx context.Context, rqst *dnspb.RemoveTXTRequest) (*dnspb.RemoveTXTResponse, error) {
+	// Normalize domain first for isManaged check
+	domain := strings.ToLower(rqst.Domain)
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
+
+	if !srv.isManaged(domain) {
+		err := fmt.Errorf("the domain %s is not managed by this DNS", domain)
+		srv.Logger.Error("RemoveTXT unmanaged domain", "domain", domain, "err", err)
+		return nil, status.Errorf(codes.PermissionDenied, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	_, token, _ := security.GetClientId(ctx)
+
+	// Store without trailing dot per spec
+	domainKey := strings.TrimSuffix(domain, ".")
+	uuid := Utility.GenerateUUID("TXT:" + domainKey)
+
+	// If no specific txt value provided, remove all
+	if rqst.Txt == "" {
+		if err := srv.store.RemoveItem(uuid); err != nil {
+			srv.Logger.Error("RemoveTXT removeItem", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
+			_ = rbac_client_.DeleteResourcePermissions(token, domainKey)
+		}
+		srv.Logger.Info("TXT record deleted", "domain", domainKey, "uuid", uuid)
+		return &dnspb.RemoveTXTResponse{Result: true}, nil
+	}
+
+	// Remove specific txt value
+	data, err := srv.store.GetItem(uuid)
+	if err != nil {
+		srv.Logger.Error("RemoveTXT getItem", "domain", domainKey, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	values := make([]string, 0)
+	if err := json.Unmarshal(data, &values); err != nil {
+		srv.Logger.Error("RemoveTXT unmarshal", "domain", domainKey, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if Utility.Contains(values, rqst.Txt) {
+		values = Utility.RemoveString(values, rqst.Txt)
+	}
+
+	if len(values) == 0 {
+		if err := srv.store.RemoveItem(uuid); err != nil {
+			srv.Logger.Error("RemoveTXT removeItem", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
+			_ = rbac_client_.DeleteResourcePermissions(token, domainKey)
+		}
+		srv.Logger.Info("TXT record deleted", "domain", domainKey, "uuid", uuid, "txt", rqst.Txt)
+	} else {
+		data, err = json.Marshal(values)
+		if err != nil {
+			srv.Logger.Error("RemoveTXT marshal", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		if err := srv.store.SetItem(uuid, data); err != nil {
+			srv.Logger.Error("RemoveTXT setItem", "domain", domainKey, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		srv.Logger.Info("TXT value removed", "domain", domainKey, "uuid", uuid, "txt", rqst.Txt, "remaining", len(values))
+	}
+
+	return &dnspb.RemoveTXTResponse{Result: true}, nil
+}
+
+// get_txt returns all TXT values and TTL for a given domain.
+func (srv *server) get_txt(domain string) ([]string, uint32, error) {
+	domain = strings.ToLower(domain)
+	if !strings.HasSuffix(domain, ".") {
+		domain += "."
+	}
+	domainKey := strings.TrimSuffix(domain, ".")
+	uuid := Utility.GenerateUUID("TXT:" + domainKey)
+	data, err := srv.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
+	values := make([]string, 0)
+	if err := json.Unmarshal(data, &values); err != nil {
+		return nil, 0, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return values, srv.getTtl(uuid), nil
+}
+
 /* ==============
    NS record API
    ============== */
@@ -1857,10 +2039,17 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 
 	case dns.TypeTXT:
-		values, ttl, err := srv.getText(r.Question[0].Name)
-		if err != nil && srv.Logger != nil {
-			srv.Logger.Debug("dns:get TXT failed", "name", r.Question[0].Name, "err", err)
+		// Try new domain-based TXT records first (for managed domains)
+		values, ttl, err := srv.get_txt(r.Question[0].Name)
+
+		// Fallback to old id-based TXT records for backward compatibility
+		if err != nil {
+			values, ttl, err = srv.getText(r.Question[0].Name)
+			if err != nil && srv.Logger != nil {
+				srv.Logger.Debug("dns:get TXT failed", "name", r.Question[0].Name, "err", err)
+			}
 		}
+
 		msg := new(dns.Msg)
 		msg.SetReply(r)
 		for _, txtValue := range values {

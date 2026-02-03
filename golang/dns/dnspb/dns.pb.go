@@ -22,9 +22,10 @@ const (
 )
 
 // SetARequest is used to set an 'A' (Address) record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 type SetARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the A record.
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the A record (normalized: lowercase, no trailing dot).
 	A             string                 `protobuf:"bytes,2,opt,name=a,proto3" json:"a,omitempty"`           // The IPv4 address associated with the domain.
 	Ttl           uint32                 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`      // Time To Live: duration that the record may be cached.
 	unknownFields protoimpl.UnknownFields
@@ -128,6 +129,7 @@ func (x *SetAResponse) GetMessage() string {
 }
 
 // RemoveARequest is used to remove an 'A' record.
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 type RemoveARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the A record to be removed.
@@ -226,6 +228,7 @@ func (x *RemoveAResponse) GetResult() bool {
 }
 
 // GetARequest is used to retrieve 'A' records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 type GetARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name to get the A records for.
@@ -316,9 +319,10 @@ func (x *GetAResponse) GetA() []string {
 }
 
 // SetAAAARequest is used to set an 'AAAA' (IPv6 Address) record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 type SetAAAARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the AAAA record.
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the AAAA record (normalized: lowercase, no trailing dot).
 	Aaaa          string                 `protobuf:"bytes,2,opt,name=aaaa,proto3" json:"aaaa,omitempty"`     // The IPv6 address associated with the domain.
 	Ttl           uint32                 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`      // Time To Live: duration that the record may be cached.
 	unknownFields protoimpl.UnknownFields
@@ -422,6 +426,7 @@ func (x *SetAAAAResponse) GetMessage() string {
 }
 
 // RemoveAAAARequest is used to remove an 'AAAA' (IPv6 Address) record.
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 type RemoveAAAARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the AAAA record to be removed.
@@ -520,6 +525,7 @@ func (x *RemoveAAAAResponse) GetResult() bool {
 }
 
 // GetAAAARequest is used to retrieve 'AAAA' records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 type GetAAAARequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name to get the AAAA records for.
@@ -895,6 +901,303 @@ func (x *RemoveTextResponse) GetResult() bool {
 	return false
 }
 
+// SetTXTRequest is used to set a TXT record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
+type SetTXTRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the TXT record (normalized: lowercase, no trailing dot).
+	Txt           string                 `protobuf:"bytes,2,opt,name=txt,proto3" json:"txt,omitempty"`       // The TXT value to set.
+	Ttl           uint32                 `protobuf:"varint,3,opt,name=ttl,proto3" json:"ttl,omitempty"`      // Time To Live: duration that the record may be cached (default: 300).
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetTXTRequest) Reset() {
+	*x = SetTXTRequest{}
+	mi := &file_dns_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetTXTRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetTXTRequest) ProtoMessage() {}
+
+func (x *SetTXTRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetTXTRequest.ProtoReflect.Descriptor instead.
+func (*SetTXTRequest) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SetTXTRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *SetTXTRequest) GetTxt() string {
+	if x != nil {
+		return x.Txt
+	}
+	return ""
+}
+
+func (x *SetTXTRequest) GetTtl() uint32 {
+	if x != nil {
+		return x.Ttl
+	}
+	return 0
+}
+
+// SetTXTResponse is the response for a SetTXTRequest.
+type SetTXTResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"` // Response message or confirmation.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetTXTResponse) Reset() {
+	*x = SetTXTResponse{}
+	mi := &file_dns_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetTXTResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetTXTResponse) ProtoMessage() {}
+
+func (x *SetTXTResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetTXTResponse.ProtoReflect.Descriptor instead.
+func (*SetTXTResponse) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SetTXTResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// GetTXTRequest is used to retrieve TXT records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
+type GetTXTRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name to get the TXT records for.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTXTRequest) Reset() {
+	*x = GetTXTRequest{}
+	mi := &file_dns_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTXTRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTXTRequest) ProtoMessage() {}
+
+func (x *GetTXTRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTXTRequest.ProtoReflect.Descriptor instead.
+func (*GetTXTRequest) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *GetTXTRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+// GetTXTResponse returns the TXT records for a given domain.
+type GetTXTResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Txt           []string               `protobuf:"bytes,1,rep,name=txt,proto3" json:"txt,omitempty"` // List of TXT values associated with the domain.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTXTResponse) Reset() {
+	*x = GetTXTResponse{}
+	mi := &file_dns_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTXTResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTXTResponse) ProtoMessage() {}
+
+func (x *GetTXTResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTXTResponse.ProtoReflect.Descriptor instead.
+func (*GetTXTResponse) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetTXTResponse) GetTxt() []string {
+	if x != nil {
+		return x.Txt
+	}
+	return nil
+}
+
+// RemoveTXTRequest is used to remove TXT record(s).
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
+type RemoveTXTRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"` // The domain name for the TXT record(s) to be removed.
+	Txt           string                 `protobuf:"bytes,2,opt,name=txt,proto3" json:"txt,omitempty"`       // Optional: specific TXT value to remove. If empty, removes all TXT records for the domain.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveTXTRequest) Reset() {
+	*x = RemoveTXTRequest{}
+	mi := &file_dns_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveTXTRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveTXTRequest) ProtoMessage() {}
+
+func (x *RemoveTXTRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveTXTRequest.ProtoReflect.Descriptor instead.
+func (*RemoveTXTRequest) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RemoveTXTRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *RemoveTXTRequest) GetTxt() string {
+	if x != nil {
+		return x.Txt
+	}
+	return ""
+}
+
+// RemoveTXTResponse is the response for a RemoveTXTRequest.
+type RemoveTXTResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        bool                   `protobuf:"varint,1,opt,name=result,proto3" json:"result,omitempty"` // The result of the removal operation, typically a success flag.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveTXTResponse) Reset() {
+	*x = RemoveTXTResponse{}
+	mi := &file_dns_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveTXTResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveTXTResponse) ProtoMessage() {}
+
+func (x *RemoveTXTResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dns_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveTXTResponse.ProtoReflect.Descriptor instead.
+func (*RemoveTXTResponse) Descriptor() ([]byte, []int) {
+	return file_dns_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *RemoveTXTResponse) GetResult() bool {
+	if x != nil {
+		return x.Result
+	}
+	return false
+}
+
 // SetNsRequest is used to set a Name Server (NS) record.
 type SetNsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -907,7 +1210,7 @@ type SetNsRequest struct {
 
 func (x *SetNsRequest) Reset() {
 	*x = SetNsRequest{}
-	mi := &file_dns_proto_msgTypes[18]
+	mi := &file_dns_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -919,7 +1222,7 @@ func (x *SetNsRequest) String() string {
 func (*SetNsRequest) ProtoMessage() {}
 
 func (x *SetNsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[18]
+	mi := &file_dns_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -932,7 +1235,7 @@ func (x *SetNsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNsRequest.ProtoReflect.Descriptor instead.
 func (*SetNsRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{18}
+	return file_dns_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SetNsRequest) GetId() string {
@@ -966,7 +1269,7 @@ type SetNsResponse struct {
 
 func (x *SetNsResponse) Reset() {
 	*x = SetNsResponse{}
-	mi := &file_dns_proto_msgTypes[19]
+	mi := &file_dns_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1281,7 @@ func (x *SetNsResponse) String() string {
 func (*SetNsResponse) ProtoMessage() {}
 
 func (x *SetNsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[19]
+	mi := &file_dns_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1294,7 @@ func (x *SetNsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetNsResponse.ProtoReflect.Descriptor instead.
 func (*SetNsResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{19}
+	return file_dns_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SetNsResponse) GetResult() bool {
@@ -1011,7 +1314,7 @@ type GetNsRequest struct {
 
 func (x *GetNsRequest) Reset() {
 	*x = GetNsRequest{}
-	mi := &file_dns_proto_msgTypes[20]
+	mi := &file_dns_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1023,7 +1326,7 @@ func (x *GetNsRequest) String() string {
 func (*GetNsRequest) ProtoMessage() {}
 
 func (x *GetNsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[20]
+	mi := &file_dns_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1036,7 +1339,7 @@ func (x *GetNsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNsRequest.ProtoReflect.Descriptor instead.
 func (*GetNsRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{20}
+	return file_dns_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetNsRequest) GetId() string {
@@ -1056,7 +1359,7 @@ type GetNsResponse struct {
 
 func (x *GetNsResponse) Reset() {
 	*x = GetNsResponse{}
-	mi := &file_dns_proto_msgTypes[21]
+	mi := &file_dns_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1068,7 +1371,7 @@ func (x *GetNsResponse) String() string {
 func (*GetNsResponse) ProtoMessage() {}
 
 func (x *GetNsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[21]
+	mi := &file_dns_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1081,7 +1384,7 @@ func (x *GetNsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNsResponse.ProtoReflect.Descriptor instead.
 func (*GetNsResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{21}
+	return file_dns_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetNsResponse) GetNs() []string {
@@ -1102,7 +1405,7 @@ type RemoveNsRequest struct {
 
 func (x *RemoveNsRequest) Reset() {
 	*x = RemoveNsRequest{}
-	mi := &file_dns_proto_msgTypes[22]
+	mi := &file_dns_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1114,7 +1417,7 @@ func (x *RemoveNsRequest) String() string {
 func (*RemoveNsRequest) ProtoMessage() {}
 
 func (x *RemoveNsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[22]
+	mi := &file_dns_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1127,7 +1430,7 @@ func (x *RemoveNsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNsRequest.ProtoReflect.Descriptor instead.
 func (*RemoveNsRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{22}
+	return file_dns_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *RemoveNsRequest) GetId() string {
@@ -1154,7 +1457,7 @@ type RemoveNsResponse struct {
 
 func (x *RemoveNsResponse) Reset() {
 	*x = RemoveNsResponse{}
-	mi := &file_dns_proto_msgTypes[23]
+	mi := &file_dns_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1469,7 @@ func (x *RemoveNsResponse) String() string {
 func (*RemoveNsResponse) ProtoMessage() {}
 
 func (x *RemoveNsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[23]
+	mi := &file_dns_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1482,7 @@ func (x *RemoveNsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNsResponse.ProtoReflect.Descriptor instead.
 func (*RemoveNsResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{23}
+	return file_dns_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RemoveNsResponse) GetResult() bool {
@@ -1201,7 +1504,7 @@ type SetCNameRequest struct {
 
 func (x *SetCNameRequest) Reset() {
 	*x = SetCNameRequest{}
-	mi := &file_dns_proto_msgTypes[24]
+	mi := &file_dns_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1213,7 +1516,7 @@ func (x *SetCNameRequest) String() string {
 func (*SetCNameRequest) ProtoMessage() {}
 
 func (x *SetCNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[24]
+	mi := &file_dns_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1226,7 +1529,7 @@ func (x *SetCNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCNameRequest.ProtoReflect.Descriptor instead.
 func (*SetCNameRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{24}
+	return file_dns_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SetCNameRequest) GetId() string {
@@ -1260,7 +1563,7 @@ type SetCNameResponse struct {
 
 func (x *SetCNameResponse) Reset() {
 	*x = SetCNameResponse{}
-	mi := &file_dns_proto_msgTypes[25]
+	mi := &file_dns_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1575,7 @@ func (x *SetCNameResponse) String() string {
 func (*SetCNameResponse) ProtoMessage() {}
 
 func (x *SetCNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[25]
+	mi := &file_dns_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1588,7 @@ func (x *SetCNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCNameResponse.ProtoReflect.Descriptor instead.
 func (*SetCNameResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{25}
+	return file_dns_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *SetCNameResponse) GetResult() bool {
@@ -1305,7 +1608,7 @@ type GetCNameRequest struct {
 
 func (x *GetCNameRequest) Reset() {
 	*x = GetCNameRequest{}
-	mi := &file_dns_proto_msgTypes[26]
+	mi := &file_dns_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +1620,7 @@ func (x *GetCNameRequest) String() string {
 func (*GetCNameRequest) ProtoMessage() {}
 
 func (x *GetCNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[26]
+	mi := &file_dns_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +1633,7 @@ func (x *GetCNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCNameRequest.ProtoReflect.Descriptor instead.
 func (*GetCNameRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{26}
+	return file_dns_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GetCNameRequest) GetId() string {
@@ -1350,7 +1653,7 @@ type GetCNameResponse struct {
 
 func (x *GetCNameResponse) Reset() {
 	*x = GetCNameResponse{}
-	mi := &file_dns_proto_msgTypes[27]
+	mi := &file_dns_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1362,7 +1665,7 @@ func (x *GetCNameResponse) String() string {
 func (*GetCNameResponse) ProtoMessage() {}
 
 func (x *GetCNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[27]
+	mi := &file_dns_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1375,7 +1678,7 @@ func (x *GetCNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCNameResponse.ProtoReflect.Descriptor instead.
 func (*GetCNameResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{27}
+	return file_dns_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetCNameResponse) GetCname() string {
@@ -1395,7 +1698,7 @@ type RemoveCNameRequest struct {
 
 func (x *RemoveCNameRequest) Reset() {
 	*x = RemoveCNameRequest{}
-	mi := &file_dns_proto_msgTypes[28]
+	mi := &file_dns_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1407,7 +1710,7 @@ func (x *RemoveCNameRequest) String() string {
 func (*RemoveCNameRequest) ProtoMessage() {}
 
 func (x *RemoveCNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[28]
+	mi := &file_dns_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1420,7 +1723,7 @@ func (x *RemoveCNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCNameRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCNameRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{28}
+	return file_dns_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RemoveCNameRequest) GetId() string {
@@ -1440,7 +1743,7 @@ type RemoveCNameResponse struct {
 
 func (x *RemoveCNameResponse) Reset() {
 	*x = RemoveCNameResponse{}
-	mi := &file_dns_proto_msgTypes[29]
+	mi := &file_dns_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1452,7 +1755,7 @@ func (x *RemoveCNameResponse) String() string {
 func (*RemoveCNameResponse) ProtoMessage() {}
 
 func (x *RemoveCNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[29]
+	mi := &file_dns_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1465,7 +1768,7 @@ func (x *RemoveCNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCNameResponse.ProtoReflect.Descriptor instead.
 func (*RemoveCNameResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{29}
+	return file_dns_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RemoveCNameResponse) GetResult() bool {
@@ -1486,7 +1789,7 @@ type AFSDB struct {
 
 func (x *AFSDB) Reset() {
 	*x = AFSDB{}
-	mi := &file_dns_proto_msgTypes[30]
+	mi := &file_dns_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1498,7 +1801,7 @@ func (x *AFSDB) String() string {
 func (*AFSDB) ProtoMessage() {}
 
 func (x *AFSDB) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[30]
+	mi := &file_dns_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1511,7 +1814,7 @@ func (x *AFSDB) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AFSDB.ProtoReflect.Descriptor instead.
 func (*AFSDB) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{30}
+	return file_dns_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *AFSDB) GetSubtype() uint32 {
@@ -1540,7 +1843,7 @@ type SetAfsdbRequest struct {
 
 func (x *SetAfsdbRequest) Reset() {
 	*x = SetAfsdbRequest{}
-	mi := &file_dns_proto_msgTypes[31]
+	mi := &file_dns_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1552,7 +1855,7 @@ func (x *SetAfsdbRequest) String() string {
 func (*SetAfsdbRequest) ProtoMessage() {}
 
 func (x *SetAfsdbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[31]
+	mi := &file_dns_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1565,7 +1868,7 @@ func (x *SetAfsdbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAfsdbRequest.ProtoReflect.Descriptor instead.
 func (*SetAfsdbRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{31}
+	return file_dns_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *SetAfsdbRequest) GetId() string {
@@ -1599,7 +1902,7 @@ type SetAfsdbResponse struct {
 
 func (x *SetAfsdbResponse) Reset() {
 	*x = SetAfsdbResponse{}
-	mi := &file_dns_proto_msgTypes[32]
+	mi := &file_dns_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1611,7 +1914,7 @@ func (x *SetAfsdbResponse) String() string {
 func (*SetAfsdbResponse) ProtoMessage() {}
 
 func (x *SetAfsdbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[32]
+	mi := &file_dns_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1624,7 +1927,7 @@ func (x *SetAfsdbResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetAfsdbResponse.ProtoReflect.Descriptor instead.
 func (*SetAfsdbResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{32}
+	return file_dns_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *SetAfsdbResponse) GetResult() bool {
@@ -1644,7 +1947,7 @@ type GetAfsdbRequest struct {
 
 func (x *GetAfsdbRequest) Reset() {
 	*x = GetAfsdbRequest{}
-	mi := &file_dns_proto_msgTypes[33]
+	mi := &file_dns_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1656,7 +1959,7 @@ func (x *GetAfsdbRequest) String() string {
 func (*GetAfsdbRequest) ProtoMessage() {}
 
 func (x *GetAfsdbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[33]
+	mi := &file_dns_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1669,7 +1972,7 @@ func (x *GetAfsdbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAfsdbRequest.ProtoReflect.Descriptor instead.
 func (*GetAfsdbRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{33}
+	return file_dns_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetAfsdbRequest) GetId() string {
@@ -1689,7 +1992,7 @@ type GetAfsdbResponse struct {
 
 func (x *GetAfsdbResponse) Reset() {
 	*x = GetAfsdbResponse{}
-	mi := &file_dns_proto_msgTypes[34]
+	mi := &file_dns_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1701,7 +2004,7 @@ func (x *GetAfsdbResponse) String() string {
 func (*GetAfsdbResponse) ProtoMessage() {}
 
 func (x *GetAfsdbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[34]
+	mi := &file_dns_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1714,7 +2017,7 @@ func (x *GetAfsdbResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAfsdbResponse.ProtoReflect.Descriptor instead.
 func (*GetAfsdbResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{34}
+	return file_dns_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetAfsdbResponse) GetResult() *AFSDB {
@@ -1734,7 +2037,7 @@ type RemoveAfsdbRequest struct {
 
 func (x *RemoveAfsdbRequest) Reset() {
 	*x = RemoveAfsdbRequest{}
-	mi := &file_dns_proto_msgTypes[35]
+	mi := &file_dns_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1746,7 +2049,7 @@ func (x *RemoveAfsdbRequest) String() string {
 func (*RemoveAfsdbRequest) ProtoMessage() {}
 
 func (x *RemoveAfsdbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[35]
+	mi := &file_dns_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1759,7 +2062,7 @@ func (x *RemoveAfsdbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAfsdbRequest.ProtoReflect.Descriptor instead.
 func (*RemoveAfsdbRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{35}
+	return file_dns_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RemoveAfsdbRequest) GetId() string {
@@ -1779,7 +2082,7 @@ type RemoveAfsdbResponse struct {
 
 func (x *RemoveAfsdbResponse) Reset() {
 	*x = RemoveAfsdbResponse{}
-	mi := &file_dns_proto_msgTypes[36]
+	mi := &file_dns_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1791,7 +2094,7 @@ func (x *RemoveAfsdbResponse) String() string {
 func (*RemoveAfsdbResponse) ProtoMessage() {}
 
 func (x *RemoveAfsdbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[36]
+	mi := &file_dns_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1804,7 +2107,7 @@ func (x *RemoveAfsdbResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAfsdbResponse.ProtoReflect.Descriptor instead.
 func (*RemoveAfsdbResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{36}
+	return file_dns_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RemoveAfsdbResponse) GetResult() bool {
@@ -1825,7 +2128,7 @@ type MX struct {
 
 func (x *MX) Reset() {
 	*x = MX{}
-	mi := &file_dns_proto_msgTypes[37]
+	mi := &file_dns_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1837,7 +2140,7 @@ func (x *MX) String() string {
 func (*MX) ProtoMessage() {}
 
 func (x *MX) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[37]
+	mi := &file_dns_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1850,7 +2153,7 @@ func (x *MX) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MX.ProtoReflect.Descriptor instead.
 func (*MX) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{37}
+	return file_dns_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *MX) GetPreference() int32 {
@@ -1879,7 +2182,7 @@ type SetMxRequest struct {
 
 func (x *SetMxRequest) Reset() {
 	*x = SetMxRequest{}
-	mi := &file_dns_proto_msgTypes[38]
+	mi := &file_dns_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1891,7 +2194,7 @@ func (x *SetMxRequest) String() string {
 func (*SetMxRequest) ProtoMessage() {}
 
 func (x *SetMxRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[38]
+	mi := &file_dns_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1904,7 +2207,7 @@ func (x *SetMxRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMxRequest.ProtoReflect.Descriptor instead.
 func (*SetMxRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{38}
+	return file_dns_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *SetMxRequest) GetId() string {
@@ -1938,7 +2241,7 @@ type SetMxResponse struct {
 
 func (x *SetMxResponse) Reset() {
 	*x = SetMxResponse{}
-	mi := &file_dns_proto_msgTypes[39]
+	mi := &file_dns_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1950,7 +2253,7 @@ func (x *SetMxResponse) String() string {
 func (*SetMxResponse) ProtoMessage() {}
 
 func (x *SetMxResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[39]
+	mi := &file_dns_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1963,7 +2266,7 @@ func (x *SetMxResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMxResponse.ProtoReflect.Descriptor instead.
 func (*SetMxResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{39}
+	return file_dns_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *SetMxResponse) GetResult() bool {
@@ -1984,7 +2287,7 @@ type GetMxRequest struct {
 
 func (x *GetMxRequest) Reset() {
 	*x = GetMxRequest{}
-	mi := &file_dns_proto_msgTypes[40]
+	mi := &file_dns_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1996,7 +2299,7 @@ func (x *GetMxRequest) String() string {
 func (*GetMxRequest) ProtoMessage() {}
 
 func (x *GetMxRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[40]
+	mi := &file_dns_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2009,7 +2312,7 @@ func (x *GetMxRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMxRequest.ProtoReflect.Descriptor instead.
 func (*GetMxRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{40}
+	return file_dns_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetMxRequest) GetId() string {
@@ -2036,7 +2339,7 @@ type GetMxResponse struct {
 
 func (x *GetMxResponse) Reset() {
 	*x = GetMxResponse{}
-	mi := &file_dns_proto_msgTypes[41]
+	mi := &file_dns_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2048,7 +2351,7 @@ func (x *GetMxResponse) String() string {
 func (*GetMxResponse) ProtoMessage() {}
 
 func (x *GetMxResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[41]
+	mi := &file_dns_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2061,7 +2364,7 @@ func (x *GetMxResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMxResponse.ProtoReflect.Descriptor instead.
 func (*GetMxResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{41}
+	return file_dns_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GetMxResponse) GetResult() []*MX {
@@ -2082,7 +2385,7 @@ type RemoveMxRequest struct {
 
 func (x *RemoveMxRequest) Reset() {
 	*x = RemoveMxRequest{}
-	mi := &file_dns_proto_msgTypes[42]
+	mi := &file_dns_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2094,7 +2397,7 @@ func (x *RemoveMxRequest) String() string {
 func (*RemoveMxRequest) ProtoMessage() {}
 
 func (x *RemoveMxRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[42]
+	mi := &file_dns_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2107,7 +2410,7 @@ func (x *RemoveMxRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMxRequest.ProtoReflect.Descriptor instead.
 func (*RemoveMxRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{42}
+	return file_dns_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RemoveMxRequest) GetId() string {
@@ -2134,7 +2437,7 @@ type RemoveMxResponse struct {
 
 func (x *RemoveMxResponse) Reset() {
 	*x = RemoveMxResponse{}
-	mi := &file_dns_proto_msgTypes[43]
+	mi := &file_dns_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2146,7 +2449,7 @@ func (x *RemoveMxResponse) String() string {
 func (*RemoveMxResponse) ProtoMessage() {}
 
 func (x *RemoveMxResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[43]
+	mi := &file_dns_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2159,7 +2462,7 @@ func (x *RemoveMxResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMxResponse.ProtoReflect.Descriptor instead.
 func (*RemoveMxResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{43}
+	return file_dns_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RemoveMxResponse) GetResult() bool {
@@ -2185,7 +2488,7 @@ type SOA struct {
 
 func (x *SOA) Reset() {
 	*x = SOA{}
-	mi := &file_dns_proto_msgTypes[44]
+	mi := &file_dns_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2197,7 +2500,7 @@ func (x *SOA) String() string {
 func (*SOA) ProtoMessage() {}
 
 func (x *SOA) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[44]
+	mi := &file_dns_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2210,7 +2513,7 @@ func (x *SOA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SOA.ProtoReflect.Descriptor instead.
 func (*SOA) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{44}
+	return file_dns_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *SOA) GetNs() string {
@@ -2274,7 +2577,7 @@ type SetSoaRequest struct {
 
 func (x *SetSoaRequest) Reset() {
 	*x = SetSoaRequest{}
-	mi := &file_dns_proto_msgTypes[45]
+	mi := &file_dns_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2286,7 +2589,7 @@ func (x *SetSoaRequest) String() string {
 func (*SetSoaRequest) ProtoMessage() {}
 
 func (x *SetSoaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[45]
+	mi := &file_dns_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2602,7 @@ func (x *SetSoaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSoaRequest.ProtoReflect.Descriptor instead.
 func (*SetSoaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{45}
+	return file_dns_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *SetSoaRequest) GetId() string {
@@ -2333,7 +2636,7 @@ type SetSoaResponse struct {
 
 func (x *SetSoaResponse) Reset() {
 	*x = SetSoaResponse{}
-	mi := &file_dns_proto_msgTypes[46]
+	mi := &file_dns_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2345,7 +2648,7 @@ func (x *SetSoaResponse) String() string {
 func (*SetSoaResponse) ProtoMessage() {}
 
 func (x *SetSoaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[46]
+	mi := &file_dns_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2358,7 +2661,7 @@ func (x *SetSoaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSoaResponse.ProtoReflect.Descriptor instead.
 func (*SetSoaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{46}
+	return file_dns_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SetSoaResponse) GetResult() bool {
@@ -2379,7 +2682,7 @@ type GetSoaRequest struct {
 
 func (x *GetSoaRequest) Reset() {
 	*x = GetSoaRequest{}
-	mi := &file_dns_proto_msgTypes[47]
+	mi := &file_dns_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2391,7 +2694,7 @@ func (x *GetSoaRequest) String() string {
 func (*GetSoaRequest) ProtoMessage() {}
 
 func (x *GetSoaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[47]
+	mi := &file_dns_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2404,7 +2707,7 @@ func (x *GetSoaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSoaRequest.ProtoReflect.Descriptor instead.
 func (*GetSoaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{47}
+	return file_dns_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *GetSoaRequest) GetId() string {
@@ -2431,7 +2734,7 @@ type GetSoaResponse struct {
 
 func (x *GetSoaResponse) Reset() {
 	*x = GetSoaResponse{}
-	mi := &file_dns_proto_msgTypes[48]
+	mi := &file_dns_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2443,7 +2746,7 @@ func (x *GetSoaResponse) String() string {
 func (*GetSoaResponse) ProtoMessage() {}
 
 func (x *GetSoaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[48]
+	mi := &file_dns_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2456,7 +2759,7 @@ func (x *GetSoaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSoaResponse.ProtoReflect.Descriptor instead.
 func (*GetSoaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{48}
+	return file_dns_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *GetSoaResponse) GetResult() []*SOA {
@@ -2477,7 +2780,7 @@ type RemoveSoaRequest struct {
 
 func (x *RemoveSoaRequest) Reset() {
 	*x = RemoveSoaRequest{}
-	mi := &file_dns_proto_msgTypes[49]
+	mi := &file_dns_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2489,7 +2792,7 @@ func (x *RemoveSoaRequest) String() string {
 func (*RemoveSoaRequest) ProtoMessage() {}
 
 func (x *RemoveSoaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[49]
+	mi := &file_dns_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2502,7 +2805,7 @@ func (x *RemoveSoaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSoaRequest.ProtoReflect.Descriptor instead.
 func (*RemoveSoaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{49}
+	return file_dns_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *RemoveSoaRequest) GetId() string {
@@ -2529,7 +2832,7 @@ type RemoveSoaResponse struct {
 
 func (x *RemoveSoaResponse) Reset() {
 	*x = RemoveSoaResponse{}
-	mi := &file_dns_proto_msgTypes[50]
+	mi := &file_dns_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2541,7 +2844,7 @@ func (x *RemoveSoaResponse) String() string {
 func (*RemoveSoaResponse) ProtoMessage() {}
 
 func (x *RemoveSoaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[50]
+	mi := &file_dns_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2554,7 +2857,7 @@ func (x *RemoveSoaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveSoaResponse.ProtoReflect.Descriptor instead.
 func (*RemoveSoaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{50}
+	return file_dns_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *RemoveSoaResponse) GetResult() bool {
@@ -2576,7 +2879,7 @@ type URI struct {
 
 func (x *URI) Reset() {
 	*x = URI{}
-	mi := &file_dns_proto_msgTypes[51]
+	mi := &file_dns_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2588,7 +2891,7 @@ func (x *URI) String() string {
 func (*URI) ProtoMessage() {}
 
 func (x *URI) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[51]
+	mi := &file_dns_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2601,7 +2904,7 @@ func (x *URI) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use URI.ProtoReflect.Descriptor instead.
 func (*URI) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{51}
+	return file_dns_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *URI) GetPriority() uint32 {
@@ -2637,7 +2940,7 @@ type SetUriRequest struct {
 
 func (x *SetUriRequest) Reset() {
 	*x = SetUriRequest{}
-	mi := &file_dns_proto_msgTypes[52]
+	mi := &file_dns_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2649,7 +2952,7 @@ func (x *SetUriRequest) String() string {
 func (*SetUriRequest) ProtoMessage() {}
 
 func (x *SetUriRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[52]
+	mi := &file_dns_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2662,7 +2965,7 @@ func (x *SetUriRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetUriRequest.ProtoReflect.Descriptor instead.
 func (*SetUriRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{52}
+	return file_dns_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SetUriRequest) GetId() string {
@@ -2696,7 +2999,7 @@ type SetUriResponse struct {
 
 func (x *SetUriResponse) Reset() {
 	*x = SetUriResponse{}
-	mi := &file_dns_proto_msgTypes[53]
+	mi := &file_dns_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2708,7 +3011,7 @@ func (x *SetUriResponse) String() string {
 func (*SetUriResponse) ProtoMessage() {}
 
 func (x *SetUriResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[53]
+	mi := &file_dns_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2721,7 +3024,7 @@ func (x *SetUriResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetUriResponse.ProtoReflect.Descriptor instead.
 func (*SetUriResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{53}
+	return file_dns_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *SetUriResponse) GetResult() bool {
@@ -2742,7 +3045,7 @@ type GetUriRequest struct {
 
 func (x *GetUriRequest) Reset() {
 	*x = GetUriRequest{}
-	mi := &file_dns_proto_msgTypes[54]
+	mi := &file_dns_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2754,7 +3057,7 @@ func (x *GetUriRequest) String() string {
 func (*GetUriRequest) ProtoMessage() {}
 
 func (x *GetUriRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[54]
+	mi := &file_dns_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2767,7 +3070,7 @@ func (x *GetUriRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUriRequest.ProtoReflect.Descriptor instead.
 func (*GetUriRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{54}
+	return file_dns_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *GetUriRequest) GetId() string {
@@ -2794,7 +3097,7 @@ type GetUriResponse struct {
 
 func (x *GetUriResponse) Reset() {
 	*x = GetUriResponse{}
-	mi := &file_dns_proto_msgTypes[55]
+	mi := &file_dns_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2806,7 +3109,7 @@ func (x *GetUriResponse) String() string {
 func (*GetUriResponse) ProtoMessage() {}
 
 func (x *GetUriResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[55]
+	mi := &file_dns_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2819,7 +3122,7 @@ func (x *GetUriResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUriResponse.ProtoReflect.Descriptor instead.
 func (*GetUriResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{55}
+	return file_dns_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetUriResponse) GetResult() []*URI {
@@ -2840,7 +3143,7 @@ type RemoveUriRequest struct {
 
 func (x *RemoveUriRequest) Reset() {
 	*x = RemoveUriRequest{}
-	mi := &file_dns_proto_msgTypes[56]
+	mi := &file_dns_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2852,7 +3155,7 @@ func (x *RemoveUriRequest) String() string {
 func (*RemoveUriRequest) ProtoMessage() {}
 
 func (x *RemoveUriRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[56]
+	mi := &file_dns_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2865,7 +3168,7 @@ func (x *RemoveUriRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveUriRequest.ProtoReflect.Descriptor instead.
 func (*RemoveUriRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{56}
+	return file_dns_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RemoveUriRequest) GetId() string {
@@ -2892,7 +3195,7 @@ type RemoveUriResponse struct {
 
 func (x *RemoveUriResponse) Reset() {
 	*x = RemoveUriResponse{}
-	mi := &file_dns_proto_msgTypes[57]
+	mi := &file_dns_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2904,7 +3207,7 @@ func (x *RemoveUriResponse) String() string {
 func (*RemoveUriResponse) ProtoMessage() {}
 
 func (x *RemoveUriResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[57]
+	mi := &file_dns_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2917,7 +3220,7 @@ func (x *RemoveUriResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveUriResponse.ProtoReflect.Descriptor instead.
 func (*RemoveUriResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{57}
+	return file_dns_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *RemoveUriResponse) GetResult() bool {
@@ -2939,7 +3242,7 @@ type CAA struct {
 
 func (x *CAA) Reset() {
 	*x = CAA{}
-	mi := &file_dns_proto_msgTypes[58]
+	mi := &file_dns_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2951,7 +3254,7 @@ func (x *CAA) String() string {
 func (*CAA) ProtoMessage() {}
 
 func (x *CAA) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[58]
+	mi := &file_dns_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2964,7 +3267,7 @@ func (x *CAA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAA.ProtoReflect.Descriptor instead.
 func (*CAA) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{58}
+	return file_dns_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *CAA) GetFlag() uint32 {
@@ -3000,7 +3303,7 @@ type SetCaaRequest struct {
 
 func (x *SetCaaRequest) Reset() {
 	*x = SetCaaRequest{}
-	mi := &file_dns_proto_msgTypes[59]
+	mi := &file_dns_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3012,7 +3315,7 @@ func (x *SetCaaRequest) String() string {
 func (*SetCaaRequest) ProtoMessage() {}
 
 func (x *SetCaaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[59]
+	mi := &file_dns_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3025,7 +3328,7 @@ func (x *SetCaaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCaaRequest.ProtoReflect.Descriptor instead.
 func (*SetCaaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{59}
+	return file_dns_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *SetCaaRequest) GetId() string {
@@ -3059,7 +3362,7 @@ type SetCaaResponse struct {
 
 func (x *SetCaaResponse) Reset() {
 	*x = SetCaaResponse{}
-	mi := &file_dns_proto_msgTypes[60]
+	mi := &file_dns_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3071,7 +3374,7 @@ func (x *SetCaaResponse) String() string {
 func (*SetCaaResponse) ProtoMessage() {}
 
 func (x *SetCaaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[60]
+	mi := &file_dns_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3084,7 +3387,7 @@ func (x *SetCaaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetCaaResponse.ProtoReflect.Descriptor instead.
 func (*SetCaaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{60}
+	return file_dns_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *SetCaaResponse) GetResult() bool {
@@ -3105,7 +3408,7 @@ type GetCaaRequest struct {
 
 func (x *GetCaaRequest) Reset() {
 	*x = GetCaaRequest{}
-	mi := &file_dns_proto_msgTypes[61]
+	mi := &file_dns_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3117,7 +3420,7 @@ func (x *GetCaaRequest) String() string {
 func (*GetCaaRequest) ProtoMessage() {}
 
 func (x *GetCaaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[61]
+	mi := &file_dns_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3130,7 +3433,7 @@ func (x *GetCaaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCaaRequest.ProtoReflect.Descriptor instead.
 func (*GetCaaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{61}
+	return file_dns_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetCaaRequest) GetId() string {
@@ -3157,7 +3460,7 @@ type GetCaaResponse struct {
 
 func (x *GetCaaResponse) Reset() {
 	*x = GetCaaResponse{}
-	mi := &file_dns_proto_msgTypes[62]
+	mi := &file_dns_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3169,7 +3472,7 @@ func (x *GetCaaResponse) String() string {
 func (*GetCaaResponse) ProtoMessage() {}
 
 func (x *GetCaaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[62]
+	mi := &file_dns_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3182,7 +3485,7 @@ func (x *GetCaaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCaaResponse.ProtoReflect.Descriptor instead.
 func (*GetCaaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{62}
+	return file_dns_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *GetCaaResponse) GetResult() []*CAA {
@@ -3203,7 +3506,7 @@ type RemoveCaaRequest struct {
 
 func (x *RemoveCaaRequest) Reset() {
 	*x = RemoveCaaRequest{}
-	mi := &file_dns_proto_msgTypes[63]
+	mi := &file_dns_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3215,7 +3518,7 @@ func (x *RemoveCaaRequest) String() string {
 func (*RemoveCaaRequest) ProtoMessage() {}
 
 func (x *RemoveCaaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[63]
+	mi := &file_dns_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3228,7 +3531,7 @@ func (x *RemoveCaaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCaaRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCaaRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{63}
+	return file_dns_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *RemoveCaaRequest) GetId() string {
@@ -3255,7 +3558,7 @@ type RemoveCaaResponse struct {
 
 func (x *RemoveCaaResponse) Reset() {
 	*x = RemoveCaaResponse{}
-	mi := &file_dns_proto_msgTypes[64]
+	mi := &file_dns_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3267,7 +3570,7 @@ func (x *RemoveCaaResponse) String() string {
 func (*RemoveCaaResponse) ProtoMessage() {}
 
 func (x *RemoveCaaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[64]
+	mi := &file_dns_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3280,7 +3583,7 @@ func (x *RemoveCaaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCaaResponse.ProtoReflect.Descriptor instead.
 func (*RemoveCaaResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{64}
+	return file_dns_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *RemoveCaaResponse) GetResult() bool {
@@ -3299,7 +3602,7 @@ type StopRequest struct {
 
 func (x *StopRequest) Reset() {
 	*x = StopRequest{}
-	mi := &file_dns_proto_msgTypes[65]
+	mi := &file_dns_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3311,7 +3614,7 @@ func (x *StopRequest) String() string {
 func (*StopRequest) ProtoMessage() {}
 
 func (x *StopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[65]
+	mi := &file_dns_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3324,7 +3627,7 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
 func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{65}
+	return file_dns_proto_rawDescGZIP(), []int{71}
 }
 
 // StopResponse is the response to a StopRequest.
@@ -3336,7 +3639,7 @@ type StopResponse struct {
 
 func (x *StopResponse) Reset() {
 	*x = StopResponse{}
-	mi := &file_dns_proto_msgTypes[66]
+	mi := &file_dns_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3348,7 +3651,7 @@ func (x *StopResponse) String() string {
 func (*StopResponse) ProtoMessage() {}
 
 func (x *StopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[66]
+	mi := &file_dns_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3361,7 +3664,7 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
 func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{66}
+	return file_dns_proto_rawDescGZIP(), []int{72}
 }
 
 // SetDomainsRequest is used to set multiple domain names.
@@ -3374,7 +3677,7 @@ type SetDomainsRequest struct {
 
 func (x *SetDomainsRequest) Reset() {
 	*x = SetDomainsRequest{}
-	mi := &file_dns_proto_msgTypes[67]
+	mi := &file_dns_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3386,7 +3689,7 @@ func (x *SetDomainsRequest) String() string {
 func (*SetDomainsRequest) ProtoMessage() {}
 
 func (x *SetDomainsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[67]
+	mi := &file_dns_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3399,7 +3702,7 @@ func (x *SetDomainsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDomainsRequest.ProtoReflect.Descriptor instead.
 func (*SetDomainsRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{67}
+	return file_dns_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *SetDomainsRequest) GetDomains() []string {
@@ -3419,7 +3722,7 @@ type SetDomainsResponse struct {
 
 func (x *SetDomainsResponse) Reset() {
 	*x = SetDomainsResponse{}
-	mi := &file_dns_proto_msgTypes[68]
+	mi := &file_dns_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3431,7 +3734,7 @@ func (x *SetDomainsResponse) String() string {
 func (*SetDomainsResponse) ProtoMessage() {}
 
 func (x *SetDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[68]
+	mi := &file_dns_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3444,7 +3747,7 @@ func (x *SetDomainsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDomainsResponse.ProtoReflect.Descriptor instead.
 func (*SetDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{68}
+	return file_dns_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *SetDomainsResponse) GetResult() bool {
@@ -3463,7 +3766,7 @@ type GetDomainsRequest struct {
 
 func (x *GetDomainsRequest) Reset() {
 	*x = GetDomainsRequest{}
-	mi := &file_dns_proto_msgTypes[69]
+	mi := &file_dns_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3475,7 +3778,7 @@ func (x *GetDomainsRequest) String() string {
 func (*GetDomainsRequest) ProtoMessage() {}
 
 func (x *GetDomainsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[69]
+	mi := &file_dns_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3488,7 +3791,7 @@ func (x *GetDomainsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDomainsRequest.ProtoReflect.Descriptor instead.
 func (*GetDomainsRequest) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{69}
+	return file_dns_proto_rawDescGZIP(), []int{75}
 }
 
 // GetDomainsResponse is the response for a GetDomainsRequest.
@@ -3501,7 +3804,7 @@ type GetDomainsResponse struct {
 
 func (x *GetDomainsResponse) Reset() {
 	*x = GetDomainsResponse{}
-	mi := &file_dns_proto_msgTypes[70]
+	mi := &file_dns_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3513,7 +3816,7 @@ func (x *GetDomainsResponse) String() string {
 func (*GetDomainsResponse) ProtoMessage() {}
 
 func (x *GetDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dns_proto_msgTypes[70]
+	mi := &file_dns_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3526,7 +3829,7 @@ func (x *GetDomainsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDomainsResponse.ProtoReflect.Descriptor instead.
 func (*GetDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_dns_proto_rawDescGZIP(), []int{70}
+	return file_dns_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *GetDomainsResponse) GetDomains() []string {
@@ -3584,6 +3887,21 @@ const file_dns_proto_rawDesc = "" +
 	"\x11RemoveTextRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\",\n" +
 	"\x12RemoveTextResponse\x12\x16\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"K\n" +
+	"\rSetTXTRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x03txt\x18\x02 \x01(\tR\x03txt\x12\x10\n" +
+	"\x03ttl\x18\x03 \x01(\rR\x03ttl\"*\n" +
+	"\x0eSetTXTResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"'\n" +
+	"\rGetTXTRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\"\"\n" +
+	"\x0eGetTXTResponse\x12\x10\n" +
+	"\x03txt\x18\x01 \x03(\tR\x03txt\"<\n" +
+	"\x10RemoveTXTRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x03txt\x18\x02 \x01(\tR\x03txt\"+\n" +
+	"\x11RemoveTXTResponse\x12\x16\n" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"@\n" +
 	"\fSetNsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
@@ -3726,7 +4044,7 @@ const file_dns_proto_rawDesc = "" +
 	"\x06result\x18\x01 \x01(\bR\x06result\"\x13\n" +
 	"\x11GetDomainsRequest\".\n" +
 	"\x12GetDomainsResponse\x12\x18\n" +
-	"\adomains\x18\x01 \x03(\tR\adomains2\x9d\x0e\n" +
+	"\adomains\x18\x01 \x03(\tR\adomains2\xbf\x0f\n" +
 	"\n" +
 	"DnsService\x12=\n" +
 	"\n" +
@@ -3744,7 +4062,10 @@ const file_dns_proto_rawDesc = "" +
 	"\aSetText\x12\x13.dns.SetTextRequest\x1a\x14.dns.SetTextResponse\x124\n" +
 	"\aGetText\x12\x13.dns.GetTextRequest\x1a\x14.dns.GetTextResponse\x12=\n" +
 	"\n" +
-	"RemoveText\x12\x16.dns.RemoveTextRequest\x1a\x17.dns.RemoveTextResponse\x12.\n" +
+	"RemoveText\x12\x16.dns.RemoveTextRequest\x1a\x17.dns.RemoveTextResponse\x121\n" +
+	"\x06SetTXT\x12\x12.dns.SetTXTRequest\x1a\x13.dns.SetTXTResponse\x121\n" +
+	"\x06GetTXT\x12\x12.dns.GetTXTRequest\x1a\x13.dns.GetTXTResponse\x12:\n" +
+	"\tRemoveTXT\x12\x15.dns.RemoveTXTRequest\x1a\x16.dns.RemoveTXTResponse\x12.\n" +
 	"\x05SetNs\x12\x11.dns.SetNsRequest\x1a\x12.dns.SetNsResponse\x12.\n" +
 	"\x05GetNs\x12\x11.dns.GetNsRequest\x1a\x12.dns.GetNsResponse\x127\n" +
 	"\bRemoveNs\x12\x14.dns.RemoveNsRequest\x1a\x15.dns.RemoveNsResponse\x127\n" +
@@ -3779,7 +4100,7 @@ func file_dns_proto_rawDescGZIP() []byte {
 	return file_dns_proto_rawDescData
 }
 
-var file_dns_proto_msgTypes = make([]protoimpl.MessageInfo, 71)
+var file_dns_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
 var file_dns_proto_goTypes = []any{
 	(*SetARequest)(nil),         // 0: dns.SetARequest
 	(*SetAResponse)(nil),        // 1: dns.SetAResponse
@@ -3799,74 +4120,80 @@ var file_dns_proto_goTypes = []any{
 	(*GetTextResponse)(nil),     // 15: dns.GetTextResponse
 	(*RemoveTextRequest)(nil),   // 16: dns.RemoveTextRequest
 	(*RemoveTextResponse)(nil),  // 17: dns.RemoveTextResponse
-	(*SetNsRequest)(nil),        // 18: dns.SetNsRequest
-	(*SetNsResponse)(nil),       // 19: dns.SetNsResponse
-	(*GetNsRequest)(nil),        // 20: dns.GetNsRequest
-	(*GetNsResponse)(nil),       // 21: dns.GetNsResponse
-	(*RemoveNsRequest)(nil),     // 22: dns.RemoveNsRequest
-	(*RemoveNsResponse)(nil),    // 23: dns.RemoveNsResponse
-	(*SetCNameRequest)(nil),     // 24: dns.SetCNameRequest
-	(*SetCNameResponse)(nil),    // 25: dns.SetCNameResponse
-	(*GetCNameRequest)(nil),     // 26: dns.GetCNameRequest
-	(*GetCNameResponse)(nil),    // 27: dns.GetCNameResponse
-	(*RemoveCNameRequest)(nil),  // 28: dns.RemoveCNameRequest
-	(*RemoveCNameResponse)(nil), // 29: dns.RemoveCNameResponse
-	(*AFSDB)(nil),               // 30: dns.AFSDB
-	(*SetAfsdbRequest)(nil),     // 31: dns.SetAfsdbRequest
-	(*SetAfsdbResponse)(nil),    // 32: dns.SetAfsdbResponse
-	(*GetAfsdbRequest)(nil),     // 33: dns.GetAfsdbRequest
-	(*GetAfsdbResponse)(nil),    // 34: dns.GetAfsdbResponse
-	(*RemoveAfsdbRequest)(nil),  // 35: dns.RemoveAfsdbRequest
-	(*RemoveAfsdbResponse)(nil), // 36: dns.RemoveAfsdbResponse
-	(*MX)(nil),                  // 37: dns.MX
-	(*SetMxRequest)(nil),        // 38: dns.SetMxRequest
-	(*SetMxResponse)(nil),       // 39: dns.SetMxResponse
-	(*GetMxRequest)(nil),        // 40: dns.GetMxRequest
-	(*GetMxResponse)(nil),       // 41: dns.GetMxResponse
-	(*RemoveMxRequest)(nil),     // 42: dns.RemoveMxRequest
-	(*RemoveMxResponse)(nil),    // 43: dns.RemoveMxResponse
-	(*SOA)(nil),                 // 44: dns.SOA
-	(*SetSoaRequest)(nil),       // 45: dns.SetSoaRequest
-	(*SetSoaResponse)(nil),      // 46: dns.SetSoaResponse
-	(*GetSoaRequest)(nil),       // 47: dns.GetSoaRequest
-	(*GetSoaResponse)(nil),      // 48: dns.GetSoaResponse
-	(*RemoveSoaRequest)(nil),    // 49: dns.RemoveSoaRequest
-	(*RemoveSoaResponse)(nil),   // 50: dns.RemoveSoaResponse
-	(*URI)(nil),                 // 51: dns.URI
-	(*SetUriRequest)(nil),       // 52: dns.SetUriRequest
-	(*SetUriResponse)(nil),      // 53: dns.SetUriResponse
-	(*GetUriRequest)(nil),       // 54: dns.GetUriRequest
-	(*GetUriResponse)(nil),      // 55: dns.GetUriResponse
-	(*RemoveUriRequest)(nil),    // 56: dns.RemoveUriRequest
-	(*RemoveUriResponse)(nil),   // 57: dns.RemoveUriResponse
-	(*CAA)(nil),                 // 58: dns.CAA
-	(*SetCaaRequest)(nil),       // 59: dns.SetCaaRequest
-	(*SetCaaResponse)(nil),      // 60: dns.SetCaaResponse
-	(*GetCaaRequest)(nil),       // 61: dns.GetCaaRequest
-	(*GetCaaResponse)(nil),      // 62: dns.GetCaaResponse
-	(*RemoveCaaRequest)(nil),    // 63: dns.RemoveCaaRequest
-	(*RemoveCaaResponse)(nil),   // 64: dns.RemoveCaaResponse
-	(*StopRequest)(nil),         // 65: dns.StopRequest
-	(*StopResponse)(nil),        // 66: dns.StopResponse
-	(*SetDomainsRequest)(nil),   // 67: dns.SetDomainsRequest
-	(*SetDomainsResponse)(nil),  // 68: dns.SetDomainsResponse
-	(*GetDomainsRequest)(nil),   // 69: dns.GetDomainsRequest
-	(*GetDomainsResponse)(nil),  // 70: dns.GetDomainsResponse
+	(*SetTXTRequest)(nil),       // 18: dns.SetTXTRequest
+	(*SetTXTResponse)(nil),      // 19: dns.SetTXTResponse
+	(*GetTXTRequest)(nil),       // 20: dns.GetTXTRequest
+	(*GetTXTResponse)(nil),      // 21: dns.GetTXTResponse
+	(*RemoveTXTRequest)(nil),    // 22: dns.RemoveTXTRequest
+	(*RemoveTXTResponse)(nil),   // 23: dns.RemoveTXTResponse
+	(*SetNsRequest)(nil),        // 24: dns.SetNsRequest
+	(*SetNsResponse)(nil),       // 25: dns.SetNsResponse
+	(*GetNsRequest)(nil),        // 26: dns.GetNsRequest
+	(*GetNsResponse)(nil),       // 27: dns.GetNsResponse
+	(*RemoveNsRequest)(nil),     // 28: dns.RemoveNsRequest
+	(*RemoveNsResponse)(nil),    // 29: dns.RemoveNsResponse
+	(*SetCNameRequest)(nil),     // 30: dns.SetCNameRequest
+	(*SetCNameResponse)(nil),    // 31: dns.SetCNameResponse
+	(*GetCNameRequest)(nil),     // 32: dns.GetCNameRequest
+	(*GetCNameResponse)(nil),    // 33: dns.GetCNameResponse
+	(*RemoveCNameRequest)(nil),  // 34: dns.RemoveCNameRequest
+	(*RemoveCNameResponse)(nil), // 35: dns.RemoveCNameResponse
+	(*AFSDB)(nil),               // 36: dns.AFSDB
+	(*SetAfsdbRequest)(nil),     // 37: dns.SetAfsdbRequest
+	(*SetAfsdbResponse)(nil),    // 38: dns.SetAfsdbResponse
+	(*GetAfsdbRequest)(nil),     // 39: dns.GetAfsdbRequest
+	(*GetAfsdbResponse)(nil),    // 40: dns.GetAfsdbResponse
+	(*RemoveAfsdbRequest)(nil),  // 41: dns.RemoveAfsdbRequest
+	(*RemoveAfsdbResponse)(nil), // 42: dns.RemoveAfsdbResponse
+	(*MX)(nil),                  // 43: dns.MX
+	(*SetMxRequest)(nil),        // 44: dns.SetMxRequest
+	(*SetMxResponse)(nil),       // 45: dns.SetMxResponse
+	(*GetMxRequest)(nil),        // 46: dns.GetMxRequest
+	(*GetMxResponse)(nil),       // 47: dns.GetMxResponse
+	(*RemoveMxRequest)(nil),     // 48: dns.RemoveMxRequest
+	(*RemoveMxResponse)(nil),    // 49: dns.RemoveMxResponse
+	(*SOA)(nil),                 // 50: dns.SOA
+	(*SetSoaRequest)(nil),       // 51: dns.SetSoaRequest
+	(*SetSoaResponse)(nil),      // 52: dns.SetSoaResponse
+	(*GetSoaRequest)(nil),       // 53: dns.GetSoaRequest
+	(*GetSoaResponse)(nil),      // 54: dns.GetSoaResponse
+	(*RemoveSoaRequest)(nil),    // 55: dns.RemoveSoaRequest
+	(*RemoveSoaResponse)(nil),   // 56: dns.RemoveSoaResponse
+	(*URI)(nil),                 // 57: dns.URI
+	(*SetUriRequest)(nil),       // 58: dns.SetUriRequest
+	(*SetUriResponse)(nil),      // 59: dns.SetUriResponse
+	(*GetUriRequest)(nil),       // 60: dns.GetUriRequest
+	(*GetUriResponse)(nil),      // 61: dns.GetUriResponse
+	(*RemoveUriRequest)(nil),    // 62: dns.RemoveUriRequest
+	(*RemoveUriResponse)(nil),   // 63: dns.RemoveUriResponse
+	(*CAA)(nil),                 // 64: dns.CAA
+	(*SetCaaRequest)(nil),       // 65: dns.SetCaaRequest
+	(*SetCaaResponse)(nil),      // 66: dns.SetCaaResponse
+	(*GetCaaRequest)(nil),       // 67: dns.GetCaaRequest
+	(*GetCaaResponse)(nil),      // 68: dns.GetCaaResponse
+	(*RemoveCaaRequest)(nil),    // 69: dns.RemoveCaaRequest
+	(*RemoveCaaResponse)(nil),   // 70: dns.RemoveCaaResponse
+	(*StopRequest)(nil),         // 71: dns.StopRequest
+	(*StopResponse)(nil),        // 72: dns.StopResponse
+	(*SetDomainsRequest)(nil),   // 73: dns.SetDomainsRequest
+	(*SetDomainsResponse)(nil),  // 74: dns.SetDomainsResponse
+	(*GetDomainsRequest)(nil),   // 75: dns.GetDomainsRequest
+	(*GetDomainsResponse)(nil),  // 76: dns.GetDomainsResponse
 }
 var file_dns_proto_depIdxs = []int32{
-	30, // 0: dns.SetAfsdbRequest.afsdb:type_name -> dns.AFSDB
-	30, // 1: dns.GetAfsdbResponse.result:type_name -> dns.AFSDB
-	37, // 2: dns.SetMxRequest.mx:type_name -> dns.MX
-	37, // 3: dns.GetMxResponse.result:type_name -> dns.MX
-	44, // 4: dns.SetSoaRequest.soa:type_name -> dns.SOA
-	44, // 5: dns.GetSoaResponse.result:type_name -> dns.SOA
-	51, // 6: dns.SetUriRequest.uri:type_name -> dns.URI
-	51, // 7: dns.GetUriResponse.result:type_name -> dns.URI
-	58, // 8: dns.SetCaaRequest.caa:type_name -> dns.CAA
-	58, // 9: dns.GetCaaResponse.result:type_name -> dns.CAA
-	67, // 10: dns.DnsService.SetDomains:input_type -> dns.SetDomainsRequest
-	69, // 11: dns.DnsService.GetDomains:input_type -> dns.GetDomainsRequest
-	65, // 12: dns.DnsService.Stop:input_type -> dns.StopRequest
+	36, // 0: dns.SetAfsdbRequest.afsdb:type_name -> dns.AFSDB
+	36, // 1: dns.GetAfsdbResponse.result:type_name -> dns.AFSDB
+	43, // 2: dns.SetMxRequest.mx:type_name -> dns.MX
+	43, // 3: dns.GetMxResponse.result:type_name -> dns.MX
+	50, // 4: dns.SetSoaRequest.soa:type_name -> dns.SOA
+	50, // 5: dns.GetSoaResponse.result:type_name -> dns.SOA
+	57, // 6: dns.SetUriRequest.uri:type_name -> dns.URI
+	57, // 7: dns.GetUriResponse.result:type_name -> dns.URI
+	64, // 8: dns.SetCaaRequest.caa:type_name -> dns.CAA
+	64, // 9: dns.GetCaaResponse.result:type_name -> dns.CAA
+	73, // 10: dns.DnsService.SetDomains:input_type -> dns.SetDomainsRequest
+	75, // 11: dns.DnsService.GetDomains:input_type -> dns.GetDomainsRequest
+	71, // 12: dns.DnsService.Stop:input_type -> dns.StopRequest
 	0,  // 13: dns.DnsService.SetA:input_type -> dns.SetARequest
 	2,  // 14: dns.DnsService.RemoveA:input_type -> dns.RemoveARequest
 	4,  // 15: dns.DnsService.GetA:input_type -> dns.GetARequest
@@ -3876,62 +4203,68 @@ var file_dns_proto_depIdxs = []int32{
 	12, // 19: dns.DnsService.SetText:input_type -> dns.SetTextRequest
 	14, // 20: dns.DnsService.GetText:input_type -> dns.GetTextRequest
 	16, // 21: dns.DnsService.RemoveText:input_type -> dns.RemoveTextRequest
-	18, // 22: dns.DnsService.SetNs:input_type -> dns.SetNsRequest
-	20, // 23: dns.DnsService.GetNs:input_type -> dns.GetNsRequest
-	22, // 24: dns.DnsService.RemoveNs:input_type -> dns.RemoveNsRequest
-	24, // 25: dns.DnsService.SetCName:input_type -> dns.SetCNameRequest
-	26, // 26: dns.DnsService.GetCName:input_type -> dns.GetCNameRequest
-	28, // 27: dns.DnsService.RemoveCName:input_type -> dns.RemoveCNameRequest
-	38, // 28: dns.DnsService.SetMx:input_type -> dns.SetMxRequest
-	40, // 29: dns.DnsService.GetMx:input_type -> dns.GetMxRequest
-	42, // 30: dns.DnsService.RemoveMx:input_type -> dns.RemoveMxRequest
-	45, // 31: dns.DnsService.SetSoa:input_type -> dns.SetSoaRequest
-	47, // 32: dns.DnsService.GetSoa:input_type -> dns.GetSoaRequest
-	49, // 33: dns.DnsService.RemoveSoa:input_type -> dns.RemoveSoaRequest
-	52, // 34: dns.DnsService.SetUri:input_type -> dns.SetUriRequest
-	54, // 35: dns.DnsService.GetUri:input_type -> dns.GetUriRequest
-	56, // 36: dns.DnsService.RemoveUri:input_type -> dns.RemoveUriRequest
-	59, // 37: dns.DnsService.SetCaa:input_type -> dns.SetCaaRequest
-	61, // 38: dns.DnsService.GetCaa:input_type -> dns.GetCaaRequest
-	63, // 39: dns.DnsService.RemoveCaa:input_type -> dns.RemoveCaaRequest
-	31, // 40: dns.DnsService.SetAfsdb:input_type -> dns.SetAfsdbRequest
-	33, // 41: dns.DnsService.GetAfsdb:input_type -> dns.GetAfsdbRequest
-	35, // 42: dns.DnsService.RemoveAfsdb:input_type -> dns.RemoveAfsdbRequest
-	68, // 43: dns.DnsService.SetDomains:output_type -> dns.SetDomainsResponse
-	70, // 44: dns.DnsService.GetDomains:output_type -> dns.GetDomainsResponse
-	66, // 45: dns.DnsService.Stop:output_type -> dns.StopResponse
-	1,  // 46: dns.DnsService.SetA:output_type -> dns.SetAResponse
-	3,  // 47: dns.DnsService.RemoveA:output_type -> dns.RemoveAResponse
-	5,  // 48: dns.DnsService.GetA:output_type -> dns.GetAResponse
-	7,  // 49: dns.DnsService.SetAAAA:output_type -> dns.SetAAAAResponse
-	9,  // 50: dns.DnsService.RemoveAAAA:output_type -> dns.RemoveAAAAResponse
-	11, // 51: dns.DnsService.GetAAAA:output_type -> dns.GetAAAAResponse
-	13, // 52: dns.DnsService.SetText:output_type -> dns.SetTextResponse
-	15, // 53: dns.DnsService.GetText:output_type -> dns.GetTextResponse
-	17, // 54: dns.DnsService.RemoveText:output_type -> dns.RemoveTextResponse
-	19, // 55: dns.DnsService.SetNs:output_type -> dns.SetNsResponse
-	21, // 56: dns.DnsService.GetNs:output_type -> dns.GetNsResponse
-	23, // 57: dns.DnsService.RemoveNs:output_type -> dns.RemoveNsResponse
-	25, // 58: dns.DnsService.SetCName:output_type -> dns.SetCNameResponse
-	27, // 59: dns.DnsService.GetCName:output_type -> dns.GetCNameResponse
-	29, // 60: dns.DnsService.RemoveCName:output_type -> dns.RemoveCNameResponse
-	39, // 61: dns.DnsService.SetMx:output_type -> dns.SetMxResponse
-	41, // 62: dns.DnsService.GetMx:output_type -> dns.GetMxResponse
-	43, // 63: dns.DnsService.RemoveMx:output_type -> dns.RemoveMxResponse
-	46, // 64: dns.DnsService.SetSoa:output_type -> dns.SetSoaResponse
-	48, // 65: dns.DnsService.GetSoa:output_type -> dns.GetSoaResponse
-	50, // 66: dns.DnsService.RemoveSoa:output_type -> dns.RemoveSoaResponse
-	53, // 67: dns.DnsService.SetUri:output_type -> dns.SetUriResponse
-	55, // 68: dns.DnsService.GetUri:output_type -> dns.GetUriResponse
-	57, // 69: dns.DnsService.RemoveUri:output_type -> dns.RemoveUriResponse
-	60, // 70: dns.DnsService.SetCaa:output_type -> dns.SetCaaResponse
-	62, // 71: dns.DnsService.GetCaa:output_type -> dns.GetCaaResponse
-	64, // 72: dns.DnsService.RemoveCaa:output_type -> dns.RemoveCaaResponse
-	32, // 73: dns.DnsService.SetAfsdb:output_type -> dns.SetAfsdbResponse
-	34, // 74: dns.DnsService.GetAfsdb:output_type -> dns.GetAfsdbResponse
-	36, // 75: dns.DnsService.RemoveAfsdb:output_type -> dns.RemoveAfsdbResponse
-	43, // [43:76] is the sub-list for method output_type
-	10, // [10:43] is the sub-list for method input_type
+	18, // 22: dns.DnsService.SetTXT:input_type -> dns.SetTXTRequest
+	20, // 23: dns.DnsService.GetTXT:input_type -> dns.GetTXTRequest
+	22, // 24: dns.DnsService.RemoveTXT:input_type -> dns.RemoveTXTRequest
+	24, // 25: dns.DnsService.SetNs:input_type -> dns.SetNsRequest
+	26, // 26: dns.DnsService.GetNs:input_type -> dns.GetNsRequest
+	28, // 27: dns.DnsService.RemoveNs:input_type -> dns.RemoveNsRequest
+	30, // 28: dns.DnsService.SetCName:input_type -> dns.SetCNameRequest
+	32, // 29: dns.DnsService.GetCName:input_type -> dns.GetCNameRequest
+	34, // 30: dns.DnsService.RemoveCName:input_type -> dns.RemoveCNameRequest
+	44, // 31: dns.DnsService.SetMx:input_type -> dns.SetMxRequest
+	46, // 32: dns.DnsService.GetMx:input_type -> dns.GetMxRequest
+	48, // 33: dns.DnsService.RemoveMx:input_type -> dns.RemoveMxRequest
+	51, // 34: dns.DnsService.SetSoa:input_type -> dns.SetSoaRequest
+	53, // 35: dns.DnsService.GetSoa:input_type -> dns.GetSoaRequest
+	55, // 36: dns.DnsService.RemoveSoa:input_type -> dns.RemoveSoaRequest
+	58, // 37: dns.DnsService.SetUri:input_type -> dns.SetUriRequest
+	60, // 38: dns.DnsService.GetUri:input_type -> dns.GetUriRequest
+	62, // 39: dns.DnsService.RemoveUri:input_type -> dns.RemoveUriRequest
+	65, // 40: dns.DnsService.SetCaa:input_type -> dns.SetCaaRequest
+	67, // 41: dns.DnsService.GetCaa:input_type -> dns.GetCaaRequest
+	69, // 42: dns.DnsService.RemoveCaa:input_type -> dns.RemoveCaaRequest
+	37, // 43: dns.DnsService.SetAfsdb:input_type -> dns.SetAfsdbRequest
+	39, // 44: dns.DnsService.GetAfsdb:input_type -> dns.GetAfsdbRequest
+	41, // 45: dns.DnsService.RemoveAfsdb:input_type -> dns.RemoveAfsdbRequest
+	74, // 46: dns.DnsService.SetDomains:output_type -> dns.SetDomainsResponse
+	76, // 47: dns.DnsService.GetDomains:output_type -> dns.GetDomainsResponse
+	72, // 48: dns.DnsService.Stop:output_type -> dns.StopResponse
+	1,  // 49: dns.DnsService.SetA:output_type -> dns.SetAResponse
+	3,  // 50: dns.DnsService.RemoveA:output_type -> dns.RemoveAResponse
+	5,  // 51: dns.DnsService.GetA:output_type -> dns.GetAResponse
+	7,  // 52: dns.DnsService.SetAAAA:output_type -> dns.SetAAAAResponse
+	9,  // 53: dns.DnsService.RemoveAAAA:output_type -> dns.RemoveAAAAResponse
+	11, // 54: dns.DnsService.GetAAAA:output_type -> dns.GetAAAAResponse
+	13, // 55: dns.DnsService.SetText:output_type -> dns.SetTextResponse
+	15, // 56: dns.DnsService.GetText:output_type -> dns.GetTextResponse
+	17, // 57: dns.DnsService.RemoveText:output_type -> dns.RemoveTextResponse
+	19, // 58: dns.DnsService.SetTXT:output_type -> dns.SetTXTResponse
+	21, // 59: dns.DnsService.GetTXT:output_type -> dns.GetTXTResponse
+	23, // 60: dns.DnsService.RemoveTXT:output_type -> dns.RemoveTXTResponse
+	25, // 61: dns.DnsService.SetNs:output_type -> dns.SetNsResponse
+	27, // 62: dns.DnsService.GetNs:output_type -> dns.GetNsResponse
+	29, // 63: dns.DnsService.RemoveNs:output_type -> dns.RemoveNsResponse
+	31, // 64: dns.DnsService.SetCName:output_type -> dns.SetCNameResponse
+	33, // 65: dns.DnsService.GetCName:output_type -> dns.GetCNameResponse
+	35, // 66: dns.DnsService.RemoveCName:output_type -> dns.RemoveCNameResponse
+	45, // 67: dns.DnsService.SetMx:output_type -> dns.SetMxResponse
+	47, // 68: dns.DnsService.GetMx:output_type -> dns.GetMxResponse
+	49, // 69: dns.DnsService.RemoveMx:output_type -> dns.RemoveMxResponse
+	52, // 70: dns.DnsService.SetSoa:output_type -> dns.SetSoaResponse
+	54, // 71: dns.DnsService.GetSoa:output_type -> dns.GetSoaResponse
+	56, // 72: dns.DnsService.RemoveSoa:output_type -> dns.RemoveSoaResponse
+	59, // 73: dns.DnsService.SetUri:output_type -> dns.SetUriResponse
+	61, // 74: dns.DnsService.GetUri:output_type -> dns.GetUriResponse
+	63, // 75: dns.DnsService.RemoveUri:output_type -> dns.RemoveUriResponse
+	66, // 76: dns.DnsService.SetCaa:output_type -> dns.SetCaaResponse
+	68, // 77: dns.DnsService.GetCaa:output_type -> dns.GetCaaResponse
+	70, // 78: dns.DnsService.RemoveCaa:output_type -> dns.RemoveCaaResponse
+	38, // 79: dns.DnsService.SetAfsdb:output_type -> dns.SetAfsdbResponse
+	40, // 80: dns.DnsService.GetAfsdb:output_type -> dns.GetAfsdbResponse
+	42, // 81: dns.DnsService.RemoveAfsdb:output_type -> dns.RemoveAfsdbResponse
+	46, // [46:82] is the sub-list for method output_type
+	10, // [10:46] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -3948,7 +4281,7 @@ func file_dns_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dns_proto_rawDesc), len(file_dns_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   71,
+			NumMessages:   77,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

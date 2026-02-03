@@ -286,6 +286,96 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	}
 }
 
+// StartACMERenewal starts the background ACME certificate renewal loop
+func (srv *NodeAgentServer) StartACMERenewal(ctx context.Context) {
+	go srv.acmeRenewalLoop(ctx)
+}
+
+func (srv *NodeAgentServer) acmeRenewalLoop(ctx context.Context) {
+	// Check every 12 hours
+	ticker := time.NewTicker(12 * time.Hour)
+	defer ticker.Stop()
+
+	// Run immediately on startup, then every 12h
+	srv.checkAndRenewCertificate(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			srv.checkAndRenewCertificate(ctx)
+		}
+	}
+}
+
+func (srv *NodeAgentServer) checkAndRenewCertificate(ctx context.Context) {
+	srv.mu.Lock()
+	spec := srv.lastSpec
+	srv.mu.Unlock()
+
+	if spec == nil {
+		return
+	}
+
+	// Only renew if https and ACME enabled
+	if !strings.EqualFold(spec.GetProtocol(), "https") || !spec.GetAcmeEnabled() {
+		return
+	}
+
+	log.Printf("ACME renewal check: domain=%s", spec.GetClusterDomain())
+
+	// Run tls.acme.ensure action
+	handler := actions.Get("tls.acme.ensure")
+	if handler == nil {
+		log.Printf("ACME renewal: action not registered")
+		return
+	}
+
+	args := map[string]interface{}{
+		"domain":       spec.GetClusterDomain(),
+		"admin_email":  spec.GetAdminEmail(),
+		"acme_enabled": spec.GetAcmeEnabled(),
+		"dns_addr":     "localhost:10033",
+	}
+
+	argsStruct, err := structpb.NewStruct(args)
+	if err != nil {
+		log.Printf("ACME renewal: failed to create args: %v", err)
+		return
+	}
+
+	if err := handler.Validate(argsStruct); err != nil {
+		log.Printf("ACME renewal: validation failed: %v", err)
+		return
+	}
+
+	result, err := handler.Apply(ctx, argsStruct)
+	if err != nil {
+		log.Printf("ACME renewal failed: %v", err)
+		return
+	}
+
+	log.Printf("ACME renewal result: %s", result)
+
+	// If certificate changed, restart services
+	if strings.Contains(result, "issued") || strings.Contains(result, "renewed") {
+		log.Printf("Certificate changed, restarting gateway/xds/envoy")
+		srv.restartServicesAfterCertChange(ctx)
+	}
+}
+
+func (srv *NodeAgentServer) restartServicesAfterCertChange(ctx context.Context) {
+	// Restart gateway, xds, and envoy if present
+	servicesToRestart := []string{"gateway", "xds", "envoy"}
+
+	if srv.restartHook != nil {
+		if err := srv.restartHook(servicesToRestart, nil); err != nil {
+			log.Printf("restart services after cert change failed: %v", err)
+		}
+	}
+}
+
 func (srv *NodeAgentServer) StartPlanRunner(ctx context.Context) {
 	if srv.planStore == nil {
 		return

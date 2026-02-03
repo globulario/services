@@ -4,8 +4,9 @@ package dns;
 option go_package="github.com/globulario/services/golang/dns/dnspb";
 
 // SetARequest is used to set an 'A' (Address) record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 message SetARequest {
-  string domain = 1; // The domain name for the A record.
+  string domain = 1; // The domain name for the A record (normalized: lowercase, no trailing dot).
   string a = 2;      // The IPv4 address associated with the domain.
   uint32 ttl = 3;    // Time To Live: duration that the record may be cached.
 }
@@ -16,6 +17,7 @@ message SetAResponse {
 }
 
 // RemoveARequest is used to remove an 'A' record.
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 message RemoveARequest {
   string domain = 1; // The domain name for the A record to be removed.
   string a = 2;      // The IPv4 address associated with the domain to be removed.
@@ -27,6 +29,7 @@ message RemoveAResponse {
 }
 
 // GetARequest is used to retrieve 'A' records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 message GetARequest {
   string domain = 1; // The domain name to get the A records for.
 }
@@ -37,8 +40,9 @@ message GetAResponse {
 }
 
 // SetAAAARequest is used to set an 'AAAA' (IPv6 Address) record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
 message SetAAAARequest {
-  string domain = 1;     // The domain name for the AAAA record.
+  string domain = 1;     // The domain name for the AAAA record (normalized: lowercase, no trailing dot).
   string aaaa = 2;       // The IPv6 address associated with the domain.
   uint32 ttl = 3;        // Time To Live: duration that the record may be cached.
 }
@@ -49,6 +53,7 @@ message SetAAAAResponse {
 }
 
 // RemoveAAAARequest is used to remove an 'AAAA' (IPv6 Address) record.
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
 message RemoveAAAARequest {
   string domain = 1; // The domain name for the AAAA record to be removed.
   string aaaa = 2;   // The IPv6 address associated with the domain to be removed.
@@ -60,6 +65,7 @@ message RemoveAAAAResponse {
 }
 
 // GetAAAARequest is used to retrieve 'AAAA' records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
 message GetAAAARequest {
   string domain = 1; // The domain name to get the AAAA records for.
 }
@@ -99,6 +105,42 @@ message RemoveTextRequest {
 // RemoveTextResponse is the response for a RemoveTextRequest.
 message RemoveTextResponse {
   bool result = 1;          // The result of the removal operation, typically a success flag.
+}
+
+// SetTXTRequest is used to set a TXT record in DNS.
+// Name normalization: accepts names with or without trailing dot, stores lowercase without trailing dot.
+message SetTXTRequest {
+  string domain = 1; // The domain name for the TXT record (normalized: lowercase, no trailing dot).
+  string txt = 2;    // The TXT value to set.
+  uint32 ttl = 3;    // Time To Live: duration that the record may be cached (default: 300).
+}
+
+// SetTXTResponse is the response for a SetTXTRequest.
+message SetTXTResponse {
+  string message = 1; // Response message or confirmation.
+}
+
+// GetTXTRequest is used to retrieve TXT records.
+// Name normalization: accepts names with or without trailing dot, queries lowercase without trailing dot.
+message GetTXTRequest {
+  string domain = 1; // The domain name to get the TXT records for.
+}
+
+// GetTXTResponse returns the TXT records for a given domain.
+message GetTXTResponse {
+  repeated string txt = 1; // List of TXT values associated with the domain.
+}
+
+// RemoveTXTRequest is used to remove TXT record(s).
+// Name normalization: accepts names with or without trailing dot, operates on lowercase without trailing dot.
+message RemoveTXTRequest {
+  string domain = 1; // The domain name for the TXT record(s) to be removed.
+  string txt = 2;    // Optional: specific TXT value to remove. If empty, removes all TXT records for the domain.
+}
+
+// RemoveTXTResponse is the response for a RemoveTXTRequest.
+message RemoveTXTResponse {
+  bool result = 1;   // The result of the removal operation, typically a success flag.
 }
 
 // SetNsRequest is used to set a Name Server (NS) record.
@@ -439,6 +481,15 @@ service DnsService {
 
   // Remove a TXT record.
   rpc RemoveText(RemoveTextRequest) returns (RemoveTextResponse);
+
+  // Set a TXT record (normalized naming).
+  rpc SetTXT(SetTXTRequest) returns (SetTXTResponse);
+
+  // Retrieve TXT records (normalized naming).
+  rpc GetTXT(GetTXTRequest) returns (GetTXTResponse);
+
+  // Remove TXT record(s) (normalized naming).
+  rpc RemoveTXT(RemoveTXTRequest) returns (RemoveTXTResponse);
 
   // Set an NS record.
   rpc SetNs(SetNsRequest) returns (SetNsResponse);

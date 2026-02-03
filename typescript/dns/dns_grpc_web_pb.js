@@ -809,6 +809,189 @@ proto.dns.DnsServicePromiseClient.prototype.removeText =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.SetTXTRequest,
+ *   !proto.dns.SetTXTResponse>}
+ */
+const methodDescriptor_DnsService_SetTXT = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/SetTXT',
+  grpc.web.MethodType.UNARY,
+  proto.dns.SetTXTRequest,
+  proto.dns.SetTXTResponse,
+  /**
+   * @param {!proto.dns.SetTXTRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.SetTXTResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.SetTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.SetTXTResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.SetTXTResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.setTXT =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/SetTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_SetTXT,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.SetTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.SetTXTResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.setTXT =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/SetTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_SetTXT);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.GetTXTRequest,
+ *   !proto.dns.GetTXTResponse>}
+ */
+const methodDescriptor_DnsService_GetTXT = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/GetTXT',
+  grpc.web.MethodType.UNARY,
+  proto.dns.GetTXTRequest,
+  proto.dns.GetTXTResponse,
+  /**
+   * @param {!proto.dns.GetTXTRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.GetTXTResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.GetTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.GetTXTResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.GetTXTResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.getTXT =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/GetTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_GetTXT,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.GetTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.GetTXTResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.getTXT =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/GetTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_GetTXT);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.RemoveTXTRequest,
+ *   !proto.dns.RemoveTXTResponse>}
+ */
+const methodDescriptor_DnsService_RemoveTXT = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/RemoveTXT',
+  grpc.web.MethodType.UNARY,
+  proto.dns.RemoveTXTRequest,
+  proto.dns.RemoveTXTResponse,
+  /**
+   * @param {!proto.dns.RemoveTXTRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.RemoveTXTResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.RemoveTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.RemoveTXTResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.RemoveTXTResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.removeTXT =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/RemoveTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_RemoveTXT,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.RemoveTXTRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.RemoveTXTResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.removeTXT =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/RemoveTXT',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_RemoveTXT);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.dns.SetNsRequest,
  *   !proto.dns.SetNsResponse>}
  */
