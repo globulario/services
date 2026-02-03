@@ -104,7 +104,7 @@ func init() {
 		watchCmd,
 		networkCmd,
 		clusterDnsCmd,
-		healthCmd,
+		// healthCmd is added in health_cmds.go
 	)
 
 	bootstrapCmd.Flags().StringVar(&bootstrapNodeAddr, "node", "", "Node agent endpoint (required)")
@@ -625,57 +625,8 @@ Example:
 	},
 }
 
-var healthCmd = &cobra.Command{
-	Use:   "health",
-	Short: "Display cluster health status",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cc, err := controllerClient()
-		if err != nil {
-			return err
-		}
-		defer cc.Close()
-		client := clustercontrollerpb.NewClusterControllerServiceClient(cc)
-
-		resp, err := client.GetClusterHealth(ctxWithTimeout(), &clustercontrollerpb.GetClusterHealthRequest{})
-		if err != nil {
-			return err
-		}
-
-		// Print overall status
-		fmt.Printf("Cluster Status: %s\n", strings.ToUpper(resp.GetStatus()))
-		fmt.Printf("\nNode Summary:\n")
-		fmt.Printf("  Total:     %d\n", resp.GetTotalNodes())
-		fmt.Printf("  Healthy:   %d\n", resp.GetHealthyNodes())
-		fmt.Printf("  Unhealthy: %d\n", resp.GetUnhealthyNodes())
-		fmt.Printf("  Unknown:   %d\n", resp.GetUnknownNodes())
-
-		if len(resp.GetNodeHealth()) > 0 {
-			fmt.Printf("\nNode Details:\n")
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "NODE ID\tHOSTNAME\tSTATUS\tLAST SEEN\tERROR")
-			for _, node := range resp.GetNodeHealth() {
-				lastSeen := "never"
-				if ts := node.GetLastSeen(); ts != nil {
-					lastSeen = ts.AsTime().Format(time.RFC3339)
-				}
-				lastError := node.GetLastError()
-				if lastError == "" {
-					lastError = "-"
-				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-					node.GetNodeId(),
-					node.GetHostname(),
-					node.GetStatus(),
-					lastSeen,
-					lastError,
-				)
-			}
-			w.Flush()
-		}
-
-		return nil
-	},
-}
+// healthCmd is defined in health_cmds.go
+var healthCmd *cobra.Command
 
 var agentInventoryCmd = &cobra.Command{
 	Use:   "inventory",

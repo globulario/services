@@ -15,6 +15,8 @@
   - [Node Plans](#node-plans)
   - [Package Management](#package-management)
   - [Debug Tools](#debug-tools)
+  - [Node Management](#node-management)
+  - [Logs](#logs)
 - [Common Workflows](#common-workflows)
 - [Troubleshooting](#troubleshooting)
 
@@ -30,6 +32,8 @@ The Globular CLI is a Go-based tool that communicates directly with the Globular
 - **Network configuration**: Manage HTTPS, certificates, and ACME automation
 - **Node operations**: Monitor health, apply plans, and debug issues
 - **Package operations**: Build, verify, and publish service packages
+- **Day-1 operations**: Health checks, diagnostics collection, log access, and reconciliation
+- **Operational readiness**: Single commands for cluster health verification and troubleshooting
 
 Unlike many Kubernetes-inspired tools, Globular CLI uses direct gRPC communication rather than REST APIs, providing lower latency and stronger type safety.
 
@@ -357,22 +361,137 @@ globular cluster nodes remove node_abc123 --no-drain     # Skip graceful shutdow
 
 #### `globular cluster health`
 
-**Purpose**: Display overall cluster health status.
+**Purpose**: Display overall cluster health status or perform local health checks.
 
+**Usage**:
 ```bash
+# Cluster-wide health (default)
 globular cluster health
+
+# Local node health checks
+globular cluster health --local
+
+# JSON output for automation
+globular cluster health --local --json
+
+# Custom timeout
+globular cluster health --local --timeout 30
 ```
 
-**Output**:
+**Flags**:
+- `--local`: Perform local health checks instead of cluster-wide (default: false)
+- `--json`: Output health status in JSON format (default: false)
+- `--timeout`: Timeout in seconds for health checks (default: 10)
+
+**Local Health Checks** (with `--local`):
+
+Performs direct checks on the local node without contacting the cluster controller:
+- **etcd**: TCP connectivity on 127.0.0.1:2379
+- **scylla**: TCP connectivity on 127.0.0.1:9042
+- **minio**: TCP connectivity on 127.0.0.1:9000
+- **envoy**: HTTP /ready endpoint on 127.0.0.1:9901
+- **gateway**: TCP connectivity on configured port (from network.json)
+- **dns**: gRPC connectivity and basic query test on localhost:10033
+- **tls** (HTTPS only): Certificate presence, validity, and domain match
+
+**Cluster-Wide Health** (default):
+
+Queries the cluster controller for aggregated health:
 - Overall cluster status (healthy/degraded/unhealthy)
 - Node count summary (total, healthy, unhealthy, unknown)
 - Per-node health details with last seen time
 - Any error messages or issues
 
+**JSON Output Schema**:
+
+```json
+{
+  "healthy": false,
+  "checks": [
+    {"name": "etcd", "ok": true, "details": "etcd reachable"},
+    {"name": "scylla", "ok": false, "details": "scylla unreachable on 127.0.0.1:9042"}
+  ]
+}
+```
+
+**Examples**:
+
+```bash
+# Quick local health check
+globular cluster health --local
+
+# Get health in JSON for monitoring
+globular cluster health --local --json | jq '.healthy'
+
+# Cluster-wide health
+globular cluster health
+
+# Check if TLS is properly configured
+globular cluster health --local | grep tls
+```
+
 **Use cases**:
-- Quick cluster status check
-- Monitoring and alerting integration
+- Day-1 operations: Single command to verify cluster health
+- Monitoring and alerting integration (JSON output)
+- Pre-deployment validation
 - Troubleshooting connectivity issues
+- CI/CD health gates
+
+---
+
+#### `globular support-bundle`
+
+**Purpose**: Collect comprehensive diagnostics into a compressed tarball for troubleshooting.
+
+**Usage**:
+```bash
+globular support-bundle [--out <path>] [--since <duration>] [--services <list>]
+```
+
+**Flags**:
+- `--out`: Output path for bundle (default: `support-bundle-<timestamp>.tar.gz`)
+- `--since`: Collect logs since duration (default: `24h`, e.g., `2h`, `30m`, `1d`)
+- `--services`: Specific services to include (default: all)
+
+**Bundle Contents**:
+
+The support bundle includes:
+1. **Metadata**: Timestamp, hostname, collection parameters
+2. **systemctl status**: Status output for all Globular services
+3. **journald logs**: Service logs filtered by `--since` parameter
+4. **Network configuration**: `/var/lib/globular/network.json`
+5. **Globular configs**: Files from `/etc/globular/*` (sensitive data sanitized)
+6. **Envoy config dump**: Admin API config dump from localhost:9901 (if available)
+7. **Versions**: Git SHA and binary version information
+
+**Examples**:
+
+```bash
+# Collect full diagnostics
+globular support-bundle
+
+# Collect recent logs only
+globular support-bundle --since 2h
+
+# Collect specific services
+globular support-bundle --services gateway,xds,envoy
+
+# Custom output path
+globular support-bundle --out /tmp/cluster-diagnostics.tar.gz
+```
+
+**Resilience**:
+
+The bundle command is designed to work even under partial failure:
+- Missing services: Includes error notes instead of failing
+- Down services: Still collects available information
+- Permission errors: Notes access failures and continues
+
+**Use cases**:
+- Day-1 operations: Collect all debugging info in one command
+- Support tickets: Attach comprehensive diagnostics
+- Post-mortem analysis: Capture state after incidents
+- Pre-upgrade snapshots: Document working state
 
 ---
 
@@ -983,6 +1102,183 @@ globular debug agent watch --agent node-01:11000 --op op_xyz789
 
 ---
 
+### Node Management
+
+Node commands control individual node operations like reconciliation and state alignment.
+
+#### `globular node reconcile`
+
+**Purpose**: Trigger explicit reconciliation to align a node's actual state with its desired state.
+
+**Usage**:
+```bash
+globular node reconcile --node-id <node-id> [--dry-run] [--json]
+```
+
+**Flags**:
+- `--node-id`: Target node ID (required)
+- `--dry-run`: Show what would be reconciled without executing (default: false)
+- `--json`: Output result in JSON format (default: false)
+
+**What Reconciliation Does**:
+
+Reconciliation ensures:
+- All desired services are running at correct versions
+- Network configuration matches cluster spec
+- TLS certificates are valid and up-to-date
+- Service configurations are synchronized
+- Dependencies are satisfied
+
+**Dry-Run Mode**:
+
+With `--dry-run`, the command fetches and displays the current reconciliation plan without executing it:
+
+```bash
+globular node reconcile --node-id node-abc123 --dry-run
+```
+
+**Output**:
+- Plan reason (e.g., "update_cluster_network", "service_upgrade")
+- Number of steps
+- Detailed step list with actions and arguments
+- Note that no changes will be applied
+
+**Apply Mode** (default):
+
+Without `--dry-run`, triggers immediate reconciliation:
+
+```bash
+globular node reconcile --node-id node-abc123
+```
+
+The reconciliation is asynchronous. Monitor node status or plan execution to verify completion.
+
+**JSON Output**:
+
+```json
+{
+  "success": true,
+  "node_id": "node-abc123",
+  "message": "reconciliation triggered successfully"
+}
+```
+
+**Examples**:
+
+```bash
+# Trigger reconciliation on a node
+globular node reconcile --node-id node-abc123
+
+# Preview what would be reconciled
+globular node reconcile --node-id node-abc123 --dry-run
+
+# Get JSON output for automation
+globular node reconcile --node-id node-abc123 --json
+```
+
+**Idempotency**:
+
+Reconciliation is idempotent:
+- Running twice on the same state produces no changes on the second run
+- Only drifted or changed configuration triggers actions
+- Safe to run repeatedly without side effects
+
+**Use cases**:
+- Day-1 operations: Force state alignment after configuration changes
+- Post-reboot recovery: Restore desired state
+- Troubleshooting: Fix configuration drift
+- Automated healing: Periodic reconciliation in scripts
+- Pre-upgrade validation: Ensure clean state before changes
+
+---
+
+### Logs
+
+Log commands provide consistent access to service logs across the cluster.
+
+#### `globular logs`
+
+**Purpose**: View logs for a Globular service with automatic fallback strategies.
+
+**Usage**:
+```bash
+globular logs <service> [-f] [--since <duration>] [-n <lines>]
+```
+
+**Arguments**:
+- `<service>`: Service name (e.g., `gateway`, `xds`, `envoy`, `dns`)
+
+**Flags**:
+- `-f, --follow`: Follow log output like `tail -f` (default: false)
+- `--since`: Show logs since duration or timestamp (e.g., `10m`, `1h`, `2006-01-02`)
+- `-n, --lines`: Number of lines to show from the end (default: 200)
+
+**Backend Selection**:
+
+The command automatically selects the best backend:
+
+1. **log_server RPC** (preferred): If log_server is available on localhost:10030, uses gRPC streaming
+2. **journalctl fallback**: If log_server unavailable, falls back to local journalctl
+
+This ensures logs are always accessible even if the log aggregation service is down.
+
+**Service Name Mapping**:
+
+Common aliases are automatically mapped to systemd units:
+- `gateway` → `globular-gateway.service`
+- `xds` → `globular-xds.service`
+- `envoy` → `envoy.service`
+- `dns` → `globular-dns.service`
+- `nodeagent` / `node-agent` → `globular-nodeagent.service`
+- `controller` / `clustercontroller` → `globular-clustercontroller.service`
+- `etcd` → `etcd.service`
+- `scylla` → `scylla.service`
+- `minio` → `minio.service`
+
+**Examples**:
+
+```bash
+# View last 200 lines of gateway logs
+globular logs gateway
+
+# Follow XDS logs in real-time
+globular logs xds --follow
+
+# View envoy logs from last 10 minutes
+globular logs envoy --since 10m
+
+# Show last 500 lines of DNS logs
+globular logs dns -n 500
+
+# Follow gateway logs from 1 hour ago
+globular logs gateway -f --since 1h
+
+# View logs with specific timestamp
+globular logs gateway --since 2025-01-01
+```
+
+**Output Format**:
+
+Logs are displayed with timestamps and severity levels:
+
+```
+2025-01-15T10:30:45Z [INFO] globular-gateway: Server started on port 8080
+2025-01-15T10:30:46Z [DEBUG] globular-gateway: Loaded configuration from /etc/globular/gateway.json
+2025-01-15T10:31:00Z [WARN] globular-gateway: Certificate expires in 25 days
+```
+
+**Environment Variables**:
+- `LOG_SERVER_ADDR`: Override default log_server address (default: `localhost:10030`)
+
+**Use cases**:
+- Day-1 operations: Consistent interface for all log access
+- Troubleshooting: Quick access to service logs
+- Real-time monitoring: Follow logs during deployments
+- Post-mortem analysis: Review historical logs
+- CI/CD integration: Capture logs in pipelines
+
+---
+
 ## Common Workflows
 
 ### 1. Bootstrap a New Cluster
@@ -1098,6 +1394,38 @@ globular debug agent inventory --agent node-abc123:11000
 # Step 5: Retry plan
 globular cluster plan apply node_abc123 --watch
 ```
+
+---
+
+### 6. Day-1 Operations: Health Check and Diagnostics
+
+```bash
+# Step 1: Check local node health
+globular cluster health --local
+
+# If issues found, get JSON details
+globular cluster health --local --json > health.json
+
+# Step 2: View recent logs from affected service
+globular logs gateway --since 30m
+
+# Step 3: Follow logs in real-time while troubleshooting
+globular logs gateway -f
+
+# Step 4: Collect full diagnostics bundle
+globular support-bundle --since 2h --out diagnostics.tar.gz
+
+# Step 5: Force reconciliation if configuration drifted
+globular node reconcile --node-id node-abc123
+
+# Step 6: Preview reconciliation plan before applying
+globular node reconcile --node-id node-abc123 --dry-run
+
+# Step 7: Check cluster-wide health
+globular cluster health
+```
+
+**Use case**: This workflow is essential for Day-1 operational readiness, providing a single source of truth for cluster health and comprehensive diagnostic collection when issues arise.
 
 ---
 
