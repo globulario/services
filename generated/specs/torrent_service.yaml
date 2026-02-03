@@ -32,32 +32,28 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      - path: "{{.StateDir}}/services"
+        owner: globular
+        group: globular
+        mode: 0750
       - path: "{{.StateDir}}/torrent"
         owner: globular
         group: globular
         mode: 0750
 
-      - path: "{{.ConfigDir}}"
-        owner: root
-        group: root
-        mode: 0755
-      - path: "{{.ConfigDir}}/torrent"
-        owner: root
-        group: root
-        mode: 0755
+  - id: install-torrent-payload
+    type: install_package_payload
+    install_bins: true
+    install_config: false
+    install_spec: false
+    install_systemd: false
 
-  - id: install-torrent-config
-    type: install_files
-    files:
-      - path: "{{.ConfigDir}}/torrent/config.json"
-        owner: root
-        group: root
-        mode: 0644
-        atomic: true
-        # NOTE: this is intended to be replaced by node-agent/controller later.
-        # It is seeded from 'torrent_server --describe'.
-        content: |
-
+  - id: ensure-torrent-config
+    type: ensure_service_config
+    service_name: torrent
+    exec: torrent_server
+    address_host: localhost
+    rewrite_if_out_of_range: true
 
   - id: install-torrent-service
     type: install_services
@@ -78,6 +74,7 @@ steps:
           User=globular
           Group=globular
           WorkingDirectory={{.StateDir}}/torrent
+          Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/torrent_server
           Restart=on-failure
           RestartSec=2
@@ -95,9 +92,6 @@ steps:
     type: start_services
     services:
       - globular-torrent.service
-    restart_on_files:
-      globular-torrent.service:
-        - "{{.ConfigDir}}/torrent/config.json"
     binaries:
       globular-torrent.service: torrent_server
 

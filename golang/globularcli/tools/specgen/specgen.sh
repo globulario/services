@@ -97,6 +97,24 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      - path: "{{.StateDir}}/${svc}"
+        owner: globular
+        group: globular
+        mode: 0750
+
+  - id: install-${svc}-payload
+    type: install_package_payload
+    install_bins: true
+    install_config: false
+    install_spec: false
+    install_systemd: false
+
+  - id: ensure-${svc}-config
+    type: ensure_service_config
+    service_name: ${svc}
+    exec: ${exe}
+    address_host: localhost
+    rewrite_if_out_of_range: true
 
   - id: install-${svc}-service
     type: install_services
@@ -116,7 +134,7 @@ steps:
           Type=simple
           User=globular
           Group=globular
-          WorkingDirectory={{.StateDir}}/services
+          WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/${exe}
           Restart=on-failure

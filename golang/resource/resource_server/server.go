@@ -1302,26 +1302,19 @@ func main() {
 		s.Domain = "localhost"
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
+		s.Address = strings.TrimSpace(a)
+	}
+	if strings.TrimSpace(s.Address) == "" {
+		s.Address = "localhost:" + Utility.ToString(s.Port)
 	}
 
 	// Backend informations.
-	s.Backend_type = "SQL" // use SQL as default backend.
-	s.Backend_port = 27018 // Here I will use the port beside the default one in case MONGO is already exist
-
-	// I will try to get process named "scylla" if not found I will use MongoDB as backend.
+	scyllaDetected := false
 	if process, err := Utility.GetProcessIdsByName("scylla"); err == nil && process != nil {
-		s.Backend_type = "SCYLLA"
-		if s.TLS {
-			s.Backend_port = 9142
-		} else {
-			s.Backend_port = 9042
-		}
-
+		scyllaDetected = true
 		logger.Info("Scylla process detected, using Scylla as backend store", "process", process)
 	}
-
-	s.Backend_address = s.Address
+	computeBackendConfig(s, scyllaDetected)
 	s.Backend_replication_factor = 1
 
 	s.Backend_user = "sa"
@@ -1372,4 +1365,38 @@ func printUsage() {
 	fmt.Println("  resource_server my-id /etc/globular/resource/config.json")
 	fmt.Println("  resource_server --describe")
 	fmt.Println("  resource_server --health")
+}
+
+// computeBackendConfig sets backend type, ports, and address safely.
+func computeBackendConfig(s *server, scyllaDetected bool) {
+	// Ensure address is populated.
+	if strings.TrimSpace(s.Address) == "" {
+		s.Address = "localhost:" + Utility.ToString(s.Port)
+	}
+
+	s.Backend_type = "SQL" // default backend
+	s.Backend_port = 27018 // alternative to default Mongo port
+
+	if scyllaDetected {
+		s.Backend_type = "SCYLLA"
+		if s.TLS {
+			s.Backend_port = 9142
+		} else {
+			s.Backend_port = 9042
+		}
+	}
+
+	// Backend host: env override > host portion of Address > localhost.
+	if v, ok := os.LookupEnv("GLOBULAR_SCYLLA_HOST"); ok && strings.TrimSpace(v) != "" {
+		s.Backend_address = strings.TrimSpace(v)
+	} else {
+		host := strings.TrimSpace(s.Address)
+		if strings.Contains(host, ":") {
+			host = strings.Split(host, ":")[0]
+		}
+		if host == "" {
+			host = "localhost"
+		}
+		s.Backend_address = host
+	}
 }

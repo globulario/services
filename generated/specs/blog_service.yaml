@@ -32,32 +32,28 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      - path: "{{.StateDir}}/services"
+        owner: globular
+        group: globular
+        mode: 0750
       - path: "{{.StateDir}}/blog"
         owner: globular
         group: globular
         mode: 0750
 
-      - path: "{{.ConfigDir}}"
-        owner: root
-        group: root
-        mode: 0755
-      - path: "{{.ConfigDir}}/blog"
-        owner: root
-        group: root
-        mode: 0755
+  - id: install-blog-payload
+    type: install_package_payload
+    install_bins: true
+    install_config: false
+    install_spec: false
+    install_systemd: false
 
-  - id: install-blog-config
-    type: install_files
-    files:
-      - path: "{{.ConfigDir}}/blog/config.json"
-        owner: root
-        group: root
-        mode: 0644
-        atomic: true
-        # NOTE: this is intended to be replaced by node-agent/controller later.
-        # It is seeded from 'blog_server --describe'.
-        content: |
-
+  - id: ensure-blog-config
+    type: ensure_service_config
+    service_name: blog
+    exec: blog_server
+    address_host: localhost
+    rewrite_if_out_of_range: true
 
   - id: install-blog-service
     type: install_services
@@ -78,6 +74,7 @@ steps:
           User=globular
           Group=globular
           WorkingDirectory={{.StateDir}}/blog
+          Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/blog_server
           Restart=on-failure
           RestartSec=2
@@ -95,9 +92,6 @@ steps:
     type: start_services
     services:
       - globular-blog.service
-    restart_on_files:
-      globular-blog.service:
-        - "{{.ConfigDir}}/blog/config.json"
     binaries:
       globular-blog.service: blog_server
 

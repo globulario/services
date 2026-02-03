@@ -160,13 +160,18 @@ func deduceColumnType(value interface{}) string {
 
 // ---- New helpers for reference inference ----
 // ListLinkedIDs returns, for baseCollection/id, a map like:
-//   {"roles": ["r1","r2"], "groups": ["g3"] }
+//
+//	{"roles": ["r1","r2"], "groups": ["g3"] }
 func (store *ScyllaStore) ListLinkedIDs(connectionId, keyspace, baseCollection, id string) (map[string][]string, error) {
 	session, err := store.getSession(connectionId, keyspace)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	base := strings.ToLower(strings.TrimSpace(baseCollection))
-	if !strings.HasSuffix(base, "s") { base += "s" }
+	if !strings.HasSuffix(base, "s") {
+		base += "s"
+	}
 
 	out := map[string][]string{}
 
@@ -176,13 +181,19 @@ func (store *ScyllaStore) ListLinkedIDs(connectionId, keyspace, baseCollection, 
 	var t string
 	for iter.Scan(&t) {
 		parts := strings.SplitN(strings.ToLower(t), "_", 2)
-		if len(parts) != 2 { continue }
+		if len(parts) != 2 {
+			continue
+		}
 		a, b := parts[0], parts[1]
 
 		// canonical link table: has (source_id,target_id)
 		cols, _ := store.getTableColumns(session, keyspace, t)
-		if _, ok := cols["source_id"]; !ok { continue }
-		if _, ok := cols["target_id"]; !ok { continue }
+		if _, ok := cols["source_id"]; !ok {
+			continue
+		}
+		if _, ok := cols["target_id"]; !ok {
+			continue
+		}
 
 		var q string
 		var other string
@@ -208,7 +219,9 @@ func (store *ScyllaStore) ListLinkedIDs(connectionId, keyspace, baseCollection, 
 		}
 		_ = it.Close()
 	}
-	if err := iter.Close(); err != nil { return nil, err }
+	if err := iter.Close(); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -412,7 +425,17 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	if id == "" {
 		return errors.New("the connection id is required")
 	}
-	if host == "" {
+	if strings.TrimSpace(host) == "" && strings.TrimSpace(options_str) != "" {
+		opts := parseOptions(options_str)
+		mergeJSONOptions(opts, options_str)
+		for _, key := range []string{"host", "hosts", "contact_points"} {
+			if v, ok := opts[key]; ok && strings.TrimSpace(v) != "" {
+				host = strings.TrimSpace(strings.Split(v, ",")[0])
+				break
+			}
+		}
+	}
+	if strings.TrimSpace(host) == "" {
 		return errors.New("the host is required")
 	}
 	if keyspace == "" {
@@ -895,12 +918,12 @@ func (store *ScyllaStore) initEntity(connectionId, keyspace, typeName string, en
 
 		// ---- SCALAR ARRAY TABLES (<base>_<field> with <base>_id, value) ----
 		// DO NOT canonicalize here — <base>_<field> is the actual table name
-		
+
 		pkCol := parts[0] + "_id"
-	
+
 		if _, ok := cols[pkCol]; ok {
 			if _, ok2 := cols["value"]; ok2 {
-				
+
 				_ = store.initArrayValues(connectionId, keyspace, tName, entity)
 				continue
 			}

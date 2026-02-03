@@ -27,7 +27,7 @@ func TestCopyConfigDirsCollision(t *testing.T) {
 	}
 
 	dest := t.TempDir()
-	err := copyConfigDirs([]string{dir1, dir2}, dest)
+	_, err := copyConfigDirs([]string{dir1, dir2}, dest)
 	if err == nil {
 		t.Fatalf("expected collision error, got nil")
 	}
@@ -100,7 +100,7 @@ func TestBuildPackagesWithRoot(t *testing.T) {
 	}
 
 	specPath := filepath.Join(t.TempDir(), "root_service.yaml")
-	spec := "metadata:\n  name: root-service\nsteps:\n  - cmd: './bin/root-service'\n"
+	spec := "metadata:\n  name: root-service\nsteps:\n  - id: install-root\n    type: install_package_payload\n    install_bins: true\n    install_config: true\n    install_spec: false\n    install_systemd: false\n"
 	if err := os.WriteFile(specPath, []byte(spec), 0644); err != nil {
 		t.Fatal(err)
 	}

@@ -32,32 +32,28 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      - path: "{{.StateDir}}/services"
+        owner: globular
+        group: globular
+        mode: 0750
       - path: "{{.StateDir}}/catalog"
         owner: globular
         group: globular
         mode: 0750
 
-      - path: "{{.ConfigDir}}"
-        owner: root
-        group: root
-        mode: 0755
-      - path: "{{.ConfigDir}}/catalog"
-        owner: root
-        group: root
-        mode: 0755
+  - id: install-catalog-payload
+    type: install_package_payload
+    install_bins: true
+    install_config: false
+    install_spec: false
+    install_systemd: false
 
-  - id: install-catalog-config
-    type: install_files
-    files:
-      - path: "{{.ConfigDir}}/catalog/config.json"
-        owner: root
-        group: root
-        mode: 0644
-        atomic: true
-        # NOTE: this is intended to be replaced by node-agent/controller later.
-        # It is seeded from 'catalog_server --describe'.
-        content: |
-
+  - id: ensure-catalog-config
+    type: ensure_service_config
+    service_name: catalog
+    exec: catalog_server
+    address_host: localhost
+    rewrite_if_out_of_range: true
 
   - id: install-catalog-service
     type: install_services
@@ -78,6 +74,7 @@ steps:
           User=globular
           Group=globular
           WorkingDirectory={{.StateDir}}/catalog
+          Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/catalog_server
           Restart=on-failure
           RestartSec=2
@@ -95,9 +92,6 @@ steps:
     type: start_services
     services:
       - globular-catalog.service
-    restart_on_files:
-      globular-catalog.service:
-        - "{{.ConfigDir}}/catalog/config.json"
     binaries:
       globular-catalog.service: catalog_server
 

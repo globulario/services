@@ -1,6 +1,8 @@
 package pkgpack
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -176,12 +178,17 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		return nil, err
 	}
 
-	configRoot := filepath.Join(stagingDir, "config", info.ServiceName)
-	if err := os.MkdirAll(configRoot, 0755); err != nil {
-		return nil, err
-	}
-	if err := copyConfigDirs(info.ConfigDirs, configRoot); err != nil {
-		return nil, err
+	copiedConfig := 0
+	if len(info.ConfigDirs) > 0 {
+		configRoot := filepath.Join(stagingDir, "config", info.ServiceName)
+		var err error
+		copiedConfig, err = copyConfigDirs(info.ConfigDirs, configRoot)
+		if err != nil {
+			return nil, err
+		}
+		if copiedConfig == 0 {
+			_ = os.RemoveAll(filepath.Join(stagingDir, "config"))
+		}
 	}
 
 	specDest := filepath.Join(stagingDir, "specs", info.SpecFile)
@@ -225,9 +232,12 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		Publisher:  opts.Publisher,
 		Entrypoint: path.Join("bin", info.ExecName),
 		Defaults: ManifestDefault{
-			ConfigDir: path.Join("config", info.ServiceName),
+			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),
 		},
+	}
+	if copiedConfig > 0 {
+		manifest.Defaults.ConfigDir = path.Join("config", info.ServiceName)
 	}
 	if err := WriteManifest(filepath.Join(stagingDir, "package.json"), manifest); err != nil {
 		return nil, err
@@ -237,7 +247,115 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		return nil, err
 	}
 
+	if err := assertPackageGuards(outputPath, info); err != nil {
+		return nil, err
+	}
+
 	return VerifyTGZ(outputPath)
+}
+
+// assertPackageGuards ensures critical payloads are present to prevent broken packages.
+func assertPackageGuards(pkgPath string, info *SpecInfo) error {
+	// 1) binary present
+	wantBin := filepath.ToSlash(filepath.Join("bin", info.ExecName))
+	if ok, err := tgzContains(pkgPath, wantBin); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("package %s missing binary %s", pkgPath, wantBin)
+	}
+
+	// 2) spec present and contains install_package_payload
+	specEntry := filepath.ToSlash(filepath.Join("specs", info.SpecFile))
+	specData, err := readEntryFromTgz(pkgPath, specEntry)
+	if err != nil {
+		return fmt.Errorf("read spec from package: %w", err)
+	}
+	if !strings.Contains(string(specData), "install_package_payload") {
+		return fmt.Errorf("package %s spec %s missing install_package_payload", pkgPath, specEntry)
+	}
+	return nil
+}
+
+func tgzContains(pkgPath, entry string) (bool, error) {
+	f, err := os.Open(pkgPath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return false, err
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		name := filepath.ToSlash(hdr.Name)
+		if name == entry {
+			return true, nil
+		}
+	}
+}
+
+func readEntryFromTgz(pkgPath, entry string) ([]byte, error) {
+	f, err := os.Open(pkgPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil, fmt.Errorf("entry %s not found", entry)
+		}
+		if err != nil {
+			return nil, err
+		}
+		name := filepath.ToSlash(hdr.Name)
+		if name == entry {
+			data, err := io.ReadAll(tr)
+			return data, err
+		}
+	}
+}
+
+// tgzContainsPrefix returns true if any entry starts with the given prefix.
+func tgzContainsPrefix(pkgPath, prefix string) (bool, error) {
+	f, err := os.Open(pkgPath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return false, err
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if strings.HasPrefix(filepath.ToSlash(hdr.Name), prefix) {
+			return true, nil
+		}
+	}
 }
 
 func collectSpecPaths(specPath, specDir string) ([]string, error) {
@@ -281,18 +399,22 @@ func buildArchiveName(serviceName, version, goos, goarch string) string {
 	return fmt.Sprintf("service.%s_%s_%s_%s.tgz", serviceName, version, goos, goarch)
 }
 
-func copyConfigDirs(dirs []string, destRoot string) error {
+func copyConfigDirs(dirs []string, destRoot string) (int, error) {
 	seen := make(map[string]string)
+	total := 0
 	for _, dir := range dirs {
-		if err := copyDirNoOverwrite(dir, destRoot, seen); err != nil {
-			return err
+		n, err := copyDirNoOverwrite(dir, destRoot, seen)
+		if err != nil {
+			return 0, err
 		}
+		total += n
 	}
-	return nil
+	return total, nil
 }
 
-func copyDirNoOverwrite(src, destRoot string, seen map[string]string) error {
-	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+func copyDirNoOverwrite(src, destRoot string, seen map[string]string) (int, error) {
+	count := 0
+	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -314,8 +436,13 @@ func copyDirNoOverwrite(src, destRoot string, seen map[string]string) error {
 		if err := copyFile(p, target); err != nil {
 			return err
 		}
-		return os.Chmod(target, 0644)
+		if err := os.Chmod(target, 0644); err != nil {
+			return err
+		}
+		count++
+		return nil
 	})
+	return count, err
 }
 
 func copyFile(src, dest string) error {

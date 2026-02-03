@@ -32,32 +32,28 @@ steps:
         owner: globular
         group: globular
         mode: 0750
+      - path: "{{.StateDir}}/services"
+        owner: globular
+        group: globular
+        mode: 0750
       - path: "{{.StateDir}}/echo"
         owner: globular
         group: globular
         mode: 0750
 
-      - path: "{{.ConfigDir}}"
-        owner: root
-        group: root
-        mode: 0755
-      - path: "{{.ConfigDir}}/echo"
-        owner: root
-        group: root
-        mode: 0755
+  - id: install-echo-payload
+    type: install_package_payload
+    install_bins: true
+    install_config: false
+    install_spec: false
+    install_systemd: false
 
-  - id: install-echo-config
-    type: install_files
-    files:
-      - path: "{{.ConfigDir}}/echo/config.json"
-        owner: root
-        group: root
-        mode: 0644
-        atomic: true
-        # NOTE: this is intended to be replaced by node-agent/controller later.
-        # It is seeded from 'echo_server --describe'.
-        content: |
-
+  - id: ensure-echo-config
+    type: ensure_service_config
+    service_name: echo
+    exec: echo_server
+    address_host: localhost
+    rewrite_if_out_of_range: true
 
   - id: install-echo-service
     type: install_services
@@ -78,6 +74,7 @@ steps:
           User=globular
           Group=globular
           WorkingDirectory={{.StateDir}}/echo
+          Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
           ExecStart={{.Prefix}}/bin/echo_server
           Restart=on-failure
           RestartSec=2
@@ -95,9 +92,6 @@ steps:
     type: start_services
     services:
       - globular-echo.service
-    restart_on_files:
-      globular-echo.service:
-        - "{{.ConfigDir}}/echo/config.json"
     binaries:
       globular-echo.service: echo_server
 
