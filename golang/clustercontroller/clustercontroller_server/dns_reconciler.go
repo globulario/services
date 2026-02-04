@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	dns_client "github.com/globulario/services/golang/dns/dns_client"
+	Utility "github.com/globulario/utility"
 )
 
 const (
@@ -92,6 +95,7 @@ func (r *DNSReconciler) reconcile() error {
 
 	// Build desired DNS state from cluster state
 	nodeInfos := make([]NodeInfo, 0, len(nodes))
+	nodeByFQDN := make(map[string]string) // FQDN -> node FQDN for service routing
 	for _, node := range nodes {
 		info := NodeInfo{
 			FQDN:     node.AdvertiseFqdn,
@@ -101,9 +105,18 @@ func (r *DNSReconciler) reconcile() error {
 			info.IPv4 = node.Identity.Ips[0]
 		}
 		nodeInfos = append(nodeInfos, info)
+		if node.AdvertiseFqdn != "" {
+			nodeByFQDN[node.AdvertiseFqdn] = node.AdvertiseFqdn
+		}
 	}
 
-	desired := ComputeDesiredState(spec.ClusterDomain, nodeInfos, generation)
+	// Fetch service instances from etcd (PR4.1)
+	serviceInstances := r.fetchServiceInstances(spec.ClusterDomain, nodeByFQDN)
+	if len(serviceInstances) > 0 {
+		log.Printf("dns reconciler: discovered %d service instances for SRV records", len(serviceInstances))
+	}
+
+	desired := ComputeDesiredStateWithServices(spec.ClusterDomain, nodeInfos, serviceInstances, generation)
 
 	// Apply desired state to DNS service
 	ctx, cancel := context.WithTimeout(context.Background(), dnsReconcileTimeout)
@@ -155,11 +168,16 @@ func (r *DNSReconciler) applyDNSState(ctx context.Context, desired *DesiredDNSSt
 				recordCount[RecordTypeAAAA]++
 			}
 		case RecordTypeSRV:
-			// Note: SetSrv API may need verification for exact signature
-			log.Printf("dns reconciler: INFO - SRV record creation for %s (implementation pending)", rec.Name)
+			// PR4.1: Create SRV record
+			// Format: SetSrv(token, name, priority, weight, port, target, ttl)
+			if err := r.setSRVRecord(client, token, rec); err != nil {
+				log.Printf("dns reconciler: WARN - failed to set SRV record %s -> %s:%d: %v", rec.Name, rec.Value, rec.Port, err)
+			} else {
+				recordCount[RecordTypeSRV]++
+			}
 		}
 	}
-	log.Printf("dns reconciler: applied A=%d, AAAA=%d records", recordCount[RecordTypeA], recordCount[RecordTypeAAAA])
+	log.Printf("dns reconciler: applied A=%d, AAAA=%d, SRV=%d records", recordCount[RecordTypeA], recordCount[RecordTypeAAAA], recordCount[RecordTypeSRV])
 
 	return nil
 }
@@ -169,4 +187,92 @@ func (r *DNSReconciler) generateDNSToken(ctx context.Context, client *dns_client
 	// Use cluster-controller as the identity
 	// This is a placeholder - actual implementation depends on security package
 	return "cluster-controller-token", nil
+}
+
+// fetchServiceInstances retrieves service instances from etcd for SRV records (PR4.1)
+func (r *DNSReconciler) fetchServiceInstances(clusterDomain string, nodeByFQDN map[string]string) []ServiceInstance {
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		log.Printf("dns reconciler: WARN - failed to fetch services for SRV: %v", err)
+		return nil
+	}
+
+	instances := make([]ServiceInstance, 0)
+	for _, svc := range services {
+		// Extract service name
+		name := strings.TrimSpace(Utility.ToString(svc["Name"]))
+		if name == "" {
+			continue
+		}
+
+		// Extract port
+		port := Utility.ToInt(svc["Port"])
+		if port == 0 {
+			port = Utility.ToInt(svc["Proxy"])
+		}
+		if port == 0 || port > 65535 {
+			continue // Skip services without valid ports
+		}
+
+		// Extract node FQDN from Address field
+		// Expected formats:
+		//   - "node-01.cluster.local:8080" (FQDN with port)
+		//   - "node-01.cluster.local" (FQDN without port)
+		//   - "10.0.1.101:8080" (IP - skip for SRV)
+		addr := strings.TrimSpace(Utility.ToString(svc["Address"]))
+		nodeFQDN := r.extractNodeFQDN(addr, clusterDomain, nodeByFQDN)
+		if nodeFQDN == "" {
+			continue // Skip services without proper FQDN
+		}
+
+		instances = append(instances, ServiceInstance{
+			ServiceName: name,
+			NodeFQDN:    nodeFQDN,
+			Port:        uint16(port),
+		})
+	}
+
+	return instances
+}
+
+// extractNodeFQDN extracts the node FQDN from a service address (PR4.1)
+// Returns empty string if address is not a valid FQDN in the cluster domain
+func (r *DNSReconciler) extractNodeFQDN(addr, clusterDomain string, nodeByFQDN map[string]string) string {
+	if addr == "" {
+		return ""
+	}
+
+	// Strip port if present
+	host := addr
+	if idx := strings.Index(addr, ":"); idx >= 0 {
+		host = addr[:idx]
+	}
+
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+
+	// Check if it's an IP address (skip for SRV - we only want FQDNs)
+	if strings.Contains(host, ".") && !strings.Contains(host, clusterDomain) {
+		// Looks like IP or external domain - skip
+		return ""
+	}
+
+	// Check if host is a known node FQDN
+	if _, ok := nodeByFQDN[host]; ok {
+		return host
+	}
+
+	// Check if host ends with cluster domain
+	if strings.HasSuffix(host, "."+clusterDomain) {
+		return host
+	}
+
+	return ""
+}
+
+// setSRVRecord sets a DNS SRV record (PR4.1)
+func (r *DNSReconciler) setSRVRecord(client *dns_client.Dns_Client, token string, rec DNSRecord) error {
+	return client.SetSrv(token, rec.Name, uint32(rec.Priority), uint32(rec.Weight), uint32(rec.Port), rec.Value, rec.TTL)
 }

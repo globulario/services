@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // DesiredDNSState represents the authoritative DNS records that should exist
@@ -41,6 +42,13 @@ type NodeInfo struct {
 	Profiles []string
 }
 
+// ServiceInstance represents a service running on a node (PR4.1)
+type ServiceInstance struct {
+	ServiceName string   // e.g., "echo.EchoService"
+	NodeFQDN    string   // e.g., "node-01.cluster.local"
+	Port        uint16   // Service port
+}
+
 // HasProfile checks if a node has a specific profile
 func (n NodeInfo) HasProfile(profile string) bool {
 	for _, p := range n.Profiles {
@@ -53,6 +61,11 @@ func (n NodeInfo) HasProfile(profile string) bool {
 
 // ComputeDesiredState builds the desired DNS state from cluster state
 func ComputeDesiredState(domain string, nodes []NodeInfo, generation uint64) *DesiredDNSState {
+	return ComputeDesiredStateWithServices(domain, nodes, nil, generation)
+}
+
+// ComputeDesiredStateWithServices builds DNS state including service SRV records (PR4.1)
+func ComputeDesiredStateWithServices(domain string, nodes []NodeInfo, services []ServiceInstance, generation uint64) *DesiredDNSState {
 	state := &DesiredDNSState{
 		Domain:     domain,
 		Records:    make([]DNSRecord, 0),
@@ -137,7 +150,39 @@ func ComputeDesiredState(domain string, nodes []NodeInfo, generation uint64) *De
 		}
 	}
 
+	// Add service SRV records (PR4.1)
+	// Format: _<service>._tcp.<domain>
+	for _, svc := range services {
+		if svc.ServiceName == "" || svc.NodeFQDN == "" || svc.Port == 0 {
+			continue // Skip incomplete service info
+		}
+
+		// Normalize service name to DNS-safe format (lowercase, dots to hyphens)
+		dnsServiceName := normalizeDNSLabel(svc.ServiceName)
+		srvName := fmt.Sprintf("_%s._tcp.%s", dnsServiceName, domain)
+
+		state.Records = append(state.Records, DNSRecord{
+			Name:     srvName,
+			Type:     RecordTypeSRV,
+			Value:    svc.NodeFQDN,
+			TTL:      60,
+			Priority: 10,
+			Weight:   10,
+			Port:     svc.Port,
+		})
+	}
+
 	return state
+}
+
+// normalizeDNSLabel converts a service name to DNS-safe format (PR4.1)
+// Examples: "echo.EchoService" -> "echo-echoservice"
+func normalizeDNSLabel(name string) string {
+	// Convert to lowercase
+	name = strings.ToLower(name)
+	// Replace dots with hyphens
+	name = strings.ReplaceAll(name, ".", "-")
+	return name
 }
 
 // DNSStateDiff represents changes needed to reconcile current vs desired state
