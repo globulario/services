@@ -30,6 +30,24 @@ message ClusterNetworkSpec {
 
   // External DNS integration (PR8)
   ExternalDNSConfig external_dns = 12;
+
+  // Domain migration (PR9)
+  DomainMigration domain_migration = 13;
+}
+
+// DomainMigration tracks cluster domain migration state (PR9)
+message DomainMigration {
+  string old_domain = 1;              // Domain being migrated from
+  string new_domain = 2;              // Domain being migrated to
+  MigrationState state = 3;           // Current migration state
+  int64 started_at = 4;               // Unix timestamp when migration started
+  uint32 grace_period_seconds = 5;   // Grace period before removing old records (default 3600)
+
+  enum MigrationState {
+    MIGRATION_NOT_STARTED = 0;
+    MIGRATION_IN_PROGRESS = 1;
+    MIGRATION_COMPLETED = 2;
+  }
 }
 
 // ExternalDNSConfig configures external/authoritative DNS publishing (PR8)
