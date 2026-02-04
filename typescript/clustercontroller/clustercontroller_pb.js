@@ -1542,7 +1542,7 @@ proto.clustercontroller.ClusterInfo.prototype.hasCreatedAt = function() {
  * @private {!Array<number>}
  * @const
  */
-proto.clustercontroller.ClusterNetworkSpec.repeatedFields_ = [5];
+proto.clustercontroller.ClusterNetworkSpec.repeatedFields_ = [5,10];
 
 
 
@@ -1581,7 +1581,11 @@ portHttp: jspb.Message.getFieldWithDefault(msg, 3, 0),
 portHttps: jspb.Message.getFieldWithDefault(msg, 4, 0),
 alternateDomainsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
 acmeEnabled: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
-adminEmail: jspb.Message.getFieldWithDefault(msg, 7, "")
+adminEmail: jspb.Message.getFieldWithDefault(msg, 7, ""),
+gatewayFqdn: jspb.Message.getFieldWithDefault(msg, 8, ""),
+dnsEndpoint: jspb.Message.getFieldWithDefault(msg, 9, ""),
+dnsNameserversList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+dnsTtl: jspb.Message.getFieldWithDefault(msg, 11, 0)
   };
 
   if (includeInstance) {
@@ -1645,6 +1649,22 @@ proto.clustercontroller.ClusterNetworkSpec.deserializeBinaryFromReader = functio
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setAdminEmail(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setGatewayFqdn(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDnsEndpoint(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addDnsNameservers(value);
+      break;
+    case 11:
+      var value = /** @type {number} */ (reader.readUint32());
+      msg.setDnsTtl(value);
       break;
     default:
       reader.skipField();
@@ -1721,6 +1741,34 @@ proto.clustercontroller.ClusterNetworkSpec.serializeBinaryToWriter = function(me
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getGatewayFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getDnsEndpoint();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getDnsNameserversList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      10,
+      f
+    );
+  }
+  f = message.getDnsTtl();
+  if (f !== 0) {
+    writer.writeUint32(
+      11,
       f
     );
   }
@@ -1872,6 +1920,97 @@ proto.clustercontroller.ClusterNetworkSpec.prototype.setAdminEmail = function(va
 };
 
 
+/**
+ * optional string gateway_fqdn = 8;
+ * @return {string}
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.getGatewayFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.setGatewayFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string dns_endpoint = 9;
+ * @return {string}
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.getDnsEndpoint = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.setDnsEndpoint = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * repeated string dns_nameservers = 10;
+ * @return {!Array<string>}
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.getDnsNameserversList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.setDnsNameserversList = function(value) {
+  return jspb.Message.setField(this, 10, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.addDnsNameservers = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.clearDnsNameserversList = function() {
+  return this.setDnsNameserversList([]);
+};
+
+
+/**
+ * optional uint32 dns_ttl = 11;
+ * @return {number}
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.getDnsTtl = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.clustercontroller.ClusterNetworkSpec} returns this
+ */
+proto.clustercontroller.ClusterNetworkSpec.prototype.setDnsTtl = function(value) {
+  return jspb.Message.setProto3IntField(this, 11, value);
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -1916,7 +2055,10 @@ domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
 ipsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
 os: jspb.Message.getFieldWithDefault(msg, 4, ""),
 arch: jspb.Message.getFieldWithDefault(msg, 5, ""),
-agentVersion: jspb.Message.getFieldWithDefault(msg, 6, "")
+agentVersion: jspb.Message.getFieldWithDefault(msg, 6, ""),
+nodeName: jspb.Message.getFieldWithDefault(msg, 7, ""),
+advertiseIp: jspb.Message.getFieldWithDefault(msg, 8, ""),
+advertiseFqdn: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -1976,6 +2118,18 @@ proto.clustercontroller.NodeIdentity.deserializeBinaryFromReader = function(msg,
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.setAgentVersion(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeName(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAdvertiseIp(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAdvertiseFqdn(value);
       break;
     default:
       reader.skipField();
@@ -2045,6 +2199,27 @@ proto.clustercontroller.NodeIdentity.serializeBinaryToWriter = function(message,
   if (f.length > 0) {
     writer.writeString(
       6,
+      f
+    );
+  }
+  f = message.getNodeName();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getAdvertiseIp();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getAdvertiseFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
       f
     );
   }
@@ -2178,6 +2353,60 @@ proto.clustercontroller.NodeIdentity.prototype.setAgentVersion = function(value)
 };
 
 
+/**
+ * optional string node_name = 7;
+ * @return {string}
+ */
+proto.clustercontroller.NodeIdentity.prototype.getNodeName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeIdentity} returns this
+ */
+proto.clustercontroller.NodeIdentity.prototype.setNodeName = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string advertise_ip = 8;
+ * @return {string}
+ */
+proto.clustercontroller.NodeIdentity.prototype.getAdvertiseIp = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeIdentity} returns this
+ */
+proto.clustercontroller.NodeIdentity.prototype.setAdvertiseIp = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string advertise_fqdn = 9;
+ * @return {string}
+ */
+proto.clustercontroller.NodeIdentity.prototype.getAdvertiseFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeIdentity} returns this
+ */
+proto.clustercontroller.NodeIdentity.prototype.setAdvertiseFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -2223,7 +2452,8 @@ lastSeen: (f = msg.getLastSeen()) && google_protobuf_timestamp_pb.Timestamp.toOb
 status: jspb.Message.getFieldWithDefault(msg, 4, ""),
 profilesList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
 metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : [],
-agentEndpoint: jspb.Message.getFieldWithDefault(msg, 7, "")
+agentEndpoint: jspb.Message.getFieldWithDefault(msg, 7, ""),
+advertiseFqdn: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -2291,6 +2521,10 @@ proto.clustercontroller.NodeRecord.deserializeBinaryFromReader = function(msg, r
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setAgentEndpoint(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAdvertiseFqdn(value);
       break;
     default:
       reader.skipField();
@@ -2366,6 +2600,13 @@ proto.clustercontroller.NodeRecord.serializeBinaryToWriter = function(message, w
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getAdvertiseFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -2557,6 +2798,24 @@ proto.clustercontroller.NodeRecord.prototype.getAgentEndpoint = function() {
  */
 proto.clustercontroller.NodeRecord.prototype.setAgentEndpoint = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string advertise_fqdn = 8;
+ * @return {string}
+ */
+proto.clustercontroller.NodeRecord.prototype.getAdvertiseFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.clustercontroller.NodeRecord} returns this
+ */
+proto.clustercontroller.NodeRecord.prototype.setAdvertiseFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 

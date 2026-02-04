@@ -199,8 +199,13 @@ type ClusterNetworkSpec struct {
 	AlternateDomains []string               `protobuf:"bytes,5,rep,name=alternate_domains,json=alternateDomains,proto3" json:"alternate_domains,omitempty"`
 	AcmeEnabled      bool                   `protobuf:"varint,6,opt,name=acme_enabled,json=acmeEnabled,proto3" json:"acme_enabled,omitempty"`
 	AdminEmail       string                 `protobuf:"bytes,7,opt,name=admin_email,json=adminEmail,proto3" json:"admin_email,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// DNS-first naming fields (PR0)
+	GatewayFqdn    string   `protobuf:"bytes,8,opt,name=gateway_fqdn,json=gatewayFqdn,proto3" json:"gateway_fqdn,omitempty"`           // e.g., "gateway.cluster.local"
+	DnsEndpoint    string   `protobuf:"bytes,9,opt,name=dns_endpoint,json=dnsEndpoint,proto3" json:"dns_endpoint,omitempty"`           // e.g., "ns1.cluster.local:10033"
+	DnsNameservers []string `protobuf:"bytes,10,rep,name=dns_nameservers,json=dnsNameservers,proto3" json:"dns_nameservers,omitempty"` // e.g., ["ns1.cluster.local"]
+	DnsTtl         uint32   `protobuf:"varint,11,opt,name=dns_ttl,json=dnsTtl,proto3" json:"dns_ttl,omitempty"`                        // default 60 seconds for internal records
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ClusterNetworkSpec) Reset() {
@@ -282,14 +287,46 @@ func (x *ClusterNetworkSpec) GetAdminEmail() string {
 	return ""
 }
 
+func (x *ClusterNetworkSpec) GetGatewayFqdn() string {
+	if x != nil {
+		return x.GatewayFqdn
+	}
+	return ""
+}
+
+func (x *ClusterNetworkSpec) GetDnsEndpoint() string {
+	if x != nil {
+		return x.DnsEndpoint
+	}
+	return ""
+}
+
+func (x *ClusterNetworkSpec) GetDnsNameservers() []string {
+	if x != nil {
+		return x.DnsNameservers
+	}
+	return nil
+}
+
+func (x *ClusterNetworkSpec) GetDnsTtl() uint32 {
+	if x != nil {
+		return x.DnsTtl
+	}
+	return 0
+}
+
 type NodeIdentity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
-	Ips           []string               `protobuf:"bytes,3,rep,name=ips,proto3" json:"ips,omitempty"`
-	Os            string                 `protobuf:"bytes,4,opt,name=os,proto3" json:"os,omitempty"`
-	Arch          string                 `protobuf:"bytes,5,opt,name=arch,proto3" json:"arch,omitempty"`
-	AgentVersion  string                 `protobuf:"bytes,6,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Hostname     string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Domain       string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	Ips          []string               `protobuf:"bytes,3,rep,name=ips,proto3" json:"ips,omitempty"`
+	Os           string                 `protobuf:"bytes,4,opt,name=os,proto3" json:"os,omitempty"`
+	Arch         string                 `protobuf:"bytes,5,opt,name=arch,proto3" json:"arch,omitempty"`
+	AgentVersion string                 `protobuf:"bytes,6,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	// DNS-first naming fields (PR0)
+	NodeName      string `protobuf:"bytes,7,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`                // canonical node name (e.g., "node-01")
+	AdvertiseIp   string `protobuf:"bytes,8,opt,name=advertise_ip,json=advertiseIp,proto3" json:"advertise_ip,omitempty"`       // IP to advertise (validated non-loopback)
+	AdvertiseFqdn string `protobuf:"bytes,9,opt,name=advertise_fqdn,json=advertiseFqdn,proto3" json:"advertise_fqdn,omitempty"` // e.g., "node-01.cluster.local"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -366,6 +403,27 @@ func (x *NodeIdentity) GetAgentVersion() string {
 	return ""
 }
 
+func (x *NodeIdentity) GetNodeName() string {
+	if x != nil {
+		return x.NodeName
+	}
+	return ""
+}
+
+func (x *NodeIdentity) GetAdvertiseIp() string {
+	if x != nil {
+		return x.AdvertiseIp
+	}
+	return ""
+}
+
+func (x *NodeIdentity) GetAdvertiseFqdn() string {
+	if x != nil {
+		return x.AdvertiseFqdn
+	}
+	return ""
+}
+
 type NodeRecord struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NodeId        string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
@@ -375,6 +433,7 @@ type NodeRecord struct {
 	Profiles      []string               `protobuf:"bytes,5,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	Metadata      map[string]string      `protobuf:"bytes,6,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	AgentEndpoint string                 `protobuf:"bytes,7,opt,name=agent_endpoint,json=agentEndpoint,proto3" json:"agent_endpoint,omitempty"`
+	AdvertiseFqdn string                 `protobuf:"bytes,8,opt,name=advertise_fqdn,json=advertiseFqdn,proto3" json:"advertise_fqdn,omitempty"` // e.g., "node-01.cluster.local" (PR2)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -454,6 +513,13 @@ func (x *NodeRecord) GetMetadata() map[string]string {
 func (x *NodeRecord) GetAgentEndpoint() string {
 	if x != nil {
 		return x.AgentEndpoint
+	}
+	return ""
+}
+
+func (x *NodeRecord) GetAdvertiseFqdn() string {
+	if x != nil {
+		return x.AdvertiseFqdn
 	}
 	return ""
 }
@@ -3609,7 +3675,7 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12%\n" +
 	"\x0ecluster_domain\x18\x02 \x01(\tR\rclusterDomain\x129\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x84\x02\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x8c\x03\n" +
 	"\x12ClusterNetworkSpec\x12%\n" +
 	"\x0ecluster_domain\x18\x01 \x01(\tR\rclusterDomain\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1b\n" +
@@ -3619,14 +3685,22 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x11alternate_domains\x18\x05 \x03(\tR\x10alternateDomains\x12!\n" +
 	"\facme_enabled\x18\x06 \x01(\bR\vacmeEnabled\x12\x1f\n" +
 	"\vadmin_email\x18\a \x01(\tR\n" +
-	"adminEmail\"\x9d\x01\n" +
+	"adminEmail\x12!\n" +
+	"\fgateway_fqdn\x18\b \x01(\tR\vgatewayFqdn\x12!\n" +
+	"\fdns_endpoint\x18\t \x01(\tR\vdnsEndpoint\x12'\n" +
+	"\x0fdns_nameservers\x18\n" +
+	" \x03(\tR\x0ednsNameservers\x12\x17\n" +
+	"\adns_ttl\x18\v \x01(\rR\x06dnsTtl\"\x84\x02\n" +
 	"\fNodeIdentity\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x10\n" +
 	"\x03ips\x18\x03 \x03(\tR\x03ips\x12\x0e\n" +
 	"\x02os\x18\x04 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x05 \x01(\tR\x04arch\x12#\n" +
-	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\"\xfc\x02\n" +
+	"\ragent_version\x18\x06 \x01(\tR\fagentVersion\x12\x1b\n" +
+	"\tnode_name\x18\a \x01(\tR\bnodeName\x12!\n" +
+	"\fadvertise_ip\x18\b \x01(\tR\vadvertiseIp\x12%\n" +
+	"\x0eadvertise_fqdn\x18\t \x01(\tR\radvertiseFqdn\"\xa3\x03\n" +
 	"\n" +
 	"NodeRecord\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12;\n" +
@@ -3635,7 +3709,8 @@ const file_clustercontroller_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1a\n" +
 	"\bprofiles\x18\x05 \x03(\tR\bprofiles\x12G\n" +
 	"\bmetadata\x18\x06 \x03(\v2+.clustercontroller.NodeRecord.MetadataEntryR\bmetadata\x12%\n" +
-	"\x0eagent_endpoint\x18\a \x01(\tR\ragentEndpoint\x1a;\n" +
+	"\x0eagent_endpoint\x18\a \x01(\tR\ragentEndpoint\x12%\n" +
+	"\x0eadvertise_fqdn\x18\b \x01(\tR\radvertiseFqdn\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"S\n" +

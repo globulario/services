@@ -77,3 +77,28 @@ func applyEnvOverrides(cfg *clusterControllerConfig) {
 		cfg.BootstrapToken = v
 	}
 }
+
+// validateClusterConfig ensures the configuration is valid for cluster mode
+// clusterMode should be false for single-node development setups
+func validateClusterConfig(cfg *clusterControllerConfig, clusterMode bool) error {
+	if !clusterMode {
+		return nil // Single-node development mode has no constraints
+	}
+
+	// In cluster mode, domain is required for DNS-based naming
+	if cfg.ClusterDomain == "" {
+		return errors.New("cluster_domain required in cluster mode")
+	}
+
+	// Validate domain format (basic sanity check)
+	if len(cfg.ClusterDomain) > 253 {
+		return errors.New("cluster_domain too long (max 253 chars)")
+	}
+
+	// Reject localhost in cluster domain (would break DNS)
+	if cfg.ClusterDomain == "localhost" || cfg.ClusterDomain == "localhost." {
+		return errors.New("cluster_domain cannot be 'localhost'")
+	}
+
+	return nil
+}

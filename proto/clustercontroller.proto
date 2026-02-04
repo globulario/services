@@ -21,6 +21,12 @@ message ClusterNetworkSpec {
   repeated string alternate_domains = 5;
   bool acme_enabled = 6;
   string admin_email = 7;
+
+  // DNS-first naming fields (PR0)
+  string gateway_fqdn = 8;              // e.g., "gateway.cluster.local"
+  string dns_endpoint = 9;              // e.g., "ns1.cluster.local:10033"
+  repeated string dns_nameservers = 10; // e.g., ["ns1.cluster.local"]
+  uint32 dns_ttl = 11;                  // default 60 seconds for internal records
 }
 
 message NodeIdentity {
@@ -30,6 +36,11 @@ message NodeIdentity {
   string os = 4;
   string arch = 5;
   string agent_version = 6;
+
+  // DNS-first naming fields (PR0)
+  string node_name = 7;         // canonical node name (e.g., "node-01")
+  string advertise_ip = 8;      // IP to advertise (validated non-loopback)
+  string advertise_fqdn = 9;    // e.g., "node-01.cluster.local"
 }
 
 message NodeRecord {
@@ -40,6 +51,7 @@ message NodeRecord {
   repeated string profiles = 5;
   map<string,string> metadata = 6;
   string agent_endpoint = 7;
+  string advertise_fqdn = 8;  // e.g., "node-01.cluster.local" (PR2)
 }
 
 message CreateJoinTokenRequest {

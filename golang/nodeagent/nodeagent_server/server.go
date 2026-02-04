@@ -22,6 +22,7 @@ import (
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/healthchecks"
+	"github.com/globulario/services/golang/nodeagent/nodeagent_server/identity"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/actions"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/apply"
 	"github.com/globulario/services/golang/nodeagent/nodeagent_server/internal/certs"
@@ -164,13 +165,26 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 	}
 	port := getEnv("NODE_AGENT_PORT", defaultPort)
 	advertised := strings.TrimSpace(os.Getenv("NODE_AGENT_ADVERTISE_ADDR"))
+	clusterMode := getEnv("NODE_AGENT_CLUSTER_MODE", "true") != "false"
+
 	if advertised == "" {
-		if ips := gatherIPs(); len(ips) > 0 {
-			advertised = fmt.Sprintf("%s:%s", ips[0], port)
-		} else {
-			// Fallback to first non-loopback IP or localhost
-			advertised = fmt.Sprintf("localhost:%s", port)
+		// Determine advertise IP using validated selection
+		advertiseIP, err := identity.SelectAdvertiseIP(os.Getenv("NODE_AGENT_ADVERTISE_IP"))
+		if err != nil {
+			if clusterMode {
+				// In cluster mode, FAIL FAST if no valid IP
+				log.Fatalf("node-agent: cannot determine advertise IP in cluster mode: %v", err)
+			}
+			// Development/single-node mode: allow localhost
+			log.Printf("node-agent: warning: no advertise IP, using localhost (development mode)")
+			advertiseIP = "127.0.0.1"
 		}
+		advertised = fmt.Sprintf("%s:%s", advertiseIP, port)
+	}
+
+	// Validate advertise endpoint
+	if err := identity.ValidateAdvertiseEndpoint(advertised, clusterMode); err != nil {
+		log.Fatalf("node-agent: invalid advertise endpoint: %v", err)
 	}
 	useInsecure := strings.EqualFold(getEnv("NODE_AGENT_INSECURE", "false"), "true")
 	controllerEndpoint := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT"))
