@@ -29,6 +29,7 @@ The Globular CLI is a Go-based tool that communicates directly with the Globular
 - **Cluster lifecycle management**: Bootstrap, join, and manage multi-node clusters
 - **Service orchestration**: Deploy, upgrade, and manage Globular services
 - **DNS management**: Configure DNS records and domains for service discovery
+- **DNS inspection**: Debug DNS with resolver-based lookups and gRPC-based inspection to compare client view vs server view
 - **Network configuration**: Manage HTTPS, certificates, and ACME automation
 - **Node operations**: Monitor health, apply plans, and debug issues
 - **Package operations**: Build, verify, and publish service packages
@@ -772,6 +773,246 @@ globular dns txt remove _acme-challenge.cluster.local "old-token-123"   # Remove
 
 ---
 
+#### `globular dns lookup` - Resolver-Based DNS Lookup
+
+**Purpose**: Perform DNS resolution using a real DNS resolver to see what clients actually resolve. This is distinct from gRPC inspection and shows the "client view" of DNS records.
+
+**Usage**:
+```bash
+globular dns lookup <name> [--type <type>] [--server <addr>] [--tcp]
+```
+
+**Flags**:
+- `--type`: Record type to query: `A`, `AAAA`, `TXT`, `SRV`, or `ALL` (default: `A`)
+- `--server`: DNS server address for resolver queries (default: `127.0.0.1:10053`)
+- `--tcp`: Use TCP instead of UDP for queries (default: false)
+
+**Examples**:
+
+```bash
+# Look up A records
+globular dns lookup controller.cluster.local --type A
+
+# Look up IPv6 addresses
+globular dns lookup gateway.cluster.local --type AAAA
+
+# Look up TXT records (e.g., ACME challenges)
+globular dns lookup _acme-challenge.cluster.local --type TXT
+
+# Look up SRV records for service discovery
+globular dns lookup _echo-echoservice._tcp.cluster.local --type SRV
+
+# Query all record types
+globular dns lookup controller.cluster.local --type ALL
+
+# Use custom DNS server
+globular dns lookup api.example.com --type A --server 8.8.8.8:53
+
+# Force TCP for large responses
+globular dns lookup example.com --type TXT --tcp
+
+# JSON output for automation
+globular dns lookup controller.cluster.local --type A --output json
+```
+
+**Output Formats**:
+
+- **Table** (default): Human-readable tables showing records
+- **JSON**: Structured data with record details
+- **YAML**: YAML-formatted output
+
+**Use cases**:
+- Verify DNS resolution from client perspective
+- Debug DNS propagation issues
+- Test external DNS server responses
+- Validate service discovery records
+- Compare resolver view vs gRPC view
+
+---
+
+#### `globular dns inspect` - gRPC-Based DNS Inspection
+
+**Purpose**: Inspect DNS records as stored in the Globular DNS service via gRPC. This shows the "server view" - what the DNS service thinks it has stored.
+
+**Usage**:
+```bash
+globular dns inspect <name> [--types <types>]
+```
+
+**Flags**:
+- `--types`: Comma-separated list of record types to inspect (default: `A,AAAA,TXT,SRV`)
+
+**Examples**:
+
+```bash
+# Inspect all record types for a name
+globular dns inspect controller.cluster.local
+
+# Inspect only A and AAAA records
+globular dns inspect gateway.cluster.local --types A,AAAA
+
+# Inspect SRV records only
+globular dns inspect _echo-echoservice._tcp.cluster.local --types SRV
+
+# JSON output
+globular dns inspect api.cluster.local --output json
+```
+
+**Output**: Shows what records the DNS service has stored via gRPC queries to GetA, GetAAAA, GetTXT, and GetSrv RPCs.
+
+**Use cases**:
+- Verify records are stored correctly in DNS service
+- Debug DNS service configuration
+- Compare stored records vs resolved records
+- Audit DNS service state
+
+---
+
+#### `globular dns status` - DNS Service Health
+
+**Purpose**: Display DNS service health, connectivity, and managed domains.
+
+**Usage**:
+```bash
+globular dns status
+```
+
+**What it checks**:
+1. **gRPC endpoint**: Shows configured DNS service gRPC endpoint
+2. **Resolver endpoint**: Shows DNS server address for client queries
+3. **Managed domains**: Lists all domains under DNS control
+4. **Domain count**: Number of managed domains
+5. **gRPC connectivity**: Verifies GetDomains() RPC works
+6. **Resolver connectivity**: Tests DNS resolution for a managed domain
+
+**Example**:
+
+```bash
+globular dns status
+
+# Sample output:
+# DNS Service Status
+# ==================
+# gRPC endpoint: localhost:10033
+# Resolver endpoint: 127.0.0.1:10053
+#
+# Managed Domains (3):
+#   - cluster.local
+#   - api.cluster.local
+#   - db.cluster.local
+#
+# gRPC Check: ✓ OK (3 domains)
+# Resolver Check: ✓ OK (resolved controller.cluster.local)
+```
+
+**Use cases**:
+- Quick health check of DNS service
+- Verify DNS service connectivity
+- List managed domains
+- Day-1 validation: Ensure DNS is operational
+- Troubleshooting: Diagnose gRPC vs resolver issues
+
+---
+
+#### `globular dns srv` - SRV Record Management
+
+**Purpose**: Manage SRV (Service) DNS records for service discovery. SRV records provide service location information including priority, weight, port, and target hostname.
+
+**Commands**:
+
+##### `globular dns srv get`
+
+Retrieve SRV records for a service name.
+
+```bash
+globular dns srv get <name>
+
+# Example
+globular dns srv get _echo-echoservice._tcp.cluster.local
+```
+
+**Output**: List of SRV records with priority, weight, port, and target.
+
+##### `globular dns srv set`
+
+Create or update an SRV record.
+
+```bash
+globular dns srv set <name> <target> <port> \
+  [--priority <N>] \
+  [--weight <N>] \
+  [--ttl <seconds>]
+
+# Examples
+
+# Add service endpoint
+globular dns srv set _http._tcp.cluster.local web-01.cluster.local 8080
+
+# Set with custom priority and weight
+globular dns srv set _database._tcp.cluster.local db-01.cluster.local 5432 \
+  --priority 10 \
+  --weight 100 \
+  --ttl 600
+
+# Add load-balanced service
+globular dns srv set _api._tcp.cluster.local api-01.cluster.local 443 \
+  --priority 10 \
+  --weight 50
+globular dns srv set _api._tcp.cluster.local api-02.cluster.local 443 \
+  --priority 10 \
+  --weight 50
+```
+
+**Flags**:
+- `--priority`: Priority (lower values preferred) (default: 10)
+- `--weight`: Relative weight for load balancing (default: 10)
+- `--ttl`: Time-to-live in seconds (default: 300)
+
+##### `globular dns srv remove`
+
+Remove SRV record(s) for a service name.
+
+```bash
+globular dns srv remove <name>
+
+# Example
+globular dns srv remove _echo-echoservice._tcp.cluster.local
+```
+
+**SRV Name Format**:
+
+SRV records use a specific naming convention:
+```
+_service._proto.domain
+```
+
+Where:
+- `_service`: Service name (e.g., `_http`, `_database`, `_api`)
+- `_proto`: Protocol (`_tcp` or `_udp`)
+- `domain`: Domain name (e.g., `cluster.local`)
+
+**Examples of valid SRV names**:
+- `_http._tcp.cluster.local` - HTTP service over TCP
+- `_database._tcp.cluster.local` - Database service over TCP
+- `_dns._udp.cluster.local` - DNS service over UDP
+- `_echo-echoservice._tcp.cluster.local` - Custom service
+
+**Use cases**:
+- Service discovery for gRPC services
+- Load balancing configuration
+- Multi-instance service routing
+- Health-aware service selection
+- DNS-based service mesh
+
+**Integration with Globular**:
+
+The cluster controller automatically publishes SRV records for deployed services based on their service registration. Use these commands to:
+- Verify automatic SRV record generation
+- Add manual SRV records for external services
+- Debug service discovery issues
+
+---
+
 #### `globular cluster dns bootstrap`
 
 **Purpose**: Quick-start command to configure DNS for a new cluster in one step.
@@ -1455,6 +1696,39 @@ globular cluster health
 ```
 
 **Use case**: This workflow is essential for Day-1 operational readiness, providing a single source of truth for cluster health and comprehensive diagnostic collection when issues arise.
+
+---
+
+### 7. Debug DNS Resolution Issues
+
+```bash
+# Step 1: Check DNS service health
+globular dns status
+
+# Step 2: Inspect what DNS service has stored (gRPC view)
+globular dns inspect controller.cluster.local
+
+# Step 3: Verify what clients actually resolve (resolver view)
+globular dns lookup controller.cluster.local --type A --server 127.0.0.1:10053
+
+# Step 4: Compare both views for discrepancies
+globular dns inspect gateway.cluster.local --output json > grpc-view.json
+globular dns lookup gateway.cluster.local --type ALL --output json > resolver-view.json
+
+# Step 5: Check SRV records for service discovery
+globular dns lookup _echo-echoservice._tcp.cluster.local --type SRV
+
+# Step 6: Verify SRV records via gRPC
+globular dns srv get _echo-echoservice._tcp.cluster.local
+
+# Step 7: Test with external DNS server for comparison
+globular dns lookup example.com --type A --server 8.8.8.8:53
+
+# Step 8: Force TCP if getting truncated responses
+globular dns lookup large-txt.cluster.local --type TXT --tcp
+```
+
+**Use case**: When DNS resolution issues occur, this workflow helps distinguish between problems in the DNS service storage (gRPC view) vs DNS resolver behavior (client view), essential for debugging service discovery failures.
 
 ---
 
