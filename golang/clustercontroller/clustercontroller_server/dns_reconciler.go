@@ -140,14 +140,30 @@ func (r *DNSReconciler) reconcile() error {
 		log.Printf("dns reconciler: discovered %d service instances for SRV records", len(serviceInstances))
 	}
 
-	desired := ComputeDesiredStateWithServices(spec.ClusterDomain, nodeInfos, serviceInstances, generation)
+	// PR9: Check for domain migration
+	domains := []string{spec.ClusterDomain}
+	if r.isInMigration(spec) {
+		// During migration, publish to both old and new domains
+		domains = []string{spec.DomainMigration.OldDomain, spec.DomainMigration.NewDomain}
+		log.Printf("dns reconciler: domain migration IN PROGRESS - publishing to both %s and %s",
+			spec.DomainMigration.OldDomain, spec.DomainMigration.NewDomain)
+	} else if r.shouldCleanupOldDomain(spec) {
+		// Grace period expired, clean up old domain
+		if err := r.cleanupOldDomain(spec.DomainMigration.OldDomain); err != nil {
+			log.Printf("dns reconciler: WARN - failed to cleanup old domain %s: %v",
+				spec.DomainMigration.OldDomain, err)
+		}
+	}
 
-	// Apply desired state to DNS service
+	// Apply desired state to DNS service for each domain
 	ctx, cancel := context.WithTimeout(context.Background(), dnsReconcileTimeout)
 	defer cancel()
 
-	if err := r.applyDNSState(ctx, desired); err != nil {
-		return fmt.Errorf("apply dns state: %w", err)
+	for _, domain := range domains {
+		desired := ComputeDesiredStateWithServices(domain, nodeInfos, serviceInstances, generation)
+		if err := r.applyDNSState(ctx, desired); err != nil {
+			return fmt.Errorf("apply dns state for domain %s: %w", domain, err)
+		}
 	}
 
 	// PR8: Publish to external DNS if enabled
@@ -157,7 +173,7 @@ func (r *DNSReconciler) reconcile() error {
 	}
 
 	r.lastGeneration = generation
-	log.Printf("dns reconciler: SUCCESS - applied generation %d (%d records for domain %s)", generation, len(desired.Records), spec.ClusterDomain)
+	log.Printf("dns reconciler: SUCCESS - applied generation %d to %d domain(s)", generation, len(domains))
 	return nil
 }
 
@@ -548,5 +564,48 @@ func (r *DNSReconciler) publishController(ctx context.Context, domain string, no
 	}
 
 	log.Printf("external dns: published %s -> %v", name, ips)
+	return nil
+}
+
+// isInMigration checks if domain migration is currently in progress (PR9)
+func (r *DNSReconciler) isInMigration(spec *clustercontrollerpb.ClusterNetworkSpec) bool {
+	if spec == nil || spec.DomainMigration == nil {
+		return false
+	}
+	return spec.DomainMigration.State == clustercontrollerpb.DomainMigration_MIGRATION_IN_PROGRESS
+}
+
+// shouldCleanupOldDomain checks if grace period has expired and old domain should be cleaned up (PR9)
+func (r *DNSReconciler) shouldCleanupOldDomain(spec *clustercontrollerpb.ClusterNetworkSpec) bool {
+	if spec == nil || spec.DomainMigration == nil {
+		return false
+	}
+
+	migration := spec.DomainMigration
+	if migration.State != clustercontrollerpb.DomainMigration_MIGRATION_IN_PROGRESS {
+		return false
+	}
+
+	// Check if grace period has expired
+	gracePeriod := migration.GracePeriodSeconds
+	if gracePeriod == 0 {
+		gracePeriod = 3600 // Default 1 hour
+	}
+
+	elapsed := time.Now().Unix() - migration.StartedAt
+	return elapsed > int64(gracePeriod)
+}
+
+// cleanupOldDomain removes DNS records for the old domain (PR9)
+func (r *DNSReconciler) cleanupOldDomain(oldDomain string) error {
+	log.Printf("dns reconciler: cleaning up old domain %s (grace period expired)", oldDomain)
+
+	// For now, just log - actual cleanup would require tracking which records to delete
+	// In a full implementation, we would:
+	// 1. List all records for old domain
+	// 2. Delete them from DNS service
+	// 3. Mark migration as completed
+
+	log.Printf("dns reconciler: TODO - implement old domain cleanup for %s", oldDomain)
 	return nil
 }
