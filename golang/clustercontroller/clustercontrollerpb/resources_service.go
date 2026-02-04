@@ -261,3 +261,101 @@ type resourcesServiceWatchServer struct {
 func (x *resourcesServiceWatchServer) Send(m *WatchEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
+
+// ResourcesServiceClient is the client API for ResourcesService.
+type ResourcesServiceClient interface {
+	ApplyClusterNetwork(ctx context.Context, in *ApplyClusterNetworkRequest, opts ...grpc.CallOption) (*ClusterNetwork, error)
+	GetClusterNetwork(ctx context.Context, in *GetClusterNetworkRequest, opts ...grpc.CallOption) (*ClusterNetwork, error)
+	ApplyServiceDesiredVersion(ctx context.Context, in *ApplyServiceDesiredVersionRequest, opts ...grpc.CallOption) (*ServiceDesiredVersion, error)
+	DeleteServiceDesiredVersion(ctx context.Context, in *DeleteServiceDesiredVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ListServiceDesiredVersions(ctx context.Context, in *ListServiceDesiredVersionsRequest, opts ...grpc.CallOption) (*ListServiceDesiredVersionsResponse, error)
+	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (ResourcesService_WatchClient, error)
+}
+
+type resourcesServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewResourcesServiceClient(cc grpc.ClientConnInterface) ResourcesServiceClient {
+	return &resourcesServiceClient{cc}
+}
+
+func (c *resourcesServiceClient) ApplyClusterNetwork(ctx context.Context, in *ApplyClusterNetworkRequest, opts ...grpc.CallOption) (*ClusterNetwork, error) {
+	out := new(ClusterNetwork)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ApplyClusterNetwork", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) GetClusterNetwork(ctx context.Context, in *GetClusterNetworkRequest, opts ...grpc.CallOption) (*ClusterNetwork, error) {
+	out := new(ClusterNetwork)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/GetClusterNetwork", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) ApplyServiceDesiredVersion(ctx context.Context, in *ApplyServiceDesiredVersionRequest, opts ...grpc.CallOption) (*ServiceDesiredVersion, error) {
+	out := new(ServiceDesiredVersion)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ApplyServiceDesiredVersion", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) DeleteServiceDesiredVersion(ctx context.Context, in *DeleteServiceDesiredVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/DeleteServiceDesiredVersion", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) ListServiceDesiredVersions(ctx context.Context, in *ListServiceDesiredVersionsRequest, opts ...grpc.CallOption) (*ListServiceDesiredVersionsResponse, error) {
+	out := new(ListServiceDesiredVersionsResponse)
+	err := c.cc.Invoke(ctx, "/clustercontroller.ResourcesService/ListServiceDesiredVersions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *resourcesServiceClient) Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (ResourcesService_WatchClient, error) {
+	stream, err := c.cc.NewStream(ctx, &grpc.StreamDesc{
+		StreamName:    "Watch",
+		ServerStreams: true,
+	}, "/clustercontroller.ResourcesService/Watch", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &resourcesServiceWatchClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ResourcesService_WatchClient interface {
+	Recv() (*WatchEvent, error)
+	grpc.ClientStream
+}
+
+type resourcesServiceWatchClient struct {
+	grpc.ClientStream
+}
+
+func (x *resourcesServiceWatchClient) Recv() (*WatchEvent, error) {
+	m := new(WatchEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
