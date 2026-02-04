@@ -713,6 +713,73 @@ func (client *Dns_Client) RemoveSoa(token, id string) error {
 	return nil
 }
 
+// SRV record methods (PR4.1)
+
+func (client *Dns_Client) GetSrv(id string) ([]*dnspb.SRV, error) {
+
+	rqst := &dnspb.GetSrvRequest{
+		Id: id,
+	}
+
+	rsp, err := client.c.GetSrv(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Result, nil
+}
+
+func (client *Dns_Client) SetSrv(token, id string, priority, weight, port uint32, target string, ttl uint32) error {
+
+	rqst := &dnspb.SetSrvRequest{
+		Id: id,
+		Srv: &dnspb.SRV{
+			Priority: priority,
+			Weight:   weight,
+			Port:     port,
+			Target:   target,
+		},
+		Ttl: ttl,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.SetSrv(ctx, rqst)
+	return err
+}
+
+func (client *Dns_Client) RemoveSrv(token, id, target string) error {
+
+	rqst := &dnspb.RemoveSrvRequest{
+		Id:     id,
+		Target: target,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.RemoveSrv(ctx, rqst)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (client *Dns_Client) GetUri(id string) ([]*dnspb.URI, error) {
 
 	rqst := &dnspb.GetUriRequest{
