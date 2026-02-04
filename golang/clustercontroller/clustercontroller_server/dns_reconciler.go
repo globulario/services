@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/dnsprovider"
@@ -30,6 +31,13 @@ type DNSReconciler struct {
 	lastGeneration uint64
 	stopCh         chan struct{}
 	healthStopCh   chan struct{} // PR7: Stop health checks
+
+	// Metrics (PR10)
+	reconcileTotal   uint64 // Total reconciliations attempted
+	reconcileSuccess uint64 // Successful reconciliations
+	reconcileFailure uint64 // Failed reconciliations
+	lastReconcileAt  int64  // Unix timestamp of last reconciliation
+	lastReconcileDur int64  // Duration of last reconciliation (nanoseconds)
 }
 
 // NewDNSReconciler creates a new DNS reconciler
@@ -92,6 +100,15 @@ func (r *DNSReconciler) reconcileLoop() {
 
 // reconcile performs a single reconciliation cycle
 func (r *DNSReconciler) reconcile() error {
+	startTime := time.Now()
+	atomic.AddUint64(&r.reconcileTotal, 1)
+
+	defer func() {
+		duration := time.Since(startTime)
+		atomic.StoreInt64(&r.lastReconcileDur, int64(duration))
+		atomic.StoreInt64(&r.lastReconcileAt, time.Now().Unix())
+	}()
+
 	r.srv.mu.Lock()
 	spec := r.srv.state.ClusterNetworkSpec
 	generation := r.srv.state.NetworkingGeneration
@@ -162,6 +179,7 @@ func (r *DNSReconciler) reconcile() error {
 	for _, domain := range domains {
 		desired := ComputeDesiredStateWithServices(domain, nodeInfos, serviceInstances, generation)
 		if err := r.applyDNSState(ctx, desired); err != nil {
+			atomic.AddUint64(&r.reconcileFailure, 1)
 			return fmt.Errorf("apply dns state for domain %s: %w", domain, err)
 		}
 	}
@@ -173,6 +191,7 @@ func (r *DNSReconciler) reconcile() error {
 	}
 
 	r.lastGeneration = generation
+	atomic.AddUint64(&r.reconcileSuccess, 1)
 	log.Printf("dns reconciler: SUCCESS - applied generation %d to %d domain(s)", generation, len(domains))
 	return nil
 }
@@ -608,4 +627,37 @@ func (r *DNSReconciler) cleanupOldDomain(oldDomain string) error {
 
 	log.Printf("dns reconciler: TODO - implement old domain cleanup for %s", oldDomain)
 	return nil
+}
+
+// ReconcilerMetrics holds metrics about DNS reconciliation (PR10)
+type ReconcilerMetrics struct {
+	Total          uint64        // Total reconciliations attempted
+	Success        uint64        // Successful reconciliations
+	Failure        uint64        // Failed reconciliations
+	LastAt         time.Time     // Last reconciliation timestamp
+	LastDuration   time.Duration // Duration of last reconciliation
+	CurrentGen     uint64        // Current generation
+	EndpointsTotal int           // Total DNS endpoints
+	EndpointsHealthy int         // Healthy DNS endpoints
+}
+
+// GetMetrics returns current reconciler metrics (PR10)
+func (r *DNSReconciler) GetMetrics() ReconcilerMetrics {
+	healthyCount := 0
+	for _, healthy := range r.healthStatus {
+		if healthy {
+			healthyCount++
+		}
+	}
+
+	return ReconcilerMetrics{
+		Total:            atomic.LoadUint64(&r.reconcileTotal),
+		Success:          atomic.LoadUint64(&r.reconcileSuccess),
+		Failure:          atomic.LoadUint64(&r.reconcileFailure),
+		LastAt:           time.Unix(atomic.LoadInt64(&r.lastReconcileAt), 0),
+		LastDuration:     time.Duration(atomic.LoadInt64(&r.lastReconcileDur)),
+		CurrentGen:       r.lastGeneration,
+		EndpointsTotal:   len(r.dnsEndpoints),
+		EndpointsHealthy: healthyCount,
+	}
 }
