@@ -286,6 +286,47 @@ message RemoveMxResponse {
   bool result = 1;     // The result of the removal operation, typically a success flag.
 }
 
+// SRV represents a service (SRV) record for service discovery (PR4.1).
+message SRV {
+  uint32 priority = 1; // Priority of the target host, lower values are preferred.
+  uint32 weight = 2;   // Relative weight for records with the same priority.
+  uint32 port = 3;     // TCP or UDP port of the service.
+  string target = 4;   // The canonical hostname of the machine providing the service.
+}
+
+// SetSrvRequest is used to set an SRV record (PR4.1).
+message SetSrvRequest {
+  string id = 1;       // Identifier for the SRV record (FQDN like _service._tcp.domain).
+  SRV srv = 2;         // The SRV record to be set.
+  uint32 ttl = 3;      // Time To Live: duration that the record may be cached.
+}
+
+// SetSrvResponse is the response for a SetSrvRequest (PR4.1).
+message SetSrvResponse {
+  bool result = 1;     // The result of the set operation, typically a success flag.
+}
+
+// GetSrvRequest is used to retrieve SRV records (PR4.1).
+message GetSrvRequest {
+  string id = 1;       // Identifier for the SRV records to retrieve.
+}
+
+// GetSrvResponse returns SRV records for a given identifier (PR4.1).
+message GetSrvResponse {
+  repeated SRV result = 1; // The SRV records associated with the identifier.
+}
+
+// RemoveSrvRequest is used to remove an SRV record (PR4.1).
+message RemoveSrvRequest {
+  string id = 1;       // Identifier for the SRV record to be removed.
+  string target = 2;   // Specific target to remove (optional, removes all if empty).
+}
+
+// RemoveSrvResponse is the response for a RemoveSrvRequest (PR4.1).
+message RemoveSrvResponse {
+  bool result = 1;     // The result of the removal operation, typically a success flag.
+}
+
 // SOA represents a Start of Authority record.
 message SOA {
   string ns = 1;       // The primary name server for the domain.
@@ -517,6 +558,15 @@ service DnsService {
 
   // Remove an MX record.
   rpc RemoveMx(RemoveMxRequest) returns (RemoveMxResponse);
+
+  // Set an SRV record (PR4.1).
+  rpc SetSrv(SetSrvRequest) returns (SetSrvResponse);
+
+  // Retrieve SRV records (PR4.1).
+  rpc GetSrv(GetSrvRequest) returns (GetSrvResponse);
+
+  // Remove an SRV record (PR4.1).
+  rpc RemoveSrv(RemoveSrvRequest) returns (RemoveSrvResponse);
 
   // Set an SOA record.
   rpc SetSoa(SetSoaRequest) returns (SetSoaResponse);

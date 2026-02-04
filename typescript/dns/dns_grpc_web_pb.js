@@ -1541,6 +1541,189 @@ proto.dns.DnsServicePromiseClient.prototype.removeMx =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.SetSrvRequest,
+ *   !proto.dns.SetSrvResponse>}
+ */
+const methodDescriptor_DnsService_SetSrv = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/SetSrv',
+  grpc.web.MethodType.UNARY,
+  proto.dns.SetSrvRequest,
+  proto.dns.SetSrvResponse,
+  /**
+   * @param {!proto.dns.SetSrvRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.SetSrvResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.SetSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.SetSrvResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.SetSrvResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.setSrv =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/SetSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_SetSrv,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.SetSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.SetSrvResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.setSrv =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/SetSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_SetSrv);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.GetSrvRequest,
+ *   !proto.dns.GetSrvResponse>}
+ */
+const methodDescriptor_DnsService_GetSrv = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/GetSrv',
+  grpc.web.MethodType.UNARY,
+  proto.dns.GetSrvRequest,
+  proto.dns.GetSrvResponse,
+  /**
+   * @param {!proto.dns.GetSrvRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.GetSrvResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.GetSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.GetSrvResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.GetSrvResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.getSrv =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/GetSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_GetSrv,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.GetSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.GetSrvResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.getSrv =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/GetSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_GetSrv);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dns.RemoveSrvRequest,
+ *   !proto.dns.RemoveSrvResponse>}
+ */
+const methodDescriptor_DnsService_RemoveSrv = new grpc.web.MethodDescriptor(
+  '/dns.DnsService/RemoveSrv',
+  grpc.web.MethodType.UNARY,
+  proto.dns.RemoveSrvRequest,
+  proto.dns.RemoveSrvResponse,
+  /**
+   * @param {!proto.dns.RemoveSrvRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dns.RemoveSrvResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dns.RemoveSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dns.RemoveSrvResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dns.RemoveSrvResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dns.DnsServiceClient.prototype.removeSrv =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dns.DnsService/RemoveSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_RemoveSrv,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dns.RemoveSrvRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dns.RemoveSrvResponse>}
+ *     Promise that resolves to the response
+ */
+proto.dns.DnsServicePromiseClient.prototype.removeSrv =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dns.DnsService/RemoveSrv',
+      request,
+      metadata || {},
+      methodDescriptor_DnsService_RemoveSrv);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.dns.SetSoaRequest,
  *   !proto.dns.SetSoaResponse>}
  */

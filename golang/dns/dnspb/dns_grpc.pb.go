@@ -43,6 +43,9 @@ const (
 	DnsService_SetMx_FullMethodName       = "/dns.DnsService/SetMx"
 	DnsService_GetMx_FullMethodName       = "/dns.DnsService/GetMx"
 	DnsService_RemoveMx_FullMethodName    = "/dns.DnsService/RemoveMx"
+	DnsService_SetSrv_FullMethodName      = "/dns.DnsService/SetSrv"
+	DnsService_GetSrv_FullMethodName      = "/dns.DnsService/GetSrv"
+	DnsService_RemoveSrv_FullMethodName   = "/dns.DnsService/RemoveSrv"
 	DnsService_SetSoa_FullMethodName      = "/dns.DnsService/SetSoa"
 	DnsService_GetSoa_FullMethodName      = "/dns.DnsService/GetSoa"
 	DnsService_RemoveSoa_FullMethodName   = "/dns.DnsService/RemoveSoa"
@@ -111,6 +114,12 @@ type DnsServiceClient interface {
 	GetMx(ctx context.Context, in *GetMxRequest, opts ...grpc.CallOption) (*GetMxResponse, error)
 	// Remove an MX record.
 	RemoveMx(ctx context.Context, in *RemoveMxRequest, opts ...grpc.CallOption) (*RemoveMxResponse, error)
+	// Set an SRV record (PR4.1).
+	SetSrv(ctx context.Context, in *SetSrvRequest, opts ...grpc.CallOption) (*SetSrvResponse, error)
+	// Retrieve SRV records (PR4.1).
+	GetSrv(ctx context.Context, in *GetSrvRequest, opts ...grpc.CallOption) (*GetSrvResponse, error)
+	// Remove an SRV record (PR4.1).
+	RemoveSrv(ctx context.Context, in *RemoveSrvRequest, opts ...grpc.CallOption) (*RemoveSrvResponse, error)
 	// Set an SOA record.
 	SetSoa(ctx context.Context, in *SetSoaRequest, opts ...grpc.CallOption) (*SetSoaResponse, error)
 	// Retrieve an SOA record.
@@ -385,6 +394,36 @@ func (c *dnsServiceClient) RemoveMx(ctx context.Context, in *RemoveMxRequest, op
 	return out, nil
 }
 
+func (c *dnsServiceClient) SetSrv(ctx context.Context, in *SetSrvRequest, opts ...grpc.CallOption) (*SetSrvResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetSrvResponse)
+	err := c.cc.Invoke(ctx, DnsService_SetSrv_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) GetSrv(ctx context.Context, in *GetSrvRequest, opts ...grpc.CallOption) (*GetSrvResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSrvResponse)
+	err := c.cc.Invoke(ctx, DnsService_GetSrv_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dnsServiceClient) RemoveSrv(ctx context.Context, in *RemoveSrvRequest, opts ...grpc.CallOption) (*RemoveSrvResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveSrvResponse)
+	err := c.cc.Invoke(ctx, DnsService_RemoveSrv_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dnsServiceClient) SetSoa(ctx context.Context, in *SetSoaRequest, opts ...grpc.CallOption) (*SetSoaResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetSoaResponse)
@@ -559,6 +598,12 @@ type DnsServiceServer interface {
 	GetMx(context.Context, *GetMxRequest) (*GetMxResponse, error)
 	// Remove an MX record.
 	RemoveMx(context.Context, *RemoveMxRequest) (*RemoveMxResponse, error)
+	// Set an SRV record (PR4.1).
+	SetSrv(context.Context, *SetSrvRequest) (*SetSrvResponse, error)
+	// Retrieve SRV records (PR4.1).
+	GetSrv(context.Context, *GetSrvRequest) (*GetSrvResponse, error)
+	// Remove an SRV record (PR4.1).
+	RemoveSrv(context.Context, *RemoveSrvRequest) (*RemoveSrvResponse, error)
 	// Set an SOA record.
 	SetSoa(context.Context, *SetSoaRequest) (*SetSoaResponse, error)
 	// Retrieve an SOA record.
@@ -663,6 +708,15 @@ func (UnimplementedDnsServiceServer) GetMx(context.Context, *GetMxRequest) (*Get
 }
 func (UnimplementedDnsServiceServer) RemoveMx(context.Context, *RemoveMxRequest) (*RemoveMxResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveMx not implemented")
+}
+func (UnimplementedDnsServiceServer) SetSrv(context.Context, *SetSrvRequest) (*SetSrvResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetSrv not implemented")
+}
+func (UnimplementedDnsServiceServer) GetSrv(context.Context, *GetSrvRequest) (*GetSrvResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSrv not implemented")
+}
+func (UnimplementedDnsServiceServer) RemoveSrv(context.Context, *RemoveSrvRequest) (*RemoveSrvResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveSrv not implemented")
 }
 func (UnimplementedDnsServiceServer) SetSoa(context.Context, *SetSoaRequest) (*SetSoaResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetSoa not implemented")
@@ -1152,6 +1206,60 @@ func _DnsService_RemoveMx_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DnsService_SetSrv_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSrvRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).SetSrv(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_SetSrv_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).SetSrv(ctx, req.(*SetSrvRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_GetSrv_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSrvRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).GetSrv(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_GetSrv_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).GetSrv(ctx, req.(*GetSrvRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DnsService_RemoveSrv_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSrvRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).RemoveSrv(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DnsService_RemoveSrv_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).RemoveSrv(ctx, req.(*RemoveSrvRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DnsService_SetSoa_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetSoaRequest)
 	if err := dec(in); err != nil {
@@ -1470,6 +1578,18 @@ var DnsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveMx",
 			Handler:    _DnsService_RemoveMx_Handler,
+		},
+		{
+			MethodName: "SetSrv",
+			Handler:    _DnsService_SetSrv_Handler,
+		},
+		{
+			MethodName: "GetSrv",
+			Handler:    _DnsService_GetSrv_Handler,
+		},
+		{
+			MethodName: "RemoveSrv",
+			Handler:    _DnsService_RemoveSrv_Handler,
 		},
 		{
 			MethodName: "SetSoa",
