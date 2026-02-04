@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -531,9 +532,75 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 func StartService(s Service, srv *grpc.Server) error {
 
 	address := "0.0.0.0"
-	lis, err := net.Listen("tcp", address+":"+strconv.Itoa(s.GetPort()))
+
+	// Runtime self-healing: retry bind with port reallocation on EADDRINUSE
+	const maxBindAttempts = 5
+	var lis net.Listener
+	var err error
+
+	for attempt := 1; attempt <= maxBindAttempts; attempt++ {
+		currentPort := s.GetPort()
+		lis, err = net.Listen("tcp", address+":"+strconv.Itoa(currentPort))
+
+		if err == nil {
+			// Success - port bound successfully
+			break
+		}
+
+		// Check if error is EADDRINUSE
+		if !isAddrInUse(err) {
+			// Real failure (not port conflict) - abort
+			err_ := fmt.Errorf("StartService: listen %s:%d: %w", address, currentPort, err)
+			s.SetLastError(err_.Error())
+			_ = putRuntimeStopped(s, err_.Error())
+			if srv != nil {
+				srv.Stop()
+			}
+			return err_
+		}
+
+		// Port conflict detected - try to reallocate
+		slog.Warn("port conflict detected - attempting reallocation",
+			"service", s.GetName(),
+			"conflicting_port", currentPort,
+			"attempt", attempt,
+			"max_attempts", maxBindAttempts,
+		)
+
+		if attempt >= maxBindAttempts {
+			// Exhausted all attempts
+			err_ := fmt.Errorf("StartService: port %d in use after %d reallocation attempts", currentPort, maxBindAttempts)
+			s.SetLastError(err_.Error())
+			_ = putRuntimeStopped(s, err_.Error())
+			if srv != nil {
+				srv.Stop()
+			}
+			return err_
+		}
+
+		// Attempt to allocate a new port
+		newPort, allocErr := reallocatePort(s, currentPort)
+		if allocErr != nil {
+			slog.Error("port reallocation failed",
+				"service", s.GetName(),
+				"error", allocErr,
+			)
+			// Continue to next attempt with current port
+			continue
+		}
+
+		slog.Info("port reallocated successfully",
+			"service", s.GetName(),
+			"old_port", currentPort,
+			"new_port", newPort,
+		)
+
+		// Port updated in service config - retry bind on next iteration
+	}
+
+	// Final check if we exhausted retries
 	if err != nil {
-		err_ := fmt.Errorf("StartService: listen %s:%d: %w", address, s.GetPort(), err)
+		err_ := fmt.Errorf("StartService: failed to bind after %d attempts: %w", maxBindAttempts, err)
 		s.SetLastError(err_.Error())
 		_ = putRuntimeStopped(s, err_.Error())
 		if srv != nil {
@@ -565,6 +632,128 @@ func StartService(s Service, srv *grpc.Server) error {
 	// Graceful shutdown.
 	StopService(s, srv)
 	return nil
+}
+
+// isAddrInUse checks if an error is "address already in use" (EADDRINUSE).
+func isAddrInUse(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if strings.Contains(strings.ToLower(opErr.Err.Error()), "address already in use") {
+			return true
+		}
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "address already in use")
+}
+
+// reallocatePort attempts to allocate a new port for the service when the current port is in use.
+// It updates the service's Port and Address fields and persists the change to disk.
+func reallocatePort(s Service, oldPort int) (int, error) {
+	// Get port allocator from environment
+	servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
+	if servicesDir == "" {
+		servicesDir = "/var/lib/globular/services"
+	}
+
+	// Parse port range from environment
+	rangeStr := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE"))
+	if rangeStr == "" {
+		a := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_START"))
+		b := strings.TrimSpace(os.Getenv("GLOBULAR_PORT_RANGE_END"))
+		if a != "" && b != "" {
+			rangeStr = a + "-" + b
+		}
+	}
+	if rangeStr == "" {
+		rangeStr = "10000-20000"
+	}
+
+	parts := strings.Split(rangeStr, "-")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid port range %q", rangeStr)
+	}
+	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, fmt.Errorf("invalid port range start: %w", err)
+	}
+	end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, fmt.Errorf("invalid port range end: %w", err)
+	}
+
+	// Find a free port
+	infraReservedPorts := map[int]bool{
+		10000: true, // scylla-admin
+		9042:  true, // scylla-cql
+		9142:  true, // scylla-cql-tls
+		19042: true, // scylla-alt
+	}
+
+	var newPort int
+	for p := start; p <= end; p++ {
+		// Skip old port
+		if p == oldPort {
+			continue
+		}
+		// Skip reserved ports
+		if infraReservedPorts[p] {
+			continue
+		}
+		// Test if port is free
+		if portFree(p) {
+			newPort = p
+			break
+		}
+	}
+
+	if newPort == 0 {
+		return 0, fmt.Errorf("no free ports available in range %d-%d", start, end)
+	}
+
+	// Update service configuration
+	s.SetPort(newPort)
+
+	// Update Address field
+	addr := s.GetAddress()
+	host := "localhost"
+	if strings.Contains(addr, ":") {
+		parts := strings.Split(addr, ":")
+		if len(parts) > 0 {
+			host = parts[0]
+		}
+	}
+	s.SetAddress(fmt.Sprintf("%s:%d", host, newPort))
+
+	// Persist configuration to disk
+	if err := SaveService(s); err != nil {
+		return 0, fmt.Errorf("failed to persist new port configuration: %w", err)
+	}
+
+	return newPort, nil
+}
+
+// portFree checks if a port is available by attempting to bind on both IPv4 and IPv6.
+func portFree(port int) bool {
+	// Try IPv4
+	addr4 := fmt.Sprintf("0.0.0.0:%d", port)
+	if ln, err := net.Listen("tcp", addr4); err != nil {
+		if isAddrInUse(err) {
+			return false
+		}
+	} else {
+		ln.Close()
+	}
+
+	// Try IPv6
+	addr6 := fmt.Sprintf("[::]:%d", port)
+	if ln, err := net.Listen("tcp", addr6); err != nil {
+		if isAddrInUse(err) {
+			return false
+		}
+	} else {
+		ln.Close()
+	}
+
+	return true
 }
 
 // at top-level in services.go:

@@ -304,23 +304,27 @@ func idFromUnit(unit, svc string) string {
 }
 
 func portFree(port int) bool {
-	addrs := []string{fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("[::1]:%d", port)}
-	any := false
-	for _, a := range addrs {
-		ln, err := net.Listen("tcp", a)
-		if err != nil {
-			if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
-				return false
-			}
-			continue
+	addr4 := fmt.Sprintf("0.0.0.0:%d", port)
+	if ln, err := net.Listen("tcp", addr4); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			return false
 		}
-		any = true
+	} else {
 		ln.Close()
-	}
-	if any {
 		return true
 	}
-	return false
+
+	addr6 := fmt.Sprintf("[::]:%d", port)
+	if ln, err := net.Listen("tcp", addr6); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+			return false
+		}
+	} else {
+		ln.Close()
+		return true
+	}
+
+	return true
 }
 
 func preflightStrict() bool {

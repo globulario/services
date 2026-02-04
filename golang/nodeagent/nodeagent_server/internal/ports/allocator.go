@@ -19,6 +19,13 @@ type Allocator struct {
 	mu         sync.Mutex
 }
 
+var infraReservedPorts = map[int]string{
+	10000: "scylla-admin",
+	9042:  "scylla-cql",
+	9142:  "scylla-cql-tls",
+	19042: "scylla-alt",
+}
+
 // NewFromEnv constructs an Allocator using environment variables.
 // Preferred: GLOBULAR_PORT_RANGE="start-end". Fallback: GLOBULAR_PORT_RANGE_START/END.
 // Default range: 10000-20000.
@@ -63,6 +70,9 @@ func (a *Allocator) Reserve(key string, preferred ...int) (int, error) {
 
 	try := func(p int) (int, bool) {
 		if p < a.start || p > a.end {
+			return 0, false
+		}
+		if _, blocked := infraReservedPorts[p]; blocked {
 			return 0, false
 		}
 		if owner, taken := a.reserved[p]; taken {
@@ -110,23 +120,26 @@ func (a *Allocator) SortedReserved() []int {
 }
 
 func portFree(port int) bool {
-	addrs := []string{fmt.Sprintf("127.0.0.1:%d", port), fmt.Sprintf("[::1]:%d", port)}
-	anySuccess := false
-	for _, addr := range addrs {
-		ln, err := net.Listen("tcp", addr)
-		if err != nil {
-			if isAddrInUse(err) {
-				return false
-			}
-			continue
+	addr4 := fmt.Sprintf("0.0.0.0:%d", port)
+	if ln, err := net.Listen("tcp", addr4); err != nil {
+		if isAddrInUse(err) {
+			return false
 		}
-		anySuccess = true
+	} else {
 		ln.Close()
-	}
-	if anySuccess {
 		return true
 	}
-	// If neither address succeeded and none was in-use, treat as free to avoid false negatives on platforms without ::1.
+
+	addr6 := fmt.Sprintf("[::]:%d", port)
+	if ln, err := net.Listen("tcp", addr6); err != nil {
+		if isAddrInUse(err) {
+			return false
+		}
+	} else {
+		ln.Close()
+		return true
+	}
+
 	return true
 }
 

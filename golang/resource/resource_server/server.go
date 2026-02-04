@@ -592,25 +592,18 @@ func (srv *server) publishRemoteEvent(address, evt string, data []byte) error {
  */
 func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	seedAddr, err := resolveRbacEndpoint(srv.bootstrapMode)
+	client, err := srv.dialRbacWithRetry()
 	if err != nil {
 		if srv.bootstrapMode {
-			logger.Warn("rbac endpoint resolution failed in bootstrap mode", "error", err)
+			logger.Warn("rbac client unavailable in bootstrap mode", "error", err)
 			return nil, nil
 		}
 		return nil, err
 	}
-
-	client, err := globular_client.GetClient(seedAddr, "rbac.RbacService", "NewRbacService_Client")
-	if err != nil {
-		// In bootstrap mode, RBAC unavailability is non-fatal
-		if srv.bootstrapMode {
-			logger.Warn("rbac client unavailable in bootstrap mode", "error", err)
-			return nil, nil // Return nil client, no error
-		}
-		return nil, err
+	if client == nil {
+		return nil, nil
 	}
-	return client.(*rbac_client.Rbac_Client), nil
+	return client, nil
 }
 
 func (srv *server) addResourceOwner(token, path, subject, resourceType string, subjectType rbacpb.SubjectType) error {
@@ -950,7 +943,7 @@ func main() {
 
 	// Check for bootstrap mode via environment variable
 	// In bootstrap mode, RBAC unavailability is non-fatal
-	s.bootstrapMode = globular.IsBootstrapMode()
+	s.bootstrapMode = os.Getenv("GLOBULAR_BOOTSTRAP") == "1"
 	if s.bootstrapMode {
 		logger.Info("running in bootstrap mode - RBAC failures will be non-fatal")
 	}
@@ -1532,11 +1525,13 @@ func main() {
 		logger.Error("fail to create account dir", "error", err)
 	}
 
+	// Resolve RBAC endpoint before starting service (for error classification)
+	rbacEndpoint, _ := resolveRbacEndpoint(s.bootstrapMode)
+
 	if err := s.StartService(); err != nil {
-		logger.Error("StartService returned error", "service", s.Name, "id", s.Id, "err", err)
-		if s.bootstrapMode {
-			logger.Warn("StartService failed during bootstrap; continuing in degraded mode",
-				"service", s.Name, "id", s.Id)
+		if s.bootstrapMode && isLikelyRbacError(err, rbacEndpoint) {
+			logger.Warn("StartService failed due to RBAC in bootstrap mode; continuing",
+				"service", s.Name, "id", s.Id, "err", err, "rbac_endpoint", rbacEndpoint)
 		} else {
 			logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
 			os.Exit(1)
@@ -1609,7 +1604,7 @@ func resolveRbacEndpoint(bootstrap bool) (string, error) {
 			continue
 		}
 		name := strings.ToLower(strings.TrimSpace(Utility.ToString(cfg["Name"])))
-		if name != strings.ToLower("rbac.RbacService") {
+		if name != strings.ToLower("rbac.RbacService") && name != "rbac" && name != "globular-rbac" {
 			continue
 		}
 		addr := strings.TrimSpace(Utility.ToString(cfg["Address"]))
@@ -1624,5 +1619,89 @@ func resolveRbacEndpoint(bootstrap bool) (string, error) {
 		}
 		return addr, nil
 	}
+	if bootstrap {
+		return "", nil
+	}
 	return "", fmt.Errorf("rbac service config not found in %s", servicesDir)
+}
+
+// dialRbacWithRetry tries to create an RBAC client with retry budget.
+func (srv *server) dialRbacWithRetry() (*rbac_client.Rbac_Client, error) {
+	var lastErr error
+	deadline := time.Now().Add(90 * time.Second)
+	backoff := 2 * time.Second
+
+	for {
+		seedAddr, err := resolveRbacEndpoint(srv.bootstrapMode)
+		if err != nil {
+			lastErr = fmt.Errorf("rbac: endpoint resolution failed: %w", err)
+		} else if seedAddr != "" {
+			c, err := globular_client.GetClient(seedAddr, "rbac.RbacService", "NewRbacService_Client")
+			if err == nil {
+				return c.(*rbac_client.Rbac_Client), nil
+			}
+			lastErr = fmt.Errorf("rbac: %w", err)
+		} else {
+			lastErr = fmt.Errorf("rbac: endpoint unresolved")
+		}
+
+		if time.Now().After(deadline) {
+			if srv.bootstrapMode {
+				return nil, lastErr
+			}
+			return nil, lastErr
+		}
+		time.Sleep(backoff)
+		if backoff < 10*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+func isLikelyRbacError(err error, rbacEndpoint string) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+
+	// Strong signals - directly RBAC-related
+	for _, kw := range []string{
+		"rbac",
+		"rbac:",
+		"newrbacservice_client",
+		"permission",
+		"access denied",
+		"constructor returned error", // globular_client.GetClient path
+	} {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
+
+	// Common gRPC transport failures (often do NOT mention "rbac")
+	for _, kw := range []string{
+		"rpc error",
+		"unavailable",
+		"connection refused",
+		"transport is closing",
+		"deadline exceeded",
+		"context deadline exceeded",
+	} {
+		if strings.Contains(msg, kw) {
+			// If we can tie it to the rbac endpoint, treat as RBAC
+			if rbacEndpoint == "" {
+				// In bootstrap, safe to assume transport failure is RBAC-related
+				return true
+			}
+			if strings.Contains(msg, strings.ToLower(rbacEndpoint)) {
+				return true
+			}
+			// Also check if message contains "rbac" anywhere
+			if strings.Contains(msg, "rbac") {
+				return true
+			}
+		}
+	}
+
+	return false
 }

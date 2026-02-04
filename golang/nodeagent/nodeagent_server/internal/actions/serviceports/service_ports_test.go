@@ -170,6 +170,96 @@ func TestEnsureServicePortReadyLogsHealOldToNew(t *testing.T) {
 	}
 }
 
+func TestEnsureServicePortConfigRewritesReservedPort(t *testing.T) {
+	binDir := t.TempDir()
+	stateRoot := t.TempDir()
+	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
+	t.Setenv("GLOBULAR_PORT_RANGE", "10000-10002")
+
+	binPath := filepath.Join(binDir, "rbac_server")
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:10000\",\"Port\":10000}'; fi\n"
+	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write bin: %v", err)
+	}
+
+	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir cfg: %v", err)
+	}
+	cfg := map[string]any{"Id": "rbac-id", "Address": "localhost:10000", "Port": 10000}
+	if b, err := json.Marshal(cfg); err == nil {
+		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
+			t.Fatalf("write cfg: %v", err)
+		}
+	}
+
+	if err := EnsureServicePortConfig(context.Background(), "rbac", binDir); err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+
+	out, _ := os.ReadFile(cfgPath)
+	var final map[string]any
+	if err := json.Unmarshal(out, &final); err != nil {
+		t.Fatalf("unmarshal final: %v", err)
+	}
+	port := int(final["Port"].(float64))
+	if port == 10000 {
+		t.Fatalf("reserved port not rewritten, still %d", port)
+	}
+	if port < 10000 || port > 10002 {
+		t.Fatalf("port out of range after rewrite: %d", port)
+	}
+}
+
+func TestEnsureServicePortConfigRewritesInUsePort(t *testing.T) {
+	binDir := t.TempDir()
+	stateRoot := t.TempDir()
+	t.Setenv("GLOBULAR_INSTALL_BIN_DIR", binDir)
+	t.Setenv("GLOBULAR_STATE_DIR", stateRoot)
+	t.Setenv("GLOBULAR_PORT_RANGE", "12000-12002")
+
+	binPath := filepath.Join(binDir, "rbac_server")
+	script := "#!/bin/sh\nif [ \"$1\" = \"--describe\" ]; then echo '{\"Id\":\"rbac-id\",\"Address\":\"localhost:12001\",\"Port\":12001}'; fi\n"
+	if err := os.WriteFile(binPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write bin: %v", err)
+	}
+
+	cfgPath := filepath.Join(stateRoot, "services", "rbac-id.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir cfg: %v", err)
+	}
+	cfg := map[string]any{"Id": "rbac-id", "Address": "localhost:12001", "Port": 12001}
+	if b, err := json.Marshal(cfg); err == nil {
+		if err := os.WriteFile(cfgPath, b, 0o644); err != nil {
+			t.Fatalf("write cfg: %v", err)
+		}
+	}
+
+	ln, err := net.Listen("tcp", "0.0.0.0:12001")
+	if err != nil {
+		t.Skipf("cannot bind listener: %v", err)
+	}
+	defer ln.Close()
+
+	if err := EnsureServicePortConfig(context.Background(), "rbac", binDir); err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+
+	out, _ := os.ReadFile(cfgPath)
+	var final map[string]any
+	if err := json.Unmarshal(out, &final); err != nil {
+		t.Fatalf("unmarshal final: %v", err)
+	}
+	port := int(final["Port"].(float64))
+	if port == 12001 {
+		t.Fatalf("in-use port not rewritten, still %d", port)
+	}
+	if port < 12000 || port > 12002 {
+		t.Fatalf("port out of range after rewrite: %d", port)
+	}
+}
+
 func TestPortFromAddressFallbackFormats(t *testing.T) {
 	cases := map[string]int{
 		"localhost:61001": 61001,
@@ -287,11 +377,11 @@ func TestEnsureServicePortReadyHealsConflict_Gateway(t *testing.T) {
 
 func TestExecutableForServiceIncludesXDSGateway(t *testing.T) {
 	cases := map[string]string{
-		"xds":                 "xds_server",
-		"globular-xds":        "xds_server",
-		"globular-xds.service": "xds_server",
-		"gateway":             "gateway_server",
-		"globular-gateway":    "gateway_server",
+		"xds":                      "xds_server",
+		"globular-xds":             "xds_server",
+		"globular-xds.service":     "xds_server",
+		"gateway":                  "gateway_server",
+		"globular-gateway":         "gateway_server",
 		"globular-gateway.service": "gateway_server",
 	}
 	for input, want := range cases {
