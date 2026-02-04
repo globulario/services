@@ -27,6 +27,20 @@ message ClusterNetworkSpec {
   string dns_endpoint = 9;              // e.g., "ns1.cluster.local:10033"
   repeated string dns_nameservers = 10; // e.g., ["ns1.cluster.local"]
   uint32 dns_ttl = 11;                  // default 60 seconds for internal records
+
+  // External DNS integration (PR8)
+  ExternalDNSConfig external_dns = 12;
+}
+
+// ExternalDNSConfig configures external/authoritative DNS publishing (PR8)
+message ExternalDNSConfig {
+  bool enabled = 1;                       // Enable external DNS publishing
+  string provider = 2;                    // Provider: "rfc2136", "cloudflare", "route53"
+  string domain = 3;                      // Public domain (e.g., "example.com")
+  repeated string publish = 4;            // What to publish: ["gateway", "controller"]
+  uint32 ttl = 5;                         // TTL for external records (default 300)
+  bool allow_private_ips = 6;             // Allow publishing RFC1918 IPs (default false)
+  map<string, string> provider_config = 7; // Provider-specific config (API keys, etc.)
 }
 
 message NodeIdentity {
