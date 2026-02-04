@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/dnsprovider"
+	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
 	dns_client "github.com/globulario/services/golang/dns/dns_client"
 	Utility "github.com/globulario/utility"
@@ -21,11 +24,12 @@ const (
 // DNSReconciler continuously syncs cluster state to DNS service(s) (PR7: multi-DNS)
 type DNSReconciler struct {
 	srv            *server
-	dnsEndpoints   []string          // PR7: Support multiple DNS endpoints
-	healthStatus   map[string]bool   // PR7: Track health of each DNS endpoint
+	dnsEndpoints   []string             // PR7: Support multiple DNS endpoints
+	healthStatus   map[string]bool      // PR7: Track health of each DNS endpoint
+	externalDNS    dnsprovider.Provider // PR8: External DNS provider
 	lastGeneration uint64
 	stopCh         chan struct{}
-	healthStopCh   chan struct{}     // PR7: Stop health checks
+	healthStopCh   chan struct{} // PR7: Stop health checks
 }
 
 // NewDNSReconciler creates a new DNS reconciler
@@ -107,6 +111,12 @@ func (r *DNSReconciler) reconcile() error {
 
 	log.Printf("dns reconciler: generation changed %d -> %d, reconciling...", r.lastGeneration, generation)
 
+	// PR8: Configure external DNS provider (may have changed in spec)
+	if err := r.ConfigureExternalDNS(spec); err != nil {
+		log.Printf("dns reconciler: WARN - failed to configure external DNS: %v", err)
+		// Continue with internal DNS reconciliation
+	}
+
 	// Build desired DNS state from cluster state
 	nodeInfos := make([]NodeInfo, 0, len(nodes))
 	nodeByFQDN := make(map[string]string) // FQDN -> node FQDN for service routing
@@ -138,6 +148,12 @@ func (r *DNSReconciler) reconcile() error {
 
 	if err := r.applyDNSState(ctx, desired); err != nil {
 		return fmt.Errorf("apply dns state: %w", err)
+	}
+
+	// PR8: Publish to external DNS if enabled
+	if err := r.publishExternalDNS(ctx, spec); err != nil {
+		log.Printf("dns reconciler: WARN - external dns publish failed: %v", err)
+		// Don't fail reconciliation on external DNS error
 	}
 
 	r.lastGeneration = generation
@@ -388,4 +404,149 @@ func (r *DNSReconciler) getHealthyEndpoints() []string {
 	}
 
 	return healthy
+}
+
+// ConfigureExternalDNS sets up external DNS provider from cluster network spec (PR8)
+func (r *DNSReconciler) ConfigureExternalDNS(spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	// Close existing provider if any
+	if r.externalDNS != nil {
+		r.externalDNS.Close()
+		r.externalDNS = nil
+	}
+
+	if spec == nil || spec.ExternalDns == nil || !spec.ExternalDns.Enabled {
+		log.Printf("external dns: DISABLED")
+		return nil
+	}
+
+	cfg := spec.ExternalDns
+	providerCfg := dnsprovider.Config{
+		Provider:        cfg.Provider,
+		Domain:          cfg.Domain,
+		TTL:             int(cfg.Ttl),
+		AllowPrivateIPs: cfg.AllowPrivateIps,
+		ProviderConfig:  cfg.ProviderConfig,
+	}
+
+	provider, err := dnsprovider.New(providerCfg)
+	if err != nil {
+		return fmt.Errorf("create external dns provider: %w", err)
+	}
+
+	r.externalDNS = provider
+	log.Printf("external dns: ENABLED (provider=%s, domain=%s, publish=%v)", cfg.Provider, cfg.Domain, cfg.Publish)
+	return nil
+}
+
+// publishExternalDNS publishes selected records to external DNS (PR8)
+func (r *DNSReconciler) publishExternalDNS(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkSpec) error {
+	if r.externalDNS == nil || spec.ExternalDns == nil || !spec.ExternalDns.Enabled {
+		return nil // External DNS not enabled
+	}
+
+	cfg := spec.ExternalDns
+	if len(cfg.Publish) == 0 {
+		return nil // Nothing to publish
+	}
+
+	r.srv.mu.Lock()
+	nodesMap := r.srv.state.Nodes
+	r.srv.mu.Unlock()
+
+	ttl := int(cfg.Ttl)
+	if ttl <= 0 {
+		ttl = 300 // Default 5 minutes
+	}
+
+	// Publish each requested endpoint
+	for _, endpoint := range cfg.Publish {
+		switch endpoint {
+		case "gateway":
+			if err := r.publishGateway(ctx, cfg.Domain, nodesMap, ttl); err != nil {
+				log.Printf("external dns: WARN - failed to publish gateway: %v", err)
+			}
+		case "controller":
+			if err := r.publishController(ctx, cfg.Domain, nodesMap, ttl); err != nil {
+				log.Printf("external dns: WARN - failed to publish controller: %v", err)
+			}
+		default:
+			log.Printf("external dns: WARN - unknown endpoint type: %s", endpoint)
+		}
+	}
+
+	return nil
+}
+
+// publishGateway publishes gateway.<domain> record (PR8)
+func (r *DNSReconciler) publishGateway(ctx context.Context, domain string, nodesMap map[string]*nodeState, ttl int) error {
+	// Find nodes with gateway profile
+	var ips []net.IP
+	for _, node := range nodesMap {
+		if node == nil {
+			continue
+		}
+		hasGateway := false
+		for _, profile := range node.Profiles {
+			if profile == "gateway" {
+				hasGateway = true
+				break
+			}
+		}
+		if hasGateway && len(node.Identity.Ips) > 0 {
+			ip := net.ParseIP(node.Identity.Ips[0])
+			if ip != nil {
+				ips = append(ips, ip)
+			}
+		}
+	}
+
+	if len(ips) == 0 {
+		log.Printf("external dns: no gateway nodes found")
+		return nil
+	}
+
+	name := fmt.Sprintf("gateway.%s", domain)
+	if err := r.externalDNS.UpsertA(ctx, name, ips, ttl); err != nil {
+		return fmt.Errorf("upsert gateway A record: %w", err)
+	}
+
+	log.Printf("external dns: published %s -> %v", name, ips)
+	return nil
+}
+
+// publishController publishes controller.<domain> record (PR8)
+func (r *DNSReconciler) publishController(ctx context.Context, domain string, nodesMap map[string]*nodeState, ttl int) error {
+	// Find nodes with controller profile
+	var ips []net.IP
+	for _, node := range nodesMap {
+		if node == nil {
+			continue
+		}
+		hasController := false
+		for _, profile := range node.Profiles {
+			if profile == "controller" {
+				hasController = true
+				break
+			}
+		}
+		if hasController && len(node.Identity.Ips) > 0 {
+			ip := net.ParseIP(node.Identity.Ips[0])
+			if ip != nil {
+				ips = append(ips, ip)
+			}
+		}
+	}
+
+	if len(ips) == 0 {
+		log.Printf("external dns: no controller nodes found")
+		return nil
+	}
+
+	name := fmt.Sprintf("controller.%s", domain)
+	if err := r.externalDNS.UpsertA(ctx, name, ips, ttl); err != nil {
+		return fmt.Errorf("upsert controller A record: %w", err)
+	}
+
+	log.Printf("external dns: published %s -> %v", name, ips)
+	return nil
 }
