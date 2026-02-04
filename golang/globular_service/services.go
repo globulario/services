@@ -36,6 +36,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// IsBootstrapMode reports whether the process is running in bootstrap mode
+// (GLOBULAR_BOOTSTRAP=1/true/yes).
+func IsBootstrapMode() bool {
+	v := strings.TrimSpace(os.Getenv("GLOBULAR_BOOTSTRAP"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
 // Service describes the minimal contract a Globular service must implement.
 // NOTE: Public interface preserved verbatim (even fields that are now deprecated
 // due to etcd-only configuration).
@@ -464,8 +471,8 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 			MaxConnectionIdle:     2 * time.Minute,
 			MaxConnectionAge:      0,
 			MaxConnectionAgeGrace: 0,
-			Time:    grpcKeepaliveTime,
-			Timeout: grpcKeepaliveTimeout,
+			Time:                  grpcKeepaliveTime,
+			Timeout:               grpcKeepaliveTimeout,
 		}),
 	)
 
@@ -501,7 +508,7 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 	}
 
 	srv := grpc.NewServer(opts...)
-	
+
 	// Health + metrics.
 	grpc_health_v1.RegisterHealthServer(srv, health.NewServer())
 	grpc_prometheus.Register(srv)

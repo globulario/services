@@ -1052,6 +1052,67 @@ proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.applyNod
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.clustercontroller.ApplyNodePlanV1Request,
+ *   !proto.clustercontroller.ApplyNodePlanV1Response>}
+ */
+const methodDescriptor_ClusterControllerService_ApplyNodePlanV1 = new grpc.web.MethodDescriptor(
+  '/clustercontroller.ClusterControllerService/ApplyNodePlanV1',
+  grpc.web.MethodType.UNARY,
+  proto.clustercontroller.ApplyNodePlanV1Request,
+  proto.clustercontroller.ApplyNodePlanV1Response,
+  /**
+   * @param {!proto.clustercontroller.ApplyNodePlanV1Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.clustercontroller.ApplyNodePlanV1Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.clustercontroller.ApplyNodePlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.clustercontroller.ApplyNodePlanV1Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.clustercontroller.ApplyNodePlanV1Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.clustercontroller.ClusterControllerServiceClient.prototype.applyNodePlanV1 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ApplyNodePlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyNodePlanV1,
+      callback);
+};
+
+
+/**
+ * @param {!proto.clustercontroller.ApplyNodePlanV1Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.clustercontroller.ApplyNodePlanV1Response>}
+ *     Promise that resolves to the response
+ */
+proto.clustercontroller.ClusterControllerServicePromiseClient.prototype.applyNodePlanV1 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/clustercontroller.ClusterControllerService/ApplyNodePlanV1',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyNodePlanV1);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.clustercontroller.ReportNodeStatusRequest,
  *   !proto.clustercontroller.ReportNodeStatusResponse>}
  */

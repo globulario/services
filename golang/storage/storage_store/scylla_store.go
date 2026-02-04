@@ -69,6 +69,41 @@ type OpenOptions struct {
 	SSLPort int `json:"ssl_port"`
 }
 
+// retryCreateSession attempts to create a session with exponential backoff.
+// Retries: 1s, 2s, 4s, 8s, 16s, 32s (total ~63 seconds, stays under 90s timeout)
+func retryCreateSession(cluster *gocql.ClusterConfig, keyspace string) (*gocql.Session, error) {
+	maxRetries := 6
+	backoff := time.Second
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		session, err := cluster.CreateSession()
+		if err == nil {
+			if attempt > 0 {
+				bcLogger.Info("scylla: connection established after retries", "keyspace", keyspace, "attempts", attempt+1)
+			}
+			return session, nil
+		}
+
+		if attempt < maxRetries {
+			bcLogger.Warn("scylla: connection attempt failed, retrying",
+				"keyspace", keyspace,
+				"attempt", attempt+1,
+				"next_retry_in", backoff.String(),
+				"err", err)
+			time.Sleep(backoff)
+			backoff *= 2
+		} else {
+			bcLogger.Error("scylla: all connection attempts exhausted",
+				"keyspace", keyspace,
+				"total_attempts", attempt+1,
+				"err", err)
+			return nil, fmt.Errorf("failed to connect after %d attempts: %w", attempt+1, err)
+		}
+	}
+
+	return nil, errors.New("unexpected retry loop exit")
+}
+
 // parseOpenOptions reads options from r (JSON) and seeds missing values from
 // address/keyspace/table fallback parameters.
 //
@@ -231,7 +266,7 @@ func (s *ScyllaStore) buildCluster(opts OpenOptions) (*gocql.ClusterConfig, erro
 func (s *ScyllaStore) ensureKeyspaceAndTable(opts OpenOptions) error {
 	sysCluster := *s.cluster // shallow copy
 	sysCluster.Keyspace = "" // connect to system to create ks if needed
-	sysSession, err := sysCluster.CreateSession()
+	sysSession, err := retryCreateSession(&sysCluster, "system")
 	if err != nil {
 		return fmt.Errorf("scylla connect (system): %w", err)
 	}
@@ -276,7 +311,7 @@ func (s *ScyllaStore) open(r io.Reader, address, keyspace, table string) error {
 	}
 	// set ks on main cluster
 	s.cluster.Keyspace = s.keyspace
-	s.session, err = s.cluster.CreateSession()
+	s.session, err = retryCreateSession(s.cluster, s.keyspace)
 	if err != nil {
 		return fmt.Errorf("scylla connect (keyspace): %w", err)
 	}

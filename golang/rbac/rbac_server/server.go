@@ -940,11 +940,11 @@ func main() {
   "tls": %t
 }`, host, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), srv.GetTls())
 
-	// Create & open the Scylla-backed KV store
+	// Create & open the Scylla-backed KV store (with retries built into storage_store)
 	srv.permissions = storage_store.NewScylla_store("", "", 1)
 	if err := srv.permissions.Open(opts); err != nil {
-		logger.Error("permissions store open failed", "err", err)
-		// handle error...
+		logger.Error("permissions store open failed - cannot start RBAC service", "err", err)
+		os.Exit(1)
 	}
 
 	start := time.Now()

@@ -283,6 +283,23 @@ func GetClientId(ctx context.Context) (string, string, error) {
 	if token == "" {
 		return "", "", errors.New("get client id: no token found in context metadata")
 	}
+
+	// Check for internal bootstrap identity (used during service startup)
+	// This should ONLY be accepted from outgoing context (internal calls), never from incoming context (external clients)
+	if token == "internal-bootstrap" {
+		// Verify this is a legitimate internal call by checking for the internal marker
+		md, ok := metadata.FromOutgoingContext(ctx)
+		if ok {
+			if vals := md.Get("x-globular-internal"); len(vals) > 0 && vals[0] == "true" {
+				if clientIDs := md.Get("client-id"); len(clientIDs) > 0 {
+					return clientIDs[0], token, nil
+				}
+			}
+		}
+		// If we got here, someone tried to use the internal token from external context - reject it
+		return "", "", errors.New("get client id: internal bootstrap token not allowed from external calls")
+	}
+
 	claims, err := ValidateToken(token)
 	if err != nil {
 		return "", "", fmt.Errorf("get client id: %w", err)
@@ -428,9 +445,14 @@ func readTokenFromFile(mac string) (string, error) {
 
 // extractTokenFromContext returns token from "token" or "authorization: Bearer <...>".
 func extractTokenFromContext(ctx context.Context) string {
+	// Try incoming context first (normal RPC calls)
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return ""
+		// Try outgoing context (internal/bootstrap calls)
+		md, ok = metadata.FromOutgoingContext(ctx)
+		if !ok {
+			return ""
+		}
 	}
 	// Preferred custom key
 	if vals := md.Get("token"); len(vals) > 0 {

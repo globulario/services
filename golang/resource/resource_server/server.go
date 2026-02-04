@@ -9,8 +9,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +35,7 @@ import (
 	// Keep the original service proto import so we can register the server type
 	// (handlers are defined elsewhere in this package).
 	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resource_server/internal/security"
 	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
@@ -110,6 +113,9 @@ type server struct {
 	cacheTTL time.Duration
 
 	isReady bool
+
+	// Bootstrap mode: when true, RBAC unavailability is non-fatal
+	bootstrapMode bool
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -209,6 +215,119 @@ func (s *server) GetKeepAlive() bool                { return s.KeepAlive }
 func (s *server) SetKeepAlive(val bool)             { s.KeepAlive = val }
 func (s *server) GetPermissions() []interface{}     { return s.Permissions }
 func (s *server) SetPermissions(perm []interface{}) { s.Permissions = perm }
+
+// -----------------------------------------------------------------------------
+// Scylla Host Resolution
+// -----------------------------------------------------------------------------
+
+// tcpProbe attempts to dial a TCP address and returns true if successful.
+func tcpProbe(host string, port int, timeout time.Duration) bool {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// detectPrimaryIP returns the primary non-loopback IP of this node.
+func detectPrimaryIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, iface := range ifaces {
+		// Skip loopback and down interfaces
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			// Return first non-loopback IPv4
+			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
+				return ip.String(), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no primary IP found")
+}
+
+// resolveScyllaHost determines the Scylla host to connect to.
+// Priority: env var > probe 127.0.0.1 > probe node primary IP
+func resolveScyllaHost(port int) (string, error) {
+	// 1. Explicit env override
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_SCYLLA_HOST")); v != "" {
+		logger.Info("scylla host from env", "host", v)
+		return v, nil
+	}
+
+	// 2. Try loopback
+	if tcpProbe("127.0.0.1", port, 500*time.Millisecond) {
+		logger.Info("scylla host detected", "host", "127.0.0.1", "method", "tcp-probe")
+		return "127.0.0.1", nil
+	}
+
+	// 3. Fallback to node primary IP
+	ip, err := detectPrimaryIP()
+	if err == nil && tcpProbe(ip, port, 500*time.Millisecond) {
+		logger.Info("scylla host detected", "host", ip, "method", "tcp-probe")
+		return ip, nil
+	}
+
+	return "", fmt.Errorf("no reachable scylla host found (tried: 127.0.0.1, %s)", ip)
+}
+
+// retryWithBackoff retries fn with exponential backoff until timeout.
+// Backoff: 1s, 2s, 4s, 8s, 16s, 32s, ... (capped at 32s between attempts)
+func retryWithBackoff(timeout time.Duration, fn func() error) error {
+	deadline := time.Now().Add(timeout)
+	backoff := 1 * time.Second
+	attempt := 0
+
+	for {
+		attempt++
+		err := fn()
+		if err == nil {
+			if attempt > 1 {
+				logger.Info("operation succeeded after retries", "attempts", attempt)
+			}
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("operation failed after %d attempts over %s: %w", attempt, timeout, err)
+		}
+
+		logger.Warn("operation failed, retrying",
+			"attempt", attempt,
+			"next_retry_in", backoff.String(),
+			"error", err)
+
+		time.Sleep(backoff)
+
+		// Exponential backoff with 32s cap
+		backoff *= 2
+		if backoff > 32*time.Second {
+			backoff = 32 * time.Second
+		}
+	}
+}
 
 // Lifecycle
 func (s *server) Init() error {
@@ -471,29 +590,70 @@ func (srv *server) publishRemoteEvent(address, evt string, data []byte) error {
 /**
  * Get the rbac client.
  */
-func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
+	seedAddr, err := resolveRbacEndpoint(srv.bootstrapMode)
 	if err != nil {
+		if srv.bootstrapMode {
+			logger.Warn("rbac endpoint resolution failed in bootstrap mode", "error", err)
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	client, err := globular_client.GetClient(seedAddr, "rbac.RbacService", "NewRbacService_Client")
+	if err != nil {
+		// In bootstrap mode, RBAC unavailability is non-fatal
+		if srv.bootstrapMode {
+			logger.Warn("rbac client unavailable in bootstrap mode", "error", err)
+			return nil, nil // Return nil client, no error
+		}
 		return nil, err
 	}
 	return client.(*rbac_client.Rbac_Client), nil
 }
 
 func (srv *server) addResourceOwner(token, path, subject, resourceType string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := getRbacClient(srv.Address)
+	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
 		return err
 	}
 
+	// If RBAC client is nil (bootstrap mode), skip RBAC operations gracefully
+	if rbac_client_ == nil {
+		logger.Warn("rbac disabled; skipping owner assignment",
+			"path", path,
+			"subject", subject,
+			"resourceType", resourceType,
+		)
+		return nil
+	}
+
 	err = rbac_client_.AddResourceOwner(token, path, subject, resourceType, subjectType)
-	return err
+	if err != nil {
+		// In bootstrap mode with bootstrap token, don't fail on RBAC errors
+		if srv.bootstrapMode && token == "internal-bootstrap" {
+			logger.Warn("rbac owner assignment failed in bootstrap mode",
+				"error", err,
+				"path", path,
+			)
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (srv *server) deleteResourcePermissions(token, path string) error {
-	rbac_client_, err := getRbacClient(srv.Address)
+	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
 		return err
+	}
+
+	// If RBAC client is nil (bootstrap mode), skip RBAC operations gracefully
+	if rbac_client_ == nil {
+		logger.Warn("rbac disabled; skipping delete resource permissions", "path", path)
+		return nil
 	}
 
 	err = rbac_client_.DeleteResourcePermissions(token, path)
@@ -501,18 +661,30 @@ func (srv *server) deleteResourcePermissions(token, path string) error {
 }
 
 func (srv *server) deleteAllAccess(token, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := getRbacClient(srv.Address)
+	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
 		return err
+	}
+
+	// If RBAC client is nil (bootstrap mode), skip RBAC operations gracefully
+	if rbac_client_ == nil {
+		logger.Warn("rbac disabled; skipping delete all access", "subject", subject)
+		return nil
 	}
 
 	return rbac_client_.DeleteAllAccess(token, subject, subjectType)
 }
 
 func (srv *server) SetAccountAllocatedSpace(token, accountId string, space uint64) error {
-	rbac_client_, err := getRbacClient(srv.Address)
+	rbac_client_, err := srv.getRbacClient()
 	if err != nil {
 		return err
+	}
+
+	// If RBAC client is nil (bootstrap mode), skip RBAC operations gracefully
+	if rbac_client_ == nil {
+		logger.Warn("rbac disabled; skipping set account allocated space", "accountId", accountId)
+		return nil
 	}
 
 	return rbac_client_.SetAccountAllocatedSpace(token, accountId, space)
@@ -564,18 +736,20 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 			return nil, errors.New("unknown backend type " + srv.Backend_type)
 		}
 
-		// Connect to the store.
-		err := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str)
-		if err != nil {
+		// Connect to the store with retry logic (90 seconds total)
+		err := retryWithBackoff(90*time.Second, func() error {
+			if connErr := srv.store.Connect("local_resource", srv.Backend_address, int32(srv.Backend_port), srv.Backend_user, srv.Backend_password, "local_resource", 5000, options_str); connErr != nil {
+				return fmt.Errorf("connect to %s:%d: %w", srv.Backend_address, srv.Backend_port, connErr)
+			}
+			if pingErr := srv.store.Ping(context.Background(), "local_resource"); pingErr != nil {
+				return fmt.Errorf("ping %s:%d: %w", srv.Backend_address, srv.Backend_port, pingErr)
+			}
+			return nil
+		})
 
-			logger.Error("fail to connect to store", "error", err)
-			os.Exit(1)
-		}
-
-		err = srv.store.Ping(context.Background(), "local_resource")
 		if err != nil {
-			logger.Error("fail to reach store", "error", err)
-			return nil, err
+			logger.Error("scylla unavailable after retries", "error", err)
+			return nil, err // Let systemd handle restart
 		}
 
 		srv.isReady = true
@@ -773,6 +947,13 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 
 func main() {
 	s := new(server)
+
+	// Check for bootstrap mode via environment variable
+	// In bootstrap mode, RBAC unavailability is non-fatal
+	s.bootstrapMode = globular.IsBootstrapMode()
+	if s.bootstrapMode {
+		logger.Info("running in bootstrap mode - RBAC failures will be non-fatal")
+	}
 
 	// Populate ONLY safe defaults before config/etcd is touched.
 	s.Name = string(resourcepb.File_resource_proto.Services().Get(0).FullName())
@@ -1344,14 +1525,22 @@ func main() {
 		"store", s.Backend_type,
 	)
 
-	err := s.CreateAccountDir(context.Background())
+	// Use internal bootstrap context for service startup operations
+	// This provides a valid identity without requiring external authentication
+	err := s.CreateAccountDir(security.BootstrapContext())
 	if err != nil {
 		logger.Error("fail to create account dir", "error", err)
 	}
 
 	if err := s.StartService(); err != nil {
-		logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
-		os.Exit(1)
+		logger.Error("StartService returned error", "service", s.Name, "id", s.Id, "err", err)
+		if s.bootstrapMode {
+			logger.Warn("StartService failed during bootstrap; continuing in degraded mode",
+				"service", s.Name, "id", s.Id)
+		} else {
+			logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -1386,17 +1575,54 @@ func computeBackendConfig(s *server, scyllaDetected bool) {
 		}
 	}
 
-	// Backend host: env override > host portion of Address > localhost.
-	if v, ok := os.LookupEnv("GLOBULAR_SCYLLA_HOST"); ok && strings.TrimSpace(v) != "" {
-		s.Backend_address = strings.TrimSpace(v)
+	// Backend host: resolve using env > tcp probe > node IP (NOT service listen address)
+	resolvedHost, err := resolveScyllaHost(int(s.Backend_port))
+	if err != nil {
+		logger.Warn("scylla host resolution failed, will retry during connect", "error", err)
+		// Fallback to localhost as last resort - connection will be retried
+		s.Backend_address = "localhost"
 	} else {
-		host := strings.TrimSpace(s.Address)
-		if strings.Contains(host, ":") {
-			host = strings.Split(host, ":")[0]
-		}
-		if host == "" {
-			host = "localhost"
-		}
-		s.Backend_address = host
+		s.Backend_address = resolvedHost
 	}
+}
+
+// resolveRbacEndpoint finds the rbac service address from service configs.
+func resolveRbacEndpoint(bootstrap bool) (string, error) {
+	servicesDir := strings.TrimSpace(os.Getenv("GLOBULAR_SERVICES_DIR"))
+	if servicesDir == "" {
+		servicesDir = "/var/lib/globular/services"
+	}
+	entries, err := os.ReadDir(servicesDir)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(servicesDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			continue
+		}
+		name := strings.ToLower(strings.TrimSpace(Utility.ToString(cfg["Name"])))
+		if name != strings.ToLower("rbac.RbacService") {
+			continue
+		}
+		addr := strings.TrimSpace(Utility.ToString(cfg["Address"]))
+		port := Utility.ToInt(cfg["Port"])
+		if addr == "" && port > 0 {
+			addr = fmt.Sprintf("127.0.0.1:%d", port)
+		} else if port > 0 && !strings.Contains(addr, ":") {
+			addr = fmt.Sprintf("%s:%d", addr, port)
+		}
+		if addr == "" {
+			continue
+		}
+		return addr, nil
+	}
+	return "", fmt.Errorf("rbac service config not found in %s", servicesDir)
 }

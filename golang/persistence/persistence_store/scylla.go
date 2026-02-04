@@ -41,6 +41,43 @@ type ScyllaStore struct {
 
 func (store *ScyllaStore) GetStoreType() string { return "SCYLLA" }
 
+// ---------- Connection Retry ----------
+
+// retryCreateSession attempts to create a session with exponential backoff.
+// Retries: 1s, 2s, 4s, 8s, 16s, 32s (total ~63 seconds, stays under 90s timeout)
+func retryCreateSession(cluster *gocql.ClusterConfig, keyspace string) (*gocql.Session, error) {
+	maxRetries := 6
+	backoff := time.Second
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		session, err := cluster.CreateSession()
+		if err == nil {
+			if attempt > 0 {
+				slog.Info("scylla: connection established after retries", "keyspace", keyspace, "attempts", attempt+1)
+			}
+			return session, nil
+		}
+
+		if attempt < maxRetries {
+			slog.Warn("scylla: connection attempt failed, retrying",
+				"keyspace", keyspace,
+				"attempt", attempt+1,
+				"next_retry_in", backoff.String(),
+				"err", err)
+			time.Sleep(backoff)
+			backoff *= 2
+		} else {
+			slog.Error("scylla: all connection attempts exhausted",
+				"keyspace", keyspace,
+				"total_attempts", attempt+1,
+				"err", err)
+			return nil, fmt.Errorf("failed to connect after %d attempts: %w", attempt+1, err)
+		}
+	}
+
+	return nil, errors.New("unexpected retry loop exit")
+}
+
 // ---------- Helpers ----------
 
 func camelToSnake(input string) string {
@@ -351,12 +388,11 @@ func (store *ScyllaStore) createKeyspace(connectionId, keyspace string) (*gocql.
 		return nil, errors.New("the connection does not exist")
 	}
 
-	// Admin session on "system"
+	// Admin session on "system" with retry logic
 	adminCluster := store.buildCluster(connection.Hosts, connection.Port, "system", connection.Options)
-	adminSession, err := adminCluster.CreateSession()
+	adminSession, err := retryCreateSession(adminCluster, "system")
 	if err != nil {
-		slog.Error("scylla: create admin session failed", "hosts", adminCluster.Hosts, "err", err)
-		return nil, err
+		return nil, fmt.Errorf("create admin session: %w", err)
 	}
 	defer adminSession.Close()
 
@@ -518,10 +554,9 @@ func (store *ScyllaStore) Connect(id string, host string, port int32, user strin
 	if err != nil {
 		return err
 	}
-	session, err := cluster.CreateSession()
+	session, err := retryCreateSession(cluster, keyspace)
 	if err != nil {
-		slog.Error("scylla: create session failed", "keyspace", keyspace, "err", err)
-		return err
+		return fmt.Errorf("create session: %w", err)
 	}
 	connection.sessions[keyspace] = session
 

@@ -16,6 +16,15 @@ svc_name_from_exe() {
   esac
 }
 
+# Check if service requires Scylla database
+needs_scylla() {
+  local svc="$1"
+  case "${svc}" in
+    resource|rbac) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 usage() {
   cat <<EOF
 Usage: $0 <BIN_DIR> <OUT_ROOT>
@@ -56,6 +65,13 @@ for exe_path in "${BIN_DIR}"/*_server; do
 
   unit="globular-${svc}.service"
   spec="${SPECS_DIR}/${svc}_service.yaml"
+
+  # Determine address_host based on service type
+  if needs_scylla "${svc}"; then
+    address_host="auto"
+  else
+    address_host="localhost"
+  fi
 
   # Write spec - services store their own config as <uuid>.json in services directory
   cat > "${spec}" <<EOF
@@ -113,7 +129,7 @@ steps:
     type: ensure_service_config
     service_name: ${svc}
     exec: ${exe}
-    address_host: localhost
+    address_host: ${address_host}
     rewrite_if_out_of_range: true
 
   - id: install-${svc}-service
@@ -127,6 +143,32 @@ steps:
         content: |
           [Unit]
           Description=Globular ${svc}
+EOF
+
+  # Add Scylla dependencies if needed
+  if needs_scylla "${svc}"; then
+    cat >> "${spec}" <<EOF
+          After=network-online.target scylla-server.service
+          Wants=network-online.target scylla-server.service
+
+          [Service]
+          Type=simple
+          User=globular
+          Group=globular
+          WorkingDirectory={{.StateDir}}/${svc}
+          Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
+          ExecStartPre=/bin/sh -c 'for i in \$(seq 1 90); do ss -lnt | grep -q ":9042 " && exit 0; sleep 1; done; echo "scylla 9042 not ready"; exit 1'
+          ExecStart={{.Prefix}}/bin/${exe}
+          Restart=on-failure
+          RestartSec=2
+          LimitNOFILE=524288
+
+          [Install]
+          WantedBy=multi-user.target
+EOF
+  else
+    cat >> "${spec}" <<EOF
           After=network-online.target
           Wants=network-online.target
 
@@ -143,6 +185,10 @@ steps:
 
           [Install]
           WantedBy=multi-user.target
+EOF
+  fi
+
+  cat >> "${spec}" <<EOF
 
   - id: enable-${svc}
     type: enable_services
