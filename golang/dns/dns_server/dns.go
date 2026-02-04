@@ -1226,6 +1226,179 @@ func (srv *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*
 }
 
 /* =============
+   SRV record API (PR4.1)
+   ============= */
+
+// SetSrv sets or updates an SRV (Service) record for a given service name.
+// SRV records are used for service discovery, specifying the location (hostname and port)
+// of servers for specified services.
+//
+// The function normalizes the service ID (FQDN like _service._tcp.domain) and target hostname
+// to ensure they end with a dot. It generates a unique identifier for the SRV record group,
+// retrieves any existing SRV records, and updates the record if a matching target exists.
+// If no matching target is found, it appends the new SRV record. The updated list is then
+// marshaled to JSON and stored. The TTL for the record is also set.
+//
+// Parameters:
+//
+//	ctx  - The context for the request.
+//	rqst - The SetSrvRequest containing the service ID, SRV record (priority, weight, port, target), and TTL.
+//
+// Returns:
+//
+//	*dnspb.SetSrvResponse - The response indicating the result of the operation.
+//	error                 - An error if the operation fails.
+func (srv *server) SetSrv(ctx context.Context, rqst *dnspb.SetSrvRequest) (*dnspb.SetSrvResponse, error) {
+	id := strings.ToLower(rqst.Id)
+	if !strings.HasSuffix(id, ".") {
+		id += "."
+	}
+	if !strings.HasSuffix(rqst.Srv.Target, ".") {
+		rqst.Srv.Target += "."
+	}
+
+	uuid := Utility.GenerateUUID("SRV:" + id)
+	values := make([]*dnspb.SRV, 0)
+
+	if data, err := srv.store.GetItem(uuid); err == nil {
+		if err := json.Unmarshal(data, &values); err != nil {
+			srv.Logger.Error("SetSrv unmarshal", "id", id, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	found := false
+	for i := range values {
+		if values[i].Target == rqst.Srv.Target && values[i].Port == rqst.Srv.Port {
+			values[i] = rqst.Srv
+			found = true
+			break
+		}
+	}
+	if !found && rqst.Srv != nil {
+		values = append(values, rqst.Srv)
+	}
+
+	data, err := json.Marshal(values)
+	if err != nil {
+		srv.Logger.Error("SetSrv marshal", "id", id, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	if err := srv.store.SetItem(uuid, data); err != nil {
+		srv.Logger.Error("SetSrv setItem", "id", id, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	_ = srv.setTtl(uuid, rqst.Ttl)
+	srv.Logger.Info("SRV set", "id", id, "uuid", uuid, "target", rqst.Srv.Target, "port", rqst.Srv.Port, "priority", rqst.Srv.Priority, "weight", rqst.Srv.Weight, "ttl", rqst.Ttl)
+
+	return &dnspb.SetSrvResponse{Result: true}, nil
+}
+
+// GetSrv retrieves SRV (Service) records for a given service ID from the server's store.
+// The service ID is normalized to lowercase and ensured to have a trailing dot.
+// It generates a UUID key based on the service ID and attempts to fetch the corresponding SRV records.
+// Returns a GetSrvResponse containing the list of SRV records or an error if unmarshalling fails.
+func (srv *server) GetSrv(ctx context.Context, rqst *dnspb.GetSrvRequest) (*dnspb.GetSrvResponse, error) {
+	id := strings.ToLower(rqst.Id)
+	if !strings.HasSuffix(id, ".") {
+		id += "."
+	}
+	uuid := Utility.GenerateUUID("SRV:" + id)
+	data, err := srv.store.GetItem(uuid)
+	values := make([]*dnspb.SRV, 0)
+	if err == nil {
+		if err := json.Unmarshal(data, &values); err != nil {
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+	return &dnspb.GetSrvResponse{Result: values}, nil
+}
+
+// RemoveSrv removes an SRV (Service) record for a given service from the DNS server's storage.
+// It takes a context and a RemoveSrvRequest containing the service ID and optional target to remove.
+// The function retrieves the current list of SRV records for the service, removes the specified target
+// (or all if target is empty), and updates the storage. If no SRV records remain after removal,
+// it deletes the service's SRV entry and associated RBAC permissions.
+// Returns a RemoveSrvResponse indicating success or an error if the operation fails.
+func (srv *server) RemoveSrv(ctx context.Context, rqst *dnspb.RemoveSrvRequest) (*dnspb.RemoveSrvResponse, error) {
+
+	_, token, err := security.GetClientId(ctx)
+	if err != nil {
+		srv.Logger.Error("RemoveSrv getClientId", "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	id := strings.ToLower(rqst.Id)
+	if !strings.HasSuffix(id, ".") {
+		id += "."
+	}
+	target := strings.ToLower(rqst.Target)
+	if len(target) > 0 && !strings.HasSuffix(target, ".") {
+		target += "."
+	}
+
+	uuid := Utility.GenerateUUID("SRV:" + id)
+	data, err := srv.store.GetItem(uuid)
+	if err != nil {
+		srv.Logger.Error("RemoveSrv getItem", "id", id, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	values := make([]*dnspb.SRV, 0)
+	if err := json.Unmarshal(data, &values); err != nil {
+		srv.Logger.Error("RemoveSrv unmarshal", "id", id, "err", err)
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Remove specific target or all if target is empty
+	if len(target) == 0 {
+		// Remove all SRV records for this service
+		if err := srv.store.RemoveItem(uuid); err != nil {
+			srv.Logger.Error("RemoveSrv removeItem", "id", id, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		if rbac_client_, err := srv.getRbacClient(); err == nil {
+			_ = rbac_client_.DeleteResourcePermissions(token, rqst.Id)
+		}
+		srv.Logger.Info("SRV records deleted (all)", "id", id, "uuid", uuid, "count", len(values))
+	} else {
+		// Remove specific target
+		for i := range values {
+			if values[i].Target == target {
+				values = append(values[:i], values[i+1:]...)
+				break
+			}
+		}
+
+		data, err = json.Marshal(values)
+		if err != nil {
+			srv.Logger.Error("RemoveSrv marshal", "id", id, "err", err)
+			return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if len(values) > 0 {
+			if err := srv.store.SetItem(uuid, data); err != nil {
+				srv.Logger.Error("RemoveSrv setItem", "id", id, "err", err)
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			srv.Logger.Info("SRV target removed", "id", id, "uuid", uuid, "target", target, "remaining", len(values))
+		} else {
+			if err := srv.store.RemoveItem(uuid); err != nil {
+				srv.Logger.Error("RemoveSrv removeItem", "id", id, "err", err)
+				return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			if rbac_client_, err := srv.getRbacClient(); err == nil {
+				_ = rbac_client_.DeleteResourcePermissions(token, rqst.Id)
+			}
+			srv.Logger.Info("SRV record deleted (last target)", "id", id, "uuid", uuid, "target", target)
+		}
+	}
+
+	return &dnspb.RemoveSrvResponse{Result: true}, nil
+}
+
+/* =============
    SOA record API
    ============= */
 
