@@ -79,6 +79,27 @@ func ComputeDesiredState(domain string, nodes []NodeInfo, generation uint64) *De
 		}
 	}
 
+	// Add controller A/AAAA (points to all control-plane nodes) - PR3
+	controllerFQDN := fmt.Sprintf("controller.%s", domain)
+	for _, node := range nodes {
+		if node.HasProfile("control-plane") && node.IPv4 != "" {
+			state.Records = append(state.Records, DNSRecord{
+				Name:  controllerFQDN,
+				Type:  RecordTypeA,
+				Value: node.IPv4,
+				TTL:   60,
+			})
+		}
+		if node.HasProfile("control-plane") && node.IPv6 != "" {
+			state.Records = append(state.Records, DNSRecord{
+				Name:  controllerFQDN,
+				Type:  RecordTypeAAAA,
+				Value: node.IPv6,
+				TTL:   60,
+			})
+		}
+	}
+
 	// Add gateway A/AAAA (points to all gateway nodes)
 	gatewayFQDN := fmt.Sprintf("gateway.%s", domain)
 	for _, node := range nodes {

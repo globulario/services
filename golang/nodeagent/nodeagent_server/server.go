@@ -187,12 +187,31 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		log.Fatalf("node-agent: invalid advertise endpoint: %v", err)
 	}
 	useInsecure := strings.EqualFold(getEnv("NODE_AGENT_INSECURE", "false"), "true")
+
+	// Determine cluster domain early for controller discovery (PR3)
+	clusterDomain := getEnv("CLUSTER_DOMAIN", "")
+
+	// Controller endpoint discovery (PR3: prefer DNS in cluster mode)
 	controllerEndpoint := strings.TrimSpace(os.Getenv("NODE_AGENT_CONTROLLER_ENDPOINT"))
+	if controllerEndpoint == "" && clusterDomain != "" && clusterMode {
+		// In cluster mode with domain configured, use DNS-based discovery
+		controllerPort := getEnv("CLUSTER_CONTROLLER_PORT", "12000")
+		controllerEndpoint = fmt.Sprintf("controller.%s:%s", clusterDomain, controllerPort)
+		log.Printf("node-agent: using DNS-based controller discovery: %s", controllerEndpoint)
+	}
 	if controllerEndpoint == "" {
 		controllerEndpoint = state.ControllerEndpoint
 	} else {
 		state.ControllerEndpoint = controllerEndpoint
 	}
+
+	// Validate controller endpoint in cluster mode (PR3)
+	if controllerEndpoint != "" && clusterMode {
+		if err := identity.ValidateAdvertiseEndpoint(controllerEndpoint, clusterMode); err != nil {
+			log.Printf("node-agent: WARNING - controller endpoint uses localhost in cluster mode: %s (this may prevent multi-node operation)", controllerEndpoint)
+		}
+	}
+
 	nodeID := state.NodeID
 	if nodeID == "" {
 		nodeID = strings.TrimSpace(os.Getenv("NODE_AGENT_NODE_ID"))
@@ -211,10 +230,10 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 	}
 	state.NodeName = nodeName
 
-	// Compute advertise FQDN if cluster domain known
-	clusterDomain := getEnv("CLUSTER_DOMAIN", "")
+	// Compute advertise FQDN (clusterDomain already defined above for controller discovery)
 	if clusterDomain != "" {
 		state.AdvertiseFQDN = fmt.Sprintf("%s.%s", nodeName, clusterDomain)
+		state.ClusterDomain = clusterDomain
 	}
 	state.AdvertiseIP = strings.Split(advertised, ":")[0]
 
