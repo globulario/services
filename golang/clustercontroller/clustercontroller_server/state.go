@@ -62,6 +62,8 @@ type nodeState struct {
 	LastRecoveryAttempt   time.Time `json:"last_recovery_attempt,omitempty"`
 	RecoveryAttempts      int       `json:"recovery_attempts,omitempty"`
 	MarkedUnhealthySince  time.Time `json:"marked_unhealthy_since,omitempty"`
+	// DNS-first naming field (PR2)
+	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
 }
 
 type unitStatusRecord struct {

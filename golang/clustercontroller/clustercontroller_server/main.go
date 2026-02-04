@@ -103,6 +103,19 @@ func main() {
 	srv.startOperationCleanupLoop(context.Background())
 	srv.startHealthMonitorLoop(context.Background())
 
+	// Start DNS reconciler (PR2) - only if cluster_domain configured
+	if cfg.ClusterDomain != "" {
+		dnsEndpoint := os.Getenv("CLUSTER_DNS_ENDPOINT")
+		if dnsEndpoint == "" {
+			dnsEndpoint = "127.0.0.1:10033"
+		}
+		dnsReconciler := NewDNSReconciler(srv, dnsEndpoint)
+		dnsReconciler.Start()
+		log.Printf("dns reconciler: ENABLED (domain=%s, endpoint=%s)", cfg.ClusterDomain, dnsEndpoint)
+	} else {
+		log.Printf("dns reconciler: DISABLED (no cluster_domain configured)")
+	}
+
 	log.Printf("cluster controller listening on %s (config=%s)", address, *cfgPath)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("grpc serve failed: %v", err)

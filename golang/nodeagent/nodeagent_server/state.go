@@ -16,6 +16,11 @@ type nodeAgentState struct {
 	ClusterDomain      string `json:"cluster_domain"`
 	Protocol           string `json:"protocol"`
 	CertGeneration     uint64 `json:"cert_generation"`
+
+	// DNS-first naming fields (PR1)
+	NodeName      string `json:"node_name"`
+	AdvertiseIP   string `json:"advertise_ip"`
+	AdvertiseFQDN string `json:"advertise_fqdn"`
 }
 
 func newNodeAgentState() *nodeAgentState {

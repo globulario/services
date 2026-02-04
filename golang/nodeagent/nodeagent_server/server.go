@@ -198,6 +198,26 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState) *NodeAgentServe
 		nodeID = strings.TrimSpace(os.Getenv("NODE_AGENT_NODE_ID"))
 		state.NodeID = nodeID
 	}
+
+	// Node name selection (PR1)
+	nodeName := getEnv("NODE_AGENT_NODE_NAME", "")
+	if nodeName == "" {
+		hostname, _ := os.Hostname()
+		if hostname != "" {
+			nodeName = identity.SanitizeNodeName(hostname)
+		} else {
+			nodeName = "node"
+		}
+	}
+	state.NodeName = nodeName
+
+	// Compute advertise FQDN if cluster domain known
+	clusterDomain := getEnv("CLUSTER_DOMAIN", "")
+	if clusterDomain != "" {
+		state.AdvertiseFQDN = fmt.Sprintf("%s.%s", nodeName, clusterDomain)
+	}
+	state.AdvertiseIP = strings.Split(advertised, ":")[0]
+
 	return &NodeAgentServer{
 		operations:               make(map[string]*operation),
 		joinToken:                strings.TrimSpace(os.Getenv("NODE_AGENT_JOIN_TOKEN")),
