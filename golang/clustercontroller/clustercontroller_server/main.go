@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/recovery"
@@ -104,14 +105,22 @@ func main() {
 	srv.startHealthMonitorLoop(context.Background())
 
 	// Start DNS reconciler (PR2) - only if cluster_domain configured
+	// PR7: Support multiple DNS endpoints for high availability
 	if cfg.ClusterDomain != "" {
-		dnsEndpoint := os.Getenv("CLUSTER_DNS_ENDPOINT")
-		if dnsEndpoint == "" {
-			dnsEndpoint = "127.0.0.1:10033"
+		dnsEndpointsStr := os.Getenv("CLUSTER_DNS_ENDPOINTS")
+		if dnsEndpointsStr == "" {
+			dnsEndpointsStr = "127.0.0.1:10033"
 		}
-		dnsReconciler := NewDNSReconciler(srv, dnsEndpoint)
+
+		// Parse comma-separated list of DNS endpoints
+		dnsEndpoints := strings.Split(dnsEndpointsStr, ",")
+		for i := range dnsEndpoints {
+			dnsEndpoints[i] = strings.TrimSpace(dnsEndpoints[i])
+		}
+
+		dnsReconciler := NewDNSReconciler(srv, dnsEndpoints)
 		dnsReconciler.Start()
-		log.Printf("dns reconciler: ENABLED (domain=%s, endpoint=%s)", cfg.ClusterDomain, dnsEndpoint)
+		log.Printf("dns reconciler: ENABLED (domain=%s, endpoints=%v)", cfg.ClusterDomain, dnsEndpoints)
 	} else {
 		log.Printf("dns reconciler: DISABLED (no cluster_domain configured)")
 	}

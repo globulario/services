@@ -15,36 +15,50 @@ import (
 const (
 	dnsReconcileInterval = 30 * time.Second
 	dnsReconcileTimeout  = 10 * time.Second
+	dnsHealthCheckInterval = 30 * time.Second // PR7: Check DNS health every 30s
 )
 
-// DNSReconciler continuously syncs cluster state to DNS service
+// DNSReconciler continuously syncs cluster state to DNS service(s) (PR7: multi-DNS)
 type DNSReconciler struct {
 	srv            *server
-	dnsEndpoint    string
+	dnsEndpoints   []string          // PR7: Support multiple DNS endpoints
+	healthStatus   map[string]bool   // PR7: Track health of each DNS endpoint
 	lastGeneration uint64
 	stopCh         chan struct{}
+	healthStopCh   chan struct{}     // PR7: Stop health checks
 }
 
 // NewDNSReconciler creates a new DNS reconciler
-func NewDNSReconciler(srv *server, dnsEndpoint string) *DNSReconciler {
-	if dnsEndpoint == "" {
-		dnsEndpoint = "127.0.0.1:10033"
+// PR7: Now accepts multiple DNS endpoints for high availability
+func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
+	if len(dnsEndpoints) == 0 {
+		dnsEndpoints = []string{"127.0.0.1:10033"}
 	}
+
+	healthStatus := make(map[string]bool)
+	for _, endpoint := range dnsEndpoints {
+		healthStatus[endpoint] = true // Assume healthy initially
+	}
+
 	return &DNSReconciler{
-		srv:         srv,
-		dnsEndpoint: dnsEndpoint,
-		stopCh:      make(chan struct{}),
+		srv:          srv,
+		dnsEndpoints: dnsEndpoints,
+		healthStatus: healthStatus,
+		stopCh:       make(chan struct{}),
+		healthStopCh: make(chan struct{}),
 	}
 }
 
-// Start begins the reconciliation loop
+// Start begins the reconciliation loop and health checks (PR7)
 func (r *DNSReconciler) Start() {
 	go r.reconcileLoop()
+	go r.healthCheckLoop() // PR7: Start health monitoring
 }
 
-// Stop halts the reconciliation loop
+// Stop halts the reconciliation loop and health checks (PR7)
 func (r *DNSReconciler) Stop() {
 	close(r.stopCh)
+	close(r.healthStopCh) // PR7: Stop health checks
 }
 
 // reconcileLoop runs periodic reconciliation
@@ -131,9 +145,45 @@ func (r *DNSReconciler) reconcile() error {
 	return nil
 }
 
-// applyDNSState applies the desired DNS state to the DNS service
+// applyDNSState applies the desired DNS state to all healthy DNS services (PR7: fanout)
 func (r *DNSReconciler) applyDNSState(ctx context.Context, desired *DesiredDNSState) error {
-	client, err := dns_client.NewDnsService_Client(r.dnsEndpoint, "dns.DnsService")
+	healthyEndpoints := r.getHealthyEndpoints()
+	if len(healthyEndpoints) == 0 {
+		return fmt.Errorf("no healthy DNS endpoints available")
+	}
+
+	log.Printf("dns reconciler: applying to %d DNS endpoints (healthy: %d/%d)",
+		len(healthyEndpoints), len(healthyEndpoints), len(r.dnsEndpoints))
+
+	// PR7: Fan out to all healthy DNS instances
+	var lastErr error
+	successCount := 0
+
+	for _, endpoint := range healthyEndpoints {
+		if err := r.applyToDNSInstance(ctx, endpoint, desired); err != nil {
+			log.Printf("dns reconciler: WARN - failed to apply to %s: %v", endpoint, err)
+			lastErr = err
+			// Mark endpoint as unhealthy
+			r.healthStatus[endpoint] = false
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to apply to any DNS instance: %w", lastErr)
+	}
+
+	if successCount < len(healthyEndpoints) {
+		log.Printf("dns reconciler: partial success (%d/%d instances updated)", successCount, len(healthyEndpoints))
+	}
+
+	return nil
+}
+
+// applyToDNSInstance applies state to a single DNS instance (PR7)
+func (r *DNSReconciler) applyToDNSInstance(ctx context.Context, endpoint string, desired *DesiredDNSState) error {
+	client, err := dns_client.NewDnsService_Client(endpoint, "dns.DnsService")
 	if err != nil {
 		return fmt.Errorf("connect dns: %w", err)
 	}
@@ -151,33 +201,32 @@ func (r *DNSReconciler) applyDNSState(ctx context.Context, desired *DesiredDNSSt
 	}
 
 	// Apply records
-	log.Printf("dns reconciler: applying %d records to DNS service", len(desired.Records))
 	recordCount := map[RecordType]int{}
 	for _, rec := range desired.Records {
 		switch rec.Type {
 		case RecordTypeA:
 			if _, err := client.SetA(token, rec.Name, rec.Value, rec.TTL); err != nil {
-				log.Printf("dns reconciler: WARN - failed to set A record %s -> %s: %v", rec.Name, rec.Value, err)
+				log.Printf("dns reconciler: WARN - failed to set A record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
 			} else {
 				recordCount[RecordTypeA]++
 			}
 		case RecordTypeAAAA:
 			if _, err := client.SetAAAA(token, rec.Name, rec.Value, rec.TTL); err != nil {
-				log.Printf("dns reconciler: WARN - failed to set AAAA record %s -> %s: %v", rec.Name, rec.Value, err)
+				log.Printf("dns reconciler: WARN - failed to set AAAA record %s -> %s on %s: %v", rec.Name, rec.Value, endpoint, err)
 			} else {
 				recordCount[RecordTypeAAAA]++
 			}
 		case RecordTypeSRV:
 			// PR4.1: Create SRV record
-			// Format: SetSrv(token, name, priority, weight, port, target, ttl)
 			if err := r.setSRVRecord(client, token, rec); err != nil {
-				log.Printf("dns reconciler: WARN - failed to set SRV record %s -> %s:%d: %v", rec.Name, rec.Value, rec.Port, err)
+				log.Printf("dns reconciler: WARN - failed to set SRV record %s -> %s:%d on %s: %v", rec.Name, rec.Value, rec.Port, endpoint, err)
 			} else {
 				recordCount[RecordTypeSRV]++
 			}
 		}
 	}
-	log.Printf("dns reconciler: applied A=%d, AAAA=%d, SRV=%d records", recordCount[RecordTypeA], recordCount[RecordTypeAAAA], recordCount[RecordTypeSRV])
+	log.Printf("dns reconciler: applied to %s: A=%d, AAAA=%d, SRV=%d records",
+		endpoint, recordCount[RecordTypeA], recordCount[RecordTypeAAAA], recordCount[RecordTypeSRV])
 
 	return nil
 }
@@ -275,4 +324,68 @@ func (r *DNSReconciler) extractNodeFQDN(addr, clusterDomain string, nodeByFQDN m
 // setSRVRecord sets a DNS SRV record (PR4.1)
 func (r *DNSReconciler) setSRVRecord(client *dns_client.Dns_Client, token string, rec DNSRecord) error {
 	return client.SetSrv(token, rec.Name, uint32(rec.Priority), uint32(rec.Weight), uint32(rec.Port), rec.Value, rec.TTL)
+}
+
+// healthCheckLoop periodically checks DNS endpoint health (PR7)
+func (r *DNSReconciler) healthCheckLoop() {
+	ticker := time.NewTicker(dnsHealthCheckInterval)
+	defer ticker.Stop()
+
+	log.Printf("dns reconciler: starting health check loop (interval=%v)", dnsHealthCheckInterval)
+
+	for {
+		select {
+		case <-ticker.C:
+			r.checkAllEndpoints()
+		case <-r.healthStopCh:
+			log.Printf("dns reconciler: health check stopped")
+			return
+		}
+	}
+}
+
+// checkAllEndpoints checks health of all DNS endpoints (PR7)
+func (r *DNSReconciler) checkAllEndpoints() {
+	for _, endpoint := range r.dnsEndpoints {
+		healthy := r.checkEndpointHealth(endpoint)
+
+		// Update health status and log changes
+		previousHealth := r.healthStatus[endpoint]
+		r.healthStatus[endpoint] = healthy
+
+		if previousHealth != healthy {
+			if healthy {
+				log.Printf("dns reconciler: endpoint %s is now HEALTHY", endpoint)
+			} else {
+				log.Printf("dns reconciler: endpoint %s is now UNHEALTHY", endpoint)
+			}
+		}
+	}
+}
+
+// checkEndpointHealth checks if a single DNS endpoint is healthy (PR7)
+func (r *DNSReconciler) checkEndpointHealth(endpoint string) bool {
+	// Try to connect and perform a simple operation
+	client, err := dns_client.NewDnsService_Client(endpoint, "dns.DnsService")
+	if err != nil {
+		return false
+	}
+	defer client.Close()
+
+	// Try to get domains as a health check
+	_, err = client.GetDomains()
+	return err == nil
+}
+
+// getHealthyEndpoints returns a list of currently healthy DNS endpoints (PR7)
+func (r *DNSReconciler) getHealthyEndpoints() []string {
+	healthy := make([]string, 0, len(r.dnsEndpoints))
+
+	for _, endpoint := range r.dnsEndpoints {
+		if r.healthStatus[endpoint] {
+			healthy = append(healthy, endpoint)
+		}
+	}
+
+	return healthy
 }
