@@ -1876,7 +1876,9 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 	opts := pki.Options{
 		Storage: pki.FileStorage{},
 		LocalCA: pki.LocalCAConfig{
-			Enabled: true,
+			Enabled:   true,
+			Org:       "Globular Internal CA",
+			ValidDays: 3650, // 10 years for internal CA certs
 		},
 	}
 	if spec.GetAcmeEnabled() {
