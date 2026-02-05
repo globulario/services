@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v3"
 
 	"github.com/globulario/services/golang/config"
@@ -41,6 +43,10 @@ func resolveDnsGrpcEndpoint(fallback string) string {
 		if port > 0 {
 			host := "localhost"
 			if addr, ok := svc["Address"].(string); ok && addr != "" {
+				// Check if address already contains port
+				if strings.Contains(addr, ":") {
+					return addr
+				}
 				host = addr
 			}
 			return fmt.Sprintf("%s:%d", host, port)
@@ -784,10 +790,16 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("gRPC Endpoint: %s\n", grpcEndpoint)
 	fmt.Printf("Resolver Endpoint: %s\n\n", resolverEndpoint)
 
-	// gRPC check
-	cc, err := dialGRPC(grpcEndpoint)
+	// gRPC check with short timeout
+	fmt.Printf("Checking gRPC connectivity...\n")
+	dialCtx, dialCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer dialCancel()
+
+	cc, err := grpc.DialContext(dialCtx, grpcEndpoint,
+		grpc.WithBlock(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Printf("❌ gRPC Check: FAILED (%v)\n", err)
+		fmt.Printf("❌ gRPC Check: FAILED (cannot connect to %s: %v)\n", grpcEndpoint, err)
 		return nil
 	}
 	defer cc.Close()
@@ -798,6 +810,12 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 
 	resp, err := client.GetDomains(ctx1, &dnspb.GetDomainsRequest{})
 	if err != nil {
+		// Check if it's a "key not found" error (DNS not initialized)
+		if strings.Contains(err.Error(), "Key not found") || strings.Contains(err.Error(), "badger") {
+			fmt.Printf("✓ gRPC Check: OK (connected)\n")
+			fmt.Printf("  ⚠  DNS service not initialized (no domains configured yet)\n")
+			return nil
+		}
 		fmt.Printf("❌ gRPC Check: FAILED (%v)\n", err)
 		return nil
 	}
