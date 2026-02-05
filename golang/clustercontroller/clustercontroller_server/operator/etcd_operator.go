@@ -54,7 +54,16 @@ func (o *EtcdOperator) MutatePlan(ctx context.Context, req MutateRequest) (*plan
 	}
 	addLock(plan, "service:etcd:rolling")
 	addProbe(plan, &planpb.Probe{Type: "probe.tcp", Args: structpbFromMap(map[string]interface{}{"address": "127.0.0.1:2379"})})
-	addProbe(plan, &planpb.Probe{Type: "probe.exec", Args: structpbFromMap(map[string]interface{}{"cmd": "etcdctl endpoint health --endpoints=http://127.0.0.1:2379"})})
+	// Day-0 Security: Use https and CA cert for etcd health checks
+	// Try multiple CA paths for Day-0 compatibility
+	addProbe(plan, &planpb.Probe{
+		Type: "probe.exec",
+		Args: structpbFromMap(map[string]interface{}{
+			"cmd": "etcdctl endpoint health --endpoints=https://127.0.0.1:2379 --cacert=/var/lib/globular/config/tls/ca.pem || " +
+				"etcdctl endpoint health --endpoints=https://127.0.0.1:2379 --cacert=/var/lib/globular/config/tls/work/ca.crt || " +
+				"etcdctl endpoint health --endpoints=http://127.0.0.1:2379",
+		}),
+	})
 	return plan, nil
 }
 
