@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
 )
 
@@ -65,7 +66,8 @@ func (acmeEnsureAction) Apply(ctx context.Context, args *structpb.Struct) (strin
 	adminEmail := strings.TrimSpace(fields["admin_email"].GetStringValue())
 	dnsAddr := strings.TrimSpace(fields["dns_addr"].GetStringValue())
 	if dnsAddr == "" {
-		dnsAddr = "localhost:10033" // default DNS service address
+		// Discover DNS service endpoint dynamically
+		dnsAddr = config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
 	}
 
 	paths := tlsPaths(args)

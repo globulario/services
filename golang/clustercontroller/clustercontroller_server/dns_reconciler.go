@@ -42,9 +42,13 @@ type DNSReconciler struct {
 
 // NewDNSReconciler creates a new DNS reconciler
 // PR7: Now accepts multiple DNS endpoints for high availability
+// Day-0 Security: Uses dynamic discovery instead of hardcoded 10033
 func NewDNSReconciler(srv *server, dnsEndpoints []string) *DNSReconciler {
 	if len(dnsEndpoints) == 0 {
-		dnsEndpoints = []string{"127.0.0.1:10033"}
+		// Use dynamic discovery to find DNS service endpoint
+		discovered := config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
+		dnsEndpoints = []string{discovered}
+		log.Printf("DNS reconciler: discovered DNS endpoint: %s", discovered)
 	}
 
 	healthStatus := make(map[string]bool)

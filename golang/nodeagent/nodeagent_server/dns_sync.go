@@ -10,12 +10,12 @@ import (
 	"time"
 
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
+	"github.com/globulario/services/golang/config"
 	dns_client "github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/security"
 )
 
 const (
-	defaultDnsEndpoint           = "127.0.0.1:10033"
 	dnsDefaultTTL                = 60
 	defaultSessionTimeoutMinutes = 15
 	dnsConnectRetryAttempts      = 10
@@ -255,7 +255,7 @@ func resolveDNSEndpoint(spec *clustercontrollerpb.ClusterNetworkSpec) string {
 		return v
 	}
 	// spec override can be added later
-	return defaultDnsEndpoint
+	return config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
 }
 
 func normalizeDomain(s string) string {

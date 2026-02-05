@@ -10,8 +10,9 @@ import (
 
 func TestResolveDNSEndpoint(t *testing.T) {
 	os.Unsetenv("GLOBULAR_DNS_ENDPOINT")
-	if got := resolveDNSEndpoint(nil); got != defaultDnsEndpoint {
-		t.Fatalf("expected default endpoint, got %s", got)
+	got := resolveDNSEndpoint(nil)
+	if got == "" || !strings.Contains(got, ":") {
+		t.Fatalf("expected valid endpoint with port, got %s", got)
 	}
 	os.Setenv("GLOBULAR_DNS_ENDPOINT", "1.2.3.4:1234")
 	defer os.Unsetenv("GLOBULAR_DNS_ENDPOINT")

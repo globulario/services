@@ -106,17 +106,18 @@ func main() {
 
 	// Start DNS reconciler (PR2) - only if cluster_domain configured
 	// PR7: Support multiple DNS endpoints for high availability
+	// Day-0 Security: No hardcoded endpoints, use discovery
 	if cfg.ClusterDomain != "" {
+		var dnsEndpoints []string
 		dnsEndpointsStr := os.Getenv("CLUSTER_DNS_ENDPOINTS")
-		if dnsEndpointsStr == "" {
-			dnsEndpointsStr = "127.0.0.1:10033"
+		if dnsEndpointsStr != "" {
+			// Parse comma-separated list of DNS endpoints
+			dnsEndpoints = strings.Split(dnsEndpointsStr, ",")
+			for i := range dnsEndpoints {
+				dnsEndpoints[i] = strings.TrimSpace(dnsEndpoints[i])
+			}
 		}
-
-		// Parse comma-separated list of DNS endpoints
-		dnsEndpoints := strings.Split(dnsEndpointsStr, ",")
-		for i := range dnsEndpoints {
-			dnsEndpoints[i] = strings.TrimSpace(dnsEndpoints[i])
-		}
+		// If no endpoints specified, NewDNSReconciler will discover them
 
 		dnsReconciler := NewDNSReconciler(srv, dnsEndpoints)
 		dnsReconciler.Start()

@@ -257,3 +257,77 @@ func RunDescribe(bin string, timeout time.Duration, env map[string]string) (Serv
 
 	return d, nil
 }
+
+// ResolveDNSGrpcEndpoint discovers the DNS service gRPC endpoint dynamically.
+// It tries multiple discovery methods in order:
+// 1. Query etcd for DNS service configuration (preferred on production nodes)
+// 2. Query binary via --describe (if ServicesRoot configured)
+// 3. Fall back to provided default
+//
+// Returns the DNS gRPC endpoint as "host:port".
+func ResolveDNSGrpcEndpoint(fallback string) string {
+	// Method 1: Try to resolve from etcd service configuration
+	svc, err := ResolveService("dns.DnsService")
+	if err == nil && svc != nil {
+		// Extract port from service config
+		var port int
+		switch p := svc["Port"].(type) {
+		case int:
+			port = p
+		case float64:
+			port = int(p)
+		case string:
+			fmt.Sscanf(p, "%d", &port)
+		}
+
+		if port > 0 {
+			host := "localhost"
+			if addr, ok := svc["Address"].(string); ok && addr != "" {
+				// Check if address already contains port
+				if strings.Contains(addr, ":") {
+					return addr
+				}
+				host = addr
+			}
+			return fmt.Sprintf("%s:%d", host, port)
+		}
+	}
+
+	// Method 2: Try --describe from binary
+	root := GetServicesRoot()
+	if root != "" {
+		binPath, err := FindServiceBinary(root, "dns")
+		if err == nil {
+			desc, err := RunDescribe(binPath, 3*time.Second, nil)
+			if err == nil && desc.Port > 0 {
+				host := "localhost"
+				if desc.Address != "" {
+					host = desc.Address
+				}
+				return fmt.Sprintf("%s:%d", host, desc.Port)
+			}
+		}
+	}
+
+	// Method 3: Fallback
+	return fallback
+}
+
+// ResolveDNSResolverEndpoint discovers the DNS resolver listening endpoint.
+// This is the UDP/TCP DNS port (typically 53) where the DNS service listens
+// for standard DNS queries, not the gRPC port.
+//
+// Returns the DNS resolver endpoint as "ip:port".
+func ResolveDNSResolverEndpoint() string {
+	// Default: standard DNS port
+	fallback := "127.0.0.1:53"
+
+	// Check environment variable first
+	if dnsPort := strings.TrimSpace(os.Getenv("GLOB_DNS_PORT")); dnsPort != "" {
+		return fmt.Sprintf("127.0.0.1:%s", dnsPort)
+	}
+
+	// TODO: Could query DNS service config for actual resolver port
+	// For now, standard port 53 is the correct default
+	return fallback
+}

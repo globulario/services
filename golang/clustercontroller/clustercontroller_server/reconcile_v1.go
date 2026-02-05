@@ -62,7 +62,7 @@ func BuildNetworkTransitionPlan(nodeID string, desired ClusterDesiredState, obse
 				"domain":         spec.GetClusterDomain(),
 				"admin_email":    spec.GetAdminEmail(),
 				"acme_enabled":   spec.GetAcmeEnabled(),
-				"dns_addr":       "localhost:10033",
+				"dns_addr":       "", // Empty: node agent will discover DNS endpoint
 				"fullchain_path": "/etc/globular/tls/fullchain.pem",
 				"privkey_path":   "/etc/globular/tls/privkey.pem",
 			}))
