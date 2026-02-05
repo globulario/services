@@ -61,11 +61,16 @@ func (n NodeInfo) HasProfile(profile string) bool {
 
 // ComputeDesiredState builds the desired DNS state from cluster state
 func ComputeDesiredState(domain string, nodes []NodeInfo, generation uint64) *DesiredDNSState {
-	return ComputeDesiredStateWithServices(domain, nodes, nil, generation)
+	return ComputeDesiredStateWithLeader(domain, nodes, nil, "", generation)
 }
 
 // ComputeDesiredStateWithServices builds DNS state including service SRV records (PR4.1)
 func ComputeDesiredStateWithServices(domain string, nodes []NodeInfo, services []ServiceInstance, generation uint64) *DesiredDNSState {
+	return ComputeDesiredStateWithLeader(domain, nodes, services, "", generation)
+}
+
+// ComputeDesiredStateWithLeader builds DNS state with leader-aware controller record (H3)
+func ComputeDesiredStateWithLeader(domain string, nodes []NodeInfo, services []ServiceInstance, leaderFQDN string, generation uint64) *DesiredDNSState {
 	state := &DesiredDNSState{
 		Domain:     domain,
 		Records:    make([]DNSRecord, 0),
@@ -92,24 +97,76 @@ func ComputeDesiredStateWithServices(domain string, nodes []NodeInfo, services [
 		}
 	}
 
-	// Add controller A/AAAA (points to all control-plane nodes) - PR3
+	// H3 Hardening: Controller DNS semantics (single-leader)
+	// controller.<domain> -> single A record to leader node only (if known)
+	// controller-nodes.<domain> -> multi-A to all control-plane nodes (diagnostics)
 	controllerFQDN := fmt.Sprintf("controller.%s", domain)
+	controllerNodesFQDN := fmt.Sprintf("controller-nodes.%s", domain)
+
 	for _, node := range nodes {
-		if node.HasProfile("control-plane") && node.IPv4 != "" {
-			state.Records = append(state.Records, DNSRecord{
-				Name:  controllerFQDN,
-				Type:  RecordTypeA,
-				Value: node.IPv4,
-				TTL:   60,
-			})
+		if node.HasProfile("control-plane") {
+			// Always add to controller-nodes (diagnostic multi-A)
+			if node.IPv4 != "" {
+				state.Records = append(state.Records, DNSRecord{
+					Name:  controllerNodesFQDN,
+					Type:  RecordTypeA,
+					Value: node.IPv4,
+					TTL:   60,
+				})
+			}
+			if node.IPv6 != "" {
+				state.Records = append(state.Records, DNSRecord{
+					Name:  controllerNodesFQDN,
+					Type:  RecordTypeAAAA,
+					Value: node.IPv6,
+					TTL:   60,
+				})
+			}
+
+			// Add to controller.<domain> ONLY if this is the leader node
+			if leaderFQDN != "" && node.FQDN == leaderFQDN {
+				if node.IPv4 != "" {
+					state.Records = append(state.Records, DNSRecord{
+						Name:  controllerFQDN,
+						Type:  RecordTypeA,
+						Value: node.IPv4,
+						TTL:   60,
+					})
+				}
+				if node.IPv6 != "" {
+					state.Records = append(state.Records, DNSRecord{
+						Name:  controllerFQDN,
+						Type:  RecordTypeAAAA,
+						Value: node.IPv6,
+						TTL:   60,
+					})
+				}
+			}
 		}
-		if node.HasProfile("control-plane") && node.IPv6 != "" {
-			state.Records = append(state.Records, DNSRecord{
-				Name:  controllerFQDN,
-				Type:  RecordTypeAAAA,
-				Value: node.IPv6,
-				TTL:   60,
-			})
+	}
+
+	// H3 Hardening: If leader unknown, fall back to first control-plane node (bootstrap)
+	if leaderFQDN == "" {
+		for _, node := range nodes {
+			if node.HasProfile("control-plane") {
+				if node.IPv4 != "" {
+					state.Records = append(state.Records, DNSRecord{
+						Name:  controllerFQDN,
+						Type:  RecordTypeA,
+						Value: node.IPv4,
+						TTL:   60,
+					})
+				}
+				if node.IPv6 != "" {
+					state.Records = append(state.Records, DNSRecord{
+						Name:  controllerFQDN,
+						Type:  RecordTypeAAAA,
+						Value: node.IPv6,
+						TTL:   60,
+					})
+				}
+				break // Only first node when leader unknown
+			}
 		}
 	}
 

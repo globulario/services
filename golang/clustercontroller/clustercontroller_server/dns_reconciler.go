@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -161,6 +162,9 @@ func (r *DNSReconciler) reconcile() error {
 		log.Printf("dns reconciler: discovered %d service instances for SRV records", len(serviceInstances))
 	}
 
+	// H3 Hardening: Determine leader node FQDN for controller DNS record
+	leaderFQDN := r.determineLeaderFQDN(nodes)
+
 	// PR9: Check for domain migration
 	domains := []string{spec.ClusterDomain}
 	if r.isInMigration(spec) {
@@ -181,7 +185,7 @@ func (r *DNSReconciler) reconcile() error {
 	defer cancel()
 
 	for _, domain := range domains {
-		desired := ComputeDesiredStateWithServices(domain, nodeInfos, serviceInstances, generation)
+		desired := ComputeDesiredStateWithLeader(domain, nodeInfos, serviceInstances, leaderFQDN, generation)
 		if err := r.applyDNSState(ctx, desired); err != nil {
 			atomic.AddUint64(&r.reconcileFailure, 1)
 			return fmt.Errorf("apply dns state for domain %s: %w", domain, err)
@@ -198,6 +202,41 @@ func (r *DNSReconciler) reconcile() error {
 	atomic.AddUint64(&r.reconcileSuccess, 1)
 	log.Printf("dns reconciler: SUCCESS - applied generation %d to %d domain(s)", generation, len(domains))
 	return nil
+}
+
+// determineLeaderFQDN finds the FQDN of the current leader node (H3 Hardening)
+// Returns empty string if leader cannot be determined (bootstrap/failover scenarios)
+func (r *DNSReconciler) determineLeaderFQDN(nodes map[string]*nodeState) string {
+	// If this controller is not the leader, we don't know which node is
+	if !r.srv.isLeader() {
+		return ""
+	}
+
+	// This controller is the leader - find its node FQDN by matching hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+
+	// Try to match by hostname in node identity
+	for _, node := range nodes {
+		if strings.EqualFold(node.Identity.Hostname, hostname) {
+			// Check if this node has control-plane profile
+			hasControlPlane := false
+			for _, profile := range node.Profiles {
+				if profile == "control-plane" {
+					hasControlPlane = true
+					break
+				}
+			}
+			if hasControlPlane && node.AdvertiseFqdn != "" {
+				return node.AdvertiseFqdn
+			}
+		}
+	}
+
+	// Fallback: if we can't match hostname, return empty (will use first control-plane node)
+	return ""
 }
 
 // applyDNSState applies the desired DNS state to all healthy DNS services (PR7: fanout)
