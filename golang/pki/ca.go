@@ -19,6 +19,66 @@ import (
 func caKeyPath(dir string) string { return filepath.Join(dir, "ca.key") }
 func caCrtPath(dir string) string { return filepath.Join(dir, "ca.crt") }
 
+// MigrateCAIfNeeded checks for CA files in legacy locations and migrates them to canonical paths.
+// H2 Hardening: Ensures existing CAs are moved from work/ directories to /var/lib/globular/pki/
+// Returns true if migration occurred.
+func MigrateCAIfNeeded(canonicalDir string, legacyPaths []string) (bool, error) {
+	if err := os.MkdirAll(canonicalDir, 0o700); err != nil {
+		return false, fmt.Errorf("create canonical PKI dir: %w", err)
+	}
+
+	canonicalKey := filepath.Join(canonicalDir, "ca.key")
+	canonicalCrt := filepath.Join(canonicalDir, "ca.crt")
+
+	// If canonical files already exist, no migration needed
+	if exists(canonicalKey) && exists(canonicalCrt) {
+		return false, nil
+	}
+
+	// Search for legacy CA files
+	var legacyKey, legacyCrt string
+	for _, base := range legacyPaths {
+		dir := filepath.Dir(base)
+		testKey := filepath.Join(dir, "ca.key")
+		testCrt := filepath.Join(dir, "ca.crt")
+		if exists(testKey) && exists(testCrt) {
+			legacyKey = testKey
+			legacyCrt = testCrt
+			break
+		}
+	}
+
+	// No legacy CA found, caller will create new one
+	if legacyKey == "" {
+		return false, nil
+	}
+
+	// Migrate: copy legacy CA to canonical location
+	keyData, err := os.ReadFile(legacyKey)
+	if err != nil {
+		return false, fmt.Errorf("read legacy CA key: %w", err)
+	}
+	if err := os.WriteFile(canonicalKey, keyData, 0o400); err != nil {
+		return false, fmt.Errorf("write canonical CA key: %w", err)
+	}
+
+	crtData, err := os.ReadFile(legacyCrt)
+	if err != nil {
+		return false, fmt.Errorf("read legacy CA cert: %w", err)
+	}
+	if err := os.WriteFile(canonicalCrt, crtData, 0o444); err != nil {
+		return false, fmt.Errorf("write canonical CA cert: %w", err)
+	}
+
+	// H2 Hardening: Also create ca.pem bundle for compatibility
+	canonicalBundle := filepath.Join(canonicalDir, "ca.pem")
+	if err := os.WriteFile(canonicalBundle, crtData, 0o444); err != nil {
+		return false, fmt.Errorf("write canonical CA bundle: %w", err)
+	}
+
+	return true, nil
+}
+
 // ensureOrLoadLocalCA makes sure ca.key / ca.crt exist.
 func (m *FileManager) ensureOrLoadLocalCA(dir, subjectCN string, days int) (keyFile, crtFile string, err error) {
 	if err = ensureDir(dir); err != nil {
@@ -65,6 +125,12 @@ func (m *FileManager) ensureOrLoadLocalCA(dir, subjectCN string, days int) (keyF
 		return "", "", err
 	}
 	if err := writePEMFile(cf, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444); err != nil {
+		return "", "", err
+	}
+
+	// H2 Hardening: Also create ca.pem for compatibility (bundle format)
+	bundlePath := filepath.Join(dir, "ca.pem")
+	if err := writePEMFile(bundlePath, &pem.Block{Type: "CERTIFICATE", Bytes: der}, 0o444); err != nil {
 		return "", "", err
 	}
 

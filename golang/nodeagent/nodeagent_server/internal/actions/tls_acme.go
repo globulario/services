@@ -39,21 +39,25 @@ const (
 // dnsDialOption returns gRPC dial options with TLS for DNS service connections.
 // Returns error dial option if CA cannot be loaded (fail-secure, no silent downgrade).
 func dnsDialOption() grpc.DialOption {
-	// Try to load cluster CA for TLS
-	runtimeDir := config.GetRuntimeConfigDir()
-	tlsDir := filepath.Join(runtimeDir, "config", "tls")
-	caPath := filepath.Join(tlsDir, "ca.pem")
+	// H2 Hardening: Use canonical PKI paths for cluster CA
+	_, caCrtPath, caBundlePath := config.GetCanonicalCAPaths()
 
-	// Also check work directory where local CA is created
-	workCAPath := filepath.Join(tlsDir, "work", "ca.crt")
+	// Try canonical paths first (preferred), then legacy paths for compatibility
+	legacyPaths := config.GetLegacyCAPaths()
+	allPaths := append([]string{caBundlePath, caCrtPath}, legacyPaths...)
 
-	// Try both CA paths
-	caPEM, err := os.ReadFile(caPath)
-	if err != nil {
-		caPEM, err = os.ReadFile(workCAPath)
+	var caPEM []byte
+	var loadedFrom string
+	for _, caPath := range allPaths {
+		data, err := os.ReadFile(caPath)
+		if err == nil && len(data) > 0 {
+			caPEM = data
+			loadedFrom = caPath
+			break
+		}
 	}
 
-	if err == nil && len(caPEM) > 0 {
+	if len(caPEM) > 0 {
 		certPool := x509.NewCertPool()
 		if certPool.AppendCertsFromPEM(caPEM) {
 			tlsConfig := &tls.Config{
@@ -66,7 +70,7 @@ func dnsDialOption() grpc.DialOption {
 
 	// Day-0 Security: NO INSECURE FALLBACK - fail loudly if CA not available
 	// ACME requires secure DNS communication; if CA is missing, system is misconfigured
-	panic(fmt.Sprintf("DNS CA not found at %s or %s - cannot establish secure connection for ACME", caPath, workCAPath))
+	panic(fmt.Sprintf("DNS CA not found at any of %v (loaded from %s) - cannot establish secure connection for ACME", allPaths, loadedFrom))
 }
 
 type acmeEnsureAction struct{}

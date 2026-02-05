@@ -1873,6 +1873,16 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 		return nil
 	}
 
+	// H2 Hardening: Use canonical PKI directory for CA storage
+	canonicalPKIDir := config.GetCanonicalPKIDir()
+	legacyPaths := config.GetLegacyCAPaths()
+	migrated, err := pki.MigrateCAIfNeeded(canonicalPKIDir, legacyPaths)
+	if err != nil {
+		log.Printf("nodeagent: CA migration error: %v", err)
+	} else if migrated {
+		log.Printf("nodeagent: migrated CA from legacy location to %s", canonicalPKIDir)
+	}
+
 	opts := pki.Options{
 		Storage: pki.FileStorage{},
 		LocalCA: pki.LocalCAConfig{
@@ -1893,16 +1903,13 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 			opts.ACME.DNS = config.ResolveDNSGrpcEndpoint("127.0.0.1:10033")
 		}
 	}
-	workDir := filepath.Join(tlsDir, "work")
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return fmt.Errorf("create tls work dir: %w", err)
-	}
 
+	// H2 Hardening: Use canonical PKI directory for CA, certificates are issued here
 	manager := networkPKIManager(opts)
 	var bundle certs.CertBundle
 	if spec.GetAcmeEnabled() {
 		subject := fmt.Sprintf("CN=%s", domain)
-		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(workDir, domain, subject, dns, 90*24*time.Hour)
+		keyFile, _, issuerFile, fullchainFile, err := manager.EnsurePublicACMECert(canonicalPKIDir, domain, subject, dns, 90*24*time.Hour)
 		if err != nil {
 			return fmt.Errorf("issue ACME certs: %w", err)
 		}
@@ -1916,7 +1923,7 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *clustercontrollerpb.Cluster
 			return err
 		}
 	} else {
-		keyFile, leafFile, caFile, err := manager.EnsureServerCert(workDir, domain, dns, 90*24*time.Hour)
+		keyFile, leafFile, caFile, err := manager.EnsureServerCert(canonicalPKIDir, domain, dns, 90*24*time.Hour)
 		if err != nil {
 			return fmt.Errorf("issue server certs: %w", err)
 		}

@@ -547,6 +547,37 @@ func CanonicalTLSPaths(runtimeConfigDir string) (tlsDir, fullchain, privkey, ca 
 	return
 }
 
+// GetCanonicalPKIDir returns the canonical PKI root directory for CA and service certificates.
+// H2 Hardening: Stable, persistent location for PKI material (not in work/ subdirectories).
+// Returns: /var/lib/globular/pki
+func GetCanonicalPKIDir() string {
+	return filepath.Join(GetRuntimeConfigDir(), "pki")
+}
+
+// GetCanonicalCAPaths returns canonical paths for the cluster CA certificate authority.
+// H2 Hardening: CA private key and certificate in stable, persistent location.
+// Returns: (keyPath, certPath, bundlePath) where:
+//   - keyPath: /var/lib/globular/pki/ca.key (mode 0400)
+//   - certPath: /var/lib/globular/pki/ca.crt (mode 0444)
+//   - bundlePath: /var/lib/globular/pki/ca.pem (symlink or copy of ca.crt for compatibility)
+func GetCanonicalCAPaths() (keyPath, certPath, bundlePath string) {
+	pkiDir := GetCanonicalPKIDir()
+	keyPath = filepath.Join(pkiDir, "ca.key")
+	certPath = filepath.Join(pkiDir, "ca.crt")
+	bundlePath = filepath.Join(pkiDir, "ca.pem")
+	return
+}
+
+// GetLegacyCAPaths returns the old CA paths for migration compatibility.
+// These paths are checked during migration to move existing CAs to canonical locations.
+func GetLegacyCAPaths() []string {
+	runtimeDir := GetRuntimeConfigDir()
+	return []string{
+		filepath.Join(runtimeDir, "config", "tls", "work", "ca.key"),
+		filepath.Join(runtimeDir, "config", "tls", "work", "ca.crt"),
+	}
+}
+
 // GetAdminTLSDir returns the location for admin-provided TLS files (read-only).
 func GetAdminTLSDir() string {
 	return filepath.Join(GetConfigDir(), "tls")
