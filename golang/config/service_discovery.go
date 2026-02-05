@@ -258,58 +258,120 @@ func RunDescribe(bin string, timeout time.Duration, env map[string]string) (Serv
 	return d, nil
 }
 
+// tryLocalServiceConfig attempts to read service endpoint from local config file.
+// Returns empty string if not found or error. No network calls, instant.
+func tryLocalServiceConfig(serviceName string) string {
+	// Check for local service config in standard location
+	configPath := filepath.Join(GetConfigDir(), "services", serviceName+".json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+
+	var svcConfig map[string]interface{}
+	if err := json.Unmarshal(data, &svcConfig); err != nil {
+		return ""
+	}
+
+	// Extract port
+	var port int
+	switch p := svcConfig["Port"].(type) {
+	case int:
+		port = p
+	case float64:
+		port = int(p)
+	case string:
+		fmt.Sscanf(p, "%d", &port)
+	}
+
+	if port > 0 {
+		host := "localhost"
+		if addr, ok := svcConfig["Address"].(string); ok && addr != "" {
+			if strings.Contains(addr, ":") {
+				return addr
+			}
+			host = addr
+		}
+		return fmt.Sprintf("%s:%d", host, port)
+	}
+
+	return ""
+}
+
+// tryEtcdServiceConfig attempts to query etcd for service configuration.
+// Returns empty string if etcd unavailable or service not found.
+// Should be fast-fail if etcd is down (doesn't block).
+func tryEtcdServiceConfig(serviceID string) string {
+	// Try etcd-based service discovery
+	svc, err := ResolveService(serviceID)
+	if err != nil || svc == nil {
+		return ""
+	}
+
+	// Extract port from service config
+	var port int
+	switch p := svc["Port"].(type) {
+	case int:
+		port = p
+	case float64:
+		port = int(p)
+	case string:
+		fmt.Sscanf(p, "%d", &port)
+	}
+
+	if port > 0 {
+		host := "localhost"
+		if addr, ok := svc["Address"].(string); ok && addr != "" {
+			if strings.Contains(addr, ":") {
+				return addr
+			}
+			host = addr
+		}
+		return fmt.Sprintf("%s:%d", host, port)
+	}
+
+	return ""
+}
+
 // ResolveDNSGrpcEndpoint discovers the DNS service gRPC endpoint dynamically.
-// It tries multiple discovery methods in order:
-// 1. Query etcd for DNS service configuration (preferred on production nodes)
-// 2. Query binary via --describe (if ServicesRoot configured)
-// 3. Fall back to provided default
+// H1 Hardening: Reordered to prevent etcd-first blocking during Day-0 bootstrap.
+// Priority order (with fast timeouts):
+// 1. Local service config file (no network, instant)
+// 2. Binary --describe (local exec, <1s)
+// 3. etcd service configuration (network, may be unavailable at Day-0)
+// 4. Fallback default
 //
 // Returns the DNS gRPC endpoint as "host:port".
 func ResolveDNSGrpcEndpoint(fallback string) string {
-	// Method 1: Try to resolve from etcd service configuration
-	svc, err := ResolveService("dns.DnsService")
-	if err == nil && svc != nil {
-		// Extract port from service config
-		var port int
-		switch p := svc["Port"].(type) {
-		case int:
-			port = p
-		case float64:
-			port = int(p)
-		case string:
-			fmt.Sscanf(p, "%d", &port)
-		}
-
-		if port > 0 {
-			host := "localhost"
-			if addr, ok := svc["Address"].(string); ok && addr != "" {
-				// Check if address already contains port
-				if strings.Contains(addr, ":") {
-					return addr
-				}
-				host = addr
-			}
-			return fmt.Sprintf("%s:%d", host, port)
-		}
+	// Method 1: Try local service config file (fastest, no network)
+	if endpoint := tryLocalServiceConfig("dns"); endpoint != "" {
+		return endpoint
 	}
 
-	// Method 2: Try --describe from binary
+	// Method 2: Try --describe from binary (local exec, fast)
 	root := GetServicesRoot()
 	if root != "" {
 		binPath, err := FindServiceBinary(root, "dns")
 		if err == nil {
-			desc, err := RunDescribe(binPath, 3*time.Second, nil)
+			desc, err := RunDescribe(binPath, 1*time.Second, nil)
 			if err == nil && desc.Port > 0 {
 				host := "localhost"
 				if desc.Address != "" {
 					host = desc.Address
 				}
-				return fmt.Sprintf("%s:%d", host, desc.Port)
+				endpoint := fmt.Sprintf("%s:%d", host, desc.Port)
+				return endpoint
 			}
 		}
 	}
 
-	// Method 3: Fallback
+	// Method 3: Try etcd (last resort for network-based discovery)
+	// This may fail/timeout during Day-0 if etcd is not ready
+	if endpoint := tryEtcdServiceConfig("dns.DnsService"); endpoint != "" {
+		return endpoint
+	}
+
+	// Method 4: Fallback default
 	return fallback
 }
 
