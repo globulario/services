@@ -25,7 +25,6 @@ import (
 	"github.com/go-acme/lego/v4/registration"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/globulario/services/golang/config"
@@ -38,7 +37,7 @@ const (
 )
 
 // dnsDialOption returns gRPC dial options with TLS for DNS service connections.
-// Falls back to insecure if TLS setup fails (Day-0 compatibility).
+// Returns error dial option if CA cannot be loaded (fail-secure, no silent downgrade).
 func dnsDialOption() grpc.DialOption {
 	// Try to load cluster CA for TLS
 	runtimeDir := config.GetRuntimeConfigDir()
@@ -65,8 +64,9 @@ func dnsDialOption() grpc.DialOption {
 		}
 	}
 
-	// Fallback to insecure for backward compatibility / Day-0
-	return grpc.WithTransportCredentials(insecure.NewCredentials())
+	// Day-0 Security: NO INSECURE FALLBACK - fail loudly if CA not available
+	// ACME requires secure DNS communication; if CA is missing, system is misconfigured
+	panic(fmt.Sprintf("DNS CA not found at %s or %s - cannot establish secure connection for ACME", caPath, workCAPath))
 }
 
 type acmeEnsureAction struct{}
