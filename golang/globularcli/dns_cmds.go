@@ -680,7 +680,7 @@ func runDNSLookup(cmd *cobra.Command, args []string) error {
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{Timeout: time.Duration(rootCfg.timeout) * time.Millisecond}
+			d := net.Dialer{Timeout: rootCfg.timeout}
 			proto := "udp"
 			if useTCP {
 				proto = "tcp"
@@ -689,7 +689,7 @@ func runDNSLookup(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(rootCfg.timeout)*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
 	result := &LookupResult{

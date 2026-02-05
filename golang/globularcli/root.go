@@ -19,7 +19,7 @@ var rootCfg = struct {
 	controllerAddr: "localhost:10000",
 	nodeAddr:       "localhost:11000",
 	dnsAddr:        "localhost:10033",
-	timeout:        15 * time.Second,
+	timeout:        5 * time.Second,
 	output:         "table",
 }
 
