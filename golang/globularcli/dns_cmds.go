@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -13,8 +14,78 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
 )
+
+// resolveDnsGrpcEndpoint discovers the DNS service gRPC endpoint dynamically.
+// It tries to use service discovery via --describe, falling back to the provided default.
+func resolveDnsGrpcEndpoint(fallback string) string {
+	root := config.GetServicesRoot()
+	if root == "" {
+		return fallback
+	}
+
+	binPath, err := config.FindServiceBinary(root, "dns")
+	if err != nil {
+		return fallback
+	}
+
+	desc, err := config.RunDescribe(binPath, 3*time.Second, nil)
+	if err != nil {
+		return fallback
+	}
+
+	if desc.Port > 0 {
+		host := "localhost"
+		if desc.Address != "" {
+			host = desc.Address
+		}
+		return fmt.Sprintf("%s:%d", host, desc.Port)
+	}
+
+	return fallback
+}
+
+// resolveDnsResolverEndpoint discovers the DNS resolver listening endpoint.
+// It reads the DNS service configuration to get the actual DNS port (typically 53).
+func resolveDnsResolverEndpoint() string {
+	// Default fallback - standard DNS port
+	fallback := "127.0.0.1:53"
+
+	// Check environment variable first
+	if dnsPort := os.Getenv("GLOB_DNS_PORT"); dnsPort != "" {
+		return fmt.Sprintf("127.0.0.1:%s", dnsPort)
+	}
+
+	// Try to read DNS service configuration
+	root := config.GetServicesRoot()
+	if root == "" {
+		return fallback
+	}
+
+	_, err := config.FindServiceBinary(root, "dns")
+	if err != nil {
+		return fallback
+	}
+
+	// TODO: Parse DNS service config file to get actual resolver port
+	// For now, we use the standard DNS port (53) as fallback
+	return fallback
+}
+
+// getEffectiveDnsGrpcAddr returns the DNS gRPC endpoint to use,
+// preferring user-specified flag over dynamic discovery.
+func getEffectiveDnsGrpcAddr() string {
+	// If user explicitly set --dns flag, use it
+	if rootCfg.dnsAddr != "localhost:10033" {
+		return rootCfg.dnsAddr
+	}
+
+	// Otherwise, try to discover it
+	discovered := resolveDnsGrpcEndpoint("localhost:10033")
+	return discovered
+}
 
 var (
 	dnsCmd = &cobra.Command{
@@ -31,7 +102,7 @@ var (
 		Use:   "get",
 		Short: "Get managed domains",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -57,7 +128,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -79,7 +150,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -109,7 +180,7 @@ var (
 				return errors.New("no valid domains provided")
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -148,7 +219,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -167,7 +238,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -197,7 +268,7 @@ var (
 				}
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -229,7 +300,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -248,7 +319,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -278,7 +349,7 @@ var (
 				}
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -306,7 +377,7 @@ var (
 
 			ttl, _ := cmd.Flags().GetUint32("ttl")
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -325,7 +396,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -352,7 +423,7 @@ var (
 				text = args[1]
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -400,7 +471,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -440,7 +511,7 @@ var (
 				return fmt.Errorf("invalid port: %s (must be 1-65535)", port)
 			}
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -468,7 +539,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
 
-			cc, err := dialGRPC(rootCfg.dnsAddr)
+			cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 			if err != nil {
 				return err
 			}
@@ -504,7 +575,7 @@ func init() {
 	// Inspection commands
 	dnsCmd.AddCommand(dnsLookupCmd, dnsInspectCmd, dnsStatusCmd)
 	dnsLookupCmd.Flags().String("type", "A", "Record type (A, AAAA, TXT, SRV, ALL)")
-	dnsLookupCmd.Flags().String("server", "127.0.0.1:10053", "DNS server for resolver mode")
+	dnsLookupCmd.Flags().String("server", "", "DNS server for resolver mode (default: auto-discover)")
 	dnsLookupCmd.Flags().Bool("tcp", false, "Use TCP instead of UDP")
 	dnsInspectCmd.Flags().String("types", "A,AAAA,TXT,SRV", "Record types to inspect (comma-separated)")
 
@@ -572,6 +643,11 @@ func runDNSLookup(cmd *cobra.Command, args []string) error {
 	server, _ := cmd.Flags().GetString("server")
 	useTCP, _ := cmd.Flags().GetBool("tcp")
 
+	// If server not specified, discover it dynamically
+	if server == "" {
+		server = resolveDnsResolverEndpoint()
+	}
+
 	recordType = strings.ToUpper(recordType)
 
 	// Create resolver
@@ -638,7 +714,7 @@ func runDNSInspect(cmd *cobra.Command, args []string) error {
 	typesStr, _ := cmd.Flags().GetString("types")
 	types := strings.Split(typesStr, ",")
 
-	cc, err := dialGRPC(rootCfg.dnsAddr)
+	cc, err := dialGRPC(getEffectiveDnsGrpcAddr())
 	if err != nil {
 		return err
 	}
@@ -680,13 +756,16 @@ func runDNSInspect(cmd *cobra.Command, args []string) error {
 
 // runDNSStatus shows DNS service status (PR-DNSCLI)
 func runDNSStatus(cmd *cobra.Command, args []string) error {
+	grpcEndpoint := getEffectiveDnsGrpcAddr()
+	resolverEndpoint := resolveDnsResolverEndpoint()
+
 	fmt.Printf("DNS Service Status\n")
 	fmt.Printf("==================\n\n")
-	fmt.Printf("gRPC Endpoint: %s\n", rootCfg.dnsAddr)
-	fmt.Printf("Resolver Default: 127.0.0.1:10053\n\n")
+	fmt.Printf("gRPC Endpoint: %s\n", grpcEndpoint)
+	fmt.Printf("Resolver Endpoint: %s\n\n", resolverEndpoint)
 
 	// gRPC check
-	cc, err := dialGRPC(rootCfg.dnsAddr)
+	cc, err := dialGRPC(grpcEndpoint)
 	if err != nil {
 		fmt.Printf("❌ gRPC Check: FAILED (%v)\n", err)
 		return nil
@@ -694,33 +773,64 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 	defer cc.Close()
 
 	client := dnspb.NewDnsServiceClient(cc)
-	resp, err := client.GetDomains(ctxWithTimeout(), &dnspb.GetDomainsRequest{})
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel1()
+
+	resp, err := client.GetDomains(ctx1, &dnspb.GetDomainsRequest{})
 	if err != nil {
 		fmt.Printf("❌ gRPC Check: FAILED (%v)\n", err)
 		return nil
 	}
 
 	fmt.Printf("✓ gRPC Check: OK\n")
-	fmt.Printf("  Managed Domains: %d\n", len(resp.Domains))
-	for _, d := range resp.Domains {
-		fmt.Printf("    - %s\n", d)
+	if len(resp.Domains) == 0 {
+		fmt.Printf("  Managed Domains: (none)\n")
+	} else {
+		fmt.Printf("  Managed Domains: %d\n", len(resp.Domains))
+		for _, d := range resp.Domains {
+			fmt.Printf("    - %s\n", d)
+		}
 	}
 
-	// Resolver check
+	// Resolver check - query Globular DNS directly, not OS resolver
+	fmt.Printf("\nResolver Check:\n")
+
+	// Create custom resolver pointing to Globular DNS
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 1 * time.Second}
+			return d.DialContext(ctx, "udp", resolverEndpoint)
+		},
+	}
+
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+
+	// Test with localhost first (should always work if resolver is running)
+	testName := "localhost"
 	if len(resp.Domains) > 0 {
-		testName := fmt.Sprintf("controller.%s", resp.Domains[0])
-		fmt.Printf("\nResolver Check: testing %s\n", testName)
+		testName = fmt.Sprintf("controller.%s", resp.Domains[0])
+	}
 
-		resolver := &net.Resolver{}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		ips, err := resolver.LookupIP(ctx, "ip4", testName)
-		if err != nil {
-			fmt.Printf("  ⚠ Lookup failed: %v\n", err)
+	ips, err := resolver.LookupIP(ctx2, "ip", testName)
+	if err != nil {
+		// Check if it's a timeout or connection refused
+		if ctx2.Err() == context.DeadlineExceeded {
+			fmt.Printf("  ❌ Resolver unreachable (timeout)\n")
 		} else {
-			fmt.Printf("  ✓ Resolved: %v\n", ips)
+			fmt.Printf("  ⚠  Lookup for %s failed: %v\n", testName, err)
+			// Try a simple connectivity test
+			conn, connErr := net.DialTimeout("udp", resolverEndpoint, 1*time.Second)
+			if connErr != nil {
+				fmt.Printf("  ❌ Cannot connect to resolver at %s\n", resolverEndpoint)
+			} else {
+				conn.Close()
+				fmt.Printf("  ✓  Resolver reachable at %s\n", resolverEndpoint)
+			}
 		}
+	} else {
+		fmt.Printf("  ✓  Resolved %s: %v\n", testName, ips)
 	}
 
 	return nil
