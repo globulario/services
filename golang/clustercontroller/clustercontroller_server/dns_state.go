@@ -134,6 +134,49 @@ func ComputeDesiredStateWithServices(domain string, nodes []NodeInfo, services [
 		}
 	}
 
+	// Add Scylla database records (Day-0 Security)
+	// Individual scylla-N records for each node, plus scylla.domain multi-A
+	scyllaFQDN := fmt.Sprintf("scylla.%s", domain)
+	scyllaIndex := 0
+	for _, node := range nodes {
+		if node.HasProfile("scylla") || node.HasProfile("database") {
+			// Individual node record: scylla-0.domain, scylla-1.domain, etc.
+			if node.IPv4 != "" {
+				individualFQDN := fmt.Sprintf("scylla-%d.%s", scyllaIndex, domain)
+				state.Records = append(state.Records, DNSRecord{
+					Name:  individualFQDN,
+					Type:  RecordTypeA,
+					Value: node.IPv4,
+					TTL:   60,
+				})
+				// Multi-A record pointing to all scylla nodes
+				state.Records = append(state.Records, DNSRecord{
+					Name:  scyllaFQDN,
+					Type:  RecordTypeA,
+					Value: node.IPv4,
+					TTL:   60,
+				})
+			}
+			if node.IPv6 != "" {
+				individualFQDN := fmt.Sprintf("scylla-%d.%s", scyllaIndex, domain)
+				state.Records = append(state.Records, DNSRecord{
+					Name:  individualFQDN,
+					Type:  RecordTypeAAAA,
+					Value: node.IPv6,
+					TTL:   60,
+				})
+				// Multi-AAAA record pointing to all scylla nodes
+				state.Records = append(state.Records, DNSRecord{
+					Name:  scyllaFQDN,
+					Type:  RecordTypeAAAA,
+					Value: node.IPv6,
+					TTL:   60,
+				})
+			}
+			scyllaIndex++
+		}
+	}
+
 	// Add cluster-controller SRV record
 	controllerSRV := fmt.Sprintf("_cluster-controller._tcp.%s", domain)
 	for _, node := range nodes {
