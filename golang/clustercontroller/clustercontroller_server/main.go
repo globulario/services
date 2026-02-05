@@ -104,10 +104,15 @@ func main() {
 	srv.startOperationCleanupLoop(context.Background())
 	srv.startHealthMonitorLoop(context.Background())
 
-	// Start DNS reconciler (PR2) - only if cluster_domain configured
+	// Start DNS reconciler (PR2) - uses state domain (always present from Day-0)
 	// PR7: Support multiple DNS endpoints for high availability
 	// Day-0 Security: No hardcoded endpoints, use discovery
-	if cfg.ClusterDomain != "" {
+	// C3: DNS must be initialized from Day-0 using state.ClusterNetworkSpec
+	clusterDomain := ""
+	if state.ClusterNetworkSpec != nil {
+		clusterDomain = strings.TrimSpace(state.ClusterNetworkSpec.ClusterDomain)
+	}
+	if clusterDomain != "" {
 		var dnsEndpoints []string
 		dnsEndpointsStr := os.Getenv("CLUSTER_DNS_ENDPOINTS")
 		if dnsEndpointsStr != "" {
@@ -121,9 +126,9 @@ func main() {
 
 		dnsReconciler := NewDNSReconciler(srv, dnsEndpoints)
 		dnsReconciler.Start()
-		log.Printf("dns reconciler: ENABLED (domain=%s, endpoints=%v)", cfg.ClusterDomain, dnsEndpoints)
+		log.Printf("dns reconciler: ENABLED (domain=%s, endpoints=%v)", clusterDomain, dnsEndpoints)
 	} else {
-		log.Printf("dns reconciler: DISABLED (no cluster_domain configured)")
+		log.Printf("dns reconciler: DISABLED (no cluster_domain in state)")
 	}
 
 	log.Printf("cluster controller listening on %s (config=%s)", address, *cfgPath)
