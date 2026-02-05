@@ -88,6 +88,12 @@ func newControllerState() *controllerState {
 		Nodes:        make(map[string]*nodeState),
 		ClusterId:    uuid.NewString(),
 		CreatedAt:    time.Now(),
+		// Day-0 Security: Initialize with default internal domain
+		ClusterNetworkSpec: &clustercontrollerpb.ClusterNetworkSpec{
+			ClusterDomain: "globular.internal",
+			Protocol:      "http",
+		},
+		NetworkingGeneration: 1,
 	}
 }
 
@@ -111,6 +117,17 @@ func loadControllerState(path string) (*controllerState, error) {
 	}
 	if state.ClusterId == "" {
 		state.ClusterId = uuid.NewString()
+	}
+	// Day-0 Security: Ensure internal domain is always set
+	if state.ClusterNetworkSpec == nil {
+		state.ClusterNetworkSpec = &clustercontrollerpb.ClusterNetworkSpec{
+			ClusterDomain: "globular.internal",
+			Protocol:      "http",
+		}
+		state.NetworkingGeneration++
+	} else if state.ClusterNetworkSpec.ClusterDomain == "" {
+		state.ClusterNetworkSpec.ClusterDomain = "globular.internal"
+		state.NetworkingGeneration++
 	}
 	return state, nil
 }
