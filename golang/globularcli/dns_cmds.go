@@ -19,31 +19,51 @@ import (
 )
 
 // resolveDnsGrpcEndpoint discovers the DNS service gRPC endpoint dynamically.
-// It tries to use service discovery via --describe, falling back to the provided default.
+// It tries multiple discovery methods:
+// 1. Query etcd for DNS service configuration (preferred)
+// 2. Use --describe from service binary (if ServicesRoot configured)
+// 3. Fall back to provided default
 func resolveDnsGrpcEndpoint(fallback string) string {
-	root := config.GetServicesRoot()
-	if root == "" {
-		return fallback
-	}
-
-	binPath, err := config.FindServiceBinary(root, "dns")
-	if err != nil {
-		return fallback
-	}
-
-	desc, err := config.RunDescribe(binPath, 3*time.Second, nil)
-	if err != nil {
-		return fallback
-	}
-
-	if desc.Port > 0 {
-		host := "localhost"
-		if desc.Address != "" {
-			host = desc.Address
+	// Method 1: Try to resolve from etcd service configuration
+	svc, err := config.ResolveService("dns.DnsService")
+	if err == nil && svc != nil {
+		// Extract port from service config
+		var port int
+		switch p := svc["Port"].(type) {
+		case int:
+			port = p
+		case float64:
+			port = int(p)
+		case string:
+			fmt.Sscanf(p, "%d", &port)
 		}
-		return fmt.Sprintf("%s:%d", host, desc.Port)
+
+		if port > 0 {
+			host := "localhost"
+			if addr, ok := svc["Address"].(string); ok && addr != "" {
+				host = addr
+			}
+			return fmt.Sprintf("%s:%d", host, port)
+		}
 	}
 
+	// Method 2: Try --describe from binary
+	root := config.GetServicesRoot()
+	if root != "" {
+		binPath, err := config.FindServiceBinary(root, "dns")
+		if err == nil {
+			desc, err := config.RunDescribe(binPath, 3*time.Second, nil)
+			if err == nil && desc.Port > 0 {
+				host := "localhost"
+				if desc.Address != "" {
+					host = desc.Address
+				}
+				return fmt.Sprintf("%s:%d", host, desc.Port)
+			}
+		}
+	}
+
+	// Method 3: Fallback
 	return fallback
 }
 
