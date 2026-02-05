@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -23,6 +24,7 @@ import (
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -34,6 +36,38 @@ const (
 	acmeProductionURL = "https://acme-v02.api.letsencrypt.org/directory"
 	acmeStagingURL    = "https://acme-staging-v02.api.letsencrypt.org/directory"
 )
+
+// dnsDialOption returns gRPC dial options with TLS for DNS service connections.
+// Falls back to insecure if TLS setup fails (Day-0 compatibility).
+func dnsDialOption() grpc.DialOption {
+	// Try to load cluster CA for TLS
+	runtimeDir := config.GetRuntimeConfigDir()
+	tlsDir := filepath.Join(runtimeDir, "config", "tls")
+	caPath := filepath.Join(tlsDir, "ca.pem")
+
+	// Also check work directory where local CA is created
+	workCAPath := filepath.Join(tlsDir, "work", "ca.crt")
+
+	// Try both CA paths
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		caPEM, err = os.ReadFile(workCAPath)
+	}
+
+	if err == nil && len(caPEM) > 0 {
+		certPool := x509.NewCertPool()
+		if certPool.AppendCertsFromPEM(caPEM) {
+			tlsConfig := &tls.Config{
+				RootCAs:    certPool,
+				MinVersion: tls.VersionTLS12,
+			}
+			return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+		}
+	}
+
+	// Fallback to insecure for backward compatibility / Day-0
+	return grpc.WithTransportCredentials(insecure.NewCredentials())
+}
 
 type acmeEnsureAction struct{}
 
@@ -157,8 +191,8 @@ func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
 	// Remove trailing dot from fqdn
 	fqdn = strings.TrimSuffix(fqdn, ".")
 
-	// Connect to DNS service
-	cc, err := grpc.Dial(p.dnsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Connect to DNS service with TLS
+	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}
@@ -189,8 +223,8 @@ func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
 	// Remove trailing dot from fqdn
 	fqdn = strings.TrimSuffix(fqdn, ".")
 
-	// Connect to DNS service
-	cc, err := grpc.Dial(p.dnsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Connect to DNS service with TLS
+	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}
@@ -214,7 +248,7 @@ func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
 
 // waitForPropagation queries DNS until TXT record is visible
 func (p *globularDNSProvider) waitForPropagation(fqdn, value string) error {
-	cc, err := grpc.Dial(p.dnsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(p.dnsAddr, dnsDialOption())
 	if err != nil {
 		return fmt.Errorf("dial DNS service: %w", err)
 	}
