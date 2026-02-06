@@ -55,13 +55,24 @@ func (a *Authentication) GetRequestMetadata(context.Context, ...string) (map[str
 func (a *Authentication) RequireTransportSecurity() bool { return true }
 
 // Claims is the signed JWT payload. It embeds jwt.RegisteredClaims.
+// v1 Conformance: Identity MUST NOT include domain/host/DNS information.
 type Claims struct {
-	ID         string `json:"id"`
-	Username   string `json:"username"`
-	Email      string `json:"email"`
-	Domain     string `json:"domain"`      // Where the token was generated
-	UserDomain string `json:"user_domain"` // User's domain/tenant
-	Address    string `json:"address"`
+	// Core identity (opaque, stable, domain-independent)
+	PrincipalID string `json:"principal_id"` // Opaque user ID (e.g., "usr_7f9a3b2c")
+
+	// Display/contact information (NOT used for identity)
+	ID       string `json:"id"`       // Legacy username, kept for compatibility
+	Username string `json:"username"` // Display name only
+	Email    string `json:"email"`    // Contact only
+	Address  string `json:"address"`  // Client address (informational)
+
+	// Authorization scopes
+	Scopes []string `json:"scopes,omitempty"` // ["read:files", "write:config"]
+
+	// REMOVED per v1 invariants:
+	// - Domain: Domain is routing label, not identity
+	// - UserDomain: No domain in identity strings
+
 	jwt.RegisteredClaims
 }
 
@@ -136,7 +147,9 @@ func readSessionTimeout() (int, error) {
 // - timeout: expiry in minutes (fallback to config or default).
 // - mac:     intended audience (peer MAC / service id). Optional; empty means “any cluster audience policy”.
 // The token is always signed with the **issuer's** private key (asymmetric).
-func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
+// GenerateToken creates a v1-conformant JWT token with opaque principal identity.
+// v1 Breaking Change: Removed userDomain parameter - identity MUST NOT include domain.
+func GenerateToken(timeout int, mac, userId, userName, email string) (string, error) {
 	// Normalize/secure timeout
 	if timeout <= 0 {
 		if cfgTimeout, err := readSessionTimeout(); err == nil && cfgTimeout > 0 {
@@ -158,28 +171,31 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 	audience := mac
 	// If you prefer to scope to a logical API instead of peer MAC, set audience to that name here.
 
-	domain, err := config.GetDomain()
-	if err != nil {
-		return "", fmt.Errorf("generate token: get domain: %w", err)
-	}
 	address, err := config.GetAddress()
 	if err != nil {
 		return "", fmt.Errorf("generate token: get address: %w", err)
 	}
 
+	// v1 Conformance: PrincipalID is opaque, stable, domain-independent
+	// For migration: use userId as principalID (in future, generate new IDs)
+	principalID := userId
+	if principalID == "" {
+		principalID = userName // Fallback for legacy code
+	}
+
 	claims := &Claims{
-		ID:         userId,
-		Username:   userName,
-		UserDomain: userDomain,
-		Email:      email,
-		Domain:     domain,
-		Address:    address,
+		PrincipalID: principalID, // v1: Opaque identity
+		ID:          userId,      // Legacy field, kept for compatibility
+		Username:    userName,    // Display name only
+		Email:       email,       // Contact only
+		Address:     address,     // Informational only
+		// REMOVED per v1: Domain, UserDomain (routing labels, not identity)
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 			ID:        userId,
-			Subject:   userId,
+			Subject:   principalID, // v1: Subject is PrincipalID
 			Issuer:    issuer,
 			Audience:  jwt.ClaimStrings{},
 		},
@@ -304,23 +320,32 @@ func GetClientId(ctx context.Context) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("get client id: %w", err)
 	}
-	if claims.UserDomain == "" {
-		return "", "", errors.New("get client id: token missing user domain")
+
+	// v1 Conformance: Return PrincipalID (opaque, stable, domain-independent)
+	// REMOVED: username := claims.ID + "@" + claims.UserDomain
+	// Identity MUST NOT include domain suffix
+	principalID := claims.PrincipalID
+	if principalID == "" {
+		// Fallback for legacy tokens that don't have PrincipalID yet
+		principalID = claims.ID
+		if principalID == "" {
+			return "", "", errors.New("get client id: token missing principal_id")
+		}
 	}
-	username := claims.ID + "@" + claims.UserDomain
-	return username, token, nil
+	return principalID, token, nil
 }
 
 // SetLocalToken generates a token for the given identity and writes it
 // to /etc/globular/config/tokens/<normalized_mac>_token, also caching it in memory.
-func SetLocalToken(mac, domain, id, name, email string, timeout int) error {
+// v1 Breaking Change: Removed domain parameter - identity MUST NOT include domain.
+func SetLocalToken(mac, id, name, email string, timeout int) error {
 	rawMAC := mac                       // keep raw MAC for cache key
 	normMAC := normalizeMACForFile(mac) // for filesystem path
 
 	path := tokenPathForMAC(rawMAC)
 	_ = os.Remove(path) // best-effort cleanup
 
-	tokenString, err := GenerateToken(timeout, rawMAC, id, name, email, domain)
+	tokenString, err := GenerateToken(timeout, rawMAC, id, name, email)
 	if err != nil {
 		logger.Error("set local token: generate failed", "mac", rawMAC, "err", err)
 		return fmt.Errorf("set local token: generate: %w", err)
