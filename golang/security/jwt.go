@@ -233,7 +233,20 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 
 // ValidateToken parses and validates a signed JWT string and returns its claims.
 // Signature is verified using the **issuer's public key** looked up by iss + kid.
+// v2 Note: Does NOT validate audience - use ValidateTokenWithAudience for proper validation.
 func ValidateToken(tokenStr string) (*Claims, error) {
+	return validateTokenInternal(tokenStr, "")
+}
+
+// ValidateTokenWithAudience validates a token and enforces audience matching.
+// v2 Conformance: Prevents cross-service token replay (security violation INV-4)
+// Audience should be the MAC address of the current service.
+func ValidateTokenWithAudience(tokenStr string, expectedAudience string) (*Claims, error) {
+	return validateTokenInternal(tokenStr, expectedAudience)
+}
+
+// validateTokenInternal is the core validation logic.
+func validateTokenInternal(tokenStr string, expectedAudience string) (*Claims, error) {
 	claims := &Claims{}
 
 	keyFunc := func(t *jwt.Token) (interface{}, error) {
@@ -262,10 +275,19 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 		return pub, nil
 	}
 
-	parsed, err := jwt.ParseWithClaims(tokenStr, claims, keyFunc,
-		jwt.WithLeeway(tokenExpirySkew),
-		jwt.WithAudience(""), // we'll enforce aud at the service/router layer
-	)
+	// v2 Conformance: Audience validation (security violation INV-4.1)
+	// CHANGED: jwt.WithAudience("") disables validation - now enforced when expectedAudience provided
+	var parseOpts []jwt.ParserOption
+	parseOpts = append(parseOpts, jwt.WithLeeway(tokenExpirySkew))
+	if expectedAudience != "" {
+		// Enforce audience matching - prevents cross-service token replay
+		parseOpts = append(parseOpts, jwt.WithAudience(expectedAudience))
+	} else {
+		// Legacy behavior: no audience validation (less secure)
+		parseOpts = append(parseOpts, jwt.WithAudience(""))
+	}
+
+	parsed, err := jwt.ParseWithClaims(tokenStr, claims, keyFunc, parseOpts...)
 	if err != nil {
 		return claims, fmt.Errorf("validate token: parse: %w", err)
 	}
