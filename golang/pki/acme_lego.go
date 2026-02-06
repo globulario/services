@@ -247,7 +247,7 @@ func (p *globularDNSProvider) Present(domain, token, keyAuth string) error {
 	}
 	defer c.Close()
 
-	tk, err := security.GenerateToken(p.timeout, c.GetMac(), "sa", "", p.email, p.domain)
+	tk, err := security.GenerateToken(p.timeout, c.GetMac(), "sa", "", p.email)
 	if err != nil {
 		return fmt.Errorf("token: %w", err)
 	}
@@ -307,7 +307,7 @@ func (p *globularDNSProvider) CleanUp(domain, token, keyAuth string) error {
 	}
 	defer c.Close()
 
-	tk, err := security.GenerateToken(p.timeout, c.GetMac(), "sa", "", p.email, p.domain)
+	tk, err := security.GenerateToken(p.timeout, c.GetMac(), "sa", "", p.email)
 	if err != nil {
 		return fmt.Errorf("token: %w", err)
 	}

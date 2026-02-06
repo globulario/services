@@ -447,7 +447,7 @@ func refreshLocalToken(token string) (string, error) {
 		aud = claims.Audience[0]
 	}
 
-	newToken, err := GenerateToken(timeout, aud, claims.ID, claims.Username, claims.Email, claims.UserDomain)
+	newToken, err := GenerateToken(timeout, aud, claims.ID, claims.Username, claims.Email)
 	if err != nil {
 		return "", fmt.Errorf("refresh local token: generate: %w", err)
 	}

@@ -480,10 +480,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, vErr
 		}
-		if len(claims.Domain) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "token validation failed: empty domain")
-		}
-		clientId = claims.ID + "@" + claims.UserDomain
+		clientId = claims.ID
 		issuer = claims.Issuer
 	}
 
@@ -586,17 +583,14 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return nil
 	}
 
-	// 4) We need auth â†’ parse token now.
+	// 4) We need auth â†' parse token now.
 	var clientId, issuer string
 	if l.token != "" {
 		claims, vErr := security.ValidateToken(l.token)
 		if vErr != nil {
 			return status.Errorf(codes.Unauthenticated, "token validation failed: %v", vErr)
 		}
-		if len(claims.Domain) == 0 {
-			return status.Error(codes.Unauthenticated, "token validation failed: empty domain")
-		}
-		clientId = claims.ID + "@" + claims.UserDomain
+		clientId = claims.ID
 		issuer = claims.Issuer
 	}
 

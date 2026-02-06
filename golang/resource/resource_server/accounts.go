@@ -1848,7 +1848,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Generate a token for the new account
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, srv.Mac, account.Id, account.Name, account.Email, account.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, srv.Mac, account.Id, account.Name, account.Email)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -1867,7 +1867,7 @@ func (srv *server) RegisterAccount(ctx context.Context, rqst *resourcepb.Registe
 	}
 
 	// Update user session.
-	err = srv.updateSession(claims.ID+"@"+claims.UserDomain, resourcepb.SessionState_ONLINE, time.Now().Unix(), claims.RegisteredClaims.ExpiresAt.Unix())
+	err = srv.updateSession(claims.ID, resourcepb.SessionState_ONLINE, time.Now().Unix(), claims.RegisteredClaims.ExpiresAt.Unix())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

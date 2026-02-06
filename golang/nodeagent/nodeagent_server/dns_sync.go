@@ -507,7 +507,7 @@ func makeDNSToken(nodeID string, client *dns_client.Dns_Client, spec *clustercon
 		return "", fmt.Errorf("dns: empty node identity for token")
 	}
 	adminEmail := dnsAdminEmail(spec)
-	tk, err := security.GenerateToken(defaultSessionTimeoutMinutes, id, "sa", "", adminEmail, domain)
+	tk, err := security.GenerateToken(defaultSessionTimeoutMinutes, id, "sa", "", adminEmail)
 	if err != nil {
 		return "", fmt.Errorf("dns: generate token: %w", err)
 	}

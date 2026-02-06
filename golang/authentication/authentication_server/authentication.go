@@ -78,9 +78,6 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 		return nil, logInternal("RefreshToken:validate", err)
 	}
 
-	if len(claims.UserDomain) == 0 {
-		return nil, logInternal("RefreshToken:userDomain", errors.New("no user domain found in token"))
-	}
 
 	// refuse refresh if token expired > 7 days ago
 	if time.Unix(claims.RegisteredClaims.ExpiresAt.Unix(), 0).Before(time.Now().AddDate(0, 0, -7)) {
@@ -88,7 +85,7 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 	}
 
 	tokenString, err := security.GenerateToken(
-		srv.SessionTimeout, claims.Issuer, claims.ID, claims.Username, claims.Email, claims.UserDomain,
+		srv.SessionTimeout, claims.Issuer, claims.ID, claims.Username, claims.Email,
 	)
 	if err != nil {
 		return nil, logInternal("RefreshToken:generate", err)
@@ -98,7 +95,7 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 	session, err := srv.getSession(claims.ID)
 	if err != nil {
 		session = new(resourcepb.Session)
-		session.AccountId = claims.ID + "@" + claims.UserDomain
+		session.AccountId = claims.ID
 	}
 	session.LastStateTime = time.Now().Unix()
 	session.State = resourcepb.SessionState_ONLINE
@@ -201,7 +198,7 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		}
 		adminEmail, _ := cfg["AdminEmail"].(string)
 
-		tok, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail, srv.Domain)
+		tok, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", adminEmail)
 		if err != nil {
 			return nil, logInternal("SetRootPassword:generateToken", err)
 		}
@@ -269,7 +266,7 @@ func (srv *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.S
 		return nil, err
 	}
 
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", srvConfig["AdminEmail"].(string), srv.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, macAddress, "sa", "sa", srvConfig["AdminEmail"].(string))
 	if err != nil {
 		return nil, logInternal("SetRootPassword:generateToken", err)
 	}
@@ -398,7 +395,7 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			}
 		}
 
-		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", cfg["AdminEmail"].(string), srv.Domain)
+		tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, "sa", "sa", cfg["AdminEmail"].(string))
 		if err != nil {
 			return "", logInternal("authenticate:root:generate", err)
 		}
@@ -490,16 +487,13 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	session := new(resourcepb.Session)
 	session.AccountId = account.Id + "@" + account.Domain
 
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)
+	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", logInternal("authenticate:generate", err)
 	}
 
 	claims, _ := security.ValidateToken(tokenString)
 	owner := claims.ID
-	if !strings.Contains(owner, "@") {
-		owner += "@" + claims.UserDomain
-	}
 
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + account.Id + "@" + account.Domain)
 	_ = srv.addResourceOwner(tokenString, "/users/"+account.Id+"@"+account.Domain, owner, "file", rbacpb.SubjectType_ACCOUNT)
@@ -622,7 +616,7 @@ func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb
 	userId := strings.Split(clientId, "@")[0]
 	userDomain := strings.Split(clientId, "@")[1]
 
-	token, err := security.GenerateToken(srv.SessionTimeout, rqst.Mac, userId, "", "", userDomain)
+	token, err := security.GenerateToken(srv.SessionTimeout, rqst.Mac, userId, "", "")
 	if err != nil {
 		return nil, logInternal("GeneratePeerToken:generate", err)
 	}

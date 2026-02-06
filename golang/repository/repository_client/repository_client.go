@@ -500,10 +500,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user, organization
 					if err != nil {
 						return err
 					}
-					if claims.UserDomain == "" {
-						return errors.New("no user domain found in token")
-					}
-					user += "@" + claims.UserDomain
+					user = claims.ID
 				}
 			}
 			pubID = user

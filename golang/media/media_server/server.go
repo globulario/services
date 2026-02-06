@@ -719,10 +719,7 @@ func (srv *server) setOwner(token, path string) error {
 		if err != nil {
 			return err
 		}
-		if len(claims.UserDomain) == 0 {
-			return errors.New("no user domain was found in the token")
-		}
-		clientId = claims.ID + "@" + claims.UserDomain
+		clientId = claims.ID
 	} else {
 		return errors.New("CreateBlogPost no token was given")
 	}

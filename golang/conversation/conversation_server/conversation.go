@@ -354,10 +354,7 @@ func (srv *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 			if err != nil {
 				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			if len(claims.UserDomain) == 0 {
-				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
-			}
-			clientId = claims.ID + "@" + claims.UserDomain
+			clientId = claims.ID
 		} else {
 			return status.Errorf(codes.Unauthenticated, "Connect: no token was given")
 		}
@@ -404,10 +401,7 @@ func (srv *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 			if err != nil {
 				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			if len(claims.UserDomain) == 0 {
-				return status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no user domain found in token")))
-			}
-			clientId = claims.ID + "@" + claims.UserDomain
+			clientId = claims.ID
 		} else {
 			return status.Errorf(codes.Unauthenticated, "JoinConversation: no token was given")
 		}
