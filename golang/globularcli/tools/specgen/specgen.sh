@@ -19,6 +19,8 @@ svc_name_from_exe() {
 # Check if service requires Scylla database
 needs_scylla() {
   local svc="$1"
+  # ScyllaDB is used for resource and rbac services
+  # NOTE: ScyllaDB must be installed and configured with TLS before these services start
   case "${svc}" in
     resource|rbac) return 0 ;;
     *) return 1 ;;
@@ -114,6 +116,16 @@ steps:
         group: globular
         mode: 0750
       - path: "{{.StateDir}}/${svc}"
+        owner: globular
+        group: globular
+        mode: 0750
+
+      # TLS directories (certificates must be provisioned by Day-0 bootstrap)
+      - path: "{{.StateDir}}/pki"
+        owner: globular
+        group: globular
+        mode: 0750
+      - path: "{{.StateDir}}/config/tls"
         owner: globular
         group: globular
         mode: 0750

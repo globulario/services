@@ -385,13 +385,30 @@ func GetHostname() (string, error) {
 }
 
 func GetTLSFile(name, domain, file string) string {
-	candidates := []string{
-		filepath.Join(GetRuntimeTLSDir(), file),
-		filepath.Join(GetAdminTLSDir(), file),
+	// Map of logical certificate names to possible filenames
+	// Supports both traditional naming (server.crt) and ACME/Let's Encrypt naming (fullchain.pem)
+	alternatives := map[string][]string{
+		"server.crt": {"server.crt", "fullchain.pem", "cert.pem"},
+		"server.key": {"server.key", "privkey.pem", "key.pem"},
+		"ca.crt":     {"ca.crt", "ca.pem"},
+		"client.crt": {"client.crt", "cert.pem"},
+		"client.key": {"client.key", "privkey.pem", "key.pem"},
 	}
-	for _, p := range candidates {
-		if Utility.Exists(p) {
-			return p
+
+	// Get list of alternative filenames to try (default to original if not in map)
+	filenames := alternatives[file]
+	if filenames == nil {
+		filenames = []string{file}
+	}
+
+	// Try each directory with each possible filename
+	dirs := []string{GetRuntimeTLSDir(), GetAdminTLSDir()}
+	for _, dir := range dirs {
+		for _, filename := range filenames {
+			path := filepath.Join(dir, filename)
+			if Utility.Exists(path) {
+				return path
+			}
 		}
 	}
 	return ""
@@ -535,7 +552,9 @@ func GetKeysDir() string {
 
 // GetRuntimeTLSDir returns the location for auto-generated TLS materials (stateful).
 func GetRuntimeTLSDir() string {
-	return filepath.Join(GetRuntimeConfigDir(), "tls")
+	// Canonical runtime TLS location (data plane/server certificates).
+	// Nested under /var/lib/globular/config/tls to match service expectations.
+	return filepath.Join(GetRuntimeConfigDir(), "config", "tls")
 }
 
 // CanonicalTLSPaths returns the canonical TLS directory and files for data plane usage.

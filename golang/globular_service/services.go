@@ -477,14 +477,16 @@ func InitGrpcServer(s Service) (*grpc.Server, error) {
 		}),
 	)
 
-	// TLS (if enabled).
-	if s.GetTls() {
-		cfg := GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust())
-		if cfg == nil {
-			return nil, fmt.Errorf("InitGrpcServer: TLS enabled but TLS config could not be created")
-		}
-		opts = append(opts, grpc.Creds(credentials.NewTLS(cfg)))
+	// TLS is MANDATORY - no longer optional for security
+	// All Globular services must use TLS
+	cfg := GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust())
+	if cfg == nil {
+		return nil, fmt.Errorf("InitGrpcServer: TLS config could not be created (TLS is mandatory)")
 	}
+	opts = append(opts, grpc.Creds(credentials.NewTLS(cfg)))
+
+	// Force TLS flag to true (backward compatibility)
+	s.SetTls(true)
 
 	// Lazily obtain interceptors. This does not touch etcd at import time.
 	unaryInterceptor, streamInterceptor, err := interceptors.Load()

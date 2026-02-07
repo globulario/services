@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -336,8 +337,74 @@ func (srv *server) Init() error {
 		}
 	}
 
+	// Bootstrap default internal zone if no domains configured
+	if err := srv.ensureDefaultInternalZone(); err != nil {
+		logger.Warn("Failed to bootstrap default internal zone", "err", err)
+		// Non-fatal - continue startup
+	}
+
 	return nil
 }
+// ensureDefaultInternalZone creates a default internal DNS zone if none exist.
+// This is called during Init() to bootstrap Day-0 installations.
+func (srv *server) ensureDefaultInternalZone() error {
+	srv.mu.RLock()
+	hasZones := len(srv.Domains) > 0
+	srv.mu.RUnlock()
+
+	if hasZones {
+		// Already have zones configured
+		return nil
+	}
+
+	// Determine internal domain name
+	internalDomain := os.Getenv("GLOBULAR_INTERNAL_DOMAIN")
+	if internalDomain == "" {
+		internalDomain = "globular.internal"
+	}
+	if !strings.HasSuffix(internalDomain, ".") {
+		internalDomain += "."
+	}
+
+	logger.Info("Bootstrapping default internal DNS zone", "domain", internalDomain)
+
+	// Create the zone by calling SetDomains
+	_, err := srv.SetDomains(context.Background(), &dnspb.SetDomainsRequest{
+		Domains: []string{internalDomain},
+	})
+	if err != nil {
+		return fmt.Errorf("bootstrap zone: %w", err)
+	}
+
+	// Add baseline A records for core services
+	baseRecords := []struct {
+		name string
+		ip   string
+	}{
+		{"globular-gateway." + internalDomain, "127.0.0.1"},
+		{"controller." + internalDomain, "127.0.0.1"},
+		{"dns." + internalDomain, "127.0.0.1"},
+		{"etcd." + internalDomain, "127.0.0.1"},
+	}
+
+	for _, rec := range baseRecords {
+		_, err := srv.SetA(context.Background(), &dnspb.SetARequest{
+			Domain: rec.name,
+			A:      rec.ip,
+			Ttl:    300,
+		})
+		if err != nil {
+			logger.Warn("Failed to add bootstrap DNS record", "record", rec.name, "err", err)
+			// Continue adding other records even if one fails
+		} else {
+			logger.Info("Added bootstrap DNS record", "record", rec.name, "ip", rec.ip)
+		}
+	}
+
+	logger.Info("Default internal zone created", "domain", internalDomain)
+	return nil
+}
+
 func (srv *server) Save() error         { return globular.SaveService(srv) }
 func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
 func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }

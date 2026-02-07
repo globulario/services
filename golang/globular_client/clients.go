@@ -501,13 +501,13 @@ func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal b
 }
 
 // pickTLSBaseDir chooses a writable base dir.
-// Order: $GLOBULAR_TLS_DIR > config.GetConfigDir()+"/tls" if writable > ~/.config/globular/tls
+// Order: $GLOBULAR_TLS_DIR > config.GetConfigDir()+"/config/tls" if writable > ~/.config/globular/tls
 func pickTLSBaseDir() string {
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_DIR")); v != "" {
 		_ = os.MkdirAll(v, 0o755)
 		return v
 	}
-	sysBase := filepath.Join(config.GetConfigDir(), "tls")
+	sysBase := filepath.Join(config.GetConfigDir(), "config", "tls")
 	if err := os.MkdirAll(sysBase, 0o755); err == nil {
 		if f, e := os.CreateTemp(sysBase, ".wtest"); e == nil {
 			_ = f.Close()
@@ -619,17 +619,13 @@ func waitForHealthReady(client Client, controlHost string, opts initOptions) err
 		defer cancel()
 	}
 
-	// Dial options: TLS or insecure
+	// TLS is MANDATORY - insecure connections are no longer allowed
 	var dialOpts []grpc.DialOption
-	if client.HasTLS() {
-		creds, cerr := makeTLSCreds(client.GetCertFile(), client.GetKeyFile(), client.GetCaFile(), targetHost)
-		if cerr != nil {
-			return fmt.Errorf("InitClient: building TLS creds failed: %w", cerr)
-		}
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
-	} else {
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds, cerr := makeTLSCreds(client.GetCertFile(), client.GetKeyFile(), client.GetCaFile(), targetHost)
+	if cerr != nil {
+		return fmt.Errorf("InitClient: building TLS creds failed (TLS is mandatory): %w", cerr)
 	}
+	dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 
 	var lastErr error
 	for i := 1; i <= opts.healthAttempts; i++ {

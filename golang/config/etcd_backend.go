@@ -58,20 +58,7 @@ func etcdClient() (*clientv3.Client, error) {
 	// Build endpoints (with scheme hints) from env / local config.
 	raw := etcdEndpointsFromEnv() // may contain https://
 
-	// Decide if we must use TLS:
-	//   - true if any endpoint scheme is https
-	//   - or if local server TLS files are present
-	forceTLS := false
-	for _, ep := range raw {
-		if strings.HasPrefix(strings.TrimSpace(strings.ToLower(ep)), "https://") {
-			forceTLS = true
-			break
-		}
-	}
-	if !forceTLS && etcdServerTLSExists() {
-		forceTLS = true
-	}
-
+	// TLS is MANDATORY - no longer optional for security
 	// Normalize to host:port for the client (TLS is specified separately).
 	hostports := make([]string, 0, len(raw))
 	for _, ep := range raw {
@@ -103,15 +90,12 @@ func etcdClient() (*clientv3.Client, error) {
 		AutoSyncInterval: 30 * time.Second,
 	}
 
-	// Decide TLS strictly from local server state (and not from whatever a caller passed).
-	// This avoids the “first record does not look like a TLS handshake” situation.
-	if forceTLS {
-		tlsCfg, err := GetEtcdTLS()
-		if err != nil {
-			return nil, fmt.Errorf("TLS required but not available: %w", err)
-		}
-		cfg.TLS = tlsCfg
+	// TLS is MANDATORY for all etcd connections
+	tlsCfg, err := GetEtcdTLS()
+	if err != nil {
+		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): %w", err)
 	}
+	cfg.TLS = tlsCfg
 
 	c, err := clientv3.New(cfg)
 	if err != nil {
