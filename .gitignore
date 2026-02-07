@@ -4,3 +4,16 @@ package-lock.json
 golang/resource/resourcepb/minio_proxy_config.go
 golang/tools/stage/
 golang/globularcli/generated/
+
+# Build artifacts
+golang/generated/
+*_server
+golang/globularcli/globularcli
+golang/clustercontroller/clustercontroller_server/clustercontroller_server
+golang/nodeagent/nodeagent_server/nodeagent_server
+
+# Binary executables
+*.exe
+*.dll
+*.so
+*.dylib
