@@ -1,10 +1,7 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"github.com/globulario/services/golang/globular_service"
 )
 
 // Config holds the Echo service configuration.
@@ -76,17 +73,7 @@ func DefaultConfig() *Config {
 	}
 
 	// Set default domain and address from environment or use localhost
-	if v := os.Getenv("GLOBULAR_DOMAIN"); v != "" {
-		cfg.Domain = v
-	} else {
-		cfg.Domain = "localhost"
-	}
-
-	if v := os.Getenv("GLOBULAR_ADDRESS"); v != "" {
-		cfg.Address = v
-	} else {
-		cfg.Address = fmt.Sprintf("localhost:%d", cfg.Port)
-	}
+	cfg.Domain, cfg.Address = globular_service.GetDefaultDomainAddress(cfg.Port)
 
 	return cfg
 }
@@ -112,76 +99,29 @@ func (c *Config) Save() error {
 // SaveToFile writes the configuration to a local JSON file.
 // This is a fallback for when etcd is unavailable.
 func (c *Config) SaveToFile(path string) error {
-	if path == "" {
-		return fmt.Errorf("config path is required")
-	}
-
-	// Create directory if it doesn't exist
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Marshal to JSON
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	// Write to file
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
+	return globular_service.SaveConfigToFile(c, path)
 }
 
 // LoadFromFile reads configuration from a local JSON file.
 func LoadFromFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
 	cfg := &Config{}
-	if err := json.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+	if err := globular_service.LoadConfigFromFile(path, cfg); err != nil {
+		return nil, err
 	}
-
 	return cfg, nil
 }
 
 // Validate checks that the configuration is valid and complete.
 func (c *Config) Validate() error {
-	if c.Name == "" {
-		return fmt.Errorf("service name is required")
-	}
-
-	if c.Port <= 0 || c.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", c.Port)
-	}
-
-	if c.Proxy <= 0 || c.Proxy > 65535 {
-		return fmt.Errorf("proxy port must be between 1 and 65535, got %d", c.Proxy)
-	}
-
-	if c.Protocol == "" {
-		return fmt.Errorf("protocol is required")
-	}
-
-	if c.Version == "" {
-		return fmt.Errorf("version is required")
-	}
-
-	return nil
+	return globular_service.ValidateCommonFields(c.Name, c.Port, c.Proxy, c.Protocol, c.Version)
 }
 
 // Clone creates a deep copy of the configuration.
 func (c *Config) Clone() *Config {
 	clone := *c
-	clone.Keywords = append([]string(nil), c.Keywords...)
-	clone.Repositories = append([]string(nil), c.Repositories...)
-	clone.Discoveries = append([]string(nil), c.Discoveries...)
-	clone.Dependencies = append([]string(nil), c.Dependencies...)
+	clone.Keywords = globular_service.CloneStringSlice(c.Keywords)
+	clone.Repositories = globular_service.CloneStringSlice(c.Repositories)
+	clone.Discoveries = globular_service.CloneStringSlice(c.Discoveries)
+	clone.Dependencies = globular_service.CloneStringSlice(c.Dependencies)
 	return &clone
 }

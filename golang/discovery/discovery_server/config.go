@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
+
+	"github.com/globulario/services/golang/globular_service"
 )
 
 // Config represents the Discovery service configuration.
@@ -116,33 +116,25 @@ func DefaultConfig() *Config {
 
 	cfg.TLS.Enabled = false
 
+	// Set default domain and address from environment or use localhost
+	cfg.Domain, cfg.Address = globular_service.GetDefaultDomainAddress(cfg.Port)
+
 	return cfg
 }
 
 // Validate checks that required configuration fields are set correctly.
 func (c *Config) Validate() error {
-	if c.Name == "" {
-		return fmt.Errorf("service name is required")
+	// Validate common fields
+	if err := globular_service.ValidateCommonFields(c.Name, c.Port, c.Proxy, c.Protocol, c.Version); err != nil {
+		return err
 	}
 
-	if c.Port <= 0 || c.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", c.Port)
-	}
-
-	if c.Protocol == "" {
-		return fmt.Errorf("protocol is required")
-	}
-
-	if c.Version == "" {
-		return fmt.Errorf("version is required")
-	}
-
-	// Validate dependencies are present
+	// Discovery-specific validation: validate dependencies are present
 	if len(c.Dependencies) == 0 {
 		return fmt.Errorf("dependencies are required (rbac.RbacService, resource.ResourceService)")
 	}
 
-	// Validate permissions structure
+	// Discovery-specific validation: validate permissions structure
 	if len(c.Permissions) == 0 {
 		return fmt.Errorf("RBAC permissions are required")
 	}
@@ -152,64 +144,49 @@ func (c *Config) Validate() error {
 
 // SaveToFile writes the configuration to a JSON file.
 func (c *Config) SaveToFile(path string) error {
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
-	}
-
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("write config file: %w", err)
-	}
-
-	return nil
+	return globular_service.SaveConfigToFile(c, path)
 }
 
 // LoadFromFile reads configuration from a JSON file.
 func LoadFromFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read config file: %w", err)
+	cfg := &Config{}
+	if err := globular_service.LoadConfigFromFile(path, cfg); err != nil {
+		return nil, err
 	}
-
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	return &cfg, nil
+	return cfg, nil
 }
 
 // Clone creates a deep copy of the configuration.
 func (c *Config) Clone() *Config {
 	clone := &Config{
-		ID:             c.ID,
-		Name:           c.Name,
-		Domain:         c.Domain,
-		Address:        c.Address,
-		Port:           c.Port,
-		Proxy:          c.Proxy,
-		Protocol:       c.Protocol,
-		Version:        c.Version,
-		PublisherID:    c.PublisherID,
-		Description:    c.Description,
-		Keywords:       append([]string{}, c.Keywords...),
-		Repositories:   append([]string{}, c.Repositories...),
-		Discoveries:    append([]string{}, c.Discoveries...),
-		Dependencies:   append([]string{}, c.Dependencies...),
+		ID:              c.ID,
+		Name:            c.Name,
+		Domain:          c.Domain,
+		Address:         c.Address,
+		Port:            c.Port,
+		Proxy:           c.Proxy,
+		Protocol:        c.Protocol,
+		Version:         c.Version,
+		PublisherID:     c.PublisherID,
+		Description:     c.Description,
+		Keywords:        globular_service.CloneStringSlice(c.Keywords),
+		Repositories:    globular_service.CloneStringSlice(c.Repositories),
+		Discoveries:     globular_service.CloneStringSlice(c.Discoveries),
+		Dependencies:    globular_service.CloneStringSlice(c.Dependencies),
 		AllowAllOrigins: c.AllowAllOrigins,
-		AllowedOrigins: c.AllowedOrigins,
-		KeepUpToDate:   c.KeepUpToDate,
-		KeepAlive:      c.KeepAlive,
-		Platform:       c.Platform,
-		Checksum:       c.Checksum,
-		Path:           c.Path,
-		Proto:          c.Proto,
-		Mac:            c.Mac,
-		Process:        c.Process,
-		ProxyProcess:   c.ProxyProcess,
-		State:          c.State,
-		LastError:      c.LastError,
-		ModTime:        c.ModTime,
+		AllowedOrigins:  c.AllowedOrigins,
+		KeepUpToDate:    c.KeepUpToDate,
+		KeepAlive:       c.KeepAlive,
+		Platform:        c.Platform,
+		Checksum:        c.Checksum,
+		Path:            c.Path,
+		Proto:           c.Proto,
+		Mac:             c.Mac,
+		Process:         c.Process,
+		ProxyProcess:    c.ProxyProcess,
+		State:           c.State,
+		LastError:       c.LastError,
+		ModTime:         c.ModTime,
 	}
 
 	// Deep copy TLS
