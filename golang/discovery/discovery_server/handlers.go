@@ -16,6 +16,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// handlers.go - Discovery Service RPC Handlers
+//
+// Phase 1 Step 2: Renamed from discovery.go to follow Echo refactoring pattern.
+//
+// This file contains pure business logic handlers for the Discovery service:
+// - PublishService: Registers service packages with RBAC validation
+// - PublishApplication: Registers application packages with RBAC validation
+// - ResolveInstallPlan: Generates installation plans for different profiles
+// - GetPackageDescriptor: Retrieves package metadata
+//
+// All handlers are pure functions with no side effects (no config persistence).
+// Authentication, authorization, and resource management are delegated to
+// external services (rbac, resource).
+
 ///////////////////// resource service functions ////////////////////////////////////
 
 // PublishService registers (or updates) a service package descriptor into the
