@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -368,169 +369,241 @@ Example:
 // Main
 // -----------------------------------------------------------------------------
 
-func main() {
-	// Skeleton (no etcd/config yet)
-	s := new(server)
-	s.Name = string(discoverypb.File_discovery_proto.Services().Get(0).FullName())
-	s.Proto = discoverypb.File_discovery_proto.Path()
-	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	s.Port = defaultPort
-	s.Proxy = defaultProxy
-	s.Protocol = "grpc"
-	s.Version = "0.0.1"
-	s.PublisherID = "localhost"
-	s.Description = "Service discovery client"
-	s.Keywords = []string{"Discovery", "Package", "Service", "Application"}
-	s.Repositories = []string{}
-	s.Discoveries = []string{}
-	s.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
-	// Default RBAC permissions for PackageDiscovery.
-	// We bind to request fields so RBAC can check write access on the target
-	// repository and discovery before allowing a publish.
-	s.Permissions = []interface{}{
-		// ---- Publish a service package
-		map[string]interface{}{
+// initializeServerDefaults sets up the server with default values before config loading.
+// This MUST NOT touch etcd or any external config - only local defaults.
+func initializeServerDefaults() *server {
+	srv := new(server)
+
+	// Basic identity
+	srv.Name = string(discoverypb.File_discovery_proto.Services().Get(0).FullName())
+	srv.Proto = discoverypb.File_discovery_proto.Path()
+	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	srv.Version = "0.0.1"
+	srv.PublisherID = "localhost"
+	srv.Description = "Service discovery client"
+	srv.Keywords = []string{"Discovery", "Package", "Service", "Application"}
+
+	// Network defaults
+	srv.Port = defaultPort
+	srv.Proxy = defaultProxy
+	srv.Protocol = "grpc"
+
+	// Service discovery
+	srv.Repositories = []string{}
+	srv.Discoveries = []string{}
+
+	// Dependencies
+	srv.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
+
+	// CORS defaults
+	srv.AllowAllOrigins = allowAllOrigins
+	srv.AllowedOrigins = allowedOriginsStr
+
+	// Lifecycle defaults
+	srv.KeepAlive = true
+	srv.KeepUpToDate = true
+	srv.Process = -1
+	srv.ProxyProcess = -1
+
+	// RBAC permissions for PackageDiscovery
+	srv.Permissions = []any{
+		// PublishService permission
+		map[string]any{
 			"action":     "/discovery.PackageDiscovery/PublishService",
-			"permission": "write", // coarse verb for this action
-			"resources": []interface{}{
-				// PublishServiceRequest.repositoryId
-				map[string]interface{}{"index": 0, "field": "RepositoryId", "permission": "write"},
-				// PublishServiceRequest.discoveryId
-				map[string]interface{}{"index": 0, "field": "DiscoveryId", "permission": "write"},
+			"permission": "write",
+			"resources": []any{
+				map[string]any{"index": 0, "field": "RepositoryId", "permission": "write"},
+				map[string]any{"index": 0, "field": "DiscoveryId", "permission": "write"},
 			},
 		},
-
-		// ---- Publish an application package
-		map[string]interface{}{
+		// PublishApplication permission
+		map[string]any{
 			"action":     "/discovery.PackageDiscovery/PublishApplication",
 			"permission": "write",
-			"resources": []interface{}{
-				// PublishApplicationRequest.repository
-				map[string]interface{}{"index": 0, "field": "Repository", "permission": "write"},
-				// PublishApplicationRequest.discovery
-				map[string]interface{}{"index": 0, "field": "Discovery", "permission": "write"},
+			"resources": []any{
+				map[string]any{"index": 0, "field": "Repository", "permission": "write"},
+				map[string]any{"index": 0, "field": "Discovery", "permission": "write"},
 			},
 		},
 	}
 
-	s.Process = -1
-	s.ProxyProcess = -1
-	s.KeepAlive = true
-	s.KeepUpToDate = true
-	s.AllowAllOrigins = allowAllOrigins
-	s.AllowedOrigins = allowedOriginsStr
+	return srv
+}
 
-	// Dynamic client registration
-	Utility.RegisterFunction("NewDiscoveryService_Client", discovery_client.NewDiscoveryService_Client)
-
-	// CLI flags BEFORE touching config
-	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
-
+// handleInformationalFlags processes --describe, --health, --help, --version flags.
+// Returns true if an informational flag was handled (caller should exit).
+func handleInformationalFlags(srv *server, args []string) bool {
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
+			handleDescribeFlag(srv)
+			return true
 		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
+			handleHealthFlag(srv)
+			return true
 		case "--help", "-h", "/h", "/help":
 			printUsage()
-			return
+			return true
 		case "--version", "-v", "/v", "/version":
-			os.Stdout.WriteString(s.Version + "\n")
-			return
+			os.Stdout.WriteString(srv.Version + "\n")
+			return true
 		case "--debug":
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		default:
-			// skip unknown flags for now (e.g. positional args)
+		}
+	}
+	return false
+}
+
+// handleDescribeFlag handles the --describe flag.
+func handleDescribeFlag(srv *server) {
+	srv.Process = os.Getpid()
+	srv.State = "starting"
+
+	// Set harmless defaults for Domain/Address without hitting etcd
+	if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+		srv.Domain = strings.ToLower(v)
+	} else {
+		srv.Domain = "localhost"
+	}
+	if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+		srv.Address = strings.ToLower(v)
+	} else {
+		srv.Address = "localhost:" + Utility.ToString(srv.Port)
+	}
+	if srv.Id == "" {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+	}
+
+	b, err := globular.DescribeJSON(srv)
+	if err != nil {
+		logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(2)
+	}
+	os.Stdout.Write(b)
+	os.Stdout.Write([]byte("\n"))
+}
+
+// handleHealthFlag handles the --health flag.
+func handleHealthFlag(srv *server) {
+	if srv.Port == 0 || srv.Name == "" {
+		logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+		os.Exit(2)
+	}
+
+	b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+		Timeout:     1500 * time.Millisecond,
+		ServiceName: "",
+	})
+	if err != nil {
+		logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(2)
+	}
+	os.Stdout.Write(b)
+	os.Stdout.Write([]byte("\n"))
+}
+
+// parsePositionalArgs extracts service ID and config path from positional arguments.
+func parsePositionalArgs(srv *server, args []string) {
+	nonFlagArgs := []string{}
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "/") {
+			nonFlagArgs = append(nonFlagArgs, arg)
 		}
 	}
 
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+	if len(nonFlagArgs) >= 1 {
+		srv.Id = nonFlagArgs[0]
 	}
+	if len(nonFlagArgs) >= 2 {
+		srv.ConfigPath = nonFlagArgs[1]
+	}
+}
 
-	// Safe to touch config now
+// allocatePortIfNeeded allocates a port for the service if no ID was provided.
+func allocatePortIfNeeded(srv *server, args []string) error {
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			return fmt.Errorf("port allocator creation failed: %w", err)
+		}
+
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			return fmt.Errorf("port allocation failed: %w", err)
+		}
+		srv.Port = p
+	}
+	return nil
+}
+
+// loadRuntimeConfig loads domain and address from config backend (etcd or file).
+func loadRuntimeConfig(srv *server) {
 	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
+		srv.Domain = d
 	} else {
-		s.Domain = "localhost"
+		srv.Domain = "localhost"
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
+		srv.Address = a
+	}
+}
+
+// setupGrpcService registers the Discovery service with the gRPC server.
+func setupGrpcService(srv *server) {
+	discoverypb.RegisterPackageDiscoveryServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
+}
+
+// main configures and starts the Discovery service.
+// Phase 1 Step 4: Simplified to use extracted components and helper functions.
+func main() {
+	// Initialize server with defaults (no etcd/config access yet)
+	srv := initializeServerDefaults()
+
+	// Handle informational flags first (may exit early)
+	args := os.Args[1:]
+	if handleInformationalFlags(srv, args) {
+		return
 	}
 
-	start := time.Now()
-	if err := s.Init(); err != nil {
-		logger.Error("failed to initialize service", "name", s.Name, "id", s.Id, "err", err)
+	// Allocate port if needed (before etcd access)
+	if err := allocatePortIfNeeded(srv, args); err != nil {
+		logger.Error("port allocation failed", "error", err)
 		os.Exit(1)
 	}
 
-	// gRPC registration
-	discoverypb.RegisterPackageDiscoveryServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
+	// Parse positional arguments
+	parsePositionalArgs(srv, args)
+
+	// Load runtime config from backend (etcd or file fallback)
+	loadRuntimeConfig(srv)
+
+	// Register client constructor
+	Utility.RegisterFunction("NewDiscoveryService_Client", discovery_client.NewDiscoveryService_Client)
+
+	// Initialize service (creates gRPC server, loads config)
+	start := time.Now()
+	if err := srv.Init(); err != nil {
+		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(1)
+	}
+
+	// Register gRPC service handlers
+	setupGrpcService(srv)
 
 	logger.Info("service ready",
-		"service", s.Name,
-		"port", s.Port,
-		"proxy", s.Proxy,
-		"protocol", s.Protocol,
-		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"service", srv.Name,
+		"port", srv.Port,
+		"proxy", srv.Proxy,
+		"protocol", srv.Protocol,
+		"domain", srv.Domain,
+		"init_ms", time.Since(start).Milliseconds())
 
-	// Start serving
-	if err := s.StartService(); err != nil {
-		logger.Error("service start failed", "name", s.Name, "id", s.Id, "err", err)
+	// Start service using lifecycle manager
+	lm := newLifecycleManager(srv, logger)
+	if err := lm.Start(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 }
