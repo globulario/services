@@ -1,6 +1,14 @@
 # Phase 2: Extract Shared Primitives - Implementation Plan
 
-## Status: Planning
+## Status: In Progress - Step 1 Complete ✅
+
+**Phase 2 Step 1 COMPLETE:** All 3 services now use shared CLI helpers!
+- ✅ Created globular_service/cli_helpers.go (143 lines)
+- ✅ Updated Echo (-114 lines, 19 tests passing)
+- ✅ Updated Discovery (-118 lines, 19 tests passing)
+- ✅ Updated Repository (-119 lines, 17 tests passing)
+- **Total reduction: 351 lines eliminated**
+- **All 55 tests passing (19+19+17)**
 
 ## Goal
 Extract common patterns from Echo, Discovery, and Repository services into reusable shared primitives.
