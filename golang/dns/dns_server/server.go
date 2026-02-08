@@ -499,7 +499,7 @@ func main() {
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
 	srv.Version = "0.0.1"
-	srv.PublisherID = "localhost"
+	srv.PublisherID = "globular.internal" // Use cluster domain instead of localhost
 	srv.Description = "DNS service"
 	srv.Keywords = []string{"DNS", "Records", "Resolver"}
 	srv.Repositories = []string{}
@@ -628,12 +628,12 @@ func main() {
 			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
 				srv.Domain = strings.ToLower(v)
 			} else {
-				srv.Domain = "localhost"
+				srv.Domain = "globular.internal" // Use cluster-capable domain
 			}
 			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
 				srv.Address = strings.ToLower(v)
 			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
+				srv.Address = "127.0.0.1:" + Utility.ToString(srv.Port) // Use explicit IPv4 to avoid IPv6 resolution
 			}
 			b, err := globular.DescribeJSON(srv)
 			if err != nil {
@@ -682,7 +682,7 @@ func main() {
 	if d, err := config.GetDomain(); err == nil {
 		srv.Domain = d
 	} else {
-		srv.Domain = "localhost"
+		srv.Domain = "globular.internal" // Use cluster-capable domain
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		srv.Address = a
