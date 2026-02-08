@@ -11,16 +11,12 @@ import (
 )
 
 // TestEchoHandler validates the Echo RPC handler behavior
-// NOTE: Currently fails because Echo() calls srv.Save() which requires etcd/TLS
-// This is a design problem that Phase 1 refactoring will fix by removing
-// the config persistence side effect from the handler
+// Phase 1 Step 2: Save() side effect removed - handler is now pure!
 func TestEchoHandler(t *testing.T) {
-	t.Skip("Skipping until Phase 1 refactoring removes Save() side effect from Echo()")
-
-	// TODO Phase 1: After refactoring, Echo() should be pure:
-	// - Input: message
-	// - Output: same message
-	// - No side effects (config save moved to lifecycle)
+	// Echo() is now pure - no Save() call, no etcd/TLS required
+	// Input: message
+	// Output: same message
+	// No side effects
 
 	// Create a minimal server instance for testing
 	srv := &server{
@@ -256,13 +252,13 @@ func TestGetterSetterContract(t *testing.T) {
 func TestBehaviorInvariant(t *testing.T) {
 	t.Log("Echo Service Behavioral Contract:")
 	t.Log("1. Echo() must return exactly the message it receives")
-	t.Log("2. Echo() must persist config on each call (current behavior)")
+	t.Log("2. Echo() is now PURE - no config persistence side effects (Phase 1 Step 2)")
 	t.Log("3. --describe must report correct port and metadata")
 	t.Log("4. Default port is 10000, proxy is 10001")
 	t.Log("5. Protocol is always 'grpc'")
 	t.Log("6. AllowAllOrigins defaults to true")
 
 	t.Log("")
-	t.Log("These tests freeze current behavior before refactoring.")
-	t.Log("All refactoring PRs must keep these tests passing.")
+	t.Log("Phase 1 refactoring: handlers are pure, config separate, lifecycle extracted.")
+	t.Log("All tests must continue passing as refactoring progresses.")
 }
