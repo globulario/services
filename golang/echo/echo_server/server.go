@@ -35,7 +35,11 @@ var (
 
 // server implements Globular service plumbing + Echo RPCs.
 type server struct {
-	// Core metadata
+	// Configuration (Phase 1 refactoring - config extracted to separate type)
+	config *Config
+
+	// Legacy fields (will be removed in Step 5 after full migration to config)
+	// For now, these remain for backward compatibility during refactoring
 	Id          string
 	Mac         string
 	Name        string
