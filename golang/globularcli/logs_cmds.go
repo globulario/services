@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	logpb "github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -66,9 +65,15 @@ func tryLogServerRPC(serviceName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
+	// Get TLS credentials for secure connection
+	creds, err := getTLSCredentials()
+	if err != nil {
+		return fmt.Errorf("TLS setup error: %w", err)
+	}
+
 	cc, err := grpc.DialContext(ctx,
 		logServerAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithBlock(),
 	)
 	if err != nil {

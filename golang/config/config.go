@@ -386,13 +386,15 @@ func GetHostname() (string, error) {
 
 func GetTLSFile(name, domain, file string) string {
 	// Map of logical certificate names to possible filenames
-	// Supports both traditional naming (server.crt) and ACME/Let's Encrypt naming (fullchain.pem)
+	// Supports both traditional naming (server.crt), ACME/Let's Encrypt naming (fullchain.pem),
+	// and Envoy naming (tls.crt)
 	alternatives := map[string][]string{
-		"server.crt": {"server.crt", "fullchain.pem", "cert.pem"},
-		"server.key": {"server.key", "privkey.pem", "key.pem"},
+		"server.crt": {"server.crt", "fullchain.pem", "cert.pem", "tls.crt"},
+		"server.key": {"server.key", "privkey.pem", "key.pem", "tls.key"},
 		"ca.crt":     {"ca.crt", "ca.pem"},
-		"client.crt": {"client.crt", "cert.pem"},
-		"client.key": {"client.key", "privkey.pem", "key.pem"},
+		"client.crt": {"client.crt", "cert.pem", "tls.crt"},
+		"client.key": {"client.key", "privkey.pem", "key.pem", "tls.key"},
+		"client.pem": {"client.pem", "privkey.pem", "key.pem", "tls.key"},
 	}
 
 	// Get list of alternative filenames to try (default to original if not in map)
@@ -402,7 +404,12 @@ func GetTLSFile(name, domain, file string) string {
 	}
 
 	// Try each directory with each possible filename
-	dirs := []string{GetRuntimeTLSDir(), GetAdminTLSDir()}
+	// Include envoy-xds-client directory for Envoy's client certificates
+	dirs := []string{
+		GetRuntimeTLSDir(),
+		GetAdminTLSDir(),
+		"/var/lib/globular/pki/envoy-xds-client/current",
+	}
 	for _, dir := range dirs {
 		for _, filename := range filenames {
 			path := filepath.Join(dir, filename)

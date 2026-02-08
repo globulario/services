@@ -1088,7 +1088,12 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 		}
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
+		// Use default TLS credentials with system CA
+		creds, err := getTLSCredentials()
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()

@@ -13,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v3"
 
 	"github.com/globulario/services/golang/config"
@@ -795,9 +794,16 @@ func runDNSStatus(cmd *cobra.Command, args []string) error {
 	dialCtx, dialCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer dialCancel()
 
+	// Get TLS credentials for secure connection
+	creds, err := getTLSCredentials()
+	if err != nil {
+		fmt.Printf("❌ gRPC Check: FAILED (TLS setup error: %v)\n", err)
+		return nil
+	}
+
 	cc, err := grpc.DialContext(dialCtx, grpcEndpoint,
 		grpc.WithBlock(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpc.WithTransportCredentials(creds))
 	if err != nil {
 		fmt.Printf("❌ gRPC Check: FAILED (cannot connect to %s: %v)\n", grpcEndpoint, err)
 		return nil
