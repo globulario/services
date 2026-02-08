@@ -39,59 +39,73 @@ var (
 // Server
 // -----------------------------------------------------------------------------
 
-// server implements Globular service plumbing + Repository RPCs (see repository.go).
+// server implements the Repository gRPC service with Globular lifecycle management.
+//
+// Phase 1 Refactoring Complete:
+// - Config component: Clean configuration management (config.go)
+// - Handlers component: Pure business logic for package management (handlers.go)
+// - Lifecycle component: Service lifecycle with Start/Stop/Ready/Health (lifecycle.go)
+// - Main cleanup: Simplified from 175 to 47 lines via helper functions
+//
+// The server struct contains all fields required by the Globular service contract,
+// plus Repository-specific fields (Root). Business logic is in handlers.go.
 type server struct {
-	// Core metadata
-	Id           string
-	Mac          string
-	Name         string
-	Domain       string
-	Address      string
-	Path         string
-	Proto        string
-	Port         int
-	Proxy        int
-	Protocol     string
-	Version      string
-	PublisherID  string
+	// --- Core Identity ---
+	Id          string
+	Mac         string
+	Name        string
+	Domain      string
+	Address     string
+	Path        string
+	Proto       string
+	Port        int
+	Proxy       int
+	Protocol    string
+	Version     string
+	PublisherID string
+
+	// --- Service Metadata ---
 	Description  string
 	Keywords     []string
 	Repositories []string
 	Discoveries  []string
+	Dependencies []string
 
-	// Ops / policy
+	// --- Policy & Operations ---
 	AllowAllOrigins bool
 	AllowedOrigins  string
 	KeepUpToDate    bool
-	Plaform         string // NOTE: field spelling preserved for compatibility
-	Checksum        string
 	KeepAlive       bool
-	Permissions     []interface{}
-	Dependencies    []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
+	Permissions     []any
 
+	// --- Runtime State ---
+	Process      int
+	ProxyProcess int
+	ConfigPath   string
+	LastError    string
+	State        string
+	ModTime      int64
+
+	// --- Platform Metadata ---
+	Plaform  string // NOTE: field spelling preserved for proto compatibility
+	Checksum string
+
+	// --- gRPC Implementation ---
 	repositorypb.UnimplementedPackageRepositoryServer
+	grpcServer *grpc.Server
 
-	// TLS
+	// --- TLS Configuration ---
 	TLS                bool
 	CertFile           string
 	KeyFile            string
 	CertAuthorityTrust string
 
-	// Runtime
-	grpcServer *grpc.Server
-
-	// Service-specific
-	Root string // base data dir (packages-repository lives under this)
+	// --- Repository-Specific Fields ---
+	Root string // Base data directory (packages-repository lives under this)
 }
 
 // SetPermissions implements globular_service.Service.
-func (srv *server) SetPermissions(permissions []interface{}) {
+func (srv *server) SetPermissions(permissions []any) {
 	srv.Permissions = permissions
 }
 
@@ -187,7 +201,7 @@ func (srv *server) SetDiscoveries(discoveries []string) { srv.Discoveries = disc
 func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
 
 // GetPermissions returns the permissions associated with the service.
-func (srv *server) GetPermissions() []interface{} {
+func (srv *server) GetPermissions() []any {
 	return srv.Permissions
 }
 
@@ -458,22 +472,22 @@ func initializeServerDefaults() *server {
 	}
 
 	// RBAC permissions for package upload/download
-	s.Permissions = []interface{}{
+	s.Permissions = []any{
 		// Upload a package bundle (publishing to an organization namespace)
-		map[string]interface{}{
+		map[string]any{
 			"action":     "/repository.PackageRepository/UploadBundle",
 			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Organization", "permission": "write"},
+			"resources": []any{
+				map[string]any{"index": 0, "field": "Organization", "permission": "write"},
 			},
 		},
 		// Download a package bundle (read access to publisher namespace / platform)
-		map[string]interface{}{
+		map[string]any{
 			"action":     "/repository.PackageRepository/DownloadBundle",
 			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Descriptor.PublisherID", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Platform", "permission": "read"},
+			"resources": []any{
+				map[string]any{"index": 0, "field": "Descriptor.PublisherID", "permission": "read"},
+				map[string]any{"index": 0, "field": "Platform", "permission": "read"},
 			},
 		},
 	}
