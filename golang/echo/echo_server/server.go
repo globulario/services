@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	// NOTE: only import config AFTER we’ve gated --describe/--health paths from calling it
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -389,121 +387,17 @@ func initializeServerDefaults() *server {
 	return srv
 }
 
-// handleInformationalFlags processes --describe, --health, --help, --version flags.
-// Returns true if an informational flag was handled (caller should exit).
-func handleInformationalFlags(srv *server, args []string) bool {
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			handleDescribeFlag(srv)
-			return true
-		case "--health":
-			handleHealthFlag(srv)
-			return true
-		case "--help", "-h", "/?":
-			printUsage()
-			return true
-		case "--version", "-v":
-			fmt.Println(srv.Version)
-			return true
-		case "--debug":
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		}
-	}
-	return false
-}
-
-// handleDescribeFlag handles the --describe flag.
-func handleDescribeFlag(srv *server) {
-	srv.Process = os.Getpid()
-	srv.State = "starting"
-
-	// Set harmless defaults for Domain/Address without hitting etcd
-	if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-		srv.Domain = strings.ToLower(v)
-	} else {
-		srv.Domain = "localhost"
-	}
-	if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-		srv.Address = strings.ToLower(v)
-	} else {
-		srv.Address = "localhost:" + Utility.ToString(srv.Port)
-	}
-
-	b, err := globular.DescribeJSON(srv)
-	if err != nil {
-		logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-		os.Exit(2)
-	}
-	_, _ = os.Stdout.Write(b)
-	_, _ = os.Stdout.Write([]byte("\n"))
-}
-
-// handleHealthFlag handles the --health flag.
-func handleHealthFlag(srv *server) {
-	if srv.Port == 0 || srv.Name == "" {
-		logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-		os.Exit(2)
-	}
-
-	b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-		Timeout:     1500 * time.Millisecond,
-		ServiceName: "",
-	})
-	if err != nil {
-		logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-		os.Exit(2)
-	}
-	_, _ = os.Stdout.Write(b)
-	_, _ = os.Stdout.Write([]byte("\n"))
-}
-
-// parsePositionalArgs extracts service ID and config path from positional arguments.
-func parsePositionalArgs(srv *server, args []string) {
-	nonFlagArgs := []string{}
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "-") {
-			nonFlagArgs = append(nonFlagArgs, arg)
-		}
-	}
-
-	if len(nonFlagArgs) >= 1 {
-		srv.Id = nonFlagArgs[0]
-	}
-	if len(nonFlagArgs) >= 2 {
-		srv.ConfigPath = nonFlagArgs[1]
-	}
-}
-
-// allocatePortIfNeeded allocates a port for the service if no ID was provided.
-func allocatePortIfNeeded(srv *server, args []string) error {
-	if len(args) == 0 {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			return fmt.Errorf("port allocator creation failed: %w", err)
-		}
-
-		p, err := allocator.Next(srv.Id)
-		if err != nil {
-			return fmt.Errorf("port allocation failed: %w", err)
-		}
-		srv.Port = p
-	}
-	return nil
-}
-
-// loadRuntimeConfig loads domain and address from config backend (etcd or file).
-func loadRuntimeConfig(srv *server) {
-	if d, err := config.GetDomain(); err == nil {
-		srv.Domain = d
-	} else {
-		srv.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		srv.Address = a
-	}
-}
+// -----------------------------------------------------------------------------
+// Helper functions for main() (Phase 2 Step 1)
+// -----------------------------------------------------------------------------
+//
+// NOTE: Common CLI helper functions moved to globular_service/cli_helpers.go:
+// - HandleInformationalFlags, HandleDescribeFlag, HandleHealthFlag
+// - ParsePositionalArgs, AllocatePortIfNeeded, LoadRuntimeConfig
+//
+// Service-specific functions kept here:
+// - initializeServerDefaults (service-specific defaults and permissions)
+// - setupGrpcService (service-specific gRPC registration)
 
 // setupGrpcService registers the Echo service with the gRPC server.
 func setupGrpcService(srv *server) {
@@ -517,23 +411,33 @@ func main() {
 	// Initialize server with defaults (no etcd/config access yet)
 	srv := initializeServerDefaults()
 
-	// Handle informational flags first (may exit early)
+	// Handle CLI flags
 	args := os.Args[1:]
-	if handleInformationalFlags(srv, args) {
+
+	// Handle --debug flag (modifies global logger, must be before other flag handling)
+	for _, a := range args {
+		if strings.ToLower(a) == "--debug" {
+			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			break
+		}
+	}
+
+	// Handle informational flags (may exit early)
+	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
 		return
 	}
 
 	// Allocate port if needed (before etcd access)
-	if err := allocatePortIfNeeded(srv, args); err != nil {
+	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
 		logger.Error("port allocation failed", "error", err)
 		os.Exit(1)
 	}
 
 	// Parse positional arguments
-	parsePositionalArgs(srv, args)
+	globular.ParsePositionalArgs(srv, args)
 
 	// Load runtime config from backend (etcd or file fallback)
-	loadRuntimeConfig(srv)
+	globular.LoadRuntimeConfig(srv)
 
 	// Register client constructor
 	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
