@@ -429,10 +429,16 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 	Level: slog.LevelInfo,
 }))
 
-func main() {
+// -----------------------------------------------------------------------------
+// Helper functions for main() (Phase 1 Step 4)
+// -----------------------------------------------------------------------------
+
+// initializeServerDefaults creates a server with all default field values.
+// This is the "god object" initialization extracted for clarity.
+func initializeServerDefaults() *server {
 	s := new(server)
 
-	// Fill ONLY fields that do NOT call into config/etcd yet.
+	// Core metadata
 	s.Name = string(repositorypb.File_repository_proto.Services().Get(0).FullName())
 	s.Proto = repositorypb.File_repository_proto.Path()
 	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
@@ -450,31 +456,29 @@ func main() {
 		"log.LogService",
 		"applications_manager.ApplicationManagerService",
 	}
-	// In your repository service init/constructor:
+
+	// RBAC permissions for package upload/download
 	s.Permissions = []interface{}{
-		// ---- Upload a package bundle (publishing to an organization namespace)
+		// Upload a package bundle (publishing to an organization namespace)
 		map[string]interface{}{
 			"action":     "/repository.PackageRepository/UploadBundle",
 			"permission": "write",
 			"resources": []interface{}{
-				// UploadBundleRequest.organization — who owns the repo namespace
 				map[string]interface{}{"index": 0, "field": "Organization", "permission": "write"},
 			},
 		},
-
-		// ---- Download a package bundle (read access to publisher namespace / platform)
+		// Download a package bundle (read access to publisher namespace / platform)
 		map[string]interface{}{
 			"action":     "/repository.PackageRepository/DownloadBundle",
 			"permission": "read",
 			"resources": []interface{}{
-				// DownloadBundleRequest.descriptor.publisher_id — publisher namespace
 				map[string]interface{}{"index": 0, "field": "Descriptor.PublisherID", "permission": "read"},
-				// DownloadBundleRequest.platform — optional platform gate
 				map[string]interface{}{"index": 0, "field": "Platform", "permission": "read"},
 			},
 		},
 	}
 
+	// Runtime defaults
 	s.Process = -1
 	s.ProxyProcess = -1
 	s.AllowAllOrigins = allowAllOrigins
@@ -482,115 +486,172 @@ func main() {
 	s.KeepAlive = true
 	s.KeepUpToDate = true
 
-	// Default data dir for repo storage
+	// Repository-specific: default data dir for package storage
 	s.Root = config.GetDataDir()
 
-	// ---- CLI flags handled BEFORE any call that might touch etcd ----
-	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
+	return s
+}
 
+// handleInformationalFlags processes --describe, --health, --help, --version, --debug.
+// Returns true if the program should exit (flag was handled).
+func handleInformationalFlags(srv *server, args []string) bool {
 	for _, a := range args {
 		switch strings.ToLower(a) {
 		case "--describe":
-			// best-effort runtime fields without hitting etcd
-			s.Process = os.Getpid()
-			s.State = "starting"
-
-			// Provide harmless defaults for Domain/Address that don’t need etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
+			handleDescribeFlag(srv)
+			return true
 		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "", // overall
-			})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
+			handleHealthFlag(srv)
+			return true
 		case "--debug":
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		case "--help", "-h", "/?":
 			printUsage()
-			return
+			return true
 		case "--version", "-v":
-			fmt.Println(s.Version)
-			return
+			fmt.Println(srv.Version)
+			return true
 		default:
-			// skip unknown flags for now (e.g. positional args)
+			// skip unknown flags
+		}
+	}
+	return false
+}
+
+// handleDescribeFlag outputs service metadata as JSON and exits.
+func handleDescribeFlag(srv *server) {
+	// Best-effort runtime fields without hitting etcd
+	srv.Process = os.Getpid()
+	srv.State = "starting"
+
+	// Provide harmless defaults for Domain/Address that don't need etcd
+	if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+		srv.Domain = strings.ToLower(v)
+	} else {
+		srv.Domain = "localhost"
+	}
+	if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+		srv.Address = strings.ToLower(v)
+	} else {
+		srv.Address = "localhost:" + Utility.ToString(srv.Port)
+	}
+	if srv.Id == "" {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+	}
+
+	b, err := globular.DescribeJSON(srv)
+	if err != nil {
+		logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(2)
+	}
+	_, _ = os.Stdout.Write(b)
+	_, _ = os.Stdout.Write([]byte("\n"))
+}
+
+// handleHealthFlag performs a health check and outputs JSON, then exits.
+func handleHealthFlag(srv *server) {
+	if srv.Port == 0 || srv.Name == "" {
+		logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+		os.Exit(2)
+	}
+	b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+		Timeout:     1500 * time.Millisecond,
+		ServiceName: "",
+	})
+	if err != nil {
+		logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(2)
+	}
+	_, _ = os.Stdout.Write(b)
+	_, _ = os.Stdout.Write([]byte("\n"))
+}
+
+// parsePositionalArgs extracts service_id and config_path from non-flag arguments.
+func parsePositionalArgs(srv *server, args []string) {
+	positional := []string{}
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			positional = append(positional, a)
 		}
 	}
 
-	// Optional positional args (unchanged)
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+	if len(positional) >= 1 {
+		srv.Id = positional[0]
 	}
+	if len(positional) >= 2 {
+		srv.ConfigPath = positional[1]
+	}
+}
 
-	// Safe to read local config now (file or etcd fallback handled by config pkg)
+// allocatePortIfNeeded allocates a port if no arguments were provided.
+func allocatePortIfNeeded(srv *server, args []string) error {
+	if len(args) == 0 {
+		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		allocator, err := config.NewDefaultPortAllocator()
+		if err != nil {
+			return fmt.Errorf("create port allocator: %w", err)
+		}
+		p, err := allocator.Next(srv.Id)
+		if err != nil {
+			return fmt.Errorf("allocate port: %w", err)
+		}
+		srv.Port = p
+	}
+	return nil
+}
+
+// loadRuntimeConfig loads domain and address from config (file or etcd).
+func loadRuntimeConfig(srv *server) {
 	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
+		srv.Domain = d
 	} else {
-		s.Domain = "localhost"
+		srv.Domain = "localhost"
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
+		srv.Address = a
+	}
+}
+
+// setupGrpcService registers the Repository service and reflection with gRPC.
+func setupGrpcService(srv *server) {
+	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
+	repositorypb.RegisterPackageRepositoryServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
+}
+
+func main() {
+	// 1. Initialize server with defaults
+	s := initializeServerDefaults()
+
+	// 2. Parse CLI arguments
+	args := os.Args[1:]
+
+	// 3. Handle informational flags (--describe, --health, --help, --version, --debug)
+	if handleInformationalFlags(s, args) {
+		return // Flag was handled, exit
 	}
 
-	// Register client ctor for Repository (kept for compatibility)
-	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
+	// 4. Parse positional arguments (service_id, config_path)
+	parsePositionalArgs(s, args)
 
+	// 5. Allocate port if no arguments provided
+	if err := allocatePortIfNeeded(s, args); err != nil {
+		logger.Error("port allocation failed", "err", err)
+		os.Exit(1)
+	}
+
+	// 6. Load runtime config (domain, address from file or etcd)
+	loadRuntimeConfig(s)
+
+	// 7. Initialize service (creates gRPC server, loads persisted config)
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
 
-	repositorypb.RegisterPackageRepositoryServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
+	// 8. Register gRPC service and reflection
+	setupGrpcService(s)
 
 	logger.Info("service ready",
 		"service", s.Name,
@@ -598,9 +659,11 @@ func main() {
 		"proxy", s.Proxy,
 		"protocol", s.Protocol,
 		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"init_ms", time.Since(start).Milliseconds())
 
-	if err := s.StartService(); err != nil {
+	// 9. Start service using lifecycle manager
+	lm := newLifecycleManager(s, logger)
+	if err := lm.Start(); err != nil {
 		logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
