@@ -379,11 +379,7 @@ func (srv *server) Init() error {
 // Save persists the current configuration to disk.
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
-// StartService begins serving gRPC (and proxy if configured).
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-
-// StopService gracefully stops the running gRPC server.
-func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+// NOTE: StartService() and StopService() moved to lifecycle.go in Phase 1 Step 3
 
 // -----------------------------------------------------------------------------
 // Resource manager helpers (Repository needs these)
