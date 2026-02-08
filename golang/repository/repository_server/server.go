@@ -259,6 +259,9 @@ func (srv *server) GetProxy() int { return srv.Proxy }
 // SetProxy sets the reverse proxy port (for gRPC-Web).
 func (srv *server) SetProxy(proxy int) { srv.Proxy = proxy }
 
+// GetGrpcServer returns the gRPC server instance (for lifecycle management).
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
+
 // GetProtocol returns the network protocol (e.g., "grpc", "tls", "https").
 func (srv *server) GetProtocol() string { return srv.Protocol }
 
@@ -447,6 +450,20 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 // Helper functions for main() (Phase 1 Step 4)
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Lifecycle methods (Phase 2 Step 2)
+// -----------------------------------------------------------------------------
+
+// StartService starts the gRPC server (required by LifecycleService interface).
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
+}
+
+// StopService stops the gRPC server (required by LifecycleService interface).
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
+}
+
 // initializeServerDefaults creates a server with all default field values.
 // This is the "god object" initialization extracted for clarity.
 func initializeServerDefaults() *server {
@@ -577,8 +594,8 @@ func main() {
 		"domain", s.Domain,
 		"init_ms", time.Since(start).Milliseconds())
 
-	// 9. Start service using lifecycle manager
-	lm := newLifecycleManager(s, logger)
+	// 9. Start service using shared lifecycle manager
+	lm := globular.NewLifecycleManager(s, logger)
 	if err := lm.Start(); err != nil {
 		logger.Error("service start failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
