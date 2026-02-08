@@ -162,6 +162,7 @@ func (srv *server) GetPort() int                             { return srv.Port }
 func (srv *server) SetPort(port int)                         { srv.Port = port }
 func (srv *server) GetProxy() int                            { return srv.Proxy }
 func (srv *server) SetProxy(proxy int)                       { srv.Proxy = proxy }
+func (srv *server) GetGrpcServer() *grpc.Server              { return srv.grpcServer }
 func (srv *server) GetProtocol() string                      { return srv.Protocol }
 func (srv *server) SetProtocol(protocol string)              { srv.Protocol = protocol }
 func (srv *server) GetAllowAllOrigins() bool                 { return srv.AllowAllOrigins }
@@ -385,6 +386,20 @@ Example:
 // Main
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Lifecycle methods (Phase 2 Step 2)
+// -----------------------------------------------------------------------------
+
+// StartService starts the gRPC server (required by LifecycleService interface).
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
+}
+
+// StopService stops the gRPC server (required by LifecycleService interface).
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
+}
+
 // initializeServerDefaults sets up the server with default values before config loading.
 // This MUST NOT touch etcd or any external config - only local defaults.
 func initializeServerDefaults() *server {
@@ -521,8 +536,8 @@ func main() {
 		"domain", srv.Domain,
 		"init_ms", time.Since(start).Milliseconds())
 
-	// Start service using lifecycle manager
-	lm := newLifecycleManager(srv, logger)
+	// Start service using shared lifecycle manager
+	lm := globular.NewLifecycleManager(srv, logger)
 	if err := lm.Start(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
