@@ -561,19 +561,9 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 		return nil
 	}
 
-	if isLocal {
-		// Re-map server paths to client paths when the same machine publishes them.
-		certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
-		keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
-		client.SetKeyFile(keyFile)
-		client.SetCertFile(certFile)
-		client.SetCaFile(asString(cfg["CertAuthorityTrust"]))
-		return nil
-	}
-
 	base := pickTLSBaseDir()
 
-	// 1) Try existing certs at base/effectiveHost
+	// 1) Always try user's client certs first at base/effectiveHost (e.g. ~/.config/globular/tls/localhost/)
 	if k, c, ca, ok := tryUseExistingClientCerts(base, effectiveHost); ok {
 		client.SetKeyFile(k)
 		client.SetCertFile(c)
@@ -581,12 +571,32 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 		return nil
 	}
 
-	// 2) Optionally skip install if tests provide certs
+	// 2) Fallback: if isLocal and no user certs, try remapping server paths to client paths
+	if isLocal {
+		// Re-map server paths to client paths when the same machine publishes them.
+		certFile := strings.ReplaceAll(asString(cfg["CertFile"]), "server", "client")
+		keyFile := strings.ReplaceAll(asString(cfg["KeyFile"]), "server", "client")
+		caFile := asString(cfg["CertAuthorityTrust"])
+
+		// Only use remapped paths if they actually exist
+		if _, err := os.Stat(keyFile); err == nil {
+			if _, err := os.Stat(certFile); err == nil {
+				if _, err := os.Stat(caFile); err == nil {
+					client.SetKeyFile(keyFile)
+					client.SetCertFile(certFile)
+					client.SetCaFile(caFile)
+					return nil
+				}
+			}
+		}
+	}
+
+	// 3) Optionally skip install if tests provide certs
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("GLOBULAR_TLS_INSTALL")), "0") {
 		return fmt.Errorf("TLS install disabled and no existing client certs at %s", filepath.Join(base, effectiveHost))
 	}
 
-	// 3) Install into base/effectiveHost (not into a bare cluster domain)
+	// 4) Install into base/effectiveHost (not into a bare cluster domain)
 	path := filepath.Join(base, effectiveHost)
 
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(

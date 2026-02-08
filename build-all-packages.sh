@@ -69,6 +69,26 @@ else
 fi
 
 echo ""
+echo "→ Creating spec symlinks for cluster-controller and node-agent..."
+# pkggen.sh converts: clustercontroller_server → clustercontroller → looks for clustercontroller_service.yaml
+# But the actual spec is: cluster-controller_service.yaml
+# Solution: Create symlinks so pkggen can find them
+
+if [[ -f "${SERVICES_OUTPUT}/specs/cluster-controller_service.yaml" ]]; then
+    ln -sf cluster-controller_service.yaml "${SERVICES_OUTPUT}/specs/clustercontroller_service.yaml"
+    echo "  ✓ clustercontroller_service.yaml → cluster-controller_service.yaml"
+else
+    echo "  ⚠ cluster-controller_service.yaml not found"
+fi
+
+if [[ -f "${SERVICES_OUTPUT}/specs/node-agent_service.yaml" ]]; then
+    ln -sf node-agent_service.yaml "${SERVICES_OUTPUT}/specs/nodeagent_service.yaml"
+    echo "  ✓ nodeagent_service.yaml → node-agent_service.yaml"
+else
+    echo "  ⚠ node-agent_service.yaml not found"
+fi
+
+echo ""
 echo "→ Checking/downloading Envoy ${ENVOY_VERSION}..."
 ENVOY_BIN="${PACKAGES_ROOT}/bin/envoy"
 ENVOY_URL="https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64"
@@ -137,13 +157,29 @@ echo ""
 
 cd "${PACKAGES_ROOT}"
 
+echo "→ Cleaning old packages from packages/out/..."
+if [[ -d "${PACKAGES_ROOT}/out" ]]; then
+    rm -f "${PACKAGES_ROOT}/out"/*.tgz
+    echo "  ✓ Old packages removed"
+else
+    mkdir -p "${PACKAGES_ROOT}/out"
+    echo "  ✓ Output directory created"
+fi
+
+echo ""
 echo "→ Running packages/build.sh..."
 if [[ -f "build.sh" ]]; then
-    # Export versions for the build script
-    export ENVOY_VERSION="${ENVOY_VERSION}"
-    export ETCD_VERSION="${ETCD_VERSION}"
+    # Build etcd with specific version
+    echo "  → Building etcd ${ETCD_VERSION}..."
+    bash build.sh --version "${ETCD_VERSION}" etcd
 
-    bash build.sh
+    # Build envoy with specific version
+    echo "  → Building envoy ${ENVOY_VERSION}..."
+    bash build.sh --version "${ENVOY_VERSION}" envoy
+
+    # Build other infrastructure packages with version 0.0.1
+    echo "  → Building other infrastructure packages (0.0.1)..."
+    bash build.sh --version "0.0.1" gateway xds minio mc globular_cli
 
     echo ""
     echo "  ✓ Infrastructure packages built"
@@ -194,13 +230,21 @@ echo ""
 echo "━━━ Step 4: Copy Packages to Installer Assets ━━━"
 echo ""
 
-echo "→ Creating installer assets directory..."
-mkdir -p "${INSTALLER_ASSETS}"
+echo "→ Cleaning old packages from installer assets..."
+if [[ -d "${INSTALLER_ASSETS}" ]]; then
+    rm -f "${INSTALLER_ASSETS}"/*.tgz
+    echo "  ✓ Old packages removed from installer assets"
+else
+    mkdir -p "${INSTALLER_ASSETS}"
+    echo "  ✓ Installer assets directory created"
+fi
+
+echo ""
 
 echo "→ Copying infrastructure packages..."
 INFRA_COUNT=0
-if [[ -d "${PACKAGES_ROOT}/generated" ]]; then
-    for pkg in "${PACKAGES_ROOT}"/generated/*.tgz; do
+if [[ -d "${PACKAGES_ROOT}/out" ]]; then
+    for pkg in "${PACKAGES_ROOT}"/out/*.tgz; do
         if [[ -f "${pkg}" ]]; then
             cp "${pkg}" "${INSTALLER_ASSETS}/"
             basename "${pkg}"
@@ -209,7 +253,7 @@ if [[ -d "${PACKAGES_ROOT}/generated" ]]; then
     done
     echo "  ✓ ${INFRA_COUNT} infrastructure packages copied"
 else
-    echo "  ⚠ No infrastructure packages found in ${PACKAGES_ROOT}/generated"
+    echo "  ⚠ No infrastructure packages found in ${PACKAGES_ROOT}/out"
 fi
 
 echo ""

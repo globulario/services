@@ -190,6 +190,16 @@ EOF
           Group=globular
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+EOF
+
+    # DNS service needs CAP_NET_BIND_SERVICE to bind port 53 as non-root
+    if [[ "${svc}" == "dns" ]]; then
+      cat >> "${spec}" <<EOF
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+EOF
+    fi
+
+    cat >> "${spec}" <<EOF
           ExecStart={{.Prefix}}/bin/${exe}
           Restart=on-failure
           RestartSec=2
