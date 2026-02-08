@@ -419,7 +419,7 @@ func checkGateway(ctx context.Context, spec *clustercontrollerpb.ClusterNetworkS
 func checkDNS(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "dns"}
 
-	fallback := Endpoint{Host: "localhost", Port: 10033, Scheme: "grpc"}
+	fallback := Endpoint{Host: "localhost", Port: 10006, Scheme: "grpc"}
 	endpoint, _ := ResolveEndpoint("dns", fallback)
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)

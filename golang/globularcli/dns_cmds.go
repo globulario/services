@@ -108,12 +108,12 @@ func resolveDnsResolverEndpoint() string {
 // preferring user-specified flag over dynamic discovery.
 func getEffectiveDnsGrpcAddr() string {
 	// If user explicitly set --dns flag, use it
-	if rootCfg.dnsAddr != "localhost:10033" {
+	if rootCfg.dnsAddr != "localhost:10006" {
 		return rootCfg.dnsAddr
 	}
 
 	// Otherwise, try to discover it
-	discovered := resolveDnsGrpcEndpoint("localhost:10033")
+	discovered := resolveDnsGrpcEndpoint("localhost:10006")
 	return discovered
 }
 

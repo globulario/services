@@ -18,7 +18,7 @@ var rootCfg = struct {
 }{
 	controllerAddr: "localhost:10000",
 	nodeAddr:       "localhost:11000",
-	dnsAddr:        "localhost:10033",
+	dnsAddr:        "localhost:10006", // Updated from 10033 to actual DNS service port
 	timeout:        5 * time.Second,
 	output:         "table",
 }

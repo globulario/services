@@ -731,7 +731,7 @@ func createDNSRecord(ctx context.Context, serviceType string) DeploymentStepResu
 	}
 
 	// Connect to DNS server
-	dnsAddr := "localhost:10033"
+	dnsAddr := "localhost:10006"
 	if addr := os.Getenv("GLOBULAR_DNS_ENDPOINT"); addr != "" {
 		dnsAddr = addr
 	}
@@ -1021,7 +1021,7 @@ func stopService(ctx context.Context, unitName string) error {
 
 func removeDNSRecord(ctx context.Context, fqdn string) error {
 	// Connect to DNS server
-	dnsAddr := "localhost:10033"
+	dnsAddr := "localhost:10006"
 	if addr := os.Getenv("GLOBULAR_DNS_ENDPOINT"); addr != "" {
 		dnsAddr = addr
 	}

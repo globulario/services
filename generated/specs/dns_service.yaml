@@ -85,6 +85,7 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/dns
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
           ExecStart={{.Prefix}}/bin/dns_server
           Restart=on-failure
           RestartSec=2

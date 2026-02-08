@@ -217,7 +217,7 @@ func TestResolveEndpointFallback(t *testing.T) {
 		{"scylla", "127.0.0.1", 9042, "tcp"},
 		{"minio", "127.0.0.1", 9000, "tcp"},
 		{"envoy-admin", "127.0.0.1", 9901, "http"},
-		{"dns", "localhost", 10033, "grpc"},
+		{"dns", "localhost", 10006, "grpc"},
 	}
 
 	for _, tt := range tests {
