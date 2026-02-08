@@ -237,9 +237,9 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 	return nil
 }
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) Save() error { return globular.SaveService(srv) }
+
+// NOTE: StartService() and StopService() moved to lifecycle.go in Phase 1 Step 3
 
 // -----------------------------------------------------------------------------
 // RBAC helpers
