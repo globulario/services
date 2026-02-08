@@ -42,48 +42,65 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level:
 // Service definition
 // -----------------------------------------------------------------------------
 
+// server implements the Globular service contract and Discovery RPC handlers.
+//
+// Phase 1 Refactoring Complete:
+// - Business logic extracted to handlers.go (PublishService, PublishApplication)
+// - Lifecycle management extracted to lifecycle.go (Start/Stop/Ready/Health)
+// - Config operations extracted to config.go (load/save/validate)
+// - Main initialization simplified in server.go (8 helper functions)
+//
+// This struct retains all fields and getter/setters required by the Globular
+// service framework. These fields implement the service contract and MUST remain
+// for compatibility with globular.InitService(), globular.SaveService(), etc.
 type server struct {
-	// Globular service metadata
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
+	// --- Service Identity ---
+	Id          string
+	Mac         string
+	Name        string
+	Domain      string
+	Address     string
+	Path        string   // Executable path
+	Proto       string   // .proto file path
+	Version     string
+	PublisherID string
+	Description string
+	Keywords    []string
+
+	// --- Network Configuration ---
+	Port     int
+	Proxy    int
+	Protocol string
+
+	// --- Service Discovery ---
+	Repositories []string
+	Discoveries  []string
+
+	// --- Policy & Operations ---
 	AllowAllOrigins bool
 	AllowedOrigins  string
-	Protocol        string
-	Version         string
-	PublisherID     string
 	KeepUpToDate    bool
-	Plaform         string // kept for API compatibility
-	Checksum        string
 	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	State           string
-	ModTime         int64
+	Plaform         string // Note: typo preserved for compatibility
+	Checksum        string
+	Permissions     []any    // RBAC action permissions
+	Dependencies    []string // Required services
 
-	// TLS
+	// --- Runtime State ---
+	Process      int    // PID or -1
+	ProxyProcess int    // Proxy PID or -1
+	ConfigPath   string // Path to config file
+	LastError    string
+	State        string // e.g., "running", "stopped"
+	ModTime      int64  // Unix timestamp
+
+	// --- TLS Configuration ---
 	TLS                bool
 	CertFile           string
 	KeyFile            string
 	CertAuthorityTrust string
 
-	// Permissions and dependencies
-	Permissions  []interface{}
-	Dependencies []string
-
-	// gRPC server instance
+	// --- gRPC Runtime ---
 	grpcServer *grpc.Server
 }
 
@@ -168,10 +185,10 @@ func (srv *server) GetPublisherID() string                   { return srv.Publis
 func (srv *server) SetPublisherID(PublisherID string)        { srv.PublisherID = PublisherID }
 func (srv *server) GetKeepUpToDate() bool                    { return srv.KeepUpToDate }
 func (srv *server) SetKeepUptoDate(val bool)                 { srv.KeepUpToDate = val }
-func (srv *server) GetKeepAlive() bool                       { return srv.KeepAlive }
-func (srv *server) SetKeepAlive(val bool)                    { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}            { return srv.Permissions }
-func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
+func (srv *server) GetKeepAlive() bool                 { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)              { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []any              { return srv.Permissions }
+func (srv *server) SetPermissions(permissions []any)   { srv.Permissions = permissions }
 
 // RolesDefault returns curated roles for PackageDiscovery.
 func (srv *server) RolesDefault() []resourcepb.Role {
