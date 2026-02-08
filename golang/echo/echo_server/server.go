@@ -33,53 +33,65 @@ var (
 	allowedOriginsStr = ""
 )
 
-// server implements Globular service plumbing + Echo RPCs.
+// server implements the Globular service contract and Echo RPC handlers.
+//
+// Phase 1 Refactoring Complete:
+// - Business logic extracted to handlers.go (pure functions)
+// - Lifecycle management extracted to lifecycle.go (Start/Stop/Ready/Health)
+// - Config operations extracted to config.go (load/save/validate)
+// - Main initialization simplified in server.go
+//
+// This struct retains all fields and getter/setters required by the Globular
+// service framework. These fields implement the service contract and MUST remain
+// for compatibility with globular.InitService(), globular.SaveService(), etc.
 type server struct {
-	// Configuration (Phase 1 refactoring - config extracted to separate type)
-	config *Config
-
-	// Legacy fields (will be removed in Step 5 after full migration to config)
-	// For now, these remain for backward compatibility during refactoring
+	// --- Service Identity ---
 	Id          string
 	Mac         string
 	Name        string
 	Domain      string
 	Address     string
-	Path        string
-	Proto       string
-	Port        int
-	Proxy       int
-	Protocol    string
+	Path        string   // Executable path
+	Proto       string   // .proto file path
 	Version     string
 	PublisherID string
 	Description string
 	Keywords    []string
+
+	// --- Network Configuration ---
+	Port     int
+	Proxy    int
+	Protocol string
+
+	// --- Service Discovery ---
 	Repositories []string
 	Discoveries  []string
 
-	// Policy / ops
-	AllowAllOrigins    bool
-	AllowedOrigins     string
-	KeepUpToDate       bool
-	Plaform            string
-	Checksum           string
-	KeepAlive          bool
-	Permissions        []interface{}
-	Dependencies       []string
-	Process            int
-	ProxyProcess       int
-	ConfigPath         string
-	LastError          string
-	State              string
-	ModTime            int64
+	// --- Policy & Operations ---
+	AllowAllOrigins bool
+	AllowedOrigins  string
+	KeepUpToDate    bool
+	KeepAlive       bool
+	Plaform         string   // Note: typo preserved for compatibility
+	Checksum        string
+	Permissions     []any    // Action permissions
+	Dependencies    []string
 
-	// TLS
+	// --- Runtime State ---
+	Process      int    // PID or -1
+	ProxyProcess int    // Proxy PID or -1
+	ConfigPath   string // Path to config file
+	LastError    string
+	State        string // e.g., "running", "stopped"
+	ModTime      int64  // Unix timestamp
+
+	// --- TLS Configuration ---
 	TLS                bool
 	CertFile           string
 	KeyFile            string
 	CertAuthorityTrust string
 
-	// Runtime
+	// --- gRPC Runtime ---
 	grpcServer *grpc.Server
 }
 
@@ -299,10 +311,10 @@ func (srv *server) GetKeepAlive() bool { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(val bool) { srv.KeepAlive = val }
 
 // GetPermissions returns the action permissions configured for this service.
-func (srv *server) GetPermissions() []interface{} { return srv.Permissions }
+func (srv *server) GetPermissions() []any { return srv.Permissions }
 
 // SetPermissions sets the action permissions for this service.
-func (srv *server) SetPermissions(permissions []interface{}) { srv.Permissions = permissions }
+func (srv *server) SetPermissions(permissions []any) { srv.Permissions = permissions }
 
 // Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
@@ -372,7 +384,7 @@ func initializeServerDefaults() *server {
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
-	srv.Permissions = make([]interface{}, 0)
+	srv.Permissions = make([]any, 0)
 
 	return srv
 }
