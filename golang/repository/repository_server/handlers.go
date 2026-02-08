@@ -15,6 +15,21 @@ import (
 	Utility "github.com/globulario/utility"
 )
 
+// handlers.go
+//
+// Repository RPC handlers - pure business logic for package management.
+//
+// This file contains:
+// - DownloadBundle: Stream gob-encoded package bundles to clients
+// - UploadBundle: Receive and persist package bundles with metadata
+// - Helper functions: bundleID, descriptorID, encoding, streaming utilities
+//
+// These handlers are pure functions with no side effects on server configuration.
+// Package metadata is persisted via resource service client (business logic),
+// NOT via srv.Save() (which would be a config side effect).
+//
+// Phase 1 Step 2: Renamed from repository.go for clarity.
+
 const chunkSize = 5 * 1024 // 5 KiB per message chunk
 
 // bundleID returns a deterministic bundle identifier from descriptor and platform.
