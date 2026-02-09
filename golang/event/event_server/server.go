@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -20,47 +20,54 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// Default runtime options.
-// NOTE: TLS/HTTPS is TODO.
 var (
-	defaultPort        = 10050
-	defaultProxy       = 10051
-	allow_all_origins  = true // by default, allow all origins
-	allowed_origins    = ""   // comma-separated origins; used only if allow_all_origins == false
-	errNotInitialized  = errors.New("event service: not initialized")
-	errServerNil       = errors.New("event service: grpc server is nil")
-	errMissingStream   = errors.New("event service: missing stream")
-	errMissingUUID     = errors.New("event service: missing uuid")
-	errMissingChanName = errors.New("event service: missing channel name")
+	defaultPort       = 10050
+	defaultProxy      = 10051
+	allow_all_origins = true
+	allowed_origins   = ""
 )
 
-// server holds service metadata and runtime state.
-type server struct {
-	// Globular service metadata
-	Id              string
-	Name            string
-	Mac             string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string // comma separated string
-	Protocol        string
-	Domain          string
-	Address         string
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	ModTime         int64
-	State           string
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
 
-	// TLS
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+const permissionsJSON = `[
+  {"action":"/event.EventService/OnEvent","permission":"read","resources":[{"index":0,"field":"Uuid","permission":"read"}]},
+  {"action":"/event.EventService/Quit","permission":"read","resources":[{"index":0,"field":"Uuid","permission":"read"}]},
+  {"action":"/event.EventService/Subscribe","permission":"read","resources":[{"index":0,"field":"Name","permission":"read"}]},
+  {"action":"/event.EventService/UnSubscribe","permission":"read","resources":[{"index":0,"field":"Name","permission":"read"}]},
+  {"action":"/event.EventService/Publish","permission":"write","resources":[{"index":0,"field":"Evt.Name","permission":"write"}]},
+  {"action":"/event.EventService/Stop","permission":"write","resources":[]}
+]`
+
+type server struct {
+	Id                 string
+	Name               string
+	Mac                string
+	Path               string
+	Proto              string
+	Port               int
+	Proxy              int
+	AllowAllOrigins    bool
+	AllowedOrigins     string
+	Protocol           string
+	Domain             string
+	Address            string
+	Description        string
+	Keywords           []string
+	Repositories       []string
+	Discoveries        []string
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
+	ModTime            int64
+	State              string
 	CertFile           string
 	KeyFile            string
 	CertAuthorityTrust string
@@ -71,22 +78,17 @@ type server struct {
 	Checksum           string
 	Plaform            string
 	KeepAlive          bool
-	Permissions        []interface{} // action permissions for the service
-	Dependencies       []string      // required services
+	Permissions        []interface{}
+	Dependencies       []string
 
-	// runtime
 	grpcServer *grpc.Server
-	actions    chan map[string]interface{} // serialized control channel
-	exit       chan bool                   // termination signal
+	actions    chan map[string]interface{}
+	exit       chan bool
 
-	// logger (not part of public API)
 	logger *slog.Logger
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Globular configuration getters/setters (public) - documented
-///////////////////////////////////////////////////////////////////////////////
-
+// Globular getters/setters
 func (srv *server) GetConfigurationPath() string      { return srv.ConfigPath }
 func (srv *server) SetConfigurationPath(path string)  { srv.ConfigPath = path }
 func (srv *server) GetAddress() string                { return srv.Address }
@@ -193,7 +195,6 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Description: "Publish to channels (and read if allowed).",
 		Actions: []string{
 			"/event.EventService/Publish",
-			// commonly include read-side, too:
 			"/event.EventService/OnEvent",
 			"/event.EventService/Quit",
 			"/event.EventService/Subscribe",
@@ -206,558 +207,260 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 		Id:          "role:event.admin",
 		Name:        "Event Admin",
 		Domain:      domain,
-		Description: "Full control of the event service.",
-		Actions: []string{
-			"/event.EventService/Stop",
-			"/event.EventService/OnEvent",
-			"/event.EventService/Quit",
-			"/event.EventService/Subscribe",
-			"/event.EventService/UnSubscribe",
-			"/event.EventService/Publish",
-		},
-		TypeName: "resource.Role",
+		Description: "Full control over event channels and publishing.",
+		Actions:     append([]string{"/event.EventService/Stop"}, publisher.Actions...),
+		TypeName:    "resource.Role",
 	}
 
 	return []resourcepb.Role{reader, publisher, admin}
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Lifecycle
-///////////////////////////////////////////////////////////////////////////////
+func loadDefaultPermissions() []interface{} {
+	var out []interface{}
+	_ = json.Unmarshal([]byte(permissionsJSON), &out)
+	return out
+}
 
-func (srv *server) Init() error {
-	if srv.logger == nil {
-		srv.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	}
-
-	// Ensure control channels are initialized BEFORE any RPCs can hit them.
+func (srv *server) ensureRuntimeChannels() {
 	if srv.actions == nil {
-		// Small buffer so RPC handlers don't immediately block if the event loop
-		// is briefly busy. Size can be tuned if needed.
 		srv.actions = make(chan map[string]interface{}, 1024)
 	}
 	if srv.exit == nil {
 		srv.exit = make(chan bool)
 	}
+}
+
+func (srv *server) Init() error {
+	srv.ensureRuntimeChannels()
 
 	if err := globular.InitService(srv); err != nil {
-		srv.logger.Error("init service failed", "service", srv.Name, "id", srv.Id, "err", err)
 		return err
 	}
-	grpcSrv, err := globular.InitGrpcServer(srv)
+
+	gs, err := globular.InitGrpcServer(srv)
 	if err != nil {
-		srv.logger.Error("init grpc server failed", "service", srv.Name, "id", srv.Id, "err", err)
 		return err
 	}
-	srv.grpcServer = grpcSrv
-	srv.logger.Info("service initialized", "service", srv.Name, "id", srv.Id)
+	srv.grpcServer = gs
 	return nil
 }
 
-func (srv *server) Save() error {
-	if srv == nil {
-		return errNotInitialized
-	}
-	return globular.SaveService(srv)
-}
+func (srv *server) Save() error { return globular.SaveService(srv) }
+
 func (srv *server) StartService() error {
-	if srv.grpcServer == nil {
-		return errServerNil
-	}
-	srv.logger.Info("starting service", "service", srv.Name, "id", srv.Id, "port", srv.Port, "proxy", srv.Proxy, "protocol", srv.Protocol)
+	srv.ensureRuntimeChannels()
+	go srv.run()
 	return globular.StartService(srv, srv.grpcServer)
 }
+
 func (srv *server) StopService() error {
-	if srv.grpcServer == nil {
-		return nil
+	srv.ensureRuntimeChannels()
+	select {
+	case srv.exit <- true:
+	default:
 	}
-	srv.grpcServer.Stop()
-	srv.logger.Info("service stopped", "service", srv.Name, "id", srv.Id)
-	return nil
-}
-func (srv *server) Stop(ctx context.Context, _ *eventpb.StopRequest) (*eventpb.StopResponse, error) {
-	srv.logger.Info("stop requested", "service", srv.Name, "id", srv.Id)
-	srv.exit <- true
-	return &eventpb.StopResponse{}, srv.StopService()
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Event subsystem
-///////////////////////////////////////////////////////////////////////////////
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
-func (srv *server) run() {
-	if srv.logger == nil {
-		srv.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	}
-
-	// Safety: Init() is supposed to set this; if it's still nil something
-	// is badly wrong, so log and block rather than panic on send.
-	if srv.actions == nil {
-		srv.logger.Error("event loop starting with nil actions channel; Init() may have failed")
-		// fall back to a sane default to avoid nil-channel deadlocks
-		srv.actions = make(chan map[string]interface{}, 1024)
-	}
-
-	channels := make(map[string][]string)                          // channel -> uuids
-	streams := make(map[string]eventpb.EventService_OnEventServer) // uuid -> stream
-	quits := make(map[string]chan bool)                            // uuid -> quit
-	ka := make(chan *eventpb.KeepAlive)
-
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-	done := make(chan bool)
-
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				ka <- &eventpb.KeepAlive{}
-			}
-		}
-	}()
-
-	srv.logger.Info("event loop started", "service", srv.Name, "id", srv.Id)
-
-	for {
-		select {
-		case <-srv.exit:
-			close(done)
-			for uuid, q := range quits {
-				select {
-				case q <- true:
-				default:
-				}
-				delete(quits, uuid)
-				delete(streams, uuid)
-			}
-			srv.logger.Info("event loop stopped",
-				"service", srv.Name,
-				"id", srv.Id,
-				"channels", len(channels),
-				"streams", len(streams))
-			return
-
-		case ka_ := <-ka:
-			var toDelete []string
-			for uuid, stream := range streams {
-				if stream == nil {
-					toDelete = append(toDelete, uuid)
-					continue
-				}
-				if err := stream.Send(&eventpb.OnEventResponse{Data: &eventpb.OnEventResponse_Ka{Ka: ka_}}); err != nil {
-					srv.logger.Warn("keepalive send failed; will drop stream", "uuid", uuid, "err", err)
-					toDelete = append(toDelete, uuid)
-				}
-			}
-			if len(toDelete) > 0 {
-				srv.cleanupSubscribers(toDelete, channels, quits, streams)
-			}
-
-		case a := <-srv.actions:
-			action, _ := a["action"].(string)
-			switch action {
-			case "onevent":
-				stream, _ := a["stream"].(eventpb.EventService_OnEventServer)
-				uuid, _ := a["uuid"].(string)
-				qc, ok := a["quit"].(chan bool)
-				if stream == nil || uuid == "" || !ok {
-					srv.logger.Error("invalid onevent request", "uuid", uuid, "has_stream", stream != nil, "has_quit", ok)
-					continue
-				}
-				streams[uuid] = stream
-				quits[uuid] = qc
-				srv.logger.Info("stream registered", "uuid", uuid)
-
-			case "subscribe":
-				name, _ := a["name"].(string)
-				uuid, _ := a["uuid"].(string)
-				if name == "" || uuid == "" {
-					srv.logger.Error("invalid subscribe request", "name", name, "uuid", uuid)
-					continue
-				}
-				if channels[name] == nil {
-					channels[name] = make([]string, 0)
-				}
-				if !Utility.Contains(channels[name], uuid) {
-					channels[name] = append(channels[name], uuid)
-					srv.logger.Info("subscribed", "channel", name, "uuid", uuid, "subscribers", len(channels[name]))
-				}
-
-			case "publish":
-				name, _ := a["name"].(string)
-				data, _ := a["data"].([]byte)
-				if name == "" {
-					srv.logger.Error("invalid publish request: missing channel name")
-					continue
-				}
-				uuids := channels[name]
-				if uuids == nil {
-					// No subscribers is not an error; just nothing to do.
-					continue
-				}
-				var toDelete []string
-				for _, uuid := range uuids {
-					stream := streams[uuid]
-					if stream == nil {
-						toDelete = append(toDelete, uuid)
-						continue
-					}
-					err := stream.Send(&eventpb.OnEventResponse{
-						Data: &eventpb.OnEventResponse_Evt{
-							Evt: &eventpb.Event{Name: name, Data: data},
-						},
-					})
-					if err != nil {
-						srv.logger.Warn("event send failed; will drop subscriber", "channel", name, "uuid", uuid, "err", err)
-						toDelete = append(toDelete, uuid)
-					}
-				}
-				if len(toDelete) > 0 {
-					srv.cleanupSubscribers(toDelete, channels, quits, streams)
-				}
-
-			case "unsubscribe":
-				name, _ := a["name"].(string)
-				uuid, _ := a["uuid"].(string)
-				if name == "" || uuid == "" {
-					srv.logger.Error("invalid unsubscribe request", "name", name, "uuid", uuid)
-					continue
-				}
-				uuids := make([]string, 0, len(channels[name]))
-				for _, id := range channels[name] {
-					if id != uuid {
-						uuids = append(uuids, id)
-					}
-				}
-				if len(uuids) == 0 {
-					delete(channels, name)
-				} else {
-					channels[name] = uuids
-				}
-				srv.logger.Info("unsubscribed", "channel", name, "uuid", uuid, "remaining", len(channels[name]))
-
-			case "quit":
-				uuid, _ := a["uuid"].(string)
-				if uuid == "" {
-					srv.logger.Error("invalid quit request: missing uuid")
-					continue
-				}
-				srv.cleanupSubscribers([]string{uuid}, channels, quits, streams)
-				srv.logger.Info("stream quit", "uuid", uuid)
-
-			default:
-				srv.logger.Warn("unknown action", "action", action)
-			}
-		}
-	}
-}
-
-func (srv *server) cleanupSubscribers(
-	toDelete []string,
-	channels map[string][]string,
-	quits map[string]chan bool,
-	streams map[string]eventpb.EventService_OnEventServer,
-) {
-	for _, uuid := range toDelete {
-		// Remove from all channels
-		for name, ch := range channels {
-			uuids := make([]string, 0, len(ch))
-			for _, id := range ch {
-				if id != uuid {
-					uuids = append(uuids, id)
-				}
-			}
-			if len(uuids) == 0 {
-				delete(channels, name)
-			} else {
-				channels[name] = uuids
-			}
-		}
-
-		// Signal quit (if any) and remove
-		if q, ok := quits[uuid]; ok {
-			select {
-			case q <- true:
-			default:
-			}
-			delete(quits, uuid)
-		}
-
-		// Remove stream entry so future keepalives don't see it
-		if _, ok := streams[uuid]; ok {
-			delete(streams, uuid)
-		}
-
-		srv.logger.Info("subscriber cleanup", "uuid", uuid)
-	}
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// RPCs (public prototypes preserved)
-///////////////////////////////////////////////////////////////////////////////
-
-func (srv *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest) (*eventpb.QuitResponse, error) {
-	if rqst == nil || rqst.Uuid == "" {
-		srv.logger.Error("Quit: invalid request", "err", errMissingUUID)
-		return &eventpb.QuitResponse{Result: false}, errMissingUUID
-	}
-	msg := map[string]interface{}{"action": "quit", "uuid": rqst.Uuid}
-	srv.actions <- msg
-	srv.logger.Info("Quit: ok", "uuid", rqst.Uuid)
-	return &eventpb.QuitResponse{Result: true}, nil
-}
-
-func (srv *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
-	if stream == nil {
-		srv.logger.Error("OnEvent: missing stream", "err", errMissingStream)
-		return errMissingStream
-	}
-	if rqst == nil || rqst.Uuid == "" {
-		srv.logger.Error("OnEvent: invalid request", "err", errMissingUUID)
-		return errMissingUUID
-	}
-
-	onevent := map[string]interface{}{
-		"action": "onevent",
-		"stream": stream,
-		"uuid":   rqst.Uuid,
-		"quit":   make(chan bool),
-	}
-	srv.actions <- onevent
-	srv.logger.Info("OnEvent: registered", "uuid", rqst.Uuid)
-
-	<-onevent["quit"].(chan bool)
-	srv.logger.Info("OnEvent: stream ended", "uuid", rqst.Uuid)
-	return nil
-}
-
-func (srv *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeRequest) (*eventpb.SubscribeResponse, error) {
-	if rqst == nil || rqst.Uuid == "" {
-		srv.logger.Error("Subscribe: invalid request", "err", errMissingUUID)
-		return &eventpb.SubscribeResponse{Result: false}, errMissingUUID
-	}
-	if rqst.Name == "" {
-		srv.logger.Error("Subscribe: invalid request", "err", errMissingChanName)
-		return &eventpb.SubscribeResponse{Result: false}, errMissingChanName
-	}
-	subscribe := map[string]interface{}{"action": "subscribe", "name": rqst.Name, "uuid": rqst.Uuid}
-	srv.actions <- subscribe
-	srv.logger.Info("Subscribe: ok", "channel", rqst.Name, "uuid", rqst.Uuid)
-	return &eventpb.SubscribeResponse{Result: true}, nil
-}
-
-func (srv *server) UnSubscribe(ctx context.Context, rqst *eventpb.UnSubscribeRequest) (*eventpb.UnSubscribeResponse, error) {
-	if rqst == nil || rqst.Uuid == "" {
-		srv.logger.Error("UnSubscribe: invalid request", "err", errMissingUUID)
-		return &eventpb.UnSubscribeResponse{Result: false}, errMissingUUID
-	}
-	if rqst.Name == "" {
-		srv.logger.Error("UnSubscribe: invalid request", "err", errMissingChanName)
-		return &eventpb.UnSubscribeResponse{Result: false}, errMissingChanName
-	}
-	unsubscribe := map[string]interface{}{"action": "unsubscribe", "name": rqst.Name, "uuid": rqst.Uuid}
-	srv.actions <- unsubscribe
-	srv.logger.Info("UnSubscribe: ok", "channel", rqst.Name, "uuid", rqst.Uuid)
-	return &eventpb.UnSubscribeResponse{Result: true}, nil
-}
-
-func (srv *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (*eventpb.PublishResponse, error) {
-	if rqst == nil || rqst.Evt == nil || rqst.Evt.Name == "" {
-		srv.logger.Error("Publish: invalid request", "err", errMissingChanName)
-		return &eventpb.PublishResponse{Result: false}, errMissingChanName
-	}
-	publish := map[string]interface{}{"action": "publish", "name": rqst.Evt.Name, "data": rqst.Evt.Data}
-	srv.actions <- publish
-	return &eventpb.PublishResponse{Result: true}, nil
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// CLI helpers
-///////////////////////////////////////////////////////////////////////////////
-
-func printUsage() {
-	fmt.Fprintf(os.Stdout, `
-Usage: %s [options] <id> [configPath]
-
-Options:
-  --describe      Print service description as JSON (no etcd/config access)
-  --health        Print service health as JSON (no etcd/config access)
-
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
-
-`, filepath.Base(os.Args[0]))
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// main
-///////////////////////////////////////////////////////////////////////////////
-
-func main() {
-	// Structured logger to stdout
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	// Build skeleton (no etcd/config yet)
+func initializeServerDefaults() *server {
 	srv := new(server)
-	srv.logger = logger
 	srv.Name = string(eventpb.File_event_proto.Services().Get(0).FullName())
 	srv.Proto = eventpb.File_event_proto.Path()
 	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = Version // Use build-time version
 	srv.PublisherID = "localhost"
-	srv.Description = "Event service"
-	srv.Keywords = []string{"Event", "PubSub", "Subscribe", "Publish"}
+	srv.Description = "Event service with pub/sub messaging, event subscriptions, and real-time notifications"
+	srv.Keywords = []string{"event", "pubsub", "subscribe", "publish", "messaging", "notifications", "realtime"}
 	srv.Repositories = []string{}
 	srv.Discoveries = []string{}
 	srv.Dependencies = []string{}
-	srv.Permissions = []interface{}{} // none required by default; fill here if you have RBAC rules
+	srv.Permissions = loadDefaultPermissions()
 	srv.Process = -1
 	srv.ProxyProcess = -1
 	srv.KeepAlive = true
 	srv.KeepUpToDate = true
 	srv.AllowAllOrigins = allow_all_origins
 	srv.AllowedOrigins = allowed_origins
+	srv.logger = logger
+	srv.ensureRuntimeChannels()
 
-	// e.g., right after you build `srv` in main() — before Describe/Init.
-	{
-		res := func(field, perm string) map[string]interface{} {
-			// `field` supports dot-paths for nested payloads (e.g., "Evt.Name").
-			return map[string]interface{}{"index": 0, "field": field, "permission": perm}
-		}
-		rule := func(action, perm string, r ...map[string]interface{}) map[string]interface{} {
-			m := map[string]interface{}{"action": action, "permission": perm}
-			if len(r) > 0 {
-				rs := make([]any, 0, len(r))
-				for _, x := range r {
-					rs = append(rs, x)
-				}
-				m["resources"] = rs
-			}
-			return m
-		}
+	srv.Domain, srv.Address = globular.GetDefaultDomainAddress(srv.Port)
 
-		srv.Permissions = []any{
-			// stream lifecycle (per-stream UUID)
-			rule("/event.EventService/OnEvent", "read", res("Uuid", "read")),
-			rule("/event.EventService/Quit", "read", res("Uuid", "read")),
+	return srv
+}
 
-			// channel membership (per channel name)
-			rule("/event.EventService/Subscribe", "read", res("Name", "read")),
-			rule("/event.EventService/UnSubscribe", "read", res("Name", "read")),
+func setupGrpcService(srv *server) {
+	eventpb.RegisterEventServiceServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
+}
 
-			// publishing (per channel name; nested field)
-			rule("/event.EventService/Publish", "write", res("Evt.Name", "write")),
+func printUsage() {
+	fmt.Println("Globular Event Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  event_server [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN      Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS     Override service address")
+	fmt.Println()
+	fmt.Println("FEATURES:")
+	fmt.Println("  • Pub/Sub messaging with event subscriptions")
+	fmt.Println("  • Real-time event notifications")
+	fmt.Println("  • Multiple subscribers per event channel")
+	fmt.Println("  • Event publishing with filtering")
+	fmt.Println("  • Subscription management (subscribe/unsubscribe)")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  event_server")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  event_server event-1")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  event_server --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  event_server --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  event_server --health")
+}
 
-			// admin
-			rule("/event.EventService/Stop", "write"),
-		}
+func printVersion() {
+	info := map[string]string{
+		"service":    "event",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
+}
+
+func main() {
+	srv := initializeServerDefaults()
+
+	// Define CLI flags
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Apply debug logging if requested
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		srv.logger = logger
+		logger.Debug("debug logging enabled")
 	}
 
-	// CLI flags BEFORE touching config
-	args := os.Args[1:]
-	if len(args) == 0 {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
-		allocator, err := config.NewDefaultPortAllocator()
+	// Handle early-exit flags
+	if *showHelp {
+		printUsage()
+		return
+	}
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	// Handle --describe flag
+	if *showDescribe {
+		srv.Process = os.Getpid()
+		srv.State = "starting"
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			srv.Domain = strings.ToLower(v)
+		} else {
+			srv.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			srv.Address = strings.ToLower(v)
+		} else {
+			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		}
+		if srv.Id == "" {
+			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
+		}
+		b, err := globular.DescribeJSON(srv)
 		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
+			logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
 		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
+	}
 
-		p, err := allocator.Next(srv.Id)
+	// Handle --health flag
+	if *showHealth {
+		if srv.Port == 0 || srv.Name == "" {
+			logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
 		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
+			logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
 		}
-		srv.Port = p
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
 	}
 
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-			// fill domain/address from env with sane defaults
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
-			// IMPORTANT: Permissions already initialized above, so DescribeJSON will include them.
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
+	args := flag.Args()
 
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Fprintf(os.Stdout, "%s\n", srv.Version)
-			return
-		}
+	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+		logger.Error("port allocation failed", "error", err)
+		os.Exit(1)
 	}
 
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		srv.Id = args[0]
-		srv.ConfigPath = args[1]
-	}
+	globular.ParsePositionalArgs(srv, args)
+	globular.LoadRuntimeConfig(srv)
 
-	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil {
-		srv.Domain = d
-	} else {
-		srv.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		srv.Address = a
-	}
-
-	// Register client constructor for dynamic routing
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 
+	logger.Info("starting event service",
+		"service", srv.Name,
+		"version", srv.Version,
+		"domain", srv.Domain,
+		"address", srv.Address,
+		"port", srv.Port,
+	)
+
 	start := time.Now()
+	logger.Debug("initializing service", "service", srv.Name, "id", srv.Id)
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service init completed", "duration_ms", time.Since(start).Milliseconds())
 
-	// Register RPCs
-	eventpb.RegisterEventServiceServer(srv.grpcServer, srv)
-	reflection.Register(srv.grpcServer)
-
-	// Start event manager
-	go srv.run()
+	logger.Debug("registering gRPC handlers", "service", srv.Name)
+	setupGrpcService(srv)
+	logger.Debug("gRPC handlers registered")
 
 	logger.Info("service ready",
 		"service", srv.Name,
@@ -765,12 +468,13 @@ func main() {
 		"proxy", srv.Proxy,
 		"protocol", srv.Protocol,
 		"domain", srv.Domain,
-		"address", srv.Address,
-		"listen_ms", time.Since(start).Milliseconds())
+		"startup_ms", time.Since(start).Milliseconds(),
+		"version", srv.Version,
+	)
 
-	// Start gRPC
-	if err := srv.StartService(); err != nil {
-		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
+	lifecycle := globular.NewLifecycleManager(srv, logger)
+	if err := lifecycle.Start(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "err", err)
 		os.Exit(1)
 	}
 }
