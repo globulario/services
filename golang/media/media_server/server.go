@@ -6,7 +6,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -42,6 +44,13 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 // -----------------------------------------------------------------------------
 // Defaults & Logger
 // -----------------------------------------------------------------------------
@@ -55,6 +64,8 @@ var (
 	// in-process cache backend handle
 	cache storage_store.Store
 
+	// STDERR logger (keeps STDOUT clean for --describe/--health)
+	// Note: Can be reconfigured for debug level via --debug flag in main()
 	logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -766,6 +777,38 @@ func subscribeWithRetry(
 // -----------------------------------------------------------------------------
 
 func main() {
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Handle --debug flag (reconfigure logger level)
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		logger.Debug("debug logging enabled")
+	}
+
+	// Handle informational flags that exit early
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
+
+	// Initialize service skeleton
 	srv := new(server)
 
 	// Fill ONLY fields that do NOT call into config/etcd yet.
@@ -775,10 +818,10 @@ func main() {
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = Version // Use build-time version
 	srv.PublisherID = "localhost"
-	srv.Description = "Media service with previews and scheduled conversions."
-	srv.Keywords = []string{"Example", "media", "Test", "Service"}
+	srv.Description = "Media service with video/audio processing and conversions"
+	srv.Keywords = []string{"media", "video", "audio", "ffmpeg", "conversion", "streaming"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = []string{
@@ -911,9 +954,58 @@ func main() {
 	srv.MaximumVideoConversionDelay = "00:00"
 	srv.StartVideoConversionHour = "00:00"
 
-	// ---- CLI handling BEFORE config access ----
-	args := os.Args[1:]
+	// Handle --describe flag (requires minimal service setup, no config access)
+	if *showDescribe {
+		// best-effort runtime fields without hitting etcd
+		srv.Process = os.Getpid()
+		srv.State = "starting"
+
+		// Provide harmless defaults for Domain/Address that don't need etcd
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			srv.Domain = strings.ToLower(v)
+		} else {
+			srv.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			srv.Address = strings.ToLower(v)
+		} else {
+			// address here is informational; using grpc port keeps it truthful
+			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		}
+
+		b, err := globular.DescribeJSON(srv)
+		if err != nil {
+			logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Handle --health flag (requires minimal service setup, no config access)
+	if *showHealth {
+		if srv.Port == 0 || srv.Name == "" {
+			logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+			Timeout:     1500 * time.Millisecond,
+			ServiceName: "",
+		})
+		if err != nil {
+			logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Parse positional arguments: [<id> [configPath]]
+	args := flag.Args()
 	if len(args) == 0 {
+		// No args: auto-generate ID and allocate port
 		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
@@ -926,87 +1018,42 @@ func main() {
 			os.Exit(1)
 		}
 		srv.Port = p
-	}
-
-	// Optional positional overrides (id, config path) if they don't start with '-'
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+		logger.Debug("auto-allocated service", "id", srv.Id, "port", srv.Port)
+	} else if len(args) == 1 {
+		// One arg: service ID
 		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+		logger.Debug("using provided service id", "id", srv.Id)
+	} else if len(args) >= 2 {
+		// Two+ args: service ID and config path
 		srv.Id = args[0]
 		srv.ConfigPath = args[1]
+		logger.Debug("using provided service id and config", "id", srv.Id, "config", srv.ConfigPath)
 	}
 
-	// Handle flags first (no etcd/config access)
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			// best-effort runtime fields without hitting etcd
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-
-			// Provide harmless defaults for Domain/Address that don’t need etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				// address here is informational; using grpc port keeps it truthful
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
-
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "",
-			})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Println(srv.Version)
-			return
-		}
-	}
-
-	// Now safe to use config (may read etcd / file fallback)
+	// Load configuration (safe to touch config now)
+	logger.Debug("loading service configuration")
 	if d, err := config.GetDomain(); err == nil && d != "" {
 		srv.Domain = d
+		logger.Debug("loaded domain from config", "domain", d)
+	} else {
+		logger.Debug("using default domain", "domain", "localhost")
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		srv.Address = a
+		logger.Debug("loaded address from config", "address", a)
 	}
 
 	// Register client ctor
 	Utility.RegisterFunction("NewMediaService_Client", media_client.NewMediaService_Client)
 
+	// Initialize service
+	logger.Info("initializing media service", "id", srv.Id, "domain", srv.Domain)
 	start := time.Now()
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service initialized", "duration_ms", time.Since(start).Milliseconds())
 	srv.MinioConfig = srv.loadMinioConfig()
 	if srv.MinioConfig != nil {
 		logger.Info("minio storage configured",
@@ -1017,20 +1064,26 @@ func main() {
 
 	srv.applyStoredMediaSettings()
 
-	// Register RPCs
+	// Register gRPC services
+	logger.Debug("registering grpc services")
 	mediapb.RegisterMediaServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
 
 	// Cache backend selection
+	logger.Debug("selecting cache backend", "type", srv.CacheType)
 	switch strings.ToUpper(srv.CacheType) {
 	case "BADGER":
 		cache = storage_store.NewBadger_store()
+		logger.Info("using badger cache backend")
 	case "SCYLLADB":
 		cache = storage_store.NewScylla_store(srv.CacheAddress, "files", srv.CacheReplicationFactor)
+		logger.Info("using scylladb cache backend", "address", srv.CacheAddress)
 	case "LEVELDB":
 		cache = storage_store.NewLevelDB_store()
+		logger.Info("using leveldb cache backend")
 	default:
 		cache = storage_store.NewBigCache_store()
+		logger.Info("using bigcache backend (in-memory)")
 	}
 
 	if srv.MaximumVideoConversionDelay == "" {
@@ -1070,34 +1123,81 @@ func main() {
 	}
 
 	// Audio processing bootstrap
+	logger.Debug("starting audio processing background tasks")
 	srv.startProcessAudios()
 
-	logger.Info("service ready",
-		"service", srv.Name,
+	// Service ready - log comprehensive startup info
+	logger.Info("media service ready",
+		"id", srv.Id,
+		"version", srv.Version,
 		"port", srv.Port,
 		"proxy", srv.Proxy,
 		"protocol", srv.Protocol,
 		"domain", srv.Domain,
-		"listen_ms", time.Since(start).Milliseconds(),
+		"address", srv.Address,
+		"startup_ms", time.Since(start).Milliseconds(),
 	)
 
+	// Start gRPC server
+	logger.Info("starting grpc server", "port", srv.Port)
 	if err := srv.StartService(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 }
 
+// printUsage prints comprehensive command-line usage information.
 func printUsage() {
-	fmt.Println("Usage:")
-	fmt.Println("  media_server [id] [config_path] [--describe] [--health]")
+	fmt.Println("Globular Media Service")
 	fmt.Println()
-	fmt.Println("Options:")
-	fmt.Println("  --describe   Print service metadata as JSON and exit")
-	fmt.Println("  --health     Print health check JSON and exit")
+	fmt.Println("USAGE:")
+	fmt.Println("  media-service [OPTIONS] [<id> [configPath]]")
 	fmt.Println()
-	fmt.Println("Arguments:")
-	fmt.Println("  id           Optional service instance ID")
-	fmt.Println("  config_path  Optional path to configuration file")
+	fmt.Println("OPTIONS:")
+	flag.PrintDefaults()
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN       Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS      Override service address")
+	fmt.Println("  MINIO_ENDPOINT        MinIO/S3 endpoint for media storage")
+	fmt.Println("  MINIO_BUCKET          MinIO bucket name (default: globular)")
+	fmt.Println("  MINIO_PREFIX          MinIO key prefix (default: /users)")
+	fmt.Println("  MINIO_USE_SSL         Enable SSL for MinIO (true/false)")
+	fmt.Println("  MINIO_ACCESS_KEY      MinIO access key")
+	fmt.Println("  MINIO_SECRET_KEY      MinIO secret key")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  media-service")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  media-service my-media-service-id")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  media-service --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  media-service --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  media-service --health")
+	fmt.Println()
+}
+
+// printVersion prints version information as JSON.
+func printVersion() {
+	info := map[string]string{
+		"service":    "media",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
 
 // applyStoredMediaSettings reloads persisted media-specific configuration values after Init().
