@@ -1078,7 +1078,7 @@ func nodeClientWith(override string) (*grpc.ClientConn, error) {
 }
 
 func dialGRPC(addr string) (*grpc.ClientConn, error) {
-	opts := []grpc.DialOption{grpc.WithBlock()}
+	opts := []grpc.DialOption{}
 	if rootCfg.insecure {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else if rootCfg.caFile != "" {
@@ -1097,7 +1097,11 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
-	return grpc.DialContext(ctx, addr, opts...)
+	conn, err := grpc.DialContext(ctx, addr, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 func pick(override, fallback string) string {
