@@ -16,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/ldap/ldap_client"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -90,6 +89,7 @@ type server struct {
 	ModTime              int64
 	State                string
 	DynamicMethodRouting []interface{}
+	Logger               *slog.Logger
 
 	// gRPC server.
 	grpcServer *grpc.Server
@@ -258,8 +258,109 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 	}
 }
 
+func loadDefaultPermissions() []interface{} {
+	return []interface{}{
+		// ---- Control plane
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Stop",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+
+		// ---- Connection lifecycle
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/CreateConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Host", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Port", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.User", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Connection.Password", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/DeleteConnection",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Close",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
+			},
+		},
+
+		// ---- Directory search (read-only)
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Search",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Search.Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.BaseDN", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.Filter", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Search.Attributes", "permission": "read"},
+			},
+		},
+
+		// ---- Authentication
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Authenticate",
+			"permission": "exec",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Login", "permission": "read"},
+				map[string]interface{}{"index": 0, "field": "Pwd", "permission": "read"},
+			},
+		},
+
+		// ---- Sync configuration CRUD
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/setLdapSyncInfo",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Info.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.ConnectionId", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.Refresh", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Base", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Query", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Id", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Email", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Base", "permission": "write"},
+				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Query", "permission": "write"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/deleteLdapSyncInfo",
+			"permission": "admin",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
+			},
+		},
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/getLdapSyncInfo",
+			"permission": "read",
+			"resources": []interface{}{
+				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
+			},
+		},
+
+		// ---- Synchronize
+		map[string]interface{}{
+			"action":     "/ldap.LdapService/Synchronize",
+			"permission": "admin",
+			"resources":  []interface{}{},
+		},
+	}
+}
+
 // Init creates/loads configuration and initializes the gRPC server.
 func (srv *server) Init() error {
+	srv.ensureRuntimeState()
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
@@ -275,10 +376,17 @@ func (srv *server) Init() error {
 func (srv *server) Save() error { return globular.SaveService(srv) }
 
 // StartService begins serving gRPC.
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+func (srv *server) StartService() error {
+	srv.ensureRuntimeState()
+	if err := srv.StartLDAPFacade(); err != nil {
+		logger.Warn("failed to start LDAP facade", "err", err)
+	}
+	return globular.StartService(srv, srv.grpcServer)
+}
 
 // StopService gracefully stops gRPC serving.
-func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) StopService() error          { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
 // Stop gRPC via API call.
 func (srv *server) Stop(ctx context.Context, _ *ldappb.StopRequest) (*ldappb.StopResponse, error) {
@@ -397,240 +505,42 @@ Options:
 // --- main entrypoint ---
 
 func main() {
-	// Base skeleton (no etcd/config yet)
-	s := &server{
-		Connections:     make(map[string]connection),
-		Name:            string(ldappb.File_ldap_proto.Services().Get(0).FullName()),
-		Proto:           ldappb.File_ldap_proto.Path(),
-		Path:            "",
-		Port:            defaultPort,
-		Proxy:           defaultProxy,
-		Protocol:        "grpc",
-		Version:         "0.0.1",
-		AllowAllOrigins: allowAllOrigins,
-		AllowedOrigins:  allowedOriginsStr,
-		PublisherID:     "localhost",
-		Permissions:     []interface{}{}, // keep empty; no nil entries
-		Keywords:        []string{"LDAP", "Directory"},
-		Repositories:    []string{},
-		Discoveries:     []string{},
-		Dependencies:    []string{"rbac.RbacService"},
-		Process:         -1,
-		ProxyProcess:    -1,
-		KeepAlive:       true,
-		KeepUpToDate:    true,
-		LdapListenAddr:  "0.0.0.0:389",
-		LdapsListenAddr: "0.0.0.0:636",
-		DisableLDAPS:    false,
-	}
+	s := initializeServerDefaults()
 
-	// s.Permissions for ldap.LdapService
-	s.Permissions = []interface{}{
-		// ---- Control plane
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/Stop",
-			"permission": "admin",
-			"resources":  []interface{}{},
-		},
-
-		// ---- Connection lifecycle (sensitive; changes runtime + persisted config)
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/CreateConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Connection.Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Connection.Host", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Connection.Port", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Connection.User", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Connection.Password", "permission": "write"}, // secret; admin gate
-			},
-		},
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/DeleteConnection",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/Close",
-			"permission": "admin", // closing shared connection affects others
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-			},
-		},
-
-		// ---- Directory search (read-only)
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/Search",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Search.Id", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Search.BaseDN", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Search.Filter", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Search.Attributes", "permission": "read"},
-			},
-		},
-
-		// ---- Authentication (exec against directory; does not mutate service state)
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/Authenticate",
-			"permission": "exec",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Login", "permission": "read"},
-				map[string]interface{}{"index": 0, "field": "Pwd", "permission": "read"}, // sensitive; check transport/TLS upstream
-			},
-		},
-
-		// ---- Sync configuration CRUD
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/setLdapSyncInfo",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Info.Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.ConnectionId", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Refresh", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Base", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.GroupSyncInfo.Query", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Id", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Email", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Base", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.UserSyncInfo.Query", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/deleteLdapSyncInfo",
-			"permission": "admin",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "delete"},
-			},
-		},
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/getLdapSyncInfo",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "read"},
-			},
-		},
-
-		// ---- Synchronize (executes external effects: creates/updates accounts & groups via Resource/RBAC)
-		map[string]interface{}{
-			"action":     "/ldap.LdapService/Synchronize",
-			"permission": "admin",
-			"resources":  []interface{}{}, // uses stored config; no fields on request
-		},
-	}
-
-	// Register LDAP client factory for other services.
-	Utility.RegisterFunction("NewLdapService_Client", ldap_client.NewLdapService_Client)
-
-	// Resolve binary path.
-	if p, err := filepath.Abs(filepath.Dir(os.Args[0])); err == nil {
-		s.Path = p
-	}
-
-	// ---------- CLI BEFORE config ----------
 	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
-
 	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--debug":
+		if strings.ToLower(a) == "--debug" {
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Println(s.Version)
-			return
-		default:
-			// skip unknown flags for now (e.g. positional args)
+			s.Logger = logger
+			break
 		}
 	}
 
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+	if globular.HandleInformationalFlags(s, args, logger, printUsage) {
+		return
 	}
 
-	// ---------- Safe to touch config ----------
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
+	if err := globular.AllocatePortIfNeeded(s, args); err != nil {
+		logger.Error("fail to allocate port", "error", err)
+		os.Exit(1)
+	}
+
+	globular.ParsePositionalArgs(s, args)
+	globular.LoadRuntimeConfig(s)
+
+	if s.Domain == "" {
 		s.Domain = "localhost"
 	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
+	if s.Address == "" {
+		s.Address = fmt.Sprintf("localhost:%d", s.Port)
 	}
 
-	// Initialize service & gRPC.
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("failed to initialize service", "name", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
-	if s.Address == "" {
-		if addr, _ := config.GetAddress(); addr != "" {
-			s.Address = addr
-		}
-	}
 
-	// Register gRPC server implementation.
 	ldappb.RegisterLdapServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
 
@@ -642,14 +552,59 @@ func main() {
 		"domain", s.Domain,
 		"listen_ms", time.Since(start).Milliseconds())
 
-	// start ldap facade
-	err := s.StartLDAPFacade()
-	if err != nil {
-		logger.Error("failed to start LDAP facade", "err", err)
+	lifecycle := globular.NewLifecycleManager(s, logger)
+	if err := lifecycle.Start(); err != nil {
+		logger.Error("service start failed", "service", s.Name, "err", err)
+		os.Exit(1)
+	}
+}
+
+func initializeServerDefaults() *server {
+	cfg := DefaultConfig()
+	s := &server{
+		Connections:     map[string]connection{},
+		LdapSyncInfos:   map[string]interface{}{},
+		Name:            string(ldappb.File_ldap_proto.Services().Get(0).FullName()),
+		Proto:           ldappb.File_ldap_proto.Path(),
+		Path:            "",
+		Port:            cfg.Port,
+		Proxy:           cfg.Proxy,
+		Protocol:        cfg.Protocol,
+		Version:         cfg.Version,
+		AllowAllOrigins: cfg.AllowAllOrigins,
+		AllowedOrigins:  cfg.AllowedOrigins,
+		PublisherID:     cfg.PublisherID,
+		Permissions:     loadDefaultPermissions(),
+		Keywords:        globular.CloneStringSlice(cfg.Keywords),
+		Repositories:    globular.CloneStringSlice(cfg.Repositories),
+		Discoveries:     globular.CloneStringSlice(cfg.Discoveries),
+		Dependencies:    globular.CloneStringSlice(cfg.Dependencies),
+		Process:         -1,
+		ProxyProcess:    -1,
+		KeepAlive:       cfg.KeepAlive,
+		KeepUpToDate:    cfg.KeepUpToDate,
+		LdapListenAddr:  cfg.LdapListenAddr,
+		LdapsListenAddr: cfg.LdapsListenAddr,
+		DisableLDAPS:    cfg.DisableLDAPS,
+		Logger:          logger,
 	}
 
-	// Start gRPC service (blocking).
-	if err := s.StartService(); err != nil {
-		logger.Error("gRPC service stopped with error", "err", err)
+	if p, err := filepath.Abs(filepath.Dir(os.Args[0])); err == nil {
+		s.Path = p
+	}
+
+	s.Domain, s.Address = globular.GetDefaultDomainAddress(s.Port)
+	return s
+}
+
+func (srv *server) ensureRuntimeState() {
+	if srv.Connections == nil {
+		srv.Connections = map[string]connection{}
+	}
+	if srv.LdapSyncInfos == nil {
+		srv.LdapSyncInfos = map[string]interface{}{}
+	}
+	if srv.Logger == nil {
+		srv.Logger = logger
 	}
 }

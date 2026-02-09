@@ -16,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -42,6 +41,33 @@ var (
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 	Level: slog.LevelInfo,
 }))
+
+func (srv *server) ensureRuntime() {
+	if srv.logger == nil {
+		srv.logger = logger
+	}
+	if srv.Dependencies == nil {
+		srv.Dependencies = []string{}
+	}
+	if srv.Permissions == nil {
+		srv.Permissions = loadDefaultPermissions()
+	}
+}
+
+func loadDefaultPermissions() []interface{} {
+	return []interface{}{
+		map[string]interface{}{"action": "/log.LogService/Stop", "permission": "write"},
+		map[string]interface{}{"action": "/log.LogService/Print", "permission": "write"},
+		map[string]interface{}{"action": "/log.LogService/Save", "permission": "write"},
+		map[string]interface{}{"action": "/log.LogService/GetLevels", "permission": "read"},
+		map[string]interface{}{"action": "/log.LogService/GetApplications", "permission": "read"},
+		map[string]interface{}{"action": "/log.LogService/GetLogsByLevelAndApplication", "permission": "read"},
+		map[string]interface{}{"action": "/log.LogService/GetLogs", "permission": "read"},
+		map[string]interface{}{"action": "/log.LogService/GetLogsByInterval", "permission": "read"},
+		map[string]interface{}{"action": "/log.LogService/DeleteLogs", "permission": "delete"},
+		map[string]interface{}{"action": "/log.LogService/GetLogStat", "permission": "read"},
+	}
+}
 
 // -----------------------------------------------------------------------------
 // Server
@@ -104,6 +130,8 @@ type server struct {
 	// Retention
 	RetentionHours    int // default 7d (set in main)
 	SweepEverySeconds int // default 300s (set in main)
+
+	logger *slog.Logger
 }
 
 // --- Globular service contract (getters/setters) ---
@@ -207,6 +235,7 @@ func (srv *server) GetKeepAlive() bool             { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(v bool)            { srv.KeepAlive = v }
 func (srv *server) GetPermissions() []interface{}  { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{}) { srv.Permissions = p }
+func (srv *server) GetGrpcServer() *grpc.Server    { return srv.grpcServer }
 
 func (srv *server) RolesDefault() []resourcepb.Role {
 	domain, _ := config.GetDomain()
@@ -262,6 +291,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 // --- Lifecycle ---
 
 func (srv *server) Init() error {
+	srv.ensureRuntime()
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
@@ -273,9 +303,13 @@ func (srv *server) Init() error {
 	return nil
 }
 
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) Save() error { return globular.SaveService(srv) }
+func (srv *server) StartService() error {
+	srv.ensureRuntime()
+	go srv.startRetentionJanitor()
+	return globular.StartService(srv, srv.grpcServer)
+}
+func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
 
 // --- Optional: event helpers ---
 
@@ -296,181 +330,78 @@ func (srv *server) publish(event string, data []byte) error {
 	return ec.Publish(event, data)
 }
 
+func initializeServerDefaults() *server {
+	cfg := DefaultConfig()
+	s := &server{
+		Name:              string(logpb.File_log_proto.Services().Get(0).FullName()),
+		Proto:             logpb.File_log_proto.Path(),
+		Path:              func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
+		Port:              cfg.Port,
+		Proxy:             cfg.Proxy,
+		Protocol:          cfg.Protocol,
+		Version:           cfg.Version,
+		PublisherID:       cfg.PublisherID,
+		Description:       cfg.Description,
+		Keywords:          globular.CloneStringSlice(cfg.Keywords),
+		Repositories:      globular.CloneStringSlice(cfg.Repositories),
+		Discoveries:       globular.CloneStringSlice(cfg.Discoveries),
+		AllowAllOrigins:   cfg.AllowAllOrigins,
+		AllowedOrigins:    cfg.AllowedOrigins,
+		KeepUpToDate:      cfg.KeepUpToDate,
+		KeepAlive:         cfg.KeepAlive,
+		Process:           -1,
+		ProxyProcess:      -1,
+		Dependencies:      []string{"event.EventService"},
+		Permissions:       loadDefaultPermissions(),
+		Monitoring_Port:   cfg.MonitoringPort,
+		Root:              cfg.Root,
+		RetentionHours:    cfg.RetentionHours,
+		SweepEverySeconds: cfg.SweepEverySeconds,
+		logger:            logger,
+	}
+
+	s.Domain, s.Address = globular.GetDefaultDomainAddress(s.Port)
+	if s.Root == "" {
+		s.Root = config.GetDataDir()
+	}
+	return s
+}
+
 // -----------------------------------------------------------------------------
-// main
-// -----------------------------------------------------------------------------
+// main entrypoint (wiring only)
 
 func main() {
-	srv := new(server)
+	srv := initializeServerDefaults()
 
-	// Fill ONLY fields that don’t touch etcd yet.
-	srv.Name = string(logpb.File_log_proto.Services().Get(0).FullName())
-	srv.Proto = logpb.File_log_proto.Path()
-	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	srv.Port = defaultPort
-	srv.Proxy = defaultProxy
-	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
-	srv.PublisherID = "localhost"
-	srv.Description = "Cluster log collection and distribution service."
-	srv.Keywords = []string{"log", "observability", "events", "monitoring"}
-	srv.Repositories = make([]string, 0)
-	srv.Discoveries = make([]string, 0)
-	srv.Dependencies = []string{"event.EventService"}
-	// s.Permissions for log.LogService
-	srv.Permissions = []interface{}{
-		// ---- Ingest (append-only)
-		map[string]interface{}{
-			"action":     "/log.LogService/Log",
-			"permission": "write",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Info.Application", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Method", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Level", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Message", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Line", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.TimestampMs", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Component", "permission": "write"},
-				map[string]interface{}{"index": 0, "field": "Info.Fields", "permission": "write"},
-			},
-		},
-
-		// ---- Read (query)
-		map[string]interface{}{
-			"action":     "/log.LogService/GetLog",
-			"permission": "read",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Query", "permission": "read"},
-			},
-		},
-
-		// ---- Point delete (surgical removals)
-		map[string]interface{}{
-			"action":     "/log.LogService/DeleteLog",
-			"permission": "delete",
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Log.Id", "permission": "delete"},
-				map[string]interface{}{"index": 0, "field": "Log.Application", "permission": "delete"},
-				map[string]interface{}{"index": 0, "field": "Log.Level", "permission": "delete"},
-			},
-		},
-
-		// ---- Bulk clear (dangerous)
-		map[string]interface{}{
-			"action":     "/log.LogService/ClearAllLog",
-			"permission": "admin", // bulk destructive; gate with admin
-			"resources": []interface{}{
-				map[string]interface{}{"index": 0, "field": "Query", "permission": "delete"},
-			},
-		},
-	}
-
-	srv.Process = -1
-	srv.ProxyProcess = -1
-	srv.AllowAllOrigins = allowAllOrigins
-	srv.AllowedOrigins = allowedOriginsStr
-	srv.KeepAlive = true
-	srv.KeepUpToDate = true
-	srv.Monitoring_Port = 9092
-	srv.Root = config.GetDataDir()
-	srv.RetentionHours = 24 * 7 // 7 days
-	srv.SweepEverySeconds = 300 // 5 minutes
-
-	// Register client ctor for this service.
-	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
-
-	// ---- CLI flags BEFORE any config/etcd access ----
 	args := os.Args[1:]
-	if len(args) == 0 {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(srv.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		srv.Port = p
-	}
-
 	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-
-			// Safe defaults without etcd calls
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
-
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "",
-			})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--debug":
+		if strings.ToLower(a) == "--debug" {
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Println(srv.Version)
-			return
-		default:
-			// skip unknown flags for now (e.g. positional args)
+			srv.logger = logger
+			break
 		}
 	}
 
-	// Optional positional args
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		srv.Id = args[0]
-		srv.ConfigPath = args[1]
+	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+		return
 	}
 
-	// Safe to access config now (may hit etcd or local fallback)
-	if d, err := config.GetDomain(); err == nil {
-		srv.Domain = d
-	} else {
+	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+		logger.Error("fail to allocate port", "error", err)
+		os.Exit(1)
+	}
+
+	globular.ParsePositionalArgs(srv, args)
+	globular.LoadRuntimeConfig(srv)
+
+	if srv.Domain == "" {
 		srv.Domain = "localhost"
 	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		srv.Address = a
+	if srv.Address == "" {
+		srv.Address = fmt.Sprintf("localhost:%d", srv.Port)
 	}
 
-	// Bootstrap gRPC
+	// gRPC bootstrap
 	start := time.Now()
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
@@ -485,11 +416,7 @@ func main() {
 	srv.logs = storage_store.NewBadger_store()
 	if err := srv.logs.Open(`{"path":"` + srv.Root + `", "name":"logs"}`); err != nil {
 		logger.Error("failed to open log store", "err", err)
-		// non-fatal: service can still start; decide if you prefer os.Exit(1)
 	}
-
-	// Start retention janitor (best effort)
-	go srv.startRetentionJanitor()
 
 	// Prometheus metrics
 	srv.logCount = prometheus.NewCounterVec(
@@ -518,8 +445,9 @@ func main() {
 		"domain", srv.Domain,
 		"listen_ms", time.Since(start).Milliseconds())
 
-	if err := srv.StartService(); err != nil {
-		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
+	lifecycle := globular.NewLifecycleManager(srv, logger)
+	if err := lifecycle.Start(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "err", err)
 		os.Exit(1)
 	}
 }

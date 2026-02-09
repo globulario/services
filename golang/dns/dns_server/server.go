@@ -280,6 +280,84 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 	return []resourcepb.Role{reader, editor, admin}
 }
 
+func loadDefaultPermissions() []interface{} {
+	res := func(field, perm string) map[string]interface{} {
+		return map[string]interface{}{"index": 0, "field": field, "permission": perm}
+	}
+	rule := func(action, perm string, r ...map[string]interface{}) map[string]interface{} {
+		m := map[string]interface{}{"action": action, "permission": perm}
+		if len(r) > 0 {
+			rr := make([]interface{}, 0, len(r))
+			for _, x := range r {
+				rr = append(rr, x)
+			}
+			m["resources"] = rr
+		}
+		return m
+	}
+
+	return []interface{}{
+		// Domains
+		rule("/dns.DnsService/SetDomains", "write", res("Domain", "write")),
+
+		// A / AAAA
+		rule("/dns.DnsService/SetA", "write", res("Domain", "write")),
+		rule("/dns.DnsService/RemoveA", "write", res("Domain", "write")),
+		rule("/dns.DnsService/GetA", "read", res("Domain", "read")),
+		rule("/dns.DnsService/SetAAAA", "write", res("Domain", "write")),
+		rule("/dns.DnsService/RemoveAAAA", "write", res("Domain", "write")),
+		rule("/dns.DnsService/GetAAAA", "read", res("Domain", "read")),
+
+		// TXT legacy id-based
+		rule("/dns.DnsService/SetText", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveText", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetText", "read", res("Id", "read")),
+
+		// TXT domain-based
+		rule("/dns.DnsService/SetTXT", "write", res("Domain", "write")),
+		rule("/dns.DnsService/RemoveTXT", "write", res("Domain", "write")),
+		rule("/dns.DnsService/GetTXT", "read", res("Domain", "read")),
+
+		// NS
+		rule("/dns.DnsService/SetNs", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveNs", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetNs", "read", res("Id", "read")),
+
+		// CNAME
+		rule("/dns.DnsService/SetCName", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveCName", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetCName", "read", res("Id", "read")),
+
+		// MX
+		rule("/dns.DnsService/SetMx", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveMx", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetMx", "read", res("Id", "read")),
+
+		// SOA
+		rule("/dns.DnsService/SetSoa", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveSoa", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetSoa", "read", res("Id", "read")),
+
+		// URI
+		rule("/dns.DnsService/SetUri", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveUri", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetUri", "read", res("Id", "read")),
+
+		// CAA
+		rule("/dns.DnsService/SetCaa", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveCaa", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetCaa", "read", res("Id", "read")),
+
+		// AFSDB
+		rule("/dns.DnsService/SetAfsdb", "write", res("Id", "write")),
+		rule("/dns.DnsService/RemoveAfsdb", "write", res("Id", "write")),
+		rule("/dns.DnsService/GetAfsdb", "read", res("Id", "read")),
+
+		// Admin op
+		rule("/dns.DnsService/Stop", "write"),
+	}
+}
+
 // RBAC helper bound to this service address
 func (srv *server) getRbacClient() (*rbac_client.Rbac_Client, error) {
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
@@ -345,6 +423,7 @@ func (srv *server) Init() error {
 
 	return nil
 }
+
 // ensureDefaultInternalZone creates a default internal DNS zone if none exist.
 // This is called during Init() to bootstrap Day-0 installations.
 func (srv *server) ensureDefaultInternalZone() error {
@@ -405,9 +484,25 @@ func (srv *server) ensureDefaultInternalZone() error {
 	return nil
 }
 
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) Save() error { return globular.SaveService(srv) }
+func (srv *server) StartService() error {
+	if srv.Logger == nil {
+		srv.Logger = logger
+	}
+	if srv.DnsPort == 0 {
+		srv.DnsPort = 53
+	}
+
+	go func(port int) {
+		if err := ServeDns(port); err != nil && logger != nil {
+			logger.Error("ServeDns failed", "port", port, "err", err)
+		}
+	}(srv.DnsPort)
+
+	return globular.StartService(srv, srv.grpcServer)
+}
+func (srv *server) StopService() error          { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
 // gRPC Stop endpoint
 func (srv *server) Stop(context.Context, *dnspb.StopRequest) (*dnspb.StopResponse, error) {
@@ -481,212 +576,98 @@ Example:
 `)
 }
 
+func initializeServerDefaults() *server {
+	cfg := DefaultConfig()
+
+	s := &server{
+		Logger:            logger,
+		Name:              string(dnspb.File_dns_proto.Services().Get(0).FullName()),
+		Proto:             dnspb.File_dns_proto.Path(),
+		Path:              func() string { p, _ := filepath.Abs(filepath.Dir(os.Args[0])); return p }(),
+		Port:              cfg.Port,
+		Proxy:             cfg.Proxy,
+		AllowAllOrigins:   cfg.AllowAllOrigins,
+		AllowedOrigins:    cfg.AllowedOrigins,
+		Protocol:          cfg.Protocol,
+		Domain:            cfg.Domain,
+		Address:           cfg.Address,
+		Description:       cfg.Description,
+		Keywords:          globular.CloneStringSlice(cfg.Keywords),
+		Repositories:      globular.CloneStringSlice(cfg.Repositories),
+		Discoveries:       globular.CloneStringSlice(cfg.Discoveries),
+		Version:           cfg.Version,
+		PublisherID:       cfg.PublisherID,
+		KeepUpToDate:      cfg.KeepUpToDate,
+		KeepAlive:         cfg.KeepAlive,
+		Process:           cfg.Process,
+		ProxyProcess:      cfg.ProxyProcess,
+		DnsPort:           cfg.DnsPort,
+		Domains:           globular.CloneStringSlice(cfg.Domains),
+		ReplicationFactor: cfg.ReplicationFactor,
+		Root:              cfg.Root,
+		Dependencies:      globular.CloneStringSlice(cfg.Dependencies),
+		Permissions:       loadDefaultPermissions(),
+	}
+
+	if s.Root == "" {
+		s.Root = config.GetDataDir()
+	}
+	_ = Utility.CreateDirIfNotExist(s.Root)
+
+	// Ensure default address uses current port
+	if s.Address == "" {
+		s.Address = fmt.Sprintf("127.0.0.1:%d", s.Port)
+	}
+
+	// set package-global for UDP handler
+	srv = s
+	return s
+}
+
+func setupGrpcService(s *server) {
+	dnspb.RegisterDnsServiceServer(s.grpcServer, s)
+	reflection.Register(s.grpcServer)
+}
+
 // -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
 
 func main() {
-
-	// Build skeleton (no etcd/config yet)
-	srv = new(server)
-	srv.Logger = logger
+	srv = initializeServerDefaults()
 	Utility.RegisterType(srv)
 
-	srv.Name = string(dnspb.File_dns_proto.Services().Get(0).FullName())
-	srv.Proto = dnspb.File_dns_proto.Path()
-	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	srv.Port = defaultPort
-	srv.Proxy = defaultProxy
-	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
-	srv.PublisherID = "globular.internal" // Use cluster domain instead of localhost
-	srv.Description = "DNS service"
-	srv.Keywords = []string{"DNS", "Records", "Resolver"}
-	srv.Repositories = []string{}
-	srv.Discoveries = []string{"log.LogService", "rbac.RbacService"}
-	srv.Dependencies = []string{}
-	srv.Process = -1
-	srv.ProxyProcess = -1
-	srv.KeepAlive = true
-	srv.KeepUpToDate = true
-	srv.AllowAllOrigins = allowAllOrigins
-	srv.AllowedOrigins = allowedOriginsStr
-	srv.DnsPort = 53 // standard DNS port
-	srv.Root = config.GetDataDir()
-	_ = Utility.CreateDirIfNotExist(srv.Root)
-
-	// Domain(s) to manage
-	srv.Domains = []string{}
-
-	{
-		res := func(field, perm string) map[string]interface{} {
-			return map[string]interface{}{"index": 0, "field": field, "permission": perm}
-		}
-		rule := func(action, perm string, r ...map[string]interface{}) map[string]interface{} {
-			m := map[string]interface{}{"action": action, "permission": perm}
-			if len(r) > 0 {
-				rr := make([]interface{}, 0, len(r))
-				for _, x := range r {
-					rr = append(rr, x)
-				}
-				m["resources"] = rr
-			}
-			return m
-		}
-
-		srv.Permissions = []interface{}{
-			// ---- Domains (service-level, not record-level)
-			rule("/dns.DnsService/SetDomains", "write", res("Domain", "write")),
-
-			// ---- A / AAAA
-			rule("/dns.DnsService/SetA", "write", res("Domain", "write")),
-			rule("/dns.DnsService/RemoveA", "write", res("Domain", "write")),
-			rule("/dns.DnsService/GetA", "read", res("Domain", "read")),
-			rule("/dns.DnsService/SetAAAA", "write", res("Domain", "write")),
-			rule("/dns.DnsService/RemoveAAAA", "write", res("Domain", "write")),
-			rule("/dns.DnsService/GetAAAA", "read", res("Domain", "read")),
-
-			// ---- TXT (legacy id-based)
-			rule("/dns.DnsService/SetText", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveText", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetText", "read", res("Id", "read")),
-
-			// ---- TXT (normalized domain-based)
-			rule("/dns.DnsService/SetTXT", "write", res("Domain", "write")),
-			rule("/dns.DnsService/RemoveTXT", "write", res("Domain", "write")),
-			rule("/dns.DnsService/GetTXT", "read", res("Domain", "read")),
-
-			// ---- NS
-			rule("/dns.DnsService/SetNs", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveNs", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetNs", "read", res("Id", "read")),
-
-			// ---- CNAME
-			rule("/dns.DnsService/SetCName", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveCName", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetCName", "read", res("Id", "read")),
-
-			// ---- MX
-			rule("/dns.DnsService/SetMx", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveMx", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetMx", "read", res("Id", "read")),
-
-			// ---- SOA
-			rule("/dns.DnsService/SetSoa", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveSoa", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetSoa", "read", res("Id", "read")),
-
-			// ---- URI
-			rule("/dns.DnsService/SetUri", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveUri", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetUri", "read", res("Id", "read")),
-
-			// ---- CAA
-			rule("/dns.DnsService/SetCaa", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveCaa", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetCaa", "read", res("Id", "read")),
-
-			// ---- AFSDB
-			rule("/dns.DnsService/SetAfsdb", "write", res("Id", "write")),
-			rule("/dns.DnsService/RemoveAfsdb", "write", res("Id", "write")),
-			rule("/dns.DnsService/GetAfsdb", "read", res("Id", "read")),
-
-			// ---- Admin op (no resource binding; action-gated)
-			rule("/dns.DnsService/Stop", "write"),
-		}
-	}
-
-	// Dynamic client registration
-	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
-
-	// CLI flags BEFORE touching config
 	args := os.Args[1:]
-	if len(args) == 0 {
-
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-
-		p, err := allocator.Next(srv.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-
-		srv.Port = p
-	}
 
 	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "globular.internal" // Use cluster-capable domain
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "127.0.0.1:" + Utility.ToString(srv.Port) // Use explicit IPv4 to avoid IPv6 resolution
-			}
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/h", "/help":
-			printUsage()
-			return
-		case "--version", "-v", "/v", "/version":
-			os.Stdout.WriteString(srv.Version + "\n")
-			return
-		case "--debug":
+		if strings.ToLower(a) == "--debug" {
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 			srv.Logger = logger
-		default:
-			// skip unknown flags for now (e.g. positional args)
+			break
 		}
 	}
 
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		srv.Id = args[0]
-		srv.ConfigPath = args[1]
+	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+		return
 	}
 
-	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil {
-		srv.Domain = d
-	} else {
-		srv.Domain = "globular.internal" // Use cluster-capable domain
+	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+		logger.Error("port allocation failed", "error", err)
+		os.Exit(1)
 	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		srv.Address = a
+
+	globular.ParsePositionalArgs(srv, args)
+	globular.LoadRuntimeConfig(srv)
+
+	// preserve historical defaults when config is absent
+	if srv.Domain == "" || srv.Domain == "localhost" {
+		srv.Domain = "globular.internal"
 	}
+	if srv.Address == "" || strings.HasPrefix(srv.Address, "127.0.0.1:") || strings.HasPrefix(srv.Address, "localhost:") {
+		srv.Address = fmt.Sprintf("127.0.0.1:%d", srv.Port)
+	}
+
+	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
 
 	start := time.Now()
 	if err := srv.Init(); err != nil {
@@ -694,18 +675,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Start UDP DNS responder
-	go func(port int) {
-		if err := ServeDns(port); err != nil {
-			logger.Error("ServeDns failed", "port", port, "err", err)
-		} else {
-			logger.Info("ServeDns stopped", "port", port)
-		}
-	}(srv.DnsPort)
-
-	// Register gRPC & reflection
-	dnspb.RegisterDnsServiceServer(srv.grpcServer, srv)
-	reflection.Register(srv.grpcServer)
+	setupGrpcService(srv)
 
 	logger.Info("service ready",
 		"service", srv.Name,
@@ -715,9 +685,9 @@ func main() {
 		"domain", srv.Domain,
 		"listen_ms", time.Since(start).Milliseconds())
 
-	// Start gRPC serving
-	if err := srv.StartService(); err != nil {
-		logger.Error("StartService failed", "err", err)
+	lifecycle := globular.NewLifecycleManager(srv, logger)
+	if err := lifecycle.Start(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "err", err)
 		os.Exit(1)
 	}
 }

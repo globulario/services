@@ -7,14 +7,245 @@ import (
 	"io"
 	"sync"
 
+	"github.com/globulario/services/golang/config"
+	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const BufferSize = 1024 * 5 // chunk size used for streaming values
+
+// connection represents a configured storage backend.
+type connection struct {
+	Id   string
+	Name string
+	Type storagepb.StoreType
+}
+
+// server implements the Storage service and Globular lifecycle hooks.
+type server struct {
+	// Core metadata / config
+	Id              string
+	Name            string
+	Mac             string
+	Domain          string
+	Address         string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	Protocol        string
+	Version         string
+	PublisherID     string
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+	AllowAllOrigins bool
+	AllowedOrigins  string
+	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
+	KeepAlive       bool
+	Permissions     []interface{}
+	Dependencies    []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	State           string
+	ModTime         int64
+
+	// TLS
+	TLS                bool
+	CertFile           string
+	KeyFile            string
+	CertAuthorityTrust string
+
+	// Runtime
+	grpcServer *grpc.Server
+
+	// Storage runtime
+	Connections map[string]connection
+	stores      map[string]storage_store.Store
+	storeLocks  sync.Map // map[id]*sync.Mutex
+}
+
+// Globular contract: getters/setters
+func (srv *server) GetConfigurationPath() string     { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string) { srv.ConfigPath = path }
+func (srv *server) GetAddress() string               { return srv.Address }
+func (srv *server) SetAddress(address string)        { srv.Address = address }
+func (srv *server) GetProcess() int                  { return srv.Process }
+func (srv *server) SetProcess(pid int)               { srv.Process = pid }
+func (srv *server) GetProxyProcess() int             { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)          { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                 { return srv.State }
+func (srv *server) SetState(state string)            { srv.State = state }
+func (srv *server) GetLastError() string             { return srv.LastError }
+func (srv *server) SetLastError(err string)          { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)         { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                { return srv.ModTime }
+func (srv *server) GetId() string                    { return srv.Id }
+func (srv *server) SetId(id string)                  { srv.Id = id }
+func (srv *server) GetName() string                  { return srv.Name }
+func (srv *server) SetName(name string)              { srv.Name = name }
+func (srv *server) GetMac() string                   { return srv.Mac }
+func (srv *server) SetMac(mac string)                { srv.Mac = mac }
+func (srv *server) GetDescription() string           { return srv.Description }
+func (srv *server) SetDescription(d string)          { srv.Description = d }
+func (srv *server) GetKeywords() []string            { return srv.Keywords }
+func (srv *server) SetKeywords(k []string)           { srv.Keywords = k }
+func (srv *server) GetRepositories() []string        { return srv.Repositories }
+func (srv *server) SetRepositories(r []string)       { srv.Repositories = r }
+func (srv *server) GetDiscoveries() []string         { return srv.Discoveries }
+func (srv *server) SetDiscoveries(d []string)        { srv.Discoveries = d }
+func (srv *server) GetChecksum() string              { return srv.Checksum }
+func (srv *server) SetChecksum(cs string)            { srv.Checksum = cs }
+func (srv *server) GetPlatform() string              { return srv.Plaform }
+func (srv *server) SetPlatform(p string)             { srv.Plaform = p }
+func (srv *server) GetPath() string                  { return srv.Path }
+func (srv *server) SetPath(path string)              { srv.Path = path }
+func (srv *server) GetProto() string                 { return srv.Proto }
+func (srv *server) SetProto(proto string)            { srv.Proto = proto }
+func (srv *server) GetPort() int                     { return srv.Port }
+func (srv *server) SetPort(port int)                 { srv.Port = port }
+func (srv *server) GetProxy() int                    { return srv.Proxy }
+func (srv *server) SetProxy(proxy int)               { srv.Proxy = proxy }
+func (srv *server) GetProtocol() string              { return srv.Protocol }
+func (srv *server) SetProtocol(p string)             { srv.Protocol = p }
+func (srv *server) GetAllowAllOrigins() bool         { return srv.AllowAllOrigins }
+func (srv *server) SetAllowAllOrigins(b bool)        { srv.AllowAllOrigins = b }
+func (srv *server) GetAllowedOrigins() string        { return srv.AllowedOrigins }
+func (srv *server) SetAllowedOrigins(s string)       { srv.AllowedOrigins = s }
+func (srv *server) GetDomain() string                { return srv.Domain }
+func (srv *server) SetDomain(d string)               { srv.Domain = d }
+func (srv *server) GetTls() bool                     { return srv.TLS }
+func (srv *server) SetTls(b bool)                    { srv.TLS = b }
+func (srv *server) GetCertAuthorityTrust() string    { return srv.CertAuthorityTrust }
+func (srv *server) SetCertAuthorityTrust(ca string)  { srv.CertAuthorityTrust = ca }
+func (srv *server) GetCertFile() string              { return srv.CertFile }
+func (srv *server) SetCertFile(cf string)            { srv.CertFile = cf }
+func (srv *server) GetKeyFile() string               { return srv.KeyFile }
+func (srv *server) SetKeyFile(kf string)             { srv.KeyFile = kf }
+func (srv *server) GetVersion() string               { return srv.Version }
+func (srv *server) SetVersion(v string)              { srv.Version = v }
+func (srv *server) GetPublisherID() string           { return srv.PublisherID }
+func (srv *server) SetPublisherID(pid string)        { srv.PublisherID = pid }
+func (srv *server) GetKeepUpToDate() bool            { return srv.KeepUpToDate }
+func (srv *server) SetKeepUptoDate(val bool)         { srv.KeepUpToDate = val }
+func (srv *server) GetKeepAlive() bool               { return srv.KeepAlive }
+func (srv *server) SetKeepAlive(val bool)            { srv.KeepAlive = val }
+func (srv *server) GetPermissions() []interface{}    { return srv.Permissions }
+func (srv *server) SetPermissions(p []interface{})   { srv.Permissions = p }
+func (srv *server) GetDependencies() []string {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
+	}
+	return srv.Dependencies
+}
+func (srv *server) SetDependency(dep string) {
+	if srv.Dependencies == nil {
+		srv.Dependencies = make([]string, 0)
+	}
+	if !Utility.Contains(srv.Dependencies, dep) {
+		srv.Dependencies = append(srv.Dependencies, dep)
+	}
+}
+
+func (srv *server) Dist(path string) (string, error) { return globular.Dist(path, srv) }
+
+func (srv *server) RolesDefault() []resourcepb.Role {
+	domain, _ := config.GetDomain()
+
+	return []resourcepb.Role{
+		{
+			Id:          "role:storage.viewer",
+			Name:        "Storage Viewer",
+			Domain:      domain,
+			Description: "Read-only: open stores and read items.",
+			Actions: []string{
+				"/storage.StorageService/Open",
+				"/storage.StorageService/GetItem",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:storage.writer",
+			Name:        "Storage Writer",
+			Domain:      domain,
+			Description: "Read and write items; can close/clear stores.",
+			Actions: []string{
+				"/storage.StorageService/Open",
+				"/storage.StorageService/Close",
+				"/storage.StorageService/GetItem",
+				"/storage.StorageService/SetItem",
+				"/storage.StorageService/SetLargeItem",
+				"/storage.StorageService/RemoveItem",
+				"/storage.StorageService/Clear",
+			},
+			TypeName: "resource.Role",
+		},
+		{
+			Id:          "role:storage.admin",
+			Name:        "Storage Admin",
+			Domain:      domain,
+			Description: "Full control over storage connections and stores.",
+			Actions: []string{
+				"/storage.StorageService/Stop",
+				"/storage.StorageService/CreateConnection",
+				"/storage.StorageService/DeleteConnection",
+				"/storage.StorageService/Open",
+				"/storage.StorageService/Close",
+				"/storage.StorageService/GetItem",
+				"/storage.StorageService/SetItem",
+				"/storage.StorageService/SetLargeItem",
+				"/storage.StorageService/RemoveItem",
+				"/storage.StorageService/Clear",
+				"/storage.StorageService/Drop",
+			},
+			TypeName: "resource.Role",
+		},
+	}
+}
+
+// Init prepares config/runtime and initializes the gRPC server.
+func (srv *server) Init() error {
+	srv.stores = make(map[string]storage_store.Store)
+	srv.Connections = make(map[string]connection)
+
+	if err := globular.InitService(srv); err != nil {
+		return err
+	}
+	gs, err := globular.InitGrpcServer(srv)
+	if err != nil {
+		return err
+	}
+	srv.grpcServer = gs
+	return nil
+}
+
+// Save persists the current configuration to disk.
+func (srv *server) Save() error { return globular.SaveService(srv) }
+
+// StartService begins serving gRPC (and proxy if configured).
+func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
+
+// StopService gracefully stops the gRPC server.
+func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
+
+// Stop is the gRPC endpoint to stop the service.
+func (srv *server) Stop(context.Context, *storagepb.StopRequest) (*storagepb.StopResponse, error) {
+	return &storagepb.StopResponse{}, srv.StopService()
+}
+
+// GetGrpcServer exposes the underlying grpc.Server for lifecycle manager.
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
 //////////////////////// Storage-specific RPCs ////////////////////////////
 
@@ -55,32 +286,32 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateC
 }
 
 func (srv *server) withStoreLock(id string, fn func() error) error {
-    muIface, _ := srv.storeLocks.LoadOrStore(id, &sync.Mutex{})
-    mu := muIface.(*sync.Mutex)
-    mu.Lock()
-    defer mu.Unlock()
-    return fn()
+	muIface, _ := srv.storeLocks.LoadOrStore(id, &sync.Mutex{})
+	mu := muIface.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	return fn()
 }
 
 // DeleteConnection removes a connection and persists the config update.
 func (srv *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
-    id := rqst.GetId()
+	id := rqst.GetId()
 
-    _ = srv.withStoreLock(id, func() error {
-        if st, ok := srv.stores[id]; ok && st != nil {
-            // IMPORTANT: Do not call Close() first. Drop() must be able to handle closing.
-            _ = st.Drop()
-            delete(srv.stores, id)
-        }
-        return nil
-    })
+	_ = srv.withStoreLock(id, func() error {
+		if st, ok := srv.stores[id]; ok && st != nil {
+			// IMPORTANT: Do not call Close() first. Drop() must be able to handle closing.
+			_ = st.Drop()
+			delete(srv.stores, id)
+		}
+		return nil
+	})
 
-    delete(srv.Connections, id)
-    // If you persist config, keep this (it was removed in your snippet).
-    if err := srv.Save(); err != nil {
-        return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-    }
-    return &storagepb.DeleteConnectionRsp{Result: true}, nil
+	delete(srv.Connections, id)
+	// If you persist config, keep this (it was removed in your snippet).
+	if err := srv.Save(); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &storagepb.DeleteConnectionRsp{Result: true}, nil
 }
 
 // Open initializes the selected store with provided options.

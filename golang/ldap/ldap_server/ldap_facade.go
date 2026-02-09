@@ -25,10 +25,13 @@ import (
 func normDN(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
 func parentDN(dn string) string {
-    parts := strings.SplitN(dn, ",", 2)
-    if len(parts) == 2 { return parts[1] }
-    return ""
+	parts := strings.SplitN(dn, ",", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return ""
 }
+
 // LDAP scope values (avoid depending on lmsg constants)
 const (
 	scopeBaseObject   = 0 // baseObject(0)
@@ -54,149 +57,188 @@ func inScope(entryDN, baseDN string, scope int) bool {
 // very small filter parser: supports (attr=value) and (&(a=b)(c=d))
 // recognized attrs: cn, uid, o, objectclass
 func parseEqFilters(f string) map[string]string {
-    f = strings.TrimSpace(f)
-    if f == "" || f == "(objectClass=*)" {
-        return nil
-    }
-    out := map[string]string{}
-    lower := strings.ToLower(f)
+	f = strings.TrimSpace(f)
+	if f == "" || f == "(objectClass=*)" {
+		return nil
+	}
+	out := map[string]string{}
+	lower := strings.ToLower(f)
 
-    // strip outer (& ... ) if present
-    if strings.HasPrefix(lower, "(&") && strings.HasSuffix(lower, ")") {
-        inner := strings.TrimSuffix(strings.TrimPrefix(lower, "(&"), ")")
-        // split into sub-filters "(a=b)(c=d)"
-        for len(inner) > 0 {
-            if inner[0] != '(' { break }
-            end := strings.IndexByte(inner[1:], ')')
-            if end < 0 { break }
-            seg := inner[1 : 1+end]
-            if kv := strings.SplitN(seg, "=", 2); len(kv) == 2 {
-                k := strings.TrimSpace(kv[0])
-                v := strings.TrimSpace(kv[1])
-                if k != "" && v != "" {
-                    out[k] = v
-                }
-            }
-            inner = inner[2+end:]
-        }
-        return out
-    }
+	// strip outer (& ... ) if present
+	if strings.HasPrefix(lower, "(&") && strings.HasSuffix(lower, ")") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(lower, "(&"), ")")
+		// split into sub-filters "(a=b)(c=d)"
+		for len(inner) > 0 {
+			if inner[0] != '(' {
+				break
+			}
+			end := strings.IndexByte(inner[1:], ')')
+			if end < 0 {
+				break
+			}
+			seg := inner[1 : 1+end]
+			if kv := strings.SplitN(seg, "=", 2); len(kv) == 2 {
+				k := strings.TrimSpace(kv[0])
+				v := strings.TrimSpace(kv[1])
+				if k != "" && v != "" {
+					out[k] = v
+				}
+			}
+			inner = inner[2+end:]
+		}
+		return out
+	}
 
-    // single (a=b)
-    if strings.HasPrefix(lower, "(") && strings.HasSuffix(lower, ")") {
-        body := strings.TrimSuffix(strings.TrimPrefix(lower, "("), ")")
-        if kv := strings.SplitN(body, "=", 2); len(kv) == 2 {
-            k := strings.TrimSpace(kv[0])
-            v := strings.TrimSpace(kv[1])
-            if k != "" && v != "" {
-                out[k] = v
-            }
-        }
-    }
-    return out
+	// single (a=b)
+	if strings.HasPrefix(lower, "(") && strings.HasSuffix(lower, ")") {
+		body := strings.TrimSuffix(strings.TrimPrefix(lower, "("), ")")
+		if kv := strings.SplitN(body, "=", 2); len(kv) == 2 {
+			k := strings.TrimSpace(kv[0])
+			v := strings.TrimSpace(kv[1])
+			if k != "" && v != "" {
+				out[k] = v
+			}
+		}
+	}
+	return out
 }
 
 func matchesEq(attrs map[string]string, eq map[string]string) bool {
-    if len(eq) == 0 { return true }
-    for k, v := range eq {
-        k = strings.ToLower(k)
-        if k == "objectclass" {
-            // allow "objectClass" constraint when present
-            if got, ok := attrs["objectclass"]; !ok || !strings.Contains(strings.ToLower(got), strings.ToLower(v)) {
-                return false
-            }
-            continue
-        }
-        got, ok := attrs[k]
-        if !ok { return false }
-        if strings.ToLower(got) != strings.ToLower(v) { return false }
-    }
-    return true
+	if len(eq) == 0 {
+		return true
+	}
+	for k, v := range eq {
+		k = strings.ToLower(k)
+		if k == "objectclass" {
+			// allow "objectClass" constraint when present
+			if got, ok := attrs["objectclass"]; !ok || !strings.Contains(strings.ToLower(got), strings.ToLower(v)) {
+				return false
+			}
+			continue
+		}
+		got, ok := attrs[k]
+		if !ok {
+			return false
+		}
+		if strings.ToLower(got) != strings.ToLower(v) {
+			return false
+		}
+	}
+	return true
 }
 
 // reflect helpers to fetch IDs from resource_client if such methods exist.
 // They safely return empty on absence / mismatch, so code still compiles & runs.
 
 func (lf *ldapFacade) callIDs(method string, args ...interface{}) []string {
-    rv := reflect.ValueOf(lf.rc)
-    m := rv.MethodByName(method)
-    if !m.IsValid() { return nil }
+	rv := reflect.ValueOf(lf.rc)
+	m := rv.MethodByName(method)
+	if !m.IsValid() {
+		return nil
+	}
 
-    // build args
-    in := make([]reflect.Value, len(args))
-    for i, a := range args {
-        in[i] = reflect.ValueOf(a)
-    }
-    out := m.Call(in)
-    if len(out) == 0 { return nil }
+	// build args
+	in := make([]reflect.Value, len(args))
+	for i, a := range args {
+		in[i] = reflect.ValueOf(a)
+	}
+	out := m.Call(in)
+	if len(out) == 0 {
+		return nil
+	}
 
-    // expect ([]string, error) or ([]T, error) or just []string / []T
-    var slice reflect.Value
-    if out[0].Kind() == reflect.Slice {
-        slice = out[0]
-    } else {
-        return nil
-    }
+	// expect ([]string, error) or ([]T, error) or just []string / []T
+	var slice reflect.Value
+	if out[0].Kind() == reflect.Slice {
+		slice = out[0]
+	} else {
+		return nil
+	}
 
-    // try to detect trailing error
-    if len(out) > 1 && out[len(out)-1].Type().String() == "error" {
-        if !out[len(out)-1].IsNil() {
-            return nil
-        }
-    }
+	// try to detect trailing error
+	if len(out) > 1 && out[len(out)-1].Type().String() == "error" {
+		if !out[len(out)-1].IsNil() {
+			return nil
+		}
+	}
 
-    ids := []string{}
-    for i := 0; i < slice.Len(); i++ {
-        el := slice.Index(i).Interface()
-        switch v := el.(type) {
-        case string:
-            ids = append(ids, v)
-        default:
-            // try field "Id" / "ID"
-            rv := reflect.ValueOf(v)
-            if rv.Kind() == reflect.Ptr { rv = rv.Elem() }
-            if rv.Kind() == reflect.Struct {
-                f := rv.FieldByName("Id")
-                if !f.IsValid() { f = rv.FieldByName("ID") }
-                if f.IsValid() && f.Kind() == reflect.String {
-                    ids = append(ids, f.String())
-                }
-            }
-        }
-    }
-    return ids
+	ids := []string{}
+	for i := 0; i < slice.Len(); i++ {
+		el := slice.Index(i).Interface()
+		switch v := el.(type) {
+		case string:
+			ids = append(ids, v)
+		default:
+			// try field "Id" / "ID"
+			rv := reflect.ValueOf(v)
+			if rv.Kind() == reflect.Ptr {
+				rv = rv.Elem()
+			}
+			if rv.Kind() == reflect.Struct {
+				f := rv.FieldByName("Id")
+				if !f.IsValid() {
+					f = rv.FieldByName("ID")
+				}
+				if f.IsValid() && f.Kind() == reflect.String {
+					ids = append(ids, f.String())
+				}
+			}
+		}
+	}
+	return ids
 }
 
 // ORG
 func (lf *ldapFacade) orgAccountIDs(orgID string) []string {
-    if ids := lf.callIDs("GetOrganizationAccounts", orgID); len(ids) > 0 { return ids }
-    if ids := lf.callIDs("GetOrganizationAccounts", lf.baseDN, orgID); len(ids) > 0 { return ids }
-    return nil
+	if ids := lf.callIDs("GetOrganizationAccounts", orgID); len(ids) > 0 {
+		return ids
+	}
+	if ids := lf.callIDs("GetOrganizationAccounts", lf.baseDN, orgID); len(ids) > 0 {
+		return ids
+	}
+	return nil
 }
 func (lf *ldapFacade) orgGroupIDs(orgID string) []string {
-    if ids := lf.callIDs("GetOrganizationGroups", orgID); len(ids) > 0 { return ids }
-    if ids := lf.callIDs("GetOrganizationGroups", lf.baseDN, orgID); len(ids) > 0 { return ids }
-    return nil
+	if ids := lf.callIDs("GetOrganizationGroups", orgID); len(ids) > 0 {
+		return ids
+	}
+	if ids := lf.callIDs("GetOrganizationGroups", lf.baseDN, orgID); len(ids) > 0 {
+		return ids
+	}
+	return nil
 }
 func (lf *ldapFacade) orgRoleIDs(orgID string) []string {
-    if ids := lf.callIDs("GetOrganizationRoles", orgID); len(ids) > 0 { return ids }
-    if ids := lf.callIDs("GetOrganizationRoles", lf.baseDN, orgID); len(ids) > 0 { return ids }
-    return nil
+	if ids := lf.callIDs("GetOrganizationRoles", orgID); len(ids) > 0 {
+		return ids
+	}
+	if ids := lf.callIDs("GetOrganizationRoles", lf.baseDN, orgID); len(ids) > 0 {
+		return ids
+	}
+	return nil
 }
 
 // GROUP
 func (lf *ldapFacade) groupAccountIDs(groupID string) []string {
-    if ids := lf.callIDs("GetGroupMemberAccounts", groupID); len(ids) > 0 { return ids }
-    if ids := lf.callIDs("GetGroupAccounts", groupID); len(ids) > 0 { return ids }
-    return nil
+	if ids := lf.callIDs("GetGroupMemberAccounts", groupID); len(ids) > 0 {
+		return ids
+	}
+	if ids := lf.callIDs("GetGroupAccounts", groupID); len(ids) > 0 {
+		return ids
+	}
+	return nil
 }
 
 // ROLE
 func (lf *ldapFacade) roleAccountIDs(roleID string) []string {
-    if ids := lf.callIDs("GetRoleAccounts", roleID); len(ids) > 0 { return ids }
-    if ids := lf.callIDs("GetAccountsWithRole", roleID); len(ids) > 0 { return ids }
-    return nil
+	if ids := lf.callIDs("GetRoleAccounts", roleID); len(ids) > 0 {
+		return ids
+	}
+	if ids := lf.callIDs("GetAccountsWithRole", roleID); len(ids) > 0 {
+		return ids
+	}
+	return nil
 }
+
 // ---- Public entrypoint ------------------------------------------------------
 
 // StartLDAPFacade starts plain LDAP on :389 and LDAPS on :636.
@@ -458,7 +500,9 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 				"cn":          a.Name,
 				"objectclass": "inetOrgPerson organizationalPerson person top",
 			}
-			if !shouldSend(dn, attrs) { continue }
+			if !shouldSend(dn, attrs) {
+				continue
+			}
 
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("inetOrgPerson"))
@@ -488,7 +532,9 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 				"cn":          g.Id,
 				"objectclass": "groupOfNames top",
 			}
-			if !shouldSend(dn, attrs) { continue }
+			if !shouldSend(dn, attrs) {
+				continue
+			}
 
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("groupOfNames"))
@@ -517,7 +563,9 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 				"cn":          r0.Id,
 				"objectclass": "globularRole top",
 			}
-			if !shouldSend(dn, attrs) { continue }
+			if !shouldSend(dn, attrs) {
+				continue
+			}
 
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("top"))
@@ -550,7 +598,9 @@ func (lf *ldapFacade) onSearch(w ldap.ResponseWriter, m *ldap.Message) {
 				"o":           o.Id,
 				"objectclass": "organization top",
 			}
-			if !shouldSend(dn, attrs) { continue }
+			if !shouldSend(dn, attrs) {
+				continue
+			}
 
 			e := ldap.NewSearchResultEntry(dn)
 			e.AddAttribute(lmsg.AttributeDescription("objectClass"), lmsg.AttributeValue("organization"))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -20,10 +21,6 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// -----------------------------------------------------------------------------
-// Defaults & CORS
-// -----------------------------------------------------------------------------
-
 var (
 	defaultPort       = 10017
 	defaultProxy      = 10018
@@ -31,16 +28,59 @@ var (
 	allowedOriginsStr = ""
 )
 
-// --- logger to STDERR so stdout stays clean for JSON outputs ---
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-// -----------------------------------------------------------------------------
-// Service implementation
-// -----------------------------------------------------------------------------
+// Permissions as JSON to avoid hand-maintaining nested maps.
+const permissionsJSON = `[
+  {"action":"/catalog.CatalogService/Stop","resources":[],"permission":"write"},
+  {"action":"/catalog.CatalogService/CreateConnection","resources":[{"index":0,"field":"Id","permission":"write"}]},
+  {"action":"/catalog.CatalogService/DeleteConnection","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/SaveUnitOfMeasure","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SavePropertyDefinition","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveItemDefinition","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveItemInstance","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveInventory","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveManufacturer","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveSupplier","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveLocalisation","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SavePackage","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SavePackageSupplier","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveItemManufacturer","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/SaveCategory","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/AppendItemDefinitionCategory","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/RemoveItemDefinitionCategory","resources":[{"index":0,"permission":"write"}]},
+  {"action":"/catalog.CatalogService/getSupplier","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getSuppliers","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getManufacturer","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getManufacturers","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getSupplierPackages","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getPackage","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getPackages","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getUnitOfMeasure","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getUnitOfMeasures","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getItemDefinition","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getItemDefinitions","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getItemInstance","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getItemInstances","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getLocalisation","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getLocalisations","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getCategory","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getCategories","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/getInventories","resources":[{"index":0,"permission":"read"}]},
+  {"action":"/catalog.CatalogService/deleteInventory","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deletePackage","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deletePackageSupplier","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteSupplier","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deletePropertyDefinition","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteUnitOfMeasure","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteItemInstance","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteManufacturer","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteItemManufacturer","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteCategory","resources":[{"index":0,"permission":"delete"}]},
+  {"action":"/catalog.CatalogService/deleteLocalisation","resources":[{"index":0,"permission":"delete"}]}
+]`
 
-// server implements the Catalog gRPC microservice and the Globular runtime interface.
 type server struct {
-	// Generic service attributes required by Globular runtime.
 	Id                 string
 	Name               string
 	Mac                string
@@ -74,21 +114,20 @@ type server struct {
 	Plaform            string
 	ModTime            int64
 
-	// Service configuration and dependencies.
 	Services     map[string]interface{}
 	Permissions  []interface{}
 	Dependencies []string
 
-	// External clients.
 	persistenceClient *persistence_client.Persistence_Client
 	eventClient       *event_client.Event_Client
 
-	// Runtime component.
 	grpcServer *grpc.Server
+
+	persistenceFactory func(address string) (*persistence_client.Persistence_Client, error)
+	eventFactory       func(address string) (*event_client.Event_Client, error)
 }
 
-// --- Globular getters/setters (unchanged signatures) ---
-
+// Getters / Setters required by Globular
 func (srv *server) GetConfigurationPath() string      { return srv.ConfigPath }
 func (srv *server) SetConfigurationPath(path string)  { srv.ConfigPath = path }
 func (srv *server) GetAddress() string                { return srv.Address }
@@ -171,7 +210,7 @@ func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
 func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
 func (srv *server) SetPermissions(p []interface{})  { srv.Permissions = p }
 
-func (srv *server) RolesDefault() []resourcepb.Role {
+func (srv *server) RolesDefault() []resourcepb.Role { /* unchanged content */
 	domain, _ := config.GetDomain()
 
 	reader := resourcepb.Role{
@@ -275,11 +314,7 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 	return []resourcepb.Role{reader, editor, moderator, connAdmin, admin}
 }
 
-// -----------------------------------------------------------------------------
-// Clients & Init
-// -----------------------------------------------------------------------------
-
-func getPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
+func defaultPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
@@ -287,7 +322,8 @@ func getPersistenceClient(address string) (*persistence_client.Persistence_Clien
 	}
 	return client.(*persistence_client.Persistence_Client), nil
 }
-func getEventClient(address string) (*event_client.Event_Client, error) {
+
+func defaultEventClient(address string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
@@ -297,7 +333,6 @@ func getEventClient(address string) (*event_client.Event_Client, error) {
 }
 
 func (srv *server) Init() error {
-	// Initialize config (no interceptors args here—wired internally like your auth template).
 	if err := globular.InitService(srv); err != nil {
 		return err
 	}
@@ -307,46 +342,107 @@ func (srv *server) Init() error {
 		return err
 	}
 	srv.grpcServer = gs
+	return nil
+}
 
-	// Optional dependency wiring from Services map (if provided by config).
-	var addr string
-	var ok bool
+func (srv *server) Save() error { return globular.SaveService(srv) }
 
-	if srv.Services != nil {
-		if raw, found := srv.Services["Persistence"]; found {
+func (srv *server) StartService() error {
+	if srv.Services == nil {
+		srv.Services = map[string]interface{}{
+			"Persistence": map[string]interface{}{"Address": srv.Address},
+			"Event":       map[string]interface{}{"Address": srv.Address},
+		}
+	}
+
+	if srv.persistenceClient == nil {
+		if raw, ok := srv.Services["Persistence"]; ok {
 			if cfg, cast := raw.(map[string]interface{}); cast {
-				if addr, ok = cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
-					if cli, e := getPersistenceClient(addr); e == nil {
+				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					factory := srv.persistenceFactory
+					if factory == nil {
+						factory = defaultPersistenceClient
+					}
+					if cli, err := factory(addr); err == nil {
 						srv.persistenceClient = cli
 					} else {
-						logger.Warn("connect persistence failed", "address", addr, "err", e)
-					}
-				}
-			}
-		}
-		if raw, found := srv.Services["Event"]; found {
-			if cfg, cast := raw.(map[string]interface{}); cast {
-				if addr, ok = cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
-					if cli, e := getEventClient(addr); e == nil {
-						srv.eventClient = cli
-					} else {
-						logger.Warn("connect event failed", "address", addr, "err", e)
+						logger.Warn("connect persistence failed", "address", addr, "err", err)
 					}
 				}
 			}
 		}
 	}
 
-	return nil
+	if srv.eventClient == nil {
+		if raw, ok := srv.Services["Event"]; ok {
+			if cfg, cast := raw.(map[string]interface{}); cast {
+				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
+					factory := srv.eventFactory
+					if factory == nil {
+						factory = defaultEventClient
+					}
+					if cli, err := factory(addr); err == nil {
+						srv.eventClient = cli
+					} else {
+						logger.Warn("connect event failed", "address", addr, "err", err)
+					}
+				}
+			}
+		}
+	}
+
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
+func (srv *server) StopService() error { return globular.StopService(srv, srv.grpcServer) }
 
-// -----------------------------------------------------------------------------
-// Usage
-// -----------------------------------------------------------------------------
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
+
+func initializeServerDefaults() *server {
+	s := new(server)
+	s.Name = string(catalogpb.File_catalog_proto.Services().Get(0).FullName())
+	s.Proto = catalogpb.File_catalog_proto.Path()
+	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	s.Port = defaultPort
+	s.Proxy = defaultProxy
+	s.Protocol = "grpc"
+	s.Version = "0.0.1"
+	s.PublisherID = "localhost"
+	s.Description = "Catalog service"
+	s.Keywords = []string{}
+	s.Repositories = []string{}
+	s.Discoveries = []string{}
+	s.Dependencies = []string{}
+	s.Permissions = loadDefaultPermissions()
+	s.Process = -1
+	s.ProxyProcess = -1
+	s.KeepAlive = true
+	s.KeepUpToDate = true
+	s.AllowAllOrigins = allowAllOrigins
+	s.AllowedOrigins = allowedOriginsStr
+	s.Services = map[string]interface{}{}
+
+	domain, addr := globular.GetDefaultDomainAddress(s.Port)
+	s.Domain = domain
+	if host, _, ok := strings.Cut(addr, ":"); ok {
+		s.Address = host
+	} else {
+		s.Address = addr
+	}
+
+	return s
+}
+
+func loadDefaultPermissions() []interface{} {
+	var out []interface{}
+	_ = json.Unmarshal([]byte(permissionsJSON), &out)
+	return out
+}
+
+func setupGrpcService(srv *server) {
+	catalogpb.RegisterCatalogServiceServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
+}
 
 func printUsage() {
 	exe := filepath.Base(os.Args[0])
@@ -367,257 +463,57 @@ Example:
 `)
 }
 
-// -----------------------------------------------------------------------------
-// Entrypoint
-// -----------------------------------------------------------------------------
-
 func main() {
-	// Build a skeleton service (no etcd/config yet)
-	s := new(server)
-	s.Name = string(catalogpb.File_catalog_proto.Services().Get(0).FullName())
-	s.Proto = catalogpb.File_catalog_proto.Path()
-	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	s.Port = defaultPort
-	s.Proxy = defaultProxy
-	s.Protocol = "grpc"
-	s.Version = "0.0.1"
-	s.PublisherID = "localhost"
-	s.Description = "Catalog service"
-	s.Keywords = []string{}
-	s.Repositories = []string{}
-	s.Discoveries = []string{}
-	s.Dependencies = []string{}
-	// Default RBAC permissions for CatalogService.
-	// We bind to concrete resource fields only when they truly represent
-	// an access-controlled resource. Here, the primary protected resource
-	// is the target persistence connection (connectionId). For connection
-	// management, we bind to Connection.Id. For harmful, parameterless ops,
-	// we protect the action itself.
-	s.Permissions = []interface{}{
-
-		// ---- Service control
-		map[string]interface{}{
-			"action":     "/catalog.CatalogService/Stop",
-			"resources":  []interface{}{}, // harmful even without params
-			"permission": "write",
-		},
-
-		// ---- Connections
-		map[string]interface{}{
-			"action": "/catalog.CatalogService/CreateConnection",
-			"resources": []interface{}{
-				// CreateConnectionRqst.connection.Id
-				map[string]interface{}{"index": 0, "field": "Id", "permission": "write"},
-			},
-		},
-		map[string]interface{}{
-			"action": "/catalog.CatalogService/DeleteConnection",
-			"resources": []interface{}{
-				// DeleteConnectionRqst.id
-				map[string]interface{}{"index": 0, "permission": "delete"},
-			},
-		},
-
-		// ---- Saves / upserts (write on connectionId)
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SavePropertyDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveInventory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SavePackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SavePackageSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveItemManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/SaveCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-
-		// Category links (write on connectionId)
-		map[string]interface{}{"action": "/catalog.CatalogService/AppendItemDefinitionCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/RemoveItemDefinitionCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}},
-
-		// ---- Getters (READ on connectionId)
-		map[string]interface{}{"action": "/catalog.CatalogService/getSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getSuppliers", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getManufacturers", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getSupplierPackages", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getPackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getPackages", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getUnitOfMeasures", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getItemDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getItemDefinitions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getItemInstances", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getLocalisations", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getCategories", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/getInventories", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}},
-
-		// ---- Deletes (DELETE on connectionId)
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteInventory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deletePackage", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deletePackageSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteSupplier", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deletePropertyDefinition", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteUnitOfMeasure", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteItemInstance", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteItemManufacturer", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteCategory", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-		map[string]interface{}{"action": "/catalog.CatalogService/deleteLocalisation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}},
-	}
-
-	s.Process = -1
-	s.ProxyProcess = -1
-	s.KeepAlive = true
-	s.KeepUpToDate = true
-	s.AllowAllOrigins = allowAllOrigins
-	s.AllowedOrigins = allowedOriginsStr
-
-	// Register client ctor for dynamic routing
-	Utility.RegisterFunction("NewCatalogService_Client", catalog_client.NewCatalogService_Client)
-
-	// CLI flags BEFORE touching config
+	srv := initializeServerDefaults()
 	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			logger.Error("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			logger.Error("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
 
 	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-						if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/h", "/help":
-			printUsage()
-			return
-		case "--version", "-v", "/v", "/version":
-			os.Stdout.WriteString(s.Version + "\n")
-			return
-			case "--debug":
+		if strings.ToLower(a) == "--debug" {
 			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		default:
-			// skip unknown flags for now (e.g. positional args)
+			break
 		}
 	}
 
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
+	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+		return
 	}
 
-	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
-		s.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
-	}
-
-	start := time.Now()
-	if err := s.Init(); err != nil {
-		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
+	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+		logger.Error("port allocation failed", "error", err)
 		os.Exit(1)
 	}
 
-	// Default dependencies set to local address if not provided by config
-	if s.Services == nil {
-		s.Services = map[string]interface{}{
-			"Persistence": map[string]interface{}{"Address": s.Address},
-			"Event":       map[string]interface{}{"Address": s.Address},
+	globular.ParsePositionalArgs(srv, args)
+	globular.LoadRuntimeConfig(srv)
+
+	Utility.RegisterFunction("NewCatalogService_Client", catalog_client.NewCatalogService_Client)
+
+	start := time.Now()
+	if err := srv.Init(); err != nil {
+		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
+		os.Exit(1)
+	}
+
+	if srv.Services == nil || len(srv.Services) == 0 {
+		srv.Services = map[string]interface{}{
+			"Persistence": map[string]interface{}{"Address": srv.Address},
+			"Event":       map[string]interface{}{"Address": srv.Address},
 		}
 	}
 
-	// Bind again now that Services likely loaded from config during Init
-	// (if Init read a config file that overrides Services).
-	if s.persistenceClient == nil || s.eventClient == nil {
-		if raw, ok := s.Services["Persistence"]; ok {
-			if cfg, cast := raw.(map[string]interface{}); cast {
-				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
-					if cli, e := getPersistenceClient(addr); e == nil {
-						s.persistenceClient = cli
-					}
-				}
-			}
-		}
-		if raw, ok := s.Services["Event"]; ok {
-			if cfg, cast := raw.(map[string]interface{}); cast {
-				if addr, ok := cfg["Address"].(string); ok && strings.TrimSpace(addr) != "" {
-					if cli, e := getEventClient(addr); e == nil {
-						s.eventClient = cli
-					}
-				}
-			}
-		}
-	}
-
-	// gRPC registration
-	catalogpb.RegisterCatalogServiceServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
+	setupGrpcService(srv)
 
 	logger.Info("service ready",
-		"service", s.Name,
-		"port", s.Port,
-		"proxy", s.Proxy,
-		"protocol", s.Protocol,
-		"domain", s.Domain,
+		"service", srv.Name,
+		"port", srv.Port,
+		"proxy", srv.Proxy,
+		"protocol", srv.Protocol,
+		"domain", srv.Domain,
 		"listen_ms", time.Since(start).Milliseconds())
 
-	if err := s.StartService(); err != nil {
-		logger.Error("service start failed", "err", err)
+	lifecycle := globular.NewLifecycleManager(srv, logger)
+	if err := lifecycle.Start(); err != nil {
+		logger.Error("service start failed", "service", srv.Name, "err", err)
 		os.Exit(1)
 	}
 }

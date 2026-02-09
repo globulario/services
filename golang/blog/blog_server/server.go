@@ -1,32 +1,25 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log/slog"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
-	"time"
+    "fmt"
+    "log/slog"
+    "os"
+    "path/filepath"
+    "strings"
+    "sync"
+    "time"
 
-	"github.com/blevesearch/bleve/v2"
-	"github.com/globulario/services/golang/blog/blog_client"
-	"github.com/globulario/services/golang/blog/blogpb"
-	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/event/event_client"
-	"github.com/globulario/services/golang/event/eventpb"
-	"github.com/globulario/services/golang/globular_client"
-	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/rbac/rbac_client"
-	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/storage/storage_store"
-	Utility "github.com/globulario/utility"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/encoding/protojson"
+    "github.com/blevesearch/bleve/v2"
+    "github.com/globulario/services/golang/blog/blog_client"
+    "github.com/globulario/services/golang/blog/blogpb"
+    "github.com/globulario/services/golang/config"
+    "github.com/globulario/services/golang/event/eventpb"
+    globular "github.com/globulario/services/golang/globular_service"
+    "github.com/globulario/services/golang/resource/resourcepb"
+    "github.com/globulario/services/golang/storage/storage_store"
+    Utility "github.com/globulario/utility"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/reflection"
 )
 
 // -----------------------------------------------------------------------------
@@ -34,68 +27,74 @@ import (
 // -----------------------------------------------------------------------------
 
 var (
-	defaultPort       = 10029
-	defaultProxy      = 10030
-	allowAllOrigins   = true
-	allowedOriginsStr = ""
+    defaultPort       = 10029
+    defaultProxy      = 10030
+    allowAllOrigins   = true
+    allowedOriginsStr = ""
 )
+
+// --- logger to STDERR so stdout stays clean for JSON outputs ---
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 // -----------------------------------------------------------------------------
 // Service implementation (consumed by Globular)
-// Keep all public method signatures unchanged.
 // -----------------------------------------------------------------------------
 
 type server struct {
-	// Generic service attributes required by Globular runtime.
-	Id              string
-	Mac             string
-	Name            string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
-	AllowAllOrigins bool
-	AllowedOrigins  string
-	Protocol        string
-	Version         string
-	PublisherID     string
-	KeepUpToDate    bool
-	Checksum        string
-	Plaform         string
-	KeepAlive       bool
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	LastError       string
-	ModTime         int64
-	State           string
-	TLS             bool
+    // Generic service attributes required by Globular runtime.
+    Id              string
+    Mac             string
+    Name            string
+    Domain          string
+    Address         string
+    Path            string
+    Proto           string
+    Port            int
+    Proxy           int
+    AllowAllOrigins bool
+    AllowedOrigins  string
+    Protocol        string
+    Version         string
+    PublisherID     string
+    KeepUpToDate    bool
+    Checksum        string
+    Plaform         string
+    KeepAlive       bool
+    Description     string
+    Keywords        []string
+    Repositories    []string
+    Discoveries     []string
+    Process         int
+    ProxyProcess    int
+    ConfigPath      string
+    LastError       string
+    ModTime         int64
+    State           string
+    TLS             bool
 
-	// TLS material.
-	CertFile           string
-	KeyFile            string
-	CertAuthorityTrust string
+    // TLS material.
+    CertFile           string
+    KeyFile            string
+    CertAuthorityTrust string
 
-	// Service-specific configuration.
-	Root string // Where to store conversation data, files, etc.
+    // Service-specific configuration.
+    Root string // Where to store conversation data, files, etc.
 
-	// Permissions and dependencies.
-	Permissions  []interface{} // action permissions for the service
-	Dependencies []string      // names of required services
+    // Permissions and dependencies.
+    Permissions  []any // action permissions for the service
+    Dependencies []string
 
-	// Runtime components.
-	grpcServer *grpc.Server
-	store      storage_store.Store // persistent KV store
+    // Runtime components.
+    grpcServer *grpc.Server
+    store      storage_store.Store // persistent KV store
 
-	// Cached/active resources.
-	blogs  *sync.Map
-	indexs map[string]bleve.Index
+    // Cached/active resources.
+    blogs  *sync.Map
+    indexs map[string]bleve.Index
+
+    // Test hooks / dependency injection.
+    eventClientFactory eventClientFactory
+    rbacClientFactory  rbacClientFactory
 }
 
 // --- Getters/Setters required by Globular (unchanged signatures) ---
@@ -134,18 +133,18 @@ func (srv *server) GetDiscoveries() []string              { return srv.Discoveri
 func (srv *server) SetDiscoveries(discoveries []string)   { srv.Discoveries = discoveries }
 func (srv *server) Dist(path string) (string, error)      { return globular.Dist(path, srv) }
 func (srv *server) GetDependencies() []string {
-	if srv.Dependencies == nil {
-		srv.Dependencies = []string{}
-	}
-	return srv.Dependencies
+    if srv.Dependencies == nil {
+        srv.Dependencies = []string{}
+    }
+    return srv.Dependencies
 }
 func (srv *server) SetDependency(dep string) {
-	if srv.Dependencies == nil {
-		srv.Dependencies = []string{}
-	}
-	if !Utility.Contains(srv.Dependencies, dep) {
-		srv.Dependencies = append(srv.Dependencies, dep)
-	}
+    if srv.Dependencies == nil {
+        srv.Dependencies = []string{}
+    }
+    if !Utility.Contains(srv.Dependencies, dep) {
+        srv.Dependencies = append(srv.Dependencies, dep)
+    }
 }
 func (srv *server) GetPath() string                 { return srv.Path }
 func (srv *server) SetPath(path string)             { srv.Path = path }
@@ -179,338 +178,299 @@ func (srv *server) GetKeepUpToDate() bool           { return srv.KeepUpToDate }
 func (srv *server) SetKeepUptoDate(val bool)        { srv.KeepUpToDate = val }
 func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
-func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
+func (srv *server) GetPermissions() []any           { return srv.Permissions }
+func (srv *server) SetPermissions(v []any)          { srv.Permissions = v }
 
 // RolesDefault returns curated roles for BlogService.
 func (srv *server) RolesDefault() []resourcepb.Role {
-	domain, _ := config.GetDomain()
+    domain, _ := config.GetDomain()
 
-	return []resourcepb.Role{
-		{
-			Id:          "role:blog.reader",
-			Name:        "Blog Reader",
-			Domain:      domain,
-			Description: "Read and search blog posts.",
-			Actions: []string{
-				"/blog.BlogService/GetBlogPosts",
-				"/blog.BlogService/SearchBlogPosts",
-				"/blog.BlogService/GetBlogPostsByAuthors", // left permissive; included for completeness
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:blog.contributor",
-			Name:        "Blog Contributor",
-			Domain:      domain,
-			Description: "Create and update posts; add comments and reactions.",
-			Actions: []string{
-				"/blog.BlogService/CreateBlogPost",
-				"/blog.BlogService/SaveBlogPost",
-				"/blog.BlogService/AddComment",
-				"/blog.BlogService/AddEmoji",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:blog.moderator",
-			Name:        "Blog Moderator",
-			Domain:      domain,
-			Description: "Moderate content: delete posts, comments, and reactions.",
-			Actions: []string{
-				"/blog.BlogService/DeleteBlogPost",
-				"/blog.BlogService/RemoveComment",
-				"/blog.BlogService/RemoveEmoji",
-			},
-			TypeName: "resource.Role",
-		},
-		{
-			Id:          "role:blog.admin",
-			Name:        "Blog Admin",
-			Domain:      domain,
-			Description: "Full control over blogging features.",
-			Actions: []string{
-				"/blog.BlogService/CreateBlogPost",
-				"/blog.BlogService/SaveBlogPost",
-				"/blog.BlogService/GetBlogPosts",
-				"/blog.BlogService/SearchBlogPosts",
-				"/blog.BlogService/GetBlogPostsByAuthors",
-				"/blog.BlogService/DeleteBlogPost",
-				"/blog.BlogService/AddComment",
-				"/blog.BlogService/RemoveComment",
-				"/blog.BlogService/AddEmoji",
-				"/blog.BlogService/RemoveEmoji",
-			},
-			TypeName: "resource.Role",
-		},
-	}
+    return []resourcepb.Role{
+        {
+            Id:          "role:blog.reader",
+            Name:        "Blog Reader",
+            Domain:      domain,
+            Description: "Read and search blog posts.",
+            Actions: []string{
+                "/blog.BlogService/GetBlogPosts",
+                "/blog.BlogService/SearchBlogPosts",
+                "/blog.BlogService/GetBlogPostsByAuthors", // left permissive; included for completeness
+            },
+            TypeName: "resource.Role",
+        },
+        {
+            Id:          "role:blog.contributor",
+            Name:        "Blog Contributor",
+            Domain:      domain,
+            Description: "Create and update posts; add comments and reactions.",
+            Actions: []string{
+                "/blog.BlogService/CreateBlogPost",
+                "/blog.BlogService/SaveBlogPost",
+                "/blog.BlogService/AddComment",
+                "/blog.BlogService/AddEmoji",
+            },
+            TypeName: "resource.Role",
+        },
+        {
+            Id:          "role:blog.moderator",
+            Name:        "Blog Moderator",
+            Domain:      domain,
+            Description: "Moderate content: delete posts, comments, and reactions.",
+            Actions: []string{
+                "/blog.BlogService/DeleteBlogPost",
+                "/blog.BlogService/RemoveComment",
+                "/blog.BlogService/RemoveEmoji",
+            },
+            TypeName: "resource.Role",
+        },
+        {
+            Id:          "role:blog.admin",
+            Name:        "Blog Admin",
+            Domain:      domain,
+            Description: "Full control over blogging features.",
+            Actions: []string{
+                "/blog.BlogService/CreateBlogPost",
+                "/blog.BlogService/SaveBlogPost",
+                "/blog.BlogService/GetBlogPosts",
+                "/blog.BlogService/SearchBlogPosts",
+                "/blog.BlogService/GetBlogPostsByAuthors",
+                "/blog.BlogService/DeleteBlogPost",
+                "/blog.BlogService/AddComment",
+                "/blog.BlogService/RemoveComment",
+                "/blog.BlogService/AddEmoji",
+                "/blog.BlogService/RemoveEmoji",
+            },
+            TypeName: "resource.Role",
+        },
+    }
 }
 
-// Lifecycle
+// Init initializes the service configuration and gRPC server.
 func (srv *server) Init() error {
+    if err := globular.InitService(srv); err != nil {
+        return err
+    }
 
-	// Initialize service config with Globular runtime.
-	if err := globular.InitService(srv); err != nil {
-		return err
-	}
-	// Initialize gRPC server (interceptors wired internally like in the auth template).
-	gs, err := globular.InitGrpcServer(srv)
-	if err != nil {
-		return err
-	}
-	srv.grpcServer = gs
+    gs, err := globular.InitGrpcServer(srv)
+    if err != nil {
+        return err
+    }
+    srv.grpcServer = gs
+    storage_store.SetLogger(logger)
 
-	// Create and open local KV store (single open here).
-	if srv.store == nil {
-		srv.store = storage_store.NewBadger_store()
-	}
-	// Default location if not set.
-	if srv.Root == "" {
-		srv.Root = os.TempDir()
-	}
-	if err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"blogs"}`); err != nil {
-		return err
-	}
-
-	return nil
-}
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
-
-// --- logger to STDERR so stdout stays clean for JSON outputs ---
-var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-// -----------------------------------------------------------------------------
-// Event helpers
-// -----------------------------------------------------------------------------
-
-func (srv *server) getEventClient() (*event_client.Event_Client, error) {
-	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	client, err := globular_client.GetClient(srv.Address, "event.EventService", "NewEventService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*event_client.Event_Client), nil
-}
-func (srv *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
-	eventClient, err := srv.getEventClient()
-	if err != nil {
-		return err
-	}
-	return eventClient.Subscribe(evt, srv.Name, listener)
+    return nil
 }
 
-// -----------------------------------------------------------------------------
-// RBAC helpers
-// -----------------------------------------------------------------------------
+func (srv *server) Save() error { return globular.SaveService(srv) }
 
-func getRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*rbac_client.Rbac_Client), nil
+// StartService prepares storage, subscriptions, and starts the gRPC server.
+func (srv *server) StartService() error {
+    if srv.store == nil {
+        srv.store = storage_store.NewBadger_store()
+    }
+
+    if srv.Root == "" {
+        srv.Root = os.TempDir()
+    }
+
+    if err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"blogs"}`); err != nil {
+        return err
+    }
+
+    if err := Utility.CreateDirIfNotExist(filepath.Join(srv.Root, "blogs")); err != nil {
+        return err
+    }
+
+    // Subscribe to account deletion events.
+    go srv.startDeleteAccountSubscription()
+
+    return globular.StartService(srv, srv.grpcServer)
 }
 
-func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	c, err := getRbacClient(srv.Address)
-	if err != nil {
-		return err
-	}
-	return c.AddResourceOwner(token, path, subject, resourceType, subjectType)
+// StopService stops gRPC server and cleans resources.
+func (srv *server) StopService() error {
+    var firstErr error
+
+    if srv.indexs != nil {
+        for path, idx := range srv.indexs {
+            if idx != nil {
+                if err := idx.Close(); err != nil && firstErr == nil {
+                    firstErr = fmt.Errorf("close index %s: %w", path, err)
+                }
+            }
+        }
+    }
+
+    if srv.store != nil {
+        if err := srv.store.Close(); err != nil && firstErr == nil {
+            firstErr = err
+        }
+    }
+
+    if err := globular.StopService(srv, srv.grpcServer); err != nil && firstErr == nil {
+        firstErr = err
+    }
+
+    return firstErr
 }
 
-// -----------------------------------------------------------------------------
-// Bleve helpers
-// -----------------------------------------------------------------------------
+// GetGrpcServer returns the gRPC server instance (LifecycleService requirement).
+func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 
-// getIndex opens or creates a Bleve index at the given path and caches it.
-func (srv *server) getIndex(path string) (bleve.Index, error) {
-	if srv.indexs == nil {
-		srv.indexs = make(map[string]bleve.Index)
-	}
-	if srv.indexs[path] == nil {
-		index, err := bleve.Open(path)
-		if err != nil {
-			// Create a new index if opening failed.
-			mapping := bleve.NewIndexMapping()
-			index, err = bleve.New(path, mapping)
-			if err != nil {
-				logger.Error("create bleve index failed", "path", path, "err", err)
-				return nil, err
-			}
-			logger.Info("created new bleve index", "path", path)
-		} else {
-			logger.Info("opened existing bleve index", "path", path)
-		}
-		srv.indexs[path] = index
-	}
-	return srv.indexs[path], nil
+// startDeleteAccountSubscription retries subscription until it succeeds.
+func (srv *server) startDeleteAccountSubscription() {
+    consumerID := srv.Name + "@" + srv.Domain + ":delete"
+    backoff := time.Second
+    for {
+        evtClient, err := srv.getEventClient()
+        if err != nil {
+            logger.Warn("event client unavailable; retrying", "err", err)
+            time.Sleep(backoff)
+            if backoff < 10*time.Second {
+                backoff *= 2
+            }
+            continue
+        }
+        err = evtClient.Subscribe("delete_account_evt", consumerID, func(evt *eventpb.Event) {
+            srv.deleteAccountListener(evt)
+        })
+        if err != nil {
+            logger.Warn("subscribe failed; retrying", "channel", "delete_account_evt", "err", err)
+            time.Sleep(backoff)
+            if backoff < 10*time.Second {
+                backoff *= 2
+            }
+            continue
+        }
+        logger.Info("subscribed to event", "channel", "delete_account_evt", "consumer", consumerID)
+        break
+    }
 }
 
-// -----------------------------------------------------------------------------
-// Blog helpers
-// -----------------------------------------------------------------------------
+// initializeServerDefaults sets up baseline values before config loading.
+func initializeServerDefaults() *server {
+    s := new(server)
 
-func (srv *server) deleteAccountListener(evt *eventpb.Event) {
-	accountId := string(evt.Data)
-	blogs, err := srv.getBlogPostByAuthor(accountId)
-	if err != nil {
-		logger.Error("get blogs by author failed", "author", accountId, "err", err)
-		return
-	}
-	for i := 0; i < len(blogs); i++ {
-		if err := srv.deleteBlogPost(accountId, blogs[i].Uuid); err != nil {
-			logger.Error("delete blog post failed", "author", accountId, "uuid", blogs[i].Uuid, "err", err)
-		} else {
-			logger.Info("deleted blog post for removed account", "author", accountId, "uuid", blogs[i].Uuid)
-		}
-	}
+    s.Name = string(blogpb.File_blog_proto.Services().Get(0).FullName())
+    s.Proto = blogpb.File_blog_proto.Path()
+    s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+    s.Port = defaultPort
+    s.Proxy = defaultProxy
+    s.Protocol = "grpc"
+    s.Version = "0.0.1"
+    s.PublisherID = "localhost"
+    s.Description = "Blog service"
+    s.Keywords = []string{"Example", "Blog", "Post", "Service"}
+    s.Repositories = []string{}
+    s.Discoveries = []string{}
+    s.Dependencies = []string{"event.EventService", "rbac.RbacService", "log.LogService"}
+
+    // Default RBAC permissions for BlogService.
+    s.Permissions = []any{
+        // Create: writes to the Bleve index on disk.
+        map[string]any{
+            "action": "/blog.BlogService/CreateBlogPost",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "write"},
+            },
+        },
+
+        // Save: write the specific blog post + write index.
+        map[string]any{
+            "action": "/blog.BlogService/SaveBlogPost",
+            "resources": []any{
+                map[string]any{"index": 1, "field": "Uuid", "permission": "write"},
+                map[string]any{"index": 2, "permission": "write"},
+            },
+        },
+
+        // Read specific posts by UUID.
+        map[string]any{
+            "action": "/blog.BlogService/GetBlogPosts",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "read"},
+            },
+        },
+
+        // Search: read access to the index path.
+        map[string]any{
+            "action": "/blog.BlogService/SearchBlogPosts",
+            "resources": []any{
+                map[string]any{"index": 2, "permission": "read"},
+            },
+        },
+
+        // Delete post: delete the post + write index.
+        map[string]any{
+            "action": "/blog.BlogService/DeleteBlogPost",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "delete"},
+                map[string]any{"index": 1, "permission": "write"},
+            },
+        },
+
+        // Add emoji on a post or comment (targeted by rqst.uuid).
+        map[string]any{
+            "action": "/blog.BlogService/AddEmoji",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "write"},
+            },
+        },
+
+        // Remove emoji (target post uuid).
+        map[string]any{
+            "action": "/blog.BlogService/RemoveEmoji",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "delete"},
+            },
+        },
+
+        // Add comment (target post uuid).
+        map[string]any{
+            "action": "/blog.BlogService/AddComment",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "write"},
+            },
+        },
+
+        // Remove comment (target post uuid).
+        map[string]any{
+            "action": "/blog.BlogService/RemoveComment",
+            "resources": []any{
+                map[string]any{"index": 0, "permission": "delete"},
+            },
+        },
+
+        // Note: GetBlogPostsByAuthors is intentionally left permissive (no resource path binding).
+    }
+
+    s.Process = -1
+    s.ProxyProcess = -1
+    s.KeepAlive = true
+    s.KeepUpToDate = true
+    s.AllowAllOrigins = allowAllOrigins
+    s.AllowedOrigins = allowedOriginsStr
+    s.blogs = &sync.Map{}
+
+    domain, addr := globular.GetDefaultDomainAddress(s.Port)
+    s.Domain = domain
+    if host, _, ok := strings.Cut(addr, ":"); ok {
+        s.Address = host
+    } else {
+        s.Address = addr
+    }
+
+    return s
 }
 
-// getBlogPost returns the blog post with the given uuid.
-func (srv *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
-	blog := new(blogpb.BlogPost)
-	jsonStr, err := srv.store.GetItem(uuid)
-	if err != nil {
-		return nil, err
-	}
-	if err := protojson.Unmarshal(jsonStr, blog); err != nil {
-		return nil, err
-	}
-	return blog, nil
+func setupGrpcService(srv *server) {
+    blogpb.RegisterBlogServiceServer(srv.grpcServer, srv)
+    reflection.Register(srv.grpcServer)
 }
-
-// getBlogPostByAuthor returns all blog posts authored by the given account id.
-func (srv *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
-	blogPosts := make([]*blogpb.BlogPost, 0)
-
-	blogsBytes, err := srv.store.GetItem(author)
-	ids := make([]string, 0)
-	if err == nil {
-		if err := json.Unmarshal(blogsBytes, &ids); err != nil {
-			return nil, err
-		}
-	}
-
-	for i := 0; i < len(ids); i++ {
-		jsonStr, err := srv.store.GetItem(ids[i])
-		if err != nil {
-			continue
-		}
-		instance := new(blogpb.BlogPost)
-		if err := protojson.Unmarshal(jsonStr, instance); err == nil {
-			blogPosts = append(blogPosts, instance)
-		}
-	}
-
-	return blogPosts, nil
-}
-
-// getSubComment searches recursively for a sub-comment inside a comment tree.
-func (srv *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
-	if comment.Comments == nil {
-		return nil, errors.New("no answer was found for that comment")
-	}
-	for i := 0; i < len(comment.Comments); i++ {
-		c := comment.Comments[i]
-		if uuid == c.Uuid {
-			return c, nil
-		}
-		if c.Comments != nil {
-			if found, err := srv.getSubComment(uuid, c); err == nil && found != nil {
-				return found, nil
-			}
-		}
-	}
-	return nil, errors.New("no answer was found for that comment")
-}
-
-// getBlogComment finds a comment by uuid within a blog post (searching answers recursively).
-func (srv *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*blogpb.Comment, error) {
-	for i := 0; i < len(blog.Comments); i++ {
-		c := blog.Comments[i]
-		if c.Uuid == parentUuid {
-			return c, nil
-		}
-		if found, err := srv.getSubComment(parentUuid, c); err == nil && found != nil {
-			return found, nil
-		}
-	}
-	return nil, errors.New("no comment was found for that blog")
-}
-
-// deleteBlogPost deletes a blog post if requested by its author.
-func (srv *server) deleteBlogPost(author, uuid string) error {
-	blog, err := srv.getBlogPost(uuid)
-	if err != nil {
-		return err
-	}
-	if author != blog.Author {
-		return errors.New("only blog author can delete it blog")
-	}
-
-	// Remove from author index list.
-	blogsBytes, err := srv.store.GetItem(blog.Author)
-	ids := make([]string, 0)
-	if err == nil {
-		if err := json.Unmarshal(blogsBytes, &ids); err != nil {
-			return err
-		}
-	}
-	ids = Utility.RemoveString(ids, uuid)
-
-	// Save updated list.
-	idsJSON, err := Utility.ToJson(ids)
-	if err != nil {
-		return err
-	}
-	if err := srv.store.SetItem(blog.Author, []byte(idsJSON)); err != nil {
-		return err
-	}
-
-	// Delete the post object.
-	return srv.store.RemoveItem(uuid)
-}
-
-// saveBlogPost persists a blog post and maintains the author's index list.
-func (srv *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
-	blogPost.Domain = srv.Domain
-	blogPost.Mac = srv.Mac
-
-	jsonStr, err := protojson.Marshal(blogPost)
-	if err != nil {
-		return err
-	}
-	if err := srv.store.SetItem(blogPost.Uuid, []byte(jsonStr)); err != nil {
-		return err
-	}
-
-	// Update author index.
-	blogsBytes, err := srv.store.GetItem(author)
-	blogs := make([]string, 0)
-	if err == nil {
-		_ = json.Unmarshal(blogsBytes, &blogs)
-	}
-	if !Utility.Contains(blogs, blogPost.Uuid) {
-		blogs = append(blogs, blogPost.Uuid)
-	}
-	blogsJSON, err := Utility.ToJson(blogs)
-	if err != nil {
-		return err
-	}
-	return srv.store.SetItem(author, []byte(blogsJSON))
-}
-
-// -----------------------------------------------------------------------------
-// Usage
-// -----------------------------------------------------------------------------
 
 func printUsage() {
-	exe := filepath.Base(os.Args[0])
-	os.Stdout.WriteString(`
+    exe := filepath.Base(os.Args[0])
+    os.Stdout.WriteString(`
 Usage: ` + exe + ` [options] <id> [configPath]
 
 Options:
@@ -527,285 +487,84 @@ Example:
 `)
 }
 
-// -----------------------------------------------------------------------------
-// Entrypoint
-// -----------------------------------------------------------------------------
+func validateFlags(args []string) error {
+    allowed := map[string]bool{
+        "--describe": true,
+        "--health":   true,
+        "--help":     true,
+        "-h":         true,
+        "--version":  true,
+        "-v":         true,
+        "--debug":    true,
+    }
 
+    for _, a := range args {
+        if strings.HasPrefix(a, "-") && !allowed[strings.ToLower(a)] {
+            return fmt.Errorf("unknown option: %s", a)
+        }
+    }
+    return nil
+}
+
+// main configures and starts the Blog service.
 func main() {
-	// Skeleton only (no etcd access yet)
-	s := new(server)
-	s.Name = string(blogpb.File_blog_proto.Services().Get(0).FullName())
-	s.Proto = blogpb.File_blog_proto.Path()
-	s.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	s.Port = defaultPort
-	s.Proxy = defaultProxy
-	s.Protocol = "grpc"
-	s.Version = "0.0.1"
-	s.PublisherID = "localhost"
-	s.Description = "Blog service"
-	s.Keywords = []string{"Example", "Blog", "Post", "Service"}
-	s.Repositories = []string{}
-	s.Discoveries = []string{}
-	s.Dependencies = []string{"event.EventService", "rbac.RbacService", "log.LogService"}
-	// Default RBAC permissions for BlogService.
-	// Use generic verbs and only protect parameters that are real resource paths (UUIDs / index paths).
-	s.Permissions = []interface{}{
-		// --- Posts: create / update / delete / read ---
+    srv := initializeServerDefaults()
 
-		// Create: writes to the Bleve index on disk.
-		map[string]interface{}{
-			"action": "/blog.BlogService/CreateBlogPost",
-			"resources": []interface{}{
-				// CreateBlogPostRequest.indexPath
-				map[string]interface{}{"index": 0, "permission": "write"},
-			},
-		},
+    args := os.Args[1:]
 
-		// Save: write the specific blog post + write index.
-		map[string]interface{}{
-			"action": "/blog.BlogService/SaveBlogPost",
-			"resources": []interface{}{
-				// SaveBlogPostRequest.blog_post.Uuid (prefer binding the message subfield)
-				map[string]interface{}{"index": 1, "field": "Uuid", "permission": "write"},
-				// SaveBlogPostRequest.indexPath
-				map[string]interface{}{"index": 2, "permission": "write"},
-			},
-		},
+    // Handle --debug flag first (affects logger verbosity)
+    for _, a := range args {
+        if strings.ToLower(a) == "--debug" {
+            logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+            break
+        }
+    }
 
-		// Read specific posts by UUID.
-		map[string]interface{}{
-			"action": "/blog.BlogService/GetBlogPosts",
-			"resources": []interface{}{
-				// GetBlogPostsRequest.uuids (list expansion handled by interceptor)
-				map[string]interface{}{"index": 0, "permission": "read"},
-			},
-		},
+    if err := validateFlags(args); err != nil {
+        fmt.Println(err.Error())
+        printUsage()
+        os.Exit(1)
+    }
 
-		// Search: read access to the index path.
-		map[string]interface{}{
-			"action": "/blog.BlogService/SearchBlogPosts",
-			"resources": []interface{}{
-				// SearchBlogPostsRequest.indexPath
-				map[string]interface{}{"index": 2, "permission": "read"},
-			},
-		},
+    if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+        return
+    }
 
-		// Delete post: delete the post + write index.
-		map[string]interface{}{
-			"action": "/blog.BlogService/DeleteBlogPost",
-			"resources": []interface{}{
-				// DeleteBlogPostRequest.uuid
-				map[string]interface{}{"index": 0, "permission": "delete"},
-				// DeleteBlogPostRequest.indexPath
-				map[string]interface{}{"index": 1, "permission": "write"},
-			},
-		},
+    // Allocate port if needed (before etcd access)
+    if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+        logger.Error("port allocation failed", "error", err)
+        os.Exit(1)
+    }
 
-		// --- Reactions & comments (write/delete on the target post/comment UUID) ---
+    // Parse positional arguments
+    globular.ParsePositionalArgs(srv, args)
 
-		// Add emoji on a post or comment (targeted by rqst.uuid).
-		map[string]interface{}{
-			"action": "/blog.BlogService/AddEmoji",
-			"resources": []interface{}{
-				// AddEmojiRequest.uuid (target blog or comment thread owner post)
-				map[string]interface{}{"index": 0, "permission": "write"},
-			},
-		},
+    // Load runtime config (domain/address)
+    globular.LoadRuntimeConfig(srv)
 
-		// Remove emoji (target post uuid).
-		map[string]interface{}{
-			"action": "/blog.BlogService/RemoveEmoji",
-			"resources": []interface{}{
-				// RemoveEmojiRequest.uuid
-				map[string]interface{}{"index": 0, "permission": "delete"},
-			},
-		},
+    // Dynamic client registration for routing.
+    Utility.RegisterFunction("NewBlogService_Client", blog_client.NewBlogService_Client)
 
-		// Add comment (target post uuid).
-		map[string]interface{}{
-			"action": "/blog.BlogService/AddComment",
-			"resources": []interface{}{
-				// AddCommentRequest.uuid
-				map[string]interface{}{"index": 0, "permission": "write"},
-			},
-		},
+    // Initialize service (creates gRPC server, loads config)
+    start := time.Now()
+    if err := srv.Init(); err != nil {
+        logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
+        os.Exit(1)
+    }
 
-		// Remove comment (target post uuid).
-		map[string]interface{}{
-			"action": "/blog.BlogService/RemoveComment",
-			"resources": []interface{}{
-				// RemoveCommentRequest.uuid
-				map[string]interface{}{"index": 0, "permission": "delete"},
-			},
-		},
+    // Register the gRPC service.
+    setupGrpcService(srv)
+    logger.Info("gRPC service registered",
+        "service", srv.Name,
+        "port", srv.Port,
+        "proxy", srv.Proxy,
+        "protocol", srv.Protocol,
+        "domain", srv.Domain,
+        "listen_ms", time.Since(start).Milliseconds())
 
-		// Note: GetBlogPostsByAuthors is intentionally left permissive (no resource path to bind that maps to blog ownership).
-	}
-
-	s.Process = -1
-	s.ProxyProcess = -1
-	s.KeepAlive = true
-	s.KeepUpToDate = true
-	s.AllowAllOrigins = allowAllOrigins
-	s.AllowedOrigins = allowedOriginsStr
-	s.blogs = &sync.Map{}
-
-	// Dynamic client registration for routing.
-	Utility.RegisterFunction("NewBlogService_Client", blog_client.NewBlogService_Client)
-
-	// CLI flags BEFORE touching config
-	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			fmt.Println("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			fmt.Println("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
-
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			// Minimal fields for description
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && strings.TrimSpace(v) != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && strings.TrimSpace(v) != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			os.Stdout.WriteString(s.Version + "\n")
-			return
-		case "--debug":
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		default:
-			if strings.HasPrefix(a, "-") {
-				fmt.Println("unknown option:", a)
-				printUsage()
-				os.Exit(1)
-			}
-
-		}
-	}
-
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
-	}
-
-	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
-		s.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
-	}
-
-	// Ensure Root dir (if not set by config/Init).
-	if len(s.Root) == 0 {
-		s.Root = os.TempDir()
-	}
-
-	start := time.Now()
-	if err := s.Init(); err != nil {
-		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
-		os.Exit(1)
-	}
-
-	// Ensure blogs/index storage path (Bleve indices)
-	if err := Utility.CreateDirIfNotExist(filepath.Join(s.Root, "blogs")); err != nil {
-		logger.Error("create blogs dir failed", "path", filepath.Join(s.Root, "blogs"), "err", err)
-		os.Exit(1)
-	}
-
-	// Register the gRPC service.
-	blogpb.RegisterBlogServiceServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
-	logger.Info("gRPC service registered",
-		"service", s.Name,
-		"port", s.Port,
-		"proxy", s.Proxy,
-		"protocol", s.Protocol,
-		"listen_ms", time.Since(start).Milliseconds())
-
-	// Subscribe to account deletion events.
-	go func() {
-		consumerID := s.Name + "@" + s.Domain + ":delete"
-		backoff := time.Second
-		for {
-			evtClient, err := s.getEventClient()
-			if err != nil {
-				logger.Warn("event client unavailable; retrying", "err", err)
-				time.Sleep(backoff)
-				if backoff < 10*time.Second {
-					backoff *= 2
-				}
-				continue
-			}
-			err = evtClient.Subscribe("delete_account_evt", consumerID, func(evt *eventpb.Event) {
-				s.deleteAccountListener(evt)
-			})
-			if err != nil {
-				logger.Warn("subscribe failed; retrying", "channel", "delete_account_evt", "err", err)
-				time.Sleep(backoff)
-				if backoff < 10*time.Second {
-					backoff *= 2
-				}
-				continue
-			}
-			logger.Info("subscribed to event", "channel", "delete_account_evt", "consumer", consumerID)
-			break
-		}
-	}()
-
-	// Start serving (blocks).
-	if err := s.StartService(); err != nil {
-		logger.Error("service start failed", "service", s.Name, "err", err)
-		os.Exit(1)
-	}
+    lifecycle := globular.NewLifecycleManager(srv, logger)
+    if err := lifecycle.Start(); err != nil {
+        logger.Error("service start failed", "service", srv.Name, "err", err)
+        os.Exit(1)
+    }
 }

@@ -22,7 +22,6 @@ const maxChunkBytes = 16_000
 // pingTimeout controls how long we wait for a DB connection ping.
 const pingTimeout = 1 * time.Second
 
-
 // CreateConnection creates (or replaces) a connection entry and persists it.
 // It validates basic parameters, attempts to open the DB using the provided
 // driver/DSN, saves the connection, and finally pings it to confirm reachability.
@@ -54,7 +53,7 @@ func (srv *server) CreateConnection(ctx context.Context, rqst *sqlpb.CreateConne
 	}
 	defer func() {
 		if cerr := db.Close(); cerr != nil {
-					logger.Warn("CreateConnection: closing DB failed", "err", cerr)
+			logger.Warn("CreateConnection: closing DB failed", "err", cerr)
 		}
 	}()
 
@@ -235,9 +234,9 @@ func (srv *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlSe
 	}
 
 	var (
-		batch     = make([]interface{}, 0, 64)
-		targetCS  = rqst.Query.Charset
-		sourceCS  = conn.Charset
+		batch      = make([]interface{}, 0, 64)
+		targetCS   = rqst.Query.Charset
+		sourceCS   = conn.Charset
 		flushBatch = func() error {
 			if len(batch) == 0 {
 				return nil

@@ -324,7 +324,6 @@ func (srv *server) synchronize() error {
 									}
 								}
 
-
 								// Now I will update the groups user list...
 								if err == nil {
 									if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
