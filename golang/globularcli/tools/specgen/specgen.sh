@@ -190,6 +190,7 @@ EOF
           Group=globular
           WorkingDirectory={{.StateDir}}/${svc}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
 EOF
 
     # DNS service needs CAP_NET_BIND_SERVICE to bind port 53 as non-root
