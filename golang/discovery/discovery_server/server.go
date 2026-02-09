@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -32,6 +35,13 @@ var (
 	defaultProxy      = 10030
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // STDERR logger so --describe/--health JSON stays clean on STDOUT
@@ -364,22 +374,39 @@ func (srv *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescri
 // -----------------------------------------------------------------------------
 
 func printUsage() {
-	exe := filepath.Base(os.Args[0])
-	os.Stdout.WriteString(`
-Usage: ` + exe + ` [options] <id> [configPath]
+	fmt.Println("Discovery Service - Service registry and package management")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  discovery-service [OPTIONS] [id] [config_path]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("FEATURES:")
+	fmt.Println("  • Service registration and publishing")
+	fmt.Println("  • Application package management")
+	fmt.Println("  • Service discovery and lookup")
+	fmt.Println("  • RBAC integration for access control")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  discovery-service")
+	fmt.Println("  discovery-service --version")
+	fmt.Println("  discovery-service --debug")
+}
 
-Options:
-  --describe      Print service description as JSON (no etcd/config access)
-  --health        Print service health as JSON (no etcd/config access)
-
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
-
-Example:
-  ` + exe + ` discovery-1 /etc/globular/discovery/config.json
-
-`)
+func printVersion() {
+	info := map[string]string{
+		"service":    "discovery",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
 
 // -----------------------------------------------------------------------------
@@ -409,10 +436,10 @@ func initializeServerDefaults() *server {
 	srv.Name = string(discoverypb.File_discovery_proto.Services().Get(0).FullName())
 	srv.Proto = discoverypb.File_discovery_proto.Path()
 	srv.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	srv.Version = "0.0.1"
+	srv.Version = Version
 	srv.PublisherID = "localhost"
-	srv.Description = "Service discovery client"
-	srv.Keywords = []string{"Discovery", "Package", "Service", "Application"}
+	srv.Description = "Service discovery with package registry and service publishing"
+	srv.Keywords = []string{"discovery", "service", "package", "application", "registry", "publish"}
 
 	// Network defaults
 	srv.Port = defaultPort
@@ -482,61 +509,78 @@ func setupGrpcService(srv *server) {
 }
 
 // main configures and starts the Discovery service.
-// Phase 1 Step 4: Simplified to use extracted components and helper functions.
+// Phase 2: Modern CLI with flag package.
 func main() {
-	// Initialize server with defaults (no etcd/config access yet)
 	srv := initializeServerDefaults()
 
-	// Handle CLI flags
-	args := os.Args[1:]
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
 
-	// Handle --debug flag (modifies global logger, must be before other flag handling)
-	for _, a := range args {
-		if strings.ToLower(a) == "--debug" {
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-			break
-		}
+	flag.Usage = printUsage
+	flag.Parse()
+
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logger.Debug("debug logging enabled")
 	}
 
-	// Handle informational flags (may exit early)
-	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+	if *showHelp {
+		printUsage()
 		return
 	}
 
-	// Allocate port if needed (before etcd access)
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	if *showDescribe {
+		data, _ := json.MarshalIndent(srv, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	if *showHealth {
+		health := map[string]interface{}{
+			"service": srv.Name,
+			"status":  "healthy",
+			"version": srv.Version,
+		}
+		data, _ := json.MarshalIndent(health, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	args := flag.Args()
 	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
 		logger.Error("port allocation failed", "error", err)
 		os.Exit(1)
 	}
 
-	// Parse positional arguments
 	globular.ParsePositionalArgs(srv, args)
-
-	// Load runtime config from backend (etcd or file fallback)
 	globular.LoadRuntimeConfig(srv)
 
-	// Register client constructor
 	Utility.RegisterFunction("NewDiscoveryService_Client", discovery_client.NewDiscoveryService_Client)
 
-	// Initialize service (creates gRPC server, loads config)
+	logger.Info("starting discovery service", "service", srv.Name, "version", srv.Version, "domain", srv.Domain)
+
 	start := time.Now()
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Info("service initialized", "duration_ms", time.Since(start).Milliseconds())
 
-	// Register gRPC service handlers
 	setupGrpcService(srv)
+	logger.Debug("gRPC handlers registered")
 
-	logger.Info("service ready",
-		"service", srv.Name,
-		"port", srv.Port,
-		"proxy", srv.Proxy,
-		"protocol", srv.Protocol,
-		"domain", srv.Domain,
-		"init_ms", time.Since(start).Milliseconds())
+	logger.Info("service ready", "service", srv.Name, "version", srv.Version, "port", srv.Port, "domain", srv.Domain, "startup_ms", time.Since(start).Milliseconds())
 
-	// Start service using shared lifecycle manager
 	lm := globular.NewLifecycleManager(srv, logger)
 	if err := lm.Start(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
