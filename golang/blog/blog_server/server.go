@@ -1,6 +1,8 @@
 package main
 
 import (
+    "encoding/json"
+    "flag"
     "fmt"
     "log/slog"
     "os"
@@ -31,6 +33,13 @@ var (
     defaultProxy      = 10030
     allowAllOrigins   = true
     allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+    Version   = "0.0.1"
+    BuildTime = "unknown"
+    GitCommit = "unknown"
 )
 
 // --- logger to STDERR so stdout stays clean for JSON outputs ---
@@ -357,10 +366,10 @@ func initializeServerDefaults() *server {
     s.Port = defaultPort
     s.Proxy = defaultProxy
     s.Protocol = "grpc"
-    s.Version = "0.0.1"
+    s.Version = Version
     s.PublisherID = "localhost"
-    s.Description = "Blog service"
-    s.Keywords = []string{"Example", "Blog", "Post", "Service"}
+    s.Description = "Blog service with post management, full-text search, comments, and emoji reactions"
+    s.Keywords = []string{"blog", "post", "article", "comment", "emoji", "search", "bleve", "social"}
     s.Repositories = []string{}
     s.Discoveries = []string{}
     s.Dependencies = []string{"event.EventService", "rbac.RbacService", "log.LogService"}
@@ -469,22 +478,60 @@ func setupGrpcService(srv *server) {
 }
 
 func printUsage() {
-    exe := filepath.Base(os.Args[0])
-    os.Stdout.WriteString(`
-Usage: ` + exe + ` [options] <id> [configPath]
+    fmt.Println("Blog Service - Post management with search and social features")
+    fmt.Println()
+    fmt.Println("USAGE:")
+    fmt.Println("  blog-service [OPTIONS] [id] [config_path]")
+    fmt.Println()
+    fmt.Println("OPTIONS:")
+    fmt.Println("  --debug       Enable debug logging")
+    fmt.Println("  --describe    Print service description as JSON and exit")
+    fmt.Println("  --health      Print service health status as JSON and exit")
+    fmt.Println("  --version     Print version information as JSON and exit")
+    fmt.Println("  --help        Show this help message and exit")
+    fmt.Println()
+    fmt.Println("POSITIONAL ARGUMENTS:")
+    fmt.Println("  id            Optional service instance ID")
+    fmt.Println("  config_path   Optional configuration file path")
+    fmt.Println()
+    fmt.Println("ENVIRONMENT VARIABLES:")
+    fmt.Println("  GLOBULAR_DOMAIN    Override service domain")
+    fmt.Println("  GLOBULAR_ADDRESS   Override service address (host:port)")
+    fmt.Println()
+    fmt.Println("FEATURES:")
+    fmt.Println("  • Blog post management (CRUD operations)")
+    fmt.Println("  • Full-text search with Bleve indexing")
+    fmt.Println("  • Comments and nested conversations")
+    fmt.Println("  • Emoji reactions on posts and comments")
+    fmt.Println("  • Author-based post queries")
+    fmt.Println("  • RBAC permissions for all operations")
+    fmt.Println()
+    fmt.Println("EXAMPLES:")
+    fmt.Println("  # Start with default configuration")
+    fmt.Println("  blog-service")
+    fmt.Println()
+    fmt.Println("  # Start with debug logging enabled")
+    fmt.Println("  blog-service --debug")
+    fmt.Println()
+    fmt.Println("  # Check service version")
+    fmt.Println("  blog-service --version")
+    fmt.Println()
+    fmt.Println("  # Start with custom service ID")
+    fmt.Println("  blog-service blog-1")
+    fmt.Println()
+    fmt.Println("  # Start with custom domain via environment")
+    fmt.Println("  GLOBULAR_DOMAIN=example.com blog-service")
+}
 
-Options:
-  --describe      Print service description as JSON (no etcd/config access)
-  --health        Print service health as JSON (no etcd/config access)
-
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
-
-Example:
-  ` + exe + ` blog-1 /etc/globular/blog/config.json
-
-`)
+func printVersion() {
+    info := map[string]string{
+        "service":    "blog",
+        "version":    Version,
+        "build_time": BuildTime,
+        "git_commit": GitCommit,
+    }
+    data, _ := json.MarshalIndent(info, "", "  ")
+    fmt.Println(string(data))
 }
 
 func validateFlags(args []string) error {
@@ -510,27 +557,54 @@ func validateFlags(args []string) error {
 func main() {
     srv := initializeServerDefaults()
 
-    args := os.Args[1:]
+    // Define CLI flags
+    var (
+        enableDebug  = flag.Bool("debug", false, "enable debug logging")
+        showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+        showHelp     = flag.Bool("help", false, "show usage information and exit")
+        showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+        showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+    )
 
-    // Handle --debug flag first (affects logger verbosity)
-    for _, a := range args {
-        if strings.ToLower(a) == "--debug" {
-            logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-            break
-        }
+    flag.Usage = printUsage
+    flag.Parse()
+
+    // Enable debug logging if requested
+    if *enableDebug {
+        logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+        logger.Debug("debug logging enabled")
     }
 
-    if err := validateFlags(args); err != nil {
-        fmt.Println(err.Error())
+    // Handle informational flags
+    if *showHelp {
         printUsage()
-        os.Exit(1)
-    }
-
-    if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
         return
     }
 
-    // Allocate port if needed (before etcd access)
+    if *showVersion {
+        printVersion()
+        return
+    }
+
+    if *showDescribe {
+        data, _ := json.MarshalIndent(srv, "", "  ")
+        fmt.Println(string(data))
+        return
+    }
+
+    if *showHealth {
+        health := map[string]interface{}{
+            "service": srv.Name,
+            "status":  "healthy",
+            "version": srv.Version,
+        }
+        data, _ := json.MarshalIndent(health, "", "  ")
+        fmt.Println(string(data))
+        return
+    }
+
+    // Handle port allocation and positional arguments
+    args := flag.Args()
     if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
         logger.Error("port allocation failed", "error", err)
         os.Exit(1)
@@ -545,22 +619,33 @@ func main() {
     // Dynamic client registration for routing.
     Utility.RegisterFunction("NewBlogService_Client", blog_client.NewBlogService_Client)
 
+    // Log service start
+    logger.Info("starting blog service",
+        "service", srv.Name,
+        "version", srv.Version,
+        "domain", srv.Domain,
+        "address", srv.Address)
+
     // Initialize service (creates gRPC server, loads config)
     start := time.Now()
     if err := srv.Init(); err != nil {
         logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
         os.Exit(1)
     }
+    logger.Info("service initialized", "duration_ms", time.Since(start).Milliseconds())
 
     // Register the gRPC service.
     setupGrpcService(srv)
-    logger.Info("gRPC service registered",
+    logger.Debug("gRPC handlers registered")
+
+    logger.Info("service ready",
         "service", srv.Name,
+        "version", srv.Version,
         "port", srv.Port,
         "proxy", srv.Proxy,
         "protocol", srv.Protocol,
         "domain", srv.Domain,
-        "listen_ms", time.Since(start).Milliseconds())
+        "startup_ms", time.Since(start).Milliseconds())
 
     lifecycle := globular.NewLifecycleManager(srv, logger)
     if err := lifecycle.Start(); err != nil {
