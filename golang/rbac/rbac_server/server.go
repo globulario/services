@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,6 +28,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/encoding/protojson"
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // -----------------------------------------------------------------------------
@@ -683,9 +691,43 @@ func getEnvOrDefault(key, defaultValue string) string {
 // Main
 // -----------------------------------------------------------------------------
 
+// STDERR logger (keeps STDOUT clean for --describe/--health)
+// Note: Can be reconfigured for debug level via --debug flag in main()
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 func main() {
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Handle --debug flag (reconfigure logger level)
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		logger.Debug("debug logging enabled")
+	}
+
+	// Handle informational flags that exit early
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
+
+	// Initialize service skeleton
 	srv := new(server)
 
 	// Fill metadata that doesn't require etcd/config yet.
@@ -695,10 +737,10 @@ func main() {
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = Version // Use build-time version
 	srv.PublisherID = "localhost"
-	srv.Description = "RBAC service managing permissions and access control."
-	srv.Keywords = []string{"rbac", "permissions", "security"}
+	srv.Description = "RBAC service managing role-based access control and permissions"
+	srv.Keywords = []string{"rbac", "permissions", "security", "access-control", "authorization"}
 	srv.Repositories, srv.Discoveries = make([]string, 0), make([]string, 0)
 	srv.Dependencies = []string{"resource.ResourceService"}
 	// In your service init/constructor:
@@ -816,9 +858,54 @@ func main() {
 	// Register RBAC client ctor for other components if needed.
 	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 
-	// ---- CLI flags handled BEFORE any call that might touch etcd ----
-	args := os.Args[1:]
+	// Handle --describe flag (requires minimal service setup, no config access)
+	if *showDescribe {
+		// Best-effort runtime fields without hitting etcd
+		srv.Process = os.Getpid()
+		srv.State = "starting"
+
+		// Prefer env if present; otherwise harmless defaults
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			srv.Domain = strings.ToLower(v)
+		} else {
+			srv.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			srv.Address = strings.ToLower(v)
+		} else {
+			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		}
+
+		b, err := globular.DescribeJSON(srv)
+		if err != nil {
+			logger.Error("describe failed", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Handle --health flag (requires minimal service setup, no config access)
+	if *showHealth {
+		if srv.Port == 0 || srv.Name == "" {
+			logger.Error("health: missing required fields", "service", srv.Name, "port", srv.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+		if err != nil {
+			logger.Error("health probe failed", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Parse positional arguments: [<id> [configPath]]
+	args := flag.Args()
 	if len(args) == 0 {
+		// No args: auto-generate ID and allocate port
 		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
@@ -831,82 +918,42 @@ func main() {
 			os.Exit(1)
 		}
 		srv.Port = p
-	}
-
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			// Best-effort runtime fields without hitting etcd
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-
-			// Prefer env if present; otherwise harmless defaults
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
-
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe failed", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health: missing required fields", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health probe failed", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			logger.Info(srv.Name + " version " + srv.Version)
-			return
-		}
-	}
-
-	// Optional positional args (unchanged from legacy): service_id [config_path]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+		logger.Debug("auto-allocated service", "id", srv.Id, "port", srv.Port)
+	} else if len(args) == 1 {
+		// One arg: service ID
 		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+		logger.Debug("using provided service id", "id", srv.Id)
+	} else if len(args) >= 2 {
+		// Two+ args: service ID and config path
 		srv.Id = args[0]
 		srv.ConfigPath = args[1]
+		logger.Debug("using provided service id and config", "id", srv.Id, "config", srv.ConfigPath)
 	}
 
-	// Safe to fetch config (may consult etcd or local file fallback)
+	// Load configuration (safe to touch config now)
+	logger.Debug("loading service configuration")
 	if d, err := config.GetDomain(); err == nil {
 		srv.Domain = d
+		logger.Debug("loaded domain from config", "domain", d)
 	} else {
 		srv.Domain = "localhost"
+		logger.Debug("using default domain", "domain", "localhost")
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		srv.Address = a
+		logger.Debug("loaded address from config", "address", a)
 	}
 	if srv.CacheAddress == "localhost" || srv.CacheAddress == "" {
 		srv.CacheAddress = srv.Address
 	}
-	// Open cache store
+
+	// Open in-memory cache store
+	logger.Debug("initializing bigcache store")
 	srv.cache = storage_store.NewBigCache_store()
 	if err := srv.cache.Open(""); err != nil {
 		logger.Error("cache open failed", "path", config.GetDataDir()+"/cache", "err", err)
+	} else {
+		logger.Info("bigcache store opened successfully")
 	}
 
 	// Scylla db
@@ -941,17 +988,22 @@ func main() {
 }`, host, srv.GetCertAuthorityTrust(), srv.GetCertFile(), srv.GetKeyFile(), srv.GetTls())
 
 	// Create & open the Scylla-backed KV store (with retries built into storage_store)
+	logger.Info("initializing scylla permissions store", "host", host, "keyspace", "rbac_permissions")
 	srv.permissions = storage_store.NewScylla_store("", "", 1)
 	if err := srv.permissions.Open(opts); err != nil {
 		logger.Error("permissions store open failed - cannot start RBAC service", "err", err)
 		os.Exit(1)
 	}
+	logger.Info("permissions store opened successfully", "backend", "scylla")
 
+	// Initialize service
+	logger.Info("initializing rbac service", "id", srv.Id, "domain", srv.Domain)
 	start := time.Now()
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service initialized", "duration_ms", time.Since(start).Milliseconds())
 	srv.MinioConfig = srv.loadMinioConfig()
 	if srv.MinioConfig != nil {
 		logger.Info("minio storage configured",
@@ -961,33 +1013,91 @@ func main() {
 	}
 
 	// Clear precomputed USED_SPACE keys on startup (ensures fresh computation)
+	logger.Debug("clearing precomputed USED_SPACE cache keys")
 	if idsRaw, err := srv.getItem("USED_SPACE"); err == nil {
 		var ids []string
 		if jsonErr := json.Unmarshal(idsRaw, &ids); jsonErr == nil {
 			for _, k := range ids {
 				_ = srv.removeItem(k)
 			}
+			logger.Debug("cleared used_space cache", "count", len(ids))
 		}
 	}
 
-	// Register RPCs
+	// Register gRPC services
+	logger.Debug("registering grpc services")
 	rbacpb.RegisterRbacServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
 
-	logger.Info("service ready",
-		"service", srv.Name,
+	// Service ready - log comprehensive startup info
+	logger.Info("rbac service ready",
+		"id", srv.Id,
+		"version", srv.Version,
 		"port", srv.Port,
 		"proxy", srv.Proxy,
 		"protocol", srv.Protocol,
 		"domain", srv.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"address", srv.Address,
+		"startup_ms", time.Since(start).Milliseconds())
 
+	// Start gRPC server
+	logger.Info("starting grpc server", "port", srv.Port)
 	if err := srv.StartService(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
 }
 
+// printUsage prints comprehensive command-line usage information.
 func printUsage() {
-	logger.Info("Usage:\n  rbac_server [service_id] [config_path]\nOptions:\n  --describe    Print service metadata as JSON and exit\n  --health      Print service health as JSON and exit\nExamples:\n  rbac_server my-rbac-id /etc/globular/rbac/config.json\n  rbac_server --describe\n  rbac_server --health")
+	fmt.Println("Globular RBAC Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  rbac-service [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	flag.PrintDefaults()
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN       Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS      Override service address")
+	fmt.Println("  MINIO_ENDPOINT        MinIO/S3 endpoint for policy storage")
+	fmt.Println("  MINIO_BUCKET          MinIO bucket name (default: globular)")
+	fmt.Println("  MINIO_PREFIX          MinIO key prefix (default: /users)")
+	fmt.Println("  MINIO_USE_SSL         Enable SSL for MinIO (true/false)")
+	fmt.Println("  MINIO_ACCESS_KEY      MinIO access key")
+	fmt.Println("  MINIO_SECRET_KEY      MinIO secret key")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  rbac-service")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  rbac-service my-rbac-service-id")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  rbac-service --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  rbac-service --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  rbac-service --health")
+	fmt.Println()
+}
+
+// printVersion prints version information as JSON.
+func printVersion() {
+	info := map[string]string{
+		"service":    "rbac",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
