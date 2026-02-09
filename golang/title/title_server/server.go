@@ -4,6 +4,8 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -33,6 +35,13 @@ var (
 	defaultProxy      = defaultPort + 1
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // logger is the service-wide structured logger.
@@ -454,6 +463,34 @@ func (srv *server) publish(event string, data []byte) error {
 
 // main configures and starts the Title service.
 func main() {
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Apply debug logging if requested
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logger.Debug("debug logging enabled")
+	}
+
+	// Handle early-exit flags
+	if *showHelp {
+		printUsage()
+		return
+	}
+	if *showVersion {
+		printVersion()
+		return
+	}
+
 	srv := new(server)
 
 	// Static defaults that do not require etcd reads.
@@ -463,10 +500,10 @@ func main() {
 	srv.Port = defaultPort
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = Version // Use build-time version
 	srv.PublisherID = "localhost"
-	srv.Description = "Finds Title information and associates it with files."
-	srv.Keywords = []string{"Search", "Movie", "Title", "Episode", "MultiMedia", "IMDB"}
+	srv.Description = "Media title catalog with metadata enrichment from IMDB and file associations"
+	srv.Keywords = []string{"title", "movie", "tv", "episode", "audio", "video", "imdb", "metadata", "catalog"}
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = make([]string, 0)
@@ -804,8 +841,54 @@ func main() {
 	// Register Title client factory (used elsewhere in service).
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
 
-	// --------------- CLI: --describe / --health ---------------
-	args := os.Args[1:]
+	// Handle --describe flag (print service metadata and exit)
+	if *showDescribe {
+		srv.Process = os.Getpid()
+		srv.State = "starting"
+
+		// Provide environment-driven defaults without etcd.
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			srv.Domain = strings.ToLower(v)
+		} else {
+			srv.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			srv.Address = strings.ToLower(v)
+		} else {
+			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		}
+
+		b, err := globular.DescribeJSON(srv)
+		if err != nil {
+			logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	// Handle --health flag (print health status and exit)
+	if *showHealth {
+		if srv.Port == 0 || srv.Name == "" {
+			logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+			Timeout:     1500 * time.Millisecond,
+			ServiceName: "",
+		})
+		if err != nil {
+			logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	// ---- Positional arguments (service ID and config path) ----
+	args := flag.Args()
 	if len(args) == 0 {
 		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
 		allocator, err := config.NewDefaultPortAllocator()
@@ -819,69 +902,11 @@ func main() {
 			os.Exit(1)
 		}
 		srv.Port = p
-	}
-
-	if len(args) > 0 {
-		for _, a := range args {
-			switch strings.ToLower(a) {
-			case "--describe":
-				srv.Process = os.Getpid()
-				srv.State = "starting"
-
-				// Provide environment-driven defaults without etcd.
-				if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-					srv.Domain = strings.ToLower(v)
-				} else {
-					srv.Domain = "localhost"
-				}
-				if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-					srv.Address = strings.ToLower(v)
-				} else {
-					srv.Address = "localhost:" + Utility.ToString(srv.Port)
-				}
-
-				b, err := globular.DescribeJSON(srv)
-				if err != nil {
-					logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-					os.Exit(2)
-				}
-				_, _ = os.Stdout.Write(b)
-				_, _ = os.Stdout.Write([]byte("\n"))
-				return
-
-			case "--health":
-				if srv.Port == 0 || srv.Name == "" {
-					logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-					os.Exit(2)
-				}
-				b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-					Timeout:     1500 * time.Millisecond,
-					ServiceName: "",
-				})
-				if err != nil {
-					logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-					os.Exit(2)
-				}
-				_, _ = os.Stdout.Write(b)
-				_, _ = os.Stdout.Write([]byte("\n"))
-				return
-			case "--help", "-h", "/?":
-				printUsage()
-				return
-			case "--version", "-v":
-				fmt.Printf("%s\n", srv.Version)
-				return
-
-			}
-		}
-
-		// Positional args
-		if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-			srv.Id = args[0]
-		} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-			srv.Id = args[0]
-			srv.ConfigPath = args[1]
-		}
+	} else if len(args) == 1 {
+		srv.Id = args[0]
+	} else if len(args) >= 2 {
+		srv.Id = args[0]
+		srv.ConfigPath = args[1]
 	}
 
 	// Safe to fetch config now (file/etcd as configured).
@@ -894,17 +919,31 @@ func main() {
 		srv.Address = a
 	}
 
+	logger.Info("starting title service",
+		"service", srv.Name,
+		"version", srv.Version,
+		"domain", srv.Domain,
+		"address", srv.Address,
+		"port", srv.Port,
+		"cache_type", srv.CacheType,
+	)
+
 	start := time.Now()
+	logger.Debug("initializing service", "service", srv.Name, "id", srv.Id)
 	if err := srv.Init(); err != nil {
 		logger.Error("service init failed", "service", srv.Name, "id", srv.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service init completed", "duration_ms", time.Since(start).Milliseconds())
 
 	// non-blocking TSV pre-download
+	logger.Debug("starting IMDB dataset prewarm (background)")
 	go srv.prewarmIMDBDatasets()
 
+	logger.Debug("registering gRPC handlers", "service", srv.Name)
 	titlepb.RegisterTitleServiceServer(srv.grpcServer, srv)
 	reflection.Register(srv.grpcServer)
+	logger.Debug("gRPC handlers registered")
 
 	if srv.CacheAddress == "" || strings.HasPrefix(strings.ToLower(srv.CacheAddress), "localhost") {
 		srv.CacheAddress = config.GetLocalIP()
@@ -916,7 +955,10 @@ func main() {
 		"proxy", srv.Proxy,
 		"protocol", srv.Protocol,
 		"domain", srv.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"startup_ms", time.Since(start).Milliseconds(),
+		"version", srv.Version,
+		"cache_address", srv.CacheAddress,
+	)
 
 	if err := srv.StartService(); err != nil {
 		logger.Error("service start failed", "service", srv.Name, "id", srv.Id, "err", err)
@@ -925,14 +967,57 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `Usage:
-  %[1]s [--describe|--health]
-  %[1]s <service-id> [config-path]
+	fmt.Println("Globular Title Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  title_server [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN      Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS     Override service address")
+	fmt.Println()
+	fmt.Println("FEATURES:")
+	fmt.Println("  • Media title catalog with search and indexing")
+	fmt.Println("  • IMDB metadata enrichment for movies, TV shows, and persons")
+	fmt.Println("  • Audio/video/album associations with files")
+	fmt.Println("  • Publisher and person management")
+	fmt.Println("  • Full-text search across titles and persons")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  title_server")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  title_server my-title-service-id")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  title_server --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  title_server --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  title_server --health")
+}
 
-Options:
-  --describe   Print service metadata as JSON and exit.
-  --health     Print service health as JSON and exit.
-
-If no arguments are given, the service will start normally.
-`, filepath.Base(os.Args[0]))
+func printVersion() {
+	info := map[string]string{
+		"service":    "title",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
