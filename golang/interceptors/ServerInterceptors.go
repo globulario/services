@@ -19,6 +19,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,16 @@ func lazyInit() {}
 func Load() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
 	initOnce.Do(lazyInit)
 	return ServerUnaryInterceptor, ServerStreamInterceptor, loadErr
+}
+
+// ---- bootstrap mode ---------------------------------------------------------
+
+// isBootstrapMode reports whether the process is running in bootstrap mode
+// (GLOBULAR_BOOTSTRAP=1/true/yes). During bootstrap, authorization is bypassed
+// to allow services to start and communicate before RBAC/Authentication are ready.
+func isBootstrapMode() bool {
+	v := strings.TrimSpace(os.Getenv("GLOBULAR_BOOTSTRAP"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 var (
@@ -455,12 +466,18 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		routing = strings.Join(md["routing"], "")
 	}
 
-	// 1) Bypass for allowlisted infra/public methods.
+	// 1) Bypass for bootstrap mode (Day-0 installation).
+	//    Services need to communicate before RBAC/Authentication are ready.
+	if isBootstrapMode() {
+		return handler(ctx, rqst)
+	}
+
+	// 2) Bypass for allowlisted infra/public methods.
 	if isUnauthenticated(method) {
 		return handler(ctx, rqst)
 	}
 
-	// 2) Only consult RBAC if there are resource mappings for this method.
+	// 3) Only consult RBAC if there are resource mappings for this method.
 	needAuthz := false
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
 		if infos, e := getActionResourceInfos(address, method); e == nil && len(infos) > 0 {
@@ -471,7 +488,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		return handler(ctx, rqst)
 	}
 
-	// 3) We need auth â†’ parse token now (not before).
+	// 4) We need auth → parse token now (not before).
 	var clientId, issuer string
 	if token != "" {
 		claims, vErr := security.ValidateToken(token)
@@ -563,17 +580,22 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return err
 	}
 
-	// 1) Allowlisted methods require no validation.
+	// 1) Bypass for bootstrap mode.
+	if isBootstrapMode() {
+		return nil
+	}
+
+	// 2) Allowlisted methods require no validation.
 	if isUnauthenticated(l.method) {
 		return nil
 	}
 
-	// 2) If we've already validated this stream, skip.
+	// 3) If we've already validated this stream, skip.
 	if _, ok := cache.Load(l.uuid); ok {
 		return nil
 	}
 
-	// 3) Only consult RBAC if there are resource mappings for this method.
+	// 4) Only consult RBAC if there are resource mappings for this method.
 	needAuthz := false
 	if infos, e := getActionResourceInfos(l.address, l.method); e == nil && len(infos) > 0 {
 		needAuthz = true
@@ -583,7 +605,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return nil
 	}
 
-	// 4) We need auth â†' parse token now.
+	// 5) We need auth → parse token now.
 	var clientId, issuer string
 	if l.token != "" {
 		claims, vErr := security.ValidateToken(l.token)
@@ -714,6 +736,11 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 		routing = strings.Join(md["routing"], "")
+	}
+
+	// Bypass RBAC for bootstrap mode (Day-0 installation).
+	if isBootstrapMode() {
+		return handler(srv, stream)
 	}
 
 	// Bypass RBAC entirely for allowlisted infra/public methods.
