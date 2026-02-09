@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/globulario/services/golang/storage_backend"
 	Utility "github.com/globulario/utility"
 )
 
@@ -242,7 +243,7 @@ func (srv *server) computeChecksum(ctx context.Context, path string) (string, er
 	}
 
 	storage := srv.storageForPath(path)
-	if _, ok := storage.(*OSStorage); ok {
+	if _, ok := storage.(*storage_backend.OSStorage); ok {
 		localPath := path
 		sum := Utility.CreateFileChecksum(localPath)
 		srv.checksumCache.Store(key, checksumEntry{

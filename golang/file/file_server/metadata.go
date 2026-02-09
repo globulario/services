@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/barasher/go-exiftool"
+	"github.com/globulario/services/golang/storage_backend"
 	Utility "github.com/globulario/utility"
 )
 
@@ -39,7 +40,7 @@ func (srv *server) prepareLocalFile(path string) (string, func(), error) {
 	p := filepath.ToSlash(path)
 	ctx := context.Background()
 
-	if _, ok := srv.storageForPath(p).(*OSStorage); ok {
+	if _, ok := srv.storageForPath(p).(*storage_backend.OSStorage); ok {
 		return filepath.ToSlash(p), func() {}, nil
 	}
 

@@ -27,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/globulario/services/golang/storage_backend"
 	"github.com/globulario/services/golang/title/title_client"
 	Utility "github.com/globulario/utility"
 	"github.com/minio/minio-go/v7"
@@ -103,8 +104,8 @@ type server struct {
 	grpcServer *grpc.Server
 
 	Root                   string
-	storage                Storage
-	publicStorage          Storage
+	storage                storage_backend.Storage
+	publicStorage          storage_backend.Storage
 	CacheType              string
 	CacheAddress           string
 	CacheReplicationFactor int
@@ -503,13 +504,13 @@ func printVersion() {
 func (srv *server) initStorage() error {
 
 	// Public storage always uses local filesystem
-	srv.publicStorage = NewOSStorage("")
+	srv.publicStorage = storage_backend.NewOSStorage("")
 
 	if srv.minioEnabled() {
 		if err := srv.ensureMinioClient(); err != nil {
 			return err
 		}
-		m, err := NewMinioStorage(
+		m, err := storage_backend.NewMinioStorage(
 			srv.minioClient,
 			srv.MinioConfig.Bucket,
 			srv.MinioConfig.Prefix,
@@ -524,7 +525,7 @@ func (srv *server) initStorage() error {
 		return nil
 	}
 
-	srv.storage = NewOSStorage("")
+	srv.storage = storage_backend.NewOSStorage("")
 	return nil
 }
 
@@ -652,11 +653,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // Storage returns the configured backend (defaulting to local filesystem).
-func (srv *server) Storage() Storage {
+func (srv *server) Storage() storage_backend.Storage {
 	if srv.storage == nil {
 		if err := srv.initStorage(); err != nil {
 			logger.Error("failed to initialize storage; falling back to local filesystem", "err", err)
-			srv.storage = NewOSStorage("")
+			srv.storage = storage_backend.NewOSStorage("")
 		}
 	}
 	return srv.storage
@@ -664,11 +665,11 @@ func (srv *server) Storage() Storage {
 
 // storageForPath returns the appropriate storage implementation for a specific path.
 // Public directories are always served from the local filesystem; everything else uses the default backend.
-func (srv *server) storageForPath(path string) Storage {
+func (srv *server) storageForPath(path string) storage_backend.Storage {
 	path = srv.formatPath(path)
 	if srv.isPublic(path) || !strings.HasPrefix(path, "/users/") {
 		if srv.publicStorage == nil {
-			srv.publicStorage = NewOSStorage("")
+			srv.publicStorage = storage_backend.NewOSStorage("")
 		}
 		return srv.publicStorage
 	}

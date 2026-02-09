@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/globulario/services/golang/storage_backend"
 	//"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/file/filepb"
 	Utility "github.com/globulario/utility"
@@ -38,7 +39,7 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 	thumbPath := path
 	storage := s.storageForPath(path)
-	if _, ok := storage.(*OSStorage); !ok {
+	if _, ok := storage.(*storage_backend.OSStorage); !ok {
 		tmp, err := os.CreateTemp("", "thumb-*"+filepath.Ext(path))
 		if err != nil {
 			return "", err
