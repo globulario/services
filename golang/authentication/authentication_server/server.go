@@ -1,26 +1,23 @@
 package main
 
 import (
-	"errors"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/ldap/ldap_client"
-	"github.com/globulario/services/golang/rbac/rbac_client"
-	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -34,56 +31,73 @@ var (
 	allowedOriginsStr = ""
 )
 
-// Service impl consumed by Globular
-// (Keep public method signatures unchanged.)
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
+// --- logger to STDERR so stdout stays clean for JSON outputs ---
+var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+// server implements the Globular service contract and Authentication RPC handlers.
 type server struct {
-	Id              string
-	Name            string
-	Mac             string
-	Domain          string
-	Address         string
-	Path            string
-	Proto           string
-	Port            int
-	Proxy           int
+	// Service identity
+	Id          string
+	Name        string
+	Mac         string
+	Domain      string
+	Address     string
+	Path        string
+	Proto       string
+	Port        int
+	Proxy       int
+	Protocol    string
+	Version     string
+	PublisherID string
+	Description string
+	Keywords    []string
+
+	// Metadata & discovery
+	Repositories []string
+	Discoveries  []string
+	Dependencies []string
+
+	// Policy & operations
 	AllowAllOrigins bool
 	AllowedOrigins  string
-	Protocol        string
-	Version         string
-	PublisherID     string
 	KeepUpToDate    bool
 	KeepAlive       bool
 	Checksum        string
 	Plaform         string
-	Description     string
-	Keywords        []string
-	Repositories    []string
-	Discoveries     []string
-	Process         int
-	ProxyProcess    int
-	ConfigPath      string
-	ConfigPort      int
-	LastError       string
-	ModTime         int64
-	State           string
-	TLS             bool
+	Permissions     []any
 
+	// Runtime state
+	Process      int
+	ProxyProcess int
+	ConfigPath   string
+	ConfigPort   int
+	LastError    string
+	ModTime      int64
+	State        string
+
+	// TLS configuration
+	TLS                bool
 	CertFile           string
 	KeyFile            string
 	CertAuthorityTrust string
 
-	Permissions  []interface{}
-	Dependencies []string
-
+	// Auth-specific
 	WatchSessionsDelay int
 	SessionTimeout     int
 	LdapConnectionId   string
 
-	exit_ chan bool
-
+	// gRPC runtime
 	grpcServer *grpc.Server
 
-	// used to cut infinite recursion.
+	// Background controls
+	exitCh           chan struct{}
 	authentications_ []string
 }
 
@@ -176,8 +190,9 @@ func (srv *server) GetKeepUpToDate() bool           { return srv.KeepUpToDate }
 func (srv *server) SetKeepUptoDate(val bool)        { srv.KeepUpToDate = val }
 func (srv *server) GetKeepAlive() bool              { return srv.KeepAlive }
 func (srv *server) SetKeepAlive(val bool)           { srv.KeepAlive = val }
-func (srv *server) GetPermissions() []interface{}   { return srv.Permissions }
-func (srv *server) SetPermissions(v []interface{})  { srv.Permissions = v }
+func (srv *server) GetPermissions() []any           { return srv.Permissions }
+func (srv *server) SetPermissions(v []any)          { srv.Permissions = v }
+func (srv *server) GetGrpcServer() *grpc.Server     { return srv.grpcServer }
 
 // RolesDefault returns curated roles for AuthenticationService.
 func (srv *server) RolesDefault() []resourcepb.Role {
@@ -243,139 +258,51 @@ func (srv *server) Init() error {
 	srv.grpcServer = gs
 	return nil
 }
-func (srv *server) Save() error         { return globular.SaveService(srv) }
-func (srv *server) StartService() error { return globular.StartService(srv, srv.grpcServer) }
-func (srv *server) StopService() error  { return globular.StopService(srv, srv.grpcServer) }
 
-// --- logger to STDERR so stdout stays clean for JSON outputs ---
-var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+func (srv *server) Save() error { return globular.SaveService(srv) }
 
-// ////////////////////// LDAP helpers //////////////////////
-func GetLdapClient(address string) (*ldap_client.LDAP_Client, error) {
-	client, err := globular_client.GetClient(address, "ldap.LdapService", "ldap_client.NewLdapService_Client")
-	if err != nil {
-		return nil, err
+func (srv *server) StartService() error {
+	if srv.exitCh == nil {
+		srv.exitCh = make(chan struct{})
 	}
-	return client.(*ldap_client.LDAP_Client), nil
-}
-func (srv *server) authenticateLdap(userId, password string) error {
-	ldapClient, err := GetLdapClient(srv.Address)
+	srv.removeExpiredSessions()
+
+	macAddress, err := config.GetMacAddress()
 	if err != nil {
-		logger.Error("ldap connect failed", "address", srv.Address, "err", err)
+		close(srv.exitCh)
+		srv.exitCh = nil
 		return err
 	}
-	return ldapClient.Authenticate(srv.LdapConnectionId, userId, password)
-}
 
-// ////////////////////// RBAC helpers //////////////////////
-func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*rbac_client.Rbac_Client), nil
-}
-func (srv *server) addResourceOwner(token, path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
-	rbacClient, err := GetRbacClient(srv.Address)
-	if err != nil {
+	if err := srv.setKey(macAddress); err != nil {
+		close(srv.exitCh)
+		srv.exitCh = nil
 		return err
 	}
-	return rbacClient.AddResourceOwner(token, path, subject, resourceType, subjectType)
+
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-// ////////////////////// Resource helpers //////////////////////
-func (srv *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
-	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
-	if err != nil {
-		return nil, err
+func (srv *server) StopService() error {
+	if srv.exitCh != nil {
+		select {
+		case <-srv.exitCh:
+		default:
+			close(srv.exitCh)
+		}
+		srv.exitCh = nil
 	}
-	return client.(*resource_client.Resource_Client), nil
-}
-func (srv *server) getSessions() ([]*resourcepb.Session, error) {
-	resourceClient, err := srv.getResourceClient(srv.GetAddress())
-	if err != nil {
-		return nil, err
-	}
-	return resourceClient.GetSessions(`{"state":0}`)
-}
-func (srv *server) removeSession(accountId string) error {
-	resourceClient, err := srv.getResourceClient(srv.GetAddress())
-	if err != nil {
-		return err
-	}
-	return resourceClient.RemoveSession(accountId)
-}
-func (srv *server) updateSession(session *resourcepb.Session) error {
-	resourceClient, err := srv.getResourceClient(srv.GetAddress())
-	if err != nil {
-		return err
-	}
-	return resourceClient.UpdateSession(session)
-}
-func (srv *server) getSession(accountId string) (*resourcepb.Session, error) {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	resourceClient, err := srv.getResourceClient(domain)
-	if err != nil {
-		return nil, err
-	}
-	return resourceClient.GetSession(accountId)
-}
-func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	resourceClient, err := srv.getResourceClient(domain)
-	if err != nil {
-		return nil, err
-	}
-	return resourceClient.GetAccount(accountId)
-}
-func (srv *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
-	domain := srv.GetDomain()
-	if strings.Contains(accountId, "@") {
-		domain = strings.Split(accountId, "@")[1]
-	}
-
-	if strings.Contains(accountId, "@") {
-		accountId = strings.Split(accountId, "@")[0]
-	}
-	resourceClient, err := srv.getResourceClient(domain)
-	if err != nil {
-		return err
-	}
-	return resourceClient.SetAccountPassword(accountId, token, oldPassword, newPassword)
-}
-func (srv *server) getNodeIdentities() ([]*resourcepb.NodeIdentity, error) {
-	resourceClient, err := srv.getResourceClient(srv.GetAddress())
-	if err != nil {
-		return nil, err
-	}
-	nodes, err := resourceClient.ListNodeIdentities(`{}`, "")
-	if err != nil {
-		return nil, err
-	}
-	if len(nodes) == 0 {
-		return nil, errors.New("no node identities found")
-	}
-	return nodes, nil
+	return globular.StopService(srv, srv.grpcServer)
 }
 
-// ////////////////////// Auth helpers //////////////////////
-func (srv *server) validatePassword(password, hashed string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(password))
-}
-
+// Session janitor
 func (srv *server) removeExpiredSessions() {
+	if srv.exitCh == nil {
+		srv.exitCh = make(chan struct{})
+	}
 	ticker := time.NewTicker(time.Duration(srv.WatchSessionsDelay) * time.Second)
 	go func() {
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -395,7 +322,7 @@ func (srv *server) removeExpiredSessions() {
 						}
 					}
 				}
-			case <-srv.exit_:
+			case <-srv.exitCh:
 				logger.Info("session watcher stopped")
 				return
 			}
@@ -403,28 +330,8 @@ func (srv *server) removeExpiredSessions() {
 	}()
 }
 
-// --- Usage text ---
-func printUsage() {
-	fmt.Fprintf(os.Stdout, `
-Usage: %s [options] <id> [configPath]
-
-Options:
-  --describe      Print service description as JSON (no etcd/config access)
-  --health        Print service health as JSON (no etcd/config access)
-
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
-
-Example:
-  %s auth-1 /etc/globular/auth/config.json
-
-`, filepath.Base(os.Args[0]), filepath.Base(os.Args[0]))
-}
-
-// main wires the Authentication service with --describe/--health shortcuts
-func main() {
-	// Skeleton only (no etcd access yet)
+// initializeServerDefaults sets up the server with default values before config loading.
+func initializeServerDefaults() *server {
 	s := new(server)
 	s.Name = string(authenticationpb.File_authentication_proto.Services().Get(0).FullName())
 	s.Proto = authenticationpb.File_authentication_proto.Path()
@@ -432,14 +339,36 @@ func main() {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.0.1"
+	s.Version = Version // Use build-time version
 	s.PublisherID = "localhost"
-	s.Description = "Authentication service"
-	s.Keywords = []string{"Authentication"}
+	s.Description = "Authentication service with password management, session handling, and peer token generation"
+	s.Keywords = []string{"authentication", "auth", "login", "password", "session", "token", "ldap", "security"}
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"event.EventService"}
-	s.Permissions = []interface{}{}
+	s.Permissions = []any{
+		map[string]any{
+			"action": "/authentication.AuthenticationService/SetPassword",
+			"resources": []any{
+				map[string]any{"index": 0, "permission": "write"},
+			},
+		},
+		map[string]any{
+			"action":     "/authentication.AuthenticationService/SetRootPassword",
+			"permission": "owner",
+		},
+		map[string]any{
+			"action":     "/authentication.AuthenticationService/SetRootEmail",
+			"permission": "owner",
+		},
+		map[string]any{
+			"action": "/authentication.AuthenticationService/GeneratePeerToken",
+			"resources": []any{
+				map[string]any{"index": 0, "permission": "write"},
+			},
+		},
+	}
+
 	s.WatchSessionsDelay = 60
 	s.SessionTimeout = 15
 	s.Process = -1
@@ -448,154 +377,191 @@ func main() {
 	s.KeepUpToDate = true
 	s.AllowAllOrigins = allowAllOrigins
 	s.AllowedOrigins = allowedOriginsStr
-	s.exit_ = make(chan bool)
+	s.exitCh = make(chan struct{})
 	s.LdapConnectionId = ""
 	s.authentications_ = []string{}
 
-	// Default permissions for AuthenticationService (generic verbs).
-	s.Permissions = []interface{}{
-		// Change own / someone’s password (resource = account id)
-		map[string]interface{}{
-			"action": "/authentication.AuthenticationService/SetPassword",
-			"resources": []interface{}{
-				// SetPasswordRequest.accountId
-				map[string]interface{}{"index": 0, "permission": "write"},
-			},
-		},
+	// Leave Domain/Address empty; HandleDescribeFlag/LoadRuntimeConfig will populate.
+	s.Id = Utility.GenerateUUID(s.Name + ":" + fmt.Sprintf("localhost:%d", s.Port))
 
-		// Root credentials & email (no resource path; gate the action itself)
-		map[string]interface{}{
-			"action":     "/authentication.AuthenticationService/SetRootPassword",
-			"permission": "owner",
-		},
-		map[string]interface{}{
-			"action":     "/authentication.AuthenticationService/SetRootEmail",
-			"permission": "owner",
-		},
+	return s
+}
 
-		// Peer token issuance (resource = peer MAC)
-		map[string]interface{}{
-			"action": "/authentication.AuthenticationService/GeneratePeerToken",
-			"resources": []interface{}{
-				// GeneratePeerTokenRequest.mac (only field => index 0)
-				map[string]interface{}{"index": 0, "permission": "write"},
-			},
-		},
-	}
-
-	// CLI flags BEFORE touching config
-	args := os.Args[1:]
-	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-		allocator, err := config.NewDefaultPortAllocator()
-		if err != nil {
-			fmt.Println("fail to create port allocator", "error", err)
-			os.Exit(1)
-		}
-		p, err := allocator.Next(s.Id)
-		if err != nil {
-			fmt.Println("fail to allocate port", "error", err)
-			os.Exit(1)
-		}
-		s.Port = p
-	}
-
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--debug":
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-				Level: slog.LevelDebug,
-			}))
-			slog.SetDefault(logger)
-		case "--version", "-v":
-			fmt.Fprintf(os.Stdout, "%s\n", s.Version)
-		}
-	}
-
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
-		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
-		s.Id = args[0]
-		s.ConfigPath = args[1]
-	}
-
-	// Safe to touch config now
-	if d, err := config.GetDomain(); err == nil {
-		s.Domain = d
-	} else {
-		s.Domain = "localhost"
-	}
-	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
-		s.Address = a
-	}
-
-	// Register client ctor for dynamic routing
+// setupGrpcService registers the Authentication service with the gRPC server.
+func setupGrpcService(srv *server) {
+	authenticationpb.RegisterAuthenticationServiceServer(srv.grpcServer, srv)
+	reflection.Register(srv.grpcServer)
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
+}
+
+// --- Usage text ---
+func printUsage() {
+	fmt.Println("Globular Authentication Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  authentication_server [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN      Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS     Override service address")
+	fmt.Println()
+	fmt.Println("FEATURES:")
+	fmt.Println("  • Password management (set, validate, reset)")
+	fmt.Println("  • Session handling with configurable timeouts")
+	fmt.Println("  • Peer token generation for inter-service authentication")
+	fmt.Println("  • LDAP integration support")
+	fmt.Println("  • Root account management")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  authentication_server")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  authentication_server auth-1")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  authentication_server --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  authentication_server --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  authentication_server --health")
+}
+
+func printVersion() {
+	info := map[string]string{
+		"service":    "authentication",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
+}
+
+// main wires the Authentication service with shared CLI + lifecycle primitives.
+func main() {
+	// Skeleton only (no etcd access yet)
+	s := initializeServerDefaults()
+
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Apply debug logging if requested
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logger.Debug("debug logging enabled")
+	}
+	slog.SetDefault(logger)
+
+	// Handle early-exit flags
+	if *showHelp {
+		printUsage()
+		return
+	}
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	// Handle --describe and --health flags
+	if *showDescribe {
+		// Set ephemeral data for describe
+		s.Process = os.Getpid()
+		s.State = "starting"
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			s.Domain = strings.ToLower(v)
+		} else {
+			s.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			s.Address = strings.ToLower(v)
+		} else {
+			s.Address = "localhost:" + Utility.ToString(s.Port)
+		}
+		if s.Id == "" {
+			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		}
+		b, err := globular.DescribeJSON(s)
+		if err != nil {
+			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	if *showHealth {
+		if s.Port == 0 || s.Name == "" {
+			logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+		if err != nil {
+			logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	args := flag.Args() // Get remaining positional args
+
+	// Positional args
+	globular.ParsePositionalArgs(s, args)
+
+	// Port allocation when needed
+	if err := globular.AllocatePortIfNeeded(s, args); err != nil {
+		logger.Error("fail to allocate port", "error", err)
+		os.Exit(1)
+	}
+
+	// Runtime config (domain/address)
+	globular.LoadRuntimeConfig(s)
+
+	logger.Info("starting authentication service",
+		"service", s.Name,
+		"version", s.Version,
+		"domain", s.Domain,
+		"address", s.Address,
+		"port", s.Port,
+		"session_timeout", s.SessionTimeout,
+	)
 
 	start := time.Now()
+	logger.Debug("initializing service", "service", s.Name, "id", s.Id)
 	if err := s.Init(); err != nil {
 		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service init completed", "duration_ms", time.Since(start).Milliseconds())
 
-	// gRPC registration
-	authenticationpb.RegisterAuthenticationServiceServer(s.grpcServer, s)
-	reflection.Register(s.grpcServer)
-
-	// background session janitor
-	s.removeExpiredSessions()
-
-	// Make peers able to mint JWTs (symm. keys)
-	macAddress, err := config.GetMacAddress()
-	if err != nil {
-		logger.Error("mac get failed", "err", err)
-		os.Exit(1)
-	}
-	if err := s.setKey(macAddress); err != nil { // setKey defined elsewhere in this package
-		logger.Error("peer keys generate failed", "mac", macAddress, "err", err)
-		os.Exit(1)
-	}
+	logger.Debug("registering gRPC handlers", "service", s.Name)
+	setupGrpcService(s)
+	logger.Debug("gRPC handlers registered")
 
 	logger.Info("service ready",
 		"service", s.Name,
@@ -603,13 +569,25 @@ func main() {
 		"proxy", s.Proxy,
 		"protocol", s.Protocol,
 		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"startup_ms", time.Since(start).Milliseconds(),
+		"version", s.Version,
+	)
 
-	if err := s.StartService(); err != nil {
+	lifecycle := globular.NewLifecycleManager(s, logger)
+	if err := lifecycle.Start(); err != nil {
 		logger.Error("service start failed", "err", err)
 		os.Exit(1)
 	}
 
-	// graceful exit
-	s.exit_ <- true
+	// wait for termination
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+
+	logger.Info("shutdown signal received, initiating graceful shutdown")
+	if err := lifecycle.GracefulShutdown(30 * time.Second); err != nil {
+		logger.Error("graceful shutdown failed", "err", err)
+		os.Exit(1)
+	}
+	logger.Info("service stopped gracefully")
 }
