@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -41,6 +42,13 @@ var (
 
 	// Global service pointer used by UDP DNS handler.
 	srv *server
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // STDERR logger so --describe/--health JSON stays clean on STDOUT
@@ -559,21 +567,50 @@ func orderIPsByPrivacy(ips []string) []string {
 
 func printUsage() {
 	exe := filepath.Base(os.Args[0])
-	os.Stdout.WriteString(`
-Usage: ` + exe + ` [options] <id> [configPath]
+	fmt.Fprintf(os.Stdout, `
+%s - DNS service with storage-backed records and UDP/TCP resolution
 
-Options:
+USAGE:
+  %s [OPTIONS] [<id>] [<configPath>]
+
+OPTIONS:
+  --debug         Enable debug logging
+  --version       Print version information as JSON and exit
+  --help          Show this usage information and exit
   --describe      Print service description as JSON (no etcd/config access)
   --health        Print service health as JSON (no etcd/config access)
 
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
+ARGUMENTS:
+  <id>            Service instance ID (optional)
+  <configPath>    Optional path to configuration file
 
-Example:
-  ` + exe + ` dns-1 /etc/globular/dns/config.json
+FEATURES:
+  • Storage-backed DNS records and zones
+  • UDP and TCP DNS resolution on port 53
+  • Full CRUD operations for records (A, AAAA, CNAME, MX, TXT, NS, SOA)
+  • Zone management with RBAC permissions
+  • CAP_NET_BIND_SERVICE support for privileged port binding
+  • Integration with Globular's distributed storage backend
 
-`)
+EXAMPLES:
+  %s --version
+  %s --describe
+  %s --debug dns-1
+  %s dns-1 /etc/globular/dns/config.json
+
+`, exe, exe, exe, exe, exe, exe)
+}
+
+func printVersion() {
+	data := map[string]string{
+		"service":    "dns",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(data)
 }
 
 func initializeServerDefaults() *server {
@@ -591,11 +628,11 @@ func initializeServerDefaults() *server {
 		Protocol:          cfg.Protocol,
 		Domain:            cfg.Domain,
 		Address:           cfg.Address,
-		Description:       cfg.Description,
-		Keywords:          globular.CloneStringSlice(cfg.Keywords),
+		Description:       "DNS service with storage-backed records, zones, and UDP/TCP resolution",
+		Keywords:          []string{"dns", "resolver", "records", "zones", "nameserver", "udp", "tcp"},
 		Repositories:      globular.CloneStringSlice(cfg.Repositories),
 		Discoveries:       globular.CloneStringSlice(cfg.Discoveries),
-		Version:           cfg.Version,
+		Version:           Version,
 		PublisherID:       cfg.PublisherID,
 		KeepUpToDate:      cfg.KeepUpToDate,
 		KeepAlive:         cfg.KeepAlive,
@@ -637,19 +674,50 @@ func main() {
 	srv = initializeServerDefaults()
 	Utility.RegisterType(srv)
 
-	args := os.Args[1:]
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
 
-	for _, a := range args {
-		if strings.ToLower(a) == "--debug" {
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-			srv.Logger = logger
-			break
-		}
+	flag.Usage = printUsage
+	flag.Parse()
+
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		srv.Logger = logger
 	}
 
-	if globular.HandleInformationalFlags(srv, args, logger, printUsage) {
+	if *showVersion {
+		printVersion()
 		return
 	}
+
+	if *showHelp {
+		printUsage()
+		return
+	}
+
+	if *showDescribe {
+		data, _ := json.MarshalIndent(srv, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	if *showHealth {
+		health := map[string]interface{}{
+			"service": srv.Name,
+			"status":  "healthy",
+			"version": srv.Version,
+		}
+		data, _ := json.MarshalIndent(health, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	args := flag.Args()
 
 	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
 		logger.Error("port allocation failed", "error", err)
