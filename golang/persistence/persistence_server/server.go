@@ -6,6 +6,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -39,7 +41,16 @@ var (
 	defaultProxy      = 10036
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
 
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
+var (
 	logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -344,12 +355,13 @@ func main() {
 	srv.Proto = persistencepb.File_persistence_proto.Path()
 	srv.Proxy = defaultProxy
 	srv.Protocol = "grpc"
-	srv.Version = "0.0.1"
+	srv.Version = Version
 	srv.PublisherID = "localhost"
 	srv.AllowAllOrigins = allowAllOrigins
 	srv.AllowedOrigins = allowedOriginsStr
+	srv.Description = "Persistence service with MongoDB and SQL database support"
+	srv.Keywords = []string{"persistence", "database", "mongodb", "sql", "datastore", "connection", "query"}
 	srv.Permissions = make([]interface{}, 0)
-	srv.Keywords = make([]string, 0)
 	srv.Repositories = make([]string, 0)
 	srv.Discoveries = make([]string, 0)
 	srv.Dependencies = []string{"authentication.AuthenticationService", "event.EventService"}
@@ -584,7 +596,79 @@ func main() {
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 
 	// ---- CLI handling BEFORE config access ----
-	args := os.Args[1:]
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		slog.SetDefault(logger)
+	}
+
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	if *showHelp {
+		printUsage()
+		return
+	}
+
+	if *showDescribe {
+		srv.Process = os.Getpid()
+		srv.State = "starting"
+
+		// Safe defaults for domain/address without etcd
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			srv.Domain = strings.ToLower(v)
+		} else {
+			srv.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			srv.Address = strings.ToLower(v)
+		} else {
+			srv.Address = "localhost:" + Utility.ToString(srv.Port)
+		}
+
+		b, err := globular.DescribeJSON(srv)
+		if err != nil {
+			logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	if *showHealth {
+		if srv.Port == 0 || srv.Name == "" {
+			logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(srv, &globular.HealthOptions{
+			Timeout:     1500 * time.Millisecond,
+			ServiceName: "",
+		})
+		if err != nil {
+			logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	args := flag.Args()
+
+	// Custom port allocation if no positional args
 	if len(args) == 0 {
 		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Address)
 		allocator, err := config.NewDefaultPortAllocator()
@@ -600,67 +684,12 @@ func main() {
 		srv.Port = p
 	}
 
-	// Optional positional overrides (id, config path) if they don't start with '-'
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+	// Optional positional overrides (id, config path)
+	if len(args) == 1 {
 		srv.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+	} else if len(args) == 2 {
 		srv.Id = args[0]
 		srv.ConfigPath = args[1]
-	}
-
-	// Flags first (no etcd/config access here)
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			srv.Process = os.Getpid()
-			srv.State = "starting"
-
-			// Safe defaults for domain/address without etcd
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				srv.Domain = strings.ToLower(v)
-			} else {
-				srv.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				srv.Address = strings.ToLower(v)
-			} else {
-				srv.Address = "localhost:" + Utility.ToString(srv.Port)
-			}
-
-			b, err := globular.DescribeJSON(srv)
-			if err != nil {
-				logger.Error("describe error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-
-		case "--health":
-			if srv.Port == 0 || srv.Name == "" {
-				logger.Error("health error: uninitialized", "service", srv.Name, "port", srv.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(srv, &globular.HealthOptions{
-				Timeout:     1500 * time.Millisecond,
-				ServiceName: "",
-			})
-			if err != nil {
-				logger.Error("health error", "service", srv.Name, "id", srv.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--debug":
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-				Level: slog.LevelDebug,
-			}))
-			slog.SetDefault(logger)
-		}
 	}
 
 	// Now safe to access config (may read etcd / file fallback)
@@ -698,20 +727,55 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `Usage:
-  %[1]s [service-id] [config-path] [--describe|--health|flags...]
+	exe := filepath.Base(os.Args[0])
+	fmt.Fprintf(os.Stdout, `
+%s - Persistence service with MongoDB and SQL database support
 
-Options:
-  --describe    Print service metadata as JSON (no config/etcd access)
-  --health      Print health status as JSON (no config/etcd access)
+USAGE:
+  %s [OPTIONS] [<id>] [<configPath>]
 
-Positional arguments:
-  service-id    Optional: Override the service instance ID
-  config-path   Optional: Override the config file path
+OPTIONS:
+  --debug         Enable debug logging
+  --version       Print version information as JSON and exit
+  --help          Show this usage information and exit
+  --describe      Print service description as JSON (no etcd/config access)
+  --health        Print service health as JSON (no etcd/config access)
 
-Environment variables:
+ARGUMENTS:
+  <id>            Service instance ID (optional)
+  <configPath>    Optional path to configuration file
+
+FEATURES:
+  • Multi-backend support (MongoDB, SQL)
+  • Connection pooling and lifecycle management
+  • Database and collection CRUD operations
+  • Entity storage with schema validation
+  • Query and aggregation pipelines
+  • Transaction support
+  • RBAC permissions per connection/database/collection
+  • Integration with Authentication and Event services
+
+ENVIRONMENT:
   GLOBULAR_DOMAIN   Set the service domain (default: localhost)
   GLOBULAR_ADDRESS  Set the service address (default: localhost:<port>)
 
-`, filepath.Base(os.Args[0]))
+EXAMPLES:
+  %s --version
+  %s --describe
+  %s --debug persistence-1
+  %s persistence-1 /etc/globular/persistence/config.json
+
+`, exe, exe, exe, exe, exe, exe)
+}
+
+func printVersion() {
+	data := map[string]string{
+		"service":    "persistence",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(data)
 }
