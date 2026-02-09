@@ -6,11 +6,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -33,6 +34,13 @@ var (
 	defaultProxy      = 10032
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // STDERR logger so --describe/--health JSON stays clean on STDOUT.
@@ -492,14 +500,39 @@ func (srv *server) getGroup(id string) (*resourcepb.Group, error) {
 // -------------------- CLI helpers --------------------
 
 func printUsage() {
-	fmt.Fprintf(os.Stdout, `
-Usage: %s [options] <id> [configPath]
+	fmt.Println("LDAP Service - Directory integration and user synchronization")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  ldap-service [OPTIONS] [id] [config_path]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("FEATURES:")
+	fmt.Println("  • LDAP directory integration")
+	fmt.Println("  • User synchronization from LDAP/AD")
+	fmt.Println("  • Embedded LDAP server (port 389)")
+	fmt.Println("  • LDAPS support (port 636)")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  ldap-service")
+	fmt.Println("  ldap-service --version")
+	fmt.Println("  ldap-service --debug")
+}
 
-Options:
-  --describe   Print service description as JSON (no etcd/config access)
-  --health     Print service health as JSON (no etcd/config access)
-
-`, filepath.Base(os.Args[0]))
+func printVersion() {
+	info := map[string]string{
+		"service":    "ldap",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
 
 // --- main entrypoint ---
@@ -507,19 +540,51 @@ Options:
 func main() {
 	s := initializeServerDefaults()
 
-	args := os.Args[1:]
-	for _, a := range args {
-		if strings.ToLower(a) == "--debug" {
-			logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-			s.Logger = logger
-			break
-		}
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		s.Logger = logger
+		logger.Debug("debug logging enabled")
 	}
 
-	if globular.HandleInformationalFlags(s, args, logger, printUsage) {
+	if *showHelp {
+		printUsage()
 		return
 	}
 
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	if *showDescribe {
+		data, _ := json.MarshalIndent(s, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	if *showHealth {
+		health := map[string]interface{}{
+			"service": s.Name,
+			"status":  "healthy",
+			"version": s.Version,
+		}
+		data, _ := json.MarshalIndent(health, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	args := flag.Args()
 	if err := globular.AllocatePortIfNeeded(s, args); err != nil {
 		logger.Error("fail to allocate port", "error", err)
 		os.Exit(1)
@@ -535,22 +600,20 @@ func main() {
 		s.Address = fmt.Sprintf("localhost:%d", s.Port)
 	}
 
+	logger.Info("starting ldap service", "service", s.Name, "version", s.Version, "domain", s.Domain)
+
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("failed to initialize service", "name", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Info("service initialized", "duration_ms", time.Since(start).Milliseconds())
 
 	ldappb.RegisterLdapServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
+	logger.Debug("gRPC handlers registered")
 
-	logger.Info("service ready",
-		"service", s.Name,
-		"port", s.Port,
-		"proxy", s.Proxy,
-		"protocol", s.Protocol,
-		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+	logger.Info("service ready", "service", s.Name, "version", s.Version, "port", s.Port, "domain", s.Domain, "startup_ms", time.Since(start).Milliseconds())
 
 	lifecycle := globular.NewLifecycleManager(s, logger)
 	if err := lifecycle.Start(); err != nil {
@@ -570,12 +633,13 @@ func initializeServerDefaults() *server {
 		Port:            cfg.Port,
 		Proxy:           cfg.Proxy,
 		Protocol:        cfg.Protocol,
-		Version:         cfg.Version,
+		Version:         Version,
+		Description:     "LDAP service with directory integration and user synchronization",
 		AllowAllOrigins: cfg.AllowAllOrigins,
 		AllowedOrigins:  cfg.AllowedOrigins,
 		PublisherID:     cfg.PublisherID,
 		Permissions:     loadDefaultPermissions(),
-		Keywords:        globular.CloneStringSlice(cfg.Keywords),
+		Keywords:        []string{"ldap", "directory", "authentication", "user", "sync", "active-directory"},
 		Repositories:    globular.CloneStringSlice(cfg.Repositories),
 		Discoveries:     globular.CloneStringSlice(cfg.Discoveries),
 		Dependencies:    globular.CloneStringSlice(cfg.Dependencies),
