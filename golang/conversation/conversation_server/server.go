@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"flag"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -36,6 +38,13 @@ var (
 	defaultProxy      = 10030
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // STDERR logger so --describe/--health JSON stays clean on STDOUT
@@ -524,20 +533,55 @@ func (srv *server) deleteAccountListener(evt *eventpb.Event) {
 func printUsage() {
 	exe := filepath.Base(os.Args[0])
 	os.Stdout.WriteString(`
-Usage: ` + exe + ` [options] <id> [configPath]
+` + exe + ` - Conversation service with real-time messaging and WebRTC support
 
-Options:
+USAGE:
+  ` + exe + ` [OPTIONS] [<id>] [<configPath>]
+
+OPTIONS:
+  --debug         Enable debug logging
+  --version       Print version information as JSON and exit
+  --help          Show this usage information and exit
   --describe      Print service description as JSON (no etcd/config access)
   --health        Print service health as JSON (no etcd/config access)
 
-Arguments:
-  <id>            Service instance ID
-  [configPath]    Optional path to configuration file
+ARGUMENTS:
+  <id>            Service instance ID (optional)
+  <configPath>    Optional path to configuration file
 
-Example:
+FEATURES:
+  • Real-time messaging with WebSocket connections
+  • Chat rooms and private conversations
+  • WebRTC video and audio support
+  • Message history and search
+  • Typing indicators and presence
+  • RBAC permissions per conversation
+  • Integration with Event service for notifications
+  • Full-text search with Bleve
+
+ENVIRONMENT:
+  GLOBULAR_DOMAIN   Set the service domain (default: localhost)
+  GLOBULAR_ADDRESS  Set the service address (default: localhost:<port>)
+
+EXAMPLES:
+  ` + exe + ` --version
+  ` + exe + ` --describe
+  ` + exe + ` --debug conversation-1
   ` + exe + ` conversation-1 /etc/globular/conversation/config.json
 
 `)
+}
+
+func printVersion() {
+	data := map[string]string{
+		"service":    "conversation",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(data)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -553,10 +597,10 @@ func main() {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.0.1"
+	s.Version = Version
 	s.PublisherID = "localhost"
-	s.Description = "A way to communicate with other members of an organization"
-	s.Keywords = []string{"Conversation", "Chat", "Messenger"}
+	s.Description = "Conversation service with real-time messaging, chat rooms, and WebRTC support"
+	s.Keywords = []string{"conversation", "chat", "messaging", "webrtc", "video", "audio", "rooms"}
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{"rbac.RbacService"}
@@ -734,7 +778,72 @@ func main() {
 	Utility.RegisterFunction("NewConversationService_Client", conversation_client.NewConversationService_Client)
 
 	// CLI flags BEFORE touching config
-	args := os.Args[1:]
+	var (
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}
+
+	if *showVersion {
+		printVersion()
+		return
+	}
+
+	if *showHelp {
+		printUsage()
+		return
+	}
+
+	if *showDescribe {
+		s.Process = os.Getpid()
+		s.State = "starting"
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			s.Domain = strings.ToLower(v)
+		} else {
+			s.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			s.Address = strings.ToLower(v)
+		} else {
+			s.Address = "localhost:" + Utility.ToString(s.Port)
+		}
+		b, err := globular.DescribeJSON(s)
+		if err != nil {
+			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	if *showHealth {
+		if s.Port == 0 || s.Name == "" {
+			logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+		if err != nil {
+			logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	args := flag.Args()
+
+	// Custom port allocation if no positional args
 	if len(args) == 0 {
 		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 		allocator, err := config.NewDefaultPortAllocator()
@@ -750,55 +859,10 @@ func main() {
 		s.Port = p
 	}
 
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			os.Stdout.WriteString(s.Version + "\n")
-			return
-		}
-	}
-
 	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+	if len(args) == 1 {
 		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+	} else if len(args) == 2 {
 		s.Id = args[0]
 		s.ConfigPath = args[1]
 	}
