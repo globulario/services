@@ -11,7 +11,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -49,6 +51,13 @@ var (
 
 	allowAllOrigins   = true
 	allowedOriginsStr = ""
+)
+
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 const (
@@ -939,6 +948,34 @@ func (srv *server) getPersistenceStore() (persistence_store.Store, error) {
 // -----------------------------------------------------------------------------
 
 func main() {
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Apply debug logging if requested
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logger.Debug("debug logging enabled")
+	}
+
+	// Handle early-exit flags
+	if *showHelp {
+		printUsage()
+		return
+	}
+	if *showVersion {
+		printVersion()
+		return
+	}
+
 	s := new(server)
 
 	// Check for bootstrap mode via environment variable
@@ -955,10 +992,10 @@ func main() {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.0.1"
+	s.Version = Version // Use build-time version
 	s.PublisherID = "localhost"
-	s.Description = "Resource service"
-	s.Keywords = []string{"resource", "rbac", "accounts", "globular"}
+	s.Description = "Resource management service for accounts, roles, organizations, and permissions"
+	s.Keywords = []string{"resource", "rbac", "accounts", "roles", "organizations", "permissions", "authentication"}
 	s.Repositories = make([]string, 0)
 	s.Discoveries = make([]string, 0)
 	s.Dependencies = make([]string, 0)
@@ -1394,77 +1431,67 @@ func main() {
 		},
 	}
 
-	// ---- CLI flags handled BEFORE any call that might touch etcd ----
-	args := os.Args[1:]
+	// Handle --describe flag (print service metadata and exit)
+	if *showDescribe {
+		s.Process = os.Getpid()
+		s.State = "starting"
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			s.Domain = strings.ToLower(v)
+		} else {
+			s.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			s.Address = strings.ToLower(v)
+		} else {
+			s.Address = "localhost:" + Utility.ToString(s.Port)
+		}
+		if s.Id == "" {
+			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		}
+		b, err := globular.DescribeJSON(s)
+		if err != nil {
+			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	// Handle --health flag (print health status and exit)
+	if *showHealth {
+		if s.Port == 0 || s.Name == "" {
+			logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+		if err != nil {
+			logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		_, _ = os.Stdout.Write(b)
+		_, _ = os.Stdout.Write([]byte("\n"))
+		return
+	}
+
+	// ---- Positional arguments (service ID and config path) ----
+	args := flag.Args()
 	if len(args) == 0 {
 		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
-			fmt.Println("fail to create port allocator", "error", err)
+			logger.Error("fail to create port allocator", "error", err)
 			os.Exit(1)
 		}
 		p, err := allocator.Next(s.Id)
 		if err != nil {
-			fmt.Println("fail to allocate port", "error", err)
+			logger.Error("fail to allocate port", "error", err)
 			os.Exit(1)
 		}
 		s.Port = p
-	}
-
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			// Only compute ephemeral data here; avoid etcd
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			_, _ = os.Stdout.Write(b)
-			_, _ = os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Println(s.Version)
-			return
-
-		}
-	}
-
-	// Optional positional args (unchanged behavior)
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+	} else if len(args) == 1 {
 		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+	} else if len(args) >= 2 {
 		s.Id = args[0]
 		s.ConfigPath = args[1]
 	}
@@ -1495,15 +1522,30 @@ func main() {
 	s.Backend_password = "adminadmin"
 	s.DataPath = config.GetDataDir()
 
+	logger.Info("starting resource service",
+		"service", s.Name,
+		"version", s.Version,
+		"domain", s.Domain,
+		"address", s.Address,
+		"port", s.Port,
+		"backend", s.Backend_type,
+		"backend_address", s.Backend_address,
+		"bootstrap_mode", s.bootstrapMode,
+	)
+
 	start := time.Now()
+	logger.Debug("initializing service", "service", s.Name, "id", s.Id)
 	if err := s.Init(); err != nil {
 		logger.Error("service init failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service init completed", "duration_ms", time.Since(start).Milliseconds())
 
 	// Register service implementation handlers (implemented elsewhere in this package)
+	logger.Debug("registering gRPC handlers", "service", s.Name)
 	resourcepb.RegisterResourceServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
+	logger.Debug("gRPC handlers registered")
 
 	logger.Info("service ready",
 		"service", s.Name,
@@ -1511,7 +1553,7 @@ func main() {
 		"proxy", s.Proxy,
 		"protocol", s.Protocol,
 		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds(),
+		"startup_ms", time.Since(start).Milliseconds(),
 		"pid", s.Process,
 		"id", s.Id,
 		"version", s.Version,
@@ -1540,15 +1582,58 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Usage:")
-	fmt.Println("  resource_server [service_id] [config_path]")
-	fmt.Println("Options:")
-	fmt.Println("  --describe    Print service metadata as JSON and exit")
-	fmt.Println("  --health      Print service health as JSON and exit")
-	fmt.Println("Examples:")
-	fmt.Println("  resource_server my-id /etc/globular/resource/config.json")
+	fmt.Println("Globular Resource Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  resource_server [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	fmt.Println("  --debug       Enable debug logging")
+	fmt.Println("  --describe    Print service description as JSON and exit")
+	fmt.Println("  --health      Print service health status as JSON and exit")
+	fmt.Println("  --version     Print version information as JSON and exit")
+	fmt.Println("  --help        Show this help message and exit")
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN          Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS         Override service address")
+	fmt.Println("  GLOBULAR_BOOTSTRAP       Enable bootstrap mode (1=enabled)")
+	fmt.Println("  GLOBULAR_SCYLLA_HOST     Scylla backend host")
+	fmt.Println("  GLOBULAR_SERVICES_DIR    Services configuration directory")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  resource_server")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  resource_server my-resource-id")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  resource_server --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
 	fmt.Println("  resource_server --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
 	fmt.Println("  resource_server --health")
+	fmt.Println()
+	fmt.Println("  # Bootstrap mode (RBAC failures non-fatal)")
+	fmt.Println("  GLOBULAR_BOOTSTRAP=1 resource_server")
+}
+
+func printVersion() {
+	info := map[string]string{
+		"service":    "resource",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
 
 // computeBackendConfig sets backend type, ports, and address safely.
