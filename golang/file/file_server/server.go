@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -33,6 +35,13 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+// Version information (set via ldflags during build)
+var (
+	Version   = "0.0.1"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 // -------------------- Defaults & globals --------------------
 
 var (
@@ -50,6 +59,7 @@ var (
 )
 
 // STDERR logger (keeps STDOUT clean for --describe/--health)
+// Note: Can be reconfigured for debug level via --debug flag in main()
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 // -------------------- Service type --------------------
@@ -435,15 +445,58 @@ func (srv *server) indexFile(path string) error {
 
 // -------------------- CLI UX --------------------
 
+// printUsage prints comprehensive command-line usage information.
 func printUsage() {
-	fmt.Fprintf(os.Stdout, `
-Usage: %s [options] <id> [configPath]
+	fmt.Println("Globular File Service")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  file-service [OPTIONS] [<id> [configPath]]")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	flag.PrintDefaults()
+	fmt.Println()
+	fmt.Println("POSITIONAL ARGUMENTS:")
+	fmt.Println("  id          Service instance ID (optional, auto-generated if not provided)")
+	fmt.Println("  configPath  Path to service configuration file (optional)")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  GLOBULAR_DOMAIN       Override service domain")
+	fmt.Println("  GLOBULAR_ADDRESS      Override service address")
+	fmt.Println("  MINIO_ENDPOINT        MinIO/S3 endpoint (e.g., localhost:9000)")
+	fmt.Println("  MINIO_BUCKET          MinIO bucket name (default: globular)")
+	fmt.Println("  MINIO_PREFIX          MinIO key prefix (default: /users)")
+	fmt.Println("  MINIO_USE_SSL         Enable SSL for MinIO (true/false)")
+	fmt.Println("  MINIO_ACCESS_KEY      MinIO access key")
+	fmt.Println("  MINIO_SECRET_KEY      MinIO secret key")
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Start with auto-generated ID and default config")
+	fmt.Println("  file-service")
+	fmt.Println()
+	fmt.Println("  # Start with specific service ID")
+	fmt.Println("  file-service my-file-service-id")
+	fmt.Println()
+	fmt.Println("  # Enable debug logging")
+	fmt.Println("  file-service --debug")
+	fmt.Println()
+	fmt.Println("  # Print service metadata")
+	fmt.Println("  file-service --describe")
+	fmt.Println()
+	fmt.Println("  # Check service health")
+	fmt.Println("  file-service --health")
+	fmt.Println()
+}
 
-Options:
-  --describe   Print service description as JSON (no etcd/config access)
-  --health     Print service health as JSON (no etcd/config access)
-
-`, filepath.Base(os.Args[0]))
+// printVersion prints version information as JSON.
+func printVersion() {
+	info := map[string]string{
+		"service":    "file",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
 }
 
 // initStorage selects the default and public storage implementations based on config.
@@ -633,7 +686,38 @@ func (srv *server) pathExists(ctx context.Context, path string) bool {
 // -------------------- main --------------------
 
 func main() {
-	// Skeleton (no etcd/config yet)
+	// Define CLI flags (BEFORE any arg parsing)
+	var (
+		showDescribe = flag.Bool("describe", false, "print service description as JSON and exit")
+		showHealth   = flag.Bool("health", false, "print service health status as JSON and exit")
+		showVersion  = flag.Bool("version", false, "print version information as JSON and exit")
+		showHelp     = flag.Bool("help", false, "show usage information and exit")
+		enableDebug  = flag.Bool("debug", false, "enable debug logging")
+	)
+
+	flag.Usage = printUsage
+	flag.Parse()
+
+	// Handle --debug flag (reconfigure logger level)
+	if *enableDebug {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		logger.Debug("debug logging enabled")
+	}
+
+	// Handle informational flags that exit early
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
+
+	// Initialize service skeleton (no etcd/config yet)
 	s := new(server)
 	s.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
 	s.Proto = filepb.File_file_proto.Path()
@@ -641,10 +725,10 @@ func main() {
 	s.Port = defaultPort
 	s.Proxy = defaultProxy
 	s.Protocol = "grpc"
-	s.Version = "0.0.1"
+	s.Version = Version // Use build-time version
 	s.PublisherID = "localhost"
-	s.Description = "File service"
-	s.Keywords = []string{"File", "FS", "Storage"}
+	s.Description = "File service providing filesystem and object storage"
+	s.Keywords = []string{"File", "FS", "Storage", "MinIO", "S3"}
 	s.Repositories = []string{}
 	s.Discoveries = []string{}
 	s.Dependencies = []string{
@@ -844,9 +928,53 @@ func main() {
 	// Dynamic client registration
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
 
-	// CLI flags BEFORE touching config
-	args := os.Args[1:]
+	// Handle --describe flag (requires minimal service setup, no config access)
+	if *showDescribe {
+		s.Process = os.Getpid()
+		s.State = "starting"
+		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
+			s.Domain = strings.ToLower(v)
+		} else {
+			s.Domain = "localhost"
+		}
+		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
+			s.Address = strings.ToLower(v)
+		} else {
+			s.Address = "localhost:" + Utility.ToString(s.Port)
+		}
+		if s.Id == "" {
+			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
+		}
+		b, err := globular.DescribeJSON(s)
+		if err != nil {
+			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Handle --health flag (requires minimal service setup, no config access)
+	if *showHealth {
+		if s.Port == 0 || s.Name == "" {
+			logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
+			os.Exit(2)
+		}
+		b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
+		if err != nil {
+			logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
+			os.Exit(2)
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		os.Exit(0)
+	}
+
+	// Parse positional arguments: [<id> [configPath]]
+	args := flag.Args()
 	if len(args) == 0 {
+		// No args: auto-generate ID and allocate port
 		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
@@ -859,79 +987,40 @@ func main() {
 			os.Exit(1)
 		}
 		s.Port = p
-	}
-
-	for _, a := range args {
-		switch strings.ToLower(a) {
-		case "--describe":
-			s.Process = os.Getpid()
-			s.State = "starting"
-			if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-				s.Domain = strings.ToLower(v)
-			} else {
-				s.Domain = "localhost"
-			}
-			if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-				s.Address = strings.ToLower(v)
-			} else {
-				s.Address = "localhost:" + Utility.ToString(s.Port)
-			}
-			if s.Id == "" {
-				s.Id = Utility.GenerateUUID(s.Name + ":" + s.Address)
-			}
-			b, err := globular.DescribeJSON(s)
-			if err != nil {
-				logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--health":
-			if s.Port == 0 || s.Name == "" {
-				logger.Error("health error: uninitialized", "service", s.Name, "port", s.Port)
-				os.Exit(2)
-			}
-			b, err := globular.HealthJSON(s, &globular.HealthOptions{Timeout: 1500 * time.Millisecond})
-			if err != nil {
-				logger.Error("health error", "service", s.Name, "id", s.Id, "err", err)
-				os.Exit(2)
-			}
-			os.Stdout.Write(b)
-			os.Stdout.Write([]byte("\n"))
-			return
-		case "--help", "-h", "/?":
-			printUsage()
-			return
-		case "--version", "-v":
-			fmt.Fprintf(os.Stdout, "%s version %s\n", s.Name, s.Version)
-			return
-		}
-	}
-
-	// Optional positional args: <id> [configPath]
-	if len(args) == 1 && !strings.HasPrefix(args[0], "-") {
+		logger.Debug("auto-allocated service", "id", s.Id, "port", s.Port)
+	} else if len(args) == 1 {
+		// One arg: service ID
 		s.Id = args[0]
-	} else if len(args) == 2 && !strings.HasPrefix(args[0], "-") && !strings.HasPrefix(args[1], "-") {
+		logger.Debug("using provided service id", "id", s.Id)
+	} else if len(args) >= 2 {
+		// Two+ args: service ID and config path
 		s.Id = args[0]
 		s.ConfigPath = args[1]
+		logger.Debug("using provided service id and config", "id", s.Id, "config", s.ConfigPath)
 	}
 
-	// Safe to touch config now
+	// Load configuration (safe to touch config now)
+	logger.Debug("loading service configuration")
 	if d, err := config.GetDomain(); err == nil {
 		s.Domain = d
+		logger.Debug("loaded domain from config", "domain", d)
 	} else {
 		s.Domain = "localhost"
+		logger.Debug("using default domain", "domain", "localhost")
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		s.Address = a
+		logger.Debug("loaded address from config", "address", a)
 	}
 
+	// Initialize service
+	logger.Info("initializing file service", "id", s.Id, "domain", s.Domain)
 	start := time.Now()
 	if err := s.Init(); err != nil {
 		logger.Error("initialization failed", "service", s.Name, "id", s.Id, "err", err)
 		os.Exit(1)
 	}
+	logger.Debug("service initialized", "duration_ms", time.Since(start).Milliseconds())
 	s.MinioConfig = s.loadMinioConfig()
 	if s.MinioConfig != nil {
 		logger.Info("minio storage configured",
@@ -950,15 +1039,20 @@ func main() {
 	}
 
 	// Select cache backend
+	logger.Debug("selecting cache backend", "type", s.CacheType)
 	switch strings.ToUpper(s.CacheType) {
 	case "BADGER":
 		cache = storage_store.NewBadger_store()
+		logger.Info("using badger cache backend")
 	case "SCYLLA":
 		cache = storage_store.NewScylla_store(s.CacheAddress, "files", s.CacheReplicationFactor)
+		logger.Info("using scylla cache backend", "address", s.CacheAddress, "replication", s.CacheReplicationFactor)
 	case "LEVELDB":
 		cache = storage_store.NewLevelDB_store()
+		logger.Info("using leveldb cache backend")
 	default:
 		cache = storage_store.NewBigCache_store() // in-memory
+		logger.Info("using bigcache backend (in-memory)")
 	}
 
 	// Register gRPC
@@ -1061,17 +1155,24 @@ func main() {
 		})
 	}()
 
-	// Cleanup pass
+	// Start cleanup pass for temporary files
+	logger.Debug("starting temp file cleanup background task")
 	s.startRemoveTempFiles()
 
-	logger.Info("service ready",
-		"service", s.Name,
+	// Service ready - log comprehensive startup info
+	logger.Info("file service ready",
+		"id", s.Id,
+		"version", s.Version,
 		"port", s.Port,
 		"proxy", s.Proxy,
 		"protocol", s.Protocol,
 		"domain", s.Domain,
-		"listen_ms", time.Since(start).Milliseconds())
+		"address", s.Address,
+		"root", s.Root,
+		"startup_ms", time.Since(start).Milliseconds())
 
+	// Start gRPC server
+	logger.Info("starting grpc server", "port", s.Port)
 	if err := s.StartService(); err != nil {
 		logger.Error("service start failed", "err", err)
 		os.Exit(1)
