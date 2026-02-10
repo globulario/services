@@ -70,7 +70,7 @@ const std::string getRootDir(){
 std::string getRemoteParticalServiceConfig(std::string serviceId, std::string domain){
 
     std::stringstream ss;
-    ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
+    ss << getLocalProtocol() << "://" << domain << ":" << getLocalPort() << "/config?id=" + serviceId;
     http::Request request(ss.str());
     const std::string& body = "";
     const std::vector<std::string>& headers = {};
@@ -185,7 +185,7 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port){
 std::string getServiceConfig(std::string serviceId, std::string address, std::string config_path){
     // First option the configuration manager
     try {
-        auto config_client_ = getConfigClient(address, getHttpPort());
+        auto config_client_ = getConfigClient(address, getLocalPort());
         if(config_client_!= 0) {
             std::string config_ = config_client_->getServiceConfiguration(serviceId);
             if(!config_.empty()){
@@ -204,7 +204,7 @@ std::string getServiceConfig(std::string serviceId, std::string address, std::st
 
 void setServiceConfig(std::string serviceId, std::string address, std::string config, std::string config_path){
     try {
-        auto config_client_ = getConfigClient(address, getHttpPort());
+        auto config_client_ = getConfigClient(address, getLocalPort());
         if(config_client_!= 0) {
             if(config_client_->setServiceConfiguration(config)){
                 return;

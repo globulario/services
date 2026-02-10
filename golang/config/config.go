@@ -970,7 +970,7 @@ func buildMinimalLocalConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"Name":              strings.TrimSpace(name),
 		"Domain":            installerDefaultDomain(),
-		"Protocol":          "http",
+		"Protocol":          "https",
 		"Peers":             []string{},
 		"AlternateDomains":  []string{},
 		"MutateHostsFile":   false,

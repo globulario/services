@@ -1278,7 +1278,7 @@ func StartEtcdServer() error {
 
 	protocol := strings.ToLower(Utility.ToString(localConfig["Protocol"]))
 	if protocol == "" {
-		protocol = "http"
+		protocol = "https"
 	}
 
 	// Service identity.
@@ -1419,8 +1419,7 @@ func StartEtcdServer() error {
 			if err := security.GenerateServicesCertificates(
 				"1111", defaultDays, advHost, tlsDir, country, state, city, org, alts,
 			); err != nil {
-				slog.Error("TLS bootstrap failed; falling back to HTTP", "err", err)
-				wantTLS = false
+				return fmt.Errorf("etcd TLS bootstrap failed (Protocol=https requires valid certificates): %w", err)
 			}
 			serverCRT, serverKEY, caCRT = resolveTLS()
 		}
@@ -1467,7 +1466,7 @@ func StartEtcdServer() error {
 				"trusted-ca-file":  caFile,
 			}
 		} else {
-			wantTLS = false
+			return fmt.Errorf("etcd TLS required (Protocol=https) but certificates not found: cert=%s key=%s ca=%s", serverCRT, serverKEY, caCRT)
 		}
 	}
 
@@ -1747,8 +1746,6 @@ func healthHTTPClient(wantTLS bool, caPath, clientCrt, clientKey string) *http.C
 	if wantTLS {
 		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
 		tlsCfg.ServerName, _ = config.GetHostname() // for SNI
-		// Accept self-signed certs by default (we use our own CA)
-		tlsCfg.InsecureSkipVerify = true
 		// Root CAs
 
 		// Start from system pool

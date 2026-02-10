@@ -151,7 +151,7 @@ void Globular::Client::initClient(std::string name, std::string domain, unsigned
             }
 
             // I will create a certificate request and make it sign by the server.
-            auto ca_crt = this->getCaCertificate(this->config->Domain, getHttpPort());
+            auto ca_crt = this->getCaCertificate(this->config->Domain, getLocalPort());
             writeAllText(path + "/ca.crt", ca_crt);
 
             // The password must be store in the client configuration...
@@ -166,7 +166,7 @@ void Globular::Client::initClient(std::string name, std::string domain, unsigned
 
             // Step 3: Generate client signed certificate.
             auto client_csr = readAllText(path + "/client.csr");
-            auto client_crt = this->signCaCertificate(this->config->Domain, getHttpPort(), client_csr);
+            auto client_crt = this->signCaCertificate(this->config->Domain, getLocalPort(), client_csr);
             writeAllText(path + "/client.crt", client_crt);
 
             // Step 4: Convert client.key to pem file.
@@ -284,7 +284,7 @@ std::string exec(const char* cmd) {
 // Made use of http/https to retreive service configuration on the network.
 std::string Globular::Client::getServiceConfig(std::string serviceId, std::string domain, unsigned int configurationPort){
     std::stringstream ss;
-    ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
+    ss << getLocalProtocol() << "://" << domain << ":" << getLocalPort() << "/config?id=" + serviceId;
     http::Request request(ss.str());
     const std::string& body = "";
     const std::vector<std::string>& headers = {};
