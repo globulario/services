@@ -57,13 +57,8 @@ func Load() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor, error) {
 
 // ---- bootstrap mode ---------------------------------------------------------
 
-// isBootstrapMode reports whether the process is running in bootstrap mode
-// (GLOBULAR_BOOTSTRAP=1/true/yes). During bootstrap, authorization is bypassed
-// to allow services to start and communicate before RBAC/Authentication are ready.
-func isBootstrapMode() bool {
-	v := strings.TrimSpace(os.Getenv("GLOBULAR_BOOTSTRAP"))
-	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
-}
+// Phase 2: isBootstrapMode() removed - replaced with security.BootstrapGate
+// which enforces 4-level security (enablement, time-bounded, loopback-only, method allowlist)
 
 var (
 	// cache is a generic, process-wide sync map for:
@@ -74,7 +69,24 @@ var (
 
 	// resourceInfos memoizes ResourceInfos for a given gRPC method.
 	resourceInfos sync.Map
+
+	// Phase 4: Deny-by-default enforcement for unmapped methods
+	// When true, methods without RBAC mappings are DENIED (secure default)
+	// When false, methods without RBAC mappings are ALLOWED with warning (permissive mode)
+	// Set via GLOBULAR_DENY_UNMAPPED=1 environment variable
+	DenyUnmappedMethods = false
 )
+
+// init configures interceptor behavior from environment variables
+func init() {
+	// Phase 4: Check if deny-by-default should be enforced
+	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DENY_UNMAPPED")); v != "" {
+		if v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes") {
+			DenyUnmappedMethods = true
+			slog.Info("deny-by-default mode enabled for unmapped methods", "env", "GLOBULAR_DENY_UNMAPPED="+v)
+		}
+	}
+}
 
 // ---- unauthenticated allowlist ----------------------------------------------
 
@@ -246,11 +258,9 @@ func validateAction(
 	infos []*rbacpb.ResourceInfos,
 ) (bool, bool, error) {
 
-	// Treat super admin as allowed.
-	// Check for "sa" (plain) or legacy "sa@domain" format for backwards compatibility
-	if subject == "sa" || strings.HasPrefix(subject, "sa@") {
-		return true, false, nil
-	}
+	// Phase 3: Removed hardcoded "sa" bypass
+	// Admin access now enforced via RBAC globular-admin role
+	// No more magic subjects - all authorization goes through RBAC
 
 	cacheKey := buildPermCacheKey(address, method, token, infos)
 	if allowed, ok := getPermCache(cacheKey); ok && allowed {
@@ -463,14 +473,63 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		routing = strings.Join(md["routing"], "")
 	}
 
+	// Phase 1: Create AuthContext for audit logging and future authorization
+	// This adds observability without changing behavior
+	authCtx, err := security.NewAuthContext(ctx, method)
+	if err != nil {
+		// Log error but continue - auth context is for observability only in Phase 1
+		slog.Warn("failed to create auth context", "error", err, "method", method)
+	}
+	// Store in context for propagation to handlers
+	if authCtx != nil {
+		ctx = authCtx.ToContext(ctx)
+	}
+
 	// 1) Bypass for bootstrap mode (Day-0 installation).
-	//    Services need to communicate before RBAC/Authentication are ready.
-	if isBootstrapMode() {
-		return handler(ctx, rqst)
+	//    Phase 2: Use secure BootstrapGate with 4-level protection:
+	//    - Explicit enablement (flag file or env var)
+	//    - Time-bounded (< 30 minutes)
+	//    - Loopback-only (127.0.0.1/::1)
+	//    - Method allowlisted (essential Day-0 methods only)
+	if authCtx.IsBootstrap {
+		allowed, reason := security.DefaultBootstrapGate.ShouldAllow(authCtx)
+		if allowed {
+			// Security Fix #9: During bootstrap, cluster_id can be empty
+			// After cluster init, cluster_id enforcement applies (below)
+			LogAuthzDecisionSimple(authCtx, true, reason)
+			return handler(ctx, rqst)
+		}
+		// Bootstrap gate denied - log and fall through to normal authorization
+		LogAuthzDecisionSimple(authCtx, false, reason)
+	}
+
+	// Security Fix #9: Cluster ID Enforcement
+	// Once cluster is initialized, all non-bootstrap requests MUST have
+	// verified cluster_id matching local cluster_id (prevents cross-cluster attacks)
+	if !authCtx.IsBootstrap {
+		// Check if cluster is initialized (has local cluster_id)
+		localClusterID, err := security.GetLocalClusterID()
+		if err == nil && localClusterID != "" {
+			// Cluster is initialized - enforce cluster_id matching
+			if authCtx.ClusterID == "" {
+				// Missing cluster_id after initialization
+				LogAuthzDecisionSimple(authCtx, false, "cluster_id_missing")
+				return nil, status.Errorf(codes.Unauthenticated,
+					"cluster_id required after cluster initialization")
+			}
+			// Validate cluster_id matches local cluster
+			if err := security.ValidateClusterID(ctx, authCtx.ClusterID); err != nil {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_id_mismatch")
+				return nil, status.Errorf(codes.Unauthenticated,
+					"cluster_id validation failed: %v", err)
+			}
+		}
+		// Cluster not initialized yet OR cluster_id valid - continue
 	}
 
 	// 2) Bypass for allowlisted infra/public methods.
 	if isUnauthenticated(method) {
+		LogAuthzDecisionSimple(authCtx, true, "allowlist")
 		return handler(ctx, rqst)
 	}
 
@@ -482,7 +541,17 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 	if !needAuthz {
-		return handler(ctx, rqst)
+		// Phase 4: Conditional deny-by-default for unmapped methods
+		if DenyUnmappedMethods {
+			// Enforcement mode: DENY unmapped methods
+			LogAuthzDecisionSimple(authCtx, false, "no_rbac_mapping_denied")
+			return nil, status.Errorf(codes.PermissionDenied,
+				"method %s has no RBAC mapping (deny-by-default enforced)", method)
+		} else {
+			// Warning mode: ALLOW but log for detection
+			LogAuthzDecisionSimple(authCtx, true, "no_rbac_mapping_warning")
+			return handler(ctx, rqst)
+		}
 	}
 
 	// 4) We need auth → parse token now (not before).
@@ -522,6 +591,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess || accessDenied {
+		// Phase 1: Log RBAC denial
+		LogAuthzDecisionSimple(authCtx, false, "rbac_denied")
 		st := status.Errorf(codes.PermissionDenied,
 			"permission denied: method=%s user=%s address=%s application=%s",
 			method, clientId, address, application,
@@ -529,6 +600,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), st.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, st
 	}
+
+	// Phase 1: Log RBAC grant (implicit success - handler will be called)
+	LogAuthzDecisionSimple(authCtx, true, "rbac_granted")
 
 	// Optional dynamic routing
 	if res, rErr := handleUnaryMethod(routing, token, ctx, method, rqst); rErr == nil {
@@ -558,6 +632,7 @@ type ServerStreamInterceptorStream struct {
 	application  string
 	clientId     string
 	uuid         string // cache slot for this stream
+	authCtx      *security.AuthContext // Phase 1: for audit logging
 }
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error  { return l.inner.SetHeader(m) }
@@ -577,17 +652,24 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return err
 	}
 
-	// 1) Bypass for bootstrap mode.
-	if isBootstrapMode() {
-		return nil
+	// 1) Bypass for bootstrap mode (Phase 2: secure gate).
+	if l.authCtx != nil && l.authCtx.IsBootstrap {
+		allowed, reason := security.DefaultBootstrapGate.ShouldAllow(l.authCtx)
+		if allowed {
+			LogAuthzDecisionSimple(l.authCtx, true, reason)
+			return nil
+		}
+		// Bootstrap gate denied - log and fall through to normal authorization
+		LogAuthzDecisionSimple(l.authCtx, false, reason)
 	}
 
 	// 2) Allowlisted methods require no validation.
 	if isUnauthenticated(l.method) {
+		LogAuthzDecisionSimple(l.authCtx, true, "allowlist")
 		return nil
 	}
 
-	// 3) If we've already validated this stream, skip.
+	// 3) If we've already validated this stream, skip (already logged).
 	if _, ok := cache.Load(l.uuid); ok {
 		return nil
 	}
@@ -598,8 +680,18 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		needAuthz = true
 	}
 	if !needAuthz {
-		cache.Store(l.uuid, struct{}{}) // mark authorized for rest of the stream
-		return nil
+		// Phase 4: Conditional deny-by-default for unmapped methods (streaming)
+		if DenyUnmappedMethods {
+			// Enforcement mode: DENY unmapped methods
+			LogAuthzDecisionSimple(l.authCtx, false, "no_rbac_mapping_denied")
+			return status.Errorf(codes.PermissionDenied,
+				"method %s has no RBAC mapping (deny-by-default enforced)", l.method)
+		} else {
+			// Warning mode: ALLOW but log for detection (first message only)
+			LogAuthzDecisionSimple(l.authCtx, true, "no_rbac_mapping_warning")
+			cache.Store(l.uuid, struct{}{}) // mark authorized for rest of the stream
+			return nil
+		}
 	}
 
 	// 5) We need auth → parse token now.
@@ -626,11 +718,16 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	}
 
 	if !allowed || denied {
+		// Phase 1: Log RBAC denial
+		LogAuthzDecisionSimple(l.authCtx, false, "rbac_denied")
 		return status.Errorf(codes.PermissionDenied,
 			"permission denied: method=%s user=%s address=%s application=%s",
 			l.method, clientId, l.address, l.application,
 		)
 	}
+
+	// Phase 1: Log RBAC grant (first message only, not every RecvMsg)
+	LogAuthzDecisionSimple(l.authCtx, true, "rbac_granted")
 
 	// Mark this stream as authorized for subsequent messages.
 	cache.Store(l.uuid, struct{}{})
@@ -729,19 +826,39 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	method := info.FullMethod
 	routing := ""
 
-	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+	ctx := stream.Context()
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 		routing = strings.Join(md["routing"], "")
 	}
 
+	// Phase 1: Create AuthContext for audit logging
+	authCtx, err := security.NewAuthContext(ctx, method)
+	if err != nil {
+		slog.Warn("failed to create auth context (stream)", "error", err, "method", method)
+	}
+	// Store in context for propagation
+	if authCtx != nil {
+		ctx = authCtx.ToContext(ctx)
+		// Note: We don't modify the stream here, just track for audit
+	}
+
 	// Bypass RBAC for bootstrap mode (Day-0 installation).
-	if isBootstrapMode() {
-		return handler(srv, stream)
+	// Phase 2: Use secure BootstrapGate with 4-level protection.
+	if authCtx != nil && authCtx.IsBootstrap {
+		allowed, reason := security.DefaultBootstrapGate.ShouldAllow(authCtx)
+		if allowed {
+			LogAuthzDecisionSimple(authCtx, true, reason)
+			return handler(srv, stream)
+		}
+		// Bootstrap gate denied - log and fall through to normal authorization
+		LogAuthzDecisionSimple(authCtx, false, reason)
 	}
 
 	// Bypass RBAC entirely for allowlisted infra/public methods.
 	if isUnauthenticated(method) {
+		LogAuthzDecisionSimple(authCtx, true, "allowlist")
 		return handler(srv, stream)
 	}
 
@@ -785,6 +902,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		address:     address,
 		token:       token,
 		application: application,
+		authCtx:     authCtx, // Phase 1: pass for audit logging
 		// clientId/peer computed lazily in RecvMsg only if RBAC is needed
 	})
 	if err != nil && shouldLogError(method, err) {

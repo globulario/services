@@ -682,6 +682,7 @@ message NodeIdentity {
   map<string,string> labels = 13;    // Free-form metadata supplied by Cluster Controller.
   string typeName = 14;              // Type information for internal use.
   string status = 15;                // Current desired/observed status (pending/approved/etc.).
+  string cluster_id = 16;            // Phase 5: Cluster identifier for cross-cluster validation (prevents cross-cluster attacks).
 }
 
 /** Request to upsert (create/update) a node identity. */

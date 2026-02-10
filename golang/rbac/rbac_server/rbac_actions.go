@@ -15,6 +15,120 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// -----------------------------------------------------------------------------
+// Phase 3: Wildcard action matching for globular-admin role
+// Security Fix #6: Path normalization to prevent bypass attacks
+// -----------------------------------------------------------------------------
+
+// canonicalizeAction normalizes a gRPC action/method name to prevent bypass attacks.
+// Security requirements:
+// - Remove duplicate slashes (e.g., "//rbac" → "/rbac")
+// - Reject relative path components (".", "..")
+// - Ensure starts with "/"
+// - Reject null bytes, newlines, and other control characters
+//
+// gRPC method names follow format: "/package.ServiceName/MethodName"
+// Any deviation from this format is suspicious and rejected.
+func canonicalizeAction(action string) (string, error) {
+	// Empty check
+	if action == "" {
+		return "", errors.New("empty action")
+	}
+
+	// Reject control characters and null bytes
+	for i := 0; i < len(action); i++ {
+		c := action[i]
+		if c < 0x20 || c == 0x7F { // Control characters including null, tab, newline
+			return "", errors.New("action contains control characters")
+		}
+	}
+
+	// Must start with "/"
+	if !strings.HasPrefix(action, "/") {
+		return "", errors.New("action must start with /")
+	}
+
+	// Reject relative path components (shouldn't exist in gRPC method names)
+	if strings.Contains(action, "/.") {
+		return "", errors.New("action contains relative path components")
+	}
+
+	// Normalize: remove duplicate slashes
+	// "/rbac.RbacService//CreateAccount" → "/rbac.RbacService/CreateAccount"
+	normalized := action
+	for strings.Contains(normalized, "//") {
+		normalized = strings.ReplaceAll(normalized, "//", "/")
+	}
+
+	// Ensure exactly one slash divider (format: /package.Service/Method)
+	// Global wildcard "/*" is special case
+	if normalized != "/*" {
+		parts := strings.Split(normalized[1:], "/") // Remove leading "/" and split
+		if len(parts) != 2 {
+			// Valid formats: "/package.Service/Method" or "/package.Service/*"
+			// Invalid: "/", "/service", "/a/b/c"
+			if !(len(parts) == 2 && parts[1] == "*") {
+				return "", errors.New("invalid action format (expected /package.Service/Method)")
+			}
+		}
+	}
+
+	return normalized, nil
+}
+
+// matchesAction checks if a permission pattern matches a requested action.
+// Supports:
+// - Exact match: "/rbac.RbacService/CreateAccount" matches only that method
+// - Wildcard: "/*" matches ALL methods (for globular-admin role)
+// - Service wildcard: "/rbac.RbacService/*" matches all methods in that service
+//
+// Security Fix #6: Both pattern and action are canonicalized before comparison
+// to prevent bypass attacks using path normalization tricks.
+//
+// Examples:
+//   - pattern="/*", action="/rbac.RbacService/CreateAccount" → true (global admin)
+//   - pattern="/rbac.RbacService/*", action="/rbac.RbacService/CreateAccount" → true
+//   - pattern="/rbac.RbacService/CreateAccount", action="/rbac.RbacService/CreateAccount" → true
+//   - pattern="/rbac.RbacService/CreateAccount", action="/dns.DnsService/CreateZone" → false
+//
+// Bypass prevention:
+//   - pattern="/rbac.RbacService/CreateAccount", action="/rbac.RbacService//CreateAccount" → true (normalized)
+//   - pattern="/rbac.RbacService/CreateAccount", action="/rbac.RbacService/./CreateAccount" → ERROR (rejected)
+func matchesAction(pattern, action string) bool {
+	// Security Fix #6: Canonicalize both sides to prevent bypass
+	canonPattern, err := canonicalizeAction(pattern)
+	if err != nil {
+		// Invalid pattern - should not happen with valid RBAC configuration
+		// Log and reject to fail closed
+		return false
+	}
+
+	canonAction, err := canonicalizeAction(action)
+	if err != nil {
+		// Invalid action - suspicious, reject
+		return false
+	}
+
+	// Exact match (fast path)
+	if canonPattern == canonAction {
+		return true
+	}
+
+	// Global wildcard: "/*" matches everything
+	if canonPattern == "/*" {
+		return true
+	}
+
+	// Service-level wildcard: "/service.ServiceName/*"
+	if strings.HasSuffix(canonPattern, "/*") {
+		prefix := canonPattern[:len(canonPattern)-1] // Remove trailing '*', keep '/'
+		return strings.HasPrefix(canonAction, prefix)
+	}
+
+	// No match
+	return false
+}
+
 /*
 * Set action permissions.
 When gRPC service methode are called they must validate the resource pass in parameters.
@@ -157,10 +271,8 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		actions = role.Actions
 
 	case rbacpb.SubjectType_ACCOUNT:
-		// Super-admin account → full access
-		if subject == "sa@"+srv.Domain {
-			return true, false, nil
-		}
+		// Phase 3: Removed hardcoded "sa@domain" bypass
+		// Admin access now enforced via RBAC globular-admin role
 
 		account, err := srv.getAccount(subject)
 		if err != nil {
@@ -285,9 +397,10 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 	}
 
 	// If still not granted, check the subject's own action list
+	// Phase 3: Added wildcard matching support for globular-admin role
 	if !hasAccess && actions != nil {
 		for _, a := range actions {
-			if a == action {
+			if matchesAction(a, action) {
 				hasAccess = true
 				break
 			}

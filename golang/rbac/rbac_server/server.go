@@ -294,6 +294,18 @@ func (srv *server) RolesDefault() []resourcepb.Role {
 			},
 			TypeName: "resource.Role",
 		},
+		// Phase 3: Global admin role with wildcard permissions
+		// Replaces hardcoded "sa" bypass - grants full system access via RBAC
+		{
+			Id:          "role:globular.admin",
+			Name:        "Globular Administrator",
+			Domain:      domain,
+			Description: "Full system administrator with unrestricted access to all services and methods. Required for system maintenance and Day-0 setup.",
+			Actions: []string{
+				"/*", // Wildcard: grants access to ALL methods across ALL services
+			},
+			TypeName: "resource.Role",
+		},
 	}
 }
 
