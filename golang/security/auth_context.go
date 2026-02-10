@@ -157,6 +157,15 @@ func (a *AuthContext) String() string {
 		a.Subject, a.PrincipalType, a.GRPCMethod, a.IsBootstrap, a.IsLoopback)
 }
 
+// GetIssuer returns the JWT issuer (MAC address) for node identity authorization.
+// This is used for NODE_IDENTITY subject type validation in RBAC.
+func (a *AuthContext) GetIssuer() string {
+	if a.rawClaims != nil {
+		return a.rawClaims.Issuer
+	}
+	return ""
+}
+
 // isBootstrapMode checks if the system is in Day-0 bootstrap mode.
 // Blocker Fix #1: Now delegates to BootstrapGate for proper flag file detection.
 func isBootstrapMode() bool {

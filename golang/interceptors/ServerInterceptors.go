@@ -554,24 +554,15 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	// 4) We need auth → parse token now (not before).
+	// 4) We need auth → use AuthContext as single source of truth
+	// Security Fix #10: Use AuthContext identity instead of re-extracting/re-validating token
+	// This ensures consistent identity between AuthContext and authorization decisions
 	var clientId, issuer string
-	if token != "" {
-		// Security Gap: TODO - Use ValidateTokenWithAudience for cross-service replay prevention
-		// expectedAudience should be local service MAC address
-		// For now, using ValidateToken() for backwards compatibility
-		claims, vErr := security.ValidateToken(token)
-		if vErr != nil {
-			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
-				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			return nil, vErr
-		}
-		// Blocker Fix #4: Use PrincipalID (v1 canonical identity) with fallback to legacy ID
-		clientId = claims.PrincipalID
-		if clientId == "" {
-			clientId = claims.ID // Fallback for legacy tokens
-		}
-		issuer = claims.Issuer
+	if authCtx != nil && authCtx.Subject != "" {
+		// Use identity from AuthContext (already validated during NewAuthContext)
+		// This respects both md["token"] AND Authorization header (consistent extraction)
+		clientId = authCtx.Subject // Canonical identity (PrincipalID with fallbacks)
+		issuer = authCtx.GetIssuer() // Issuer for NODE_IDENTITY authorization
 	}
 
 	// Validate by ACCOUNT
@@ -701,22 +692,14 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		}
 	}
 
-	// 5) We need auth → parse token now.
+	// 5) We need auth → use AuthContext as single source of truth
+	// Security Fix #10: Use AuthContext identity instead of re-extracting/re-validating token
 	var clientId, issuer string
-	if l.token != "" {
-		// Security Gap: TODO - Use ValidateTokenWithAudience for cross-service replay prevention
-		// expectedAudience should be local service MAC address
-		// For now, using ValidateToken() for backwards compatibility
-		claims, vErr := security.ValidateToken(l.token)
-		if vErr != nil {
-			return status.Errorf(codes.Unauthenticated, "token validation failed: %v", vErr)
-		}
-		// Blocker Fix #4: Use PrincipalID (v1 canonical identity) with fallback to legacy ID
-		clientId = claims.PrincipalID
-		if clientId == "" {
-			clientId = claims.ID // Fallback for legacy tokens
-		}
-		issuer = claims.Issuer
+	if l.authCtx != nil && l.authCtx.Subject != "" {
+		// Use identity from AuthContext (already validated during stream setup)
+		// This respects both md["token"] AND Authorization header (consistent extraction)
+		clientId = l.authCtx.Subject // Canonical identity (PrincipalID with fallbacks)
+		issuer = l.authCtx.GetIssuer() // Issuer for NODE_IDENTITY authorization
 	}
 
 	allowed, denied := false, false
@@ -874,6 +857,27 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if isUnauthenticated(method) {
 		LogAuthzDecisionSimple(authCtx, true, "allowlist")
 		return handler(srv, stream)
+	}
+
+	// Security Fix #9: Cluster ID enforcement for streaming RPCs
+	// Once cluster is initialized, ALL non-bootstrap requests must have matching cluster_id
+	if authCtx != nil && !authCtx.IsBootstrap {
+		// Check if cluster is initialized (has local cluster ID)
+		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
+			// Cluster initialized - enforce cluster_id matching
+			if authCtx.ClusterID == "" {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_id_missing")
+				return status.Errorf(codes.Unauthenticated,
+					"cluster_id required after cluster initialization")
+			}
+			// Validate cluster_id matches local cluster
+			if err := security.ValidateClusterID(ctx, authCtx.ClusterID); err != nil {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_id_mismatch")
+				return status.Errorf(codes.Unauthenticated,
+					"cluster_id validation failed: %v", err)
+			}
+		}
+		// Cluster not initialized yet OR cluster_id valid - continue
 	}
 
 	uuid := Utility.RandomUUID()
