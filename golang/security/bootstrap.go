@@ -98,6 +98,9 @@ type BootstrapGate struct {
 
 	// logger for bootstrap decisions
 	logger *slog.Logger
+
+	// skipOwnershipCheck disables strict ownership validation (testing only)
+	skipOwnershipCheck bool
 }
 
 // NewBootstrapGate creates a new bootstrap security gate.
@@ -119,6 +122,12 @@ func NewBootstrapGateWithPath(flagFilePath string) *BootstrapGate {
 
 // DefaultBootstrapGate is the global bootstrap gate instance.
 var DefaultBootstrapGate = NewBootstrapGate()
+
+// SetSkipOwnershipCheck enables or disables ownership validation.
+// This is for testing purposes only - DO NOT use in production code.
+func (g *BootstrapGate) SetSkipOwnershipCheck(skip bool) {
+	g.skipOwnershipCheck = skip
+}
 
 // ShouldAllow determines if a request should be allowed under bootstrap mode.
 // Returns (allowed bool, reason string).
@@ -262,14 +271,21 @@ func (g *BootstrapGate) readBootstrapState() (*BootstrapState, error) {
 		return nil, fmt.Errorf("insecure permissions %o (must be 0600)", perm)
 	}
 
-	// Security: File must be owned by root (uid 0) or globular user
-	// This prevents unprivileged users from creating fake bootstrap files
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		// Accept root (0) or globular user (typically 1000+ but we'll be lenient)
-		// In production, this should be more strict
-		if stat.Uid != 0 && stat.Uid > 65535 {
-			// Suspiciously high UID - reject
-			return nil, fmt.Errorf("file owned by suspicious uid %d (must be root or service user)", stat.Uid)
+	// Security: File must be owned by root (uid 0) or globular service user
+	// Blocker Fix #2: Strict ownership check - only root or globular user allowed
+	if !g.skipOwnershipCheck {
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			// Determine globular service UID (if running as service user)
+			globularUID := uint32(0) // Default: only root
+
+			// TODO: Get actual globular service UID from config or environment
+			// For now, allow only root (uid 0)
+			// In production with service user: globularUID = <actual-globular-uid>
+
+			if stat.Uid != 0 && stat.Uid != globularUID {
+				// Reject: Not root and not globular service user
+				return nil, fmt.Errorf("file owned by uid %d (must be root:0 or globular service user)", stat.Uid)
+			}
 		}
 	}
 

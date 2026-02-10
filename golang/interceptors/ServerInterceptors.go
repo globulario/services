@@ -557,13 +557,20 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// 4) We need auth → parse token now (not before).
 	var clientId, issuer string
 	if token != "" {
+		// Security Gap: TODO - Use ValidateTokenWithAudience for cross-service replay prevention
+		// expectedAudience should be local service MAC address
+		// For now, using ValidateToken() for backwards compatibility
 		claims, vErr := security.ValidateToken(token)
 		if vErr != nil {
 			log(address, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),
 				"token validation failed: "+vErr.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, vErr
 		}
-		clientId = claims.ID
+		// Blocker Fix #4: Use PrincipalID (v1 canonical identity) with fallback to legacy ID
+		clientId = claims.PrincipalID
+		if clientId == "" {
+			clientId = claims.ID // Fallback for legacy tokens
+		}
 		issuer = claims.Issuer
 	}
 
@@ -697,11 +704,18 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	// 5) We need auth → parse token now.
 	var clientId, issuer string
 	if l.token != "" {
+		// Security Gap: TODO - Use ValidateTokenWithAudience for cross-service replay prevention
+		// expectedAudience should be local service MAC address
+		// For now, using ValidateToken() for backwards compatibility
 		claims, vErr := security.ValidateToken(l.token)
 		if vErr != nil {
 			return status.Errorf(codes.Unauthenticated, "token validation failed: %v", vErr)
 		}
-		clientId = claims.ID
+		// Blocker Fix #4: Use PrincipalID (v1 canonical identity) with fallback to legacy ID
+		clientId = claims.PrincipalID
+		if clientId == "" {
+			clientId = claims.ID // Fallback for legacy tokens
+		}
 		issuer = claims.Issuer
 	}
 

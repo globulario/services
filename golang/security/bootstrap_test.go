@@ -84,6 +84,7 @@ func TestBootstrapGate_FlagFile(t *testing.T) {
 
 	gate := NewBootstrapGate()
 	gate.flagFilePath = flagFile
+	gate.skipOwnershipCheck = true // Test mode: allow non-root ownership
 
 	// Ensure env var is not set
 	os.Unsetenv("GLOBULAR_BOOTSTRAP")
@@ -129,6 +130,7 @@ func TestBootstrapGate_Expired(t *testing.T) {
 
 	gate := NewBootstrapGate()
 	gate.flagFilePath = flagFile
+	gate.skipOwnershipCheck = true // Test mode: allow non-root ownership
 
 	// Ensure env var is not set
 	os.Unsetenv("GLOBULAR_BOOTSTRAP")

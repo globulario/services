@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
@@ -263,11 +262,8 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 		if err != nil {
 			return false, false, err
 		}
-		// Local "admin" role → full access
-		domain, _ := config.GetDomain()
-		if role.Domain == domain && role.Name == "admin" {
-			return true, false, nil
-		}
+		// Blocker Fix #3: Removed hardcoded "admin" role bypass
+		// Admin access now enforced via RBAC with explicit /* wildcard permission
 		actions = role.Actions
 
 	case rbacpb.SubjectType_ACCOUNT:
@@ -286,10 +282,8 @@ func (srv *server) validateAction(action string, subject string, subjectType rba
 			for _, rid := range account.Roles {
 				roleId := withDomain(rid, srv.Domain)
 
-				// Local admin role → full access
-				if roleId == "admin@"+srv.Domain {
-					return true, false, nil
-				}
+				// Blocker Fix #3: Removed hardcoded "admin@domain" bypass
+				// Admin access now enforced via RBAC with explicit /* wildcard permission
 
 				// Only recurse for local roles (keep previous semantics)
 				if strings.HasSuffix(roleId, "@"+srv.Domain) {

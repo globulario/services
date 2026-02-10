@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 
 	"google.golang.org/grpc/metadata"
@@ -157,49 +156,55 @@ func (a *AuthContext) String() string {
 }
 
 // isBootstrapMode checks if the system is in Day-0 bootstrap mode.
-// This is a TEMPORARY bypass for initial installation when RBAC/auth services
-// are not yet configured.
-//
-// WARNING: This function will be replaced in Phase 2 with a proper BootstrapGate
-// that enforces time limits, loopback-only access, and method allowlisting.
+// Blocker Fix #1: Now delegates to BootstrapGate for proper flag file detection.
 func isBootstrapMode() bool {
-	// Check environment variable (used by installer scripts)
-	v := strings.TrimSpace(os.Getenv("GLOBULAR_BOOTSTRAP"))
-	if v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes") {
-		return true
-	}
-	// Future: Check for bootstrap.enabled flag file
-	return false
+	// Delegate to BootstrapGate for proper enablement check
+	// This checks both env var AND flag file
+	enabled, _ := DefaultBootstrapGate.isEnabled()
+	return enabled
 }
 
 // isLoopbackRequest determines if a gRPC request originated from localhost.
 // This is used as a security property for bootstrap mode and emergency access.
 //
-// Returns true if:
-// - Peer address is 127.0.0.1 or ::1
-// - Peer address is not available (assume loopback for Unix sockets)
+// High-Risk Fix: Fails CLOSED if source cannot be determined (security-critical).
+//
+// Returns true ONLY if:
+// - Peer address is 127.0.0.1 or ::1 (verified loopback)
+// - Connection is via Unix socket (network == "unix")
+// - Hostname is exactly "localhost" (resolved loopback)
+//
+// Returns false (DENY) if:
+// - No peer info available (cannot verify locality)
+// - Address unparseable (cannot verify locality)
+// - Any other ambiguous case (fail closed for security)
 func isLoopbackRequest(ctx context.Context) bool {
 	// Extract peer address from context
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		// No peer info - might be Unix socket or in-process call
-		// Conservative: treat as loopback for now
-		return true
+		// High-Risk Fix: No peer info = FAIL CLOSED (cannot verify locality)
+		// Previous behavior was "fail open" (return true) which was dangerous
+		return false
 	}
 
-	// Parse address
+	// Check if Unix socket (local connection)
+	if p.Addr.Network() == "unix" {
+		return true // Unix sockets are always local
+	}
+
+	// Parse TCP/IP address
 	addr := p.Addr.String()
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		// Might be Unix socket path or unparseable
-		// Conservative: treat as loopback
-		return true
+		// High-Risk Fix: Unparseable address = FAIL CLOSED (cannot verify locality)
+		// Previous behavior was "fail open" (return true) which was dangerous
+		return false
 	}
 
-	// Check if loopback
+	// Check if loopback IP
 	ip := net.ParseIP(host)
 	if ip == nil {
-		// Hostname instead of IP - check if "localhost"
+		// Hostname instead of IP - check if exactly "localhost"
 		return host == "localhost"
 	}
 

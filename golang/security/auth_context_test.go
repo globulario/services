@@ -84,7 +84,7 @@ func TestNewAuthContext_Loopback(t *testing.T) {
 		{
 			name:       "no peer info",
 			peerAddr:   "",
-			wantLoopback: true, // Conservative: treat as loopback
+			wantLoopback: false, // High-Risk Fix: fail closed when peer info unavailable
 		},
 	}
 

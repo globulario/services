@@ -42,6 +42,7 @@ func TestIntegration_RemoteBootstrapDenied(t *testing.T) {
 	os.WriteFile(flagFile, stateJSON, 0600)
 
 	gate := security.NewBootstrapGateWithPath(flagFile)
+	gate.SetSkipOwnershipCheck(true) // Test mode: allow non-root ownership
 
 	// Test: Remote request (not loopback)
 	authCtx := &security.AuthContext{
@@ -83,6 +84,7 @@ func TestIntegration_BootstrapExpires(t *testing.T) {
 	os.WriteFile(flagFile, stateJSON, 0600)
 
 	gate := security.NewBootstrapGateWithPath(flagFile)
+	gate.SetSkipOwnershipCheck(true) // Test mode: allow non-root ownership
 
 	// Test: Valid bootstrap request but expired
 	authCtx := &security.AuthContext{
@@ -302,6 +304,7 @@ func TestIntegration_FullAuthPipeline(t *testing.T) {
 				stateJSON, _ := json.Marshal(state)
 				os.WriteFile(flagFile, stateJSON, 0600)
 				gate := security.NewBootstrapGateWithPath(flagFile)
+				gate.SetSkipOwnershipCheck(true) // Test mode
 				return gate
 			},
 			createContext: func() context.Context {
@@ -326,6 +329,7 @@ func TestIntegration_FullAuthPipeline(t *testing.T) {
 				stateJSON, _ := json.Marshal(state)
 				os.WriteFile(flagFile, stateJSON, 0600)
 				gate := security.NewBootstrapGateWithPath(flagFile)
+				gate.SetSkipOwnershipCheck(true) // Test mode
 				return gate
 			},
 			createContext: func() context.Context {
