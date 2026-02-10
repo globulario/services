@@ -168,6 +168,8 @@ fi
 
 echo ""
 echo "→ Running packages/build.sh..."
+# Update GLOBULAR_BIN to point to the globularcli binary for packages/build.sh
+export GLOBULAR_BIN="${PACKAGES_ROOT}/bin/globularcli"
 if [[ -f "build.sh" ]]; then
     # Build etcd with specific version
     echo "  → Building etcd ${ETCD_VERSION}..."
