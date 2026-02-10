@@ -85,6 +85,7 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/blog
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
           ExecStart={{.Prefix}}/bin/blog_server
           Restart=on-failure
           RestartSec=2

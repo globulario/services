@@ -85,6 +85,7 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/persistence
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
           ExecStart={{.Prefix}}/bin/persistence_server
           Restart=on-failure
           RestartSec=2

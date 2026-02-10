@@ -4,6 +4,7 @@ package-lock.json
 golang/resource/resourcepb/minio_proxy_config.go
 golang/tools/stage/
 golang/globularcli/generated/
+generated/
 
 # Build artifacts
 golang/generated/

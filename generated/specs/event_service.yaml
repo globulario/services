@@ -85,6 +85,7 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/event
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
           ExecStart={{.Prefix}}/bin/event_server
           Restart=on-failure
           RestartSec=2

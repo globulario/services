@@ -85,6 +85,7 @@ steps:
           Group=globular
           WorkingDirectory={{.StateDir}}/authentication
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
+          Environment=GLOBULAR_BOOTSTRAP=1
           ExecStart={{.Prefix}}/bin/authentication_server
           Restart=on-failure
           RestartSec=2
