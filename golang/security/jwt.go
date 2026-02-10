@@ -59,6 +59,7 @@ func (a *Authentication) RequireTransportSecurity() bool { return true }
 type Claims struct {
 	// Core identity (opaque, stable, domain-independent)
 	PrincipalID string `json:"principal_id"` // Opaque user ID (e.g., "usr_7f9a3b2c")
+	ClusterID   string `json:"cluster_id"`   // Blocker Fix #8: Cluster identifier for cross-cluster validation
 
 	// Display/contact information (NOT used for identity)
 	ID       string `json:"id"`       // Legacy username, kept for compatibility
@@ -183,8 +184,16 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 		principalID = userName // Fallback for legacy code
 	}
 
+	// Blocker Fix #8: Get cluster ID for cross-cluster validation
+	// Use domain as cluster identifier (same as GetLocalClusterID())
+	clusterID, err := config.GetDomain()
+	if err != nil {
+		return "", fmt.Errorf("generate token: get cluster id: %w", err)
+	}
+
 	claims := &Claims{
 		PrincipalID: principalID, // v1: Opaque identity
+		ClusterID:   clusterID,   // v1: Cluster identifier (domain)
 		ID:          userId,      // Legacy field, kept for compatibility
 		Username:    userName,    // Display name only
 		Email:       email,       // Contact only

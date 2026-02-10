@@ -107,28 +107,30 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 		authCtx.rawClaims = claims
 		authCtx.AuthMethod = "jwt"
 
-		// Security Fix #1: NO subject rewriting
-		// Subject is opaque identifier from verified JWT - use exact string
-		// DO NOT strip suffixes or transform - prevents identity collisions
-		// (e.g., alice@clusterA and alice@clusterB must remain distinct)
-		authCtx.Subject = claims.ID // Exact string, no transformation
+		// Blocker Fix #7: Use canonical PrincipalID for AuthContext.Subject
+		// This ensures AuthContext identity matches the identity used by interceptor
+		// Fallback chain: PrincipalID → RegisteredClaims.Subject → legacy ID
+		authCtx.Subject = claims.PrincipalID
+		if authCtx.Subject == "" {
+			authCtx.Subject = claims.Subject // Standard JWT subject
+		}
+		if authCtx.Subject == "" {
+			authCtx.Subject = claims.ID // Legacy fallback for old tokens
+		}
 
 		// Determine principal type from claims
 		// TODO: Add proper type field to Claims instead of inferring
-		if authCtx.Subject == "sa" || strings.HasPrefix(authCtx.Subject, "sa@") {
-			authCtx.PrincipalType = "admin"
-		} else if claims.Email != "" {
+		// Blocker Fix #7: Removed hardcoded "sa" admin detection
+		if claims.Email != "" {
 			authCtx.PrincipalType = "user"
 		} else {
 			authCtx.PrincipalType = "application"
 		}
 
-		// Extract cluster ID if present
-		if claims.Issuer != "" {
-			// For now, use issuer as cluster identifier
-			// Future: Add explicit cluster_id claim
-			authCtx.ClusterID = claims.Issuer
-		}
+		// Blocker Fix #8: Use explicit ClusterID claim (not Issuer)
+		// ClusterID is set to domain by token generator (same as GetLocalClusterID())
+		// Issuer is MAC address, which creates mismatch with cluster validation
+		authCtx.ClusterID = claims.ClusterID
 	}
 
 	return authCtx, nil
