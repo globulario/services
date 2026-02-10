@@ -6316,6 +6316,7 @@ type NodeIdentity struct {
 	Labels            map[string]string      `protobuf:"bytes,13,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Free-form metadata supplied by Cluster Controller.
 	TypeName          string                 `protobuf:"bytes,14,opt,name=typeName,proto3" json:"typeName,omitempty"`                                                                       // Type information for internal use.
 	Status            string                 `protobuf:"bytes,15,opt,name=status,proto3" json:"status,omitempty"`                                                                           // Current desired/observed status (pending/approved/etc.).
+	ClusterId         string                 `protobuf:"bytes,16,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`                                                    // Phase 5: Cluster identifier for cross-cluster validation (prevents cross-cluster attacks).
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -6451,6 +6452,13 @@ func (x *NodeIdentity) GetTypeName() string {
 func (x *NodeIdentity) GetStatus() string {
 	if x != nil {
 		return x.Status
+	}
+	return ""
+}
+
+func (x *NodeIdentity) GetClusterId() string {
+	if x != nil {
+		return x.ClusterId
 	}
 	return ""
 }
@@ -8808,7 +8816,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x16DeleteOrganizationRqst\x12\"\n" +
 	"\forganization\x18\x01 \x01(\tR\forganization\"/\n" +
 	"\x15DeleteOrganizationRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xa3\x04\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xc2\x04\n" +
 	"\fNodeIdentity\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x16\n" +
@@ -8826,7 +8834,9 @@ const file_resource_proto_rawDesc = "" +
 	"\aenabled\x18\f \x01(\bR\aenabled\x12:\n" +
 	"\x06labels\x18\r \x03(\v2\".resource.NodeIdentity.LabelsEntryR\x06labels\x12\x1a\n" +
 	"\btypeName\x18\x0e \x01(\tR\btypeName\x12\x16\n" +
-	"\x06status\x18\x0f \x01(\tR\x06status\x1a9\n" +
+	"\x06status\x18\x0f \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"cluster_id\x18\x10 \x01(\tR\tclusterId\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +

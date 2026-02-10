@@ -23275,7 +23275,8 @@ lastSeen: jspb.Message.getFieldWithDefault(msg, 11, 0),
 enabled: jspb.Message.getBooleanFieldWithDefault(msg, 12, false),
 labelsMap: (f = msg.getLabelsMap()) ? f.toObject(includeInstance, undefined) : [],
 typename: jspb.Message.getFieldWithDefault(msg, 14, ""),
-status: jspb.Message.getFieldWithDefault(msg, 15, "")
+status: jspb.Message.getFieldWithDefault(msg, 15, ""),
+clusterId: jspb.Message.getFieldWithDefault(msg, 16, "")
   };
 
   if (includeInstance) {
@@ -23373,6 +23374,10 @@ proto.resource.NodeIdentity.deserializeBinaryFromReader = function(msg, reader) 
     case 15:
       var value = /** @type {string} */ (reader.readString());
       msg.setStatus(value);
+      break;
+    case 16:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setClusterId(value);
       break;
     default:
       reader.skipField();
@@ -23502,6 +23507,13 @@ proto.resource.NodeIdentity.serializeBinaryToWriter = function(message, writer) 
   if (f.length > 0) {
     writer.writeString(
       15,
+      f
+    );
+  }
+  f = message.getClusterId();
+  if (f.length > 0) {
+    writer.writeString(
+      16,
       f
     );
   }
@@ -23780,6 +23792,24 @@ proto.resource.NodeIdentity.prototype.getStatus = function() {
  */
 proto.resource.NodeIdentity.prototype.setStatus = function(value) {
   return jspb.Message.setProto3StringField(this, 15, value);
+};
+
+
+/**
+ * optional string cluster_id = 16;
+ * @return {string}
+ */
+proto.resource.NodeIdentity.prototype.getClusterId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 16, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.NodeIdentity} returns this
+ */
+proto.resource.NodeIdentity.prototype.setClusterId = function(value) {
+  return jspb.Message.setProto3StringField(this, 16, value);
 };
 
 
