@@ -247,11 +247,8 @@ func validateAction(
 ) (bool, bool, error) {
 
 	// Treat super admin as allowed.
-	domain, _ := config.GetDomain()
-	if !strings.Contains(subject, "@") {
-		subject += "@" + domain
-	}
-	if subject == "sa@"+domain {
+	// Check for "sa" (plain) or legacy "sa@domain" format for backwards compatibility
+	if subject == "sa" || strings.HasPrefix(subject, "sa@") {
 		return true, false, nil
 	}
 
