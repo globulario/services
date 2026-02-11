@@ -292,7 +292,6 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomainSpec, provider dnsprovider.Provider) error {
 	domainDir := filepath.Join(r.certsDir, spec.FQDN)
 	certFile := filepath.Join(domainDir, "fullchain.pem")
-	keyFile := filepath.Join(domainDir, "privkey.pem")
 
 	// Check if certificate exists and is still valid
 	if r.isCertificateValid(certFile, spec.FQDN) {
@@ -356,7 +355,6 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	}
 
 	// Set DNS-01 challenge provider
-	solver := NewDNS01Solver(provider, spec.Zone)
 	if err := client.Challenge.SetDNS01Provider(NewLegoProvider(provider, spec.Zone)); err != nil {
 		return fmt.Errorf("failed to set DNS-01 provider: %w", err)
 	}
