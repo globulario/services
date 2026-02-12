@@ -25,6 +25,14 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
+// cachedProvider wraps a DNS provider with cache metadata to detect staleness.
+type cachedProvider struct {
+	provider dnsprovider.Provider
+	modRev   int64     // etcd ModRevision of the provider config
+	zone     string    // Zone this provider is configured for
+	loadedAt time.Time // When this provider was cached
+}
+
 // Reconciler manages the lifecycle of external domains:
 // 1. DNS records (via dnsprovider)
 // 2. ACME certificates (via DNS-01 challenges)
@@ -49,13 +57,14 @@ type Reconciler struct {
 	// Certificate renewal threshold (renew if expires < this)
 	renewBefore time.Duration
 
-	// Provider cache (zone -> provider)
+	// Provider cache (providerRef -> cached provider)
 	providersMu sync.RWMutex
-	providers   map[string]dnsprovider.Provider
+	providers   map[string]*cachedProvider
 
-	// Stop channel
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	// Stop channel and lifecycle
+	stopCh   chan struct{}
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 // ReconcilerConfig configures the reconciler.
@@ -118,7 +127,7 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 		certGID:     certGID,
 		interval:    interval,
 		renewBefore: renewBefore,
-		providers:   make(map[string]dnsprovider.Provider),
+		providers:   make(map[string]*cachedProvider),
 		stopCh:      make(chan struct{}),
 	}, nil
 }
@@ -142,10 +151,14 @@ func (r *Reconciler) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops the reconciler.
+// Stop stops the reconciler gracefully.
+// Safe to call multiple times - only the first call has effect.
 func (r *Reconciler) Stop() {
-	close(r.stopCh)
-	r.wg.Wait()
-	r.logger.Info("domain reconciler stopped")
+	r.stopOnce.Do(func() {
+		close(r.stopCh)
+		r.wg.Wait()
+		r.logger.Info("domain reconciler stopped")
+	})
 }
 
 // reconcileLoop runs the reconciliation loop.
@@ -437,25 +450,25 @@ func (r *Reconciler) isCertificateValid(certFile string, domain string) bool {
 
 // writeCertificate writes the certificate and key files.
 func (r *Reconciler) writeCertificate(domainDir string, certificates *certificate.Resource) error {
-	// Write certificate (fullchain)
+	// Write certificate atomically (fullchain)
 	certFile := filepath.Join(domainDir, "fullchain.pem")
-	if err := os.WriteFile(certFile, certificates.Certificate, 0644); err != nil {
-		return err
+	if err := writeFileAtomic(certFile, certificates.Certificate, 0644); err != nil {
+		return fmt.Errorf("failed to write certificate: %w", err)
 	}
 
-	// Write private key
+	// Write private key atomically (secure permissions)
 	keyFile := filepath.Join(domainDir, "privkey.pem")
-	if err := os.WriteFile(keyFile, certificates.PrivateKey, 0600); err != nil {
-		return err
+	if err := writeFileAtomic(keyFile, certificates.PrivateKey, 0600); err != nil {
+		return fmt.Errorf("failed to write private key: %w", err)
 	}
 
-	// Write issuer cert (CA)
+	// Write issuer cert atomically (CA chain)
 	issuerFile := filepath.Join(domainDir, "chain.pem")
-	if err := os.WriteFile(issuerFile, certificates.IssuerCertificate, 0644); err != nil {
-		return err
+	if err := writeFileAtomic(issuerFile, certificates.IssuerCertificate, 0644); err != nil {
+		return fmt.Errorf("failed to write issuer certificate: %w", err)
 	}
 
-	// Set ownership if configured
+	// Set ownership after all files are written atomically
 	if r.certUID > 0 && r.certGID > 0 {
 		os.Chown(certFile, r.certUID, r.certGID)
 		os.Chown(keyFile, r.certUID, r.certGID)
@@ -467,15 +480,7 @@ func (r *Reconciler) writeCertificate(domainDir string, certificates *certificat
 
 // getProvider loads a DNS provider from etcd cache.
 func (r *Reconciler) getProvider(ctx context.Context, providerRef, zone string) (dnsprovider.Provider, error) {
-	// Check cache first
-	r.providersMu.RLock()
-	if provider, exists := r.providers[providerRef]; exists {
-		r.providersMu.RUnlock()
-		return provider, nil
-	}
-	r.providersMu.RUnlock()
-
-	// Load from etcd
+	// Load provider config from etcd to get current ModRevision
 	key := ProviderKey(providerRef)
 	resp, err := r.etcdClient.Get(ctx, key)
 	if err != nil {
@@ -484,6 +489,32 @@ func (r *Reconciler) getProvider(ctx context.Context, providerRef, zone string) 
 
 	if resp.Count == 0 {
 		return nil, fmt.Errorf("provider %q not found", providerRef)
+	}
+
+	currentModRev := resp.Kvs[0].ModRevision
+
+	// Check cache and validate staleness
+	r.providersMu.RLock()
+	cached, exists := r.providers[providerRef]
+	r.providersMu.RUnlock()
+
+	if exists {
+		// Check if cache is still valid (same modRev and zone)
+		if cached.modRev == currentModRev && cached.zone == zone {
+			r.logger.Debug("using cached provider",
+				"ref", providerRef,
+				"zone", zone,
+				"modRev", currentModRev)
+			return cached.provider, nil
+		}
+
+		// Cache stale - provider config changed or different zone
+		r.logger.Info("provider config changed, rebuilding",
+			"ref", providerRef,
+			"oldModRev", cached.modRev,
+			"newModRev", currentModRev,
+			"oldZone", cached.zone,
+			"newZone", zone)
 	}
 
 	// Parse provider config
@@ -498,10 +529,20 @@ func (r *Reconciler) getProvider(ctx context.Context, providerRef, zone string) 
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-	// Cache it
+	// Cache it with metadata
 	r.providersMu.Lock()
-	r.providers[providerRef] = provider
+	r.providers[providerRef] = &cachedProvider{
+		provider: provider,
+		modRev:   currentModRev,
+		zone:     zone,
+		loadedAt: time.Now(),
+	}
 	r.providersMu.Unlock()
+
+	r.logger.Info("provider cached",
+		"ref", providerRef,
+		"zone", zone,
+		"modRev", currentModRev)
 
 	return provider, nil
 }
