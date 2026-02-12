@@ -32,6 +32,7 @@ import (
 // 3. Ingress configuration (triggers xDS rebuild)
 type Reconciler struct {
 	etcdClient *clientv3.Client
+	store      DomainStore
 	logger     *slog.Logger
 
 	// Base directory for domain certificates
@@ -107,8 +108,11 @@ func NewReconciler(cfg ReconcilerConfig) (*Reconciler, error) {
 		}
 	}
 
+	store := NewEtcdDomainStore(cfg.EtcdClient)
+
 	return &Reconciler{
 		etcdClient:  cfg.EtcdClient,
+		store:       store,
 		logger:      logger,
 		certsDir:    certsDir,
 		certUID:     certUID,
@@ -171,39 +175,31 @@ func (r *Reconciler) reconcileLoop(ctx context.Context) {
 func (r *Reconciler) reconcileAll(ctx context.Context) {
 	r.logger.Debug("starting reconciliation pass")
 
-	// Get all domain specs from etcd
-	resp, err := r.etcdClient.Get(ctx, EtcdDomainPrefix, clientv3.WithPrefix())
+	// Get all domain specs from store
+	specs, err := r.store.ListSpecs(ctx)
 	if err != nil {
-		r.logger.Error("failed to list domains from etcd", "error", err)
+		r.logger.Error("failed to list domains from store", "error", err)
 		return
 	}
 
-	if resp.Count == 0 {
+	if len(specs) == 0 {
 		r.logger.Debug("no domains to reconcile")
 		return
 	}
 
 	// Reconcile each domain
-	for _, kv := range resp.Kvs {
-		spec, err := FromJSON(kv.Value)
-		if err != nil {
-			r.logger.Error("failed to parse domain spec",
-				"key", string(kv.Key),
-				"error", err)
-			continue
-		}
-
+	for _, spec := range specs {
 		if err := r.reconcileDomain(ctx, spec); err != nil {
 			r.logger.Error("failed to reconcile domain",
 				"fqdn", spec.FQDN,
 				"error", err)
 
 			// Update status to error
-			r.updateDomainStatus(ctx, spec, "Error", err.Error())
+			_ = r.setStatusError(ctx, spec.FQDN, err)
 		}
 	}
 
-	r.logger.Debug("reconciliation pass complete", "domains", resp.Count)
+	r.logger.Debug("reconciliation pass complete", "domains", len(specs))
 }
 
 // reconcileDomain reconciles a single domain spec.
@@ -237,7 +233,9 @@ func (r *Reconciler) reconcileDomain(ctx context.Context, spec *ExternalDomainSp
 	}
 
 	// Step 3: Update status to Ready
-	r.updateDomainStatus(ctx, spec, "Ready", "Domain reconciled successfully")
+	if err := r.setStatus(ctx, spec.FQDN, "Ready", "Domain reconciled successfully"); err != nil {
+		return fmt.Errorf("failed to set status: %w", err)
+	}
 
 	return nil
 }
@@ -547,24 +545,26 @@ func (r *Reconciler) discoverPublicIP() (string, error) {
 	return "", fmt.Errorf("public IP discovery not implemented yet (use explicit --target-ip)")
 }
 
-// updateDomainStatus updates the domain status in etcd.
-func (r *Reconciler) updateDomainStatus(ctx context.Context, spec *ExternalDomainSpec, phase, message string) {
-	spec.Status.LastReconcile = time.Now()
-	spec.Status.Phase = phase
-	spec.Status.Message = message
-
-	// Marshal to JSON
-	data, err := spec.ToJSON()
-	if err != nil {
-		r.logger.Error("failed to marshal domain status", "fqdn", spec.FQDN, "error", err)
-		return
+// setStatus updates the domain status in etcd using the separate status key.
+// This prevents concurrent updates from overwriting the user spec.
+func (r *Reconciler) setStatus(ctx context.Context, fqdn string, phase string, message string) error {
+	status := &ExternalDomainStatus{
+		LastReconcile: time.Now(),
+		Phase:         phase,
+		Message:       message,
 	}
 
-	// Write to etcd
-	key := DomainKey(spec.FQDN)
-	if _, err := r.etcdClient.Put(ctx, key, string(data)); err != nil {
-		r.logger.Error("failed to update domain status in etcd", "fqdn", spec.FQDN, "error", err)
+	if err := r.store.PutStatus(ctx, fqdn, status); err != nil {
+		r.logger.Error("failed to update domain status", "fqdn", fqdn, "error", err)
+		return fmt.Errorf("failed to update status: %w", err)
 	}
+
+	return nil
+}
+
+// setStatusError updates the domain status to Error phase with the given error message.
+func (r *Reconciler) setStatusError(ctx context.Context, fqdn string, err error) error {
+	return r.setStatus(ctx, fqdn, "Error", err.Error())
 }
 
 // acmeUser implements the lego registration.User interface.

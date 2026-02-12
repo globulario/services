@@ -222,7 +222,7 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 			Service: domainIngressSvc,
 			Port:    domainIngressPort,
 		},
-		Status: domain.DomainStatus{
+		Status: domain.ExternalDomainStatus{
 			Phase:   "Pending",
 			Message: "Awaiting reconciliation",
 		},

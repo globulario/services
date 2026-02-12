@@ -40,7 +40,10 @@ type ExternalDomainSpec struct {
 	Ingress IngressConfig `json:"ingress"`
 
 	// Status reflects the current reconciliation state (updated by reconciler).
-	Status DomainStatus `json:"status"`
+	// NOTE: Status is stored separately in etcd at /globular/domains/v1/<fqdn>/status
+	// to prevent concurrent updates from overwriting user spec intent.
+	// This field is populated when reading but not persisted with the spec.
+	Status ExternalDomainStatus `json:"status"`
 }
 
 // ACMEConfig controls automated certificate acquisition via ACME (Let's Encrypt).
@@ -74,9 +77,10 @@ type IngressConfig struct {
 	Port int `json:"port"`
 }
 
-// DomainStatus reflects the current reconciliation state.
+// ExternalDomainStatus reflects the current reconciliation state.
 // This is updated by the reconciler and should be treated as read-only by users.
-type DomainStatus struct {
+// Status is stored separately from spec in etcd to prevent concurrent overwrites.
+type ExternalDomainStatus struct {
 	// LastReconcile is when the reconciler last processed this domain.
 	LastReconcile time.Time `json:"last_reconcile"`
 
