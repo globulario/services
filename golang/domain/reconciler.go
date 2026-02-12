@@ -244,7 +244,7 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 	targetIP := spec.TargetIP
 
 	// Resolve "auto" to actual public IP
-	if targetIP == "auto" {
+	if spec.TargetIsAuto() {
 		ip, err := r.discoverPublicIP()
 		if err != nil {
 			return fmt.Errorf("failed to discover public IP: %w", err)
@@ -252,13 +252,33 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 		targetIP = ip
 	}
 
+	// Parse IP to determine record type (A or AAAA)
+	parsedIP, isV6, err := spec.ParsedTargetIP()
+	if err != nil && !spec.TargetIsAuto() {
+		return fmt.Errorf("invalid target IP: %w", err)
+	}
+	if parsedIP == "" {
+		parsedIP = targetIP // Use resolved auto IP
+	}
+
+	// Detect IPv6 from actual IP if auto-detected
+	if spec.TargetIsAuto() {
+		isV6 = strings.Contains(targetIP, ":")
+	}
+
+	recordType := "A"
+	if isV6 {
+		recordType = "AAAA"
+	}
+
 	relativeName := spec.RelativeName()
 
 	// Check if record already exists with correct value
-	records, err := provider.GetRecords(ctx, spec.Zone, relativeName, "A")
+	records, err := provider.GetRecords(ctx, spec.Zone, relativeName, recordType)
 	if err != nil {
 		r.logger.Warn("failed to query existing DNS records",
 			"fqdn", spec.FQDN,
+			"type", recordType,
 			"error", err)
 	} else {
 		// Check if record already has correct value
@@ -266,20 +286,28 @@ func (r *Reconciler) ensureDNSRecord(ctx context.Context, spec *ExternalDomainSp
 			if rec.Value == targetIP {
 				r.logger.Debug("DNS record already correct",
 					"fqdn", spec.FQDN,
+					"type", recordType,
 					"ip", targetIP)
 				return nil
 			}
 		}
 	}
 
-	// Create/update DNS A record
+	// Create/update DNS record (A or AAAA)
 	r.logger.Info("updating DNS record",
 		"fqdn", spec.FQDN,
+		"type", recordType,
 		"ip", targetIP,
 		"ttl", spec.TTL)
 
-	if err := provider.UpsertA(ctx, spec.Zone, relativeName, targetIP, spec.TTL); err != nil {
-		return fmt.Errorf("failed to upsert A record: %w", err)
+	if isV6 {
+		if err := provider.UpsertAAAA(ctx, spec.Zone, relativeName, targetIP, spec.TTL); err != nil {
+			return fmt.Errorf("failed to upsert AAAA record: %w", err)
+		}
+	} else {
+		if err := provider.UpsertA(ctx, spec.Zone, relativeName, targetIP, spec.TTL); err != nil {
+			return fmt.Errorf("failed to upsert A record: %w", err)
+		}
 	}
 
 	return nil

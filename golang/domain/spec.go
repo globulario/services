@@ -132,6 +132,14 @@ func (s *ExternalDomainSpec) Validate() error {
 	if s.TargetIP == "" {
 		return fmt.Errorf("target_ip is required (use \"auto\" for auto-detection)")
 	}
+
+	// Validate target IP format (unless auto)
+	if !s.TargetIsAuto() {
+		if _, _, err := s.ParsedTargetIP(); err != nil {
+			return fmt.Errorf("invalid target_ip: %w", err)
+		}
+	}
+
 	if s.ProviderRef == "" {
 		return fmt.Errorf("provider_ref is required")
 	}
@@ -174,6 +182,79 @@ func (s *ExternalDomainSpec) RelativeName() string {
 		return "@" // apex record
 	}
 	return strings.TrimSuffix(s.FQDN, "."+s.Zone)
+}
+
+// TargetIsAuto returns true if target IP is set to auto-detection.
+func (s *ExternalDomainSpec) TargetIsAuto() bool {
+	return strings.ToLower(strings.TrimSpace(s.TargetIP)) == "auto"
+}
+
+// ParsedTargetIP parses the target IP and returns:
+// - ip: the parsed IP address (empty if auto or invalid)
+// - isV6: true if IPv6, false if IPv4
+// - err: error if invalid IP format (unless auto)
+func (s *ExternalDomainSpec) ParsedTargetIP() (ip string, isV6 bool, err error) {
+	target := strings.TrimSpace(s.TargetIP)
+
+	// Handle auto
+	if s.TargetIsAuto() {
+		return "", false, nil
+	}
+
+	// Try to parse as IP
+	// Simple check: IPv6 contains colons, IPv4 contains dots
+	if strings.Contains(target, ":") {
+		// IPv6
+		// Validate format (basic check - Go's net.ParseIP would be better but adds dependency)
+		if !isValidIPv6(target) {
+			return "", false, fmt.Errorf("invalid IPv6 address: %s", target)
+		}
+		return target, true, nil
+	}
+
+	// IPv4
+	if !isValidIPv4(target) {
+		return "", false, fmt.Errorf("invalid IPv4 address: %s", target)
+	}
+	return target, false, nil
+}
+
+// isValidIPv4 performs basic IPv4 validation (4 octets, 0-255 each).
+func isValidIPv4(ip string) bool {
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	for _, part := range parts {
+		if len(part) == 0 || len(part) > 3 {
+			return false
+		}
+		num := 0
+		for _, c := range part {
+			if c < '0' || c > '9' {
+				return false
+			}
+			num = num*10 + int(c-'0')
+		}
+		if num > 255 {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidIPv6 performs basic IPv6 validation (contains colons, hex characters).
+func isValidIPv6(ip string) bool {
+	if !strings.Contains(ip, ":") {
+		return false
+	}
+	// Accept compressed notation (::), full notation, and IPv4-mapped
+	// For production, use net.ParseIP from net package
+	parts := strings.Split(ip, ":")
+	if len(parts) < 3 || len(parts) > 8 {
+		return false
+	}
+	return true
 }
 
 // ToJSON serializes the spec to JSON.

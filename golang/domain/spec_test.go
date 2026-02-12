@@ -310,3 +310,113 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// TestExternalDomainSpec_TargetIsAuto tests auto IP detection.
+func TestExternalDomainSpec_TargetIsAuto(t *testing.T) {
+	tests := []struct {
+		targetIP string
+		want     bool
+	}{
+		{"auto", true},
+		{"Auto", true},
+		{"AUTO", true},
+		{"192.0.2.1", false},
+		{"2001:db8::1", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		spec := ExternalDomainSpec{TargetIP: tt.targetIP}
+		got := spec.TargetIsAuto()
+		if got != tt.want {
+			t.Errorf("TargetIsAuto(%q) = %v, want %v", tt.targetIP, got, tt.want)
+		}
+	}
+}
+
+// TestExternalDomainSpec_ParsedTargetIP tests IPv4/IPv6 parsing.
+func TestExternalDomainSpec_ParsedTargetIP(t *testing.T) {
+	tests := []struct {
+		name      string
+		targetIP  string
+		wantIP    string
+		wantIsV6  bool
+		wantError bool
+	}{
+		{"auto", "auto", "", false, false},
+		{"IPv4 valid", "192.0.2.1", "192.0.2.1", false, false},
+		{"IPv4 localhost", "127.0.0.1", "127.0.0.1", false, false},
+		{"IPv4 invalid (out of range)", "192.0.2.256", "", false, true},
+		{"IPv4 invalid (too few octets)", "192.0.2", "", false, true},
+		{"IPv6 valid", "2001:db8::1", "2001:db8::1", true, false},
+		{"IPv6 compressed", "::1", "::1", true, false},
+		{"IPv6 full", "2001:0db8:0000:0000:0000:0000:0000:0001", "2001:0db8:0000:0000:0000:0000:0000:0001", true, false},
+		{"invalid (not IP)", "not-an-ip", "", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := ExternalDomainSpec{TargetIP: tt.targetIP}
+			ip, isV6, err := spec.ParsedTargetIP()
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if ip != tt.wantIP {
+				t.Errorf("IP = %q, want %q", ip, tt.wantIP)
+			}
+			if isV6 != tt.wantIsV6 {
+				t.Errorf("isV6 = %v, want %v", isV6, tt.wantIsV6)
+			}
+		})
+	}
+}
+
+// TestExternalDomainSpec_Validate_IPv6 tests validation with IPv6 addresses.
+func TestExternalDomainSpec_Validate_IPv6(t *testing.T) {
+	tests := []struct {
+		name      string
+		targetIP  string
+		wantError bool
+	}{
+		{"valid IPv4", "192.0.2.1", false},
+		{"valid IPv6", "2001:db8::1", false},
+		{"valid auto", "auto", false},
+		{"invalid IPv4", "192.0.2.256", true},
+		{"invalid IPv6 (too short)", ":", true},
+		{"invalid (not IP)", "not-an-ip", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := ExternalDomainSpec{
+				FQDN:        "test.example.com",
+				Zone:        "example.com",
+				NodeID:      "test-node",
+				TargetIP:    tt.targetIP,
+				ProviderRef: "test-provider",
+			}
+
+			err := spec.Validate()
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
