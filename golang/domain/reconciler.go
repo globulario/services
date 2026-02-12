@@ -308,17 +308,10 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 		return fmt.Errorf("failed to create domain directory: %w", err)
 	}
 
-	// Create ACME account key if doesn't exist
-	accountKeyFile := filepath.Join(domainDir, "account.key")
-	accountKey, err := r.loadOrCreateAccountKey(accountKeyFile)
+	// Load or create ACME account (includes private key + registration state)
+	user, err := r.loadOrCreateAccount(ctx, spec.ACME.Email, domainDir)
 	if err != nil {
-		return fmt.Errorf("failed to load account key: %w", err)
-	}
-
-	// Create ACME user
-	user := &acmeUser{
-		Email: spec.ACME.Email,
-		key:   accountKey,
+		return fmt.Errorf("failed to load/create account: %w", err)
 	}
 
 	// Create lego config
@@ -341,15 +334,9 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 		return fmt.Errorf("failed to create ACME client: %w", err)
 	}
 
-	// Register account if new
-	if user.Registration == nil {
-		reg, err := client.Registration.Register(registration.RegisterOptions{
-			TermsOfServiceAgreed: true,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to register ACME account: %w", err)
-		}
-		user.Registration = reg
+	// Ensure account is registered (idempotent - only registers if needed)
+	if err := r.ensureRegistration(ctx, client, user, domainDir); err != nil {
+		return fmt.Errorf("failed to ensure ACME registration: %w", err)
 	}
 
 	// Set DNS-01 challenge provider
@@ -419,48 +406,6 @@ func (r *Reconciler) isCertificateValid(certFile string, domain string) bool {
 	}
 
 	return true
-}
-
-// loadOrCreateAccountKey loads or creates an ACME account key.
-func (r *Reconciler) loadOrCreateAccountKey(keyFile string) (crypto.PrivateKey, error) {
-	// Try to load existing key
-	if data, err := os.ReadFile(keyFile); err == nil {
-		block, _ := pem.Decode(data)
-		if block != nil {
-			if key, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
-				return key, nil
-			}
-		}
-	}
-
-	// Generate new key
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Marshal to DER
-	der, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-
-	// Write PEM file
-	pemBlock := &pem.Block{
-		Type:  "EC PRIVATE KEY",
-		Bytes: der,
-	}
-
-	if err := os.WriteFile(keyFile, pem.EncodeToMemory(pemBlock), 0600); err != nil {
-		return nil, err
-	}
-
-	// Set ownership if configured
-	if r.certUID > 0 && r.certGID > 0 {
-		os.Chown(keyFile, r.certUID, r.certGID)
-	}
-
-	return key, nil
 }
 
 // writeCertificate writes the certificate and key files.
@@ -567,21 +512,72 @@ func (r *Reconciler) setStatusError(ctx context.Context, fqdn string, err error)
 	return r.setStatus(ctx, fqdn, "Error", err.Error())
 }
 
-// acmeUser implements the lego registration.User interface.
-type acmeUser struct {
-	Email        string
-	Registration *registration.Resource
-	key          crypto.PrivateKey
+// acmeUser is now defined in acme_account.go
+
+// loadOrCreateAccount loads an ACME account from disk or creates a new one.
+// This includes both the private key and registration state to prevent re-registration loops.
+func (r *Reconciler) loadOrCreateAccount(ctx context.Context, email string, dir string) (*acmeUser, error) {
+	// Try to load existing account
+	user, err := loadAccount(email, dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load account: %w", err)
+	}
+
+	if user != nil {
+		// Account found
+		r.logger.Debug("loaded existing ACME account", "email", email, "registered", user.Registration != nil)
+		return user, nil
+	}
+
+	// No account found - create new one
+	r.logger.Info("creating new ACME account", "email", email)
+
+	// Generate account private key
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate account key: %w", err)
+	}
+
+	user = &acmeUser{
+		Email: email,
+		key:   key,
+	}
+
+	// Save account (without registration yet)
+	if err := saveAccount(user, dir); err != nil {
+		return nil, fmt.Errorf("failed to save account: %w", err)
+	}
+
+	return user, nil
 }
 
-func (u *acmeUser) GetEmail() string {
-	return u.Email
-}
+// ensureRegistration ensures the ACME account is registered with the CA.
+// This is idempotent - if already registered, does nothing. If not registered,
+// registers and saves the registration state to prevent re-registration loops.
+func (r *Reconciler) ensureRegistration(ctx context.Context, client *lego.Client, user *acmeUser, dir string) error {
+	// Check if already registered
+	if user.Registration != nil {
+		r.logger.Debug("ACME account already registered", "email", user.Email)
+		return nil
+	}
 
-func (u *acmeUser) GetRegistration() *registration.Resource {
-	return u.Registration
-}
+	// Register with CA
+	r.logger.Info("registering ACME account with CA", "email", user.Email)
+	reg, err := client.Registration.Register(registration.RegisterOptions{
+		TermsOfServiceAgreed: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to register: %w", err)
+	}
 
-func (u *acmeUser) GetPrivateKey() crypto.PrivateKey {
-	return u.key
+	// Update user with registration
+	user.Registration = reg
+
+	// Save registration state
+	if err := saveAccount(user, dir); err != nil {
+		return fmt.Errorf("failed to save registration: %w", err)
+	}
+
+	r.logger.Info("ACME account registered successfully", "email", user.Email)
+	return nil
 }
