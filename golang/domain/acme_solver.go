@@ -15,16 +15,17 @@ import (
 //
 // The DNS-01 challenge requires:
 // 1. Creating a TXT record at _acme-challenge.<domain> with a specific token value
-// 2. Waiting for DNS propagation
+// 2. Waiting for DNS propagation to public resolvers (critical for ACME validation)
 // 3. ACME server validates the TXT record
 // 4. Cleaning up the TXT record after validation
 //
 // This solver bridges the lego ACME library with our generic dnsprovider interface.
 type DNS01Solver struct {
-	provider dnsprovider.Provider
-	zone     string
-	timeout  time.Duration
-	interval time.Duration
+	provider   dnsprovider.Provider
+	zone       string
+	timeout    time.Duration
+	interval   time.Duration
+	propagator DNSPropagator // Optional: Check public DNS instead of provider API
 }
 
 // NewDNS01Solver creates a new ACME DNS-01 challenge solver.
@@ -45,6 +46,13 @@ func (s *DNS01Solver) SetPropagationTimeout(timeout time.Duration) {
 // SetPropagationInterval configures how often to check for DNS propagation.
 func (s *DNS01Solver) SetPropagationInterval(interval time.Duration) {
 	s.interval = interval
+}
+
+// SetPropagator configures the DNS propagation checker.
+// If set, the solver will verify propagation to public DNS resolvers (recommended).
+// If not set, falls back to querying the provider API (less reliable).
+func (s *DNS01Solver) SetPropagator(p DNSPropagator) {
+	s.propagator = p
 }
 
 // Present creates the TXT record for the ACME DNS-01 challenge.
@@ -82,7 +90,9 @@ func (s *DNS01Solver) Present(domain, token, keyAuth string) error {
 	}
 
 	// Wait for DNS propagation
-	if err := s.waitForPropagation(challengeName, txtValue); err != nil {
+	// Construct full FQDN for the challenge record
+	fqdn := challengeName + "." + s.zone
+	if err := s.waitForPropagation(fqdn, txtValue); err != nil {
 		return fmt.Errorf("DNS-01 challenge record not propagated: %w", err)
 	}
 
@@ -138,12 +148,31 @@ func (s *DNS01Solver) extractRelativeName(domain string) string {
 
 // waitForPropagation waits for the DNS TXT record to propagate.
 // This is necessary because DNS updates are not instantaneous.
-func (s *DNS01Solver) waitForPropagation(name, expectedValue string) error {
+//
+// If a propagator is configured, it checks public DNS resolvers (recommended for ACME).
+// Otherwise, falls back to querying the provider API (less reliable - provider may
+// report record exists before public resolvers see it, causing ACME validation to fail).
+func (s *DNS01Solver) waitForPropagation(fqdn, expectedValue string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
+	// Prefer public DNS propagation check if available
+	if s.propagator != nil {
+		if err := s.propagator.WaitForTXT(ctx, fqdn, expectedValue, s.timeout, s.interval); err != nil {
+			return fmt.Errorf("public DNS propagation check failed: %w", err)
+		}
+		return nil
+	}
+
+	// Fallback: Query provider API (legacy behavior)
+	// Note: This is less reliable because the provider may report success before
+	// public resolvers (used by Let's Encrypt) see the record.
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
+
+	// Extract relative name from FQDN for provider query
+	relativeName := strings.TrimSuffix(fqdn, "."+s.zone)
+	relativeName = strings.TrimSuffix(relativeName, ".")
 
 	for {
 		select {
@@ -152,7 +181,7 @@ func (s *DNS01Solver) waitForPropagation(name, expectedValue string) error {
 
 		case <-ticker.C:
 			// Query the provider for the TXT record
-			records, err := s.provider.GetRecords(context.Background(), s.zone, name, "TXT")
+			records, err := s.provider.GetRecords(context.Background(), s.zone, relativeName, "TXT")
 			if err != nil {
 				// Continue waiting on transient errors
 				continue
@@ -161,7 +190,7 @@ func (s *DNS01Solver) waitForPropagation(name, expectedValue string) error {
 			// Check if expected value is present
 			for _, rec := range records {
 				if rec.Value == expectedValue {
-					// Found it! DNS has propagated
+					// Found it! DNS has propagated (according to provider)
 					return nil
 				}
 			}
