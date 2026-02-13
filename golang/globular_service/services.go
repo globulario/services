@@ -243,10 +243,13 @@ func InitService(s Service) error {
 	s.SetMac(mac)
 
 	// Address: for services, this is the listening address (IP only, not host:port).
-	// Services typically listen on 127.0.0.1 since they're accessed through the proxy.
-	// Use local IP if available, otherwise default to 127.0.0.1.
+	// Priority: 1) ENV var, 2) Primary IP, 3) Fallback to 127.0.0.1
 	address := "127.0.0.1"
-	if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
+
+	// Check environment variable first (allows override)
+	if envAddr := os.Getenv("GLOBULAR_SERVICE_ADDRESS"); envAddr != "" {
+		address = envAddr
+	} else if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
 		// Use the local IP (services are accessible on the local network)
 		address = ip
 	}
