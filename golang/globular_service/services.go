@@ -264,7 +264,22 @@ func InitService(s Service) error {
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	// Try to load desired from etcd and apply to this instance.
-	if cfg, err := config.GetServiceConfigurationById(s.GetId()); err == nil && cfg != nil {
+	cfg, err := config.GetServiceConfigurationById(s.GetId())
+	if err != nil || cfg == nil {
+		// Fallback: attempt lookup by service name to avoid drifting when the ID is
+		// not passed on the command line (common with systemd units that run without
+		// positional args). This prevents the service from re-registering itself
+		// under a random ID and overwriting a user-specified address such as
+		// localhost.
+		if byName, nameErr := config.GetServicesConfigurationsByName(s.GetName()); nameErr == nil && len(byName) > 0 {
+			cfg = byName[0]
+			slog.Info("InitService: loaded config by name fallback", "service", s.GetName(), "current_id", s.GetId(), "config_id", Utility.ToString(cfg["Id"]))
+		} else if nameErr != nil {
+			slog.Warn("InitService: config lookup by name failed", "service", s.GetName(), "err", nameErr)
+		}
+	}
+
+	if cfg != nil {
 		applyDesiredToService(s, cfg)
 	} else {
 		// No existing desired; set conservative defaults if missing.
@@ -289,6 +304,11 @@ func InitService(s Service) error {
 	if kf := config.GetLocalServerKeyPath(); kf != "" {
 		s.SetKeyFile(kf)
 	}
+
+	// Normalize the address host for consistency across callers (e.g., xDS
+	// endpoint construction). We intentionally convert localhost/::1 to 127.0.0.1
+	// to avoid Envoy interpreting the two as distinct endpoints.
+	s.SetAddress(NormalizeEndpointAddress(s.GetAddress()))
 
 	s.SetTls(s.GetTls() || (s.GetCertFile() != "" && s.GetKeyFile() != ""))
 
@@ -1182,4 +1202,31 @@ func putRuntimeClosed(s Service, lastErr string) error {
 		"State":     "closed",
 		"LastError": lastErr,
 	})
+}
+
+// NormalizeEndpointAddress ensures consistent endpoint host normalization.
+// - "localhost" or "::1" (with or without port) → 127.0.0.1
+// - everything else is returned unchanged.
+// Ports are preserved when present.
+func NormalizeEndpointAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return addr
+	}
+
+	normalizeHost := func(h string) string {
+		switch h {
+		case "localhost", "::1", "[::1]":
+			return "127.0.0.1"
+		default:
+			return h
+		}
+	}
+
+	if host, port, err := net.SplitHostPort(addr); err == nil {
+		host = normalizeHost(host)
+		return net.JoinHostPort(host, port)
+	}
+
+	return normalizeHost(addr)
 }
