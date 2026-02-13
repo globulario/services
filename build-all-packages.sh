@@ -181,7 +181,7 @@ if [[ -f "build.sh" ]]; then
 
     # Build other infrastructure packages with version 0.0.1
     echo "  → Building other infrastructure packages (0.0.1)..."
-    bash build.sh --version "0.0.1" gateway xds minio mc globular_cli
+    bash build.sh --version "0.0.1" gateway xds minio mc globular_cli keepalived
 
     echo ""
     echo "  ✓ Infrastructure packages built"

@@ -109,6 +109,7 @@ func main() {
 	srv.StartHeartbeat(ctx)
 	srv.StartPlanRunner(ctx)
 	srv.StartACMERenewal(ctx)
+	srv.StartIngressReconciliation(ctx)
 	nodeagentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
 
 	log.Printf("node agent listening on %s", address)
