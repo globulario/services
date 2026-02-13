@@ -809,7 +809,11 @@ account.key     # ACME account key
 
 **View domain spec in etcd:**
 ```bash
+# View spec (user intent)
 ETCDCTL_API=3 etcdctl get /globular/domains/v1/api.example.com
+
+# View status (reconciler state - stored separately)
+ETCDCTL_API=3 etcdctl get /globular/domains/v1/api.example.com/status
 ```
 
 **Check reconciler logs:**
