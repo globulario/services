@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/emicklei/proto"
+	"github.com/globulario/services/golang/netutil"
 	Utility "github.com/globulario/utility"
 )
 
@@ -313,6 +314,16 @@ func GetMacAddress() (string, error) {
 // GetAddress returns "<name>.<domain>:<port>" or "localhost[:port]" depending on
 // protocol and local configuration.
 func GetAddress() (string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err != nil {
+		return "", err
+	}
+
+	if addr := strings.TrimSpace(Utility.ToString(localConfig["Address"])); addr != "" {
+		return strings.ToLower(addr), nil
+	}
+
+	// Fallback to host:port construction (legacy behavior)
 	name, err := GetName()
 	if err != nil {
 		return "", err
@@ -329,11 +340,6 @@ func GetAddress() (string, error) {
 		} else {
 			address = name + "." + domain
 		}
-	}
-
-	localConfig, err := GetLocalConfig(true)
-	if err != nil {
-		return "", err
 	}
 
 	if Utility.ToString(localConfig["Protocol"]) == "https" {
@@ -367,7 +373,7 @@ func GetDomain() (string, error) {
 		if s, ok := localConfig["Domain"].(string); ok && s != "" {
 			return strings.ToLower(s), nil
 		}
-		return "localhost", nil
+		return netutil.DefaultClusterDomain(), nil
 	}
 	return "", errors.New("no local configuration found")
 }
@@ -859,6 +865,9 @@ func EnsureLocalConfig() (bool, error) {
 			}
 			cfg = nil
 		} else {
+			// Repair domain/address if needed
+			_ = repairLocalConfig(cfg)
+
 			changed := ensureEtcdRuntimeDefaults(cfg, stateRoot)
 			if rewrite := normalizeLocalConfigArrays(cfg) || changed; rewrite {
 				if err := writeLocalConfig(cfgPath, cfg); err != nil {
@@ -876,6 +885,7 @@ func EnsureLocalConfig() (bool, error) {
 	if admin := loadAdminConfig(); admin != nil {
 		opts = admin
 	}
+	_ = repairLocalConfig(opts)
 	changed := ensureEtcdRuntimeDefaults(opts, stateRoot)
 	if rewrite := normalizeLocalConfigArrays(opts) || changed; rewrite {
 		// ensure consistent ordering after normalization
@@ -962,14 +972,56 @@ func normalizeStringSlice(value interface{}) []string {
 	return out
 }
 
+func repairLocalConfig(cfg map[string]interface{}) bool {
+	changed := false
+
+	// Domain repair
+	domain := netutil.NormalizeDomain(Utility.ToString(cfg["Domain"]))
+	if err := netutil.ValidateClusterDomain(domain); err != nil {
+		domain = netutil.DefaultClusterDomain()
+		changed = true
+	}
+	cfg["Domain"] = domain
+
+	// Address repair
+	addr := strings.TrimSpace(Utility.ToString(cfg["Address"]))
+	if addr == "" || isLoopbackHost(addr) {
+		if ip := resolveAdvertiseAddress(); ip != "" {
+			cfg["Address"] = ip
+			changed = true
+		}
+	}
+	return changed
+}
+
+func isLoopbackHost(addr string) bool {
+	h := addr
+	if strings.Contains(addr, ":") {
+		h, _, _ = strings.Cut(addr, ":")
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+func resolveAdvertiseAddress() string {
+	explicit := strings.TrimSpace(os.Getenv("GLOBULAR_ADVERTISE_ADDRESS"))
+	preferred := strings.TrimSpace(os.Getenv("GLOBULAR_PREFERRED_IFACE"))
+	if ip, err := netutil.ResolveAdvertiseIP(preferred, explicit); err == nil && ip != nil {
+		return ip.String()
+	}
+	return ""
+}
+
 func buildMinimalLocalConfig() map[string]interface{} {
 	name, err := os.Hostname()
 	if err != nil {
 		name = "localhost"
 	}
+	addr := resolveAdvertiseAddress()
 	return map[string]interface{}{
 		"Name":              strings.TrimSpace(name),
 		"Domain":            installerDefaultDomain(),
+		"Address":           addr,
 		"Protocol":          "https",
 		"Peers":             []string{},
 		"AlternateDomains":  []string{},
@@ -982,16 +1034,16 @@ func buildMinimalLocalConfig() map[string]interface{} {
 
 func installerDefaultDomain() string {
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_DOMAIN")); v != "" {
-		return v
+		return netutil.NormalizeDomain(v)
 	}
 	localConf := filepath.Join(GetRuntimeConfigDir(), "local.conf")
 	if domain := readConfKey(localConf, "GLOBULAR_DOMAIN"); domain != "" {
-		return domain
+		return netutil.NormalizeDomain(domain)
 	}
 	if domain := readConfKey(localConf, "DOMAIN"); domain != "" {
-		return domain
+		return netutil.NormalizeDomain(domain)
 	}
-	return "localhost"
+	return netutil.DefaultClusterDomain()
 }
 
 func readConfKey(path, key string) string {

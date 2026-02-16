@@ -282,6 +282,16 @@ func InitService(s Service) error {
 	if cfg != nil {
 		applyDesiredToService(s, cfg)
 	} else {
+		// If no desired exists, attempt to seed from global config to avoid
+		// localhost fallbacks.
+		if global, err := config.GetLocalConfig(true); err == nil && global != nil {
+			if domain := Utility.ToString(global["Domain"]); domain != "" {
+				s.SetDomain(domain)
+			}
+			if addr := Utility.ToString(global["Address"]); addr != "" {
+				s.SetAddress(addr)
+			}
+		}
 		// No existing desired; set conservative defaults if missing.
 		if s.GetPort() == 0 {
 			// leave 0 = caller decides; supervisor usually injects.

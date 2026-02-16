@@ -72,7 +72,9 @@ for exe_path in "${BIN_DIR}"/*_server; do
   if needs_scylla "${svc}"; then
     address_host="auto"
   else
-    address_host="localhost"
+    # Default to auto-select node advertise address; avoid localhost to prevent
+    # Envoy/xDS picking loopback endpoints in multi-service deployments.
+    address_host="auto"
   fi
 
   # Write spec - services store their own config as <uuid>.json in services directory
