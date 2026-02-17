@@ -217,17 +217,22 @@ func etcdEndpointsFromEnv() []string {
 	if dom != "" && !strings.Contains(host, ".") {
 		host = host + "." + dom
 	}
-	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
-		host = "localhost"
-	}
 
 	scheme := "http"
 	if etcdServerTLSExists() {
 		scheme = "https"
 	}
+
+	// Always use 127.0.0.1 for local etcd connections to avoid IPv6 link-local resolution issues
+	// Only add the hostname endpoint if it's a proper FQDN (contains a dot)
 	eps := []string{
 		fmt.Sprintf("%s://127.0.0.1:2379", scheme),
-		fmt.Sprintf("%s://%s:2379", scheme, host),
+	}
+
+	// Only include hostname endpoint if it's a proper FQDN
+	// Bare hostnames may resolve to IPv6 link-local addresses causing connection failures
+	if host != "" && host != "0.0.0.0" && host != "::" && host != "[::]" && strings.Contains(host, ".") {
+		eps = append(eps, fmt.Sprintf("%s://%s:2379", scheme, host))
 	}
 
 	return mapSanitized(eps)
@@ -266,8 +271,29 @@ func GetEtcdTLS() (*tls.Config, error) {
 				break
 			}
 		}
-	} else {
-		return nil, fmt.Errorf("etcd TLS requested but no cert directory found (looked in %s)", canonical)
+	}
+
+	// CLI fallback: also check user's home directory for client certificates
+	// This allows CLI tools to work without system-level certificate access
+	if base == "" {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			userTLSRoot := filepath.Join(homeDir, ".config", "globular", "tls")
+			if entries, err := os.ReadDir(userTLSRoot); err == nil {
+				for _, e := range entries {
+					if e.IsDir() {
+						tryPath := filepath.Join(userTLSRoot, e.Name())
+						if hasServerTriplet(tryPath) {
+							base = tryPath
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if base == "" {
+		return nil, fmt.Errorf("etcd TLS requested but no cert directory found (looked in %s and user home)", canonical)
 	}
 
 	caPath := filepath.Join(base, "ca.crt")
