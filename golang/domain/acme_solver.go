@@ -138,10 +138,10 @@ func (s *DNS01Solver) computeTXTValue(keyAuth string) string {
 
 // extractRelativeName extracts the relative DNS name from a FQDN.
 // Example: "test.example.com" in zone "example.com" → "test"
-//          "example.com" in zone "example.com" → "@"
+//          "example.com" in zone "example.com" → "" (empty string for apex)
 func (s *DNS01Solver) extractRelativeName(domain string) string {
 	if domain == s.zone {
-		return "@"
+		return "" // Empty string for apex domain, not "@"
 	}
 	return strings.TrimSuffix(domain, "."+s.zone)
 }
