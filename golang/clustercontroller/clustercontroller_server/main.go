@@ -11,11 +11,16 @@ import (
 	"net/http/pprof"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/clustercontroller/clustercontroller_server/internal/recovery"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/domain"
+	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
+	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
+	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
 	planstore "github.com/globulario/services/golang/plan/store"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -172,6 +177,9 @@ func main() {
 	// Start DNS reconciler if cluster domain is configured
 	startDNSReconciler(srv, state)
 
+	// Start domain reconciler for external domains (DNS providers + ACME)
+	startDomainReconciler(ctx, etcdClient)
+
 	// Start serving
 	logger.Info("cluster controller ready",
 		"address", address,
@@ -231,6 +239,50 @@ func startDNSReconciler(srv *server, state *controllerState) {
 	dnsReconciler := NewDNSReconciler(srv, dnsEndpoints)
 	dnsReconciler.Start()
 	logger.Info("dns reconciler: ENABLED", "domain", clusterDomain, "endpoints", dnsEndpoints)
+}
+
+// startDomainReconciler starts the external domain reconciler for DNS providers and ACME.
+func startDomainReconciler(ctx context.Context, etcdClient *clientv3.Client) {
+	if etcdClient == nil {
+		logger.Info("domain reconciler: DISABLED (no etcd client)")
+		return
+	}
+
+	// Auto-detect certificate ownership from /var/lib/globular
+	certUID, certGID := 0, 0
+	if info, err := os.Stat("/var/lib/globular"); err == nil {
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+			certUID = int(stat.Uid)
+			certGID = int(stat.Gid)
+		}
+	}
+
+	// Create domain reconciler
+	reconciler, err := domain.NewReconciler(domain.ReconcilerConfig{
+		EtcdClient:  etcdClient,
+		Logger:      logger,
+		CertsDir:    "/var/lib/globular/domains",
+		CertUID:     certUID,
+		CertGID:     certGID,
+		Interval:    1 * time.Minute,       // Check every minute
+		RenewBefore: 30 * 24 * time.Hour,   // Renew 30 days before expiry
+	})
+	if err != nil {
+		logger.Error("domain reconciler: failed to create", "error", err)
+		return
+	}
+
+	// Start reconciler
+	if err := reconciler.Start(ctx); err != nil {
+		logger.Error("domain reconciler: failed to start", "error", err)
+		return
+	}
+
+	logger.Info("domain reconciler: ENABLED",
+		"certs_dir", "/var/lib/globular/domains",
+		"interval", "1m",
+		"renew_before", "30d",
+	)
 }
 
 // printUsage prints command-line usage information.
