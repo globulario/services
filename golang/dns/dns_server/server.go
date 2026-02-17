@@ -719,10 +719,12 @@ func main() {
 
 	args := flag.Args()
 
-	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
-		logger.Error("port allocation failed", "error", err)
-		os.Exit(1)
-	}
+	// DNS is a well-known service with fixed port (10006) - skip dynamic allocation
+	// to ensure CLI can connect during bootstrap before service discovery is available
+	// if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
+	// 	logger.Error("port allocation failed", "error", err)
+	// 	os.Exit(1)
+	// }
 
 	globular.ParsePositionalArgs(srv, args)
 	globular.LoadRuntimeConfig(srv)
