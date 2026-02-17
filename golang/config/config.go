@@ -378,6 +378,66 @@ func GetDomain() (string, error) {
 	return "", errors.New("no local configuration found")
 }
 
+// GetGatewayEndpoint returns the Gateway HTTP/HTTPS endpoint for certificate operations.
+// This endpoint is used for /get_ca_certificate and /sign_ca_certificate requests.
+// Returns: (url, protocol, error) where:
+//   - url is the full Gateway endpoint (e.g., "https://node.domain:8443")
+//   - protocol is "https" or "http"
+//   - error if configuration is missing or invalid
+//
+// Prefers HTTPS if Protocol="https" and PortHTTPS is configured, otherwise falls back to HTTP.
+// This function MUST be used instead of gRPC service ports for certificate bootstrap operations.
+func GetGatewayEndpoint() (string, string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err != nil {
+		return "", "", fmt.Errorf("gateway endpoint: cannot read local configuration: %w", err)
+	}
+
+	// Get name and domain for address construction
+	name, err := GetName()
+	if err != nil {
+		return "", "", fmt.Errorf("gateway endpoint: cannot determine name: %w", err)
+	}
+	domain, err := GetDomain()
+	if err != nil {
+		return "", "", fmt.Errorf("gateway endpoint: cannot determine domain: %w", err)
+	}
+
+	// Construct hostname
+	hostname := name
+	if domain != "" && domain != "localhost" {
+		hostname = name + "." + domain
+	} else {
+		hostname = "localhost"
+	}
+
+	// Determine protocol and port
+	protocol := strings.TrimSpace(strings.ToLower(Utility.ToString(localConfig["Protocol"])))
+	if protocol == "" {
+		protocol = "https" // Default to HTTPS per security hardening
+	}
+
+	var port int
+	if protocol == "https" {
+		port = Utility.ToInt(localConfig["PortHTTPS"])
+		if port == 0 {
+			port = 8443 // Fallback to standard HTTPS port
+		}
+	} else {
+		port = Utility.ToInt(localConfig["PortHTTP"])
+		if port == 0 {
+			port = 8080 // Fallback to standard HTTP port
+		}
+	}
+
+	if port < 1 || port > 65535 {
+		return "", "", fmt.Errorf("gateway endpoint: invalid port %d (protocol=%s)", port, protocol)
+	}
+
+	url := fmt.Sprintf("%s://%s:%d", protocol, hostname, port)
+	return url, protocol, nil
+}
+
 func GetHostname() (string, error) {
 	name, err := GetName()
 	if err != nil {

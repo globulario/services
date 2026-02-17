@@ -198,10 +198,24 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 
 /* ---------- unchanged public API (kept for completeness) ---------- */
 
-func InstallClientCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
-	
+// InstallClientCertificates installs client certificates by contacting the Gateway service.
+// This function is Gateway-aware and uses the cluster's configured gateway endpoint
+// (from config, not hardcoded ports). It never uses gRPC service ports.
+//
+// Parameters:
+//   - domain: The effective domain for certificate generation (used for SAN)
+//   - path: Directory where certificates will be stored
+//   - country, state, city, organization: Certificate subject fields
+//   - alternateDomains: Additional SANs for the certificate
+//
+// Returns: (keyPath, certPath, caPath, error)
+//
+// This function will fail if no gateway is reachable. Certificate operations
+// are decoupled from gRPC service discovery and always go through the HTTP/HTTPS gateway.
+func InstallClientCertificates(domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+
 	err := withCredsLock(path, func() error {
-		_, _, _, e := getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+		_, _, _, e := getClientCredentialConfig(path, domain, country, state, city, organization, alternateDomains)
 		return e
 	})
 	if err != nil {
@@ -210,9 +224,23 @@ func InstallClientCertificates(domain string, port int, path string, country str
 	return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
 }
 
-func InstallServerCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+// InstallServerCertificates installs server certificates by contacting the Gateway service.
+// This function is Gateway-aware and uses the cluster's configured gateway endpoint
+// (from config, not hardcoded ports). It never uses gRPC service ports.
+//
+// Parameters:
+//   - domain: The effective domain for certificate generation (used for SAN)
+//   - path: Directory where certificates will be stored
+//   - country, state, city, organization: Certificate subject fields
+//   - alternateDomains: Additional SANs for the certificate
+//
+// Returns: (keyPath, certPath, caPath, error)
+//
+// This function will fail if no gateway is reachable. Certificate operations
+// are decoupled from gRPC service discovery and always go through the HTTP/HTTPS gateway.
+func InstallServerCertificates(domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
 	err := withCredsLock(path, func() error {
-		_, _, _, e := getServerCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
+		_, _, _, e := getServerCredentialConfig(path, domain, country, state, city, organization, alternateDomains)
 		return e
 	})
 	if err != nil {
@@ -320,8 +348,7 @@ func fileSPKIFingerprint(path string) (string, error) {
 // Client creds
 // ----------------------------------------------------------------------------
 
-func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
-	address := domain
+func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}) (keyPath string, certPath string, caPath string, err error) {
 	const pwd = "1111"
 
 	if err = Utility.CreateDirIfNotExist(path); err != nil {
@@ -330,10 +357,28 @@ func getClientCredentialConfig(path string, domain string, country string, state
 
 	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
-	// Retrieve CA certificate from authority (deterministic)
-	caCRT, err := getCaCertificate(address, port)
+	// Resolve Gateway endpoint for certificate operations (never use gRPC ports)
+	gatewayURL, gatewayProto, err := config_.GetGatewayEndpoint()
 	if err != nil {
-		return "", "", "", fmt.Errorf("client creds: get ca.crt: %w", err)
+		return "", "", "", fmt.Errorf("client creds: gateway endpoint unavailable: %w", err)
+	}
+
+	// Extract host and port from Gateway URL for certificate retrieval
+	// gatewayURL format: "https://hostname:8443" or "http://hostname:8080"
+	gatewayHost := strings.TrimPrefix(gatewayURL, gatewayProto+"://")
+	var gatewayAddress string
+	var gatewayPort int
+	if idx := strings.LastIndex(gatewayHost, ":"); idx > 0 {
+		gatewayAddress = gatewayHost[:idx]
+		gatewayPort = Utility.ToInt(gatewayHost[idx+1:])
+	} else {
+		return "", "", "", fmt.Errorf("client creds: invalid gateway URL format: %s", gatewayURL)
+	}
+
+	// Retrieve CA certificate from Gateway (deterministic)
+	caCRT, err := getCaCertificate(gatewayAddress, gatewayPort)
+	if err != nil {
+		return "", "", "", fmt.Errorf("client creds: get ca.crt from gateway: %w", err)
 	}
 	remoteFP, err := spkiFingerprintFromPEM([]byte(caCRT))
 	if err != nil {
@@ -351,7 +396,7 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		}
 	}
 
-	// Build fresh set atomically
+	// Build fresh set atomically (capture Gateway variables for closure)
 	err = atomicWriteCreds(path, func(tmp string) error {
 		// write ca.crt
 		if err := os.WriteFile(filepath.Join(tmp, "ca.crt"), []byte(caCRT), 0o444); err != nil {
@@ -370,8 +415,8 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("client creds: read CSR: %w", err)
 		}
-		host, p := resolveCAAuthority(address, port)
-		clientCRT, err := signCaCertificate(host, string(csr), p)
+		// Use Gateway endpoint for certificate signing (captured from outer scope)
+		clientCRT, err := signCaCertificate(gatewayAddress, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("client creds: sign via CA: %w", err)
 		}
@@ -394,7 +439,7 @@ func getClientCredentialConfig(path string, domain string, country string, state
 // Server creds
 // ----------------------------------------------------------------------------
 
-func getServerCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
+func getServerCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}) (keyPath string, certPath string, caPath string, err error) {
 	const pwd = "1111"
 
 	if err = Utility.CreateDirIfNotExist(path); err != nil {
@@ -403,10 +448,28 @@ func getServerCredentialConfig(path string, domain string, country string, state
 
 	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
-	// Retrieve CA from authority (deterministic)
-	caCRT, err := getCaCertificate(domain, port)
+	// Resolve Gateway endpoint for certificate operations (never use gRPC ports)
+	gatewayURL, gatewayProto, err := config_.GetGatewayEndpoint()
 	if err != nil {
-		return "", "", "", fmt.Errorf("server creds: get ca.crt: %w", err)
+		return "", "", "", fmt.Errorf("server creds: gateway endpoint unavailable: %w", err)
+	}
+
+	// Extract host and port from Gateway URL for certificate retrieval
+	// gatewayURL format: "https://hostname:8443" or "http://hostname:8080"
+	gatewayHost := strings.TrimPrefix(gatewayURL, gatewayProto+"://")
+	var gatewayAddress string
+	var gatewayPort int
+	if idx := strings.LastIndex(gatewayHost, ":"); idx > 0 {
+		gatewayAddress = gatewayHost[:idx]
+		gatewayPort = Utility.ToInt(gatewayHost[idx+1:])
+	} else {
+		return "", "", "", fmt.Errorf("server creds: invalid gateway URL format: %s", gatewayURL)
+	}
+
+	// Retrieve CA certificate from Gateway (deterministic)
+	caCRT, err := getCaCertificate(gatewayAddress, gatewayPort)
+	if err != nil {
+		return "", "", "", fmt.Errorf("server creds: get ca.crt from gateway: %w", err)
 	}
 	remoteFP, err := spkiFingerprintFromPEM([]byte(caCRT))
 	if err != nil {
@@ -424,7 +487,7 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		}
 	}
 
-	// Build fresh set atomically
+	// Build fresh set atomically (capture Gateway variables for closure)
 	err = atomicWriteCreds(path, func(tmp string) error {
 		if err := os.WriteFile(filepath.Join(tmp, "ca.crt"), []byte(caCRT), 0o444); err != nil {
 			return fmt.Errorf("server creds: write ca.crt: %w", err)
@@ -442,8 +505,8 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("server creds: read CSR: %w", err)
 		}
-		host, p := resolveCAAuthority(domain, port)
-		crt, err := signCaCertificate(host, string(csr), p)
+		// Use Gateway endpoint for certificate signing (captured from outer scope)
+		crt, err := signCaCertificate(gatewayAddress, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("server creds: sign via CA: %w", err)
 		}
@@ -476,20 +539,20 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	alts := normalizeAltDomains(domain, alternateDomains, &domain)
 
 	// Prefer external DNS authority if configured and distinct
+	// Note: Certificate operations now go through Gateway, not DNS service
 	if localCfg, err := config_.GetLocalConfig(true); err == nil && localCfg != nil {
 		if dns, ok := localCfg["DNS"].(string); ok && strings.TrimSpace(dns) != "" {
 			dnsAddr := dns
-			p := 443
 			if i := strings.IndexByte(dnsAddr, ':'); i > 0 {
-				p = Utility.ToInt(dnsAddr[i+1:])
-				dnsAddr = dnsAddr[:i]
+				dnsAddr = dnsAddr[:i] // Extract hostname, ignore port
 			}
 			fqdn := fmt.Sprintf("%s.%s", localCfg["Name"], localCfg["Domain"])
 			if dnsAddr != fqdn {
-				if _, _, _, err := getServerCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, p); err != nil {
+				// Certificate operations always use Gateway endpoint, not DNS port
+				if _, _, _, err := getServerCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains); err != nil {
 					return err
 				}
-				if _, _, _, err := getClientCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains, p); err != nil {
+				if _, _, _, err := getClientCredentialConfig(path, dnsAddr, country, state, city, organization, alternateDomains); err != nil {
 					return err
 				}
 				return nil

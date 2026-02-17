@@ -597,15 +597,16 @@ func setupClientTLS(client Client, cfg map[string]interface{}, isLocal bool, eff
 	}
 
 	// 4) Install into base/effectiveHost (not into a bare cluster domain)
+	// Certificate operations are Gateway-aware and do NOT use gRPC service ports
 	path := filepath.Join(base, effectiveHost)
 
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(
-		effectiveHost, ctrlPort, path,
+		effectiveHost, path,
 		asString(cfg["Country"]), asString(cfg["State"]), asString(cfg["City"]), asString(cfg["Organization"]),
 		nil,
 	)
 	if err != nil {
-		slog.Error("InitClient: InstallClientCertificates failed", "domain", effectiveHost, "port", ctrlPort, "base", base, "err", err)
+		slog.Error("InitClient: InstallClientCertificates failed (gateway unavailable?)", "domain", effectiveHost, "base", base, "err", err)
 		return err
 	}
 	client.SetKeyFile(keyFile)
@@ -1107,9 +1108,10 @@ func populateClientTLS(c Client) error {
 	if ctrlPort == 0 {
 		return fmt.Errorf("invalid control address %q: no port", c.GetAddress())
 	}
+	// Certificate operations are Gateway-aware and do NOT use gRPC service ports
 	path := filepath.Join(base, host)
 	keyFile, certFile, caFile, err := security.InstallClientCertificates(
-		host, ctrlPort, path,
+		host, path,
 		"", "", "", "",
 		nil,
 	)
