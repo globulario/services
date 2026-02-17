@@ -238,96 +238,48 @@ func etcdEndpointsFromEnv() []string {
 	return mapSanitized(eps)
 }
 
-// GetEtcdTLS returns a tls.Config that trusts the local CA and (optionally) presents a client cert.
+// GetEtcdTLS returns a tls.Config for etcd using canonical PKI paths only.
+// Migration: Removed legacy fallback logic - uses only /var/lib/globular/pki/issued/etcd/
 func GetEtcdTLS() (*tls.Config, error) {
-	cfgDir := GetConfigDir()
+	// Use canonical PKI location only (no fallbacks)
+	certDir := filepath.Join(GetStateRootDir(), "pki", "issued", "etcd")
+	certPath := filepath.Join(certDir, "client.crt")
+	keyPath := filepath.Join(certDir, "client.key")
+	caPath := GetCACertificatePath()
 
-	canonical := filepath.Join(cfgDir, "tls", "etcd")
-	legacyAllowed := strings.TrimSpace(os.Getenv("GLOBULAR_ALLOW_LEGACY_TLS_DIRS")) == "1"
-	var base string
-	if hasServerTriplet(canonical) {
-		base = canonical
-	} else if legacyAllowed {
-		tryDirs := []string{}
-		tlsRoot := filepath.Join(cfgDir, "tls")
-		if entries, err := os.ReadDir(tlsRoot); err == nil {
-			for _, e := range entries {
-				if e.IsDir() {
-					tryDirs = append(tryDirs, filepath.Join(tlsRoot, e.Name()))
-				}
-			}
-		}
-		uniq := make([]string, 0, len(tryDirs))
-		seen := map[string]bool{}
-		for _, d := range tryDirs {
-			if d != "" && !seen[d] {
-				seen[d] = true
-				uniq = append(uniq, d)
-			}
-		}
-		for _, d := range uniq {
-			if hasServerTriplet(d) {
-				base = d
-				break
-			}
-		}
+	// Verify all required files exist
+	if !fileExists(certPath) {
+		return nil, fmt.Errorf("etcd client certificate not found at canonical location: %s", certPath)
+	}
+	if !fileExists(keyPath) {
+		return nil, fmt.Errorf("etcd client key not found at canonical location: %s", keyPath)
+	}
+	if !fileExists(caPath) {
+		return nil, fmt.Errorf("CA certificate not found at canonical location: %s", caPath)
 	}
 
-	// CLI fallback: also check user's home directory for client certificates
-	// This allows CLI tools to work without system-level certificate access
-	if base == "" {
-		if homeDir, err := os.UserHomeDir(); err == nil {
-			userTLSRoot := filepath.Join(homeDir, ".config", "globular", "tls")
-			if entries, err := os.ReadDir(userTLSRoot); err == nil {
-				for _, e := range entries {
-					if e.IsDir() {
-						tryPath := filepath.Join(userTLSRoot, e.Name())
-						if hasServerTriplet(tryPath) {
-							base = tryPath
-							break
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if base == "" {
-		return nil, fmt.Errorf("etcd TLS requested but no cert directory found (looked in %s and user home)", canonical)
-	}
-
-	caPath := filepath.Join(base, "ca.crt")
-	clientCrt := filepath.Join(base, "client.crt")
-	clientKey := filepath.Join(base, "client.pem")
-
-	// Root pool: system + your CA
-	pool, _ := x509.SystemCertPool()
-	if pool == nil {
-		pool = x509.NewCertPool()
-	}
-	caPEM, err := os.ReadFile(caPath)
+	// Load client certificate
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		return nil, fmt.Errorf("read CA: %w", err)
-	}
-	if !pool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("append CA failed (invalid PEM?)")
+		return nil, fmt.Errorf("failed to load etcd client certificate: %w", err)
 	}
 
-	tcfg := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		RootCAs:            pool,
-		InsecureSkipVerify: false,
+	// Load CA
+	caData, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
 	}
 
-	// Optional mTLS
-	if fileExists(clientCrt) && fileExists(clientKey) {
-		cert, err := tls.LoadX509KeyPair(clientCrt, clientKey)
-		if err != nil {
-			return nil, fmt.Errorf("load client keypair: %w", err)
-		}
-		tcfg.Certificates = []tls.Certificate{cert}
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caData) {
+		return nil, fmt.Errorf("failed to parse CA certificate")
 	}
-	return tcfg, nil
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caPool,
+		MinVersion:   tls.VersionTLS13,
+	}, nil
 }
 
 func fileExists(p string) bool {

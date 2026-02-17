@@ -450,6 +450,59 @@ func GetHostname() (string, error) {
 	return fmt.Sprintf("%s.%s", name, domain), nil
 }
 
+// ============================================================================
+// Canonical Path Functions (Migration - INV-PKI-1)
+// ============================================================================
+
+// GetCACertificatePath returns the ONLY canonical location for the system CA.
+// INV-PKI-1: CA only at /var/lib/globular/pki/
+func GetCACertificatePath() string {
+	return filepath.Join(GetStateRootDir(), "pki", "ca.crt")
+}
+
+// GetCAKeyPath returns the ONLY canonical location for the CA private key.
+func GetCAKeyPath() string {
+	return filepath.Join(GetStateRootDir(), "pki", "ca.key")
+}
+
+// GetServiceCertPath returns canonical path for issued service certificate.
+// serviceName: "services", "etcd", "gateway", "minio", "dns"
+func GetServiceCertPath(serviceName string) (certPath string, keyPath string, err error) {
+	base := filepath.Join(GetStateRootDir(), "pki", "issued", serviceName)
+	certPath = filepath.Join(base, "service.crt")
+	keyPath = filepath.Join(base, "service.key")
+
+	if !Utility.Exists(certPath) {
+		return "", "", fmt.Errorf("service certificate not found at canonical location: %s", certPath)
+	}
+	if !Utility.Exists(keyPath) {
+		return "", "", fmt.Errorf("service key not found at canonical location: %s", keyPath)
+	}
+
+	return certPath, keyPath, nil
+}
+
+// GetDomainCertPath returns canonical path for ACME-issued domain certificate.
+// INV-ACME-1: ACME certs only under /var/lib/globular/domains/<fqdn>/
+func GetDomainCertPath(fqdn string) (certPath string, keyPath string, err error) {
+	base := filepath.Join(GetStateRootDir(), "domains", fqdn)
+	certPath = filepath.Join(base, "fullchain.pem")
+	keyPath = filepath.Join(base, "privkey.pem")
+
+	if !Utility.Exists(certPath) {
+		return "", "", fmt.Errorf("domain certificate not found at canonical location: %s", certPath)
+	}
+	if !Utility.Exists(keyPath) {
+		return "", "", fmt.Errorf("domain key not found at canonical location: %s", keyPath)
+	}
+
+	return certPath, keyPath, nil
+}
+
+// ============================================================================
+// Legacy TLS Functions (kept for compatibility, use canonical paths with fallback)
+// ============================================================================
+
 func GetTLSFile(name, domain, file string) string {
 	// Map of logical certificate names to possible filenames
 	// Supports both traditional naming (server.crt), ACME/Let's Encrypt naming (fullchain.pem),
@@ -487,31 +540,34 @@ func GetTLSFile(name, domain, file string) string {
 	return ""
 }
 
+// GetLocalServerCertificatePath returns the server certificate path using canonical PKI location.
+// Migration: Now uses canonical path only (no legacy fallbacks).
 func GetLocalServerCertificatePath() string {
-	if cfg, err := GetLocalConfig(true); err == nil {
-		name, _ := cfg["Name"].(string)
-		domain, _ := cfg["Domain"].(string)
-		return GetTLSFile(name, domain, "server.crt")
+	certPath, _, err := GetServiceCertPath("services")
+	if err != nil {
+		return ""
 	}
-	return ""
+	return certPath
 }
 
+// GetLocalCACertificate returns the CA certificate path using canonical PKI location.
+// Migration: Now uses canonical path only (no legacy fallbacks).
 func GetLocalCACertificate() string {
-	if cfg, err := GetLocalConfig(true); err == nil {
-		name, _ := cfg["Name"].(string)
-		domain, _ := cfg["Domain"].(string)
-		return GetTLSFile(name, domain, "ca.crt")
+	caPath := GetCACertificatePath()
+	if !Utility.Exists(caPath) {
+		return ""
 	}
-	return ""
+	return caPath
 }
 
+// GetLocalServerKeyPath returns the server key path using canonical PKI location.
+// Migration: Now uses canonical path only (no legacy fallbacks).
 func GetLocalServerKeyPath() string {
-	if cfg, err := GetLocalConfig(true); err == nil {
-		name, _ := cfg["Name"].(string)
-		domain, _ := cfg["Domain"].(string)
-		return GetTLSFile(name, domain, "server.key")
+	_, keyPath, err := GetServiceCertPath("services")
+	if err != nil {
+		return ""
 	}
-	return ""
+	return keyPath
 }
 
 func GetLocalClientKeyPath() string {

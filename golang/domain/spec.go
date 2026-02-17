@@ -172,12 +172,19 @@ func (s *ExternalDomainSpec) Validate() error {
 	}
 
 	// Validate ingress config
+	// INV-EDGE-HTTPS-1: Cluster edge must be HTTPS from start (reject HTTP port 8080)
 	if s.Ingress.Enabled {
+		// Enforce HTTPS-only invariant
+		if s.Ingress.Port == 8080 {
+			return fmt.Errorf("INVARIANT VIOLATION (INV-EDGE-HTTPS-1): ingress port 8080 (HTTP) not allowed; use 8443 (HTTPS)")
+		}
+
+		// Apply safe defaults
 		if s.Ingress.Service == "" {
 			s.Ingress.Service = "gateway" // default
 		}
 		if s.Ingress.Port == 0 {
-			s.Ingress.Port = 443 // default
+			s.Ingress.Port = 8443 // default to HTTPS (was 443, now 8443 to match Gateway edge port)
 		}
 	}
 
