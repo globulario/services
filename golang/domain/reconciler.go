@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -560,15 +561,70 @@ func (r *Reconciler) getProvider(ctx context.Context, providerRef, zone string) 
 	return provider, nil
 }
 
-// discoverPublicIP discovers the node's public IP address.
+// discoverPublicIP discovers the node's public IP address by querying external services.
 func (r *Reconciler) discoverPublicIP() (string, error) {
-	// TODO: Implement public IP discovery
-	// Options:
-	// 1. Query external service (e.g., icanhazip.com, ipify.org)
-	// 2. Read from node metadata/config
-	// 3. Use configured static IP
+	// Try multiple services in order for reliability
+	services := []string{
+		"https://api.ipify.org",
+		"https://icanhazip.com",
+		"https://ifconfig.me/ip",
+	}
 
-	return "", fmt.Errorf("public IP discovery not implemented yet (use explicit --target-ip)")
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	var lastErr error
+	for _, service := range services {
+		r.logger.Debug("discovering public IP", "service", service)
+
+		resp, err := client.Get(service)
+		if err != nil {
+			r.logger.Warn("failed to query IP service", "service", service, "error", err)
+			lastErr = err
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			err := fmt.Errorf("HTTP %d", resp.StatusCode)
+			r.logger.Warn("IP service returned non-200", "service", service, "status", resp.StatusCode)
+			lastErr = err
+			continue
+		}
+
+		bodyBytes := make([]byte, 256)
+		n, err := resp.Body.Read(bodyBytes)
+		if err != nil && n == 0 {
+			r.logger.Warn("failed to read response body", "service", service, "error", err)
+			lastErr = err
+			continue
+		}
+
+		ip := strings.TrimSpace(string(bodyBytes[:n]))
+		if ip == "" {
+			err := fmt.Errorf("empty response")
+			r.logger.Warn("IP service returned empty response", "service", service)
+			lastErr = err
+			continue
+		}
+
+		// Validate IP format
+		if !strings.Contains(ip, ".") && !strings.Contains(ip, ":") {
+			err := fmt.Errorf("invalid IP format: %s", ip)
+			r.logger.Warn("IP service returned invalid format", "service", service, "response", ip)
+			lastErr = err
+			continue
+		}
+
+		r.logger.Info("discovered public IP", "ip", ip, "service", service)
+		return ip, nil
+	}
+
+	if lastErr != nil {
+		return "", fmt.Errorf("failed to discover public IP from all services: %w", lastErr)
+	}
+	return "", fmt.Errorf("failed to discover public IP: no services responded")
 }
 
 // setStatus updates the domain status in etcd using the separate status key.
