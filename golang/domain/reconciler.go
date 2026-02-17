@@ -232,9 +232,15 @@ func (r *Reconciler) reconcileDomain(ctx context.Context, spec *ExternalDomainSp
 		return fmt.Errorf("failed to load provider: %w", err)
 	}
 
-	// Step 1: Ensure DNS A/AAAA record exists
-	if err := r.ensureDNSRecord(ctx, spec, provider); err != nil {
-		return fmt.Errorf("failed to ensure DNS record: %w", err)
+	// Step 1: Ensure DNS A/AAAA record exists (only if PublishExternal=true)
+	// INV-DNS-EXT-1: Never publish node-specific records externally
+	if spec.PublishExternal {
+		if err := r.ensureDNSRecord(ctx, spec, provider); err != nil {
+			return fmt.Errorf("failed to ensure DNS record: %w", err)
+		}
+		r.logger.Info("external DNS record published", "fqdn", spec.FQDN)
+	} else {
+		r.logger.Info("skipping external DNS publication (publish_external=false)", "fqdn", spec.FQDN)
 	}
 
 	// Step 2: If ACME enabled, ensure certificate exists and is valid
@@ -385,8 +391,15 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 	}
 
 	// Obtain certificate
+	// INV-DNS-EXT-1: Support wildcard cert issuance (*.zone)
+	certDomain := spec.FQDN
+	if spec.UseWildcardCert {
+		certDomain = "*." + spec.Zone
+		r.logger.Info("requesting wildcard certificate", "domain", certDomain)
+	}
+
 	request := certificate.ObtainRequest{
-		Domains: []string{spec.FQDN},
+		Domains: []string{certDomain},
 		Bundle:  true,
 	}
 

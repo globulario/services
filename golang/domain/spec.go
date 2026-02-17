@@ -29,6 +29,20 @@ type ExternalDomainSpec struct {
 	// Refers to a ProviderConfig stored at /globular/providers/v1/<name>
 	ProviderRef string `json:"provider_ref"`
 
+	// PublishExternal controls whether this domain should be published to external DNS.
+	// INV-DNS-EXT-1: Only reconcile cluster public domain(s), never node-specific hostnames.
+	// - true: Publish A/AAAA record externally (e.g., apex domain "globular.cloud")
+	// - false: Skip external DNS publication (e.g., node-specific "n0.globular.cloud")
+	// Default: false (safe default - explicit opt-in for external publication)
+	PublishExternal bool `json:"publish_external"`
+
+	// UseWildcardCert controls whether to request a wildcard certificate (*.zone) instead of FQDN cert.
+	// INV-DNS-EXT-1: Support wildcard cert issuance: *.globular.cloud
+	// - true: Request *.zone certificate (e.g., *.globular.cloud)
+	// - false: Request FQDN-specific certificate (e.g., node.globular.cloud)
+	// Wildcard certs allow adding subdomains without regenerating certificates.
+	UseWildcardCert bool `json:"use_wildcard_cert"`
+
 	// TTL is the DNS record time-to-live in seconds.
 	// Default: 600 (10 minutes)
 	TTL int `json:"ttl"`

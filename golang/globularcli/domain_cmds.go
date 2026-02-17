@@ -112,17 +112,19 @@ var dnsProviderListCmd = &cobra.Command{
 // Flags for domain add
 var (
 	domainFQDN         string
-	domainZone         string
-	domainProvider     string
-	domainTargetIP     string
-	domainTTL          int
-	domainNodeID       string
-	domainEnableACME   bool
-	domainACMEEmail    string
-	domainACMEDir      string
-	domainEnableIngress bool
-	domainIngressSvc   string
-	domainIngressPort  int
+	domainZone            string
+	domainProvider        string
+	domainTargetIP        string
+	domainTTL             int
+	domainNodeID          string
+	domainPublishExternal bool // INV-DNS-EXT-1: Control external DNS publication
+	domainUseWildcardCert bool // INV-DNS-EXT-1: Request wildcard certificate (*.zone)
+	domainEnableACME      bool
+	domainACMEEmail       string
+	domainACMEDir         string
+	domainEnableIngress   bool
+	domainIngressSvc      string
+	domainIngressPort     int
 )
 
 // Flags for domain remove
@@ -150,6 +152,8 @@ func init() {
 	domainAddCmd.Flags().BoolVar(&domainEnableACME, "enable-acme", false, "Enable ACME certificate acquisition")
 	domainAddCmd.Flags().StringVar(&domainACMEEmail, "acme-email", "", "ACME account email (required if --enable-acme)")
 	domainAddCmd.Flags().StringVar(&domainACMEDir, "acme-directory", "", "ACME directory URL (empty=production, 'staging'=LE staging)")
+	domainAddCmd.Flags().BoolVar(&domainPublishExternal, "publish-external", false, "Publish A/AAAA record to external DNS provider (INV-DNS-EXT-1: never publish node-specific names)")
+	domainAddCmd.Flags().BoolVar(&domainUseWildcardCert, "use-wildcard-cert", false, "Request wildcard certificate (*.zone) instead of FQDN-specific cert")
 	domainAddCmd.Flags().BoolVar(&domainEnableIngress, "enable-ingress", true, "Enable Envoy ingress routing")
 	domainAddCmd.Flags().StringVar(&domainIngressSvc, "ingress-service", "gateway", "Ingress backend service")
 	domainAddCmd.Flags().IntVar(&domainIngressPort, "ingress-port", 443, "Ingress backend port")
@@ -207,12 +211,14 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 
 	// Build spec
 	spec := &domain.ExternalDomainSpec{
-		FQDN:        domainFQDN,
-		Zone:        domainZone,
-		NodeID:      domainNodeID,
-		TargetIP:    domainTargetIP,
-		ProviderRef: domainProvider,
-		TTL:         domainTTL,
+		FQDN:            domainFQDN,
+		Zone:            domainZone,
+		NodeID:          domainNodeID,
+		TargetIP:        domainTargetIP,
+		ProviderRef:     domainProvider,
+		TTL:             domainTTL,
+		PublishExternal: domainPublishExternal, // INV-DNS-EXT-1
+		UseWildcardCert: domainUseWildcardCert, // INV-DNS-EXT-1
 		ACME: domain.ACMEConfig{
 			Enabled:       domainEnableACME,
 			ChallengeType: "dns-01",
