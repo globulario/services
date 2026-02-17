@@ -12,7 +12,9 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/domain"
 	"github.com/globulario/services/golang/dnsprovider"
-	_ "github.com/globulario/services/golang/dnsprovider/manual" // Register manual provider
+	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
+	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
+	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -253,6 +255,15 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save domain spec to etcd: %w", err)
 	}
 
+	// Verify persistence by reading back
+	verifyResp, err := etcdClient.Get(ctx, key)
+	if err != nil {
+		return fmt.Errorf("domain saved but verification failed: %w\nPossible causes: etcd connectivity issues, TLS misconfiguration", err)
+	}
+	if verifyResp.Count == 0 {
+		return fmt.Errorf("domain spec not found after write - etcd may be misconfigured\nPossible causes:\n  - etcd endpoint mismatch\n  - service discovery failure\n  - TLS certificate issues\nDebug with: globular domain status --fqdn %s", domainFQDN)
+	}
+
 	fmt.Printf("✓ External domain registered: %s\n", domainFQDN)
 	fmt.Printf("  Zone:     %s\n", domainZone)
 	fmt.Printf("  Provider: %s\n", domainProvider)
@@ -297,11 +308,23 @@ func runDomainStatus(cmd *cobra.Command, args []string) error {
 
 	if resp.Count == 0 {
 		if domainFQDN != "" {
-			fmt.Printf("Domain %q not found.\n", domainFQDN)
+			// Specific domain not found - this is an error
+			if rootCfg.output == "json" {
+				// Output valid JSON error for scripts
+				fmt.Fprintf(os.Stderr, `{"error": "domain not found", "fqdn": %q}`+"\n", domainFQDN)
+			} else {
+				fmt.Fprintf(os.Stderr, "Domain %q not found.\n", domainFQDN)
+			}
+			return fmt.Errorf("domain %s not found", domainFQDN)
 		} else {
-			fmt.Println("No external domains registered.")
+			// No domains registered - not an error, just empty result
+			if rootCfg.output == "json" {
+				fmt.Println("[]")
+			} else {
+				fmt.Println("No external domains registered.")
+			}
+			return nil
 		}
-		return nil
 	}
 
 	// Parse and display
