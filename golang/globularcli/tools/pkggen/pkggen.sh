@@ -103,7 +103,7 @@ build_one() {
   rm -rf "${root}"
   mkdir -p "${root}/bin" "${root}/specs"
 
-  cp -a "${exe_path}" "${root}/bin/${exe}"
+  cp -L "${exe_path}" "${root}/bin/${exe}"
   cp -a "${spec_src}" "${root}/specs/${svc}_service.yaml"
 
   # Copy config if it exists
