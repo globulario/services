@@ -393,14 +393,22 @@ func (r *Reconciler) ensureCertificate(ctx context.Context, spec *ExternalDomain
 
 	// Obtain certificate
 	// INV-DNS-EXT-1: Support wildcard cert issuance (*.zone)
-	certDomain := spec.FQDN
+	// CRITICAL: Wildcard certs (*.zone) do NOT match apex domain (zone)
+	// Solution: Request multi-domain SAN certificate with BOTH apex and wildcard
+	var certDomains []string
 	if spec.UseWildcardCert {
-		certDomain = "*." + spec.Zone
-		r.logger.Info("requesting wildcard certificate", "domain", certDomain)
+		// Request both apex domain and wildcard subdomain in same certificate
+		// This allows the certificate to work for both globular.cloud AND *.globular.cloud
+		certDomains = []string{spec.Zone, "*." + spec.Zone}
+		r.logger.Info("requesting wildcard certificate with apex domain",
+			"domains", certDomains)
+	} else {
+		// Request only the specific FQDN
+		certDomains = []string{spec.FQDN}
 	}
 
 	request := certificate.ObtainRequest{
-		Domains: []string{certDomain},
+		Domains: certDomains,
 		Bundle:  true,
 	}
 
