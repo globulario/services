@@ -21,14 +21,12 @@ func getTLSCredentials() (credentials.TransportCredentials, error) {
 		domain = "localhost"
 	}
 
-	// Try multiple CA certificate locations
+	// Try canonical CA certificate locations (INV-PKI-1)
 	caPaths := []string{
 		config.GetLocalCACertificate(), // Try config-based lookup first
 		fmt.Sprintf("%s/.config/globular/tls/%s/ca.crt", os.Getenv("HOME"), domain),
-		"/var/lib/globular/pki/ca.pem",
-		"/var/lib/globular/pki/ca.crt",
-		"/var/lib/globular/config/tls/ca.pem",
-		"/var/lib/globular/config/tls/ca.crt",
+		"/var/lib/globular/pki/ca.pem",  // Canonical CA location
+		"/var/lib/globular/pki/ca.crt",  // Alternative CA extension
 	}
 
 	var caCert []byte
@@ -64,10 +62,6 @@ func getTLSCredentials() (credentials.TransportCredentials, error) {
 		{
 			cert: fmt.Sprintf("%s/.config/globular/tls/%s/client.crt", homeDir, domain),
 			key:  fmt.Sprintf("%s/.config/globular/tls/%s/client.key", homeDir, domain),
-		},
-		{
-			cert: "/var/lib/globular/tls/etcd/client.crt",
-			key:  "/var/lib/globular/tls/etcd/client.pem",
 		},
 	}
 

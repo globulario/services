@@ -680,18 +680,19 @@ func GetKeysDir() string {
 }
 
 // GetRuntimeTLSDir returns the location for auto-generated TLS materials (stateful).
+// INV-PKI-1: Updated to use canonical PKI service certificate directory.
 func GetRuntimeTLSDir() string {
-	// Canonical runtime TLS location (data plane/server certificates).
-	// Nested under /var/lib/globular/config/tls to match service expectations.
-	return filepath.Join(GetRuntimeConfigDir(), "config", "tls")
+	// Canonical PKI location for service certificates
+	return filepath.Join(GetRuntimeConfigDir(), "pki", "issued", "services")
 }
 
 // CanonicalTLSPaths returns the canonical TLS directory and files for data plane usage.
+// INV-PKI-1: Updated to use canonical PKI directory structure.
 func CanonicalTLSPaths(runtimeConfigDir string) (tlsDir, fullchain, privkey, ca string) {
-	tlsDir = filepath.Join(runtimeConfigDir, "config", "tls")
-	fullchain = filepath.Join(tlsDir, "fullchain.pem")
-	privkey = filepath.Join(tlsDir, "privkey.pem")
-	ca = filepath.Join(tlsDir, "ca.pem")
+	tlsDir = filepath.Join(runtimeConfigDir, "pki", "issued", "services")
+	fullchain = filepath.Join(tlsDir, "service.crt")
+	privkey = filepath.Join(tlsDir, "service.key")
+	ca = filepath.Join(runtimeConfigDir, "pki", "ca.pem")
 	return
 }
 
@@ -727,8 +728,9 @@ func GetLegacyCAPaths() []string {
 }
 
 // GetAdminTLSDir returns the location for admin-provided TLS files (read-only).
+// INV-PKI-1: Updated to use canonical PKI root directory.
 func GetAdminTLSDir() string {
-	return filepath.Join(GetConfigDir(), "tls")
+	return filepath.Join(GetConfigDir(), "pki")
 }
 
 // EnsureRuntimeDir verifies runtime paths do not resolve under /etc and creates them.

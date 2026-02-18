@@ -127,10 +127,7 @@ steps:
         owner: globular
         group: globular
         mode: 0750
-      - path: "{{.StateDir}}/config/tls"
-        owner: globular
-        group: globular
-        mode: 0750
+      # INV-PKI-1: Removed obsolete config/tls directory - all certs under pki/
 
   - id: install-${svc}-payload
     type: install_package_payload

@@ -501,20 +501,14 @@ func populateClientIdentity(client Client, cfg map[string]interface{}, isLocal b
 }
 
 // pickTLSBaseDir chooses a writable base dir.
-// Order: $GLOBULAR_TLS_DIR > config.GetConfigDir()+"/config/tls" if writable > ~/.config/globular/tls
+// Order: $GLOBULAR_TLS_DIR > ~/.config/globular/tls
+// INV-PKI-1: Removed obsolete config/tls fallback - client certs should be in user's home directory
 func pickTLSBaseDir() string {
 	if v := strings.TrimSpace(os.Getenv("GLOBULAR_TLS_DIR")); v != "" {
 		_ = os.MkdirAll(v, 0o755)
 		return v
 	}
-	sysBase := filepath.Join(config.GetConfigDir(), "config", "tls")
-	if err := os.MkdirAll(sysBase, 0o755); err == nil {
-		if f, e := os.CreateTemp(sysBase, ".wtest"); e == nil {
-			_ = f.Close()
-			_ = os.Remove(f.Name())
-			return sysBase
-		}
-	}
+	// Skip obsolete /var/lib/globular/config/tls fallback - go directly to user home
 	home := os.Getenv("XDG_CONFIG_HOME")
 	if home == "" {
 		home = filepath.Join(os.Getenv("HOME"), ".config")
