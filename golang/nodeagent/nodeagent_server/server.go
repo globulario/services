@@ -96,6 +96,7 @@ type NodeAgentServer struct {
 	controllerDialer         func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	controllerClientFactory  func(conn grpc.ClientConnInterface) clustercontrollerpb.ClusterControllerServiceClient
 	controllerClientOverride func(addr string) clustercontrollerpb.ClusterControllerServiceClient
+	lockAcquirer             func(context.Context, *planpb.NodePlan) (*planLockGuard, error)
 
 	// test hooks
 	syncDNSHook           func(*clustercontrollerpb.ClusterNetworkSpec) error
@@ -568,7 +569,11 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 	if plan == nil {
 		return
 	}
-	guard, err := srv.acquirePlanLocks(ctx, plan)
+	acquire := srv.acquirePlanLocks
+	if srv.lockAcquirer != nil {
+		acquire = srv.lockAcquirer
+	}
+	guard, err := acquire(ctx, plan)
 	if err != nil {
 		msg := fmt.Sprintf("lock acquisition failed: %v", err)
 		opID := plan.GetPlanId()
@@ -578,8 +583,9 @@ func (srv *NodeAgentServer) runStoredPlan(ctx context.Context, plan *planpb.Node
 		op := srv.registerOperationWithID("plan-runner", opID, nil)
 		op.broadcast(op.newEvent(clustercontrollerpb.OperationPhase_OP_FAILED, msg, 0, true, msg))
 		st := srv.newPlanStatus(plan)
-		st.State = planpb.PlanState_PLAN_PENDING
-		st.ErrorMessage = msg
+		st.State = planpb.PlanState_PLAN_FAILED
+		st.ErrorMessage = lockConflictMessage(err)
+		st.FinishedUnixMs = uint64(time.Now().UnixMilli())
 		srv.addPlanEvent(st, "error", msg, "")
 		srv.publishPlanStatus(ctx, st)
 		return
@@ -726,6 +732,14 @@ func (srv *NodeAgentServer) addPlanEvent(status *planpb.NodePlanStatus, level, m
 		Msg:      msg,
 		StepId:   stepID,
 	})
+}
+
+func lockConflictMessage(err error) string {
+	msg := strings.TrimSpace(err.Error())
+	if msg == "" {
+		return "LOCK_CONFLICT"
+	}
+	return "LOCK_CONFLICT: " + msg
 }
 
 func (srv *NodeAgentServer) publishPlanStatus(ctx context.Context, status *planpb.NodePlanStatus) {
