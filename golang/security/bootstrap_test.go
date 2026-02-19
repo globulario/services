@@ -21,7 +21,7 @@ func TestBootstrapGate_Disabled(t *testing.T) {
 	os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
 	authCtx := &AuthContext{
-		GRPCMethod: "/rbac.RbacService/CreateAccount",
+		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 		IsLoopback: true,
 	}
 
@@ -44,7 +44,7 @@ func TestBootstrapGate_EnvVar(t *testing.T) {
 	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
 	authCtx := &AuthContext{
-		GRPCMethod: "/rbac.RbacService/CreateAccount",
+		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 		IsLoopback: true,
 	}
 
@@ -90,7 +90,7 @@ func TestBootstrapGate_FlagFile(t *testing.T) {
 	os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
 	authCtx := &AuthContext{
-		GRPCMethod: "/rbac.RbacService/CreateAccount",
+		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 		IsLoopback: true,
 	}
 
@@ -136,7 +136,7 @@ func TestBootstrapGate_Expired(t *testing.T) {
 	os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
 	authCtx := &AuthContext{
-		GRPCMethod: "/rbac.RbacService/CreateAccount",
+		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 		IsLoopback: true,
 	}
 
@@ -158,7 +158,7 @@ func TestBootstrapGate_NonLoopback(t *testing.T) {
 	defer os.Unsetenv("GLOBULAR_BOOTSTRAP")
 
 	authCtx := &AuthContext{
-		GRPCMethod: "/rbac.RbacService/CreateAccount",
+		GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 		IsLoopback: false, // Remote request
 	}
 
@@ -204,8 +204,8 @@ func TestBootstrapGate_AllowedMethods(t *testing.T) {
 
 	allowedMethods := []string{
 		"/grpc.health.v1.Health/Check",
-		"/rbac.RbacService/CreateAccount",
-		"/rbac.RbacService/CreateRole",
+		"/rbac.RbacService/SetRoleBinding",
+		"/rbac.RbacService/ListRoleBindings",
 		"/authentication.AuthenticationService/Authenticate",
 		"/resource.ResourceService/CreatePeer",
 		"/dns.DnsService/CreateZone",
@@ -246,7 +246,7 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 			setupEnv:   func() { os.Unsetenv("GLOBULAR_BOOTSTRAP") },
 			cleanupEnv: func() {},
 			authCtx: &AuthContext{
-				GRPCMethod: "/rbac.RbacService/CreateAccount",
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: true,
 			},
 			wantAllowed: false,
@@ -267,7 +267,7 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 			setupEnv:   func() { os.Unsetenv("GLOBULAR_BOOTSTRAP") },
 			cleanupEnv: func() {},
 			authCtx: &AuthContext{
-				GRPCMethod: "/rbac.RbacService/CreateAccount",
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: true,
 			},
 			wantAllowed: false,
@@ -284,7 +284,7 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 				os.Unsetenv("GLOBULAR_BOOTSTRAP")
 			},
 			authCtx: &AuthContext{
-				GRPCMethod: "/rbac.RbacService/CreateAccount",
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: false, // Remote!
 			},
 			wantAllowed: false,
@@ -318,7 +318,7 @@ func TestBootstrapGate_FourGatesOrdered(t *testing.T) {
 				os.Unsetenv("GLOBULAR_BOOTSTRAP")
 			},
 			authCtx: &AuthContext{
-				GRPCMethod: "/rbac.RbacService/CreateAccount",
+				GRPCMethod: "/rbac.RbacService/SetRoleBinding",
 				IsLoopback: true,
 			},
 			wantAllowed: true,
@@ -378,7 +378,7 @@ func TestBootstrapGate_IntegrationWithAuthContext(t *testing.T) {
 	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: addr})
 
 	// Create AuthContext
-	authCtx, err := NewAuthContext(ctx, "/rbac.RbacService/CreateAccount")
+	authCtx, err := NewAuthContext(ctx, "/rbac.RbacService/SetRoleBinding")
 	if err != nil {
 		t.Fatalf("NewAuthContext() error = %v", err)
 	}

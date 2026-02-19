@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/user"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -59,7 +61,7 @@ var bootstrapAllowedMethods = map[string]bool{
 
 	// RBAC role-binding setup (required for seeding operator/SA roles during Day-0)
 	// Protected by 30-min window + loopback-only + audit logging.
-	// Full management-method protection is a v1.1 item.
+	// Post-bootstrap, these methods are protected by handler-level admin role check.
 	"/rbac.RbacService/SetRoleBinding":   true,
 	"/rbac.RbacService/GetRoleBinding":   true,
 	"/rbac.RbacService/ListRoleBindings": true,
@@ -268,20 +270,21 @@ func (g *BootstrapGate) readBootstrapState() (*BootstrapState, error) {
 		return nil, fmt.Errorf("insecure permissions %o (must be 0600)", perm)
 	}
 
-	// Security: File must be owned by root (uid 0) or globular service user
-	// Blocker Fix #2: Strict ownership check - only root or globular user allowed
+	// Security: File must be owned by root (uid 0) or the globular service user.
+	// Blocker Fix #2: Strict ownership check - only root or globular user allowed.
 	if !g.skipOwnershipCheck {
 		if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-			// Determine globular service UID (if running as service user)
-			globularUID := uint32(0) // Default: only root
-
-			// TODO: Get actual globular service UID from config or environment
-			// For now, allow only root (uid 0)
-			// In production with service user: globularUID = <actual-globular-uid>
+			// Resolve the globular service user UID at runtime via OS user database.
+			// Falls back to root-only (uid 0) if the "globular" user does not exist.
+			globularUID := uint32(0)
+			if u, err := user.Lookup("globular"); err == nil {
+				if uid, err := strconv.ParseUint(u.Uid, 10, 32); err == nil {
+					globularUID = uint32(uid)
+				}
+			}
 
 			if stat.Uid != 0 && stat.Uid != globularUID {
-				// Reject: Not root and not globular service user
-				return nil, fmt.Errorf("file owned by uid %d (must be root:0 or globular service user)", stat.Uid)
+				return nil, fmt.Errorf("file owned by uid %d (must be root:0 or globular service user uid:%d)", stat.Uid, globularUID)
 			}
 		}
 	}
