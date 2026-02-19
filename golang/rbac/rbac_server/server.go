@@ -968,17 +968,14 @@ func main() {
 		logger.Info("bigcache store opened successfully")
 	}
 
-	// Scylla db
-	host, _ := config.GetAddress()
-	if strings.Contains(host, ":") {
-		parts := strings.Split(host, ":")
-		host = parts[0]
-	}
-
+	// Scylla db — always connect to localhost since Scylla runs on the same node
+	// (systemd: After=scylla-server.service). Scylla is configured with
+	// rpc_address: 127.0.0.1, so using the node IP causes "connection refused".
+	var host string
 	if !srv.GetTls() {
-		host += ":9042"
+		host = "127.0.0.1:9042"
 	} else {
-		host += ":9142"
+		host = "127.0.0.1:9142"
 	}
 
 	// Build JSON options for the store
