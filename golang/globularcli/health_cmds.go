@@ -17,7 +17,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -424,19 +423,10 @@ func checkDNS(ctx context.Context) HealthCheckResult {
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 
-	// Get TLS credentials for secure connection
-	creds, err := getTLSCredentials()
+	cc, err := dialGRPC(address)
 	if err != nil {
 		result.OK = false
-		result.Details = fmt.Sprintf("TLS setup error: %v", err)
-		return result
-	}
-
-	// Try to connect to DNS service gRPC port
-	cc, err := grpc.Dial(address, grpc.WithTransportCredentials(creds), grpc.WithBlock(), grpc.WithTimeout(3*time.Second))
-	if err != nil {
-		result.OK = false
-		result.Details = fmt.Sprintf("dns service unreachable on %s", address)
+		result.Details = fmt.Sprintf("dns service unreachable on %s: %v", address, err)
 		return result
 	}
 	defer cc.Close()

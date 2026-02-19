@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 	logpb "github.com/globulario/services/golang/log/logpb"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -62,20 +61,7 @@ func tryLogServerRPC(serviceName string) error {
 	// For now, assume it's on localhost:10030 or similar
 	logServerAddr := getEnv("LOG_SERVER_ADDR", "localhost:10030")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	// Get TLS credentials for secure connection
-	creds, err := getTLSCredentials()
-	if err != nil {
-		return fmt.Errorf("TLS setup error: %w", err)
-	}
-
-	cc, err := grpc.DialContext(ctx,
-		logServerAddr,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithBlock(),
-	)
+	cc, err := dialGRPC(logServerAddr)
 	if err != nil {
 		return fmt.Errorf("connect to log_server: %w", err)
 	}

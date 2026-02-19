@@ -17,7 +17,6 @@ import (
 	clustercontrollerpb "github.com/globulario/services/golang/clustercontroller/clustercontrollerpb"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/plan/planpb"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -736,17 +735,7 @@ func createDNSRecord(ctx context.Context, serviceType string) DeploymentStepResu
 		dnsAddr = addr
 	}
 
-	// Get TLS credentials for secure connection
-	creds, err := getTLSCredentials()
-	if err != nil {
-		return DeploymentStepResult{
-			Name:    "create-dns",
-			OK:      false,
-			Details: fmt.Sprintf("TLS setup error: %v", err),
-		}
-	}
-
-	conn, err := grpc.Dial(dnsAddr, grpc.WithTransportCredentials(creds), grpc.WithBlock())
+	conn, err := dialGRPC(dnsAddr)
 	if err != nil {
 		return DeploymentStepResult{
 			Name:    "create-dns",
@@ -1026,13 +1015,7 @@ func removeDNSRecord(ctx context.Context, fqdn string) error {
 		dnsAddr = addr
 	}
 
-	// Get TLS credentials for secure connection
-	creds, err := getTLSCredentials()
-	if err != nil {
-		return fmt.Errorf("TLS setup error: %w", err)
-	}
-
-	conn, err := grpc.Dial(dnsAddr, grpc.WithTransportCredentials(creds), grpc.WithBlock())
+	conn, err := dialGRPC(dnsAddr)
 	if err != nil {
 		return fmt.Errorf("connect to DNS: %w", err)
 	}
